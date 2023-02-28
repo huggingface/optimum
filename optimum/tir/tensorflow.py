@@ -5,13 +5,13 @@ from iree.compiler import compile_str
 from iree.compiler import tf as tfc
 from iree._runtime import HalDevice
 # from transformers import TFPreTrainedModel
-from tir import TirTarget, TirDispatcher
+from tir import TirConfig, TirDispatcher, TirTarget
 
 
 class TensorflowDispatcher(TirDispatcher):
 
-    def __init__(self, model, target: TirTarget, use_tflite: bool = False):
-        super().__init__(model, target)
+    def __init__(self, model, target: TirTarget, config: TirConfig, use_tflite: bool = False):
+        super().__init__(model, target, config)
         self._use_tflite = use_tflite
 
     def validate_forward_inputs(self, *args, **kwargs):

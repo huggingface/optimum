@@ -15,7 +15,7 @@ class TirDispatcher(ABC):
     """
     The registry is an associative storage which keeps track all the succeeded compilations.
     """
-    __slots__ = ("_model", "_target", "_executor", "_cache", "_parameters")
+    __slots__ = ("_model", "_target", "_config", "_executor", "_cache", "_parameters")
 
     @staticmethod
     def for_frontend(model, target: TirTarget, config: TirConfig) -> "TirDispatcher":
@@ -35,9 +35,10 @@ class TirDispatcher(ABC):
         LOGGER.error("At least torch or tensorflow needs to be installed.")
         raise ImportError(f"Unsupported model type {type(model)}. Only pytorch and tensorflow are supported")
 
-    def __init__(self, model, target: TirTarget):
+    def __init__(self, model, target: TirTarget, config: TirConfig):
         self._model = model
         self._target = target
+        self._config = config
         self._executor = None
         self._validator = None
         self._cache = dict()
@@ -61,51 +62,12 @@ class TirDispatcher(ABC):
         else:
             LOGGER.debug(f"Cache miss for dispatch key: {key}.")
             exported_module = self.export_model_to_mlir(self._model, self._target, curated_args)
-            inferred_compiler_args = self.compiler_args_for_target(exported_module)
+            inferred_compiler_args = self._config.get_compiler_args()
             dispatch = self.compile_from_mlir(exported_module, self._target, None, inferred_compiler_args)
             self._cache[key] = dispatch
 
         # TODO : Remove this dict because it's TensorFlow only.
         return self._internal_call(dispatch, curated_args)
-
-    def compiler_args_for_target(self, mlir_module) -> List[str]:
-        extra_args = [
-            "--compile-mode=std",
-            "--cost-kind=latency",
-            "--iree-opt-const-eval",
-            "--iree-opt-const-expr-hoisting",
-            "--iree-opt-strip-assertions",
-            "--iree-opt-numeric-precision-reduction"
-        ]
-
-        if "OPTIMUM_TIR_MLIR_PRINT" in os.environ and os.environ["OPTIMUM_TIR_MLIR_PRINT"] in {"1", "ON"}:
-            extra_args += [
-                # "--mlir-print-elementsattrs-with-hex-if-larger=100000",
-                # "--mlir-print-ir-before-all",
-            ]
-
-        if self._target == TirTarget.COMPILED_CPU:
-            extra_args += [
-                "--iree-llvm-target-cpu-features=host",
-                "--iree-mhlo-demote-i64-to-i32=false",
-                "--iree-stream-resource-index-bits=64",
-                "--iree-vm-target-index-bits=64",
-                # "--iree-llvm-target-float-abi=hard",
-                # "--iree-llvm-slp-vectorization",
-                # "--iree-llvm-loop-interleaving",
-                # "--iree-llvm-loop-unrolling",
-                # "--iree-llvm-loop-vectorization",
-                # "--iree-flow-demote-i64-to-i32",
-                # "--iree-flow-enable-linalg-detensorize",
-            ]
-        elif self._target is TirTarget.COMPILED_CUDA:
-            extra_args += [
-                "--iree-hal-cuda-disable-loop-nounroll-wa",
-            ]
-
-            # Enable tensor core?
-            # "--iree-flow-demote-f32-to-f16"
-        return extra_args
 
     @abstractmethod
     def export_model_to_mlir(self, model, target: TirTarget, examples: Optional = None, dynamic_axes: List[int] = None):

@@ -66,12 +66,12 @@ class TirConfig:
         self.flags.append(f"--iree-hal-cuda-llvm-target-arch={target_sm}")
         return self
 
-    # def get_compiler_args(self) -> List[str]:
-    #     """
-    #
-    #     :return:
-    #     """
-    #     return self.flags
+    def get_compiler_args(self) -> List[str]:
+        """
+        Return the flags to be forwarded to IREE's compiler
+        :return:
+        """
+        return self.flags
 
     def get_tuned_parameters_for_device(self, device: TirTarget) -> Optional[Dict[str, Any]]:
         """

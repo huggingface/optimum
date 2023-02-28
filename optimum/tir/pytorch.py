@@ -14,7 +14,7 @@ from transformers import BatchEncoding, PreTrainedModel
 from transformers.utils.logging import get_logger
 from torch_mlir import compile as torch_mlir_compile, ExampleArgs, TensorPlaceholder, OutputType
 
-from tir import TirDispatcher, TirTarget
+from tir import TirDispatcher, TirTarget, TirConfig
 
 LOGGER = get_logger("tir.pytorch")
 
@@ -36,8 +36,8 @@ class _TirOutputWrapper(nn.Module):
 
 class TorchDispatcher(TirDispatcher):
 
-    def __init__(self, model: Union[PreTrainedModel, nn.Module], target: TirTarget):
-        super().__init__(sanitize_pretrained_model_for_mlir(model), target)
+    def __init__(self, model: Union[PreTrainedModel, nn.Module], target: TirTarget, config: TirConfig):
+        super().__init__(sanitize_pretrained_model_for_mlir(model), target, config)
 
         if not isinstance(model, (PreTrainedModel, nn.Module)):
             raise ValueError(f"Invalid model type, awaiting PreTrainedModel or torch.nn.Module, got: {type(model)}.")
@@ -50,11 +50,7 @@ class TorchDispatcher(TirDispatcher):
         return list(model_call_signature.parameters.keys())
 
     @staticmethod
-    def internal_compile_to_vmfb(
-        mlir_module,
-        target_backend: str,
-        extra_args: List[str] = None,
-    ):
+    def internal_compile_to_vmfb(mlir_module, target: TirTarget, extra_args: List[str] = None):
         """
         This method is copy/pasted from torch-mlir but adds `extra-args` to give some more argument to the compiler.
         :param mlir_module:
@@ -76,7 +72,7 @@ class TorchDispatcher(TirDispatcher):
 
         return iree_compile_str(
             bytecode,
-            target_backends=[target_backend],
+            target_backends=[target.value],
             input_type=InputType.TM_TENSOR,
             extra_args=extra_args
         )
@@ -127,22 +123,9 @@ class TorchDispatcher(TirDispatcher):
         LOGGER.info(f"Compilation of MLIR module to {target} (device={device}).")
         LOGGER.debug(f"Compilation MLIR module with arguments: {compiler_args}.")
 
-        vmfb = TorchDispatcher.internal_compile_to_vmfb(mlir_module, target.value, compiler_args)
+        vmfb = TorchDispatcher.internal_compile_to_vmfb(mlir_module, target, compiler_args)
         module = load_vmfb(vmfb, target.value)
         return module.forward
-
-    def compiler_args_for_target(self, mlir_module) -> List[str]:
-        extra_args = super().compiler_args_for_target(mlir_module)
-
-        if self._target == TirTarget.COMPILED_CUDA:
-            if torch.cuda.is_available() and torch.cuda.device_count() > 0:
-                cuda_device_properties = torch.cuda.get_device_properties(0)
-                cuda_llvm_target_arch = f"sm_{cuda_device_properties.major}{cuda_device_properties.minor}"
-                extra_args.append(f"--iree-hal-cuda-llvm-target-arch={cuda_llvm_target_arch}")
-
-                LOGGER.debug(f"Detected CUDA LLVM target: {cuda_llvm_target_arch} ({cuda_device_properties}).")
-
-        return extra_args
 
     def _internal_call(self, dispatch: Callable, curated_args):
         if LOGGER.isEnabledFor(DEBUG):
