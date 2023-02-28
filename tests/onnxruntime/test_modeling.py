@@ -3195,10 +3195,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         # Translation
         pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
         text = "This is a test"
-        if model_arch in ["m2m_100", "mbart"]:
-            outputs = pipe(text, src_lang="en", tgt_lang="fr")
-        else:
-            outputs = pipe(text)
+        outputs = pipe(text)
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["translation_text"], str)
 
