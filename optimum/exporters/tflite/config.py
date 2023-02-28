@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Common TensorFlow Lite configuration classes that handle most of the features for building model specific 
+Common TensorFlow Lite configuration classes that handle most of the features for building model specific
 configurations.
 """
 

@@ -141,7 +141,7 @@ SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
 VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
     Args:
         pixel_values (`torch.FloatTensor`):
-            Features extracted from an Image. This tensor should be of shape 
+            Features extracted from an Image. This tensor should be of shape
             `(batch_size, num_channels, height, width)`.
         decoder_input_ids (`torch.LongTensor`):
             Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, decoder_sequence_length)`.
