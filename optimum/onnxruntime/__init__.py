@@ -67,7 +67,7 @@ try:
     if not is_diffusers_available():
         raise OptionalDependencyNotAvailable()
 except OptionalDependencyNotAvailable:
-    pass
+    _import_structure[".utils.dummy_diffusers_objects"] = ["ORTStableDiffusionPipeline"]
 else:
     _import_structure["modeling_diffusion"] = ["ORTStableDiffusionPipeline"]
 
@@ -112,7 +112,7 @@ if TYPE_CHECKING:
         if not is_diffusers_available():
             raise OptionalDependencyNotAvailable()
     except OptionalDependencyNotAvailable:
-        pass
+        from ..utils.dummy_diffusers_objects import ORTStableDiffusionPipeline
     else:
         from .modeling_diffusion import ORTStableDiffusionPipeline
 else:
