@@ -54,7 +54,7 @@ class TorchDispatcher(TirDispatcher):
         """
         This method is copy/pasted from torch-mlir but adds `extra-args` to give some more argument to the compiler.
         :param mlir_module:
-        :param target_backend:
+        :param target:
         :param extra_args:
         :return:
         """
@@ -66,9 +66,6 @@ class TorchDispatcher(TirDispatcher):
         bytecode_stream = BytesIO()
         mlir_module.operation.write_bytecode(bytecode_stream)
         bytecode = bytecode_stream.getvalue()
-
-        with open("mlir/bert_tiny.mlir", "w", encoding="utf-8") as f:
-            f.write(str(mlir_module))
 
         return iree_compile_str(
             bytecode,
