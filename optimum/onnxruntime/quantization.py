@@ -33,6 +33,7 @@ from ..quantization_base import OptimumQuantizer
 from ..utils.save_utils import maybe_save_preprocessors
 from . import ORTQuantizableOperator
 from .configuration import CalibrationConfig, NodeName, NodeType, ORTConfig, QuantizationConfig
+from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForConditionalGeneration
 from .preprocessors import QuantizationPreprocessor
@@ -127,13 +128,26 @@ class ORTQuantizer(OptimumQuantizer):
         Returns:
             An instance of `ORTQuantizer`.
         """
-        ort_quantizer_error_message = "ORTQuantizer does not support multi-file quantization. Please create separate ORTQuantizer instances for each model/file."
+        ort_quantizer_error_message = "ORTQuantizer does not support multi-file quantization. Please create separate ORTQuantizer instances for each model/file, by passing the argument `file_name` to ORTQuantizer.from_pretrained()."
 
         if isinstance(model_or_path, str):
             model_or_path = Path(model_or_path)
 
+        path = None
         if isinstance(model_or_path, ORTModelForConditionalGeneration):
-            raise ValueError(ort_quantizer_error_message)
+            raise NotImplementedError(ort_quantizer_error_message)
+        elif isinstance(model_or_path, ORTModelForCausalLM):
+            if model_or_path.use_cache is False:
+                path = Path(model_or_path.decoder_model_path)
+            elif model_or_path.use_cache is True and model_or_path.use_merged is False:
+                raise NotImplementedError(ort_quantizer_error_message)
+            else:
+                raise NotImplementedError(
+                    "ORTQuantizer does not support ORTModelForCausalLM models that use a single ONNX for both the without/with past cases."
+                    " Please pass an ORTModelForCausalLM that uses a separate ONNX for each without/with past cases. This can be done"
+                    " by using `ORTModelForCausalLM.from_pretrained(..., from_transformers=True, use_merged=False)`, or by"
+                    " using the option `--no-post-process` in the optimum-cli ONNX export tool."
+                )
         elif isinstance(model_or_path, Path) and file_name is None:
             onnx_files = list(model_or_path.glob("*.onnx"))
             if len(onnx_files) == 0:
@@ -144,9 +158,9 @@ class ORTQuantizer(OptimumQuantizer):
                 )
             file_name = onnx_files[0].name
 
-        path = None
         if isinstance(model_or_path, ORTModel):
-            path = Path(model_or_path.model._model_path)
+            if path is None:
+                path = Path(model_or_path.model._model_path)
         elif os.path.isdir(model_or_path):
             path = Path(model_or_path) / file_name
         else:
