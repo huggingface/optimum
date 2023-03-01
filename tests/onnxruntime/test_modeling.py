@@ -2020,7 +2020,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         if "causal-lm-with-past" not in TasksManager.get_supported_tasks_for_model_type(
             model_arch.replace("_", "-"), exporter="onnx"
         ):
-            self.skipTest("Unsupported export case")
+            self.skipTest("Unsupported -with-past export case")
 
         model_id = MODEL_NAMES[model_arch]
         model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_merged=True)
@@ -2030,8 +2030,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
 
             folder_contents = os.listdir(tmpdir)
-            self.assertFalse(ONNX_DECODER_NAME in folder_contents)
-            self.assertFalse(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
@@ -2050,13 +2050,16 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
             model = ORTModelForCausalLM.from_pretrained(tmpdir)
 
+            self.assertTrue(model.use_merged)
+            self.assertTrue(model.decoder_with_past is None)
+
             model.save_pretrained(tmpdir + "_save")
             save_path = os.path.join(tmpdir + "_save", ONNX_DECODER_MERGED_NAME)
             self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
 
             folder_contents = os.listdir(tmpdir + "_save")
-            self.assertFalse(ONNX_DECODER_NAME in folder_contents)
-            self.assertFalse(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
@@ -3123,15 +3126,23 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         tokens = tokenizer("This is a sample output", return_tensors="pt")
         decoder_start_token_id = transformers_model.config.decoder_start_token_id if model_arch != "mbart" else 2
         decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
-        onnx_outputs = onnx_model(**tokens, **decoder_inputs)
-
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
 
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens, **decoder_inputs)
-        # Compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+
+        for input_type in ["pt", "np"]:
+            tokens = tokenizer("This is a sample output", return_tensors=input_type)
+
+            if input_type == "np":
+                decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id}
+
+            onnx_outputs = onnx_model(**tokens, **decoder_inputs)
+
+            self.assertTrue("logits" in onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # Compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
 
@@ -3698,15 +3709,23 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         start_token = "<s>"
         decoder_start_token_id = tokenizer.encode(start_token)[0]
         decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
-        onnx_outputs = onnx_model(**features, **decoder_inputs)
-
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
 
         with torch.no_grad():
             transformers_outputs = transformers_model(**features, **decoder_inputs)
-        # Compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-3))
+
+        for input_type in ["pt", "np"]:
+            features = feature_extractor(data, return_tensors=input_type)
+
+            if input_type == "np":
+                decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id}
+
+            onnx_outputs = onnx_model(**features, **decoder_inputs)
+
+            self.assertTrue("logits" in onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # Compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-3))
 
         gc.collect()
 

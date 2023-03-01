@@ -14,7 +14,6 @@
 # limitations under the License.
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
-import os
 from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
@@ -116,8 +115,6 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
                 )
             except Exception as e:
                 raise Exception(f"Unable to merge decoders. Detailed error: {e}")
-            os.remove(decoder_path)
-            os.remove(decoder_with_past_path)
 
             # In order to do the validation of the two branches on the same file
             onnx_files_subpaths = [decoder_merged_path.name, decoder_merged_path.name]
