@@ -54,6 +54,7 @@ EXTRAS_REQUIRE = {
         "protobuf>=3.20.1",
     ],
     "exporters": ["onnx", "onnxruntime", "timm"],
+    "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
     "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm", "h5py", "numpy<1.24.0"],
     "intel": "optimum-intel",
     "openvino": "optimum-intel[openvino]",
