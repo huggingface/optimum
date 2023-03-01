@@ -199,6 +199,9 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
+        if provider == "TensorrtExecutionProvider":
+            raise ValueError("The provider `'TensorrtExecutionProvider'` is not supported")
+
         model_id = str(model_id)
         sub_models_to_load, _, _ = cls.extract_init_dict(config)
         sub_models_names = set(sub_models_to_load.keys()).intersection({"feature_extractor", "tokenizer", "scheduler"})

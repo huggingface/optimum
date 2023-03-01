@@ -712,40 +712,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model.vae_decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
         )
 
-        # two providers case
-        model = ORTStableDiffusionPipeline.from_pretrained(
-            self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID,
-            provider="TensorrtExecutionProvider",
-        )
-        self.assertEqual(
-            model.unet.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "0"
-        )
-        self.assertEqual(
-            model.text_encoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"],
-            "0",
-        )
-        self.assertEqual(
-            model.vae_decoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"],
-            "0",
-        )
-
-        model = ORTStableDiffusionPipeline.from_pretrained(
-            self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID,
-            provider="TensorrtExecutionProvider",
-            provider_options={"trt_engine_cache_enable": True},
-        )
-        self.assertEqual(
-            model.unet.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "1"
-        )
-        self.assertEqual(
-            model.text_encoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"],
-            "1",
-        )
-        self.assertEqual(
-            model.vae_decoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"],
-            "1",
-        )
-
     def test_stable_diffusion_model_on_cpu(self):
         model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)
         cpu = torch.device("cpu")
@@ -4053,9 +4019,7 @@ class ORTStableDiffusionPipelineIntegrationTest(ORTModelTestMixin):
         self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
 
     @parameterized.expand(
-        grid_parameters(
-            {"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}
-        )
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
     )
     @require_torch_gpu
     @pytest.mark.gpu_test
