@@ -159,6 +159,18 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
     pass
 
 
+class FNetOnnxConfig(BertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 17
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "multiple-choice":
+            dynamic_axis = {0: "batch_size", 1: "num_choices", 2: "sequence_length"}
+        else:
+            dynamic_axis = {0: "batch_size", 1: "sequence_length"}
+        return {"input_ids": dynamic_axis, "token_type_ids": dynamic_axis}  # no attention_mask
+
+
 class GPT2OnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
