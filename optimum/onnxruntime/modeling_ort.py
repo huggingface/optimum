@@ -621,6 +621,18 @@ class ORTModel(OptimizedModel):
         kwargs (`Dict[str, Any]`):
             Will be passed to the underlying model loading methods.
 
+        > Parameters for decoder models (ORTModelForCausalLM, ORTModelForSeq2SeqLM, ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq, ORTModelForVision2Seq)
+
+        use_cache (`Optional[bool]`, defaults to `True`):
+            Whether or not past key/values cache should be used. Defaults to `True`.
+
+        > Parameters for ORTModelForCausalLM
+
+        use_merged (`Optional[bool]`, defaults to `None`):
+            whether or not to use a single ONNX that handles both the decoding without and with past key values reuse. This option defaults
+            to `True` if loading from a local repository and a merged decoder is found. When exporting with `from_transformers=True`,
+            defaults to `False`. This option should be set to `True` to minimize memory usage.
+
         Returns:
             `ORTModel`: The loaded ORTModel model.
         """
