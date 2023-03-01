@@ -411,7 +411,7 @@ class ORTModelDecoder(ORTModel):
 
         ort_inference_sessions = cls.load_model(
             decoder_path=decoder_path,
-            decoder_with_past_path=None if use_merged is True else decoder_with_past_path,
+            decoder_with_past_path=None if use_merged is True or use_cache is False else decoder_with_past_path,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
