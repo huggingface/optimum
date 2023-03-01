@@ -66,12 +66,23 @@ def _create_name_sharing_dict(
     """
 
     name_sharing_dict = {}
+    used_common_names = {}
     for duplicates in duplicate_weights.values():
         common_name, model_id = duplicates.pop()
+
+        # this is needed in case two different groups of shared initializers may share the same name, for example onnx::MatMul_2295 in the first
+        # model, and onnx::MatMul_2295 in the second model, although point to different data
+        if common_name in used_common_names:
+            used_common_names[common_name] += 1
+        else:
+            used_common_names[common_name] = 0
+
         duplicates.add((common_name, model_id))
         for k in duplicates:
             assert k not in name_sharing_dict
-            name_sharing_dict[k] = f"{common_name}_{suffix}" if suffix != "" else f"{common_name}"
+            name_sharing_dict[k] = (
+                f"{common_name}_{suffix}_{used_common_names[common_name]}" if suffix != "" else f"{common_name}"
+            )
 
     return name_sharing_dict
 

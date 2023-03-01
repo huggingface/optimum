@@ -277,9 +277,9 @@ class TasksManager:
         ),
         "codegen": supported_tasks_mapping(
             "default",
-            # "default-with-past",
+            "default-with-past",
             "causal-lm",
-            # "causal-lm-with-past",
+            "causal-lm-with-past",
             onnx="CodeGenOnnxConfig",
         ),
         "convbert": supported_tasks_mapping(
