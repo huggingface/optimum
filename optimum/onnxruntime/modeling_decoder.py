@@ -286,6 +286,7 @@ class ORTModelDecoder(ORTModel):
             save_directory (`str` or `Path`):
                 The directory where to save the model files.
         """
+        save_directory = Path(save_directory)
         src_paths = [Path(path) for path in self.onnx_paths]
         dst_paths = [save_directory / path.name for path in src_paths]
 
