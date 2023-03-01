@@ -1,3 +1,17 @@
+#  Copyright 2023 The HuggingFace Team. All rights reserved.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import importlib
 import logging
 import os
@@ -54,13 +68,12 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         vae_decoder_session: ort.InferenceSession,
         text_encoder_session: ort.InferenceSession,
         unet_session: ort.InferenceSession,
+        config: Dict[str, Any],
         tokenizer: CLIPTokenizer,
         scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
-        config: Dict[str, Any],
         feature_extractor: Optional[CLIPFeatureExtractor] = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        **kwargs,
     ):
         """
         Args:
@@ -70,14 +83,14 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
                 The ONNX Runtime inference session associated to the text encoder.
             unet_session (`ort.InferenceSession`):
                 The ONNX Runtime inference session associated to the U-NET.
+            config (`Dict[str, Any]`):
+                A config dictionary from which the model components will be instantiated. Make sure to only load
+                configuration files of compatible classes.
             tokenizer (`CLIPTokenizer`):
                 Tokenizer of class
                 [CLIPTokenizer](https://huggingface.co/docs/transformers/v4.21.0/en/model_doc/clip#transformers.CLIPTokenizer).
             scheduler (`Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler]`):
                 A scheduler to be used in combination with the U-NET component to denoise the encoded image latents.
-            config (`Dict[str, Any]`):
-                A config dictionary from which the model components will be instantiated. Make sure to only load
-                configuration files of compatible classes.
             feature_extractor (`Optional[CLIPFeatureExtractor]`, defaults to `None`):
                 A model extracting features from generated images to be used as inputs for the `safety_checker`
             use_io_binding (`Optional[bool]`, defaults to `None`):
@@ -152,7 +165,6 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         vae_decoder_file_name: str = ONNX_WEIGHTS_NAME,
         text_encoder_file_name: str = ONNX_WEIGHTS_NAME,
         unet_file_name: str = ONNX_WEIGHTS_NAME,
-        **kwargs,
     ):
         save_directory = Path(save_directory)
         src_to_dst_path = {
@@ -261,12 +273,12 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
 
         return cls(
             *inference_sessions,
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
+            config=config,
             tokenizer=sub_models["tokenizer"],
             scheduler=sub_models["scheduler"],
             feature_extractor=sub_models.pop("feature_extractor", None),
-            config=config,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
         )
 
     @classmethod
