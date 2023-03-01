@@ -1,4 +1,5 @@
-# Copyright 2023 The HuggingFace Inc. team. All rights reserved.
+# coding=utf-8
+# Copyright 2023 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,11 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-def recurse_setattr(module, name, value):
-    """A function to recursively set attributes to a module."""
-    if "." not in name:
-        setattr(module, name, value)
-    else:
-        name, rest = name.split(".", 1)
-        recurse_setattr(getattr(module, name), rest, value)
+from .pipelines_base import (
+    MAPPING_LOADING_FUNC,
+    ORT_SUPPORTED_TASKS,
+    load_bettertransformer,
+    load_ort_pipeline,
+    pipeline,
+)

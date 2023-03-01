@@ -13,10 +13,8 @@
 # limitations under the License.
 
 
-def recurse_setattr(module, name, value):
-    """A function to recursively set attributes to a module."""
-    if "." not in name:
-        setattr(module, name, value)
-    else:
-        name, rest = name.split(".", 1)
-        recurse_setattr(getattr(module, name), rest, value)
+CONFIG_NAME = "config.json"
+DIFFUSION_MODEL_UNET_SUBFOLDER = "unet"
+DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER = "text_encoder"
+DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER = "vae_decoder"
+DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER = "vae_encoder"
