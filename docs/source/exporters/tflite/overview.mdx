@@ -12,9 +12,9 @@ specific language governing permissions and limitations under the License.
 
 # Overview
 
-🤗 Optimum handles the export of TensorFlow models to TFLite in the `exporters.tflite` module. In addition, models hosted on the Hugging Face Hub with PyTorch weights but having a TensorFlow implementation will also be supported in the export thanks to transformers' [TFPreTrainedModel.from_pretrained()](https://huggingface.co/docs/transformers/main/en/main_classes/model#transformers.TFPreTrainedModel.from_pretrained) auto-conversion to TensorFlow.
+🤗 Optimum handles the export of TensorFlow models to TFLite in the `exporters.tflite` module. In addition, models hosted on the Hugging Face Hub with PyTorch weights but having a TensorFlow implementation will also be supported in the export thanks to Transformers' [TFPreTrainedModel.from_pretrained()](https://huggingface.co/docs/transformers/main/en/main_classes/model#transformers.TFPreTrainedModel.from_pretrained) auto-conversion to TensorFlow.
 
-The TFLite export support provides classes, functions, and a command line interface to perform the export easily.
+The TFLite export support provides classes, functions and a command line interface to export a model easily.
 
 Supported architectures:
 
