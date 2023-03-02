@@ -74,7 +74,7 @@
       isExpanded: false
     title: "ONNX"
   - sections:
-    - local: exporters/onnx/overview
+    - local: exporters/tflite/overview
       title: Overview
     - sections:
       - local: exporters/tflite/usage_guides/export_a_model
