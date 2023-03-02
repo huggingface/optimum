@@ -28,17 +28,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Ty
 # Integrations must be imported before ML frameworks:
 from transformers.integrations import hp_params, is_fairscale_available  # isort: split
 
-
-
-# Integrations must be imported before ML frameworks:
-# isort: off
-from transformers.integrations import (
-    hp_params,
-    is_fairscale_available,
-)
-
-# isort: on
-
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -140,23 +129,48 @@ SCALER_NAME = "scaler.pt"
 
 
 class ModuleWithLoss(nn.Module):
-    def __init__(self, model, args) -> None:
+    def __init__(self, model, args, label_smoother) -> None:
         super().__init__()
         self._original_model = model
         self.args = args
-
-        # Creating an instance of huggingFace Trainer so we can use compute_loss() logic and avoid duplicated code.
-        self.hf_trainer = Trainer(model)
-        # Label smoothing
-        if self.args.label_smoothing_factor != 0:
-            from transformers.trainer_pt_utils import LabelSmoother
-
-            self.label_smoother = LabelSmoother(epsilon=self.args.label_smoothing_factor)
-        else:
-            self.label_smoother = None
+        self.label_smoother = label_smoother
 
     def forward(self, inputs: Dict[str, Union[torch.Tensor, Any]], return_outputs):
-        return self.hf_trainer.compute_loss(self._original_model, inputs, return_outputs=False)
+        if self.label_smoother is not None and "labels" in inputs:
+            labels = inputs.pop("labels")
+        else:
+            labels = None
+        outputs = self._original_model(**inputs)
+
+        # Save past state if it exists
+        # TODO: this needs to be fixed and made cleaner later.
+        if self.args.past_index >= 0:
+            self._past = outputs[self.args.past_index]
+
+        if labels is not None:
+            from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
+
+            if unwrap_model(self._original_model)._get_name() in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
+                loss = self.label_smoother(outputs, labels, shift_labels=True)
+            else:
+                loss = self.label_smoother(outputs, labels)
+        else:
+            if isinstance(outputs, dict) and "loss" not in outputs:
+                raise ValueError(
+                    "The model did not return a loss from the inputs, only the following keys: "
+                    f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
+                )
+            # We don't use .loss here since the model may return tuples instead of ModelOutput.
+            loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+
+        return (loss, outputs) if return_outputs else loss
+
+    @property
+    def module(self):
+        """The original `torch.nn.Module` that this module wraps.
+        This property provides access to methods and properties on the original module."""
+
+        return self._original_model.module
 
     @property
     def config(self):
@@ -310,21 +324,27 @@ class ORTTrainer(Trainer):
 
         # We leverage both training_model and inference_model in conjunction with model.
         # _training_model will be wrapped so it will use ORT and will use the overriden functions in ModuleWithLoss.
-        # _inferencing_model will be storing the default version of the model and we will switch to it in case of eval/test.
+        # _training_model will be storing the default version of the model and will unwrap it in case of eval/test.
 
-        # Only Wrap the model if we pass --loss_in_train flag.
-        if args.loss_in_train:
-            self._training_model = ModuleWithLoss(model, args)
+        # Only Wrap the model if we pass --use_module_with_loss flag.
+        if args.use_module_with_loss:
+            self._training_model = self.create_model_with_loss()
         else:
             self._training_model = model
 
         self.model = model
-        self._inferencing_model = model
+
         self.feature = feature
         self.onnx_model_path = onnx_model_path
         self.exported_with_loss = False
         if self.args.local_rank:
             torch.cuda.set_device(self.args.local_rank)
+
+    # this method will create a ModuleWithLoss Instance to use if you are passing --use_module_with_loss flag.
+    # It will help reducing the peak memory usage by computing loss inside training.
+    def create_model_with_loss(self):
+        model_with_loss = ModuleWithLoss(self.model, self.args, self.label_smoother)
+        return model_with_loss
 
     # we assume that training_model and inference_model have the same forward signature column.
     # self._signature_columns attribute only stores the first-time parsed signature
@@ -344,11 +364,37 @@ class ORTTrainer(Trainer):
 
     def compute_loss(self, model_with_loss, inputs, return_outputs=False):
         # Run model forward + loss compute.
-        if self.args.loss_in_train and self.model == self._training_model:
+        if isinstance(self.model, ModuleWithLoss):
             outputs = model_with_loss(inputs, return_outputs)
             return outputs
         else:
-            return super().compute_loss(self.model, inputs, return_outputs)
+
+            if self.label_smoother is not None and "labels" in inputs:
+                labels = inputs.pop("labels")
+            else:
+                labels = None
+
+            outputs = model_with_loss(**inputs)
+            # Save past state if it exists
+            # TODO: this needs to be fixed and made cleaner later.
+            if self.args.past_index >= 0:
+                self._past = outputs[self.args.past_index]
+
+            if labels is not None:
+                if unwrap_model(model_with_loss)._get_name() in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
+                    loss = self.label_smoother(outputs, labels, shift_labels=True)
+                else:
+                    loss = self.label_smoother(outputs, labels)
+            else:
+                if isinstance(outputs, dict) and "loss" not in outputs:
+                    raise ValueError(
+                        "The model did not return a loss from the inputs, only the following keys: "
+                        f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
+                    )
+                # We don't use .loss here since the model may return tuples instead of ModelOutput.
+                loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+
+            return (loss, outputs) if return_outputs else loss
 
     def train(
         self,
@@ -868,7 +914,7 @@ class ORTTrainer(Trainer):
         """
         # memory metrics - must set up as early as possible
         # TODO: We need to enable evaluation using ORT backend.
-        self.model = self._inferencing_model
+        self.model = unwrap_model(self.model)
         self._memory_tracker.start()
 
         eval_dataloader = self.get_eval_dataloader(eval_dataset)
@@ -961,7 +1007,7 @@ class ORTTrainer(Trainer):
               labels).
         """
         # TODO: We need to enable evaluation using ORT backend.
-        self.model = self._inferencing_model
+        self.model = unwrap_model(self.model)
 
         # memory metrics - must set up as early as possible
         self._memory_tracker.start()
@@ -1590,13 +1636,7 @@ class ORTTrainer(Trainer):
                 opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
 
             output_path = model_path / ONNX_WEIGHTS_NAME
-            _ = export(
-                model=model,
-                config=onnx_config,
-                opset=opset,
-                output=output_path,
-                device=device,
-            )
+            _ = export(model=model, config=onnx_config, opset=opset, output=output_path, device=device)
 
         model.config.save_pretrained(model_path)
 

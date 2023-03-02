@@ -60,14 +60,13 @@ class ORTTrainingArguments(TrainingArguments):
             The optimizer to use, including optimizers in Transformers: adamw_hf, adamw_torch, adamw_apex_fused, or adafactor. And optimizers implemented by ONNX Runtime: adamw_ort_fused.
     """
 
-    optim: Optional[str] = field(
-        default="adamw_hf",
-        metadata={"help": "The optimizer to use."},
-    )
+    optim: Optional[str] = field(default="adamw_hf", metadata={"help": "The optimizer to use."})
 
-    loss_in_train: Optional[bool] = field(
+    use_module_with_loss: Optional[bool] = field(
         default=False,
-        metadata={"help": "Use ModuleWithLoss Wrapper to compute loss inside the training loop, when label smoother is NOT none having this will help save memory for ORTMOdule Runs."},
+        metadata={
+            "help": "Use ModuleWithLoss Wrapper to compute loss inside the training loop, when label smoother is NOT none having this will help save memory for ORTMOdule Runs."
+        },
     )
 
     # This method will not need to be overriden after the deprecation of `--adafactor` in version 5 of 🤗 Transformers.
@@ -341,12 +340,10 @@ class ORTTrainingArguments(TrainingArguments):
                 f"{self.hub_model_id}).",
                 FutureWarning,
             )
-        if self.loss_in_train is True:
+        if self.use_module_with_loss is True:
             logger.info(
                 "Using ModuleWithLoss Wrapper."
                 "loss will be computed during training loop and it will save memory peak "
             )
         else:
-            logger.info(
-                "Not Using ModuleWithLoss Wrapper."
-            )
+            logger.info("Not Using ModuleWithLoss Wrapper.")
