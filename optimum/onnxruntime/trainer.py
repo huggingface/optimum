@@ -380,6 +380,8 @@ class ORTTrainer(Trainer):
                 self._past = outputs[self.args.past_index]
 
             if labels is not None:
+                from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
+
                 if unwrap_model(model_with_loss)._get_name() in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
                     loss = self.label_smoother(outputs, labels, shift_labels=True)
                 else:
