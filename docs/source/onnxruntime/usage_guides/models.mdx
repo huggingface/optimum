@@ -112,12 +112,7 @@ image = stable_diffusion(prompt).images[0]
 ```
 
 To load your PyTorch model and convert it to ONNX on-the-fly, you can set `export=True`.
-
-After this step, don't forget to save your model using the `save_pretrained` method, to be able to load your ONNX model directly.
-
-
-You can set `export=True` to load a PyTorch model and convert it to ONNX on-the-fly.
-Don't forget to save your model using the `save_pretrained` method.
+Don't forget to save the resulting ONNX model using the `save_pretrained` method.
 
 ```python
 stable_diffusion = ORTStableDiffusionPipeline.from_pretrained(model_id, export=True)
