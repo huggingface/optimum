@@ -26,7 +26,13 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Ty
 
 
 # Integrations must be imported before ML frameworks:
-from transformers.integrations import hp_params, is_fairscale_available  # isort: split
+# isort: off
+from transformers.integrations import (
+    hp_params,
+    is_fairscale_available,
+)
+
+# isort: on
 
 import numpy as np
 import torch
