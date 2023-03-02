@@ -81,7 +81,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     },
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
-    "regnet": "hf-internal-testing/tiny-random-RegNet",
+    "regnet": "facebook/regnet-y-040",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
