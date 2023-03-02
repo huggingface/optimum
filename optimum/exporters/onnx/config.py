@@ -14,7 +14,6 @@
 # limitations under the License.
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
-import os
 from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
@@ -65,6 +64,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
     PAD_ATTENTION_MASK_TO_PAST = True
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyPastKeyValuesGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = DummyPastKeyValuesGenerator
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -115,8 +115,6 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
                 )
             except Exception as e:
                 raise Exception(f"Unable to merge decoders. Detailed error: {e}")
-            os.remove(decoder_path)
-            os.remove(decoder_with_past_path)
 
             # In order to do the validation of the two branches on the same file
             onnx_files_subpaths = [decoder_merged_path.name, decoder_merged_path.name]
@@ -143,7 +141,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
             # We don't support optional inputs for now, so even though the non-cache branch is used,
             # dummy past key values are necessary
             batch_size = reference_model_inputs["input_ids"].shape[0]
-            pkv_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1](
+            pkv_generator = self.DUMMY_PKV_GENERATOR_CLASS(
                 task=self.task, normalized_config=self._normalized_config, sequence_length=1, batch_size=batch_size
             )
             reference_model_inputs["past_key_values"] = pkv_generator.generate("past_key_values", framework="pt")

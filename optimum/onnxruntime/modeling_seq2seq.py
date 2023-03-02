@@ -141,7 +141,7 @@ SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
 VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
     Args:
         pixel_values (`torch.FloatTensor`):
-            Features extracted from an Image. This tensor should be of shape 
+            Features extracted from an Image. This tensor should be of shape
             `(batch_size, num_channels, height, width)`.
         decoder_input_ids (`torch.LongTensor`):
             Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, decoder_sequence_length)`.
@@ -556,17 +556,17 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             save_directory (`Union[str, Path`]):
                 The directory where to save the model files.
         """
+        save_directory = Path(save_directory)
         src_paths = [self.encoder_model_path, self.decoder_model_path]
-        dst_file_names = [self.encoder_model_path.name, self.decoder_model_path.name]
+        dst_paths = [save_directory / self.encoder_model_path.name, save_directory / self.decoder_model_path.name]
         if self.use_cache:
             src_paths.append(self.decoder_with_past_model_path)
-            dst_file_names.append(self.decoder_with_past_model_path.name)
+            dst_paths.append(save_directory / self.decoder_with_past_model_path.name)
 
         # add external data paths in case of large models
-        src_paths, dst_file_names = _get_external_data_paths(src_paths, dst_file_names)
+        src_paths, dst_paths = _get_external_data_paths(src_paths, dst_paths)
 
-        for src_path, dst_file_name in zip(src_paths, dst_file_names):
-            dst_path = Path(save_directory) / dst_file_name
+        for src_path, dst_path in zip(src_paths, dst_paths):
             dst_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src_path, dst_path)
 

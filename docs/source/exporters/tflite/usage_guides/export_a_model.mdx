@@ -1,0 +1,91 @@
+<!--Copyright 2023 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# Export a model to TFLite with optimum.exporters.tflite
+
+## Summary
+
+Exporting a model to TFLite is as simple as
+
+```bash
+optimum-cli export tflite --model bert-base-uncased --sequence_length 128 bert_tflite/
+```
+
+Check out the help for more options:
+
+```bash
+optimum-cli export tflite --help
+```
+
+## Exporting a model to TFLite using the CLI
+
+To export a 🤗 Transformers model to TFLite, you'll first need to install some extra dependencies:
+
+```bash
+pip install optimum[exporters-tf]
+```
+
+The Optimum TFLite export can be used through Optimum command-line. As only static input shapes is supported for now, they need to be precised during the export.
+
+```bash
+optimum-cli export tflite --help
+
+usage: optimum-cli <command> [<args>] export tflite [-h] -m MODEL [--task TASK] [--atol ATOL] [--pad_token_id PAD_TOKEN_ID] [--cache_dir CACHE_DIR]
+                                                    [--trust-remote-code] [--batch_size BATCH_SIZE] [--sequence_length SEQUENCE_LENGTH]
+                                                    [--num_choices NUM_CHOICES] [--width WIDTH] [--height HEIGHT] [--num_channels NUM_CHANNELS]
+                                                    [--feature_size FEATURE_SIZE] [--nb_max_frames NB_MAX_FRAMES]
+                                                    [--audio_sequence_length AUDIO_SEQUENCE_LENGTH]
+                                                    output
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+Required arguments:
+  -m MODEL, --model MODEL
+                        Model ID on huggingface.co or path on disk to load model from.
+  output                Path indicating the directory where to store generated TFLite model.
+
+Optional arguments:
+  --task TASK           The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend on
+                        the model, but are among: ['default', 'masked-lm', 'causal-lm', 'seq2seq-lm', 'sequence-classification', 'token-classification',
+                        'multiple-choice', 'object-detection', 'question-answering', 'image-classification', 'image-segmentation', 'masked-im', 'semantic-
+                        segmentation', 'speech2seq-lm', 'audio-classification', 'audio-frame-classification', 'audio-ctc', 'audio-xvector', 'vision2seq-
+                        lm', 'stable-diffusion', 'zero-shot-object-detection']. For decoder models, use `xxx-with-past` to export the model using past key
+                        values in the decoder.
+  --atol ATOL           If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.
+  --pad_token_id PAD_TOKEN_ID
+                        This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess it.
+  --cache_dir CACHE_DIR
+                        Path indicating where to store cache.
+  --trust-remote-code   Allow to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust
+                        and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.
+
+Input shapes:
+  --batch_size BATCH_SIZE
+                        Batch size that the TFLite exported model will be able to take as input.
+  --sequence_length SEQUENCE_LENGTH
+                        Sequence length that the TFLite exported model will be able to take as input.
+  --num_choices NUM_CHOICES
+                        Only for the multiple-choice task. Num choices that the TFLite exported model will be able to take as input.
+  --width WIDTH         Vision tasks only. Image width that the TFLite exported model will be able to take as input.
+  --height HEIGHT       Vision tasks only. Image height that the TFLite exported model will be able to take as input.
+  --num_channels NUM_CHANNELS
+                        Vision tasks only. Number of channels used to represent the image that the TFLite exported model will be able to take as input.
+                        (GREY = 1, RGB = 3, ARGB = 4)
+  --feature_size FEATURE_SIZE
+                        Audio tasks only. Feature dimension of the extracted features by the feature extractor that the TFLite exported model will be able
+                        to take as input.
+  --nb_max_frames NB_MAX_FRAMES
+                        Audio tasks only. Maximum number of frames that the TFLite exported model will be able to take as input.
+  --audio_sequence_length AUDIO_SEQUENCE_LENGTH
+                        Audio tasks only. Audio sequence length that the TFLite exported model will be able to take as input.
+```

@@ -65,6 +65,7 @@ MODEL_NAMES = {
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
+    "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "t5": "hf-internal-testing/tiny-random-t5",
     "vit": "hf-internal-testing/tiny-random-vit",

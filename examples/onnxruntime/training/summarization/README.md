@@ -38,7 +38,7 @@ __The following example applies the acceleration features powered by ONNX Runtim
 The following example fine-tunes a BERT on the SQuAD 1.0 dataset.
 
 ```bash
-python run_summarization.py \
+torchrun --nproc_per_node=NUM_GPUS_YOU_HAVE run_summarization.py \
     --model_name_or_path t5-small \
     --dataset_name cnn_dailymail \
     --dataset_config "3.0.0" \

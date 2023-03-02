@@ -217,6 +217,7 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BloomDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_PKV_GENERATOR_CLASS = BloomDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
@@ -355,12 +356,11 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
         dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1][task](
             self.task, self._normalized_config, **kwargs
         )
-        kwargs = {}
         if self.task != "causal-lm":
             kwargs["encoder_sequence_length"] = dummy_text_input_generator.sequence_length
 
         dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2][task](
-            self.task, self._normalized_config, batch_size=dummy_text_input_generator.batch_size, **kwargs
+            self.task, self._normalized_config, **kwargs
         )
         dummy_inputs_generators = [
             dummy_text_input_generator,
@@ -615,8 +615,8 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "last_hidden_state": {0: "batch_size", 1: "sequence_length", 2: "feature_dim"},
-            "pooler_output": {0: "batch_size", 1: "feature_dim"},
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
+            "pooler_output": {0: "batch_size"},
         }
 
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
@@ -653,7 +653,7 @@ class UNetOnnxConfig(VisionOnnxConfig):
         return {
             "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
             "timestep": {0: "steps"},
-            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length", 2: "feature_dim"},
+            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
         }
 
     @property

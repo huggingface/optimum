@@ -13,7 +13,9 @@
 #  limitations under the License.
 from typing import TYPE_CHECKING
 
-from transformers.utils import _LazyModule
+from transformers.utils import OptionalDependencyNotAvailable, _LazyModule
+
+from ..utils import is_diffusers_available
 
 
 _import_structure = {
@@ -61,6 +63,14 @@ _import_structure = {
     ],
 }
 
+try:
+    if not is_diffusers_available():
+        raise OptionalDependencyNotAvailable()
+except OptionalDependencyNotAvailable:
+    _import_structure[".utils.dummy_diffusers_objects"] = ["ORTStableDiffusionPipeline"]
+else:
+    _import_structure["modeling_diffusion"] = ["ORTStableDiffusionPipeline"]
+
 
 # Direct imports for type-checking
 if TYPE_CHECKING:
@@ -97,12 +107,15 @@ if TYPE_CHECKING:
         ONNX_WEIGHTS_NAME,
         ORTQuantizableOperator,
     )
+
+    try:
+        if not is_diffusers_available():
+            raise OptionalDependencyNotAvailable()
+    except OptionalDependencyNotAvailable:
+        from ..utils.dummy_diffusers_objects import ORTStableDiffusionPipeline
+    else:
+        from .modeling_diffusion import ORTStableDiffusionPipeline
 else:
     import sys
 
-    sys.modules[__name__] = _LazyModule(
-        __name__,
-        globals()["__file__"],
-        _import_structure,
-        module_spec=__spec__,
-    )
+    sys.modules[__name__] = _LazyModule(__name__, globals()["__file__"], _import_structure, module_spec=__spec__)
