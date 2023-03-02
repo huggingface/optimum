@@ -13,4 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from . import onnx  # noqa
-from .tasks import TasksManager  # noqa
+
+from typing import TYPE_CHECKING
+
+from transformers.utils import _LazyModule
+
+
+_import_structure = {
+    "tasks": ["TasksManager"],
+}
+
+if TYPE_CHECKING:
+    from .tasks import TasksManager  # noqa
+else:
+    import sys
+
+    sys.modules[__name__] = _LazyModule(
+        __name__,
+        globals()["__file__"],
+        _import_structure,
+        module_spec=__spec__,
+    )
