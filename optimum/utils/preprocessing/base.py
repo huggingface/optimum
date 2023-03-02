@@ -17,7 +17,7 @@
 import itertools
 import functools
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List, Optional, Union, Dict, Tuple, Any, Callable
+from typing import TYPE_CHECKING, List, Optional, Union, Dict, Tuple, Any, Callable, Type
 from pathlib import Path
 
 from datasets import DatasetDict, Dataset, load_dataset as datasets_load_dataset
@@ -29,7 +29,9 @@ if TYPE_CHECKING:
 
 
 class TaskProcessing(ABC):
-    ACCEPTED_PREPROCESSOR_CLASSES = tuple()
+    ACCEPTED_PREPROCESSOR_CLASSES: Tuple[Type, ...]
+    DEFAULT_DATASET_ARGS: Tuple[Any, ...]
+    DEFAUL_DATASET_DATA_KEYS: Dict[str, str] 
 
     def __init__(
         self,
@@ -110,6 +112,8 @@ class TaskProcessing(ABC):
             dataset = dataset.remove_columns([name for name in dataset.column_names if name not in necessary_columns])
 
         return dataset
+
+    def load_default_dataset(self, only_keep_necessary_columns: bool = False)
 
 
     def run_inference(self, eval_dataset: "Dataset", pipeline: "Pipeline") -> Tuple[List, List]:
