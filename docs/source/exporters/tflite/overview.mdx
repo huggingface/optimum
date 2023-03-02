@@ -13,7 +13,9 @@ specific language governing permissions and limitations under the License.
 
 # Overview
 
-🤗 Optimum handles the export of PyTorch or TensorFlow models to TFLite in the `exporters.tflite` module. It provides classes, functions, and a command line interface to perform the export easily.
+🤗 Optimum handles the export of PyTorch or TensorFlow models to TFLite in the `exporters.tflite` module. In case a PyTorch model is passed, it will automatically be converted to TensorFlow by transformers' [TFPreTrainedModel.from_pretrained()](https://huggingface.co/docs/transformers/main/en/main_classes/model#transformers.TFPreTrainedModel.from_pretrained) before the TFLite export.
+
+The TFLite export support provides classes, functions, and a command line interface to perform the export easily.
 
 Supported architectures:
 
