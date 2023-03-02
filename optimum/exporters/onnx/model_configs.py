@@ -1066,12 +1066,9 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
 
             if self.use_past_in_inputs:
                 self.add_past_key_values(common_inputs, direction="inputs")
+        
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
-
-    def get_decoder_onnx_config(
-        self, config: "PretrainedConfig", task: str = "default", use_past: bool = False
-    ) -> SpeechSeq2SeqDecoderOnnxConfig:
-        return SpeechSeq2SeqDecoderOnnxConfig(config, task, use_past=use_past)
-    
 class ImageGPTOnnxConfig():
     pass
