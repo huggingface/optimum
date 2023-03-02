@@ -435,6 +435,11 @@ class TasksManager:
             "question-answering",
             onnx="IBertOnnxConfig",
         ),
+        "imagegpt": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="ImageGPTOnnxConfig",
+        ),
         "layoutlm": supported_tasks_mapping(
             "default",
             "masked-lm",
