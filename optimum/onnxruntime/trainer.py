@@ -368,7 +368,6 @@ class ORTTrainer(Trainer):
             outputs = model_with_loss(inputs, return_outputs)
             return outputs
         else:
-
             if self.label_smoother is not None and "labels" in inputs:
                 labels = inputs.pop("labels")
             else:
