@@ -84,7 +84,7 @@
       title: How-to guides
     - sections:
       - local: exporters/tflite/package_reference/configuration
-        title: ONNX configurations
+        title: TFLite configurations
       - local: exporters/tflite/package_reference/export
         title: Export functions
       title: Reference
