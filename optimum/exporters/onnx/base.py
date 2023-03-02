@@ -27,8 +27,6 @@ from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
-import onnx
-from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
 from transformers.utils import is_torch_available
 
 from ...utils import (
@@ -40,6 +38,7 @@ from ...utils import (
 )
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 from ...utils.doc import add_dynamic_docstring
+from ...utils.import_utils import is_onnx_available, is_onnxruntime_available
 from ..base import ExportConfig
 
 
@@ -301,6 +300,15 @@ class OnnxConfig(ExportConfig, ABC):
             model_path (`Path`):
                 The path of the freshly exported ONNX model.
         """
+        if not (is_onnx_available() and is_onnxruntime_available()):
+            raise RuntimeError(
+                "The onnx and onnxruntime packages are necessary to fix the dynamic shapes of the exported model. "
+                "You can install them by doing: pip install onnx onnxruntime"
+            )
+
+        import onnx
+        from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
+
         allowed_dynamic_axes = set()
         for input_ in self.inputs.values():
             allowed_dynamic_axes |= set(input_.values())
