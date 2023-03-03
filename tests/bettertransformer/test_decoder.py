@@ -16,25 +16,45 @@ import unittest
 
 import torch
 from parameterized import parameterized
+from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils.testing_utils import grid_parameters
 
 
-MODELS = {
-    "gpt2": "hf-internal-testing/tiny-random-GPT2Model",
-}
-
-
-class TestDecoderBetterTransformer(unittest.TestCase):
+class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
     SUPPORTED_ARCH = ["gpt2"]
 
+    def prepare_inputs_for_class(self, model_id, batch_size, **preprocessor_kwargs):
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        padding = preprocessor_kwargs.pop("padding", True)
+        if batch_size == 1:
+            texts = ["a dummy input yeah!"]
+        else:
+            texts = ["a dummy input yeah!"] + ["and two"] * (batch_size - 1)
+        inputs = tokenizer(texts, return_tensors="pt", padding=padding, **preprocessor_kwargs)
+        return inputs
+
+    # run the test over all possible combinations of `model_id` and `padding`
     @parameterized.expand(
-        grid_parameters({"model_type": MODELS.keys(), "batch_size": [1, 2], "padding": [True, "max_length"]})
+        grid_parameters(
+            {
+                "model_type": SUPPORTED_ARCH,
+                "padding": ["max_length", True],
+                "batch_size": [1, 2],
+            }
+        )
+    )
+    def test_logits(self, test_name: str, model_type: str, padding, batch_size: int):
+        model_id = MODELS_DICT[model_type]
+        super()._test_logits(model_id, padding=padding)
+
+    @parameterized.expand(
+        grid_parameters({"model_type": SUPPORTED_ARCH, "batch_size": [1, 2], "padding": [True, "max_length"]})
     )
     def test_generation(self, test_name: str, model_type: str, batch_size: int, padding: str):
-        model_id = MODELS[model_type]
+        model_id = MODELS_DICT[model_type]
         tokenizer = AutoTokenizer.from_pretrained(model_id)
 
         model = AutoModelForCausalLM.from_pretrained(model_id)
@@ -55,3 +75,13 @@ class TestDecoderBetterTransformer(unittest.TestCase):
         result_bettertransformer = model.generate(**inp, num_beams=1, min_length=length, max_length=length)
 
         self.assertTrue(torch.allclose(result_vanilla, result_bettertransformer))
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_autocast(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super().test_raise_autocast(model_id)
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_train(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super().test_raise_train(model_id)

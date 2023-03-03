@@ -70,9 +70,6 @@ def replace_to_bettertransformer(model, config):
             ):
                 replace_to_bettertransformer(module, config)
 
-        if hasattr(module, "is_decoder"):
-            print("IS DECODER:", module.is_decoder)
-
         if hasattr(module, "SCB"):
             # 8-bit modules are not supported
             raise ValueError(
@@ -88,7 +85,6 @@ def replace_to_bettertransformer(model, config):
             else module.__class__.__name__ in target_class
         )
         if should_replace_module:
-            print("module.__class__.__name__", module.__class__.__name__)
             bettertransformer_module = BetterTransformerManager.MODEL_MAPPING[config.model_type][1](module, config)
             model._modules[name] = bettertransformer_module
     return model

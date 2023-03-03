@@ -17,36 +17,17 @@ import unittest
 import requests
 from parameterized import parameterized
 from PIL import Image
-from testing_bettertransformer_utils import BetterTransformersTestMixin
+from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoFeatureExtractor, AutoProcessor
 
 from optimum.utils.testing_utils import grid_parameters
-
-
-ALL_VISION_MODELS_TO_TEST = [
-    "hf-internal-testing/tiny-random-ViTModel",
-    "hf-internal-testing/tiny-random-YolosModel",
-    "hf-internal-testing/tiny-random-ViTMAEModel",
-    "hf-internal-testing/tiny-random-ViTMSNModel",
-    "hf-internal-testing/tiny-random-deit",
-]
-
-
-ALL_VISION_TEXT_MODELS_TO_TEST = [
-    "hf-internal-testing/tiny-vilt-random-vqa",
-]
-
-ALL_ZERO_SHOT_IMAGE_CLASSIFICATION = [
-    "hf-internal-testing/tiny-random-clip-zero-shot-image-classification",  # with quick_gelu
-    "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",  # with gelu
-]
 
 
 class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
     Testing suite for Vision Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
-    all_models_to_test = ALL_VISION_MODELS_TO_TEST
+    SUPPORTED_ARCH = ["deit", "vit", "vit_mae", "vit_msn", "yolos"]
 
     def prepare_inputs_for_class(self, model_id=None):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -56,6 +37,21 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
         feature_extractor = AutoFeatureExtractor.from_pretrained("hf-internal-testing/tiny-random-ViTModel")
         inputs = feature_extractor(images=image, return_tensors="pt")
         return inputs
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_logits(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super()._test_logits(model_id)
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_autocast(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super()._test_raise_autocast(model_id)
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_train(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super()._test_raise_train(model_id)
 
     # @parameterized.expand(
     #     grid_parameters(
@@ -90,23 +86,12 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
     # def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
     #     super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
 
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_id": all_models_to_test,
-                "keep_original_model": [True, False],
-            }
-        )
-    )
-    def test_raise_save_pretrained_error(self, test_name: str, model_id, keep_original_model=False):
-        super().test_raise_save_pretrained_error(model_id=model_id, keep_original_model=keep_original_model)
-
 
 class BetterTransformersViLTTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
     Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
-    all_models_to_test = ALL_VISION_TEXT_MODELS_TO_TEST
+    SUPPORTED_ARCH = ["vilt"]
 
     def prepare_inputs_for_class(self, model_id=None):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -117,6 +102,21 @@ class BetterTransformersViLTTest(BetterTransformersTestMixin, unittest.TestCase)
         processor = AutoProcessor.from_pretrained(model_id)
         inputs = processor(images=image, text=text, return_tensors="pt")
         return inputs
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_logits(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super()._test_logits(model_id)
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_autocast(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super()._test_raise_autocast(model_id)
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_train(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super()._test_raise_train(model_id)
 
     # TODO: re-enable once fixed
     # @parameterized.expand(
@@ -152,23 +152,12 @@ class BetterTransformersViLTTest(BetterTransformersTestMixin, unittest.TestCase)
     # def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
     #     super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
 
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_id": all_models_to_test,
-                "keep_original_model": [True, False],
-            }
-        )
-    )
-    def test_raise_save_pretrained_error(self, test_name: str, model_id, keep_original_model=False):
-        super().test_raise_save_pretrained_error(model_id=model_id, keep_original_model=keep_original_model)
-
 
 class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
     Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
-    all_models_to_test = ALL_ZERO_SHOT_IMAGE_CLASSIFICATION
+    SUPPORTED_ARCH = ["clip", "clip_text_model"]
 
     def prepare_inputs_for_class(self, model_id, **preprocessor_kwargs):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -189,39 +178,27 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
             model_name=model_name,
         )
 
-    # run the test over all possible combinations of `model_id` and `padding`
     @parameterized.expand(
         grid_parameters(
             {
-                "model_id": ALL_ZERO_SHOT_IMAGE_CLASSIFICATION,
+                "model_type": SUPPORTED_ARCH,
                 "padding": ["max_length", True],
             }
         )
     )
-    def test_logits(self, test_name: str, model_id, padding, max_length=20):
-        super().test_logits([model_id], padding=padding, max_length=max_length)
+    def test_logits(self, test_name: str, model_type: str, padding, max_length=20):
+        model_id = MODELS_DICT[model_type]
+        super()._test_logits(model_id, padding=padding, max_length=max_length)
 
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_id": ALL_ZERO_SHOT_IMAGE_CLASSIFICATION,
-                "padding": ["max_length", True],
-            }
-        )
-    )
-    def test_raise_autocast(self, test_name: str, model_id, padding, max_length=20):
-        super().test_raise_autocast([model_id], padding=padding, max_length=max_length)
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_autocast(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super()._test_raise_autocast(model_id)
 
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_id": ALL_ZERO_SHOT_IMAGE_CLASSIFICATION,
-                "padding": ["max_length", True],
-            }
-        )
-    )
-    def test_raise_train(self, test_name: str, model_id, padding, max_length=20):
-        super().test_raise_train([model_id], padding=padding, max_length=max_length)
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_train(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super()._test_raise_train(model_id)
 
     # @parameterized.expand(
     #     grid_parameters(
@@ -280,16 +257,3 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
 
     #     # Assert that the outputs are the same
     #     self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))
-
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_id": all_models_to_test,
-                "keep_original_model": [True, False],
-            }
-        )
-    )
-    def test_raise_save_pretrained_error(
-        self, test_name: str, model_id, keep_original_model=False, **preprocessor_kwargs
-    ):
-        super().test_raise_save_pretrained_error(model_id=model_id, keep_original_model=keep_original_model)
