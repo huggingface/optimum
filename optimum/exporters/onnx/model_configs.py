@@ -173,10 +173,8 @@ class GPT2OnnxConfig(TextDecoderOnnxConfig):
             return {**super_values_override, **pad_value_override}
         return pad_value_override
 
-
 class GPTJOnnxConfig(GPT2OnnxConfig):
     pass
-
 
 class CodeGenOnnxConfig(GPT2OnnxConfig):
     pass
@@ -1070,3 +1068,5 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
                 self.add_past_key_values(common_inputs, direction="inputs")
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+            
+        return common_inputs
