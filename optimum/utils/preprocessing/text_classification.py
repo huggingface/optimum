@@ -14,32 +14,48 @@
 # limitations under the License.
 """Text classification processing."""
 
-from functools import partial
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+import copy
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-from datasets import load_dataset, Dataset, DatasetDict
 from evaluate import combine, evaluator
 from transformers import PreTrainedTokenizerBase
 
 from .base import TaskProcessing
 
+
 if TYPE_CHECKING:
+    from datasets import Dataset, DatasetDict
     from transformers import TextClassificationPipeline
 
 
 class TextClassificationProcessing(TaskProcessing):
     ACCEPTED_PREPROCESSOR_CLASSES = (PreTrainedTokenizerBase,)
+    DEFAULT_DATASET_ARGS = ("glue", "sst2")
+    DEFAUL_DATASET_DATA_KEYS = {"primary": "sentence"}
+    ALLOWED_DATA_KEY_NAMES = {"primary"}
+    DEFAULT_REF_KEYS = ["label"]
 
-    def dataset_processing_func(self, example: Dict[str, Any], data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None) -> Dict[str, Any]:
+    def create_defaults_and_kwargs_from_preprocessor_kwargs(
+        self, preprocessor_kwargs
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        if preprocessor_kwargs is None:
+            preprocessor_kwargs = {}
+        kwargs = copy.deepcopy(preprocessor_kwargs)
+        defaults = {}
+        defaults["padding"] = kwargs.pop("padding", "max_length")
+        defaults["truncation"] = kwargs.pop("truncation", True)
+        defaults["max_length"] = kwargs.pop("max_length", self.preprocessor.model_max_length)
+        return defaults, kwargs
+
+    def dataset_processing_func(
+        self, example: Dict[str, Any], data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         tokenized_inputs = self.preprocessor(
             text=example[data_keys["primary"]],
-            text_pair=example[data_keys["secondary"]] if "secondary" in data_keys else None,
-            padding="max_length",
-            max_length=self.preprocessor.model_max_length,
-            truncation=True,
+            **self.defaults,
+            **self.preprocessor_kwargs,
         )
         return tokenized_inputs
-
 
     def try_to_guess_data_keys(self, column_names: List[str]) -> Optional[Dict[str, str]]:
         primary_key_name = None
@@ -54,7 +70,6 @@ class TextClassificationProcessing(TaskProcessing):
                 primary_key_name = column_names[0]
 
         return {"primary": primary_key_name} if primary_key_name is not None else None
-    
 
     def try_to_guess_ref_keys(self, column_names: List[str]) -> Optional[List[str]]:
         for name in column_names:
@@ -62,18 +77,22 @@ class TextClassificationProcessing(TaskProcessing):
                 return [name]
 
     def load_dataset(
-        self, 
-        *args, 
-        data_keys: Optional[Dict[str, str]] = None, 
-        ref_keys: Optional[List[str]] = None, 
+        self,
+        *args,
+        data_keys: Optional[Dict[str, str]] = None,
+        ref_keys: Optional[List[str]] = None,
         only_keep_necessary_columns: bool = False,
         **kwargs,
-    ) -> Union[DatasetDict, Dataset]:
-        dataset = super().load_dataset(*args, data_keys=data_keys, only_keep_necessary_columns=only_keep_necessary_columns, ref_keys=ref_keys, **kwargs)
-
+    ) -> Union["DatasetDict", "Dataset"]:
+        dataset = super().load_dataset(
+            *args,
+            data_keys=data_keys,
+            only_keep_necessary_columns=only_keep_necessary_columns,
+            ref_keys=ref_keys,
+            **kwargs,
+        )
         # TODO: do we want to do that here?
         # eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])
-
         return dataset
 
     def run_evaluation(self, eval_dataset: "Dataset", pipeline: "TextClassificationPipeline", metrics: List[str]):

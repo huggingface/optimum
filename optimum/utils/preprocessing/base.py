@@ -14,29 +14,33 @@
 # limitations under the License.
 """Base class to peform task-specific preprocessing and evaluation."""
 
-import itertools
+import copy
 import functools
+import itertools
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List, Optional, Union, Dict, Tuple, Any, Callable, Type
-from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
-from datasets import DatasetDict, Dataset, load_dataset as datasets_load_dataset
+from datasets import Dataset, DatasetDict
+from datasets import load_dataset as datasets_load_dataset
 
 
 if TYPE_CHECKING:
-    from datasets import Dataset, Metric
+    from datasets import Metric
     from transformers import FeatureExtractionMixin, Pipeline, PretrainedConfig, PreTrainedTokenizerBase
 
 
 class TaskProcessing(ABC):
     ACCEPTED_PREPROCESSOR_CLASSES: Tuple[Type, ...]
     DEFAULT_DATASET_ARGS: Tuple[Any, ...]
-    DEFAUL_DATASET_DATA_KEYS: Dict[str, str] 
+    DEFAUL_DATASET_DATA_KEYS: Dict[str, str]
+    ALLOWED_DATA_KEY_NAMES = Set[str]
+    DEFAULT_REF_KEYS: List[str]
 
     def __init__(
         self,
         config: "PretrainedConfig",
         preprocessor: Union["FeatureExtractionMixin", "PreTrainedTokenizerBase"],
+        preprocessor_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Initializes the class in charge of loading processed datasets and of running evaluation.
@@ -56,16 +60,41 @@ class TaskProcessing(ABC):
 
         self.config = config
         self.preprocessor = preprocessor
+        self.defaults, self.preprocessor_kwargs = self.create_defaults_and_kwargs_from_preprocessor_kwargs(
+            preprocessor_kwargs
+        )
 
+    def create_defaults_and_kwargs_from_preprocessor_kwargs(
+        self, preprocessor_kwargs: Optional[Dict[str, Any]]
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """
+        Takes the dictionary of the preprocessor keyword arguments and return two dictionaries:
+            - The first dictionary will either contain defaults values if not specified in preprocessor_kwargs or the
+            values specified in preprocessor_kwargs.
+            - The second dictionary will contain the rest of the keyword arguments.
+        """
+        if preprocessor_kwargs is None:
+            preprocessor_kwargs = {}
+        return {}, copy.deepcopy(preprocessor_kwargs)
 
     @abstractmethod
-    def dataset_processing_func(self, example: Dict[str, Any], data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None) -> Dict[str, Any]:
-        raise NotImplementedError("This static method must be implemented in subclasses.")
-    
-    def create_dataset_processing_func(self, data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None) -> Callable[[Dict[str, Any]], Dict[str, Any]]:
+    def dataset_processing_func(
+        self, example: Dict[str, Any], data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        raise NotImplementedError("This method must be implemented in subclasses.")
+
+    def create_dataset_processing_func(
+        self, data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None
+    ) -> Callable[[Dict[str, Any]], Dict[str, Any]]:
         return functools.partial(self.dataset_processing_func, data_keys=data_keys, ref_keys=ref_keys)
-        
-    def prepare_dataset(self, dataset: Union[DatasetDict, Dataset], data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None, split: Optional[str] = None) -> Union[DatasetDict, Dataset]:
+
+    def prepare_dataset(
+        self,
+        dataset: Union[DatasetDict, Dataset],
+        data_keys: Dict[str, str],
+        ref_keys: Optional[List[str]] = None,
+        split: Optional[str] = None,
+    ) -> Union[DatasetDict, Dataset]:
         if isinstance(dataset, Dataset) and split is not None:
             raise ValueError("A Dataset and a split name were provided, but splits are for DatasetDict.")
         elif split is not None:
@@ -74,17 +103,17 @@ class TaskProcessing(ABC):
 
     @abstractmethod
     def try_to_guess_data_keys(self, column_names: List[str]) -> Optional[Dict[str, str]]:
-        raise NotImplementedError()
+        raise NotImplementedError("This method must be implemented in subclasses.")
 
     @abstractmethod
     def try_to_guess_ref_keys(self, column_names: List[str]) -> Optional[List[str]]:
-        raise NotImplementedError()
+        raise NotImplementedError("This method must be implemented in subclasses.")
 
     def load_dataset(
-        self, 
-        *args, 
-        data_keys: Optional[Dict[str, str]] = None, 
-        ref_keys: Optional[List[str]] = None, 
+        self,
+        *args,
+        data_keys: Optional[Dict[str, str]] = None,
+        ref_keys: Optional[List[str]] = None,
         only_keep_necessary_columns: bool = False,
         **kwargs,
     ) -> Union[DatasetDict, Dataset]:
@@ -100,6 +129,10 @@ class TaskProcessing(ABC):
                     "Data keys need to be specified manually since they could not be guessed from "
                     f"{', '.join(column_names)}"
                 )
+        elif not set(data_keys.keys()) < self.ALLOWED_DATA_KEY_NAMES:
+            raise ValueError(
+                f"data_keys contains unallowed keys {data_keys.keys()}, allowed_keys: {self.ALLOWED_DATA_KEY_NAMES}."
+            )
 
         if ref_keys is None:
             ref_keys = self.try_to_guess_ref_keys(column_names)
@@ -113,17 +146,22 @@ class TaskProcessing(ABC):
 
         return dataset
 
-    def load_default_dataset(self, only_keep_necessary_columns: bool = False)
-
+    def load_default_dataset(self, only_keep_necessary_columns: bool = False):
+        return self.load_dataset(
+            *self.DEFAULT_DATASET_ARGS,
+            data_keys=self.DEFAUL_DATASET_DATA_KEYS,
+            ref_keys=self.DEFAULT_REF_KEYS,
+            only_keep_necessary_columns=only_keep_necessary_columns,
+        )
 
     def run_inference(self, eval_dataset: "Dataset", pipeline: "Pipeline") -> Tuple[List, List]:
         """
         Runs inference on the provided dataset using a pipeline, and returns all labels, predictions.
 
         Args:
-            eval_dataset (`Dataset`): 
+            eval_dataset (`Dataset`):
                 Raw dataset to run inference on.
-            pipeline (`Pipeline`): 
+            pipeline (`Pipeline`):
                 Pipeline used for inference. Should be initialized beforehand.
 
         Returns:
@@ -138,11 +176,11 @@ class TaskProcessing(ABC):
         Computes a metric given pre-formatted predictions and references.
 
         Args:
-            predictions (`List`): 
+            predictions (`List`):
                 The predictions.
-            references (`List`): 
+            references (`List`):
                 The references to compare the predictions against.
-            metric (`Metric`): 
+            metric (`Metric`):
                 Pre-loaded metric to run evaluation on.
 
         Returns:

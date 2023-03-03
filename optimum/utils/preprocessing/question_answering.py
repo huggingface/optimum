@@ -14,10 +14,9 @@
 # limitations under the License.
 """Question answering processing."""
 
-from functools import partial
-from typing import TYPE_CHECKING, Dict, List, Any
+import copy
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from datasets import load_dataset
 from evaluate import combine, evaluator, load
 from transformers import PreTrainedTokenizerBase
 
@@ -30,77 +29,68 @@ if TYPE_CHECKING:
 
 
 class QuestionAnsweringProcessing(TaskProcessing):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    ACCEPTED_PREPROCESSOR_CLASSES = (PreTrainedTokenizerBase,)
+    DEFAULT_DATASET_ARGS = ("squad_v2",)
+    DEFAUL_DATASET_DATA_KEYS = {"question": "question", "context": "context"}
+    ALLOWED_DATA_KEY_NAMES = {"question", "context"}
+    DEFAULT_REF_KEYS = ["answers"]
 
-        if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
-            raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")
+    def create_defaults_and_kwargs_from_preprocessor_kwargs(
+        self, preprocessor_kwargs
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        if preprocessor_kwargs is None:
+            preprocessor_kwargs = {}
+        kwargs = copy.deepcopy(preprocessor_kwargs)
+        defaults = {}
 
-    def load_datasets(self) -> Dict[str, "Dataset"]:
-        # Downloading and loading a dataset from the hub.
-        raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
+        pad_on_right = self.preprocessor.padding_side == "right"
+        max_seq_length = min(self.preprocessor.model_max_length, 384)
+        stride = min(max_seq_length // 2, 128)
 
-        # Preprocessing the raw_datasets
-        def preprocess_function(
-            examples,
-            data_keys: Dict[str, str],
-            tokenizer: PreTrainedTokenizerBase,
-        ):
-            max_seq_len = min(tokenizer.model_max_length, 384)
-            doc_stride = min(max_seq_len // 2, 128)
+        defaults["padding"] = kwargs.pop("padding", "max_length")
+        defaults["truncation"] = kwargs.pop("truncation", "only_second" if pad_on_right else "only_first")
+        defaults["max_length"] = kwargs.pop("max_length", max_seq_length)
+        defaults["stide"] = kwargs.pop("stride", stride)
+        defaults["return_overflowing_tokens"] = kwargs.pop("return_overflowing_tokens", False)
+        defaults["return_offsets_mapping"] = kwargs.pop("return_offsets_mapping", False)
+        return defaults, kwargs
 
-            # Some of the questions have lots of whitespace on the left, which is not useful and will make the
-            # truncation of the context fail (the tokenized question will take a lots of space). So we remove that
-            # left whitespace
-            examples[data_keys["question"]] = [q.lstrip() for q in examples[data_keys["question"]]]
+    def dataset_processing_func(
+        self, example: Dict[str, Any], data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        # Some of the questions have lots of whitespace on the left, which is not useful and will make the
+        # truncation of the context fail (the tokenized question will take a lots of space). So we remove that
+        # left whitespace
+        example[data_keys["question"]] = [q.lstrip() for q in example[data_keys["question"]]]
+        # Padding side determines if we do (question|context) or (context|question).
+        pad_on_right = self.preprocessor.padding_side == "right"
 
-            # Padding side determines if we do (question|context) or (context|question).
-            pad_on_right = tokenizer.padding_side == "right"
+        tokenized_inputs = self.preprocessor(
+            text=example[data_keys["question"] if pad_on_right else data_keys["context"]],
+            text_pair=example[data_keys["context"] if pad_on_right else data_keys["question"]],
+            **self.defaults,
+            **self.preprocessor_kwargs,
+        )
+        return tokenized_inputs
 
-            # Tokenize our examples with truncation and maybe padding, but keep the overflows using a stride. This results
-            # in one example possible giving several features when a context is long, each of those features having a
-            # context that overlaps a bit the context of the previous feature.
-            tokenized_examples = tokenizer(
-                text=examples[data_keys["question"] if pad_on_right else data_keys["context"]],
-                text_pair=examples[data_keys["context"] if pad_on_right else data_keys["question"]],
-                truncation="only_second" if pad_on_right else "only_first",
-                max_length=max_seq_len,
-                stride=doc_stride,
-                return_overflowing_tokens=False,  # not needed as we don't care about labels
-                return_offsets_mapping=False,  # not needed as we don't care about labels
-                padding="max_length",
-            )
-            return tokenized_examples
+    def try_to_guess_data_keys(self, column_names: List[str]) -> Optional[Dict[str, str]]:
+        question_key_name = None
+        context_key_name = None
 
-        eval_dataset = raw_datasets[self.eval_split]
-        if self.max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(self.max_eval_samples))
+        for name in column_names:
+            if question_key_name is None and "question" in name:
+                question_key_name = name
+            if context_key_name is None and ("sentence" in name or "context" in name):
+                context_key_name = name
 
-        datasets_dict = {"eval": eval_dataset}
+        if question_key_name is not None and context_key_name is not None:
+            return {"question": question_key_name, "context": context_key_name}
+        return None
 
-        if self.static_quantization:
-            # Run the tokenizer on the calibration dataset
-            calibration_dataset = raw_datasets[self.calibration_split].map(
-                partial(
-                    preprocess_function,
-                    tokenizer=self.preprocessor,
-                    data_keys=self.data_keys,
-                ),
-                batched=True,
-                load_from_cache_file=True,
-                desc="Running tokenizer on calibration dataset",
-            )
-
-            columns_to_remove = raw_datasets.column_names[self.calibration_split]
-            columns_to_remove = [name for name in columns_to_remove if name not in self.preprocessor.model_input_names]
-            calibration_dataset = calibration_dataset.remove_columns(columns_to_remove)
-
-            if self.num_calibration_samples is not None:
-                calibration_dataset = calibration_dataset.select(range(self.num_calibration_samples))
-
-            datasets_dict["calibration"] = calibration_dataset
-
-        return datasets_dict
+    def try_to_guess_ref_keys(self, column_names: List[str]) -> Optional[List[str]]:
+        for name in column_names:
+            if "answer" in name:
+                return [name]
 
     def run_evaluation(self, eval_dataset: "Dataset", pipeline: "QuestionAnsweringPipeline", metrics: List[str]):
         if len(metrics) == 1:

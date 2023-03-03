@@ -14,11 +14,12 @@
 # limitations under the License.
 """Dataset processing factory."""
 
-from typing import TYPE_CHECKING, Type, Any
+from typing import TYPE_CHECKING, Any, Type
 
 from optimum.utils.preprocessing.image_classification import ImageClassificationProcessing
 from optimum.utils.preprocessing.text_classification import TextClassificationProcessing
 from optimum.utils.preprocessing.token_classification import TokenClassificationProcessing
+
 
 if TYPE_CHECKING:
     from .base import DatasetProcessing
@@ -42,8 +43,6 @@ class DatasetProcessingManager:
             )
         return cls._TASK_TO_DATASET_PROCESSING_CLASS[task]
 
-
     @classmethod
     def for_task(cls, task: str, *dataset_processing_args, **dataset_processing_kwargs: Any) -> "DatasetProcessing":
         return cls.get_dataset_processing_class_for_task(task)(*dataset_processing_args, **dataset_processing_kwargs)
-
