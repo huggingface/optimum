@@ -497,6 +497,11 @@ class TasksManager:
             onnx="ElectraOnnxConfig",
             tflite="ElectraTFLiteConfig",
         ),
+        "encoder-decoder": supported_tasks_mapping(
+            "seq2seq-lm",
+            "seq2seq-lm-with-past",
+            onnx="EncoderDecoderOnnxConfig",
+        ),
         "flaubert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",

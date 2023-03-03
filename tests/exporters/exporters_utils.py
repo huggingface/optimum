@@ -161,6 +161,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "camembert": "camembert-base",
     "clip": "openai/clip-vit-base-patch32",
     "convbert": "YituTech/conv-bert-base",
+    "convnext": "facebook/convnext-tiny-224",
     "codegen": "hf-internal-testing/tiny-random-CodeGenModel",  # Not using Salesforce/codegen-350M-multi because it takes too much time for testing.
     "data2vec-text": "facebook/data2vec-text-base",
     "data2vec-vision": "facebook/data2vec-vision-base",
@@ -168,10 +169,10 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",  # Not using microsoft/deberta-base because it takes too much time for testing.
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",  # Not using microsoft/deberta-v2-xlarge because it takes too much time for testing.
     "deit": "facebook/deit-small-patch16-224",
-    "convnext": "facebook/convnext-tiny-224",
     "detr": "hf-internal-testing/tiny-random-detr",  # Not using facebook/detr-resnet-50 because it takes too much time for testing.
     "distilbert": "distilbert-base-cased",
     "electra": "google/electra-base-generator",
+    "encoder-decoder": "patrickvonplaten/bert2bert_cnn_daily_mail",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",  # TODO
     "gpt2": "gpt2",
     "gpt-neo": "EleutherAI/gpt-neo-125M",

@@ -1092,6 +1092,39 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     auto_model_class = AutoModelForSeq2SeqLM
     main_input_name = "input_ids"
 
+    def __init__(
+        self,
+        encoder_session: ort.InferenceSession,
+        decoder_session: ort.InferenceSession,
+        config: "PretrainedConfig",
+        decoder_with_past_session: Optional[ort.InferenceSession] = None,
+        use_io_binding: Optional[bool] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        preprocessors: Optional[List] = None,
+        generation_config: Optional[GenerationConfig] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            encoder_session,
+            decoder_session,
+            config,
+            decoder_with_past_session,
+            use_io_binding,
+            model_save_dir,
+            preprocessors,
+            generation_config,
+            **kwargs,
+        )
+
+        if config.model_type == "encoder-decoder":
+            self.encoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
+                config.encoder.model_type
+            )(config.encoder)
+
+            self.decoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
+                config.decoder.model_type
+            )(config.decoder)
+
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoder(session, self)
 
