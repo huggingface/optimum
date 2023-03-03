@@ -614,6 +614,7 @@ class ORTTrainer(Trainer):
                 self._load_rng_state(resume_from_checkpoint)
 
             step = -1
+            avg = 0.0
             for step, inputs in enumerate(train_dataloader):
                 # Skip past any already trained steps if resuming training
                 if steps_trained_in_current_epoch > 0:
@@ -630,6 +631,8 @@ class ORTTrainer(Trainer):
                 if step % args.gradient_accumulation_steps == 0:
                     self.control = self.callback_handler.on_step_begin(args, self.state, self.control)
 
+                start = time.time()
+                
                 if (
                     ((step + 1) % args.gradient_accumulation_steps != 0)
                     and args.local_rank != -1
@@ -640,6 +643,12 @@ class ORTTrainer(Trainer):
                         tr_loss_step = self.training_step(model, inputs)
                 else:
                     tr_loss_step = self.training_step(model, inputs)
+                
+                step_time = (time.time() - start) * 1000
+                print('Step', step, ':', tr_loss_step)
+                print(f"Step {step}: {step_time:.5f} ms")
+                if step >= steps_in_epoch // 2:
+                    avg += step_time
 
                 if (
                     args.logging_nan_inf_filter
@@ -714,6 +723,9 @@ class ORTTrainer(Trainer):
 
                 if self.control.should_epoch_stop or self.control.should_training_stop:
                     break
+            
+            print(f"Avg of 2nd half: {(avg / (steps_in_epoch - steps_in_epoch // 2)):.5f} ms")
+            
             if step < 0:
                 logger.warning(
                     f"There seems to be not a single sample in your train dataloader, stopping training at step"
