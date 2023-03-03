@@ -159,6 +159,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "gptj": "anton-l/gpt-j-tiny-random",  # TODO
     "groupvit": "nvidia/groupvit-gcc-yfcc",
     "ibert": "kssteven/ibert-roberta-base",
+    "imagegpt": "openai/imagegpt-small",
     "levit": "facebook/levit-128S",
     "layoutlm": "microsoft/layoutlm-base-uncased",
     "layoutlmv3": "microsoft/layoutlmv3-base",
