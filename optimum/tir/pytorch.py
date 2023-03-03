@@ -114,10 +114,9 @@ class TorchDispatcher(TirDispatcher):
         self,
         mlir_module: Module,
         target: TirTarget,
-        device: Optional[HalDevice] = None,
         compiler_args: List[str] = None
     ):
-        LOGGER.info(f"Compilation of MLIR module to {target} (device={device}).")
+        LOGGER.info(f"Compilation of MLIR module to {target}.")
         LOGGER.debug(f"Compilation MLIR module with arguments: {compiler_args}.")
 
         vmfb = TorchDispatcher.internal_compile_to_vmfb(mlir_module, target, compiler_args)

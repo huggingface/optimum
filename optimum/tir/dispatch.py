@@ -26,9 +26,11 @@ class TirDispatcher(ABC):
             if isinstance(model, Module) or isinstance(model, PreTrainedModel):
                 LOGGER.info(f"TirDispatcher initializing frontend for PyTorch.")
                 return TorchDispatcher(model, target, config)
-        elif is_tf_available():
+
+        if is_tf_available():
+            from tensorflow.types.experimental import ConcreteFunction, GenericFunction
             from .tensorflow import TensorflowDispatcher
-            if isinstance(model, TFPreTrainedModel):
+            if isinstance(model, (str, TFPreTrainedModel, ConcreteFunction, GenericFunction)):
                 LOGGER.info(f"TirDispatcher initializing frontend for TensorFlow.")
                 return TensorflowDispatcher(model, target, config)
 
@@ -74,7 +76,7 @@ class TirDispatcher(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def compile_from_mlir(self, mlir, target: TirTarget, device: Optional[str] = None, compiler_args: List[str] = None):
+    def compile_from_mlir(self, mlir, target: TirTarget, compiler_args: List[str] = None):
         raise NotImplementedError()
 
     @abstractmethod
