@@ -28,6 +28,8 @@ MODELS = {
 
 
 class TestDecoderBetterTransformer(unittest.TestCase):
+    SUPPORTED_ARCH = ["gpt2"]
+
     @parameterized.expand(
         grid_parameters({"model_type": MODELS.keys(), "batch_size": [1, 2], "padding": [True, "max_length"]})
     )
