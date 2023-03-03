@@ -301,6 +301,9 @@ class BetterTransformer(object):
                 "The method BetterTransformer.reverse() should be used on a model already transformed to the BetterTransformer format, which appears to not be the case."
             )
 
+        # TODO: re-enable once fixed
+        raise NotImplementedError("BetterTransformer.reverse() is currently disabled.")
+
         model = revert_to_original_model(model)
 
         model.save_pretrained = model._old_save_pretrained

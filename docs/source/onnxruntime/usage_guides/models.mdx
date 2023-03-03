@@ -111,14 +111,15 @@ prompt = "sailing ship in storm by Leonardo da Vinci"
 image = stable_diffusion(prompt).images[0]
 ```
 
-To load your PyTorch model and convert it to ONNX on-the-fly, simply pass `export=True` to the `from_pretrained` method.
-After this step, don't forget to save your model using the `save_pretrained` method, to be able to load your ONNX model directly.
+To load your PyTorch model and convert it to ONNX on-the-fly, you can set `export=True`.
+Don't forget to save the resulting ONNX model using the `save_pretrained` method.
 
 ```python
 stable_diffusion = ORTStableDiffusionPipeline.from_pretrained(model_id, export=True)
 
-# Save exported the model
-stable_diffusion.save_pretrained("a_local_path_for_convert_onnx_model")
+# Save the exported model
+save_directory = "a_local_path"
+stable_diffusion.save_pretrained(save_directory)
 ```
 
 ![img](https://huggingface.co/datasets/optimum/documentation-images/resolve/main/onnxruntime/stable_diffusion_v1_5_ort_sail_boat.png)

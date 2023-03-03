@@ -908,23 +908,6 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
     ATOL_FOR_VALIDATION = 1e-3
 
-    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
-        dummy_inputs_generators = super()._create_dummy_input_generator_classes(**kwargs)
-        # The generated encoder_hidden_states for Whisper has dimensions
-        # (batch_size, encoder_sequence_length / 2, hidden_size). Therefore,
-        # the sequence length is updated to generate the proper cross attention
-        # KVS in monolith case.
-        if self._behavior is ConfigBehavior.MONOLITH:
-            dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
-                self.task,
-                self._normalized_config,
-                encoder_sequence_length=dummy_inputs_generators[0].nb_max_frames // 2,
-                **kwargs,
-            )
-            dummy_inputs_generators[2] = dummy_seq2seq_past_key_values_generator
-
-        return dummy_inputs_generators
-
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         common_inputs = super().inputs
@@ -963,20 +946,6 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
         + (DummyTextInputGenerator,)
     )
     ATOL_FOR_VALIDATION = 1e-4
-
-    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
-        dummy_inputs_generators = super()._create_dummy_input_generator_classes(**kwargs)
-        if self._behavior is ConfigBehavior.MONOLITH:
-            dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
-                self.task,
-                self._normalized_config,
-                encoder_sequence_length=dummy_inputs_generators[0].sequence_length
-                // (2 * self._config.num_conv_layers),
-                **kwargs,
-            )
-            dummy_inputs_generators[2] = dummy_seq2seq_past_key_values_generator
-
-        return dummy_inputs_generators
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
