@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 import torch
 from evaluate import combine, evaluator
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
-from transformers import FeatureExtractionMixin
+from transformers.image_processing_utils import BaseImageProcessor, VALID_SIZE_DICT_KEYS
 
 from .. import logging
 from .base import TaskProcessing
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 
 class ImageClassificationProcessing(TaskProcessing):
-    ACCEPTED_PREPROCESSOR_CLASSES = (FeatureExtractionMixin,)
+    ACCEPTED_PREPROCESSOR_CLASSES = (BaseImageProcessor,)
     DEFAULT_DATASET_ARGS = ("squad_v2",)
     DEFAUL_DATASET_DATA_KEYS = {"image": "pixel_values"}
     DEFAULT_REF_KEYS = ["answers"]
@@ -42,14 +42,23 @@ class ImageClassificationProcessing(TaskProcessing):
     def __init__(
         self,
         config: "PretrainedConfig",
-        preprocessor: "FeatureExtractionMixin",
+        preprocessor: "BaseImageProcessor",
         preprocessor_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, preprocessor, preprocessor_kwargs=preprocessor_kwargs)
+        size = None
+        for dict_keys in VALID_SIZE_DICT_KEYS:
+            try:
+                size = tuple(self.preprocessor.size[key] for key in dict_keys)
+            except KeyError:
+                pass
+        if size is None:
+            raise ValueError(f"Could not retrieve the size information from {preprocessor}")
+
         self.transforms = Compose(
             [
-                Resize(self.preprocessor.size),
-                CenterCrop(self.preprocessor.size),
+                Resize(size),
+                CenterCrop(size),
                 ToTensor(),
                 Normalize(mean=self.preprocessor.image_mean, std=self.preprocessor.image_std),
             ]
