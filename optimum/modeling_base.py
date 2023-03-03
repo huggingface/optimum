@@ -73,6 +73,7 @@ class OptimizedModel(ABC):
     config_class = AutoConfig
     load_tf_weights = None
     base_model_prefix = "optimized_model"
+    config_name = CONFIG_NAME
 
     def __init__(self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "PretrainedConfig"):
         super().__init__()
@@ -120,7 +121,7 @@ class OptimizedModel(ABC):
 
         os.makedirs(save_directory, exist_ok=True)
 
-        self.config.save_pretrained(save_directory)
+        self._save_config(save_directory)
         for preprocessor in self.preprocessors:
             preprocessor.save_pretrained(save_directory)
         self._save_pretrained(save_directory)
@@ -135,6 +136,13 @@ class OptimizedModel(ABC):
         [`from_pretrained`] class method.
         """
         raise NotImplementedError
+
+    def _save_config(self, save_directory):
+        """
+        Saves a model configuration into a directory, so that it can be re-loaded using the
+        [`from_pretrained`] class method.
+        """
+        self.config.save_pretrained(save_directory)
 
     def push_to_hub(
         self,
@@ -281,7 +289,7 @@ class OptimizedModel(ABC):
     def from_pretrained(
         cls,
         model_id: Union[str, Path],
-        from_transformers: bool = False,
+        export: bool = False,
         force_download: bool = False,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
@@ -289,18 +297,32 @@ class OptimizedModel(ABC):
         config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
         trust_remote_code: bool = False,
+        revision: Optional[str] = None,
         **kwargs,
     ) -> "OptimizedModel":
         """
         Returns:
             `OptimizedModel`: The loaded optimized model.
         """
-        revision = None
-        if len(str(model_id).split("@")) == 2:
+        if isinstance(model_id, Path):
+            model_id = model_id.as_posix()
+
+        from_transformers = kwargs.pop("from_transformers", None)
+        if from_transformers is not None:
+            logger.warning(
+                "The argument `from_transformers` is deprecated, and will be removed in optimum 2.0.  Use `export` instead"
+            )
+            export = from_transformers
+
+        if len(model_id.split("@")) == 2:
+            if revision is not None:
+                logger.warning(
+                    f"The argument `revision` was set to {revision} but will be ignored for {model_id.split('@')[1]}"
+                )
             model_id, revision = model_id.split("@")
 
         if config is None:
-            if os.path.isdir(os.path.join(model_id, subfolder)):
+            if os.path.isdir(os.path.join(model_id, subfolder)) and cls.config_name == CONFIG_NAME:
                 if CONFIG_NAME in os.listdir(os.path.join(model_id, subfolder)):
                     config = AutoConfig.from_pretrained(os.path.join(model_id, subfolder, CONFIG_NAME))
                 elif CONFIG_NAME in os.listdir(model_id):
@@ -329,14 +351,14 @@ class OptimizedModel(ABC):
                 subfolder=subfolder,
             )
 
-        if not from_transformers and trust_remote_code is not False:
+        if not export and trust_remote_code:
             logger.warning(
-                "The argument `trust_remote_code` is to be used along with from_transformers=True. It will be ignored."
+                "The argument `trust_remote_code` is to be used along with export=True. It will be ignored."
             )
-        elif from_transformers and trust_remote_code is None:
+        elif export and trust_remote_code is None:
             trust_remote_code = False
 
-        from_pretrained_method = cls._from_transformers if from_transformers else cls._from_pretrained
+        from_pretrained_method = cls._from_transformers if export else cls._from_pretrained
         return from_pretrained_method(
             model_id=model_id,
             config=config,

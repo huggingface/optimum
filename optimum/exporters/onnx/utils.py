@@ -15,7 +15,7 @@
 """Utility functions."""
 
 import copy
-from typing import TYPE_CHECKING, Dict, List, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 import packaging
 import torch
@@ -150,7 +150,7 @@ def get_stable_diffusion_models_for_export(
         `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
         onnx configs for the different components of the model.
     """
-    models_for_export = dict()
+    models_for_export = {}
 
     # Text encoder
     text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
@@ -198,5 +198,26 @@ def recursive_to_device(value: Union[Tuple, List, "torch.Tensor"], device: str):
             value[i] = recursive_to_device(val, device)
     elif isinstance(value, torch.Tensor):
         value = value.to(device)
+
+    return value
+
+
+def recursive_to_dtype(
+    value: Union[Tuple, List, "torch.Tensor"], dtype: Optional[torch.dtype], start_dtype: Optional[torch.dtype] = None
+):
+    if dtype is None:
+        return value
+
+    if isinstance(value, tuple):
+        value = list(value)
+        for i, val in enumerate(value):
+            value[i] = recursive_to_dtype(val, dtype)
+        value = tuple(value)
+    elif isinstance(value, list):
+        for i, val in enumerate(value):
+            value[i] = recursive_to_dtype(val, dtype)
+    elif isinstance(value, torch.Tensor):
+        if start_dtype is None or (start_dtype is not None and value.dtype == start_dtype):
+            value = value.to(dtype=dtype)
 
     return value

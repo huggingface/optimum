@@ -57,7 +57,14 @@ class ORTOptimizer:
         self.onnx_model_path = onnx_model_path
         self.config = config
         self.model_type = self.config.model_type
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.model_type)(self.config)
+
+        try:
+            self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.model_type)(self.config)
+        except KeyError:
+            raise NotImplementedError(
+                f"Tried to use ORTOptimizer for the model type {self.model_type}, but it is not available yet. Please open an issue"
+                " or submit a PR at https://github.com/huggingface/optimum."
+            )
 
     @classmethod
     def from_pretrained(
@@ -70,7 +77,7 @@ class ORTOptimizer:
                 Can be either:
                     - A path to a local *directory* containing the model to optimize.
                     - An instance of [`~optimum.onnxruntime.ORTModel`].
-            file_names(`Optional[List[str]]`, *optional*):
+            file_names(`Optional[List[str]]`, defaults to `None`):
                 The list of file names of the models to optimize.
         """
         onnx_model_path = []
@@ -88,7 +95,7 @@ class ORTOptimizer:
                 if model_or_path.use_merged is True:
                     raise NotImplementedError(
                         "ORTOptimizer does not support ORTModelForCausalLM models that use a single ONNX for both the without/with past cases."
-                        " Please pass an ORTModelForCausalLM that uses a separate ONNX for each without/with past cases. The can be done"
+                        " Please pass an ORTModelForCausalLM that uses a separate ONNX for each without/with past cases. This can be done"
                         " by using `ORTModelForCausalLM.from_pretrained(..., from_transformers=True, use_merged=False)`, or by"
                         " using the option `--no-post-process` in the optimum-cli ONNX export tool."
                     )
@@ -126,9 +133,9 @@ class ORTOptimizer:
                 The configuration containing the parameters related to optimization.
             save_dir (`Union[str, os.PathLike]`):
                 The path used to save the optimized model.
-            file_suffix (`str`, *optional*, defaults to `"optimized"`):
+            file_suffix (`str`, defaults to `"optimized"`):
                 The file suffix used to save the optimized model.
-            use_external_data_format (`bool`, *optional*, defaults to `False`):
+            use_external_data_format (`bool`, defaults to `False`):
                 Whether to use external data format to store model of size >= 2Gb.
             one_external_file (`bool`, defaults to `True`):
                 When `use_external_data_format=True`, whether to save all tensors to one external file.
@@ -276,5 +283,5 @@ class ORTOptimizer:
             for node in model.nodes():
                 op_types.add(node.op_type)
 
-        operators_difference = dict(map(lambda op_type: (op_type, nodes_difference_given_type(op_type)), op_types))
+        operators_difference = {op_type: nodes_difference_given_type(op_type) for op_type in op_types}
         return {k: v for k, v in operators_difference.items() if v != 0}

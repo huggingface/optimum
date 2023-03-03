@@ -55,6 +55,11 @@ def parse_args_onnx(parser):
         help='The device to use to do the export. Defaults to "cpu".',
     )
     optional_group.add_argument(
+        "--fp16",
+        action="store_true",
+        help="Experimental option: use half precision during the export. PyTorch-only, requires `--device cuda`.",
+    )
+    optional_group.add_argument(
         "--opset",
         type=int,
         default=None,
@@ -98,6 +103,19 @@ def parse_args_onnx(parser):
         help=(
             "Allows to disable any post-processing done by default on the exported ONNX models. For example, the merging of decoder"
             " and decoder-with-past models into a single ONNX model file to reduce memory usage."
+        ),
+    )
+    optional_group.add_argument(
+        "--optimize",
+        type=str,
+        default=None,
+        choices=["O1", "O2", "O3", "O4"],
+        help=(
+            "Allows to run ONNX Runtime optimizations directly during the export. Some of these optimizations are specific to ONNX Runtime, and the resulting ONNX will not be usable with other runtime as OpenVINO or TensorRT. Possible options:\n"
+            "    - O1: Basic general optimizations\n"
+            "    - O2: Basic and extended general optimizations, transformers-specific fusions\n"
+            "    - O3: Same as O2 with GELU approximation\n"
+            "    - O4: Same as O3 with mixed precision (fp16, GPU-only, requires `--device cuda`)"
         ),
     )
 

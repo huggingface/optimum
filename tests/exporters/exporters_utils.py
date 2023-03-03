@@ -14,9 +14,10 @@
 # limitations under the License.
 
 VALIDATE_EXPORT_ON_SHAPES_SLOW = {
-    "batch_size": [2, 4, 6],
-    "sequence_length": [8, 17, 33, 64, 96, 154],
+    "batch_size": [1, 3, 5],
+    "sequence_length": [8, 19, 33, 64, 96, 154],
     "num_choices": [2, 4],
+    "audio_sequence_length": [1000, 2000],
 }
 
 VALIDATE_EXPORT_ON_SHAPES_FAST = {
@@ -58,6 +59,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
+    "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
@@ -158,6 +160,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "gptj": "anton-l/gpt-j-tiny-random",  # TODO
     "groupvit": "nvidia/groupvit-gcc-yfcc",
     "ibert": "kssteven/ibert-roberta-base",
+    "imagegpt": "openai/imagegpt-small",
     "levit": "facebook/levit-128S",
     "layoutlm": "microsoft/layoutlm-base-uncased",
     "layoutlmv3": "microsoft/layoutlmv3-base",

@@ -17,8 +17,10 @@
 from argparse import ArgumentParser
 
 from transformers import AutoTokenizer
+from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
+from ...onnxruntime import AutoOptimizationConfig, ORTOptimizer
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
@@ -30,6 +32,10 @@ from .utils import (
     get_encoder_decoder_models_for_export,
     get_stable_diffusion_models_for_export,
 )
+
+
+if is_torch_available():
+    import torch
 
 
 logger = logging.get_logger()
@@ -63,13 +69,27 @@ def main():
                 f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
+    if (args.framework == "tf" and args.fp16 is True) or not is_torch_available():
+        raise ValueError("The --fp16 option is supported only for PyTorch.")
+
+    if args.fp16 is True and args.device == "cpu":
+        raise ValueError(
+            "The --fp16 option is supported only when exporting on GPU. Please pass the option `--device cuda`."
+        )
+
     # get the shapes to be used to generate dummy inputs
     input_shapes = {}
     for input_name in DEFAULT_DUMMY_SHAPES.keys():
         input_shapes[input_name] = getattr(args, input_name)
 
+    torch_dtype = None if args.fp16 is False else torch.float16
     model = TasksManager.get_model_from_task(
-        task, args.model, framework=args.framework, cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
+        task,
+        args.model,
+        framework=args.framework,
+        cache_dir=args.cache_dir,
+        trust_remote_code=args.trust_remote_code,
+        torch_dtype=torch_dtype,
     )
 
     if task.endswith("-with-past") and args.monolith is True:
@@ -172,7 +192,24 @@ def main():
         output_names=onnx_files_subpaths,
         input_shapes=input_shapes,
         device=args.device,
+        dtype="fp16" if args.fp16 is True else None,
     )
+
+    if args.optimize == "O4" and args.device != "cuda":
+        raise ValueError(
+            "Requested O4 optimization, but this optimization requires to do the export on GPU."
+            " Please pass the argument `--device cuda`."
+        )
+
+    if args.optimize is not None:
+        if onnx_files_subpaths is None:
+            onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
+        optimizer = ORTOptimizer.from_pretrained(args.output, file_names=onnx_files_subpaths)
+
+        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=args.optimize)
+
+        optimization_config.disable_shape_inference = True
+        optimizer.optimize(save_dir=args.output, optimization_config=optimization_config, file_suffix="")
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating stable diffusion separately is quite ugly
@@ -195,6 +232,7 @@ def main():
             onnx_files_subpaths=onnx_files_subpaths,
             input_shapes=input_shapes,
             device=args.device,
+            dtype=torch_dtype,
         )
         logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.as_posix()}")
     except ShapeError as e:
@@ -208,8 +246,8 @@ def main():
             f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.as_posix()}"
         )
     except Exception as e:
-        logger.error(
-            f"An error occured during validation with the error message: {e}.\n The exported model was saved at: {args.output.as_posix()}"
+        raise Exception(
+            f"An error occured during validation, but the model was saved nonetheless at {args.output.as_posix()}. Detailed error: {e}."
         )
 
 

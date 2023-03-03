@@ -12,12 +12,37 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import TYPE_CHECKING
 
-from .base import OnnxConfig, OnnxConfigWithLoss, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast  # noqa
-from .config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig  # noqa
-from .convert import export, export_models, validate_model_outputs, validate_models_outputs  # noqa
-from .utils import (
-    get_decoder_models_for_export,
-    get_encoder_decoder_models_for_export,
-    get_stable_diffusion_models_for_export,
-)
+from transformers.utils import _LazyModule
+
+
+_import_structure = {
+    "base": ["OnnxConfig", "OnnxConfigWithLoss", "OnnxConfigWithPast", "OnnxSeq2SeqConfigWithPast"],
+    "config": ["TextDecoderOnnxConfig", "TextEncoderOnnxConfig", "TextSeq2SeqOnnxConfig"],
+    "convert": ["export", "export_models", "validate_model_outputs", "validate_models_outputs"],
+    "utils": [
+        "get_decoder_models_for_export",
+        "get_encoder_decoder_models_for_export",
+        "get_stable_diffusion_models_for_export",
+    ],
+}
+
+if TYPE_CHECKING:
+    from .base import OnnxConfig, OnnxConfigWithLoss, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast  # noqa
+    from .config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig  # noqa
+    from .convert import export, export_models, validate_model_outputs, validate_models_outputs  # noqa
+    from .utils import (
+        get_decoder_models_for_export,
+        get_encoder_decoder_models_for_export,
+        get_stable_diffusion_models_for_export,
+    )
+else:
+    import sys
+
+    sys.modules[__name__] = _LazyModule(
+        __name__,
+        globals()["__file__"],
+        _import_structure,
+        module_spec=__spec__,
+    )
