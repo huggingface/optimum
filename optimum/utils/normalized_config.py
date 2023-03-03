@@ -202,6 +202,7 @@ class NormalizedConfigManager:
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
         "gpt_neox": NormalizedTextConfig,
         "gptj": GPT2LikeNormalizedTextConfig,
+        "imagegpt": GPT2LikeNormalizedTextConfig,
         "longt5": T5LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,

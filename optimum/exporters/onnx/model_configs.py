@@ -182,6 +182,10 @@ class CodeGenOnnxConfig(GPT2OnnxConfig):
     pass
 
 
+class ImageGPTOnnxConfig(GPT2OnnxConfig):
+    pass
+
+
 class GPTNeoOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
@@ -1035,7 +1039,6 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
 
             if self.use_past_in_inputs:
                 self.add_past_key_values(common_inputs, direction="inputs")
-
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 

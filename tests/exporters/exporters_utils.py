@@ -59,6 +59,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
+    "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
@@ -158,6 +159,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "gptj": "anton-l/gpt-j-tiny-random",  # TODO
     "groupvit": "nvidia/groupvit-gcc-yfcc",
     "ibert": "kssteven/ibert-roberta-base",
+    "imagegpt": "openai/imagegpt-small",
     "levit": "facebook/levit-128S",
     "layoutlm": "microsoft/layoutlm-base-uncased",
     "layoutlmv3": "microsoft/layoutlmv3-base",
