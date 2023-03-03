@@ -202,7 +202,6 @@ class BetterTransformersTestMixin:
     #         self.assertEqual(inspect.getsource(hf_module.forward), inspect.getsource(bt_module.forward))
     #         self.assertEqual(inspect.getsource(hf_module.__init__), inspect.getsource(bt_module.__init__))
 
-    # TODO: re-enable once fixed
     # def test_save_load_invertible(self, model_id, keep_original_model=True):
     #     with tempfile.TemporaryDirectory() as tmpdirname:
     #         hf_model = AutoModel.from_pretrained(model_id).eval()
@@ -245,7 +244,6 @@ class BetterTransformersTestMixin:
     #                 )
     #             )
 
-    # TODO: re-enable once fixed
     # def test_invert_model_logits(self, model_id, keep_original_model=True, **preprocessor_kwargs):
     #     r"""
     #     Test that the inverse converted model and hf model have the same logits
