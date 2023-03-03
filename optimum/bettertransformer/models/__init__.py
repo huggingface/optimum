@@ -13,6 +13,7 @@
 # limitations under the License.
 import warnings
 
+from .decoder_models import GPT2AttentionLayerBetterTransformer
 from .encoder_models import (
     AlbertLayerBetterTransformer,
     BartEncoderLayerBetterTransformer,
@@ -42,6 +43,7 @@ class BetterTransformerManager:
         "electra": ("ElectraLayer", BertLayerBetterTransformer),
         "ernie": ("ErnieLayer", BertLayerBetterTransformer),
         "fsmt": ("EncoderLayer", FSMTEncoderLayerBetterTransformer),
+        "gpt2": ("GPT2Attention", GPT2AttentionLayerBetterTransformer),
         "hubert": ("HubertEncoderLayer", Wav2Vec2EncoderLayerBetterTransformer),
         "layoutlm": ("LayoutLMLayer", BertLayerBetterTransformer),
         "m2m_100": ("M2M100EncoderLayer", MBartEncoderLayerBetterTransformer),
@@ -99,6 +101,20 @@ class BetterTransformerManager:
                 The model type to check.
         """
         return model_type in BetterTransformerManager.MODEL_MAPPING
+
+    @staticmethod
+    def requires_nested_tensor(model_type: str) -> bool:
+        """
+        Returns True if the BetterTransform implementation for a given architecture uses nested tensors, False otherwise.
+
+        Args:
+            model_type (`str`):
+                The model type to check.
+        """
+        if model_type in ["gpt2"]:
+            return False
+        else:
+            return True
 
 
 class warn_uncompatible_save(object):
