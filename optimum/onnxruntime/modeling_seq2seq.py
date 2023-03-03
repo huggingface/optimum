@@ -1186,6 +1186,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         input_ids,
         past_key_values=None,
         attention_mask=None,
+        token_type_ids=None,
         head_mask=None,
         decoder_head_mask=None,
         cross_attn_head_mask=None,
