@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 class QuestionAnsweringProcessing(TaskProcessing):
     ACCEPTED_PREPROCESSOR_CLASSES = (PreTrainedTokenizerBase,)
-    DEFAULT_DATASET_ARGS = ("squad_v2",)
+    DEFAULT_DATASET_ARGS = "squad_v2"
     DEFAUL_DATASET_DATA_KEYS = {"question": "question", "context": "context"}
     ALLOWED_DATA_KEY_NAMES = {"question", "context"}
     DEFAULT_REF_KEYS = ["answers"]

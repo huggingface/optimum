@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .base import TaskProcessing
 from .dataset_processing_manager import DatasetProcessingManager
 from .image_classification import ImageClassificationProcessing
 from .question_answering import QuestionAnsweringProcessing
 from .text_classification import TextClassificationProcessing
 from .token_classification import TokenClassificationProcessing
-from .base import TaskProcessing

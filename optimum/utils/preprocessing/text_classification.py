@@ -15,6 +15,7 @@
 """Text classification processing."""
 
 import copy
+import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from evaluate import combine, evaluator
@@ -28,11 +29,14 @@ if TYPE_CHECKING:
     from transformers import TextClassificationPipeline
 
 
+logger = logging.getLogger(__name__)
+
+
 class TextClassificationProcessing(TaskProcessing):
     ACCEPTED_PREPROCESSOR_CLASSES = (PreTrainedTokenizerBase,)
-    DEFAULT_DATASET_ARGS = ("glue", "sst2")
+    DEFAULT_DATASET_ARGS = {"path": "glue", "name": "sst2"}
     DEFAUL_DATASET_DATA_KEYS = {"primary": "sentence"}
-    ALLOWED_DATA_KEY_NAMES = {"primary"}
+    ALLOWED_DATA_KEY_NAMES = {"primary", "secondary"}
     DEFAULT_REF_KEYS = ["label"]
 
     def create_defaults_and_kwargs_from_preprocessor_kwargs(
@@ -52,6 +56,7 @@ class TextClassificationProcessing(TaskProcessing):
     ) -> Dict[str, Any]:
         tokenized_inputs = self.preprocessor(
             text=example[data_keys["primary"]],
+            text_pair=example[data_keys["secondary"]] if "secondary" in data_keys else None,
             **self.defaults,
             **self.preprocessor_kwargs,
         )
@@ -59,17 +64,28 @@ class TextClassificationProcessing(TaskProcessing):
 
     def try_to_guess_data_keys(self, column_names: List[str]) -> Optional[Dict[str, str]]:
         primary_key_name = None
+        primary_key_name_candidates = ["sentence", "text", "premise"]
         for name in column_names:
-            if "sentence" in name or "text" in name:
+            if any(candidate in name for candidate in primary_key_name_candidates):
                 primary_key_name = name
                 break
-        if primary_key_name is None and len(column_names) == 2:
-            if "label" in column_names[0]:
-                primary_key_name = column_names[1]
-            elif "label" in column_names[1]:
-                primary_key_name = column_names[0]
 
-        return {"primary": primary_key_name} if primary_key_name is not None else None
+        secondary_key_name = None
+        secondary_key_name_candidates = ["hypothesis"]
+        for name in column_names:
+            if any(candidate in name for candidate in secondary_key_name_candidates):
+                secondary_key_name = name
+                break
+
+        if primary_key_name is None:
+            return None
+        elif secondary_key_name is None:
+            logger.info(
+                "Could not infer the secondary key in the dataset, if it does contain one, please provided it manually."
+            )
+            return {"primary": primary_key_name}
+        else:
+            return {"primary": primary_key_name, "secondary": secondary_key_name}
 
     def try_to_guess_ref_keys(self, column_names: List[str]) -> Optional[List[str]]:
         for name in column_names:
@@ -78,14 +94,14 @@ class TextClassificationProcessing(TaskProcessing):
 
     def load_dataset(
         self,
-        *args,
+        path: str,
         data_keys: Optional[Dict[str, str]] = None,
         ref_keys: Optional[List[str]] = None,
         only_keep_necessary_columns: bool = False,
         **kwargs,
     ) -> Union["DatasetDict", "Dataset"]:
         dataset = super().load_dataset(
-            *args,
+            path,
             data_keys=data_keys,
             only_keep_necessary_columns=only_keep_necessary_columns,
             ref_keys=ref_keys,

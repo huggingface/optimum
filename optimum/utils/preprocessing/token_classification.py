@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 class TokenClassificationProcessing(TaskProcessing):
     ACCEPTED_PREPROCESSOR_CLASSES = (PreTrainedTokenizerBase,)
-    DEFAULT_DATASET_ARGS = ("conll2003",)
+    DEFAULT_DATASET_ARGS = "conll2003"
     DEFAUL_DATASET_DATA_KEYS = {"primary": "tokens"}
     ALLOWED_DATA_KEY_NAMES = {"primary"}
     DEFAULT_REF_KEYS = ["ner_tags", "pos_tags", "chunk_tags"]
@@ -61,7 +61,7 @@ class TokenClassificationProcessing(TaskProcessing):
     def try_to_guess_data_keys(self, column_names: List[str]) -> Optional[Dict[str, str]]:
         primary_key_name = None
         for name in column_names:
-            if "tokens" in name or "text" in name or "sentence" in name:
+            if "token" in name or "text" in name or "sentence" in name:
                 primary_key_name = name
                 break
         return {"primary": primary_key_name} if primary_key_name is not None else None
@@ -75,7 +75,7 @@ class TokenClassificationProcessing(TaskProcessing):
 
     def load_dataset(
         self,
-        *args,
+        path: str,
         data_keys: Optional[Dict[str, str]] = None,
         ref_keys: Optional[List[str]] = None,
         only_keep_necessary_columns: bool = False,
@@ -84,7 +84,7 @@ class TokenClassificationProcessing(TaskProcessing):
         if data_keys is not None and data_keys.get("secondary", None) is not None:
             raise ValueError("Only one data column is supported for token-classification.")
         dataset = super().load_dataset(
-            *args,
+            path,
             data_keys=data_keys,
             only_keep_necessary_columns=only_keep_necessary_columns,
             ref_keys=ref_keys,

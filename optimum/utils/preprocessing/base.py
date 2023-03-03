@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 class TaskProcessing(ABC):
     ACCEPTED_PREPROCESSOR_CLASSES: Tuple[Type, ...]
-    DEFAULT_DATASET_ARGS: Tuple[Any, ...]
+    DEFAULT_DATASET_ARGS: Union[str, Dict[str, Any]]
     DEFAUL_DATASET_DATA_KEYS: Dict[str, str]
     ALLOWED_DATA_KEY_NAMES = Set[str]
     DEFAULT_REF_KEYS: List[str]
@@ -111,13 +111,13 @@ class TaskProcessing(ABC):
 
     def load_dataset(
         self,
-        *args,
+        path: str,
         data_keys: Optional[Dict[str, str]] = None,
         ref_keys: Optional[List[str]] = None,
         only_keep_necessary_columns: bool = False,
         **kwargs,
     ) -> Union[DatasetDict, Dataset]:
-        dataset = datasets_load_dataset(*args, **kwargs)
+        dataset = datasets_load_dataset(path, **kwargs)
         column_names = dataset.column_names
         if isinstance(column_names, dict):
             column_names = list(set(itertools.chain.from_iterable(column_names.values())))
@@ -129,9 +129,9 @@ class TaskProcessing(ABC):
                     "Data keys need to be specified manually since they could not be guessed from "
                     f"{', '.join(column_names)}"
                 )
-        elif not set(data_keys.keys()) < self.ALLOWED_DATA_KEY_NAMES:
+        elif not set(data_keys.keys()) <= self.ALLOWED_DATA_KEY_NAMES:
             raise ValueError(
-                f"data_keys contains unallowed keys {data_keys.keys()}, allowed_keys: {self.ALLOWED_DATA_KEY_NAMES}."
+                f"data_keys contains unallowed keys {set(data_keys.keys())}, allowed_keys: {self.ALLOWED_DATA_KEY_NAMES}."
             )
 
         if ref_keys is None:
@@ -147,11 +147,24 @@ class TaskProcessing(ABC):
         return dataset
 
     def load_default_dataset(self, only_keep_necessary_columns: bool = False):
+        if isinstance(self.DEFAULT_DATASET_ARGS, dict):
+            path = self.DEFAULT_DATASET_ARGS.get("path", None)
+            if path is None:
+                raise ValueError(
+                    'When DEFAULT_DATASET_ARGS is a dictionary, it must contain a key called "path" corresponding to '
+                    "the path or name of the dataset."
+                )
+            load_dataset_kwargs = {k: v for k, v in self.DEFAULT_DATASET_ARGS.items() if k != "path"}
+        else:
+            path = self.DEFAULT_DATASET_ARGS
+            load_dataset_kwargs = {}
+
         return self.load_dataset(
-            *self.DEFAULT_DATASET_ARGS,
+            path,
             data_keys=self.DEFAUL_DATASET_DATA_KEYS,
             ref_keys=self.DEFAULT_REF_KEYS,
             only_keep_necessary_columns=only_keep_necessary_columns,
+            **load_dataset_kwargs,
         )
 
     def run_inference(self, eval_dataset: "Dataset", pipeline: "Pipeline") -> Tuple[List, List]:

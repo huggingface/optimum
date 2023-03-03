@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 import torch
 from evaluate import combine, evaluator
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
-from transformers.image_processing_utils import BaseImageProcessor, VALID_SIZE_DICT_KEYS
+from transformers.image_processing_utils import VALID_SIZE_DICT_KEYS, BaseImageProcessor
 
 from .. import logging
 from .base import TaskProcessing
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
 class ImageClassificationProcessing(TaskProcessing):
     ACCEPTED_PREPROCESSOR_CLASSES = (BaseImageProcessor,)
-    DEFAULT_DATASET_ARGS = ("squad_v2",)
+    DEFAULT_DATASET_ARGS = "cifar10"
     DEFAUL_DATASET_DATA_KEYS = {"image": "pixel_values"}
     DEFAULT_REF_KEYS = ["answers"]
 
@@ -93,14 +93,14 @@ class ImageClassificationProcessing(TaskProcessing):
 
     def load_dataset(
         self,
-        *args,
+        path: str,
         data_keys: Optional[Dict[str, str]] = None,
         ref_keys: Optional[List[str]] = None,
         only_keep_necessary_columns: bool = False,
         **kwargs,
     ) -> Union["DatasetDict", "Dataset"]:
         dataset = super().load_dataset(
-            *args,
+            path,
             data_keys=data_keys,
             only_keep_necessary_columns=only_keep_necessary_columns,
             ref_keys=ref_keys,
