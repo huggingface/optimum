@@ -565,8 +565,7 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
 
 
 class DonutSwinOnnxConfig(ViTOnnxConfig):
-    def __init__(self, config: "PretrainedConfig", task: str = "default"):
-        super().__init__(config, task)
+    pass
 
 
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
