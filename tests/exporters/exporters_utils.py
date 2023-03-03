@@ -122,7 +122,6 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
         "microsoft/trocr-small-handwritten": ["vision2seq-lm"],
     },
-    "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel",
 }
 
 
