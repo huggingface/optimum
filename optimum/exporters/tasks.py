@@ -423,7 +423,7 @@ class TasksManager:
             "causal-lm-with-past",
             "question-answering",
             "sequence-classification",
-            onnx="OPTJOnnxConfig",
+            onnx="OPTOnnxConfig",
         ),
         "groupvit": supported_tasks_mapping(
             "default",
