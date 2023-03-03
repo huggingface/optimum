@@ -15,6 +15,7 @@
 import tempfile
 import unittest
 
+import transformers
 from parameterized import parameterized
 from testing_utils import MODELS_DICT
 from transformers import AutoModel
@@ -88,6 +89,9 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
         Test if the converted model raises an error when calling `save_pretrained`
         but not when the model is reverted
         """
+        if model_type in ["wav2vec2", "hubert"] and keep_original_model is True:
+            self.skipTest("These architectures do not support deepcopy")
+
         model_ids = (
             MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
         )
@@ -112,6 +116,12 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
         A tests that checks if the conversion raises an error if the model contains an activation function
         that is not supported by `BetterTransformer`. Here we need to loop over the config files
         """
+        if BetterTransformerManager.requires_strict_validation(model_type) is False:
+            self.skipTest("The architecture does not require a specific activation function")
+
+        if model_type in ["wav2vec2", "hubert"]:
+            self.skipTest("These architectures do not support deepcopy (raise unrelated error)")
+
         layer_class = BetterTransformerManager.MODEL_MAPPING[model_type][0]
         if isinstance(layer_class, list):
             layer_class = layer_class[0]
@@ -124,6 +134,8 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
             class_name = "DistilBert"
         elif "EncoderLayer" in layer_class:
             class_name = layer_class[:-12]
+        elif "Attention" in layer_class:
+            class_name = layer_class[:-9]
         else:
             class_name = layer_class[:-5]
 
@@ -131,8 +143,9 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
         hf_random_config.hidden_act = "silu"
 
         hf_random_model = AutoModel.from_config(hf_random_config).eval()
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as cm:
             _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+        self.assertTrue("Activation function" in str(cm.exception))
 
     def test_dict_class_consistency(self):
         """

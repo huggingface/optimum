@@ -26,8 +26,11 @@ from optimum.utils.testing_utils import grid_parameters
 class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
     SUPPORTED_ARCH = ["gpt2"]
 
-    def prepare_inputs_for_class(self, model_id, batch_size, **preprocessor_kwargs):
+    def prepare_inputs_for_class(self, model_id, batch_size=2, **preprocessor_kwargs):
         tokenizer = AutoTokenizer.from_pretrained(model_id)
+        if not hasattr(tokenizer, "pad_token") or tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+
         padding = preprocessor_kwargs.pop("padding", True)
         if batch_size == 1:
             texts = ["a dummy input yeah!"]
@@ -48,7 +51,7 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
     )
     def test_logits(self, test_name: str, model_type: str, padding, batch_size: int):
         model_id = MODELS_DICT[model_type]
-        super()._test_logits(model_id, padding=padding)
+        super()._test_logits(model_id, padding=padding, batch_size=batch_size)
 
     @parameterized.expand(
         grid_parameters({"model_type": SUPPORTED_ARCH, "batch_size": [1, 2], "padding": [True, "max_length"]})
@@ -79,9 +82,9 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_autocast(self, model_type: str):
         model_id = MODELS_DICT[model_type]
-        super().test_raise_autocast(model_id)
+        super()._test_raise_autocast(model_id)
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_train(self, model_type: str):
         model_id = MODELS_DICT[model_type]
-        super().test_raise_train(model_id)
+        super()._test_raise_train(model_id)

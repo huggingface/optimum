@@ -142,12 +142,12 @@ class BetterTransformersTestMixin:
             f" Maxdiff: {torch.abs(tensor1 - tensor2).max()}",
         )
 
-    def _test_raise_autocast(self, model_id: str):
+    def _test_raise_autocast(self, model_id: str, **kwargs):
         r"""
         A tests that checks if the conversion raises an error if the model is run under
         `torch.cuda.amp.autocast`.
         """
-        inputs = self.prepare_inputs_for_class(model_id=model_id)
+        inputs = self.prepare_inputs_for_class(model_id=model_id, **kwargs)
         hf_random_model = AutoModel.from_pretrained(model_id).eval()
 
         # Check for the autocast on CPU
@@ -155,12 +155,12 @@ class BetterTransformersTestMixin:
             bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
             _ = bt_model(**inputs)
 
-    def _test_raise_train(self, model_id: str):
+    def _test_raise_train(self, model_id: str, **kwargs):
         r"""
         A tests that checks if the conversion raises an error if the model is run under
         `model.train()`.
         """
-        inputs = self.prepare_inputs_for_class(model_id=model_id)
+        inputs = self.prepare_inputs_for_class(model_id=model_id, **kwargs)
 
         hf_random_model = AutoModel.from_pretrained(model_id).eval()
         # Check for training mode

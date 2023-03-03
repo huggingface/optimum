@@ -116,6 +116,20 @@ class BetterTransformerManager:
         else:
             return True
 
+    @staticmethod
+    def requires_strict_validation(model_type: str) -> bool:
+        """
+        Returns True if the architecture requires to make sure all conditions of `validate_bettertransformer` are met.
+
+        Args:
+            model_type (`str`):
+                The model type to check.
+        """
+        if model_type in ["gpt2"]:
+            return False
+        else:
+            return True
+
 
 class warn_uncompatible_save(object):
     def __init__(self, callback):

@@ -50,6 +50,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         "markuplm",
         "rembert",
         "roberta",
+        "rocbert",
         "roformer",
         "splinter",
         "tapas",
@@ -59,13 +60,12 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
     def tearDown(self):
         gc.collect()
 
-    def prepare_inputs_for_class(self, model_id, **preprocessor_kwargs):
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-        padding = preprocessor_kwargs.pop("padding", True)
-        inputs = tokenizer(
-            ["a dummy input yeah!", "and two"], return_tensors="pt", padding=padding, **preprocessor_kwargs
-        )
-        return inputs
+    def prepare_inputs_for_class(self, model_id=None):
+        input_dict = {
+            "input_ids": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]]),
+            "attention_mask": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]]),
+        }
+        return input_dict
 
     def test_raise_pos_emb(self):
         r"""
@@ -195,6 +195,11 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_autocast(self, model_type: str):
+        if model_type == "rocbert":
+            self.skipTest(
+                "unrelated issue with torch.amp.autocast with rocbert (expected scalar type BFloat16 but found Float)"
+            )
+
         model_id = MODELS_DICT[model_type]
         super()._test_raise_autocast(model_id)
 
@@ -270,14 +275,6 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
     # )
     # def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
     #     super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
-
-
-class BetterTransformersRoCBertTest(BetterTransformersEncoderTest):
-    SUPPORTED_ARCH = ["hf-internal-testing/tiny-random-RoCBertModel"]
-
-    # unrelated issue with torch.amp.autocast with rocbert (expected scalar type BFloat16 but found Float)
-    def test_raise_autocast(self):
-        pass
 
 
 class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest.TestCase):

@@ -159,10 +159,14 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
     """
     SUPPORTED_ARCH = ["clip", "clip_text_model"]
 
-    def prepare_inputs_for_class(self, model_id, **preprocessor_kwargs):
+    def prepare_inputs_for_class(self, model_id, batch_size=3, **preprocessor_kwargs):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
-        text = ["a photo", "a photo of dog", "a photo of two big cats"]
+
+        if batch_size == 1:
+            text = ["a photo"]
+        else:
+            text = ["a photo"] + ["a photo of two big cats"] * (batch_size - 1)
 
         # Model takes image and text as input
         processor = AutoProcessor.from_pretrained(model_id)
@@ -193,12 +197,12 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_autocast(self, model_type: str):
         model_id = MODELS_DICT[model_type]
-        super()._test_raise_autocast(model_id)
+        super()._test_raise_autocast(model_id, batch_size=1)
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_train(self, model_type: str):
         model_id = MODELS_DICT[model_type]
-        super()._test_raise_train(model_id)
+        super()._test_raise_train(model_id, batch_size=1)
 
     # @parameterized.expand(
     #     grid_parameters(
