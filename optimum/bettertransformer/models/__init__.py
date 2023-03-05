@@ -83,9 +83,9 @@ class BetterTransformerManager:
     }
 
     CAN_NOT_BE_SUPPORTED = {
-        "deberta-v2": "DeBERTa v2 does not use a regular attention mechanism, which is not suppored in PyTorch's BetterTransformer.",
-        "glpn": "GLPN has a convolutional layer present in the FFN network, which is not suppored in PyTorch's BetterTransformer.",
-        "t5": "T5 uses attention bias, which is not suppored in PyTorch's BetterTransformer.",
+        "deberta-v2": "DeBERTa v2 does not use a regular attention mechanism, which is not supported in PyTorch's BetterTransformer.",
+        "glpn": "GLPN has a convolutional layer present in the FFN network, which is not supported in PyTorch's BetterTransformer.",
+        "t5": "T5 uses attention bias, which is not supported in PyTorch's BetterTransformer.",
     }
 
     @staticmethod
@@ -113,13 +113,13 @@ class BetterTransformerManager:
     @staticmethod
     def requires_nested_tensor(model_type: str) -> bool:
         """
-        Returns True if the BetterTransform implementation for a given architecture uses nested tensors, False otherwise.
+        Returns True if the BetterTransformer implementation for a given architecture uses nested tensors, False otherwise.
 
         Args:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "gptj", "imagegpt"]:
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "gptj"]:
             return False
         else:
             return True
@@ -133,10 +133,24 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["gpt2"]:
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox"]:
             return False
         else:
             return True
+
+    @staticmethod
+    def requires_torch_20(model_type: str) -> bool:
+        """
+        Returns True if the architecture requires PyTorch 2.0 to be used with BetterTransformer.
+
+        Args:
+            model_type (`str`):
+                The model type to check.
+        """
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox"]:
+            return True
+        else:
+            return False
 
 
 class warn_uncompatible_save(object):
