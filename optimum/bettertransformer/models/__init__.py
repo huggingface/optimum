@@ -13,7 +13,11 @@
 # limitations under the License.
 import warnings
 
-from .decoder_models import CodegenAttentionLayerBetterTransformer, GPT2AttentionLayerBetterTransformer
+from .decoder_models import (
+    CodegenAttentionLayerBetterTransformer,
+    GPT2AttentionLayerBetterTransformer,
+    GPTNeoAttentionLayerBetterTransformer,
+)
 from .encoder_models import (
     AlbertLayerBetterTransformer,
     BartEncoderLayerBetterTransformer,
@@ -46,7 +50,7 @@ class BetterTransformerManager:
         "fsmt": ("EncoderLayer", FSMTEncoderLayerBetterTransformer),
         "gpt2": ("GPT2Attention", GPT2AttentionLayerBetterTransformer),
         "gptj": ("GPTJAttention", GPT2AttentionLayerBetterTransformer),
-        "gpt_neo": ("GPTNeoSelfAttention", GPT2AttentionLayerBetterTransformer),
+        "gpt_neo": ("GPTNeoSelfAttention", GPTNeoAttentionLayerBetterTransformer),
         "gpt_neox": ("GPTNeoXAttention", GPT2AttentionLayerBetterTransformer),
         "hubert": ("HubertEncoderLayer", Wav2Vec2EncoderLayerBetterTransformer),
         "layoutlm": ("LayoutLMLayer", BertLayerBetterTransformer),

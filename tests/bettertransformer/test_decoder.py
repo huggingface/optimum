@@ -20,6 +20,7 @@ from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
+from optimum.utils import DummyPastKeyValuesGenerator, NormalizedConfigManager
 from optimum.utils.testing_utils import grid_parameters
 
 
@@ -36,27 +37,70 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
             texts = ["a dummy input yeah!"]
         else:
             texts = ["a dummy input yeah!"] + ["and two"] * (batch_size - 1)
-        inputs = tokenizer(texts, return_tensors="pt", padding=padding, **preprocessor_kwargs)
+        inputs = tokenizer(texts, return_tensors="pt", padding=padding, max_length=20, **preprocessor_kwargs)
         return inputs
 
-    # run the test over all possible combinations of `model_id` and `padding`
     @parameterized.expand(
         grid_parameters(
             {
                 "model_type": SUPPORTED_ARCH,
                 "padding": ["max_length", True],
-                "batch_size": [1, 2],
+                "batch_size": [1, 3],
             }
         )
     )
-    def test_logits(self, test_name: str, model_type: str, padding, batch_size: int):
+    def test_logits_without_cache(self, test_name: str, model_type: str, padding, batch_size: int):
+        if batch_size == 1 and padding == "max_length":
+            self.skipTest("batch_size=1 + padding='max_length' is unsupported")
+
         model_id = MODELS_DICT[model_type]
         super()._test_logits(model_id, padding=padding, batch_size=batch_size)
 
     @parameterized.expand(
-        grid_parameters({"model_type": SUPPORTED_ARCH, "batch_size": [1, 2], "padding": [True, "max_length"]})
+        grid_parameters(
+            {
+                "model_type": SUPPORTED_ARCH,
+                "batch_size": [1, 3],
+            }
+        )
+    )
+    def test_logits_with_cache(self, test_name: str, model_type: str, batch_size: int):
+        input_ids = torch.randint(low=1, high=10, size=(batch_size, 1))
+        seq_length = 12
+        attention_mask = torch.ones(batch_size, seq_length + 1, dtype=torch.int32)
+
+        model_id = MODELS_DICT[model_type]
+
+        model = AutoModelForCausalLM.from_pretrained(model_id)
+
+        normalized_config = NormalizedConfigManager.get_normalized_config_class(model.config.model_type)(model.config)
+        pkv_generator = DummyPastKeyValuesGenerator(
+            task="", normalized_config=normalized_config, batch_size=batch_size, sequence_length=seq_length
+        )
+        past_key_values = pkv_generator.generate(input_name="past_key_values")
+
+        result_vanilla = model(input_ids=input_ids, attention_mask=attention_mask, past_key_values=past_key_values)
+
+        model = BetterTransformer.transform(model)
+
+        result_bettertransformer = model(
+            input_ids=input_ids, attention_mask=attention_mask, past_key_values=past_key_values
+        )
+
+        logits_vanilla = result_vanilla.logits
+        logits_bettertransformer = result_bettertransformer.logits
+        self.assertTrue(
+            torch.allclose(logits_vanilla, logits_bettertransformer, atol=1e-5),
+            f" Maxdiff: {(logits_vanilla - logits_bettertransformer).abs().max()}",
+        )
+
+    @parameterized.expand(
+        grid_parameters({"model_type": SUPPORTED_ARCH, "batch_size": [1, 3], "padding": [True, "max_length"]})
     )
     def test_generation(self, test_name: str, model_type: str, batch_size: int, padding: str):
+        if batch_size == 1 and padding == "max_length":
+            self.skipTest("batch_size=1 + padding='max_length' is unsupported")
+
         model_id = MODELS_DICT[model_type]
         tokenizer = AutoTokenizer.from_pretrained(model_id)
 
@@ -68,19 +112,14 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         text = ["This is me and me"]
         if batch_size > 1:
             text.append("Please continue this my dear me")
-        inp = tokenizer(text, return_tensors="pt", padding=padding)
+        inp = tokenizer(text, return_tensors="pt", padding=padding, max_length=30)
 
-        length = 12
+        length = 50
         result_vanilla = model.generate(**inp, num_beams=1, min_length=length, max_length=length)
 
         model = BetterTransformer.transform(model)
 
-        print("\n\n\n\n\n GENERATION BT")
-
         result_bettertransformer = model.generate(**inp, num_beams=1, min_length=length, max_length=length)
-
-        print("VANILLA:", result_vanilla)
-        print("BT:", result_bettertransformer)
 
         self.assertTrue(
             torch.allclose(result_vanilla, result_bettertransformer),
