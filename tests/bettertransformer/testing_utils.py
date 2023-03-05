@@ -28,6 +28,7 @@ MODELS_DICT = {
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip_text_model": "hf-internal-testing/tiny-random-clip-zero-shot-image-classification",  # with quick_gelu
     "clip": "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",  # with gelu
+    "codegen": "hf-internal-testing/tiny-random-CodeGenModel",
     "data2vec-text": "hf-internal-testing/tiny-random-Data2VecTextModel",
     "deit": "hf-internal-testing/tiny-random-deit",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
@@ -35,6 +36,9 @@ MODELS_DICT = {
     "ernie": "hf-internal-testing/tiny-random-ErnieModel",
     "fsmt": "hf-internal-testing/tiny-random-FSMTModel",
     "gpt2": "hf-internal-testing/tiny-random-GPT2Model",
+    "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
+    "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
+    "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "hubert": "ybelkada/hubert-tiny-random",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "m2m_100": "hf-internal-testing/tiny-random-nllb",

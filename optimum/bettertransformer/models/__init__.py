@@ -13,7 +13,7 @@
 # limitations under the License.
 import warnings
 
-from .decoder_models import GPT2AttentionLayerBetterTransformer
+from .decoder_models import CodegenAttentionLayerBetterTransformer, GPT2AttentionLayerBetterTransformer
 from .encoder_models import (
     AlbertLayerBetterTransformer,
     BartEncoderLayerBetterTransformer,
@@ -37,6 +37,7 @@ class BetterTransformerManager:
         "bert-generation": ("BertGenerationLayer", BertLayerBetterTransformer),
         "camembert": ("CamembertLayer", BertLayerBetterTransformer),
         "clip": ("CLIPEncoderLayer", CLIPLayerBetterTransformer),
+        "codegen": ("CodeGenAttention", CodegenAttentionLayerBetterTransformer),
         "data2vec-text": ("Data2VecTextLayer", BertLayerBetterTransformer),
         "deit": ("DeiTLayer", ViTLayerBetterTransformer),
         "distilbert": ("TransformerBlock", DistilBertLayerBetterTransformer),
@@ -44,6 +45,9 @@ class BetterTransformerManager:
         "ernie": ("ErnieLayer", BertLayerBetterTransformer),
         "fsmt": ("EncoderLayer", FSMTEncoderLayerBetterTransformer),
         "gpt2": ("GPT2Attention", GPT2AttentionLayerBetterTransformer),
+        "gptj": ("GPTJAttention", GPT2AttentionLayerBetterTransformer),
+        "gpt_neo": ("GPTNeoSelfAttention", GPT2AttentionLayerBetterTransformer),
+        "gpt_neox": ("GPTNeoXAttention", GPT2AttentionLayerBetterTransformer),
         "hubert": ("HubertEncoderLayer", Wav2Vec2EncoderLayerBetterTransformer),
         "layoutlm": ("LayoutLMLayer", BertLayerBetterTransformer),
         "m2m_100": ("M2M100EncoderLayer", MBartEncoderLayerBetterTransformer),
@@ -111,7 +115,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["gpt2"]:
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "gptj", "imagegpt"]:
             return False
         else:
             return True

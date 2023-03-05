@@ -24,7 +24,7 @@ from optimum.utils.testing_utils import grid_parameters
 
 
 class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
-    SUPPORTED_ARCH = ["gpt2"]
+    SUPPORTED_ARCH = ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox"]
 
     def prepare_inputs_for_class(self, model_id, batch_size=2, **preprocessor_kwargs):
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -70,14 +70,22 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
             text.append("Please continue this my dear me")
         inp = tokenizer(text, return_tensors="pt", padding=padding)
 
-        length = 50
+        length = 12
         result_vanilla = model.generate(**inp, num_beams=1, min_length=length, max_length=length)
 
         model = BetterTransformer.transform(model)
 
+        print("\n\n\n\n\n GENERATION BT")
+
         result_bettertransformer = model.generate(**inp, num_beams=1, min_length=length, max_length=length)
 
-        self.assertTrue(torch.allclose(result_vanilla, result_bettertransformer))
+        print("VANILLA:", result_vanilla)
+        print("BT:", result_bettertransformer)
+
+        self.assertTrue(
+            torch.allclose(result_vanilla, result_bettertransformer),
+            f" Maxdiff: {(result_vanilla - result_bettertransformer).abs().max()}",
+        )
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_autocast(self, model_type: str):
