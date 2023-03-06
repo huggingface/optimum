@@ -15,7 +15,9 @@
 import tempfile
 import unittest
 
+import torch
 import transformers
+from packaging.version import parse
 from parameterized import parameterized
 from testing_utils import MODELS_DICT
 from transformers import AutoModel
@@ -26,6 +28,10 @@ from optimum.utils.testing_utils import grid_parameters
 
 
 class BetterTransformerIntegrationTests(unittest.TestCase):
+    def _skip_on_torch_version(self, model_type: str):
+        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("2.0"):
+            self.skipTest(f"The model type {model_type} require PyTorch 2.0 for BetterTransformer")
+
     def test_raise_error_on_double_transform_call(self):
         model = AutoModel.from_pretrained("hf-internal-testing/tiny-random-BertModel")
 
@@ -35,7 +41,7 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
         self.assertTrue("was called on a model already using Better Transformer" in str(cm.exception))
 
     @unittest.mock.patch("optimum.utils.import_utils.is_onnxruntime_available")
-    def test_direct_pipleine_initialization_without_onnx_installed(self, mock_onnxruntime_availability):
+    def test_direct_pipeline_initialization_without_onnx_installed(self, mock_onnxruntime_availability):
         mock_onnxruntime_availability.return_value = False
         pipe = pipeline(
             "question-answering",
@@ -51,8 +57,9 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
     @parameterized.expand(MODELS_DICT.keys())
     def test_raise_on_save(self, model_type: str):
         r"""
-        Test if the converion properly raises an error if someone tries to save the model using `save_pretrained`.
+        Test if the conversion properly raises an error if someone tries to save the model using `save_pretrained`.
         """
+        self._skip_on_torch_version(model_type)
         model_ids = (
             MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
         )
@@ -68,6 +75,7 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
         This tests if the conversion of a slow model to its BetterTransformer version using fastpath
         has been successful.
         """
+        self._skip_on_torch_version(model_type)
         model_ids = (
             MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
         )
@@ -89,6 +97,7 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
         Test if the converted model raises an error when calling `save_pretrained`
         but not when the model is reverted
         """
+        self._skip_on_torch_version(model_type)
         if model_type in ["wav2vec2", "hubert"] and keep_original_model is True:
             self.skipTest("These architectures do not support deepcopy")
 
@@ -116,6 +125,7 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
         A tests that checks if the conversion raises an error if the model contains an activation function
         that is not supported by `BetterTransformer`. Here we need to loop over the config files
         """
+        self._skip_on_torch_version(model_type)
         if BetterTransformerManager.requires_strict_validation(model_type) is False:
             self.skipTest("The architecture does not require a specific activation function")
 

@@ -15,17 +15,22 @@
 import unittest
 
 import torch
+from packaging.version import parse
 from parameterized import parameterized
 from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from optimum.bettertransformer import BetterTransformer
+from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
 from optimum.utils import DummyPastKeyValuesGenerator, NormalizedConfigManager
 from optimum.utils.testing_utils import grid_parameters
 
 
 class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
     SUPPORTED_ARCH = ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]
+
+    def _skip_on_torch_version(self, model_type: str):
+        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("2.0"):
+            self.skipTest(f"The model type {model_type} require PyTorch 2.0 for BetterTransformer")
 
     def prepare_inputs_for_class(self, model_id, batch_size=2, **preprocessor_kwargs):
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -50,6 +55,7 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         )
     )
     def test_logits_without_cache(self, test_name: str, model_type: str, padding, batch_size: int):
+        self._skip_on_torch_version(model_type)
         if batch_size == 1 and padding == "max_length":
             self.skipTest("batch_size=1 + padding='max_length' is unsupported")
 
@@ -65,6 +71,7 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         )
     )
     def test_logits_with_cache(self, test_name: str, model_type: str, batch_size: int):
+        self._skip_on_torch_version(model_type)
         input_ids = torch.randint(low=1, high=10, size=(batch_size, 1))
         seq_length = 12
         attention_mask = torch.ones(batch_size, seq_length + 1, dtype=torch.int32)
@@ -98,6 +105,7 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         grid_parameters({"model_type": SUPPORTED_ARCH, "batch_size": [1, 3], "padding": [True, "max_length"]})
     )
     def test_generation(self, test_name: str, model_type: str, batch_size: int, padding: str):
+        self._skip_on_torch_version(model_type)
         if batch_size == 1 and padding == "max_length":
             self.skipTest("batch_size=1 + padding='max_length' is unsupported")
 
@@ -128,10 +136,12 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_autocast(self, model_type: str):
+        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         super()._test_raise_autocast(model_id)
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_train(self, model_type: str):
+        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         super()._test_raise_train(model_id)
