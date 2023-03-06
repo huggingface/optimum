@@ -13,6 +13,12 @@
 # limitations under the License.
 import warnings
 
+from .decoder_models import (
+    CodegenAttentionLayerBetterTransformer,
+    GPT2AttentionLayerBetterTransformer,
+    GPTNeoAttentionLayerBetterTransformer,
+    OPTAttentionLayerBetterTransformer,
+)
 from .encoder_models import (
     AlbertLayerBetterTransformer,
     BartEncoderLayerBetterTransformer,
@@ -36,18 +42,24 @@ class BetterTransformerManager:
         "bert-generation": ("BertGenerationLayer", BertLayerBetterTransformer),
         "camembert": ("CamembertLayer", BertLayerBetterTransformer),
         "clip": ("CLIPEncoderLayer", CLIPLayerBetterTransformer),
+        "codegen": ("CodeGenAttention", CodegenAttentionLayerBetterTransformer),
         "data2vec-text": ("Data2VecTextLayer", BertLayerBetterTransformer),
         "deit": ("DeiTLayer", ViTLayerBetterTransformer),
         "distilbert": ("TransformerBlock", DistilBertLayerBetterTransformer),
         "electra": ("ElectraLayer", BertLayerBetterTransformer),
         "ernie": ("ErnieLayer", BertLayerBetterTransformer),
         "fsmt": ("EncoderLayer", FSMTEncoderLayerBetterTransformer),
+        "gpt2": ("GPT2Attention", GPT2AttentionLayerBetterTransformer),
+        "gptj": ("GPTJAttention", GPT2AttentionLayerBetterTransformer),
+        "gpt_neo": ("GPTNeoSelfAttention", GPTNeoAttentionLayerBetterTransformer),
+        "gpt_neox": ("GPTNeoXAttention", GPT2AttentionLayerBetterTransformer),
         "hubert": ("HubertEncoderLayer", Wav2Vec2EncoderLayerBetterTransformer),
         "layoutlm": ("LayoutLMLayer", BertLayerBetterTransformer),
         "m2m_100": ("M2M100EncoderLayer", MBartEncoderLayerBetterTransformer),
         "marian": ("MarianEncoderLayer", BartEncoderLayerBetterTransformer),
         "markuplm": ("MarkupLMLayer", BertLayerBetterTransformer),
         "mbart": ("MBartEncoderLayer", MBartEncoderLayerBetterTransformer),
+        "opt": ("OPTAttention", OPTAttentionLayerBetterTransformer),
         "rembert": ("RemBertLayer", BertLayerBetterTransformer),
         "roberta": ("RobertaLayer", BertLayerBetterTransformer),
         "roc_bert": ("RoCBertLayer", BertLayerBetterTransformer),
@@ -73,9 +85,9 @@ class BetterTransformerManager:
     }
 
     CAN_NOT_BE_SUPPORTED = {
-        "deberta-v2": "DeBERTa v2 does not use a regular attention mechanism, which is not suppored in PyTorch's BetterTransformer.",
-        "glpn": "GLPN has a convolutional layer present in the FFN network, which is not suppored in PyTorch's BetterTransformer.",
-        "t5": "T5 uses attention bias, which is not suppored in PyTorch's BetterTransformer.",
+        "deberta-v2": "DeBERTa v2 does not use a regular attention mechanism, which is not supported in PyTorch's BetterTransformer.",
+        "glpn": "GLPN has a convolutional layer present in the FFN network, which is not supported in PyTorch's BetterTransformer.",
+        "t5": "T5 uses attention bias, which is not supported in PyTorch's BetterTransformer.",
     }
 
     @staticmethod
@@ -99,6 +111,48 @@ class BetterTransformerManager:
                 The model type to check.
         """
         return model_type in BetterTransformerManager.MODEL_MAPPING
+
+    @staticmethod
+    def requires_nested_tensor(model_type: str) -> bool:
+        """
+        Returns True if the BetterTransformer implementation for a given architecture uses nested tensors, False otherwise.
+
+        Args:
+            model_type (`str`):
+                The model type to check.
+        """
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]:
+            return False
+        else:
+            return True
+
+    @staticmethod
+    def requires_strict_validation(model_type: str) -> bool:
+        """
+        Returns True if the architecture requires to make sure all conditions of `validate_bettertransformer` are met.
+
+        Args:
+            model_type (`str`):
+                The model type to check.
+        """
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]:
+            return False
+        else:
+            return True
+
+    @staticmethod
+    def requires_torch_20(model_type: str) -> bool:
+        """
+        Returns True if the architecture requires PyTorch 2.0 to be used with BetterTransformer.
+
+        Args:
+            model_type (`str`):
+                The model type to check.
+        """
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]:
+            return True
+        else:
+            return False
 
 
 class warn_uncompatible_save(object):

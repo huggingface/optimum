@@ -17,11 +17,10 @@ import unittest
 import numpy as np
 import torch
 from parameterized import parameterized
-from testing_bettertransformer_utils import BetterTransformersTestMixin
+from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
 
 from optimum.bettertransformer import BetterTransformer
-from optimum.utils.testing_utils import grid_parameters
 
 
 ALL_AUDIO_MODELS_TO_TEST = [
@@ -38,7 +37,7 @@ class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCa
     Since `Whisper` uses slightly different inputs than other audio models, it is preferrable
     to define its own testing class.
     """
-    all_models_to_test = [ALL_AUDIO_MODELS_TO_TEST[0]]
+    SUPPORTED_ARCH = ["whisper"]
 
     def _generate_random_audio_data(self):
         np.random.seed(10)
@@ -86,18 +85,6 @@ class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCa
     # def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
     #     super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_id": all_models_to_test,
-                "keep_original_model": [True, False],
-            }
-        )
-    )
-    def test_raise_save_pretrained_error(self, test_name: str, model_id, keep_original_model=False):
-        super().test_raise_save_pretrained_error(model_id=model_id, keep_original_model=keep_original_model)
-
-    # TODO: re-enable once fixed
     # @parameterized.expand(
     #     grid_parameters(
     #         {
@@ -114,7 +101,7 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
     r"""
     Testing suite for Audio models - tests all the tests defined in `BetterTransformersTestMixin`
     """
-    all_models_to_test = ALL_AUDIO_MODELS_TO_TEST[1:]
+    SUPPORTED_ARCH = ["wav2vec2", "hubert"]
 
     def prepare_inputs_for_class(self, model_id):
         batch_duration_in_seconds = [1, 3, 2, 6]
@@ -125,25 +112,28 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
         input_dict = feature_extractor(input_features, return_tensors="pt", padding=True)
         return input_dict
 
-    def test_logits(self):
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_logits(self, model_type: str):
         r"""
         This tests if the converted model produces the same logits
         than the original model.
         """
         # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
-
-        for model_to_test in self.all_models_to_test:
-            inputs = self.prepare_inputs_for_class(model_to_test)
+        model_ids = (
+            MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
+        )
+        for model_id in model_ids:
+            inputs = self.prepare_inputs_for_class(model_id)
 
             torch.manual_seed(0)
-            hf_random_model = AutoModel.from_pretrained(model_to_test).eval()
+            hf_random_model = AutoModel.from_pretrained(model_id).eval()
             random_config = hf_random_model.config
 
             torch.manual_seed(0)
             converted_model = BetterTransformer.transform(hf_random_model)
 
             torch.manual_seed(0)
-            hf_random_model = AutoModel.from_pretrained(model_to_test).eval()
+            hf_random_model = AutoModel.from_pretrained(model_id).eval()
             random_config = hf_random_model.config
 
             self.assertFalse(
@@ -181,20 +171,21 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
                     ),
                 )
 
-    def test_raise_train(self):
-        r"""
-        A tests that checks if the conversion raises an error if the model is run under
-        `model.train()`.
-        """
-        for model_id in self.all_models_to_test:
-            inputs = self.prepare_inputs_for_class(model_id)
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_autocast(self, model_type: str):
+        model_ids = (
+            MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
+        )
+        for model_id in model_ids:
+            super()._test_raise_autocast(model_id)
 
-            hf_random_model = AutoModel.from_pretrained(model_id).eval()
-            # Check for training mode
-            with self.assertRaises(ValueError):
-                bt_model = BetterTransformer.transform(hf_random_model)
-                bt_model.train()
-                _ = bt_model(**inputs)
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_train(self, model_type: str):
+        model_ids = (
+            MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
+        )
+        for model_id in model_ids:
+            super()._test_raise_train(model_id)
 
     # @parameterized.expand(
     #     grid_parameters(
@@ -242,18 +233,3 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
     #     with `keep_original_model=True` for this model.
     #     """
     #     super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
-
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_id": all_models_to_test,
-                "keep_original_model": [False],
-            }
-        )
-    )
-    def test_raise_save_pretrained_error(self, test_name: str, model_id, keep_original_model=False):
-        r"""
-        Test if the converted model raises an error when calling `save_pretrained`
-        but not when the model is reverted
-        """
-        super().test_raise_save_pretrained_error(model_id=model_id, keep_original_model=keep_original_model)

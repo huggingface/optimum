@@ -28,9 +28,18 @@ jobs:
     - name: Install dependencies
       run: |
         pip install .[tests]
-        pip3 install --upgrade torch torchvision torchaudio
+        pip install --no-cache-dir --upgrade torch torchvision torchaudio
         pip install accelerate
-    - name: Test with unittest
+    - name: Test on pytorch stable
       working-directory: tests
       run: |
-        python -m unittest discover -s bettertransformer -p 'test_*.py'
+        pytest bettertransformer/test_*.py -s -vvvvv
+    - name: Install dependencies 2
+      run: |
+        pip uninstall -y torch torchvision torchaudio
+        pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
+    - name: Test on pytorch nightly
+      working-directory: tests
+      run: |
+        pytest bettertransformer/test_*.py -s -vvvvv
+

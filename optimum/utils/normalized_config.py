@@ -209,6 +209,7 @@ class NormalizedConfigManager:
         "mt5": T5LikeNormalizedTextConfig,
         "m2m_100": BartLikeNormalizedTextConfig,
         "nystromformer": NormalizedTextConfig,
+        "opt": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,

@@ -15,6 +15,7 @@ from copy import deepcopy
 from typing import Dict, Optional
 
 import torch
+from packaging.version import parse
 
 from ..utils import check_if_pytorch_greater, is_accelerate_available
 from .models import BetterTransformerManager
@@ -69,11 +70,6 @@ def replace_to_bettertransformer(model, config):
                 and name not in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM[config.model_type]
             ):
                 replace_to_bettertransformer(module, config)
-
-        if hasattr(module, "is_decoder"):
-            # Decoders are not supported yet on Better Transformers
-            if module.is_decoder:
-                continue
 
         if hasattr(module, "SCB"):
             # 8-bit modules are not supported
@@ -174,8 +170,8 @@ def set_last_layer(model: torch.nn.Module):
                 return
 
     raise Exception(
-        f"The transformation of the model {model.__class__.__name__} to BetterTransformer failed while it should not. Please fill a bug report or open a PR to"
-        " support this model at https://github.com/huggingface/optimum/"
+        f"The transformation of the model {model.__class__.__name__} to BetterTransformer failed while it should not. Please fill"
+        " a bug report or open a PR to support this model at https://github.com/huggingface/optimum/"
     )
 
 
@@ -235,6 +231,12 @@ class BetterTransformer(object):
                 f" to open an issue at https://github.com/huggingface/optimum/issues if you would like this model type to be supported."
                 f" Currently supported models are: {BetterTransformerManager.MODEL_MAPPING.keys()}."
             )
+        if BetterTransformerManager.requires_torch_20(model.config.model_type) and parse(torch.__version__) < parse(
+            "2.0"
+        ):
+            raise ValueError(
+                f"BetterTransformer for {model.config.model_type} requires torch>=2.0 but {torch.__version__} is installed. Please upgrade PyTorch."
+            )
 
         hf_config = model.config
 
@@ -260,7 +262,8 @@ class BetterTransformer(object):
             model_fast = replace_to_bettertransformer(model, hf_config).eval()
             model = None
 
-        set_last_layer(model_fast)
+        if BetterTransformerManager.requires_nested_tensor(model_fast.config.model_type):
+            set_last_layer(model_fast)
 
         # Step 6: Add a class arguments, we might need to identify whether the model
         # has been correctly converted to its `BetterTransformer` version.
