@@ -1,7 +1,7 @@
 import argparse
 
 import torch
-from transformers import AutoModel, AutoModelForCausalLM, GenerationConfig, AutoTokenizer
+from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 
 from optimum.bettertransformer import BetterTransformer
 
@@ -194,7 +194,14 @@ if __name__ == "__main__":
                     masks = None
 
                 total_bt_time, total_hf_time = benchmark(
-                    hf_model, bt_model, input_ids, masks, args.num_batches, args.is_decoder, args.max_token, tokenizer.pad_token_id
+                    hf_model,
+                    bt_model,
+                    input_ids,
+                    masks,
+                    args.num_batches,
+                    args.is_decoder,
+                    args.max_token,
+                    tokenizer.pad_token_id,
                 )
 
                 speedup = total_hf_time / total_bt_time
