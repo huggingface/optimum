@@ -1,7 +1,7 @@
 import argparse
 
 import torch
-from transformers import AutoModel
+from transformers import AutoModel, AutoModelForCausalLM, GenerationConfig
 
 from optimum.bettertransformer import BetterTransformer
 
@@ -56,6 +56,16 @@ def get_parser():
         "--use-mask",
         action="store_true",
     )
+    parser.add_argument(
+        "--is_decoder",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--max_token",
+        type=int,
+        default=100,
+        help="",
+    )
     return parser
 
 
@@ -90,41 +100,46 @@ def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_s
     return tokens, lengths, mask
 
 
-def timing_cuda(model, num_batches, input_ids, masks):
+def timing_cuda(model, num_batches, input_ids, masks, is_decoder, generation_config=None):
     start_event = torch.cuda.Event(enable_timing=True)
     end_event = torch.cuda.Event(enable_timing=True)
     start_event.record()
     for _ in range(num_batches):
-        _ = model(input_ids, masks)
+        if is_decoder:
+            _ = model.generate(input_ids, generation_config=generation_config)
+        else:
+            _ = model(input_ids, masks)
     end_event.record()
     torch.cuda.synchronize()
     return (start_event.elapsed_time(end_event) * 1.0e-3) / num_batches
 
 
-def benchmark(model_name, num_batches, batch_size, avg_seqlen, max_seqlen, seqlen_stdev, is_cuda, is_half, use_mask):
-    print("Loading model {}".format(model_name))
-    hf_model = AutoModel.from_pretrained(model_name, torch_dtype=torch.float16 if is_half else None).eval()
-    if is_cuda:
-        hf_model = hf_model.to(0)
-    bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
-
-    input_ids, _, masks = get_batch(batch_size, avg_seqlen, max_seqlen, seqlen_stdev)
-
-    if is_cuda:
-        input_ids = input_ids.to(0)
-        masks = masks.to(0)
-
-    if not use_mask:
-        masks = None
-
+def benchmark(hf_model, bt_model, num_batches, is_decoder, max_token):
     # Warmup
-    _ = hf_model(input_ids, masks)
-    torch.cuda.synchronize()
-    _ = bt_model(input_ids, masks)
-    torch.cuda.synchronize()
+    if is_decoder:
+        gen_config = GenerationConfig(
+            do_greedy=True,
+            max_new_tokens=max_token,
+            use_cache=False,
+        )
+        _ = hf_model.generate(input_ids, generation_config=gen_config)
+        torch.cuda.synchronize()
+        bt_model.generate(input_ids, generation_config=gen_config)
+        torch.cuda.synchronize()
 
-    total_hf_time = timing_cuda(hf_model, num_batches, input_ids, masks)
-    total_bt_time = timing_cuda(bt_model, num_batches, input_ids, masks)
+    else:
+        _ = hf_model(input_ids, masks)
+        torch.cuda.synchronize()
+        _ = bt_model(input_ids, masks)
+        torch.cuda.synchronize()
+
+    # benchmark
+    if is_decoder:
+        total_hf_time = timing_cuda(hf_model, num_batches, input_ids, masks, is_decoder, gen_config)
+        total_bt_time = timing_cuda(bt_model, num_batches, input_ids, masks, is_decoder, gen_config)
+    else:
+        total_hf_time = timing_cuda(hf_model, num_batches, input_ids, masks, is_decoder)
+        total_bt_time = timing_cuda(bt_model, num_batches, input_ids, masks, is_decoder)
 
     return total_bt_time, total_hf_time
 
@@ -136,6 +151,19 @@ if __name__ == "__main__":
     BATCH_SIZES = [8, 16, 64]
     SEQ_LEN = [64, 128, 256]
     PAD_PERCENTAGES = [0, 0.1, 0.2, 0.5, 0.75]
+    device = torch.device("cuda:0" if torch.cuda.is_available() and args.use_cuda else "cpu")
+    if args.is_decoder:
+        hf_model = AutoModelForCausalLM.from_pretrained(
+            args.model_name, torch_dtype=torch.float16 if args.use_half else None, use_cache=False
+        ).eval()
+    else:
+        hf_model = AutoModel.from_pretrained(
+            args.model_name, torch_dtype=torch.float16 if args.use_half else None
+        ).eval()
+
+    if args.use_cuda:
+        hf_model = hf_model.to(0)
+    bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
 
     output_file = open("log_{}.csv".format(args.model_name.replace("/", "-")), "w")
     output_file.write(
@@ -148,17 +176,16 @@ if __name__ == "__main__":
                 # max_seqlen = seq_len + current_std
                 max_seqlen = seq_len
                 mean_seqlen = int((1 - pad_perc) * max_seqlen)
+                input_ids, _, masks = get_batch(bs, mean_seqlen, max_seqlen, args.seqlen_stdev)
+
+                if args.use_cuda:
+                    input_ids = input_ids.to(device)
+                    masks = masks.to(device)
+                if not args.use_mask:
+                    masks = None
 
                 total_bt_time, total_hf_time = benchmark(
-                    args.model_name,
-                    args.num_batches,
-                    bs,
-                    mean_seqlen,
-                    max_seqlen,
-                    args.seqlen_stdev,
-                    args.use_cuda,
-                    args.use_half,
-                    args.use_mask,
+                    hf_model, bt_model, args.num_batches, args.is_decoder, args.max_token
                 )
 
                 speedup = total_hf_time / total_bt_time
