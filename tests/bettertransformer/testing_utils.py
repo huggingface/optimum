@@ -42,7 +42,7 @@ MODELS_DICT = {
     "hubert": "ybelkada/hubert-tiny-random",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "m2m_100": "hf-internal-testing/tiny-random-nllb",
-    "marian": "hf-internal-testing/tiny-random-marian",
+    "marian": "fxmarty/tiny-marian",  # the other tiny ones have a too small max_position_embeddings
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
@@ -52,6 +52,7 @@ MODELS_DICT = {
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "tapas": "hf-internal-testing/tiny-random-TapasModel",
+    "t5": "hf-internal-testing/tiny-random-t5",
     "vilt": "hf-internal-testing/tiny-vilt-random-vqa",
     "vit": "hf-internal-testing/tiny-random-ViTModel",
     "vit_mae": "hf-internal-testing/tiny-random-ViTMAEModel",

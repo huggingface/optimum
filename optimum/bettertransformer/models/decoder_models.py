@@ -321,3 +321,148 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         attn_output = self.opt_layer.out_proj(attn_output)
 
         return attn_output, None, past_key_value
+
+
+class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+        super().__init__(config, layer)
+
+        self.layer = layer
+
+        mask_value = torch.finfo(torch.float32).min
+        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
+
+        head_dim = self.layer.d_model // self.layer.n_heads  # hidden size / num attention heads
+        self.scale = torch.sqrt(torch.tensor(head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
+
+    def forward(
+        self,
+        hidden_states,
+        mask=None,
+        key_value_states=None,
+        position_bias=None,
+        past_key_value=None,
+        layer_head_mask=None,
+        query_length=None,
+        use_cache=False,
+        output_attentions=False,
+    ):
+        if len(self.layer.pruned_heads) > 0:
+            raise ValueError(
+                f"Setting `pruned_heads` is unsupported with BetterTransformer, found {self.layer.pruned_heads}."
+            )
+        batch_size, seq_length = hidden_states.shape[:2]
+
+        real_seq_length = seq_length
+
+        if past_key_value is not None:
+            assert (
+                len(past_key_value) == 2
+            ), f"past_key_value should have 2 past states: keys and values. Got { len(past_key_value)} past states"
+            real_seq_length += past_key_value[0].shape[2] if query_length is None else query_length
+
+        key_length = real_seq_length if key_value_states is None else key_value_states.shape[1]
+
+        def shape(states):
+            """projection"""
+            return states.view(batch_size, -1, self.layer.n_heads, self.layer.key_value_proj_dim).transpose(1, 2)
+
+        def unshape(states):
+            """reshape"""
+            return states.transpose(1, 2).contiguous().view(batch_size, -1, self.layer.inner_dim)
+
+        def project(hidden_states, proj_layer, key_value_states, past_key_value):
+            """projects hidden states correctly to key/query states"""
+            if key_value_states is None:
+                # self-attn
+                # (batch_size, n_heads, seq_length, dim_per_head)
+                hidden_states = shape(proj_layer(hidden_states))
+            elif past_key_value is None:
+                # cross-attn
+                # (batch_size, n_heads, seq_length, dim_per_head)
+                hidden_states = shape(proj_layer(key_value_states))
+
+            if past_key_value is not None:
+                if key_value_states is None:
+                    # self-attn
+                    # (batch_size, n_heads, key_length, dim_per_head)
+                    hidden_states = torch.cat([past_key_value, hidden_states], dim=2)
+                elif past_key_value.shape[2] != key_value_states.shape[1]:
+                    # checking that the `sequence_length` of the `past_key_value` is the same as
+                    # the provided `key_value_states` to support prefix tuning
+                    # cross-attn
+                    # (batch_size, n_heads, seq_length, dim_per_head)
+                    hidden_states = shape(proj_layer(key_value_states))
+                else:
+                    # cross-attn
+                    hidden_states = past_key_value
+            return hidden_states
+
+        # get query states
+        query_states = shape(self.layer.q(hidden_states))  # (batch_size, n_heads, seq_length, dim_per_head)
+
+        # get key/value states
+        key_states = project(
+            hidden_states, self.layer.k, key_value_states, past_key_value[0] if past_key_value is not None else None
+        )
+        value_states = project(
+            hidden_states, self.layer.v, key_value_states, past_key_value[1] if past_key_value is not None else None
+        )
+
+        if (position_bias is None and not self.layer.has_relative_attention_bias) or (
+            position_bias is not None and position_bias[0, 0, 0, 0] == 0
+        ):
+            if position_bias is None and not self.layer.has_relative_attention_bias:
+                position_bias = torch.zeros(
+                    (1, self.layer.n_heads, real_seq_length, key_length),
+                    device=query_states.device,
+                    dtype=query_states.dtype,
+                )
+                if self.layer.gradient_checkpointing and self.layer.training:
+                    position_bias.requires_grad = True
+
+            query_states = self.scale * query_states
+            attn_output = torch.nn.functional.scaled_dot_product_attention(
+                query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=False
+            )
+
+        else:
+            # compute scores
+            scores = torch.matmul(
+                query_states, key_states.transpose(3, 2)
+            )  # equivalent of torch.einsum("bnqd,bnkd->bnqk", query_states, key_states), compatible with onnx op>9
+
+            if position_bias is None:
+                position_bias = self.layer.compute_bias(real_seq_length, key_length, device=scores.device)
+
+                # if key and values are already calculated
+                # we want only the last query position bias
+                if past_key_value is not None:
+                    position_bias = position_bias[:, :, -hidden_states.size(1) :, :]
+
+                if mask is not None:
+                    position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
+
+            scores += position_bias
+            attn_weights = torch.nn.functional.softmax(scores.float(), dim=-1).type_as(
+                scores
+            )  # (batch_size, n_heads, seq_length, key_length)
+            attn_weights = torch.nn.functional.dropout(
+                attn_weights, p=self.layer.dropout, training=self.layer.training
+            )  # (batch_size, n_heads, seq_length, key_length)
+
+            # Mask heads if we want to
+            if layer_head_mask is not None:
+                attn_weights = attn_weights * layer_head_mask
+
+            attn_output = torch.matmul(attn_weights, value_states)
+
+        attn_output = unshape(attn_output)  # (batch_size, seq_length, dim)
+        attn_output = self.layer.o(attn_output)
+
+        present_key_value_state = (key_states, value_states) if (self.layer.is_decoder and use_cache) else None
+        outputs = (attn_output,) + (present_key_value_state,) + (position_bias,)
+
+        if output_attentions:
+            outputs = outputs + (attn_weights,)
+        return outputs

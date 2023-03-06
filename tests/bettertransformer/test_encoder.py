@@ -19,11 +19,12 @@ import unittest
 import pytest
 import torch
 import transformers
+from packaging.version import parse
 from parameterized import parameterized
 from testing_utils import MODELS_DICT, BetterTransformersTestMixin
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoModelForSeq2SeqLM, AutoTokenizer
 
-from optimum.bettertransformer import BetterTransformer
+from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
 from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_gpu
 
 
@@ -293,10 +294,15 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         "m2m_100",
         "marian",
         "mbart",
+        "t5",
     ]
 
     def tearDown(self):
         gc.collect()
+
+    def _skip_on_torch_version(self, model_type: str):
+        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("2.0"):
+            self.skipTest(f"The model type {model_type} require PyTorch 2.0 for BetterTransformer")
 
     def prepare_inputs_for_class(self, model_id, **preprocessor_kwargs):
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -315,16 +321,52 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         )
     )
     def test_logits(self, test_name: str, model_type: str, padding, max_length=20):
+        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         super()._test_logits(model_id, padding=padding, max_length=max_length)
 
+    @parameterized.expand(
+        grid_parameters({"model_type": SUPPORTED_ARCH, "batch_size": [1, 3], "padding": [True, "max_length"]})
+    )
+    def test_generation(self, test_name: str, model_type: str, batch_size: int, padding: str):
+        self._skip_on_torch_version(model_type)
+        if batch_size == 1 and padding == "max_length":
+            self.skipTest("batch_size=1 + padding='max_length' is unsupported")
+
+        model_id = MODELS_DICT[model_type]
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
+
+        if not hasattr(tokenizer, "pad_token") or tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+
+        text = ["This is me and me"]
+        if batch_size > 1:
+            text = text + ["Please"] * (batch_size - 1)
+        inp = tokenizer(text, return_tensors="pt", padding=padding, max_length=25)
+
+        length = 50
+        result_vanilla = model.generate(**inp, num_beams=1, min_length=length, max_length=length)
+
+        model = BetterTransformer.transform(model)
+
+        result_bettertransformer = model.generate(**inp, num_beams=1, min_length=length, max_length=length)
+
+        self.assertTrue(
+            torch.allclose(result_vanilla, result_bettertransformer),
+            f" Maxdiff: {(result_vanilla - result_bettertransformer).abs().max()}",
+        )
+
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_autocast(self, model_type: str):
+        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         super()._test_raise_autocast(model_id)
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_train(self, model_type: str):
+        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         super()._test_raise_train(model_id)
 
