@@ -1,7 +1,7 @@
 import argparse
 
 import torch
-from transformers import AutoModel, AutoModelForCausalLM, GenerationConfig
+from transformers import AutoModel, AutoModelForCausalLM, GenerationConfig, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
 
@@ -114,7 +114,7 @@ def timing_cuda(model, num_batches, input_ids, masks, is_decoder, generation_con
     return (start_event.elapsed_time(end_event) * 1.0e-3) / num_batches
 
 
-def benchmark(hf_model, bt_model, input_ids, masks, num_batches, is_decoder, max_token):
+def benchmark(hf_model, bt_model, input_ids, masks, num_batches, is_decoder, max_token, pad_token_id):
     # Warmup
     if is_decoder:
         min_length = max(max_token - 20, 5)
@@ -124,6 +124,7 @@ def benchmark(hf_model, bt_model, input_ids, masks, num_batches, is_decoder, max
             max_new_tokens=max_token,
             min_length=min_length,
             use_cache=True,
+            pad_token_id=pad_token_id,
         )
         _ = hf_model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
         torch.cuda.synchronize()
@@ -155,6 +156,11 @@ if __name__ == "__main__":
     SEQ_LEN = [64, 128, 256]
     PAD_PERCENTAGES = [0, 0.1, 0.2, 0.5, 0.75]
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.use_cuda else "cpu")
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+
+    if not hasattr(tokenizer, "pad_token") or tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
     if args.is_decoder:
         hf_model = AutoModelForCausalLM.from_pretrained(
             args.model_name, torch_dtype=torch.float16 if args.use_half else None, use_cache=True
@@ -188,7 +194,7 @@ if __name__ == "__main__":
                     masks = None
 
                 total_bt_time, total_hf_time = benchmark(
-                    hf_model, bt_model, input_ids, masks, args.num_batches, args.is_decoder, args.max_token
+                    hf_model, bt_model, input_ids, masks, args.num_batches, args.is_decoder, args.max_token, tokenizer.pad_token_id
                 )
 
                 speedup = total_hf_time / total_bt_time
