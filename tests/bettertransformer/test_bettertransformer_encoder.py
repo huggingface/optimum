@@ -52,6 +52,7 @@ ALL_ENCODER_DECODER_MODELS_TO_TEST = [
     "hf-internal-testing/tiny-random-marian",
     "hf-internal-testing/tiny-random-mbart",
     "hf-internal-testing/tiny-random-nllb",
+    "hf-internal-testing/tiny-random-ProphetNetModel"
 ]
 
 

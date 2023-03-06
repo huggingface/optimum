@@ -25,8 +25,8 @@ from .encoder_models import (
     ViTLayerBetterTransformer,
     Wav2Vec2EncoderLayerBetterTransformer,
     WhisperEncoderLayerBetterTransformer,
+    ProphetNetEncoderLayerBetterTransformer
 )
-
 
 class BetterTransformerManager:
     MODEL_MAPPING = {
@@ -48,6 +48,7 @@ class BetterTransformerManager:
         "marian": ("MarianEncoderLayer", BartEncoderLayerBetterTransformer),
         "markuplm": ("MarkupLMLayer", BertLayerBetterTransformer),
         "mbart": ("MBartEncoderLayer", MBartEncoderLayerBetterTransformer),
+        "prophetnet": ("ProphetNetEncoderLayer", ProphetNetEncoderLayerBetterTransformer),
         "rembert": ("RemBertLayer", BertLayerBetterTransformer),
         "roberta": ("RobertaLayer", BertLayerBetterTransformer),
         "roc_bert": ("RoCBertLayer", BertLayerBetterTransformer),
@@ -64,7 +65,7 @@ class BetterTransformerManager:
         ),
         "whisper": ("WhisperEncoderLayer", WhisperEncoderLayerBetterTransformer),
         "xlm-roberta": ("XLMRobertaLayer", BertLayerBetterTransformer),
-        "yolos": ("YolosLayer", ViTLayerBetterTransformer),
+        "yolos": ("YolosLayer", ViTLayerBetterTransformer)
     }
 
     EXCLUDE_FROM_TRANSFORM = {
