@@ -1,13 +1,11 @@
-from dataclasses import dataclass
 from io import BytesIO
 from logging import DEBUG
-from typing import Dict, List, Union, Optional, Sequence, Callable
+from typing import List, Union, Optional, Callable
 from inspect import signature
 
 import torch
 from iree.compiler import InputType, compile_str as iree_compile_str
-from iree_torch import compile_to_vmfb, load_vmfb
-from iree._runtime import VmModule, HalDevice
+from iree_torch import load_vmfb
 from torch import nn
 from torch_mlir._mlir_libs._mlir.ir import Module
 from transformers import BatchEncoding, PreTrainedModel
@@ -36,16 +34,16 @@ class _TirOutputWrapper(nn.Module):
 
 class TorchDispatcher(TirDispatcher):
 
-    def __init__(self, model: Union[PreTrainedModel, nn.Module], target: TirTarget, config: TirConfig):
-        super().__init__(sanitize_pretrained_model_for_mlir(model), target, config)
+    def __init__(self, model: nn.Module, target: TirTarget, config: TirConfig, signatures: Optional[List[str]] = None):
+        super().__init__(sanitize_pretrained_model_for_mlir(model), target, config, signatures)
 
         if not isinstance(model, (PreTrainedModel, nn.Module)):
             raise ValueError(f"Invalid model type, awaiting PreTrainedModel or torch.nn.Module, got: {type(model)}.")
 
-        self._parameters = self.infer_forward_signature(model)
+        self._model_args = self.infer_forward_signature(model)
 
     @staticmethod
-    def infer_forward_signature(model: PreTrainedModel) -> List[str]:
+    def infer_forward_signature(model: nn.Module) -> List[str]:
         model_call_signature = signature(model.forward)
         return list(model_call_signature.parameters.keys())
 
@@ -75,17 +73,17 @@ class TorchDispatcher(TirDispatcher):
         )
 
     def validate_forward_inputs(self, *args, **kwargs):
-        parameters = self._parameters.copy()
+        model_args = self._model_args.copy()
 
         # If we have a single args, let's assume it's the first one?
         if args:
             curated_inputs = list(args)
-            parameters = parameters[len(args): ]  # Assume we just filled the slots for the N first parameters
+            model_args = model_args[len(args): ]  # Assume we just filled the slots for the N first parameters
         else:
             curated_inputs = []
 
         if kwargs:
-            for input_name in parameters:
+            for input_name in model_args:
                 if not kwargs:
                     break
 
@@ -93,34 +91,24 @@ class TorchDispatcher(TirDispatcher):
 
         return curated_inputs
 
-    def export_model_to_mlir(
-        self,
-        model: Union[nn.Module, PreTrainedModel],
-        target: TirTarget,
-        examples: Optional = None,
-        dynamic_axes: List[int] = None
-    ):
-        LOGGER.info(f"Exporting {type(model)} to MLIR.")
+    def export_model_to_mlir(self, *args):
+        LOGGER.info(f"Exporting {type(self._model)} to MLIR.")
         return torch_mlir_compile(
-            model,
-            example_args=examples,
+            self._model,
+            example_args=args,
             output_type=OutputType.LINALG_ON_TENSORS,
             use_tracing=True,
-            ignore_traced_shapes=dynamic_axes is not None,
+            # ignore_traced_shapes=dynamic_axes is not None,
+            ignore_traced_shapes=True,
             verbose=False
         )
 
-    def compile_from_mlir(
-        self,
-        mlir_module: Module,
-        target: TirTarget,
-        compiler_args: List[str] = None
-    ):
-        LOGGER.info(f"Compilation of MLIR module to {target}.")
+    def compile_from_mlir(self, mlir_module: Module, compiler_args: List[str] = None):
+        LOGGER.info(f"Compilation of MLIR module to {self._target}.")
         LOGGER.debug(f"Compilation MLIR module with arguments: {compiler_args}.")
 
-        vmfb = TorchDispatcher.internal_compile_to_vmfb(mlir_module, target, compiler_args)
-        module = load_vmfb(vmfb, target.value)
+        vmfb = TorchDispatcher.internal_compile_to_vmfb(mlir_module, self._target, compiler_args)
+        module = load_vmfb(vmfb, self._target.value)
         return module.forward
 
     def _internal_call(self, dispatch: Callable, curated_args):

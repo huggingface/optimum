@@ -1,32 +1,34 @@
 from logging import getLogger
 from os import PathLike
-from typing import Union
+from typing import Union, List, Optional
 
-from transformers import is_torch_available, is_tf_available, PreTrainedModel, TFPreTrainedModel
-from . import TirFrontend, TirTarget, TirDispatcher, TirConfig
+from transformers import PreTrainedModel, TFPreTrainedModel
+from . import TirTarget, TirDispatcher, TirConfig
 
 LOGGER = getLogger("TirEngine")
 
 
 class TirEngine:
 
-    __slots__ = ("_model", "_target", "_config", "_frontend", "_dispatcher")
+    __slots__ = ("_model", "_target", "_config", "_signatures", "_frontend", "_dispatcher")
 
     def __init__(
         self,
         model: Union[PreTrainedModel, TFPreTrainedModel, "torch.nn.Module"],
         target: TirTarget,
         config: TirConfig,
+        signatures: Optional[List[str]] = None
     ):
         self._model = model
         self._target = target
         self._config = config
+        self._signatures = signatures
         self._dispatcher = None
 
     def __enter__(self) -> 'TirEngine':
         if self._dispatcher is None:
             LOGGER.debug("Creating empty compilation dispatcher.")
-            self._dispatcher = TirDispatcher.for_frontend(self._model, self._target, self._config)
+            self._dispatcher = TirDispatcher.for_frontend(self._model, self._target, self._config, self._signatures)
         else:
             # this branch covers the case
             # with TirEngine.from_precompiled(...) as engine:
@@ -43,7 +45,7 @@ class TirEngine:
     def __call__(self, *args, **kwargs):
         if self._dispatcher is None:
             LOGGER.debug("Creating empty compilation dispatcher.")
-            self._dispatcher = TirDispatcher.for_frontend(self._model, self._target, self._config)
+            self._dispatcher = TirDispatcher.for_frontend(self._model, self._target, self._config, self._signatures)
 
         return self._dispatcher(*args, **kwargs)
 

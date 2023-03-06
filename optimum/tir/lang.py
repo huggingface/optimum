@@ -1,3 +1,4 @@
+from abc import ABC
 from enum import Enum
 from os import PathLike
 from pathlib import Path
@@ -16,6 +17,16 @@ class TirTarget(str, Enum):
     COMPILED_GPU = "vulkan"
     COMPILED_CUDA = "cuda"
     COMPILED_ROCM = "rocm"
+
+    def to_tf_compiler_value(self) -> str:
+        if self == TirTarget.INTERPRETED_CPU:
+            return "iree_vmvx"
+        elif self == TirTarget.COMPILED_CPU:
+            return "iree_llvmcpu"
+        elif self == TirTarget.COMPILED_GPU:
+            return "iree_vulkan"
+        else:
+            raise ValueError(f"Target {self} is not compatible with tf compiler.")
 
 
 TirFrontendInfo = NamedTuple("TirFrontendInfo", [("name", str), ("dialect", InputType)])
