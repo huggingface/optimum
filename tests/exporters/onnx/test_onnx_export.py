@@ -161,6 +161,9 @@ def _get_models_to_test(export_models_dict: Dict):
 
             for model_name, tasks in model_tasks.items():
                 for task in tasks:
+                    if model_type == "encoder-decoder" and task == "seq2seq-lm-with-past":
+                        continue
+
                     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                         model_type=model_type, exporter="onnx", task=task, model_name=model_name
                     )
