@@ -14,6 +14,7 @@
 # limitations under the License.
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import torch
 import transformers
@@ -40,7 +41,7 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
             bt_model = BetterTransformer.transform(bt_model)
         self.assertTrue("was called on a model already using Better Transformer" in str(cm.exception))
 
-    @unittest.mock.patch("optimum.utils.import_utils.is_onnxruntime_available")
+    @patch("optimum.utils.import_utils.is_onnxruntime_available")
     def test_direct_pipeline_initialization_without_onnx_installed(self, mock_onnxruntime_availability):
         mock_onnxruntime_availability.return_value = False
         pipe = pipeline(
