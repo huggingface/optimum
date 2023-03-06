@@ -106,7 +106,7 @@ def timing_cuda(model, num_batches, input_ids, masks, is_decoder, generation_con
     start_event.record()
     for _ in range(num_batches):
         if is_decoder:
-            _ = model.generate(input_ids, generation_config=generation_config)
+            _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
         else:
             _ = model(input_ids, masks)
     end_event.record()
@@ -114,17 +114,20 @@ def timing_cuda(model, num_batches, input_ids, masks, is_decoder, generation_con
     return (start_event.elapsed_time(end_event) * 1.0e-3) / num_batches
 
 
-def benchmark(hf_model, bt_model, num_batches, is_decoder, max_token):
+def benchmark(hf_model, bt_model, input_ids, masks, num_batches, is_decoder, max_token):
     # Warmup
     if is_decoder:
+        min_length = max(max_token - 20, 5)
+
         gen_config = GenerationConfig(
             do_greedy=True,
             max_new_tokens=max_token,
-            use_cache=False,
+            min_length=min_length,
+            use_cache=True,
         )
-        _ = hf_model.generate(input_ids, generation_config=gen_config)
+        _ = hf_model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
         torch.cuda.synchronize()
-        bt_model.generate(input_ids, generation_config=gen_config)
+        bt_model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
         torch.cuda.synchronize()
 
     else:
@@ -148,9 +151,12 @@ if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
 
-    BATCH_SIZES = [8, 16, 64]
-    SEQ_LEN = [64, 128, 256]
-    PAD_PERCENTAGES = [0, 0.1, 0.2, 0.5, 0.75]
+    # BATCH_SIZES = [8, 16, 64]
+    BATCH_SIZES = [64]
+    # SEQ_LEN = [64, 128, 256]
+    SEQ_LEN = [256]
+    # PAD_PERCENTAGES = [0, 0.1, 0.2, 0.5, 0.75]
+    PAD_PERCENTAGES = [0.75]
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.use_cuda else "cpu")
     if args.is_decoder:
         hf_model = AutoModelForCausalLM.from_pretrained(
@@ -185,7 +191,7 @@ if __name__ == "__main__":
                     masks = None
 
                 total_bt_time, total_hf_time = benchmark(
-                    hf_model, bt_model, args.num_batches, args.is_decoder, args.max_token
+                    hf_model, bt_model, input_ids, masks, args.num_batches, args.is_decoder, args.max_token
                 )
 
                 speedup = total_hf_time / total_bt_time
