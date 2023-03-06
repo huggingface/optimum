@@ -25,7 +25,7 @@ from optimum.utils.testing_utils import grid_parameters
 
 
 class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
-    SUPPORTED_ARCH = ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox"]
+    SUPPORTED_ARCH = ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]
 
     def prepare_inputs_for_class(self, model_id, batch_size=2, **preprocessor_kwargs):
         tokenizer = AutoTokenizer.from_pretrained(model_id)

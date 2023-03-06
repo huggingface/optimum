@@ -45,6 +45,7 @@ MODELS_DICT = {
     "marian": "hf-internal-testing/tiny-random-marian",
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "hf-internal-testing/tiny-random-mbart",
+    "opt": "hf-internal-testing/tiny-random-OPTModel",
     "rembert": "hf-internal-testing/tiny-random-rembert",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "rocbert": "hf-internal-testing/tiny-random-RoCBertModel",

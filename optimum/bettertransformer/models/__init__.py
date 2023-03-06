@@ -17,6 +17,7 @@ from .decoder_models import (
     CodegenAttentionLayerBetterTransformer,
     GPT2AttentionLayerBetterTransformer,
     GPTNeoAttentionLayerBetterTransformer,
+    OPTAttentionLayerBetterTransformer,
 )
 from .encoder_models import (
     AlbertLayerBetterTransformer,
@@ -58,6 +59,7 @@ class BetterTransformerManager:
         "marian": ("MarianEncoderLayer", BartEncoderLayerBetterTransformer),
         "markuplm": ("MarkupLMLayer", BertLayerBetterTransformer),
         "mbart": ("MBartEncoderLayer", MBartEncoderLayerBetterTransformer),
+        "opt": ("OPTAttention", OPTAttentionLayerBetterTransformer),
         "rembert": ("RemBertLayer", BertLayerBetterTransformer),
         "roberta": ("RobertaLayer", BertLayerBetterTransformer),
         "roc_bert": ("RoCBertLayer", BertLayerBetterTransformer),
@@ -119,7 +121,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "gptj"]:
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]:
             return False
         else:
             return True
@@ -133,7 +135,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox"]:
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]:
             return False
         else:
             return True
@@ -147,7 +149,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox"]:
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]:
             return True
         else:
             return False
