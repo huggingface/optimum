@@ -159,6 +159,7 @@ if __name__ == "__main__":
         PAD_PERCENTAGES = [0]
     else:
         PAD_PERCENTAGES = [0, 0.1, 0.2, 0.5, 0.75]
+
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.use_cuda else "cpu")
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 

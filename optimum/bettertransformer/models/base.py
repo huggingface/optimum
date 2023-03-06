@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from copy import deepcopy
 from typing import TYPE_CHECKING, Optional
 
 
@@ -48,8 +47,6 @@ class BetterTransformerBaseLayer(nn.Module):
         Args:
             config (`transformers.PretrainedConfig`):
                 The config of the model.
-            orig_layer (`Optional[torch.nn.Module]`, defaults to `None`):
-                The original layer that needs to be modified. Defaults to `None`.
         """
         super().__init__()
         self.norm_first = False
@@ -86,12 +83,13 @@ class BetterTransformerBaseLayer(nn.Module):
                 self.num_layers = getattr(config, attr)
                 break
 
-        if orig_layer is not None:
-            # Last step, store the old module skeleton by copying the old module and putting
-            # it on the `meta` device.
-            self.orig_layer = deepcopy(orig_layer).to("meta")
-        else:
-            self.orig_layer = orig_layer
+        # TODO: re-enable once fixed
+        # if orig_layer is not None:
+        #     # Last step, store the old module skeleton by copying the old module and putting
+        #     # it on the `meta` device.
+        #     self.orig_layer = deepcopy(orig_layer).to("meta")
+        # else:
+        #     self.orig_layer = orig_layer
 
     def validate_bettertransformer(self):
         r"""

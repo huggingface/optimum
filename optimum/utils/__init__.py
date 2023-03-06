@@ -13,6 +13,13 @@
 #  limitations under the License.
 
 
+from .constant import (
+    CONFIG_NAME,
+    DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
+    DIFFUSION_MODEL_UNET_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
+)
 from .import_utils import (
     ORT_QUANTIZE_MINIMUM_VERSION,
     TORCH_MINIMUM_VERSION,
@@ -23,6 +30,7 @@ from .import_utils import (
     is_onnxruntime_available,
     is_pydantic_available,
     is_torch_onnx_support_available,
+    require_numpy_strictly_lower,
     torch_version,
 )
 from .input_generators import (
@@ -49,6 +57,3 @@ from .normalized_config import (
     NormalizedTextConfig,
     NormalizedVisionConfig,
 )
-
-
-CONFIG_NAME = "config.json"

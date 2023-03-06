@@ -15,7 +15,7 @@
 """Utility functions."""
 
 import copy
-from typing import TYPE_CHECKING, Dict, List, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 import packaging
 import torch
@@ -23,6 +23,7 @@ from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import ORT_QUANTIZE_MINIMUM_VERSION, is_diffusers_available
 from ..tasks import TasksManager
+from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
 
 if TYPE_CHECKING:
@@ -87,14 +88,14 @@ def get_encoder_decoder_models_for_export(
 
     encoder_model = model.get_encoder()
     encoder_onnx_config = config.with_behavior("encoder")
-    models_for_export["encoder_model"] = (encoder_model, encoder_onnx_config)
+    models_for_export[ONNX_ENCODER_NAME] = (encoder_model, encoder_onnx_config)
 
     decoder_onnx_config = config.with_behavior("decoder", use_past=False)
-    models_for_export["decoder_model"] = (model, decoder_onnx_config)
+    models_for_export[ONNX_DECODER_NAME] = (model, decoder_onnx_config)
 
     if config.use_past:
         decoder_onnx_config_with_past = config.with_behavior("decoder", use_past=True)
-        models_for_export["decoder_with_past_model"] = (model, decoder_onnx_config_with_past)
+        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (model, decoder_onnx_config_with_past)
 
     return models_for_export
 
@@ -126,11 +127,11 @@ def get_decoder_models_for_export(
     onnx_config = config.__class__(
         model.config, task=config.task, use_past_in_inputs=False, use_present_in_outputs=True
     )
-    models_for_export["decoder_model"] = (model, onnx_config)
+    models_for_export[ONNX_DECODER_NAME] = (model, onnx_config)
 
     if config.use_past:
         onnx_config_with_past = config.__class__(model.config, task=config.task, use_past=True)
-        models_for_export["decoder_with_past_model"] = (model, onnx_config_with_past)
+        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (model, onnx_config_with_past)
 
     return models_for_export
 
@@ -149,7 +150,7 @@ def get_stable_diffusion_models_for_export(
         `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
         onnx configs for the different components of the model.
     """
-    models_for_export = dict()
+    models_for_export = {}
 
     # Text encoder
     text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
@@ -197,5 +198,26 @@ def recursive_to_device(value: Union[Tuple, List, "torch.Tensor"], device: str):
             value[i] = recursive_to_device(val, device)
     elif isinstance(value, torch.Tensor):
         value = value.to(device)
+
+    return value
+
+
+def recursive_to_dtype(
+    value: Union[Tuple, List, "torch.Tensor"], dtype: Optional[torch.dtype], start_dtype: Optional[torch.dtype] = None
+):
+    if dtype is None:
+        return value
+
+    if isinstance(value, tuple):
+        value = list(value)
+        for i, val in enumerate(value):
+            value[i] = recursive_to_dtype(val, dtype)
+        value = tuple(value)
+    elif isinstance(value, list):
+        for i, val in enumerate(value):
+            value[i] = recursive_to_dtype(val, dtype)
+    elif isinstance(value, torch.Tensor):
+        if start_dtype is None or (start_dtype is not None and value.dtype == start_dtype):
+            value = value.to(dtype=dtype)
 
     return value

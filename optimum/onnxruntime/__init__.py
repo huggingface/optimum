@@ -13,7 +13,9 @@
 #  limitations under the License.
 from typing import TYPE_CHECKING
 
-from transformers.utils import _LazyModule
+from transformers.utils import OptionalDependencyNotAvailable, _LazyModule
+
+from ..utils import is_diffusers_available
 
 
 _import_structure = {
@@ -29,7 +31,11 @@ _import_structure = {
     ],
     "modeling_ort": [
         "ORTModel",
+        "ORTModelForAudioClassification",
+        "ORTModelForAudioFrameClassification",
+        "ORTModelForAudioXVector",
         "ORTModelForCustomTasks",
+        "ORTModelForCTC",
         "ORTModelForFeatureExtraction",
         "ORTModelForImageClassification",
         "ORTModelForMaskedLM",
@@ -49,12 +55,21 @@ _import_structure = {
     "training_args_seq2seq": ["ORTSeq2SeqTrainingArguments"],
     "utils": [
         "ONNX_DECODER_NAME",
+        "ONNX_DECODER_MERGED_NAME",
         "ONNX_DECODER_WITH_PAST_NAME",
         "ONNX_ENCODER_NAME",
         "ONNX_WEIGHTS_NAME",
         "ORTQuantizableOperator",
     ],
 }
+
+try:
+    if not is_diffusers_available():
+        raise OptionalDependencyNotAvailable()
+except OptionalDependencyNotAvailable:
+    _import_structure[".utils.dummy_diffusers_objects"] = ["ORTStableDiffusionPipeline"]
+else:
+    _import_structure["modeling_diffusion"] = ["ORTStableDiffusionPipeline"]
 
 
 # Direct imports for type-checking
@@ -63,6 +78,10 @@ if TYPE_CHECKING:
     from .modeling_decoder import ORTModelForCausalLM
     from .modeling_ort import (
         ORTModel,
+        ORTModelForAudioClassification,
+        ORTModelForAudioFrameClassification,
+        ORTModelForAudioXVector,
+        ORTModelForCTC,
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
@@ -81,18 +100,22 @@ if TYPE_CHECKING:
     from .training_args import ORTTrainingArguments
     from .training_args_seq2seq import ORTSeq2SeqTrainingArguments
     from .utils import (
+        ONNX_DECODER_MERGED_NAME,
         ONNX_DECODER_NAME,
         ONNX_DECODER_WITH_PAST_NAME,
         ONNX_ENCODER_NAME,
         ONNX_WEIGHTS_NAME,
         ORTQuantizableOperator,
     )
+
+    try:
+        if not is_diffusers_available():
+            raise OptionalDependencyNotAvailable()
+    except OptionalDependencyNotAvailable:
+        from ..utils.dummy_diffusers_objects import ORTStableDiffusionPipeline
+    else:
+        from .modeling_diffusion import ORTStableDiffusionPipeline
 else:
     import sys
 
-    sys.modules[__name__] = _LazyModule(
-        __name__,
-        globals()["__file__"],
-        _import_structure,
-        module_spec=__spec__,
-    )
+    sys.modules[__name__] = _LazyModule(__name__, globals()["__file__"], _import_structure, module_spec=__spec__)

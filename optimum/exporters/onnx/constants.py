@@ -13,18 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
+# 2 GB
+EXTERNAL_DATA_FORMAT_SIZE_LIMIT = 2 * 1024 * 1024 * 1024
 
-from transformers import AutoModel
-
-from optimum.bettertransformer import BetterTransformer
-
-
-class BetterTransformerIntegrationTests(unittest.TestCase):
-    def test_raise_error_on_double_transform_call(self):
-        model = AutoModel.from_pretrained("hf-internal-testing/tiny-random-BertModel")
-
-        with self.assertRaises(Exception) as cm:
-            bt_model = BetterTransformer.transform(model)
-            bt_model = BetterTransformer.transform(bt_model)
-        self.assertTrue("was called on a model already using Better Transformer" in str(cm.exception))
+ONNX_ENCODER_NAME = "encoder_model"
+ONNX_DECODER_NAME = "decoder_model"
+ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model"
+ONNX_DECODER_MERGED_NAME = "decoder_model_merged"

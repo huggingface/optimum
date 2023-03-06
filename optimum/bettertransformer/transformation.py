@@ -15,6 +15,7 @@ from copy import deepcopy
 from typing import Dict, Optional
 
 import torch
+from packaging.version import parse
 
 from ..utils import check_if_pytorch_greater, is_accelerate_available
 from .models import BetterTransformerManager
@@ -70,11 +71,6 @@ def replace_to_bettertransformer(model, config):
             ):
                 replace_to_bettertransformer(module, config)
 
-        if hasattr(module, "is_decoder"):
-            # Decoders are not supported yet on Better Transformers
-            if module.is_decoder:
-                continue
-
         if hasattr(module, "SCB"):
             # 8-bit modules are not supported
             raise ValueError(
@@ -83,8 +79,11 @@ def replace_to_bettertransformer(model, config):
             )
 
         # replace the module if it is a transformer layer compatible with bettertransformer
+        target_class = BetterTransformerManager.MODEL_MAPPING[config.model_type][0]
         should_replace_module = (
-            module.__class__.__name__ == BetterTransformerManager.MODEL_MAPPING[config.model_type][0]
+            (module.__class__.__name__ == target_class)
+            if isinstance(target_class, str)
+            else module.__class__.__name__ in target_class
         )
         if should_replace_module:
             bettertransformer_module = BetterTransformerManager.MODEL_MAPPING[config.model_type][1](module, config)
@@ -171,8 +170,8 @@ def set_last_layer(model: torch.nn.Module):
                 return
 
     raise Exception(
-        f"The transformation of the model {model.__class__.__name__} to BetterTransformer failed while it should not. Please fill a bug report or open a PR to"
-        " support this model at https://github.com/huggingface/optimum/"
+        f"The transformation of the model {model.__class__.__name__} to BetterTransformer failed while it should not. Please fill"
+        " a bug report or open a PR to support this model at https://github.com/huggingface/optimum/"
     )
 
 
@@ -232,6 +231,12 @@ class BetterTransformer(object):
                 f" to open an issue at https://github.com/huggingface/optimum/issues if you would like this model type to be supported."
                 f" Currently supported models are: {BetterTransformerManager.MODEL_MAPPING.keys()}."
             )
+        if BetterTransformerManager.requires_torch_20(model.config.model_type) and parse(torch.__version__) < parse(
+            "2.0"
+        ):
+            raise ValueError(
+                f"BetterTransformer for {model.config.model_type} requires torch>=2.0 but {torch.__version__} is installed. Please upgrade PyTorch."
+            )
 
         hf_config = model.config
 
@@ -257,7 +262,8 @@ class BetterTransformer(object):
             model_fast = replace_to_bettertransformer(model, hf_config).eval()
             model = None
 
-        set_last_layer(model_fast)
+        if BetterTransformerManager.requires_nested_tensor(model_fast.config.model_type):
+            set_last_layer(model_fast)
 
         # Step 6: Add a class arguments, we might need to identify whether the model
         # has been correctly converted to its `BetterTransformer` version.
@@ -297,6 +303,9 @@ class BetterTransformer(object):
             raise ValueError(
                 "The method BetterTransformer.reverse() should be used on a model already transformed to the BetterTransformer format, which appears to not be the case."
             )
+
+        # TODO: re-enable once fixed
+        raise NotImplementedError("BetterTransformer.reverse() is currently disabled.")
 
         model = revert_to_original_model(model)
 

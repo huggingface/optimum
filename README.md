@@ -63,7 +63,7 @@ Optimum enables the usage of popular compression techniques such as quantization
 | Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |          N/A            |
 | Post-training Static Quantization  |  :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
 | Quantization Aware Training (QAT)  |  Stay tuned! :star:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
-| Pruning                            |        N/A            |    :heavy_check_mark:   |    Stay tuned! :star:   |
+| Pruning                            |        N/A            |    :heavy_check_mark:   |    :heavy_check_mark:   |
 
 ## Quick tour
 

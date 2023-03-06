@@ -18,12 +18,21 @@ REQUIRED_PKGS = [
     "transformers[sentencepiece]>=4.26.0",
     "torch>=1.9",
     "packaging",
-    "numpy<1.24.0",
+    "numpy",
     "huggingface_hub>=0.8.0",
     "datasets",
 ]
 
-TESTS_REQUIRE = ["pytest", "requests", "parameterized", "pytest-xdist", "Pillow", "sacremoses", "diffusers"]
+TESTS_REQUIRE = [
+    "pytest",
+    "requests",
+    "parameterized",
+    "pytest-xdist",
+    "Pillow",
+    "sacremoses",
+    "diffusers",
+    "torchaudio",
+]
 
 QUALITY_REQUIRE = ["black~=23.1", "ruff>=0.0.241"]
 
@@ -45,7 +54,8 @@ EXTRAS_REQUIRE = {
         "protobuf>=3.20.1",
     ],
     "exporters": ["onnx", "onnxruntime", "timm"],
-    "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm"],
+    "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
+    "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm", "h5py", "numpy<1.24.0"],
     "intel": "optimum-intel",
     "openvino": "optimum-intel[openvino]",
     "nncf": "optimum-intel[nncf]",
