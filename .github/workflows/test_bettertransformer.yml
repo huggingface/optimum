@@ -28,7 +28,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install .[tests]
-        pip3 install --upgrade torch torchvision torchaudio
+        pip install --no-cache-dir --upgrade torch torchvision torchaudio
         pip install accelerate
     - name: Test on pytorch stable
       working-directory: tests
@@ -38,7 +38,7 @@ jobs:
       run: |
         pip install .[tests]
         pip uninstall -y torch torchvision torchaudio
-        pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu117
+        pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
     - name: Test on pytorch nightly
       working-directory: tests
       run: |

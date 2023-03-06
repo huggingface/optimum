@@ -11,11 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import torch
 
 from .base import BetterTransformerBaseLayer
+
+
+if TYPE_CHECKING:
+    import torch.nn as nn
+    from transformers import PretrainedConfig
 
 
 def raise_on_head_mask(head_mask: Optional[torch.Tensor]):
@@ -27,7 +32,7 @@ def raise_on_head_mask(head_mask: Optional[torch.Tensor]):
 
 
 class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
-    def __init__(self, gpt_layer, config):
+    def __init__(self, gpt_layer: "nn.Module", config: "PretrainedConfig"):
         super().__init__(config, gpt_layer)
 
         self.gpt_layer = gpt_layer
@@ -36,7 +41,15 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         mask_value = torch.finfo(torch.float32).min
         self._mask_value = torch.full([], mask_value, dtype=torch.float32)
 
-    def wrapped_scaled_dot_product(self, query, key, value, attention_mask=None, head_mask=None):
+    def wrapped_scaled_dot_product(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+    ):
+        raise_on_head_mask(head_mask)
         batch_size = query.shape[0]
 
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
@@ -74,12 +87,11 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         return sdpa_result, None
 
     def forward(self, *args, **kwargs):
-        raise_on_head_mask(kwargs["head_mask"])
         return self.gpt_layer(*args, **kwargs)
 
 
 class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
-    def __init__(self, gpt_layer, config):
+    def __init__(self, gpt_layer: "nn.Module", config: "PretrainedConfig"):
         super().__init__(config, gpt_layer)
 
         self.gpt_layer = gpt_layer
@@ -97,7 +109,15 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             torch.get_default_dtype()
         )
 
-    def wrapped_scaled_dot_product(self, query, key, value, attention_mask=None, head_mask=None):
+    def wrapped_scaled_dot_product(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+    ):
+        raise_on_head_mask(head_mask)
         query = query * self.scale
         batch_size = query.shape[0]
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
@@ -130,12 +150,11 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         return sdpa_result, None
 
     def forward(self, *args, **kwargs):
-        raise_on_head_mask(kwargs["head_mask"])
         return self.gpt_layer(*args, **kwargs)
 
 
 class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
-    def __init__(self, gpt_layer, config):
+    def __init__(self, gpt_layer: "nn.Module", config: "PretrainedConfig"):
         super().__init__(config, gpt_layer)
 
         self.gpt_layer = gpt_layer
@@ -144,7 +163,15 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         mask_value = torch.finfo(torch.float32).min
         self._mask_value = torch.full([], mask_value, dtype=torch.float32)
 
-    def wrapped_scaled_dot_product(self, query, key, value, attention_mask=None, head_mask=None):
+    def wrapped_scaled_dot_product(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+    ):
+        raise_on_head_mask(head_mask)
         batch_size = query.shape[0]
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
             raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
@@ -186,12 +213,11 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         return sdpa_result, None
 
     def forward(self, *args, **kwargs):
-        raise_on_head_mask(kwargs["head_mask"])
         return self.gpt_layer(*args, **kwargs)
 
 
 class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
-    def __init__(self, opt_layer, config):
+    def __init__(self, opt_layer: "nn.Module", config: "PretrainedConfig"):
         super().__init__(config, opt_layer)
 
         self.opt_layer = opt_layer
