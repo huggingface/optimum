@@ -87,6 +87,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         return sdpa_result, None
 
     def forward(self, *args, **kwargs):
+        super().forward_checker()
         return self.gpt_layer(*args, **kwargs)
 
 
@@ -150,6 +151,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         return sdpa_result, None
 
     def forward(self, *args, **kwargs):
+        super().forward_checker()
         return self.gpt_layer(*args, **kwargs)
 
 
@@ -178,6 +180,7 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         if batch_size == 1:
             if query.shape[2] > 1:
+                # first step of the decoding
                 sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                     query, key, value, attn_mask=None, dropout_p=0.0, is_causal=True
                 )
@@ -213,6 +216,7 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         return sdpa_result, None
 
     def forward(self, *args, **kwargs):
+        super().forward_checker()
         return self.gpt_layer(*args, **kwargs)
 
 
@@ -238,12 +242,11 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         layer_head_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        """Input shape: Batch x Time x Channel"""
+        super().forward_checker()
+        raise_on_head_mask(layer_head_mask)
 
         if output_attentions is True:
             raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
-
-        raise_on_head_mask(layer_head_mask)
 
         # TODO: raise on batch_size = 1 + padding
 

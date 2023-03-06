@@ -33,14 +33,13 @@ jobs:
     - name: Test on pytorch stable
       working-directory: tests
       run: |
-        python -m unittest discover -s bettertransformer -p 'test_*.py'
+        pytest bettertransformer/test_*.py -s -vvvvv
     - name: Install dependencies 2
       run: |
-        pip install .[tests]
         pip uninstall -y torch torchvision torchaudio
         pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
     - name: Test on pytorch nightly
       working-directory: tests
       run: |
-        python -m unittest discover -s bettertransformer -p 'test_*.py'
+        pytest bettertransformer/test_*.py -s -vvvvv
 
