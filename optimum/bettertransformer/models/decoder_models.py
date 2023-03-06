@@ -347,6 +347,8 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         use_cache=False,
         output_attentions=False,
     ):
+        super().forward_checker()
+        raise_on_head_mask(layer_head_mask)
         if len(self.layer.pruned_heads) > 0:
             raise ValueError(
                 f"Setting `pruned_heads` is unsupported with BetterTransformer, found {self.layer.pruned_heads}."
