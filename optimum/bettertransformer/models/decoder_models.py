@@ -155,6 +155,9 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                     query, key, value, attn_mask=None, dropout_p=0.0, is_causal=True
                 )
             else:
+                # in this case, which is the later decoding steps, the `causal_mask`` in
+                # https://github.com/huggingface/transformers/blob/ae54e3c3b18bac0832ad62ea9b896dfd52a09850/src/transformers/models/gpt2/modeling_gpt2.py#L195
+                # is [True, ..., True] so actually not causal
                 sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                     query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False
                 )
