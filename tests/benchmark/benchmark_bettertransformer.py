@@ -151,16 +151,13 @@ if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
 
-    # BATCH_SIZES = [8, 16, 64]
-    BATCH_SIZES = [64]
-    # SEQ_LEN = [64, 128, 256]
-    SEQ_LEN = [256]
-    # PAD_PERCENTAGES = [0, 0.1, 0.2, 0.5, 0.75]
-    PAD_PERCENTAGES = [0.75]
+    BATCH_SIZES = [8, 16, 64]
+    SEQ_LEN = [64, 128, 256]
+    PAD_PERCENTAGES = [0, 0.1, 0.2, 0.5, 0.75]
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.use_cuda else "cpu")
     if args.is_decoder:
         hf_model = AutoModelForCausalLM.from_pretrained(
-            args.model_name, torch_dtype=torch.float16 if args.use_half else None, use_cache=False
+            args.model_name, torch_dtype=torch.float16 if args.use_half else None, use_cache=True
         ).eval()
     else:
         hf_model = AutoModel.from_pretrained(
