@@ -18,6 +18,7 @@ from .decoder_models import (
     GPT2AttentionLayerBetterTransformer,
     GPTNeoAttentionLayerBetterTransformer,
     OPTAttentionLayerBetterTransformer,
+    T5AttentionLayerBetterTransformer,
 )
 from .encoder_models import (
     AlbertLayerBetterTransformer,
@@ -66,6 +67,7 @@ class BetterTransformerManager:
         "roformer": ("RoFormerLayer", BertLayerBetterTransformer),
         "splinter": ("SplinterLayer", BertLayerBetterTransformer),
         "tapas": ("TapasLayer", BertLayerBetterTransformer),
+        "t5": ("T5Attention", T5AttentionLayerBetterTransformer),
         "vilt": ("ViltLayer", ViltLayerBetterTransformer),
         "vit": ("ViTLayer", ViTLayerBetterTransformer),
         "vit_mae": ("ViTMAELayer", ViTLayerBetterTransformer),
@@ -87,7 +89,6 @@ class BetterTransformerManager:
     CAN_NOT_BE_SUPPORTED = {
         "deberta-v2": "DeBERTa v2 does not use a regular attention mechanism, which is not supported in PyTorch's BetterTransformer.",
         "glpn": "GLPN has a convolutional layer present in the FFN network, which is not supported in PyTorch's BetterTransformer.",
-        "t5": "T5 uses attention bias, which is not supported in PyTorch's BetterTransformer.",
     }
 
     @staticmethod
@@ -121,7 +122,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]:
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "t5"]:
             return False
         else:
             return True
@@ -135,7 +136,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]:
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "t5"]:
             return False
         else:
             return True
@@ -149,7 +150,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]:
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "t5"]:
             return True
         else:
             return False
