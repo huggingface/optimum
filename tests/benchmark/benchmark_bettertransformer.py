@@ -1,6 +1,7 @@
 import argparse
 
 import torch
+from tqdm import tqdm
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 
 from optimum.bettertransformer import BetterTransformer
@@ -154,7 +155,11 @@ if __name__ == "__main__":
 
     BATCH_SIZES = [8, 16, 64]
     SEQ_LEN = [64, 128, 256]
-    PAD_PERCENTAGES = [0, 0.1, 0.2, 0.5, 0.75]
+    if args.is_decoder:
+        PAD_PERCENTAGES = [0]
+    else:
+        PAD_PERCENTAGES = [0, 0.1, 0.2, 0.5, 0.75]
+
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.use_cuda else "cpu")
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
@@ -178,9 +183,9 @@ if __name__ == "__main__":
     output_file.write(
         "num_batches, batch_size, seq_len, is cuda, is half, use mask, pad percentage, HF time, BT time, Speedup\n"
     )
-    for bs in BATCH_SIZES:
-        for seq_len in SEQ_LEN:
-            for pad_perc in PAD_PERCENTAGES:
+    for bs in tqdm(BATCH_SIZES):
+        for seq_len in tqdm(SEQ_LEN):
+            for pad_perc in tqdm(PAD_PERCENTAGES):
                 # current_std = int(seq_len*pad_perc)
                 # max_seqlen = seq_len + current_std
                 max_seqlen = seq_len
