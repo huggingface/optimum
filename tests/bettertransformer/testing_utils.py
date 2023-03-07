@@ -104,10 +104,15 @@ class BetterTransformersTestMixin:
             has not been converted to a fast model. The check is done above.
             """
             torch.manual_seed(0)
-            _ = hf_random_model.generate(**inputs)
+            output_hf = hf_random_model.generate(**inputs)
 
             torch.manual_seed(0)
-            _ = converted_model.generate(**inputs)
+            output_bt = converted_model.generate(**inputs)
+
+            self.assertTrue(
+                torch.allclose(output_hf, output_bt, atol=1e-4),
+                f"The logits of the converted model {converted_model.__class__.__name__} are not equal to the logits of the original model {hf_random_model.__class__.__name__}.",  
+            )
 
     def _test_logits(self, model_id: str, **preprocessor_kwargs):
         r"""
