@@ -65,7 +65,7 @@ class ORTTrainingArguments(TrainingArguments):
     use_module_with_loss: Optional[bool] = field(
         default=False,
         metadata={
-            "help": "Use ModuleWithLoss Wrapper to compute loss inside the training loop, having this will help save memory for ORTMOdule Runs."
+            "help": "Use ModuleWithLoss Wrapper to compute loss inside the training loop, having this will help save memory for ORTModule Runs."
         },
     )
 
