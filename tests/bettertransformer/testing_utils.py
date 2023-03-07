@@ -25,6 +25,7 @@ MODELS_DICT = {
     "bart": "hf-internal-testing/tiny-random-bart",
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bert-generation": "ybelkada/random-tiny-BertGenerationModel",
+    "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip_text_model": "hf-internal-testing/tiny-random-clip-zero-shot-image-classification",  # with quick_gelu
     "clip": "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",  # with gelu
@@ -46,6 +47,7 @@ MODELS_DICT = {
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
+    "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "rembert": "hf-internal-testing/tiny-random-rembert",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "rocbert": "hf-internal-testing/tiny-random-RoCBertModel",
@@ -230,7 +232,10 @@ class BetterTransformersTestMixin:
         loss.backward()
 
         # check if gradients are not None
-        for param in bt_model.parameters():
+        for name, param in bt_model.named_parameters():
+            # TODO: is this normal? None even without bettertransformer
+            if hf_random_model.config.model_type == "pegasus" and "embed_positions.weight" in name:
+                continue
             self.assertIsNotNone(param.grad)
 
     # TODO: re-enable once fixed

@@ -38,10 +38,12 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     """
     SUPPORTED_ARCH = [
         "bart",
+        "blenderbot",
         "fsmt",
         "m2m_100",
         "marian",
         "mbart",
+        "pegasus",
         "t5",
     ]
 
@@ -82,7 +84,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     def test_raise_train(self, model_type: str):
         self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
-        if model_type != "t5":
+        if model_type not in ["blenderbot", "pegasus", "t5"]:
             super()._test_raise_train(model_id)
         else:
             super()._test_train_decoder(model_id)
