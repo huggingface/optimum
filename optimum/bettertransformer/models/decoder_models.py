@@ -504,6 +504,7 @@ class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         output_attentions: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
+        super().forward_checker()
         raise_on_head_mask(layer_head_mask)
         if output_attentions is True:
             raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
