@@ -38,8 +38,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         self.gpt_layer = gpt_layer
         self.gpt_layer._attn = self.wrapped_scaled_dot_product
 
-        mask_value = torch.finfo(torch.float32).min
-        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
+        self.downcast_qk = config.model_type in ["gptj", "gpt_neox"]
 
     def wrapped_scaled_dot_product(
         self,
@@ -51,6 +50,9 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
     ):
         raise_on_head_mask(head_mask)
         batch_size = query.shape[0]
+
+        mask_value = torch.finfo(value.dtype).min
+        mask_value = torch.full([], mask_value, dtype=value.dtype)
 
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
             raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
@@ -74,11 +76,17 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                     torch.bool
                 )
 
-                causal_mask = torch.where(causal_mask, 0, self._mask_value)
+                causal_mask = torch.where(causal_mask, 0, mask_value)
 
                 # torch.Tensor.expand does no memory copy
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
                 attention_mask = causal_mask + attention_mask
+
+            # in gpt-neo-x and gpt-j the query and keys are always in fp32
+            # thus we need to cast them to the value dtype
+            if self.downcast_qk:
+                query = query.to(value.dtype)
+                key = key.to(value.dtype)
 
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
@@ -97,9 +105,6 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         self.gpt_layer = gpt_layer
         self.gpt_layer._attn = self.wrapped_scaled_dot_product
-
-        mask_value = torch.finfo(torch.float32).min
-        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
 
         if self.gpt_layer.bias[0][0][-1][0] == 1:
             self.attention_type = "global"
@@ -121,6 +126,10 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         raise_on_head_mask(head_mask)
         query = query * self.scale
         batch_size = query.shape[0]
+
+        mask_value = torch.finfo(value.dtype).min
+        mask_value = torch.full([], mask_value, dtype=value.dtype)
+
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
             raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
@@ -136,12 +145,13 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         else:
             query_length, key_length = query.size(-2), key.size(-2)
 
-            causal_mask = self.gpt_layer.bias[:, :, key_length - query_length : key_length, :key_length].to(torch.bool)
+            causal_mask = self.gpt_layer.bias[:, :, key_length - query_length : key_length, :key_length]
 
-            causal_mask = torch.where(causal_mask, 0, self._mask_value)
+            causal_mask = torch.where(causal_mask, 0, mask_value)
             if batch_size > 1:
                 # torch.Tensor.expand does no memory copy
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
+
             attention_mask = causal_mask + attention_mask
 
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
@@ -162,9 +172,6 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         self.gpt_layer = gpt_layer
         self.gpt_layer._attn = self.wrapped_scaled_dot_product
 
-        mask_value = torch.finfo(torch.float32).min
-        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
-
     def wrapped_scaled_dot_product(
         self,
         query: torch.Tensor,
@@ -175,6 +182,9 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
     ):
         raise_on_head_mask(head_mask)
         batch_size = query.shape[0]
+        mask_value = torch.finfo(value.dtype).min
+        mask_value = torch.full([], mask_value, dtype=value.dtype)
+
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
             raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
@@ -201,13 +211,18 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                     torch.bool
                 )
 
-                causal_mask = torch.where(causal_mask, 0, self._mask_value)
+                causal_mask = torch.where(causal_mask, 0, mask_value)
 
                 # torch.Tensor.expand does no memory copy
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
 
                 # we use torch.min to avoid having tensor(-inf)
                 attention_mask = torch.min(causal_mask, attention_mask)
+
+            # in codegen the query and key are always in fp32 regardless of the dtype of the model
+            # https://github.com/huggingface/transformers/blob/5b28b7833297adf65c5160a685425ddb1eee5ce2/src/transformers/models/codegen/modeling_codegen.py#L226
+            query = query.to(value.dtype)
+            key = key.to(value.dtype)
 
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
@@ -226,9 +241,6 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         self.opt_layer = opt_layer
 
-        mask_value = torch.finfo(torch.float32).min
-        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
-
         self.scale = torch.sqrt(torch.tensor(self.opt_layer.head_dim, dtype=torch.float32)).to(
             torch.get_default_dtype()
         )
@@ -244,6 +256,9 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         super().forward_checker()
         raise_on_head_mask(layer_head_mask)
+
+        mask_value = torch.finfo(torch.float32).min
+        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
 
         if output_attentions is True:
             raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
@@ -329,9 +344,6 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         self.layer = layer
 
-        mask_value = torch.finfo(torch.float32).min
-        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
-
         head_dim = self.layer.d_model // self.layer.n_heads  # hidden size / num attention heads
         self.scale = torch.sqrt(torch.tensor(head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
 
@@ -349,6 +361,9 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
     ):
         super().forward_checker()
         raise_on_head_mask(layer_head_mask)
+        mask_value = torch.finfo(torch.float32).min
+        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
+
         if len(self.layer.pruned_heads) > 0:
             raise ValueError(
                 f"Setting `pruned_heads` is unsupported with BetterTransformer, found {self.layer.pruned_heads}."
