@@ -41,7 +41,6 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         self.downcast_qk = config.model_type in ["gptj", "gpt_neox"]
         self.is_decoder = True
 
-
     def wrapped_scaled_dot_product(
         self,
         query: torch.Tensor,
@@ -175,9 +174,8 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         self.gpt_layer = gpt_layer
         self.gpt_layer._attn = self.wrapped_scaled_dot_product
 
-
         self.is_decoder = True
-        
+
     def wrapped_scaled_dot_product(
         self,
         query: torch.Tensor,
