@@ -4,15 +4,14 @@ from typing import List, Union, Optional, Callable
 from inspect import signature
 
 import torch
+import iree.runtime as ireert
 from iree.compiler import InputType, compile_str as iree_compile_str
-from iree_torch import load_vmfb
 from torch import nn
-from torch_mlir._mlir_libs._mlir.ir import Module
 from transformers import BatchEncoding, PreTrainedModel
 from transformers.utils.logging import get_logger
 from torch_mlir import compile as torch_mlir_compile, ExampleArgs, TensorPlaceholder, OutputType
 
-from tir import TirDispatcher, TirTarget, TirConfig
+from optimum.tir import TirCompiledModule, TirConfig, TirDispatcher, TirTarget
 
 LOGGER = get_logger("tir.pytorch")
 
@@ -69,7 +68,8 @@ class TorchDispatcher(TirDispatcher):
             bytecode,
             target_backends=[target.value],
             input_type=InputType.TM_TENSOR,
-            extra_args=extra_args
+            extra_args=extra_args,
+            strip_debug_ops=True
         )
 
     def validate_forward_inputs(self, *args, **kwargs):
@@ -98,18 +98,23 @@ class TorchDispatcher(TirDispatcher):
             example_args=args,
             output_type=OutputType.LINALG_ON_TENSORS,
             use_tracing=True,
-            # ignore_traced_shapes=dynamic_axes is not None,
             ignore_traced_shapes=True,
             verbose=False
         )
 
-    def compile_from_mlir(self, mlir_module: Module, compiler_args: List[str] = None):
+    def compile_from_mlir(self, mlir_module, compiler_args: List[str] = None):
         LOGGER.info(f"Compilation of MLIR module to {self._target}.")
         LOGGER.debug(f"Compilation MLIR module with arguments: {compiler_args}.")
 
         vmfb = TorchDispatcher.internal_compile_to_vmfb(mlir_module, self._target, compiler_args)
-        module = load_vmfb(vmfb, self._target.value)
-        return module.forward
+
+        # ireert.get_driver(self._target.value)
+        # TODO: SystemContext / Config should certainly be a singleton per dispatcher just adding new VMs.
+        config = ireert.Config(driver_name=self._target.to_driver())
+        ctx = ireert.SystemContext(config=config)
+        vm_module = ireert.VmModule.from_flatbuffer(ctx.instance, vmfb)
+        ctx.add_vm_module(vm_module)
+        return TirCompiledModule(ctx, config)
 
     def _internal_call(self, dispatch: Callable, curated_args):
         if LOGGER.isEnabledFor(DEBUG):
