@@ -52,8 +52,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         raise_on_head_mask(head_mask)
         batch_size = query.shape[0]
 
-        mask_value = torch.finfo(value.dtype).min
-        attention_mask = torch.full([], mask_value, dtype=value.dtype).to(value.device)
+        attention_mask = attention_mask.to(value.device, value.dtype)
 
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
             raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
@@ -128,8 +127,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         query = query * self.scale
         batch_size = query.shape[0]
 
-        mask_value = torch.finfo(value.dtype).min
-        attention_mask = torch.full([], mask_value, dtype=value.dtype).to(value.device)
+        attention_mask = attention_mask.to(value.device, value.dtype)
 
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
             raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
