@@ -332,7 +332,6 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 f" {attn_output.size()}"
             )
 
-        # attn_output = attn_output.view(bsz, self.opt_layer.num_heads, tgt_len, self.opt_layer.head_dim)
         attn_output = attn_output.transpose(1, 2)
 
         # Use the `embed_dim` from the config (stored in the class) rather than `hidden_state` because `attn_output` can be
@@ -568,7 +567,6 @@ class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 f" {attn_output.size()}"
             )
 
-        # attn_output = attn_output.view(bsz, self.layer.num_heads, tgt_len, self.layer.head_dim)
         attn_output = attn_output.transpose(1, 2)
 
         # Use the `embed_dim` from the config (stored in the class) rather than `hidden_state` because `attn_output` can be
