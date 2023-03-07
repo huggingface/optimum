@@ -30,7 +30,7 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
     SUPPORTED_ARCH = ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]
 
     def _skip_on_torch_version(self, model_type: str):
-        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("2.0"):
+        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("1.14"):
             self.skipTest(f"The model type {model_type} require PyTorch 2.0 for BetterTransformer")
 
     def prepare_inputs_for_class(self, model_id, batch_size=2, **preprocessor_kwargs):
@@ -73,11 +73,12 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
     )
     @pytest.mark.fp16
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_fp16_inference(self, test_name: str, model_type: str, use_to_operator: bool):
         self._skip_on_torch_version(model_type)
 
         model_id = MODELS_DICT[model_type]
-        super()._test_fp16_inference(model_id, use_to_operator=use_to_operator)
+        super()._test_fp16_inference(model_id, use_to_operator=use_to_operator, automodel_class=AutoModelForCausalLM)
 
     @parameterized.expand(
         grid_parameters(

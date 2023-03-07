@@ -30,7 +30,7 @@ from optimum.utils.testing_utils import grid_parameters
 
 class BetterTransformerIntegrationTests(unittest.TestCase):
     def _skip_on_torch_version(self, model_type: str):
-        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("2.0"):
+        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("1.14"):
             self.skipTest(f"The model type {model_type} require PyTorch 2.0 for BetterTransformer")
 
     def test_raise_error_on_double_transform_call(self):
@@ -133,40 +133,42 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
         if model_type in ["wav2vec2", "hubert"]:
             self.skipTest("These architectures do not support deepcopy (raise unrelated error)")
 
-        layer_class = BetterTransformerManager.MODEL_MAPPING[model_type][0]
-        if isinstance(layer_class, list):
-            layer_class = layer_class[0]
+        layer_classes = BetterTransformerManager.MODEL_MAPPING[model_type].keys()
+        for layer_class in layer_classes:
+            if isinstance(layer_class, list):
+                layer_class = layer_class[0]
 
-        if layer_class == "EncoderLayer":
-            # Hardcode it for FSMT - see https://github.com/huggingface/optimum/pull/494
-            class_name = "FSMT"
-        elif layer_class == "TransformerBlock":
-            # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
-            class_name = "DistilBert"
-        elif "EncoderLayer" in layer_class:
-            class_name = layer_class[:-12]
-        elif "Attention" in layer_class:
-            class_name = layer_class[:-9]
-        else:
-            class_name = layer_class[:-5]
+            if layer_class == "EncoderLayer":
+                # Hardcode it for FSMT - see https://github.com/huggingface/optimum/pull/494
+                class_name = "FSMT"
+            elif layer_class == "TransformerBlock":
+                # Hardcode it for distilbert - see https://github.com/huggingface/transformers/pull/19966
+                class_name = "DistilBert"
+            elif "EncoderLayer" in layer_class:
+                class_name = layer_class[:-12]
+            elif "Attention" in layer_class:
+                class_name = layer_class[:-9]
+            else:
+                class_name = layer_class[:-5]
 
-        hf_random_config = getattr(transformers, class_name + "Config")()  # random config class for the model to test
-        hf_random_config.hidden_act = "silu"
+            hf_random_config = getattr(
+                transformers, class_name + "Config"
+            )()  # random config class for the model to test
+            hf_random_config.hidden_act = "silu"
 
-        hf_random_model = AutoModel.from_config(hf_random_config).eval()
-        with self.assertRaises(ValueError) as cm:
-            _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
-        self.assertTrue("Activation function" in str(cm.exception))
+            hf_random_model = AutoModel.from_config(hf_random_config).eval()
+            with self.assertRaises(ValueError) as cm:
+                _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+            self.assertTrue("Activation function" in str(cm.exception))
 
     def test_dict_class_consistency(self):
         """
         A test to check BetterTransformerManager.MODEL_MAPPING has good names.
         """
         for _, item in BetterTransformerManager.MODEL_MAPPING.items():
-            if isinstance(item[0], str):
-                self.assertTrue(any([subname in item[0] for subname in ["Layer", "Block", "Attention"]]))
-            else:
-                self.assertTrue(
-                    all("Layer" in sub_item for sub_item in item[0])
-                    or all("Block" in sub_item for sub_item in item[0])
+            self.assertTrue(
+                any(
+                    [valid_name in sub_item for sub_item in item.keys()]
+                    for valid_name in ["Block", "Layer", "Attention"]
                 )
+            )

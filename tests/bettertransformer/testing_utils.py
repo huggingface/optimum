@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import torch
-from transformers import AutoModel, AutoModelForCausalLM
+from transformers import AutoModel
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils.testing_utils import flatten_dict, require_torch_gpu
@@ -80,7 +80,7 @@ class BetterTransformersTestMixin:
         raise NotImplementedError
 
     @require_torch_gpu
-    def _test_fp16_inference(self, model_id: str, use_to_operator=False, **preprocessor_kwargs):
+    def _test_fp16_inference(self, model_id: str, automodel_class, use_to_operator=False, **preprocessor_kwargs):
         r"""
         This tests if the converted model runs fine under fp16.
         """
@@ -89,32 +89,34 @@ class BetterTransformersTestMixin:
 
         torch.manual_seed(0)
         if not use_to_operator:
-            hf_random_model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16).to(0)
+            hf_random_model = automodel_class.from_pretrained(model_id, torch_dtype=torch.float16).to(0)
+            converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
         else:
-            hf_random_model = AutoModelForCausalLM.from_pretrained(model_id).to(0, torch.float16)
-
-        torch.manual_seed(0)
-        converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+            hf_random_model = automodel_class.from_pretrained(model_id).to(0)
+            converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+            hf_random_model = hf_random_model.to(torch.float16)
+            converted_model = converted_model.to(torch.float16)
 
         self.assertFalse(
             hasattr(hf_random_model, "use_bettertransformer"),
             f"The model {hf_random_model.__class__.__name__} has been converted to a `fast` model by mistake.",
         )
 
+        length = 50
         with torch.no_grad():
             r"""
             Make sure the models are in eval mode! Make also sure that the original model
             has not been converted to a fast model. The check is done above.
             """
             torch.manual_seed(0)
-            output_hf = hf_random_model.generate(**inputs)
+            output_hf = hf_random_model.generate(**inputs, min_length=length, max_length=length)
 
             torch.manual_seed(0)
-            output_bt = converted_model.generate(**inputs)
+            output_bt = converted_model.generate(**inputs, min_length=length, max_length=length)
 
             self.assertTrue(
-                torch.allclose(output_hf, output_bt, atol=1e-4),
-                f"The logits of the converted model {converted_model.__class__.__name__} are not equal to the logits of the original model {hf_random_model.__class__.__name__}.",
+                torch.allclose(output_hf, output_bt),
+                f"Maxdiff: {(output_hf - output_bt).abs().max()}",
             )
 
     def _test_logits(self, model_id: str, **preprocessor_kwargs):
