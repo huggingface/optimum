@@ -231,8 +231,8 @@ class BetterTransformer(object):
                 f" to open an issue at https://github.com/huggingface/optimum/issues if you would like this model type to be supported."
                 f" Currently supported models are: {BetterTransformerManager.MODEL_MAPPING.keys()}."
             )
-        if BetterTransformerManager.requires_torch_20(model.config.model_type) and parse(torch.__version__) < parse(
-            "2.0"
+        if BetterTransformerManager.requires_torch_20(model.config.model_type) and parse(torch.__version__) <= parse(
+            "1.13.1"
         ):
             raise ValueError(
                 f"BetterTransformer for {model.config.model_type} requires torch>=2.0 but {torch.__version__} is installed. Please upgrade PyTorch."
