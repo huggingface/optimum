@@ -40,6 +40,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         mask_value = torch.finfo(torch.float32).min
         self._mask_value = torch.full([], mask_value, dtype=torch.float32)
+        self.is_decoder = True
 
     def wrapped_scaled_dot_product(
         self,
@@ -109,6 +110,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         self.scale = torch.sqrt(torch.tensor(self.gpt_layer.head_dim, dtype=torch.float32)).to(
             torch.get_default_dtype()
         )
+        self.is_decoder = True
 
     def wrapped_scaled_dot_product(
         self,
@@ -164,6 +166,8 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         mask_value = torch.finfo(torch.float32).min
         self._mask_value = torch.full([], mask_value, dtype=torch.float32)
+
+        self.is_decoder = True
 
     def wrapped_scaled_dot_product(
         self,
@@ -232,6 +236,8 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         self.scale = torch.sqrt(torch.tensor(self.opt_layer.head_dim, dtype=torch.float32)).to(
             torch.get_default_dtype()
         )
+
+        self.is_decoder = True
 
     def forward(
         self,
@@ -334,6 +340,8 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         head_dim = self.layer.d_model // self.layer.n_heads  # hidden size / num attention heads
         self.scale = torch.sqrt(torch.tensor(head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
+
+        self.is_decoder = True
 
     def forward(
         self,

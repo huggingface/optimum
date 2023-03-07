@@ -246,7 +246,6 @@ class BetterTransformer(object):
             remove_hook_from_module(model, recurse=True)
 
         if keep_original_model:
-            model = model.requires_grad_(False)
             try:
                 model_fast = deepcopy(model)
             except RuntimeError:
