@@ -67,15 +67,16 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         grid_parameters(
             {
                 "model_type": SUPPORTED_ARCH,
+                "use_to_operator": [True, False],
             }
         )
     )
     @pytest.mark.fp16
-    def test_fp16_inference(self, test_name: str, model_type: str):
+    def test_fp16_inference(self, test_name: str, model_type: str, use_to_operator: bool):
         self._skip_on_torch_version(model_type)
 
         model_id = MODELS_DICT[model_type]
-        super()._test_fp16_inference(model_id)
+        super()._test_fp16_inference(model_id, use_to_operator=use_to_operator)
 
     @parameterized.expand(
         grid_parameters(

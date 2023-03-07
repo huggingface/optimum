@@ -80,7 +80,7 @@ class BetterTransformersTestMixin:
         raise NotImplementedError
 
     @require_torch_gpu
-    def _test_fp16_inference(self, model_id: str, **preprocessor_kwargs):
+    def _test_fp16_inference(self, model_id: str, use_to_operator=False, **preprocessor_kwargs):
         r"""
         This tests if the converted model runs fine under fp16.
         """
@@ -88,7 +88,10 @@ class BetterTransformersTestMixin:
         inputs = self.prepare_inputs_for_class(model_id=model_id, **preprocessor_kwargs).to(0)
 
         torch.manual_seed(0)
-        hf_random_model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16).eval().to(0)
+        if not use_to_operator:
+            hf_random_model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16).to(0)
+        else:
+            hf_random_model = AutoModelForCausalLM.from_pretrained(model_id).to(0, torch.float16)
 
         torch.manual_seed(0)
         converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)

@@ -38,20 +38,10 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         self.gpt_layer = gpt_layer
         self.gpt_layer._attn = self.wrapped_scaled_dot_product
 
-        # gpt-2
-        if config.model_type == "gpt2":
-            target_dtype = self.gpt_layer.c_proj.weight.dtype
-        # gpt-neo-x
-        elif config.model_type == "gpt_neox":
-            target_dtype = self.gpt_layer.dense.weight.dtype
-        # gpt-j
-        else:
-            target_dtype = self.gpt_layer.out_proj.weight.dtype
-
         self.downcast_qk = config.model_type in ["gptj", "gpt_neox"]
 
-        mask_value = torch.finfo(target_dtype).min
-        self._mask_value = torch.full([], mask_value, dtype=target_dtype)
+        mask_value = torch.finfo(torch.float32).min
+        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
 
     def wrapped_scaled_dot_product(
         self,
@@ -88,7 +78,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                     torch.bool
                 )
 
-                causal_mask = torch.where(causal_mask, 0, self._mask_value)
+                causal_mask = torch.where(causal_mask, 0, self._mask_value.to(value.dtype))
 
                 # torch.Tensor.expand does no memory copy
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
@@ -118,9 +108,8 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         self.gpt_layer = gpt_layer
         self.gpt_layer._attn = self.wrapped_scaled_dot_product
 
-        target_dtype = self.gpt_layer.k_proj.weight.dtype
-        mask_value = torch.finfo(target_dtype).min
-        self._mask_value = torch.full([], mask_value, dtype=target_dtype)
+        mask_value = torch.finfo(torch.float32).min
+        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
 
         if self.gpt_layer.bias[0][0][-1][0] == 1:
             self.attention_type = "global"
@@ -160,7 +149,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
             causal_mask = self.gpt_layer.bias[:, :, key_length - query_length : key_length, :key_length]
 
-            causal_mask = torch.where(causal_mask, 0, self._mask_value)
+            causal_mask = torch.where(causal_mask, 0, self._mask_value.to(value.dtype))
             if batch_size > 1:
                 # torch.Tensor.expand does no memory copy
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
@@ -185,9 +174,8 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         self.gpt_layer = gpt_layer
         self.gpt_layer._attn = self.wrapped_scaled_dot_product
 
-        target_dtype = self.gpt_layer.qkv_proj.weight.dtype
-        mask_value = torch.finfo(target_dtype).min
-        self._mask_value = torch.full([], mask_value, dtype=target_dtype)
+        mask_value = torch.finfo(torch.float32).min
+        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
 
     def wrapped_scaled_dot_product(
         self,
@@ -225,7 +213,7 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                     torch.bool
                 )
 
-                causal_mask = torch.where(causal_mask, 0, self._mask_value)
+                causal_mask = torch.where(causal_mask, 0, self._mask_value.to(value.dtype))
 
                 # torch.Tensor.expand does no memory copy
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
