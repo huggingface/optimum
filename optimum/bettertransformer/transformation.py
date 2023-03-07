@@ -229,7 +229,7 @@ class BetterTransformer(object):
             )
         if not BetterTransformerManager.supports(model.config.model_type):
             raise NotImplementedError(
-                f"The model type {model.config.model_type} is not yet supported supported to be used with BetterTransformer. Feel free"
+                f"The model type {model.config.model_type} is not yet supported to be used with BetterTransformer. Feel free"
                 f" to open an issue at https://github.com/huggingface/optimum/issues if you would like this model type to be supported."
                 f" Currently supported models are: {BetterTransformerManager.MODEL_MAPPING.keys()}."
             )

@@ -45,6 +45,7 @@ class BetterTransformerManager:
         },
         "bert": {"BertLayer": BertLayerBetterTransformer},
         "bert-generation": {"BertGenerationLayer": BertLayerBetterTransformer},
+        "blenderbot": {"BlenderbotAttention": BartAttentionLayerBetterTransformer},
         "camembert": {"CamembertLayer": BertLayerBetterTransformer},
         "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
         "codegen": {"CodeGenAttention": CodegenAttentionLayerBetterTransformer},
@@ -60,11 +61,18 @@ class BetterTransformerManager:
         "gpt_neox": {"GPTNeoXAttention": GPT2AttentionLayerBetterTransformer},
         "hubert": {"HubertEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer},
         "layoutlm": {"LayoutLMLayer": BertLayerBetterTransformer},
-        "m2m_100": {"M2M100EncoderLayer": MBartEncoderLayerBetterTransformer},
-        "marian": {"MarianEncoderLayer": BartEncoderLayerBetterTransformer},
+        "m2m_100": {
+            "M2M100EncoderLayer": MBartEncoderLayerBetterTransformer,
+            "M2M100Attention": BartAttentionLayerBetterTransformer,
+        },
+        "marian": {
+            "MarianEncoderLayer": BartEncoderLayerBetterTransformer,
+            "MarianAttention": BartAttentionLayerBetterTransformer,
+        },
         "markuplm": {"MarkupLMLayer": BertLayerBetterTransformer},
         "mbart": {"MBartEncoderLayer": MBartEncoderLayerBetterTransformer},
         "opt": {"OPTAttention": OPTAttentionLayerBetterTransformer},
+        "pegasus": {"PegasusAttention": BartAttentionLayerBetterTransformer},
         "rembert": {"RemBertLayer": BertLayerBetterTransformer},
         "roberta": {"RobertaLayer": BertLayerBetterTransformer},
         "roc_bert": {"RoCBertLayer": BertLayerBetterTransformer},
@@ -126,7 +134,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "t5"]:
+        if model_type in ["blenderbot", "codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "pegasus", "t5"]:
             return False
         else:
             return True
@@ -140,7 +148,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "t5"]:
+        if model_type in ["blenderbot", "codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "pegasus", "t5"]:
             return False
         else:
             return True
@@ -154,7 +162,21 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["bart", "codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "t5"]:
+        if model_type in [
+            "blenderbot",
+            "bart",
+            "codegen",
+            "gpt2",
+            "gptj",
+            "gpt_neo",
+            "gpt_neox",
+            "m2m_100",
+            "marian",
+            "mbart",
+            "opt",
+            "pegasus",
+            "t5",
+        ]:
             return True
         else:
             return False
