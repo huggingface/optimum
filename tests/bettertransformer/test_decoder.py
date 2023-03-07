@@ -15,6 +15,7 @@
 import unittest
 
 import pytest
+from optimum.utils.testing_utils import require_torch_gpu
 import torch
 from packaging.version import parse
 from parameterized import parameterized
@@ -72,6 +73,7 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         )
     )
     @pytest.mark.fp16
+    @require_torch_gpu
     def test_fp16_inference(self, test_name: str, model_type: str, use_to_operator: bool):
         self._skip_on_torch_version(model_type)
 
