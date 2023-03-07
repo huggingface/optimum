@@ -52,6 +52,9 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         raise_on_head_mask(head_mask)
         batch_size = query.shape[0]
 
+        mask_value = torch.finfo(value.dtype).min
+        attention_mask = torch.full([], mask_value, dtype=value.dtype).to(value.device)
+
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
             raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
@@ -74,13 +77,11 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                     torch.bool
                 )
 
-                causal_mask = torch.where(causal_mask, 0, self._mask_value)
+                causal_mask = torch.where(causal_mask, 0, self._mask_value).to(value.dtype)
 
                 # torch.Tensor.expand does no memory copy
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
                 attention_mask = causal_mask + attention_mask
-
-            attention_mask = attention_mask.to(torch.bool)
 
             query = query.to(value.dtype)
             key = key.to(value.dtype)
@@ -126,6 +127,10 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         raise_on_head_mask(head_mask)
         query = query * self.scale
         batch_size = query.shape[0]
+
+        mask_value = torch.finfo(value.dtype).min
+        attention_mask = torch.full([], mask_value, dtype=value.dtype).to(value.device)
+
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
             raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
@@ -141,14 +146,15 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         else:
             query_length, key_length = query.size(-2), key.size(-2)
 
-            causal_mask = self.gpt_layer.bias[:, :, key_length - query_length : key_length, :key_length].to(torch.bool)
+            causal_mask = self.gpt_layer.bias[:, :, key_length - query_length : key_length, :key_length]
 
-            causal_mask = torch.where(causal_mask, 0, self._mask_value)
+            causal_mask = torch.where(causal_mask, 0, self._mask_value).to(value.dtype)
             if batch_size > 1:
                 # torch.Tensor.expand does no memory copy
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
+
             attention_mask = causal_mask + attention_mask
-            attention_mask = attention_mask.to(torch.bool)
+
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
             )
@@ -211,10 +217,8 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 # torch.Tensor.expand does no memory copy
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
 
-                # we use torch.min to avoid having tensor(-inf)
-                attention_mask = torch.min(causal_mask, attention_mask)
-
-            attention_mask = attention_mask.to(torch.bool)
+                mask_value = torch.finfo(value.dtype).min
+                attention_mask = torch.full([], mask_value, dtype=value.dtype).to(value.device)
 
             query = query.to(value.dtype)
             key = key.to(value.dtype)
