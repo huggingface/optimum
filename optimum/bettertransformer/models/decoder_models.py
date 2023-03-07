@@ -215,9 +215,10 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 # torch.Tensor.expand does no memory copy
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
 
-                mask_value = torch.finfo(value.dtype).min
-                attention_mask = torch.full([], mask_value, dtype=value.dtype).to(value.device)
+                # sum masks
+                attention_mask = causal_mask + attention_mask
 
+            attention_mask = attention_mask.to(value.device, value.dtype)
             query = query.to(value.dtype)
             key = key.to(value.dtype)
 
