@@ -209,6 +209,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         super()._test_raise_train(model_id)
 
     @pytest.mark.gpu_test
+    @pytest.mark.accelerate_test
     def test_accelerate_compatibility_cpu_gpu(self):
         r"""
         Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=True`
@@ -217,6 +218,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=True, max_memory=max_memory)
 
     @pytest.mark.gpu_test
+    @pytest.mark.accelerate_test
     def test_accelerate_compatibility_cpu_gpu_without_keeping(self):
         r"""
         Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=False`
@@ -225,6 +227,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
 
     @pytest.mark.gpu_test
+    @pytest.mark.accelerate_test
     def test_accelerate_compatibility_single_gpu(self):
         r"""
         Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=False`
@@ -234,6 +237,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=True, max_memory=max_memory)
 
     @pytest.mark.gpu_test
+    @pytest.mark.accelerate_test
     def test_accelerate_compatibility_single_gpu_without_keeping(self):
         r"""
         Wrapper around the `check_accelerate_compatibility_cpu_gpu` test with `keep_original_model=True`
