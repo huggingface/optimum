@@ -80,6 +80,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
                 attention_mask = causal_mask + attention_mask
 
+            attention_mask = attention_mask.to(torch.bool)
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
             )
@@ -143,7 +144,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 # torch.Tensor.expand does no memory copy
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
             attention_mask = causal_mask + attention_mask
-
+            attention_mask = attention_mask.to(torch.bool)
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
             )
@@ -209,6 +210,7 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 # we use torch.min to avoid having tensor(-inf)
                 attention_mask = torch.min(causal_mask, attention_mask)
 
+            attention_mask = attention_mask.to(torch.bool)
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
             )
