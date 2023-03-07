@@ -248,8 +248,9 @@ class BetterTransformer(object):
             remove_hook_from_module(model, recurse=True)
 
         if keep_original_model:
-            model = model.requires_grad_(False)
             try:
+                if not check_if_pytorch_greater(2.0, "Please upgrade PyTorch to >=2.0 to use training mode"):
+                    model = model.requires_grad_(False)
                 model_fast = deepcopy(model)
             except RuntimeError:
                 raise ValueError(

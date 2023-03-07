@@ -213,6 +213,24 @@ class BetterTransformersTestMixin:
             bt_model.train()
             _ = bt_model(**inputs)
 
+    def _test_train_decoder(self, model_id: str, **kwargs):
+        r"""
+        A tests that checks if the training works as expected for decoder models.
+        """
+        inputs = self.prepare_inputs_for_class(model_id=model_id, **kwargs)
+
+        hf_random_model = AutoModel.from_pretrained(model_id).eval()
+
+        bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+        bt_model.train()
+        output = bt_model(**inputs)[0]
+        loss = output.sum()
+        loss.backward()
+
+        # check if gradients are not None
+        for param in bt_model.parameters():
+            self.assertIsNotNone(param.grad)
+
     # TODO: re-enable once fixed
     # def test_invert_modules(self, model_id, keep_original_model=False):
     #     r"""

@@ -57,6 +57,7 @@ class BetterTransformerBaseLayer(nn.Module):
         self.embed_dim = None
         self.num_layers = None
         self.original_layers_mapping = {}
+        self.is_decoder = False
         # Some models does not have some attributes thus needs to be ignored
         # e.g. whisper does not have self_attn.k_proj.bias but has self_attn.v_proj.bias & self_attn.q_proj.bias
         self.keys_to_ignore = []
@@ -140,7 +141,7 @@ class BetterTransformerBaseLayer(nn.Module):
         if torch.is_autocast_enabled() or torch.is_autocast_cpu_enabled():
             raise ValueError("Autocast is not supported for `BetterTransformer` integration.")
 
-        if self.training:
+        if self.training and not self.is_decoder:
             raise ValueError(
                 "Training is not supported for `BetterTransformer` integration.",
                 " Please use `model.eval()` before running the model.",
