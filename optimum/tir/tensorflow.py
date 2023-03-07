@@ -3,7 +3,7 @@ from logging import getLogger
 from os import PathLike
 
 import tensorflow as tf
-from typing import Callable, List, Union, Optional
+from typing import Callable, List, Union, Optional, Tuple
 from iree import runtime as ireert
 from iree.compiler import InputType, tf as tfc
 from tir import TirConfig, TirDispatcher, TirTarget, TirExportableModule, TirFrontend
@@ -46,9 +46,6 @@ class TensorflowDispatcher(TirDispatcher):
     def validate_forward_inputs(self, *args, **kwargs):
         return args + tuple(kwargs.values())
 
-    def _internal_call(self, dispatch: Callable, curated_args):
-        return dispatch(curated_args)
-
     def export_model_to_mlir(self, *args):
         if isinstance(self._model, str):
             return tfc.compile_saved_model(
@@ -85,3 +82,10 @@ class TensorflowDispatcher(TirDispatcher):
         #
         # return ctx.modules.module["forward"]
         return
+
+    def _get_dispatching_key(self, method: str, inputs: Tuple[tf.Tensor]) -> str:
+        params = ','.join([f"{'x'.join(map(str, ins.shape))}x{str(ins.dtype)[6:]}" for ins in inputs])
+        return f"@{method}({params})"
+
+    def _internal_call(self, dispatch: Callable, curated_args):
+        return dispatch(curated_args)

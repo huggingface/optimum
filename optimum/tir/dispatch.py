@@ -56,7 +56,8 @@ class TirDispatcher(ABC):
 
     def __call__(self, *args, **kwargs) -> Any:
         curated_args = self.validate_forward_inputs(*args, **kwargs)
-        key = (len(curated_args), ) + tuple(curated_args[0].shape)
+        # key = (len(curated_args), ) + tuple(curated_args[0].shape)
+        key = self._get_dispatching_key("forward", curated_args)
 
         if key in self._cache:
             LOGGER.debug(f"Cache hit for dispatch key: {key}.")
@@ -81,6 +82,10 @@ class TirDispatcher(ABC):
 
     @abstractmethod
     def validate_forward_inputs(self, *args, **kwargs):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _get_dispatching_key(self, method: str, inputs) -> str:
         raise NotImplementedError()
 
     @abstractmethod

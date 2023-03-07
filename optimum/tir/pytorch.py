@@ -1,6 +1,6 @@
 from io import BytesIO
 from logging import DEBUG
-from typing import List, Union, Optional, Callable
+from typing import List, Union, Optional, Callable, Tuple
 from inspect import signature
 
 import torch
@@ -108,13 +108,16 @@ class TorchDispatcher(TirDispatcher):
 
         vmfb = TorchDispatcher.internal_compile_to_vmfb(mlir_module, self._target, compiler_args)
 
-        # ireert.get_driver(self._target.value)
         # TODO: SystemContext / Config should certainly be a singleton per dispatcher just adding new VMs.
         config = ireert.Config(driver_name=self._target.to_driver())
         ctx = ireert.SystemContext(config=config)
         vm_module = ireert.VmModule.from_flatbuffer(ctx.instance, vmfb)
         ctx.add_vm_module(vm_module)
         return TirCompiledModule(ctx, config)
+
+    def _get_dispatching_key(self, method: str, inputs: Tuple[torch.Tensor]) -> str:
+        params = ','.join([f"{'x'.join(map(str, ins.shape))}x{str(ins.dtype)[6:]}" for ins in inputs])
+        return f"@{method}({params})"
 
     def _internal_call(self, dispatch: Callable, curated_args):
         if LOGGER.isEnabledFor(DEBUG):
