@@ -15,7 +15,6 @@
 import unittest
 
 import pytest
-from optimum.utils.testing_utils import require_torch_gpu
 import torch
 from packaging.version import parse
 from parameterized import parameterized
@@ -24,7 +23,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
 from optimum.utils import DummyPastKeyValuesGenerator, NormalizedConfigManager
-from optimum.utils.testing_utils import grid_parameters
+from optimum.utils.testing_utils import grid_parameters, require_torch_gpu
 
 
 class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
