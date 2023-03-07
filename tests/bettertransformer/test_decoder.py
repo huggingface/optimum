@@ -73,11 +73,12 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
     )
     @pytest.mark.fp16
     @require_torch_gpu
+    @pytest.mark.gpu_test
     def test_fp16_inference(self, test_name: str, model_type: str, use_to_operator: bool):
         self._skip_on_torch_version(model_type)
 
         model_id = MODELS_DICT[model_type]
-        super()._test_fp16_inference(model_id, use_to_operator=use_to_operator)
+        super()._test_fp16_inference(model_id, use_to_operator=use_to_operator, automodel_class=AutoModelForCausalLM)
 
     @parameterized.expand(
         grid_parameters(

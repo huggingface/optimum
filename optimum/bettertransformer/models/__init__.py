@@ -140,7 +140,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["bart", "codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "t5"]:
+        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "t5"]:
             return False
         else:
             return True
