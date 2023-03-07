@@ -14,6 +14,7 @@
 # limitations under the License.
 import unittest
 
+import pytest
 import torch
 from packaging.version import parse
 from parameterized import parameterized
@@ -61,6 +62,20 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
 
         model_id = MODELS_DICT[model_type]
         super()._test_logits(model_id, padding=padding, batch_size=batch_size)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_type": SUPPORTED_ARCH,
+            }
+        )
+    )
+    @pytest.mark.fp16
+    def test_fp16_inference(self, test_name: str, model_type: str):
+        self._skip_on_torch_version(model_type)
+
+        model_id = MODELS_DICT[model_type]
+        super()._test_fp16_inference(model_id)
 
     @parameterized.expand(
         grid_parameters(

@@ -81,6 +81,10 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 attention_mask = causal_mask + attention_mask
 
             attention_mask = attention_mask.to(torch.bool)
+
+            query = query.to(value.dtype)
+            key = key.to(value.dtype)
+
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
             )
@@ -211,6 +215,10 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 attention_mask = torch.min(causal_mask, attention_mask)
 
             attention_mask = attention_mask.to(torch.bool)
+
+            query = query.to(value.dtype)
+            key = key.to(value.dtype)
+
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
             )
