@@ -216,8 +216,8 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 # torch.Tensor.expand does no memory copy
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
 
-                # sum masks
-                attention_mask = causal_mask + attention_mask
+                # we use torch.min to avoid having tensor(-inf)
+                attention_mask = torch.min(causal_mask, attention_mask)
 
             # in codegen the query and key are always in fp32 regardless of the dtype of the model
             # https://github.com/huggingface/transformers/blob/5b28b7833297adf65c5160a685425ddb1eee5ce2/src/transformers/models/codegen/modeling_codegen.py#L226
