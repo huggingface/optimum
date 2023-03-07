@@ -14,6 +14,7 @@
 # limitations under the License.
 import unittest
 
+import pytest
 import torch
 from packaging.version import parse
 from parameterized import parameterized
@@ -141,7 +142,8 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         super()._test_raise_autocast(model_id)
 
     @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_train(self, model_type: str):
+    @pytest.mark.training
+    def test_train(self, model_type: str):
         self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
-        super()._test_raise_train(model_id)
+        super()._test_train_decoder(model_id)
