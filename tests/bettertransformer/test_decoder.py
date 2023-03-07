@@ -30,7 +30,7 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
     SUPPORTED_ARCH = ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]
 
     def _skip_on_torch_version(self, model_type: str):
-        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("2.0"):
+        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("1.14"):
             self.skipTest(f"The model type {model_type} require PyTorch 2.0 for BetterTransformer")
 
     def prepare_inputs_for_class(self, model_id, batch_size=2, **preprocessor_kwargs):

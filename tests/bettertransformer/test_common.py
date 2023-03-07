@@ -30,7 +30,7 @@ from optimum.utils.testing_utils import grid_parameters
 
 class BetterTransformerIntegrationTests(unittest.TestCase):
     def _skip_on_torch_version(self, model_type: str):
-        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("2.0"):
+        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("1.14"):
             self.skipTest(f"The model type {model_type} require PyTorch 2.0 for BetterTransformer")
 
     def test_raise_error_on_double_transform_call(self):

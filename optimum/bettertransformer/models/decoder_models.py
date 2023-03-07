@@ -476,10 +476,6 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 attn_weights, p=self.layer.dropout, training=self.layer.training
             )  # (batch_size, n_heads, seq_length, key_length)
 
-            # Mask heads if we want to
-            if layer_head_mask is not None:
-                attn_weights = attn_weights * layer_head_mask
-
             attn_output = torch.matmul(attn_weights, value_states)
 
         attn_output = unshape(attn_output)  # (batch_size, seq_length, dim)
@@ -491,3 +487,94 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         if output_attentions:
             outputs = outputs + (attn_weights,)
         return outputs
+
+
+class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+        super().__init__(config, layer)
+
+        self.layer = layer
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        key_value_states: Optional[torch.Tensor] = None,
+        past_key_value: Optional[Tuple[torch.Tensor]] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        layer_head_mask: Optional[torch.Tensor] = None,
+        output_attentions: bool = False,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        """Input shape: Batch x Time x Channel"""
+        raise_on_head_mask(layer_head_mask)
+        if output_attentions is True:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
+        # if key_value_states are provided this layer is used as a cross-attention layer
+        # for the decoder
+        is_cross_attention = key_value_states is not None
+
+        bsz, tgt_len, _ = hidden_states.size()
+
+        # get query proj
+        query_states = self.layer.q_proj(hidden_states)
+        # get key, value proj
+        # `past_key_value[0].shape[2] == key_value_states.shape[1]`
+        # is checking that the `sequence_length` of the `past_key_value` is the same as
+        # the provided `key_value_states` to support prefix tuning
+        if (
+            is_cross_attention
+            and past_key_value is not None
+            and past_key_value[0].shape[2] == key_value_states.shape[1]
+        ):
+            # reuse k,v, cross_attentions
+            key_states = past_key_value[0]
+            value_states = past_key_value[1]
+        elif is_cross_attention:
+            # cross_attentions
+            key_states = self.layer._shape(self.layer.k_proj(key_value_states), -1, bsz)
+            value_states = self.layer._shape(self.layer.v_proj(key_value_states), -1, bsz)
+        elif past_key_value is not None:
+            # reuse k, v, self_attention
+            key_states = self.layer._shape(self.layer.k_proj(hidden_states), -1, bsz)
+            value_states = self.layer._shape(self.layer.v_proj(hidden_states), -1, bsz)
+            key_states = torch.cat([past_key_value[0], key_states], dim=2)
+            value_states = torch.cat([past_key_value[1], value_states], dim=2)
+        else:
+            # self_attention
+            key_states = self.layer._shape(self.layer.k_proj(hidden_states), -1, bsz)
+            value_states = self.layer._shape(self.layer.v_proj(hidden_states), -1, bsz)
+
+        if self.layer.is_decoder:
+            # if cross_attention save Tuple(torch.Tensor, torch.Tensor) of all cross attention key/value_states.
+            # Further calls to cross_attention layer can then reuse all cross-attention
+            # key/value_states (first "if" case)
+            # if uni-directional self-attention (decoder) save Tuple(torch.Tensor, torch.Tensor) of
+            # all previous decoder key/value_states. Further calls to uni-directional self-attention
+            # can concat previous decoder key/value_states to current projected key/value_states (third "elif" case)
+            # if encoder bi-directional self-attention `past_key_value` is always `None`
+            past_key_value = (key_states, value_states)
+
+        query_states = self.layer._shape(query_states, tgt_len, bsz)
+        key_states = key_states
+        value_states = value_states
+
+        attn_output = torch.nn.functional.scaled_dot_product_attention(
+            query_states, key_states, value_states, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
+        )
+
+        if attn_output.size() != (bsz, self.layer.num_heads, tgt_len, self.layer.head_dim):
+            raise ValueError(
+                f"`attn_output` should be of size {(bsz, self.layer.num_heads, tgt_len, self.layer.head_dim)}, but is"
+                f" {attn_output.size()}"
+            )
+
+        # attn_output = attn_output.view(bsz, self.layer.num_heads, tgt_len, self.layer.head_dim)
+        attn_output = attn_output.transpose(1, 2)
+
+        # Use the `embed_dim` from the config (stored in the class) rather than `hidden_state` because `attn_output` can be
+        # partitioned aross GPUs when using tensor-parallelism.
+        attn_output = attn_output.reshape(bsz, tgt_len, self.layer.embed_dim)
+
+        attn_output = self.layer.out_proj(attn_output)
+
+        return attn_output, None, past_key_value

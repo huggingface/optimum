@@ -14,6 +14,7 @@
 import warnings
 
 from .decoder_models import (
+    BartAttentionLayerBetterTransformer,
     CodegenAttentionLayerBetterTransformer,
     GPT2AttentionLayerBetterTransformer,
     GPTNeoAttentionLayerBetterTransformer,
@@ -37,48 +38,51 @@ from .encoder_models import (
 
 class BetterTransformerManager:
     MODEL_MAPPING = {
-        "albert": ("AlbertLayer", AlbertLayerBetterTransformer),
-        "bart": ("BartEncoderLayer", BartEncoderLayerBetterTransformer),
-        "bert": ("BertLayer", BertLayerBetterTransformer),
-        "bert-generation": ("BertGenerationLayer", BertLayerBetterTransformer),
-        "camembert": ("CamembertLayer", BertLayerBetterTransformer),
-        "clip": ("CLIPEncoderLayer", CLIPLayerBetterTransformer),
-        "codegen": ("CodeGenAttention", CodegenAttentionLayerBetterTransformer),
-        "data2vec-text": ("Data2VecTextLayer", BertLayerBetterTransformer),
-        "deit": ("DeiTLayer", ViTLayerBetterTransformer),
-        "distilbert": ("TransformerBlock", DistilBertLayerBetterTransformer),
-        "electra": ("ElectraLayer", BertLayerBetterTransformer),
-        "ernie": ("ErnieLayer", BertLayerBetterTransformer),
-        "fsmt": ("EncoderLayer", FSMTEncoderLayerBetterTransformer),
-        "gpt2": ("GPT2Attention", GPT2AttentionLayerBetterTransformer),
-        "gptj": ("GPTJAttention", GPT2AttentionLayerBetterTransformer),
-        "gpt_neo": ("GPTNeoSelfAttention", GPTNeoAttentionLayerBetterTransformer),
-        "gpt_neox": ("GPTNeoXAttention", GPT2AttentionLayerBetterTransformer),
-        "hubert": ("HubertEncoderLayer", Wav2Vec2EncoderLayerBetterTransformer),
-        "layoutlm": ("LayoutLMLayer", BertLayerBetterTransformer),
-        "m2m_100": ("M2M100EncoderLayer", MBartEncoderLayerBetterTransformer),
-        "marian": ("MarianEncoderLayer", BartEncoderLayerBetterTransformer),
-        "markuplm": ("MarkupLMLayer", BertLayerBetterTransformer),
-        "mbart": ("MBartEncoderLayer", MBartEncoderLayerBetterTransformer),
-        "opt": ("OPTAttention", OPTAttentionLayerBetterTransformer),
-        "rembert": ("RemBertLayer", BertLayerBetterTransformer),
-        "roberta": ("RobertaLayer", BertLayerBetterTransformer),
-        "roc_bert": ("RoCBertLayer", BertLayerBetterTransformer),
-        "roformer": ("RoFormerLayer", BertLayerBetterTransformer),
-        "splinter": ("SplinterLayer", BertLayerBetterTransformer),
-        "tapas": ("TapasLayer", BertLayerBetterTransformer),
-        "t5": ("T5Attention", T5AttentionLayerBetterTransformer),
-        "vilt": ("ViltLayer", ViltLayerBetterTransformer),
-        "vit": ("ViTLayer", ViTLayerBetterTransformer),
-        "vit_mae": ("ViTMAELayer", ViTLayerBetterTransformer),
-        "vit_msn": ("ViTMSNLayer", ViTLayerBetterTransformer),
-        "wav2vec2": (
-            ["Wav2Vec2EncoderLayer", "Wav2Vec2EncoderLayerStableLayerNorm"],
-            Wav2Vec2EncoderLayerBetterTransformer,
-        ),
-        "whisper": ("WhisperEncoderLayer", WhisperEncoderLayerBetterTransformer),
-        "xlm-roberta": ("XLMRobertaLayer", BertLayerBetterTransformer),
-        "yolos": ("YolosLayer", ViTLayerBetterTransformer),
+        "albert": {"AlbertLayer": AlbertLayerBetterTransformer},
+        "bart": {
+            "BartEncoderLayer": BartEncoderLayerBetterTransformer,
+            "BartAttention": BartAttentionLayerBetterTransformer,
+        },
+        "bert": {"BertLayer": BertLayerBetterTransformer},
+        "bert-generation": {"BertGenerationLayer": BertLayerBetterTransformer},
+        "camembert": {"CamembertLayer": BertLayerBetterTransformer},
+        "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
+        "codegen": {"CodeGenAttention": CodegenAttentionLayerBetterTransformer},
+        "data2vec-text": {"Data2VecTextLayer": BertLayerBetterTransformer},
+        "deit": {"DeiTLayer": ViTLayerBetterTransformer},
+        "distilbert": {"TransformerBlock": DistilBertLayerBetterTransformer},
+        "electra": {"ElectraLayer": BertLayerBetterTransformer},
+        "ernie": {"ErnieLayer": BertLayerBetterTransformer},
+        "fsmt": {"EncoderLayer": FSMTEncoderLayerBetterTransformer},
+        "gpt2": {"GPT2Attention": GPT2AttentionLayerBetterTransformer},
+        "gptj": {"GPTJAttention": GPT2AttentionLayerBetterTransformer},
+        "gpt_neo": {"GPTNeoSelfAttention": GPTNeoAttentionLayerBetterTransformer},
+        "gpt_neox": {"GPTNeoXAttention": GPT2AttentionLayerBetterTransformer},
+        "hubert": {"HubertEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer},
+        "layoutlm": {"LayoutLMLayer": BertLayerBetterTransformer},
+        "m2m_100": {"M2M100EncoderLayer": MBartEncoderLayerBetterTransformer},
+        "marian": {"MarianEncoderLayer": BartEncoderLayerBetterTransformer},
+        "markuplm": {"MarkupLMLayer": BertLayerBetterTransformer},
+        "mbart": {"MBartEncoderLayer": MBartEncoderLayerBetterTransformer},
+        "opt": {"OPTAttention": OPTAttentionLayerBetterTransformer},
+        "rembert": {"RemBertLayer": BertLayerBetterTransformer},
+        "roberta": {"RobertaLayer": BertLayerBetterTransformer},
+        "roc_bert": {"RoCBertLayer": BertLayerBetterTransformer},
+        "roformer": {"RoFormerLayer": BertLayerBetterTransformer},
+        "splinter": {"SplinterLayer": BertLayerBetterTransformer},
+        "tapas": {"TapasLayer": BertLayerBetterTransformer},
+        "t5": {"T5Attention": T5AttentionLayerBetterTransformer},
+        "vilt": {"ViltLayer": ViltLayerBetterTransformer},
+        "vit": {"ViTLayer": ViTLayerBetterTransformer},
+        "vit_mae": {"ViTMAELayer": ViTLayerBetterTransformer},
+        "vit_msn": {"ViTMSNLayer": ViTLayerBetterTransformer},
+        "wav2vec2": {
+            "Wav2Vec2EncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
+            "Wav2Vec2EncoderLayerStableLayerNorm": Wav2Vec2EncoderLayerBetterTransformer,
+        },
+        "whisper": {"WhisperEncoderLayer": WhisperEncoderLayerBetterTransformer},
+        "xlm-roberta": {"XLMRobertaLayer": BertLayerBetterTransformer},
+        "yolos": {"YolosLayer": ViTLayerBetterTransformer},
     }
 
     EXCLUDE_FROM_TRANSFORM = {
@@ -136,7 +140,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "t5"]:
+        if model_type in ["bart", "codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "t5"]:
             return False
         else:
             return True
@@ -150,7 +154,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "t5"]:
+        if model_type in ["bart", "codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "t5"]:
             return True
         else:
             return False

@@ -61,16 +61,7 @@ def replace_to_bettertransformer(model, config):
     Returns:
         The converted model
     """
-
     for name, module in model.named_children():
-        if len(list(module.children())) > 0:
-            # we may explicitly exclude part of the model to use BetterTransformer
-            if config.model_type not in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM or (
-                config.model_type in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM
-                and name not in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM[config.model_type]
-            ):
-                replace_to_bettertransformer(module, config)
-
         if hasattr(module, "SCB"):
             # 8-bit modules are not supported
             raise ValueError(
@@ -79,15 +70,26 @@ def replace_to_bettertransformer(model, config):
             )
 
         # replace the module if it is a transformer layer compatible with bettertransformer
-        target_class = BetterTransformerManager.MODEL_MAPPING[config.model_type][0]
-        should_replace_module = (
-            (module.__class__.__name__ == target_class)
-            if isinstance(target_class, str)
-            else module.__class__.__name__ in target_class
-        )
-        if should_replace_module:
-            bettertransformer_module = BetterTransformerManager.MODEL_MAPPING[config.model_type][1](module, config)
-            model._modules[name] = bettertransformer_module
+        target_classes = list(BetterTransformerManager.MODEL_MAPPING[config.model_type].keys())
+
+        should_replace_module = False
+        for target_class in target_classes:
+            should_replace_module = module.__class__.__name__ == target_class
+            if should_replace_module:
+                bettertransformer_module = BetterTransformerManager.MODEL_MAPPING[config.model_type][target_class](
+                    module, config
+                )
+                model._modules[name] = bettertransformer_module
+                break
+
+        if len(list(module.children())) > 0 and should_replace_module is False:
+            # we may explicitly exclude part of the model to use BetterTransformer
+            if config.model_type not in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM or (
+                config.model_type in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM
+                and name not in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM[config.model_type]
+            ):
+                replace_to_bettertransformer(module, config)
+
     return model
 
 

@@ -22,7 +22,7 @@ from optimum.utils.testing_utils import flatten_dict, require_torch_gpu
 
 MODELS_DICT = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
-    "bart": "hf-internal-testing/tiny-random-bart",
+    "bart": "facebook/bart-base",
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bert-generation": "ybelkada/random-tiny-BertGenerationModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
