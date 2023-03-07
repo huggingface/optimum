@@ -139,37 +139,17 @@ class ModuleWithLoss(nn.Module):
         super().__init__()
         self._original_model = model
         self.args = args
+        # Creating an instance of huggingFace Trainer so we can use compute_loss() logic and avoid duplicated code.
+        self.hf_trainer = Trainer(model)
+        # Label smoothing
         self.label_smoother = label_smoother
 
     def forward(self, inputs: Dict[str, Union[torch.Tensor, Any]], return_outputs):
-        if self.label_smoother is not None and "labels" in inputs:
-            labels = inputs.pop("labels")
-        else:
-            labels = None
-        outputs = self._original_model(**inputs)
+        return self.hf_trainer.compute_loss(self._original_model, inputs, return_outputs=False)
 
-        # Save past state if it exists
-        # TODO: this needs to be fixed and made cleaner later.
-        if self.args.past_index >= 0:
-            self._past = outputs[self.args.past_index]
-
-        if labels is not None:
-            from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
-
-            if unwrap_model(self._original_model)._get_name() in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
-                loss = self.label_smoother(outputs, labels, shift_labels=True)
-            else:
-                loss = self.label_smoother(outputs, labels)
-        else:
-            if isinstance(outputs, dict) and "loss" not in outputs:
-                raise ValueError(
-                    "The model did not return a loss from the inputs, only the following keys: "
-                    f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
-                )
-            # We don't use .loss here since the model may return tuples instead of ModelOutput.
-            loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
-
-        return (loss, outputs) if return_outputs else loss
+    @property
+    def config(self):
+        return self._original_model.config
 
     @property
     def module(self):
@@ -335,8 +315,6 @@ class ORTTrainer(Trainer):
         # Only Wrap the model if we pass --use_module_with_loss flag.
         if args.use_module_with_loss:
             self._training_model = self.create_model_with_loss()
-        else:
-            self._training_model = model
 
         self.model = model
 
@@ -404,8 +382,8 @@ class ORTTrainer(Trainer):
                 "You need to install `onnxruntime-training` to use `ORTTrainer` for training. Check out "
                 "https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer#install-onnx-runtime."
             )
-
-        self.model = self._training_model
+        if self.args.use_module_with_loss:
+            self.model = self._training_model
 
         if resume_from_checkpoint is False:
             resume_from_checkpoint = None
@@ -534,10 +512,10 @@ class ORTTrainer(Trainer):
             or is_sagemaker_mp_enabled()
             or self.fsdp is not None
         )
-
         # Wrap the model with `ORTModule`
         logger.info("Wrap ORTModule for ONNX Runtime training.")
-        model = ORTModule(self.model)
+        from onnxruntime.training.ortmodule import ORTModule, DebugOptions, LogLevel
+        model = ORTModule(self.model, DebugOptions(save_onnx=True, log_level=LogLevel.VERBOSE, onnx_prefix="distil_bert"))
         self.model_wrapped = model
 
         if args.deepspeed:
