@@ -368,7 +368,10 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     def test_raise_train(self, model_type: str):
         self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
-        super()._test_raise_train(model_id)
+        if model_type != "t5":
+            super()._test_raise_train(model_id)
+        else:
+            super()._test_train_decoder(model_id)
 
     # @parameterized.expand(
     #     grid_parameters(
