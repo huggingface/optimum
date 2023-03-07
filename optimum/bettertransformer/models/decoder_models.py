@@ -263,9 +263,6 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         super().forward_checker()
         raise_on_head_mask(layer_head_mask)
 
-        mask_value = torch.finfo(torch.float32).min
-        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
-
         if output_attentions is True:
             raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
 
@@ -368,8 +365,6 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
     ):
         super().forward_checker()
         raise_on_head_mask(layer_head_mask)
-        mask_value = torch.finfo(torch.float32).min
-        self._mask_value = torch.full([], mask_value, dtype=torch.float32)
 
         if len(self.layer.pruned_heads) > 0:
             raise ValueError(
@@ -493,6 +488,7 @@ class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         super().__init__(config, layer)
 
         self.layer = layer
+        self.is_decoder = True
 
     def forward(
         self,
