@@ -247,6 +247,8 @@ class BetterTransformer(object):
 
         if keep_original_model:
             try:
+                if not check_if_pytorch_greater(2.0, "Please upgrade PyTorch to >=2.0 to use training mode"):
+                    model = model.requires_grad_(False)
                 model_fast = deepcopy(model)
             except RuntimeError:
                 raise ValueError(
