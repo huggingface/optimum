@@ -145,7 +145,7 @@ class ModuleWithLoss(nn.Module):
         self.label_smoother = label_smoother
 
     def forward(self, inputs: Dict[str, Union[torch.Tensor, Any]], return_outputs):
-        return self.hf_trainer.compute_loss(self._original_model, inputs, return_outputs=False)
+        return self.hf_trainer.compute_loss(self._original_model, inputs, return_outputs)
 
     @property
     def config(self):
@@ -349,10 +349,9 @@ class ORTTrainer(Trainer):
     def compute_loss(self, model_with_loss, inputs, return_outputs=False):
         # Run model forward + loss compute.
         if isinstance(self.model, ModuleWithLoss):
-            outputs = model_with_loss(inputs, return_outputs)
-            return outputs
+            return model_with_loss(inputs, return_outputs)
         else:
-            return super().compute_loss(self.model, inputs, return_outputs)
+            return super().compute_loss(model_with_loss, inputs, return_outputs)
 
     def train(
         self,
@@ -512,10 +511,10 @@ class ORTTrainer(Trainer):
             or is_sagemaker_mp_enabled()
             or self.fsdp is not None
         )
+
         # Wrap the model with `ORTModule`
         logger.info("Wrap ORTModule for ONNX Runtime training.")
-        from onnxruntime.training.ortmodule import ORTModule, DebugOptions, LogLevel
-        model = ORTModule(self.model, DebugOptions(save_onnx=True, log_level=LogLevel.VERBOSE, onnx_prefix="distil_bert"))
+        model = ORTModule(self.model)
         self.model_wrapped = model
 
         if args.deepspeed:
@@ -663,6 +662,7 @@ class ORTTrainer(Trainer):
                     # Otherwise we need to call the whooooole sampler cause there is some random operation added
                     # AT THE VERY END!
                     _ = list(train_dataloader.sampler)
+
         for epoch in range(epochs_trained, num_train_epochs):
             if isinstance(train_dataloader, DataLoader) and isinstance(train_dataloader.sampler, DistributedSampler):
                 train_dataloader.sampler.set_epoch(epoch)
