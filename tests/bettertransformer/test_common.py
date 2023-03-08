@@ -114,11 +114,9 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
             with self.assertRaises(ValueError), tempfile.TemporaryDirectory() as tmpdirname:
                 bt_model.save_pretrained(tmpdirname)
 
-            # revert model and save it
-            # TODO: re-enable once fixed
-            # bt_model = BetterTransformer.reverse(bt_model)
-            # with tempfile.TemporaryDirectory() as tmpdirname:
-            #     bt_model.save_pretrained(tmpdirname)
+            model = BetterTransformer.reverse(bt_model)
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                model.save_pretrained(tmpdirname)
 
     @parameterized.expand(BetterTransformerManager.MODEL_MAPPING.keys())
     def test_raise_activation_fun(self, model_type: str):

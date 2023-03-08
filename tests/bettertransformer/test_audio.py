@@ -21,6 +21,7 @@ from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
 
 from optimum.bettertransformer import BetterTransformer
+from optimum.utils.testing_utils import grid_parameters
 
 
 ALL_AUDIO_MODELS_TO_TEST = [
@@ -39,6 +40,11 @@ class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCa
     """
     SUPPORTED_ARCH = ["whisper"]
 
+    FULL_GRID = {
+        "model_type": SUPPORTED_ARCH,
+        "keep_original_model": [True, False],
+    }
+
     def _generate_random_audio_data(self):
         np.random.seed(10)
         t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
@@ -46,7 +52,7 @@ class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCa
         audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
         return audio_data
 
-    def prepare_inputs_for_class(self, model_id):
+    def prepare_inputs_for_class(self, model_id, model_type):
         input_audio = self._generate_random_audio_data()
 
         feature_extractor = AutoFeatureExtractor.from_pretrained(model_id)
@@ -57,44 +63,25 @@ class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCa
         }
         return input_dict
 
-    # TODO: re-enable once fixed
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
-    #     r"""
-    #     Test that the inverse converted model and hf model have the same logits.
-    #     Since `Wav2vec2` does not support `deepcopy` we cannot test the transformation
-    #     with `keep_original_model=True` for this model.
-    #     """
-    #     super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
+        self._skip_on_torch_version(model_type)
+        model_id = MODELS_DICT[model_type]
+        self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
+        self._skip_on_torch_version(model_type)
+        model_id = MODELS_DICT[model_type]
+        self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
+        self._skip_on_torch_version(model_type)
+        model_id = MODELS_DICT[model_type]
+        self._test_invert_model_logits(
+            model_id=model_id, model_type=model_type, keep_original_model=keep_original_model
+        )
 
 
 class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase):
@@ -103,7 +90,12 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
     """
     SUPPORTED_ARCH = ["wav2vec2", "hubert"]
 
-    def prepare_inputs_for_class(self, model_id):
+    FULL_GRID = {
+        "model_type": SUPPORTED_ARCH,
+        "keep_original_model": [True, False],
+    }
+
+    def prepare_inputs_for_class(self, model_id, model_type):
         batch_duration_in_seconds = [1, 3, 2, 6]
         input_features = [np.random.random(16_000 * s) for s in batch_duration_in_seconds]
 
@@ -123,7 +115,7 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
             MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
         )
         for model_id in model_ids:
-            inputs = self.prepare_inputs_for_class(model_id)
+            inputs = self.prepare_inputs_for_class(model_id, model_type)
 
             torch.manual_seed(0)
             hf_random_model = AutoModel.from_pretrained(model_id).eval()
@@ -177,7 +169,7 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
             MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
         )
         for model_id in model_ids:
-            super()._test_raise_autocast(model_id)
+            self._test_raise_autocast(model_id, model_type=model_type)
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_train(self, model_type: str):
@@ -185,51 +177,42 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
             MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
         )
         for model_id in model_ids:
-            super()._test_raise_train(model_id)
+            self._test_raise_train(model_id, model_type=model_type)
 
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [False],
-    #         }
-    #     )
-    # )
-    # def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
-    #     r"""
-    #     Test that the inverse converted model and hf model have the same modules
-    #     Since `Wav2vec2` does not support `deepcopy` we cannot test the transformation
-    #     with `keep_original_model=True` for this model.
-    #     """
-    #     super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
+        self._skip_on_torch_version(model_type)
+        if model_type == "hubert" and keep_original_model is True:
+            self.skipTest("hubert does not support keep_original_model=True")
 
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [False],
-    #         }
-    #     )
-    # )
-    # def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
-    #     r"""
-    #     Since `Wav2vec2` does not support `deepcopy` we cannot test the transformation
-    #     with `keep_original_model=True` for this model.
-    #     """
-    #     super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+        model_ids = (
+            MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
+        )
+        for model_id in model_ids:
+            self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [False],
-    #         }
-    #     )
-    # )
-    # def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
-    #     r"""
-    #     Test that the inverse converted model and hf model have the same logits.
-    #     Since `Wav2vec2` does not support `deepcopy` we cannot test the transformation
-    #     with `keep_original_model=True` for this model.
-    #     """
-    #     super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
+        self._skip_on_torch_version(model_type)
+        if model_type == "hubert" and keep_original_model is True:
+            self.skipTest("hubert does not support keep_original_model=True")
+
+        model_ids = (
+            MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
+        )
+        for model_id in model_ids:
+            self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
+        self._skip_on_torch_version(model_type)
+        if model_type == "hubert" and keep_original_model is True:
+            self.skipTest("hubert does not support keep_original_model=True")
+
+        model_ids = (
+            MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
+        )
+        for model_id in model_ids:
+            self._test_invert_model_logits(
+                model_id=model_id, model_type=model_type, keep_original_model=keep_original_model
+            )

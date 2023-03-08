@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import deepcopy
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 import torch
 from packaging.version import parse
 
-from ..utils import check_if_pytorch_greater, is_accelerate_available
+from ..utils import check_if_pytorch_greater, is_accelerate_available, recurse_getattr, recurse_setattr
 from .models import BetterTransformerManager
+
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel
 
 
 if is_accelerate_available():
@@ -91,33 +95,6 @@ def replace_to_bettertransformer(model, config):
                 replace_to_bettertransformer(module, config)
 
     return model
-
-
-def revert_to_original_model(
-    bt_model: torch.nn.Module,
-):
-    r"""
-    Replaces the BT-converted model to its old variant, to be able to safely store the weights
-    of a trained model.
-
-    Args:
-        `bt_model` (`torch.nn.Module`):
-            The input `BetterTransformer` converted model
-    Returns:
-        The original `transformers` model
-    """
-
-    for name, module in bt_model.named_children():
-        if len(list(module.children())) > 0:
-            # we may explicitly exclude part of the model to use BetterTransformer
-            revert_to_original_model(module)
-
-        can_be_reversed = getattr(module, "orig_layer", None) is not None
-
-        if can_be_reversed:
-            bt_model._modules[name] = module._revert_back_to_original_module()
-            module = None
-    return bt_model
 
 
 def set_last_layer(model: torch.nn.Module):
@@ -298,23 +275,67 @@ class BetterTransformer(object):
 
         return model_fast
 
-    @check_if_pytorch_greater(
-        "1.13.0",
-        "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
-    )
-    def reverse(model: torch.nn.Module, **kwargs) -> torch.nn.Module:
-        # Step 1: check if the model has the attribute `use_bettertransformer`
-        if not getattr(model, "use_bettertransformer", False):
+    def reverse(bt_model: "PreTrainedModel") -> "PreTrainedModel":
+        """
+        Converts back a model using BetterTransformer to its canonical transformers modeling implementation, in order to save
+        and share it.
+
+        Args:
+            bt_model (`PreTrainedModel`):
+                Model using BetterTransform to convert back to use transformers modeling.
+
+        Returns:
+            PreTrainedModel: _description_
+        """
+        if getattr(bt_model, "use_bettertransformer", False) is False:
             raise ValueError(
-                "The method BetterTransformer.reverse() should be used on a model already transformed to the BetterTransformer format, which appears to not be the case."
+                "The method BetterTransformer.reverse() should be used on a model already transformed to the BetterTransformer"
+                " format, which appears to not be the case."
             )
 
-        # TODO: re-enable once fixed
-        raise NotImplementedError("BetterTransformer.reverse() is currently disabled.")
+        if parse(torch.__version__) <= parse("1.14"):
+            raise ValueError(
+                f"BetterTransformer reverse transform requires torch>=2.0 but {torch.__version__} is installed. Please upgrade PyTorch."
+            )
 
-        model = revert_to_original_model(model)
+        with torch.device("meta"):
+            reversed_model = bt_model.__class__(bt_model.config)
 
-        model.save_pretrained = model._old_save_pretrained
-        model.push_to_hub = model._old_push_to_hub
+        if bt_model.training is False:
+            reversed_model = reversed_model.eval()
 
-        return model
+        config = bt_model.config
+
+        reversed_modules_paths = []
+        for path, module in reversed_model.named_modules():
+            if path.startswith(tuple(reversed_modules_paths)):
+                continue
+
+            if config.model_type in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM and any(
+                subname in path for subname in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM[config.model_type]
+            ):
+                continue
+
+            target_classes = list(BetterTransformerManager.MODEL_MAPPING[config.model_type].keys())
+            has_been_replaced = False
+            for target_class in target_classes:
+                if module.__class__.__name__ == target_class:
+                    has_been_replaced = True
+                    break
+
+            # replace parameters, buffers (or possibly full modules) that were modified by the bettertransformer transform
+            if has_been_replaced:
+                recurse_setattr(reversed_model, path, recurse_getattr(bt_model, path)._revert(module))
+                reversed_modules_paths.append(path)
+
+        # replace back parameters and buffers that were untouched by the bettertransformer transform
+        for path, param in reversed_model.state_dict().items():
+            if param.device == torch.device("meta"):
+                recurse_setattr(reversed_model, path, recurse_getattr(bt_model, path))
+
+        # some buffers may be non-persistent, hence not in the state_dict (as token_type_ids for some models)
+        for path, param in reversed_model.named_buffers():
+            if param.device == torch.device("meta"):
+                recurse_setattr(reversed_model, path, recurse_getattr(bt_model, path))
+
+        return reversed_model

@@ -27,237 +27,102 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
     r"""
     Testing suite for Vision Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
-    SUPPORTED_ARCH = ["deit", "vit", "vit_mae", "vit_msn", "yolos"]
+    SUPPORTED_ARCH = ["clip", "clip_text_model", "deit", "vilt", "vit", "vit_mae", "vit_msn", "yolos"]
 
-    def prepare_inputs_for_class(self, model_id=None):
-        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        image = Image.open(requests.get(url, stream=True).raw)
+    def prepare_inputs_for_class(self, model_id, model_type, batch_size=3, **preprocessor_kwargs):
+        if model_type == "vilt":
+            url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+            image = Image.open(requests.get(url, stream=True).raw)
+            text = "How many cats are there?"
 
-        # Use the same feature extractor for everyone
-        feature_extractor = AutoFeatureExtractor.from_pretrained("hf-internal-testing/tiny-random-ViTModel")
-        inputs = feature_extractor(images=image, return_tensors="pt")
-        return inputs
+            # Model takes image and text as input
+            processor = AutoProcessor.from_pretrained(model_id)
+            inputs = processor(images=image, text=text, return_tensors="pt")
+        elif model_type in ["clip", "clip_text"]:
+            url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+            image = Image.open(requests.get(url, stream=True).raw)
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_logits(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        super()._test_logits(model_id)
+            if batch_size == 1:
+                text = ["a photo"]
+            else:
+                text = ["a photo"] + ["a photo of two big cats"] * (batch_size - 1)
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        super()._test_raise_autocast(model_id)
-
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_train(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        super()._test_raise_train(model_id)
-
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
-
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
-
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
-
-
-class BetterTransformersViLTTest(BetterTransformersTestMixin, unittest.TestCase):
-    r"""
-    Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
-    """
-    SUPPORTED_ARCH = ["vilt"]
-
-    def prepare_inputs_for_class(self, model_id=None):
-        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        image = Image.open(requests.get(url, stream=True).raw)
-        text = "How many cats are there?"
-
-        # Model takes image and text as input
-        processor = AutoProcessor.from_pretrained(model_id)
-        inputs = processor(images=image, text=text, return_tensors="pt")
-        return inputs
-
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_logits(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        super()._test_logits(model_id)
-
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        super()._test_raise_autocast(model_id)
-
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_train(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        super()._test_raise_train(model_id)
-
-    # TODO: re-enable once fixed
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
-
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
-
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
-
-
-class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase):
-    r"""
-    Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
-    """
-    SUPPORTED_ARCH = ["clip", "clip_text_model"]
-
-    def prepare_inputs_for_class(self, model_id, batch_size=3, **preprocessor_kwargs):
-        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        image = Image.open(requests.get(url, stream=True).raw)
-
-        if batch_size == 1:
-            text = ["a photo"]
+            # Model takes image and text as input
+            processor = AutoProcessor.from_pretrained(model_id)
+            inputs = processor(images=image, text=text, return_tensors="pt", **preprocessor_kwargs)
         else:
-            text = ["a photo"] + ["a photo of two big cats"] * (batch_size - 1)
+            url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+            image = Image.open(requests.get(url, stream=True).raw)
 
-        # Model takes image and text as input
-        processor = AutoProcessor.from_pretrained(model_id)
-        inputs = processor(images=image, text=text, return_tensors="pt", **preprocessor_kwargs)
+            # Use the same feature extractor for everyone
+            feature_extractor = AutoFeatureExtractor.from_pretrained("hf-internal-testing/tiny-random-ViTModel")
+            inputs = feature_extractor(images=image, return_tensors="pt")
         return inputs
 
-    def compare_outputs(self, hf_hidden_states, bt_hidden_states, atol: float, model_name: str):
-        # CLIP returns a 2D tensor
-        self.assert_equal(
-            tensor1=hf_hidden_states,
-            tensor2=bt_hidden_states,
-            atol=atol,
-            model_name=model_name,
-        )
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_logits(self, model_type: str):
+        if model_type not in self.SUPPORTED_ARCH:
+            self.skipTest("useless")
+        model_id = MODELS_DICT[model_type]
+        self._test_logits(model_id, model_type=model_type)
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_autocast(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        self._test_raise_autocast(model_id, model_type=model_type)
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_train(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        self._test_raise_train(model_id, model_type=model_type)
 
     @parameterized.expand(
         grid_parameters(
             {
                 "model_type": SUPPORTED_ARCH,
-                "padding": ["max_length", True],
+                "keep_original_model": [True, False],
             }
         )
     )
-    def test_logits(self, test_name: str, model_type: str, padding, max_length=20):
+    def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
+        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
-        super()._test_logits(model_id, padding=padding, max_length=max_length)
+        self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_type": SUPPORTED_ARCH,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
+        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
-        super()._test_raise_autocast(model_id, batch_size=1)
+        self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_train(self, model_type: str):
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_type": SUPPORTED_ARCH,
+                "keep_original_model": [True, False],
+            }
+        )
+    )
+    def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
+        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
-        super()._test_raise_train(model_id, batch_size=1)
+        self._test_invert_model_logits(
+            model_id=model_id, model_type=model_type, keep_original_model=keep_original_model
+        )
 
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
-
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
-
-    # TODO: re-enable once fixed
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #             "padding": ["max_length", True],
-    #         }
-    #     )
-    # )
-    # def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False, padding=True):
-    #     r"""
-    #     Test that the inverse converted model and hf model have the same logits
-    #     """
-    #     # get hf and bt model
-    #     hf_model = AutoModel.from_pretrained(model_id)
-    #     # get bt model and invert it
-    #     bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
-    #     bt_model = BetterTransformer.reverse(bt_model)
-
-    #     # get inputs
-    #     inputs = self.prepare_inputs_for_class(model_id, padding=padding)
-
-    #     # get outputs
-    #     torch.manual_seed(42)
-    #     output_bt = bt_model(**inputs)
-
-    #     # create a new model
-    #     hf_model = AutoModel.from_pretrained(model_id)
-
-    #     torch.manual_seed(42)
-    #     output_hf = hf_model(**inputs)
-
-    #     # Assert that the outputs are the same
-    #     self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))
+    def compare_outputs(self, model_type, hf_hidden_states, bt_hidden_states, atol: float, model_name: str):
+        # CLIP returns a 2D tensor
+        if model_type in ["clip_text_model", "clip"]:
+            self.assert_equal(
+                tensor1=hf_hidden_states,
+                tensor2=bt_hidden_states,
+                atol=atol,
+                model_name=model_name,
+            )
