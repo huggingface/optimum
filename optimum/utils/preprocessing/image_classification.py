@@ -22,7 +22,7 @@ from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTen
 from transformers.image_processing_utils import VALID_SIZE_DICT_KEYS, BaseImageProcessor
 
 from .. import logging
-from .base import TaskProcessing
+from .base import TaskProcessor
 
 
 logger = logging.get_logger(__name__)
@@ -33,10 +33,11 @@ if TYPE_CHECKING:
     from transformers import ImageClassificationPipeline, PretrainedConfig
 
 
-class ImageClassificationProcessing(TaskProcessing):
+class ImageClassificationProcessing(TaskProcessor):
     ACCEPTED_PREPROCESSOR_CLASSES = (BaseImageProcessor,)
     DEFAULT_DATASET_ARGS = "cifar10"
-    DEFAUL_DATASET_DATA_KEYS = {"image": "pixel_values"}
+    DEFAUL_DATASET_DATA_KEYS = {"image": "img"}
+    ALLOWED_DATA_KEY_NAMES = {"image"}
     DEFAULT_REF_KEYS = ["answers"]
 
     def __init__(
@@ -67,9 +68,8 @@ class ImageClassificationProcessing(TaskProcessing):
     def dataset_processing_func(
         self, example: Dict[str, Any], data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None
     ) -> Dict[str, Any]:
-        example["pixel_values"] = [
-            self.transforms(image.convert("RGB")).to(torch.float32).numpy() for image in example[data_keys["image"]]
-        ]
+        image = example[data_keys["image"]]
+        example["pixel_values"] = self.transforms(image.convert("RGB")).to(torch.float32).numpy()
         return example
 
     def try_to_guess_data_keys(self, column_names: List[str]) -> Optional[Dict[str, str]]:

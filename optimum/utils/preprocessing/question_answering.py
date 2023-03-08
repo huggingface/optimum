@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from evaluate import combine, evaluator, load
 from transformers import PreTrainedTokenizerBase
 
-from .base import TaskProcessing
+from .base import TaskProcessor
 
 
 if TYPE_CHECKING:
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from transformers import QuestionAnsweringPipeline
 
 
-class QuestionAnsweringProcessing(TaskProcessing):
+class QuestionAnsweringProcessing(TaskProcessor):
     ACCEPTED_PREPROCESSOR_CLASSES = (PreTrainedTokenizerBase,)
     DEFAULT_DATASET_ARGS = "squad_v2"
     DEFAUL_DATASET_DATA_KEYS = {"question": "question", "context": "context"}
@@ -50,7 +50,7 @@ class QuestionAnsweringProcessing(TaskProcessing):
         defaults["padding"] = kwargs.pop("padding", "max_length")
         defaults["truncation"] = kwargs.pop("truncation", "only_second" if pad_on_right else "only_first")
         defaults["max_length"] = kwargs.pop("max_length", max_seq_length)
-        defaults["stide"] = kwargs.pop("stride", stride)
+        defaults["stride"] = kwargs.pop("stride", stride)
         defaults["return_overflowing_tokens"] = kwargs.pop("return_overflowing_tokens", False)
         defaults["return_offsets_mapping"] = kwargs.pop("return_offsets_mapping", False)
         return defaults, kwargs
@@ -61,7 +61,7 @@ class QuestionAnsweringProcessing(TaskProcessing):
         # Some of the questions have lots of whitespace on the left, which is not useful and will make the
         # truncation of the context fail (the tokenized question will take a lots of space). So we remove that
         # left whitespace
-        example[data_keys["question"]] = [q.lstrip() for q in example[data_keys["question"]]]
+        example[data_keys["question"]] = example[data_keys["question"]].lstrip()
         # Padding side determines if we do (question|context) or (context|question).
         pad_on_right = self.preprocessor.padding_side == "right"
 
@@ -80,7 +80,7 @@ class QuestionAnsweringProcessing(TaskProcessing):
         for name in column_names:
             if question_key_name is None and "question" in name:
                 question_key_name = name
-            if context_key_name is None and ("sentence" in name or "context" in name):
+            if context_key_name is None and ("sentence" in name or "context" in name or "answer" in name):
                 context_key_name = name
 
         if question_key_name is not None and context_key_name is not None:

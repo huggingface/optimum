@@ -19,9 +19,10 @@ import string
 from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
 from unittest import TestCase
 
+from datasets import DatasetDict
 from transformers import AutoConfig, AutoFeatureExtractor, AutoTokenizer
 
-from optimum.utils.preprocessing import DatasetProcessingManager
+from optimum.utils.preprocessing import TaskProcessorsManager
 
 
 if TYPE_CHECKING:
@@ -72,7 +73,7 @@ class TaskProcessorTestBase:
 
     def test_accepted_preprocessor_classes_do_not_raise_exception(self):
         try:
-            cls = DatasetProcessingManager.get_dataset_processing_class_for_task(self.TASK_NAME)
+            cls = TaskProcessorsManager.get_dataset_processing_class_for_task(self.TASK_NAME)
             cls(self.CONFIG, self.PREPROCESSOR)
         except ValueError as e:
             if str(e).startswith("Preprocessor is incorrect"):
@@ -82,26 +83,26 @@ class TaskProcessorTestBase:
 
     def test_wrong_preprocessor_classes_raise_exception(self):
         with self.assertRaises(ValueError) as cm:
-            DatasetProcessingManager.get_dataset_processing_class_for_task(self.TASK_NAME)(
+            TaskProcessorsManager.get_dataset_processing_class_for_task(self.TASK_NAME)(
                 self.CONFIG, self.WRONG_PREPROCESSOR
             )
             msg = str(cm.exception)
             self.assertTrue(
                 msg.startswith("Preprocessor is incorrect"),
-                "The message specifying that the type of preprocessor provided is not allowed for the TaskProcessing class "
+                "The message specifying that the type of preprocessor provided is not allowed for the TaskProcessor class "
                 "was wrong.",
             )
 
     def test_create_defaults_and_kwargs_from_preprocessor_kwargs_does_not_mutate_preprecessor_kwargs(self):
         preprocessor_kwargs = get_random_dict_of_strings()
         clone = copy.deepcopy(preprocessor_kwargs)
-        DatasetProcessingManager.get_dataset_processing_class_for_task(self.TASK_NAME)(
+        TaskProcessorsManager.get_dataset_processing_class_for_task(self.TASK_NAME)(
             self.CONFIG, self.PREPROCESSOR, preprocessor_kwargs
         )
         self.assertDictEqual(preprocessor_kwargs, clone)
 
     def test_load_dataset_unallowed_data_keys(self):
-        task_processor = DatasetProcessingManager.get_dataset_processing_class_for_task(self.TASK_NAME)(
+        task_processor = TaskProcessorsManager.get_dataset_processing_class_for_task(self.TASK_NAME)(
             self.CONFIG, self.PREPROCESSOR
         )
         random_data_keys = get_random_dict_of_strings()
@@ -121,8 +122,8 @@ class TaskProcessorTestBase:
         only_keep_necessary_columns: bool,
         **preprocessor_kwargs,
     ):
-        task_processor = DatasetProcessingManager.get_dataset_processing_class_for_task(self.TASK_NAME)(
-            self.CONFIG, self.PREPROCESSOR, **preprocessor_kwargs
+        task_processor = TaskProcessorsManager.get_dataset_processing_class_for_task(self.TASK_NAME)(
+            self.CONFIG, self.PREPROCESSOR, preprocessor_kwargs
         )
         data_keys = self.NOT_DEFAULT_DATASET_DATA_KEYS if not try_to_guess_data_keys else None
         dataset_with_all_columns = None
@@ -146,7 +147,11 @@ class TaskProcessorTestBase:
         # We only check if the column names of the dataset with the not necessary columns removed are a strict subset
         # of the dataset with all the columns.
         if dataset_with_all_columns is not None:
-            self.assertLess(set(dataset.column_names), set(dataset_with_all_columns.column_names))
+            if isinstance(dataset, DatasetDict):
+                for split_name, split in dataset.items():
+                    self.assertLess(set(split.column_names), set(dataset_with_all_columns[split_name].column_names))
+            else:
+                self.assertLess(set(dataset.column_names), set(dataset_with_all_columns.column_names))
 
         return dataset
 
@@ -171,7 +176,14 @@ class TextClassificationProcessorTest(TestCase, TaskProcessorTestBase):
     NOT_DEFAULT_DATASET_ARGS = {"path": "glue", "name": "mnli"}
     NOT_DEFAULT_DATASET_DATA_KEYS = {"primary": "premise", "secondary": "hypothesis"}
 
-    # TODO: add test that check passing preprocessor kwargs such as max_length works.
+    def test_load_dataset_with_max_length(self):
+        max_length = random.randint(4, 16)
+        dataset = self._test_load_dataset(False, False, True, max_length=max_length)
+        if isinstance(dataset, DatasetDict):
+            first_split = list(dataset.keys())[0]
+            dataset = dataset[first_split]
+        input_ids = dataset[0]["input_ids"]
+        self.assertEqual(len(input_ids), max_length)
 
 
 class TokenClassificationProcessorTest(TestCase, TaskProcessorTestBase):
@@ -179,10 +191,17 @@ class TokenClassificationProcessorTest(TestCase, TaskProcessorTestBase):
     CONFIG = CONFIG
     PREPROCESSOR = TOKENIZER
     WRONG_PREPROCESSOR = IMAGE_PROCESSOR
-    NOT_DEFAULT_DATASET_ARGS = "wino_bias"
+    NOT_DEFAULT_DATASET_ARGS = {"path": "wino_bias", "name": "type1_pro"}
     NOT_DEFAULT_DATASET_DATA_KEYS = {"primary": "tokens"}
 
-    # TODO: add test that check passing preprocessor kwargs such as max_length works.
+    def test_load_dataset_with_max_length(self):
+        max_length = random.randint(4, 16)
+        dataset = self._test_load_dataset(False, False, True, max_length=max_length)
+        if isinstance(dataset, DatasetDict):
+            first_split = list(dataset.keys())[0]
+            dataset = dataset[first_split]
+        input_ids = dataset[0]["input_ids"]
+        self.assertEqual(len(input_ids), max_length)
 
 
 class QuestionAnsweringProcessorTest(TestCase, TaskProcessorTestBase):
@@ -191,9 +210,16 @@ class QuestionAnsweringProcessorTest(TestCase, TaskProcessorTestBase):
     PREPROCESSOR = TOKENIZER
     WRONG_PREPROCESSOR = IMAGE_PROCESSOR
     NOT_DEFAULT_DATASET_ARGS = "wiki_qa"
-    NOT_DEFAULT_DATASET_DATA_KEYS = {"question": "question", "answer": "answer"}
+    NOT_DEFAULT_DATASET_DATA_KEYS = {"question": "question", "context": "answer"}
 
-    # TODO: add test that check passing preprocessor kwargs such as max_length works.
+    def test_load_dataset_with_max_length(self):
+        max_length = 384
+        dataset = self._test_load_dataset(False, False, True, max_length=max_length)
+        if isinstance(dataset, DatasetDict):
+            first_split = list(dataset.keys())[0]
+            dataset = dataset[first_split]
+        input_ids = dataset[0]["input_ids"]
+        self.assertEqual(len(input_ids), max_length)
 
 
 class ImageClassificationProcessorTest(TestCase, TaskProcessorTestBase):

@@ -17,6 +17,7 @@
 from typing import TYPE_CHECKING, Any, Type
 
 from optimum.utils.preprocessing.image_classification import ImageClassificationProcessing
+from optimum.utils.preprocessing.question_answering import QuestionAnsweringProcessing
 from optimum.utils.preprocessing.text_classification import TextClassificationProcessing
 from optimum.utils.preprocessing.token_classification import TokenClassificationProcessing
 
@@ -25,11 +26,11 @@ if TYPE_CHECKING:
     from .base import DatasetProcessing
 
 
-class DatasetProcessingManager:
+class TaskProcessorsManager:
     _TASK_TO_DATASET_PROCESSING_CLASS = {
         "sequence-classification": TextClassificationProcessing,
         "token-classification": TokenClassificationProcessing,
-        "question-answering": TokenClassificationProcessing,
+        "question-answering": QuestionAnsweringProcessing,
         "image-classification": ImageClassificationProcessing,
     }
 

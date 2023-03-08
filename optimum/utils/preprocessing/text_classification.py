@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 from evaluate import combine, evaluator
 from transformers import PreTrainedTokenizerBase
 
-from .base import TaskProcessing
+from .base import TaskProcessor
 
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class TextClassificationProcessing(TaskProcessing):
+class TextClassificationProcessing(TaskProcessor):
     ACCEPTED_PREPROCESSOR_CLASSES = (PreTrainedTokenizerBase,)
     DEFAULT_DATASET_ARGS = {"path": "glue", "name": "sst2"}
     DEFAUL_DATASET_DATA_KEYS = {"primary": "sentence"}

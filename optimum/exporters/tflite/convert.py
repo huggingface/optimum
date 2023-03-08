@@ -16,12 +16,12 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from transformers.utils import is_tf_available
 
-from optimum.utils.preprocessing import DatasetProcessingManager
+from optimum.utils.preprocessing import TaskProcessorsManager
 from optimum.utils.save_utils import maybe_load_preprocessors
 
 from ...utils import logging
@@ -30,7 +30,7 @@ from ..error_utils import AtolError, OutputMatchError, ShapeError
 
 if TYPE_CHECKING:
     if is_tf_available():
-        from transformers import TFPreTrainedModel
+        from transformers import PretrainedConfig, TFPreTrainedModel
     from .base import TFLiteConfig
 
 
@@ -136,18 +136,18 @@ def validate_model_outputs(
 
 
 def create_calibration_dataset(
-    task,
-    config,
+    task: str,
+    config: "PretrainedConfig",
     model_signatures,
     dataset_name_or_path: Union[str, Path],
     preprocessor_name_or_path: Union[str, Path],
     num_calibration_samples: int = 200,
     calibration_split: str = "train",
-    primary_key_name: Optional[str] = None,
-    secondary_key_name: Optional[str] = None,
+    data_keys: Dict[str, Optional[str]] = None,
 ):
     preprocessor = maybe_load_preprocessors(preprocessor_name_or_path)[0]
-    dataset_processing = DatasetProcessingManager.for_task(
+    TaskProcessorsManager.get_dataset_processing_class_for_task(task)
+    dataset_processing = TaskProcessorsManager.for_task(
         task,
         config=config,
         dataset_path=dataset_name_or_path,
@@ -221,10 +221,6 @@ def export(
             setattr(model.config, override_config_key, override_config_value)
 
     signatures = config.model_to_signatures(model)
-
-    import pdb
-
-    pdb.set_trace()
 
     with TemporaryDirectory() as tmp_dir_name:
         model.save(tmp_dir_name, signatures=signatures)

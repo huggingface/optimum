@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 from evaluate import combine, evaluator
 from transformers import PreTrainedTokenizerBase
 
-from .base import TaskProcessing
+from .base import TaskProcessor
 
 
 if TYPE_CHECKING:
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from transformers import TokenClassificationPipeline
 
 
-class TokenClassificationProcessing(TaskProcessing):
+class TokenClassificationProcessing(TaskProcessor):
     ACCEPTED_PREPROCESSOR_CLASSES = (PreTrainedTokenizerBase,)
     DEFAULT_DATASET_ARGS = "conll2003"
     DEFAUL_DATASET_DATA_KEYS = {"primary": "tokens"}

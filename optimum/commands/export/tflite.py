@@ -125,42 +125,6 @@ def parse_args_tflite(parser):
         help="The method of quantization to perform. No quantization will happen if left unspecified.",
     )
     quantization_group.add_argument(
-        "--calibration_dataset",
-        type=str,
-        default=None,
-        help=(
-            "The dataset to use to calibration integer ranges when quantizing the model. This is needed to perform "
-            "static quantization."
-        ),
-    )
-    quantization_group.add_argument(
-        "--num_calibration_samples",
-        type=int,
-        default=200,
-        help="The number of samples in the calibration dataset to use for calibration, usually something around 100-200 is enough.",
-    )
-    quantization_group.add_argument(
-        "--calibration_split", type=str, default="train", help="The split of the calibration dataset to use."
-    )
-    quantization_group.add_argument(
-        "--primary_key",
-        type=str,
-        default=None,
-        help=(
-            "The primary key in the dataset e.g. the name of the column that contains the data to preprocess to "
-            "create the dataset."
-        ),
-    )
-    quantization_group.add_argument(
-        "--secondary_key",
-        type=str,
-        default=None,
-        help=(
-            "The secondary key in the dataset e.g. the name of the second column that contains the data to preprocess "
-            "to create the dataset."
-        ),
-    )
-    quantization_group.add_argument(
         "--fallback_to_float",
         type=bool,
         default=False,
@@ -171,7 +135,67 @@ def parse_args_tflite(parser):
     )
     quantization_group.add_argument("--inputs_type", choices=["int8", "uint8"], default=None, help="If specified, th.")
     quantization_group.add_argument(
-        "--outputs_type", choices=["int8", "uint8"], default=None, help="If specified, th."
+        # TODO
+        "--outputs_type",
+        choices=["int8", "uint8"],
+        default=None,
+        help="If specified, ",
+    )
+
+    calibration_dataset_group = parser.add_argument_group("Quantization Calibration dataset")
+    calibration_dataset_group.add_argument(
+        "--calibration_dataset",
+        type=str,
+        default=None,
+        help=(
+            "The dataset to use to calibration integer ranges when quantizing the model. This is needed to perform "
+            "static quantization."
+        ),
+    )
+    calibration_dataset_group.add_argument(
+        "--num_calibration_samples",
+        type=int,
+        default=200,
+        help="The number of samples in the calibration dataset to use for calibration, usually something around 100-200 is enough.",
+    )
+    calibration_dataset_group.add_argument(
+        "--calibration_split", type=str, default="train", help="The split of the calibration dataset to use."
+    )
+    calibration_dataset_group.add_argument(
+        "--primary_key",
+        type=str,
+        default=None,
+        help=(
+            "The name of the column in the dataset containing the main data to preprocess. "
+            "Only for sequence-classification and token-classification. "
+        ),
+    )
+    calibration_dataset_group.add_argument(
+        "--secondary_key",
+        type=str,
+        default=None,
+        help=(
+            "The name of the second column in the dataset containing the main data to preprocess, not always needed. "
+            "Only for sequence-classification and token-classification. "
+        ),
+    )
+    calibration_dataset_group.add_argument(
+        "--question_key",
+        type=str,
+        default=None,
+        help=("The name of the column containing the question in the dataset. Only for question-answering."),
+    )
+    calibration_dataset_group.add_argument(
+        "--answer_key",
+        type=str,
+        default=None,
+        help=("The name of the column containing the answer in the dataset. Only for question-answering."),
+    )
+    calibration_dataset_group.add_argument(
+        "--image_key",
+        type=str,
+        default=None,
+        help=("The name of the column containing the image in the dataset. Only for image-classification."),
     )
 
 

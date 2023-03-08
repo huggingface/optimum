@@ -29,11 +29,11 @@ if TYPE_CHECKING:
     from transformers import FeatureExtractionMixin, Pipeline, PretrainedConfig, PreTrainedTokenizerBase
 
 
-class TaskProcessing(ABC):
+class TaskProcessor(ABC):
     ACCEPTED_PREPROCESSOR_CLASSES: Tuple[Type, ...]
     DEFAULT_DATASET_ARGS: Union[str, Dict[str, Any]]
     DEFAUL_DATASET_DATA_KEYS: Dict[str, str]
-    ALLOWED_DATA_KEY_NAMES = Set[str]
+    ALLOWED_DATA_KEY_NAMES: Set[str]
     DEFAULT_REF_KEYS: List[str]
 
     def __init__(
@@ -142,7 +142,13 @@ class TaskProcessing(ABC):
         if only_keep_necessary_columns:
             ref_keys = ref_keys if ref_keys is not None else []
             necessary_columns = self.preprocessor.model_input_names + ref_keys
-            dataset = dataset.remove_columns([name for name in dataset.column_names if name not in necessary_columns])
+            if isinstance(dataset, DatasetDict):
+                for split_name, split in dataset.items():
+                    columns_to_remove = [name for name in split.column_names if name not in necessary_columns]
+                    dataset[split_name] = split.remove_columns(columns_to_remove)
+            else:
+                columns_to_remove = [name for name in dataset.column_names if name not in necessary_columns]
+                dataset = dataset.remove_columns(columns_to_remove)
 
         return dataset
 
