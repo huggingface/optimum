@@ -23,7 +23,7 @@ import time
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
-
+import types
 
 # Integrations must be imported before ML frameworks:
 # isort: off
@@ -135,21 +135,18 @@ SCALER_NAME = "scaler.pt"
 
 
 class ModuleWithLoss(nn.Module):
-    def __init__(self, model, args, label_smoother) -> None:
+    def __init__(self, model, args, label_smoother):
         super().__init__()
         self._original_model = model
         self.args = args
-        # Creating an instance of huggingFace Trainer so we can use compute_loss() logic and avoid duplicated code.
-        self.hf_trainer = Trainer(model)
         # Label smoothing
         self.label_smoother = label_smoother
 
     def forward(self, inputs: Dict[str, Union[torch.Tensor, Any]], return_outputs):
-        return self.hf_trainer.compute_loss(self._original_model, inputs, return_outputs)
-
-    @property
-    def config(self):
-        return self._original_model.config
+        # The compute_model_plus_loss_internal is assigned once the class is instantiated.
+        # It should have same signature as Trainer.compute_loss().
+        # We do this to avoid potential un-synced states if we duplicated compute loss codes .
+        return self.compute_model_plus_loss_internal(self._original_model, inputs, return_outputs)
 
     @property
     def module(self):
@@ -328,6 +325,8 @@ class ORTTrainer(Trainer):
     # It will help reducing the peak memory usage by computing loss inside training.
     def create_model_with_loss(self):
         model_with_loss = ModuleWithLoss(self.model, self.args, self.label_smoother)
+        model_with_loss.compute_model_plus_loss_internal = types.MethodType(Trainer.compute_loss, model_with_loss)
+
         return model_with_loss
 
     # we assume that training_model and inference_model have the same forward signature column.
@@ -349,7 +348,9 @@ class ORTTrainer(Trainer):
     def compute_loss(self, model_with_loss, inputs, return_outputs=False):
         # Run model forward + loss compute.
         if isinstance(self.model, ModuleWithLoss):
-            return model_with_loss(inputs, return_outputs)
+            # ORTModule Does not support the BatchEncoding Type so we have to convert to a dict.
+            dict_inputs = {k: v for k, v in inputs.items()}
+            return model_with_loss(dict_inputs, return_outputs)
         else:
             return super().compute_loss(model_with_loss, inputs, return_outputs)
 
