@@ -1,10 +1,6 @@
-from abc import ABC, abstractmethod
 from functools import partial
-from typing import List, Any, Optional, Union
 
 import numpy as np
-from iree.compiler.tools import InputType
-from optimum.tir import TirFrontend
 
 import iree.runtime as ireert
 

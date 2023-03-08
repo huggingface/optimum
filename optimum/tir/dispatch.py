@@ -1,10 +1,12 @@
-import os
 from abc import ABC, abstractmethod
-from functools import singledispatch
 from logging import getLogger
-from typing import Any, List, Optional, Callable, Union
-from transformers import PreTrainedModel, TFPreTrainedModel, is_torch_available, is_tf_available
-from . import TirFrontend, TirTarget, TirConfig
+from typing import Any, List, Callable, Union
+
+from  iree.compiler import ir as mlir, transforms as ireetr
+from optimum.tir import TirTarget, TirConfig
+from optimum.tir.utils.mlir import import_from_mlir
+from transformers import PreTrainedModel, is_torch_available, is_tf_available
+
 
 LOGGER = getLogger("TirDispatcher")
 
@@ -52,11 +54,12 @@ class TirDispatcher(ABC):
         Returns:
             Number of precompiled graphs currently present in the cache.
         """
-        return len(self._targets)
+        return len(self._cache)
 
     def __call__(self, *args, **kwargs) -> Any:
         curated_args = self.validate_forward_inputs(*args, **kwargs)
-        # key = (len(curated_args), ) + tuple(curated_args[0].shape)
+
+        # TODO: Is there a way to have very fast hashable inputs as key?
         key = self._get_dispatching_key("forward", curated_args)
 
         if key in self._cache:
@@ -65,12 +68,29 @@ class TirDispatcher(ABC):
         else:
             LOGGER.debug(f"Cache miss for dispatch key: {key}.")
             exported_module = self.export_model_to_mlir(*curated_args)
+            annoatated_module = self.annotate_module(str(exported_module))
             inferred_compiler_args = self._config.get_compiler_args()
             dispatch = self.compile_from_mlir(exported_module, inferred_compiler_args)
             self._cache[key] = dispatch
 
         # TODO : Remove this dict because it's TensorFlow only.
         return self._internal_call(dispatch, curated_args)
+
+    def annotate_module(self, ir: str) -> mlir.Module:
+        context, module = import_from_mlir(ir)
+
+        op_names = [
+            "mhlo.dot",
+            "mhlo.dot_general",
+            "mhlo.convolution",
+            "linalg.matmul",
+            "linalg.batch_matmul",
+            "linalg.conv_2d_nhwc_hwcf",
+            "linalg.generic",
+        ]
+
+        _walk_children(module.operation)
+        return module
 
     @abstractmethod
     def export_model_to_mlir(self, *args):
