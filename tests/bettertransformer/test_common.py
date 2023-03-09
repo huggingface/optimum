@@ -25,7 +25,7 @@ from transformers import AutoModel
 
 from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
 from optimum.pipelines import pipeline
-from optimum.utils.testing_utils import grid_parameters
+from optimum.utils.testing_utils import grid_parameters, require_torch_20
 
 
 class BetterTransformerIntegrationTests(unittest.TestCase):
@@ -93,6 +93,7 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
             self.assertTrue(hasattr(converted_model, "generate"))
 
     @parameterized.expand(grid_parameters({"model_type": MODELS_DICT.keys(), "keep_original_model": [True, False]}))
+    @require_torch_20
     def test_raise_save_pretrained_error(self, test_name: str, model_type: str, keep_original_model: bool):
         r"""
         Test if the converted model raises an error when calling `save_pretrained`
