@@ -26,6 +26,7 @@ MODELS_DICT = {
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bert-generation": "ybelkada/random-tiny-BertGenerationModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
+    "blip": "hf-internal-testing/tiny-random-BlipModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip_text_model": "hf-internal-testing/tiny-random-clip-zero-shot-image-classification",  # with quick_gelu
     "clip": "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",  # with gelu

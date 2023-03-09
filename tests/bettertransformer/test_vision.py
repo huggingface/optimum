@@ -157,7 +157,7 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
     r"""
     Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
-    SUPPORTED_ARCH = ["clip", "clip_text_model"]
+    SUPPORTED_ARCH = ["blip", "clip", "clip_text_model"]
 
     def prepare_inputs_for_class(self, model_id, batch_size=3, **preprocessor_kwargs):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
