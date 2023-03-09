@@ -115,7 +115,7 @@ if __name__ == "__main__":
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = tokenizer.eos_token_id
 
-    raw_datasets = load_dataset("Abirate/english_quotes", split="train[:64]")
+    raw_datasets = load_dataset("Abirate/english_quotes", split="train")
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     dtype = torch.float32 if args.use_half is False else torch.float16
@@ -129,8 +129,9 @@ if __name__ == "__main__":
     output_file.write("num_epochs, batch_size, seq_len, is cuda, HF time / epoch (s), BT time / epoch (s), Speedup\n")
     num_epochs = args.num_epochs
 
-    for batch_size in tqdm(BATCH_SIZES):
-        for sequence_length in tqdm(SEQ_LEN):
+    for batch_size in BATCH_SIZES:
+        for sequence_length in SEQ_LEN:
+            print(f"Benchmark on: bs={batch_size}, seq_len={sequence_length}")
 
             def tokenize_function(example):
                 return tokenizer(
@@ -170,9 +171,9 @@ if __name__ == "__main__":
                     batch_size,
                     sequence_length,
                     args.use_cuda,
-                    f"{hf_time_per_epoch}:.3f",
-                    f"{bt_time_per_epoch}:.3f",
-                    f"{speedup}:.3f",
+                    f"{hf_time_per_epoch:.3f}",
+                    f"{bt_time_per_epoch:.3f}",
+                    f"{speedup:.3f}",
                 )
             )
     output_file.close()
