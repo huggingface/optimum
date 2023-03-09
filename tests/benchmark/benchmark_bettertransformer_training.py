@@ -20,7 +20,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=10,
+        default=5,
         help="",
     )
 
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.use_cuda else "cpu")
 
     output_file = open("log_{}.csv".format(args.model_name.replace("/", "-")), "w")
-    output_file.write("num_epochs, batch_size, seq_len, is cuda, HF time / epoch, BT time / epoch, Speedup\n")
+    output_file.write("num_epochs, batch_size, seq_len, is cuda, HF time / epoch (s), BT time / epoch (s), Speedup\n")
     num_epochs = args.num_epochs
 
     for batch_size in tqdm(BATCH_SIZES):
@@ -170,9 +170,9 @@ if __name__ == "__main__":
                     batch_size,
                     sequence_length,
                     args.use_cuda,
-                    hf_time_per_epoch,
-                    bt_time_per_epoch,
-                    speedup,
+                    "hf_time_per_epoch:.3f",
+                    "bt_time_per_epoch:.3f",
+                    "speedup:.3f",
                 )
             )
     output_file.close()
