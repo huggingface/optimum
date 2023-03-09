@@ -20,7 +20,7 @@ from PIL import Image
 from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoFeatureExtractor, AutoProcessor
 
-from optimum.utils.testing_utils import grid_parameters
+from optimum.utils.testing_utils import grid_parameters, require_torch_20
 
 
 class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCase):
@@ -38,7 +38,7 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
             # Model takes image and text as input
             processor = AutoProcessor.from_pretrained(model_id)
             inputs = processor(images=image, text=text, return_tensors="pt")
-        elif model_type in ["clip", "clip_text"]:
+        elif model_type in ["clip", "clip_text_model"]:
             url = "http://images.cocodataset.org/val2017/000000039769.jpg"
             image = Image.open(requests.get(url, stream=True).raw)
 
@@ -47,9 +47,10 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
             else:
                 text = ["a photo"] + ["a photo of two big cats"] * (batch_size - 1)
 
+            padding = preprocessor_kwargs.pop("padding", True)
             # Model takes image and text as input
             processor = AutoProcessor.from_pretrained(model_id)
-            inputs = processor(images=image, text=text, return_tensors="pt", **preprocessor_kwargs)
+            inputs = processor(images=image, text=text, padding=padding, return_tensors="pt", **preprocessor_kwargs)
         else:
             url = "http://images.cocodataset.org/val2017/000000039769.jpg"
             image = Image.open(requests.get(url, stream=True).raw)
@@ -84,8 +85,8 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
             }
         )
     )
+    @require_torch_20
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
@@ -97,8 +98,8 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
             }
         )
     )
+    @require_torch_20
     def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 
@@ -110,8 +111,8 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
             }
         )
     )
+    @require_torch_20
     def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_invert_model_logits(
             model_id=model_id, model_type=model_type, keep_original_model=keep_original_model

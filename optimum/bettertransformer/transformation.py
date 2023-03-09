@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 from copy import deepcopy
 from typing import TYPE_CHECKING, Dict, Optional
 
@@ -24,6 +25,7 @@ from .models import BetterTransformerManager
 if TYPE_CHECKING:
     from transformers import PreTrainedModel
 
+logger = logging.getLogger(__name__)
 
 if is_accelerate_available():
     from accelerate import dispatch_model, infer_auto_device_map
@@ -297,14 +299,21 @@ class BetterTransformer(object):
             raise ValueError(
                 f"BetterTransformer reverse transform requires torch>=2.0 but {torch.__version__} is installed. Please upgrade PyTorch."
             )
+        config = bt_model.config
 
-        with torch.device("meta"):
-            reversed_model = bt_model.__class__(bt_model.config)
+        if config.model_type not in ["wav2vec2", "hubert"]:
+            with torch.device("meta"):
+                reversed_model = bt_model.__class__(config)
+        else:
+            # TODO: fix once this is fixed in pytorch
+            # reference: https://github.com/pytorch/pytorch/issues/96409
+            logger.warning(
+                "The reverse transform for the architectures wav2vec2 and hubert is memory-heavy due to a bug in PyTorch."
+            )
+            reversed_model = bt_model.__class__(config)
 
         if bt_model.training is False:
             reversed_model = reversed_model.eval()
-
-        config = bt_model.config
 
         reversed_modules_paths = []
         for path, module in reversed_model.named_modules():
@@ -326,16 +335,16 @@ class BetterTransformer(object):
             # replace parameters, buffers (or possibly full modules) that were modified by the bettertransformer transform
             if has_been_replaced:
                 recurse_setattr(reversed_model, path, recurse_getattr(bt_model, path)._revert(module))
-                reversed_modules_paths.append(path)
+                reversed_modules_paths.append(path + ".")  # add a . to avoid issues with startswith
 
         # replace back parameters and buffers that were untouched by the bettertransformer transform
         for path, param in reversed_model.state_dict().items():
-            if param.device == torch.device("meta"):
+            if param.device == torch.device("meta") or not path.startswith(tuple(reversed_modules_paths)):
                 recurse_setattr(reversed_model, path, recurse_getattr(bt_model, path))
 
         # some buffers may be non-persistent, hence not in the state_dict (as token_type_ids for some models)
         for path, param in reversed_model.named_buffers():
-            if param.device == torch.device("meta"):
+            if param.device == torch.device("meta") or not path.startswith(tuple(reversed_modules_paths)):
                 recurse_setattr(reversed_model, path, recurse_getattr(bt_model, path))
 
         return reversed_model

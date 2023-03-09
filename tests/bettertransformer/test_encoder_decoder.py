@@ -22,7 +22,7 @@ from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
-from optimum.utils.testing_utils import grid_parameters, require_torch_gpu
+from optimum.utils.testing_utils import grid_parameters, require_torch_20, require_torch_gpu
 
 
 class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
@@ -90,20 +90,20 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
             self._test_train_decoder(model_id, model_type=model_type)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_20
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_20
     def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_20
     def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_invert_model_logits(
             model_id=model_id, model_type=model_type, keep_original_model=keep_original_model
