@@ -17,13 +17,12 @@ import unittest
 
 import pytest
 import torch
-from packaging.version import parse
 from parameterized import parameterized
 from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
-from optimum.utils.testing_utils import grid_parameters, require_torch_gpu
+from optimum.bettertransformer import BetterTransformer
+from optimum.utils.testing_utils import grid_parameters, require_torch_20, require_torch_gpu
 
 
 class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
@@ -47,14 +46,15 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         "t5",
     ]
 
-    def _skip_on_torch_version(self, model_type: str):
-        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("1.14"):
-            self.skipTest(f"The model type {model_type} require PyTorch 2.0 for BetterTransformer")
+    FULL_GRID = {
+        "model_type": SUPPORTED_ARCH,
+        "keep_original_model": [True, False],
+    }
 
     def tearDown(self):
         gc.collect()
 
-    def prepare_inputs_for_class(self, model_id, **preprocessor_kwargs):
+    def prepare_inputs_for_class(self, model_id, model_type, **preprocessor_kwargs):
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         padding = preprocessor_kwargs.pop("padding", True)
         inputs = tokenizer(["a dummy input", "and two"], return_tensors="pt", padding=padding, **preprocessor_kwargs)
@@ -72,55 +72,42 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     def test_logits_without_cache(self, test_name: str, model_type: str, padding, max_length=20):
         self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
-        super()._test_logits(model_id, padding=padding, max_length=max_length)
+        self._test_logits(model_id, model_type=model_type, padding=padding, max_length=max_length)
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_autocast(self, model_type: str):
         self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
-        super()._test_raise_autocast(model_id)
+        self._test_raise_autocast(model_id, model_type=model_type)
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_train(self, model_type: str):
         self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         if model_type not in ["blenderbot", "pegasus", "t5"]:
-            super()._test_raise_train(model_id)
+            self._test_raise_train(model_id, model_type=model_type)
         else:
-            super()._test_train_decoder(model_id)
+            self._test_train_decoder(model_id, model_type=model_type)
 
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_20
+    def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
+        model_id = MODELS_DICT[model_type]
+        self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_20
+    def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
+        model_id = MODELS_DICT[model_type]
+        self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_20
+    def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
+        model_id = MODELS_DICT[model_type]
+        self._test_invert_model_logits(
+            model_id=model_id, model_type=model_type, keep_original_model=keep_original_model
+        )
 
     @parameterized.expand(
         grid_parameters(
@@ -141,7 +128,9 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
             self.skipTest("fsmt is broken is transformers when loaded through torch_dtype=torch.float16")
 
         model_id = MODELS_DICT[model_type]
-        super()._test_fp16_inference(model_id, use_to_operator=use_to_operator, automodel_class=AutoModelForSeq2SeqLM)
+        self._test_fp16_inference(
+            model_id, model_type=model_type, use_to_operator=use_to_operator, automodel_class=AutoModelForSeq2SeqLM
+        )
 
     @parameterized.expand(
         grid_parameters({"model_type": SUPPORTED_ARCH, "batch_size": [1, 3], "padding": [True, "max_length"]})
