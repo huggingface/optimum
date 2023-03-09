@@ -233,10 +233,11 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
 
         if direction == "inputs":
             decoder_sequence_name = "past_sequence_length"
+            name = "past_key_values"
         else:
             decoder_sequence_name = "past_sequence_length + 1"
+            name = "present"
 
-        name = "past_key_values" if direction == "inputs" else "present"
         for i in range(self._normalized_config.num_layers):
             inputs_or_outputs[f"{name}.{i}.key"] = {
                 0: "batch_size x num_heads",
