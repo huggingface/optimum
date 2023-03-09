@@ -43,6 +43,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         self.downcast_qk = config.model_type in ["gptj", "gpt_neox"]
         self.is_decoder = True
 
+    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2Attention._attn
     def wrapped_scaled_dot_product(
         self,
         query: torch.Tensor,
@@ -121,6 +122,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         )
         self.is_decoder = True
 
+    # Adapted from transformers.models.gpt_neo.modeling_gpt_neo.GPTNeoSelfAttention._attn
     def wrapped_scaled_dot_product(
         self,
         query: torch.Tensor,
@@ -182,6 +184,7 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         self.is_decoder = True
 
+    # Adapted from transformers.models.codegen.modeling_codegen.CodeGenAttention._attn
     def wrapped_scaled_dot_product(
         self,
         query: torch.Tensor,
@@ -259,6 +262,7 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         self.is_decoder = True
 
+    # Adapted from transformers.models.opt.modeling_opt.OPTAttention.forward
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -361,6 +365,7 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         self.is_decoder = True
 
+    # Adapted from transformers.models.t5.modeling_t5.T5Attention.forward
     def forward(
         self,
         hidden_states,
@@ -510,6 +515,7 @@ class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         self.module_mapping = {"orig_layer": ""}
         self.is_decoder = True
 
+    # Adapted from transformers.models.bart.modeling_bart.BartAttention.forward
     def forward(
         self,
         hidden_states: torch.Tensor,
