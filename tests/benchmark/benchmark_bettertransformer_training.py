@@ -11,6 +11,9 @@ from transformers import AdamW, AutoModelForCausalLM, AutoTokenizer, get_schedul
 from optimum.bettertransformer import BetterTransformer
 
 
+torch.backends.cuda.matmul.allow_tf32 = True
+
+
 def get_parser():
     parser = argparse.ArgumentParser()
 
@@ -72,6 +75,7 @@ def benchmark_training(model, num_epochs: int, train_dataloader, device):
     # warmup
     for _ in range(5):
         batch = next(iter(train_dataloader))
+        batch = {k: v.to(device) for k, v in batch.items()}
         outputs = model(**batch)
         loss = outputs.logits.sum()
         loss.backward()
@@ -111,13 +115,11 @@ if __name__ == "__main__":
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = tokenizer.eos_token_id
 
-    bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
-
     raw_datasets = load_dataset("Abirate/english_quotes", split="train[:64]")
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    hf_model = hf_model.to(device)
-    bt_model = bt_model.to(device)
+    dtype = torch.float32 if args.use_half is False else torch.float16
+    hf_model = hf_model.to(device=device, dtype=dtype)
 
     BATCH_SIZES = [8, 16, 32, 64]
     SEQ_LEN = [32, 64, 128, 256]
@@ -149,6 +151,9 @@ if __name__ == "__main__":
             )
 
             hf_time_per_epoch = benchmark_training(hf_model, num_epochs, train_dataloader, device)
+
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
+            bt_model = bt_model.to(device=device, dtype=dtype)
 
             bt_time_per_epoch = benchmark_training(
                 bt_model,
