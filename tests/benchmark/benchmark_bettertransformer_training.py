@@ -170,9 +170,9 @@ if __name__ == "__main__":
                     batch_size,
                     sequence_length,
                     args.use_cuda,
-                    "hf_time_per_epoch:.3f",
-                    "bt_time_per_epoch:.3f",
-                    "speedup:.3f",
+                    f"{hf_time_per_epoch}:.3f",
+                    f"{bt_time_per_epoch}:.3f",
+                    f"{speedup}:.3f",
                 )
             )
     output_file.close()
