@@ -15,6 +15,7 @@
 """Model export tasks manager."""
 
 import importlib
+import itertools
 import os
 from functools import partial
 from pathlib import Path
@@ -133,6 +134,9 @@ class TasksManager:
             "question-answering": "TFAutoModelForQuestionAnswering",
             "semantic-segmentation": "TFAutoModelForSemanticSegmentation",
         }
+
+    _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in _TASKS_TO_AUTOMODELS.items()}
+    _TF_AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in _TASKS_TO_TF_AUTOMODELS.items()}
 
     _TASKS_TO_LIBRARY = {
         "default": "transformers",
@@ -1061,6 +1065,35 @@ class TasksManager:
                 kwargs["from_pt"] = True
                 model = model_class.from_pretrained(model_name_or_path, **kwargs)
         return model
+
+    @classmethod
+    def get_task_from_model(
+        cls, model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None, model_class: Optional[Type] = None
+    ) -> str:
+        if model is not None and model_class is not None:
+            raise ValueError("Either a model or a model class must be provided, but both were given here.")
+        if model is None and model_class is None:
+            raise ValueError("Either a model or a model class must be provided, but none were given here.")
+        target_name = model.__class__.__name__ if model is not None else model_class.__name__
+        task_name = None
+        iterable = (cls._AUTOMODELS_TO_TASKS.items(), cls._TF_AUTOMODELS_TO_TASKS.items())
+        pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
+        tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
+        for auto_cls_name, task in itertools.chain.from_iterable(iterable):
+            module = tf_auto_module if auto_cls_name.startswith("TF") else pt_auto_module
+            # getattr(module, auto_cls_name)._model_mapping is a _LazyMapping, it also has an attribute called
+            # "_model_mapping" that is what we want here: class names and not actual classes.
+            auto_cls = getattr(module, auto_cls_name, None)
+            # This is the case for StableDiffusionPipeline for instance.
+            if auto_cls is None:
+                continue
+            model_mapping = auto_cls._model_mapping._model_mapping
+            if target_name in model_mapping.values():
+                task_name = task
+                break
+        if task_name is None:
+            raise ValueError(f"Could not infer the task name for {target_name}.")
+        return task_name
 
     @staticmethod
     def get_exporter_config_constructor(

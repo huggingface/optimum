@@ -150,21 +150,25 @@ class ORTModel(OptimizedModel):
         - providers (`List[str]) -- The list of execution providers available to ONNX Runtime.
     """
 
-    _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in TasksManager._TASKS_TO_AUTOMODELS.items()}
     model_type = "onnx_model"
     auto_model_class = AutoModel
 
     @classproperty
     def export_feature(cls):
         logger.warning(f"{cls.__name__}.export_feature is deprecated, and will be removed in optimum 2.0.")
-        return cls._AUTOMODELS_TO_TASKS.get(cls.auto_model_class.__name__, None)
+
+        try:
+            feature = TasksManager.get_task_from_model(cls.auto_model_class)
+        except ValueError:
+            feature = None
+        return feature
 
     @classmethod
     def _auto_model_to_task(cls, auto_model_class):
         """
         Get the task corresponding to a class (for example AutoModelForXXX in transformers).
         """
-        return cls._AUTOMODELS_TO_TASKS[auto_model_class.__name__]
+        return TasksManager.get_task_from_model(model_class=auto_model_class)
 
     def shared_attributes_init(
         self,

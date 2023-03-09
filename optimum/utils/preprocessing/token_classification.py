@@ -79,7 +79,7 @@ class TokenClassificationProcessing(TaskProcessor):
         data_keys: Optional[Dict[str, str]] = None,
         ref_keys: Optional[List[str]] = None,
         only_keep_necessary_columns: bool = False,
-        **kwargs,
+        **load_dataset_kwargs,
     ) -> Union["DatasetDict", "Dataset"]:
         if data_keys is not None and data_keys.get("secondary", None) is not None:
             raise ValueError("Only one data column is supported for token-classification.")
@@ -88,7 +88,7 @@ class TokenClassificationProcessing(TaskProcessor):
             data_keys=data_keys,
             only_keep_necessary_columns=only_keep_necessary_columns,
             ref_keys=ref_keys,
-            **kwargs,
+            **load_dataset_kwargs,
         )
         # TODO: do we want to do that here?
         # eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])

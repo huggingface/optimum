@@ -16,21 +16,23 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import numpy as np
+from datasets import DatasetDict
+from transformers import PreTrainedTokenizerBase
 from transformers.utils import is_tf_available
 
-from optimum.utils.preprocessing import TaskProcessorsManager
-from optimum.utils.save_utils import maybe_load_preprocessors
-
 from ...utils import logging
+from ...utils.preprocessing import Preprocessor, TaskProcessorsManager
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 
 
 if TYPE_CHECKING:
+    from datasets import Dataset
+
     if is_tf_available():
-        from transformers import PretrainedConfig, TFPreTrainedModel
+        from transformers import TFPreTrainedModel
     from .base import TFLiteConfig
 
 
@@ -135,39 +137,19 @@ def validate_model_outputs(
         )
 
 
-def create_calibration_dataset(
-    task: str,
-    config: "PretrainedConfig",
-    model_signatures,
-    dataset_name_or_path: Union[str, Path],
-    preprocessor_name_or_path: Union[str, Path],
-    num_calibration_samples: int = 200,
-    calibration_split: str = "train",
-    data_keys: Dict[str, Optional[str]] = None,
-):
-    preprocessor = maybe_load_preprocessors(preprocessor_name_or_path)[0]
-    TaskProcessorsManager.get_dataset_processing_class_for_task(task)
-    dataset_processing = TaskProcessorsManager.for_task(
-        task,
-        config=config,
-        dataset_path=dataset_name_or_path,
-        preprocessor=preprocessor,
-        num_calibration_samples=num_calibration_samples,
-        calibration_split=calibration_split,
-        static_quantization=True,
-        data_keys={"primary": primary_key_name, "secondary": secondary_key_name},
-    )
-    dataset = dataset_processing.load_datasets()["calibration"]
+def create_representative_dataset(signatures, dataset: "Dataset"):
+    def representative_dataset():
+        for sig_name, tf_function in signatures.items():
+            inputs_to_keep = None
+            for example in dataset:
+                if inputs_to_keep is None:
+                    args, kwargs = tf_function.structured_input_signature
+                    args_to_keep = set(input_.name for input_ in args if input_.name in example)
+                    kwargs_to_keep = set(input_.name for input_ in kwargs.values() if input_.name in example)
+                    inputs_to_keep = args_to_keep | kwargs_to_keep
+                yield sig_name, {name: value for name, value in example.items() if name in inputs_to_keep}
 
-    def calibration_dataset():
-        for data in dataset:
-            processed_data = {}
-            for signature_name, function in model_signatures.items():
-                input_names = set(input_.name for input_ in function.input_signature)
-                processed_data[signature_name] = {k: v for k, v in data.items() if k in input_names}
-            yield processed_data
-
-    return calibration_dataset
+    return representative_dataset
 
 
 def export(
@@ -175,15 +157,19 @@ def export(
     config: "TFLiteConfig",
     output: Path,
     quantization: Optional[str] = None,
-    calibration_dataset: Optional[Union[str, Path]] = None,
-    num_calibration_samples: int = 200,
-    calibration_split: str = "train",
-    primary_key_name: Optional[str] = None,
-    secondary_key_name: Optional[str] = None,
-    preprocessor_name_or_path: Optional[Union[str, Path]] = None,
     fallback_to_float: Optional[bool] = True,
     inputs_dtype: Optional[str] = None,
     outputs_dtype: Optional[str] = None,
+    calibration_dataset_name_or_path: Optional[Union[str, Path]] = None,
+    calibration_dataset_config_name: Optional[str] = None,
+    preprocessor: Optional[Preprocessor] = None,
+    num_calibration_samples: int = 200,
+    calibration_split: str = "train",
+    primary_key: Optional[str] = None,
+    secondary_key: Optional[str] = None,
+    question_key: Optional[str] = None,
+    answer_key: Optional[str] = None,
+    image_key: Optional[str] = None,
 ) -> Tuple[List[str], List[str]]:
     """
     Exports a TensorFlow model to a TensorFlow Lite model.
@@ -228,32 +214,61 @@ def export(
 
         if quantization in ["int8", "int8x16"]:
             converter.optimizations = [tf.lite.Optimize.DEFAULT]
-            if calibration_dataset is None:
-                logger.info(
-                    "Performing dynamic quantization because no calibration dataset was provided, specify one to perform "
-                    "static quantization."
+            from ...exporters import TasksManager
+
+            task = TasksManager.get_task_from_model(model)
+            preprocessor_kwargs = {}
+            if isinstance(preprocessor, PreTrainedTokenizerBase):
+                preprocessor_kwargs["max_length"] = config.sequence_length
+            task_processor = TaskProcessorsManager.get_dataset_processing_class_for_task(task)(
+                model.config, preprocessor, preprocessor_kwargs
+            )
+            if calibration_dataset_name_or_path is None:
+                calibration_dataset = task_processor.load_default_dataset(
+                    only_keep_necessary_columns=True, split=calibration_split
                 )
             else:
-                if preprocessor_name_or_path is None:
-                    raise ValueError(
-                        "A processor name or path needs to be provided when providing a calibration dataset."
-                    )
-                converter.representative_dataset = create_calibration_dataset(
-                    config.task,
-                    model.config,
-                    signatures,
-                    calibration_dataset,
-                    preprocessor_name_or_path,
-                    num_calibration_samples=num_calibration_samples,
-                    calibration_split=calibration_split,
-                    primary_key_name=primary_key_name,
-                    secondary_key_name=secondary_key_name,
+                data_keys = {}
+                if primary_key is not None:
+                    data_keys["primary_key"] = primary_key
+                if secondary_key is not None:
+                    data_keys["secondary_key"] = secondary_key
+                if question_key is not None:
+                    data_keys["question_key"] = question_key
+                if answer_key is not None:
+                    data_keys["answer_key"] = answer_key
+                if image_key is not None:
+                    data_keys["image_key"] = image_key
+
+                calibration_dataset = task_processor.load_dataset(
+                    calibration_dataset_name_or_path,
+                    data_keys=data_keys,
+                    only_keep_necessary_columns=True,
+                    name=calibration_dataset_config_name,
+                    split=calibration_split,
                 )
+
+            if calibration_split is None and isinstance(calibration_dataset, DatasetDict):
+                split = list(calibration_dataset.keys())[0]
+                logger.warning(
+                    f"Since no calibration split was provided for the calibration dataset, defaulting to {split}."
+                )
+                calibration_dataset = calibration_dataset[split]
+
+            calibration_dataset = calibration_dataset.shuffle()
+
+            if num_calibration_samples > calibration_dataset.num_rows:
+                raise ValueError(
+                    f"There are only {calibration_dataset.num_rows} examples in the calibration dataset, but it was "
+                    "requested to perform calibration using {num_calibration_samples} examples."
+                )
+
+            calibration_dataset = calibration_dataset.select(range(num_calibration_samples))
+            # TODO: support batch size > 1
+            calibration_dataset = calibration_dataset.with_format("tf")
+
             if quantization == "int8":
-                if calibration_dataset is not None:
-                    opsset = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-                else:
-                    opsset = []
+                opsset = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
             else:
                 logger.warning(
                     "The latency with 8x16 quantization can be much slower than int8 only because it is currently an "
@@ -267,6 +282,7 @@ def export(
                 converter.inference_input_type = str_to_dtype[inputs_dtype]
             if outputs_dtype is not None:
                 converter.inference_output_type = str_to_dtype[outputs_dtype]
+            converter.representative_dataset = create_representative_dataset(signatures, calibration_dataset)
         elif quantization == "fp16":
             converter.optimizations = [tf.lite.Optimize.DEFAULT]
             converter.target_spec.supported_types = [tf.float16]

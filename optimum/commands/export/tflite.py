@@ -153,6 +153,12 @@ def parse_args_tflite(parser):
         ),
     )
     calibration_dataset_group.add_argument(
+        "--calibration_dataset_config_name",
+        type=str,
+        default=None,
+        help="The calibration dataset configuration name, this is needed for some datasets.",
+    )
+    calibration_dataset_group.add_argument(
         "--num_calibration_samples",
         type=int,
         default=200,

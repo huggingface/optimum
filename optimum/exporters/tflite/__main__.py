@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 
 from ...commands.export.tflite import parse_args_tflite
 from ...utils import logging
-from ...utils.save_utils import maybe_save_preprocessors
+from ...utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
 from .convert import export, validate_model_outputs
@@ -69,18 +69,30 @@ def main():
     model.config.save_pretrained(args.output.parent)
     maybe_save_preprocessors(args.model, args.output.parent)
 
+    preprocessor = maybe_load_preprocessors(args.output.parent)
+    if preprocessor:
+        preprocessor = preprocessor[0]
+    else:
+        preprocessor = None
+
     tflite_inputs, tflite_outputs = export(
         model=model,
         config=tflite_config,
         output=args.output,
         quantization=args.quantize,
-        calibration_dataset=args.calibration_dataset,
-        num_calibration_samples=args.num_calibration_samples,
-        calibration_split=args.calibration_split,
-        preprocessor_name_or_path=args.output.parent,
         fallback_to_float=args.fallback_to_float,
         inputs_dtype=args.inputs_type,
         outputs_dtype=args.outputs_type,
+        calibration_dataset_name_or_path=args.calibration_dataset,
+        calibration_dataset_config_name=args.calibration_dataset_config_name,
+        preprocessor=preprocessor,
+        num_calibration_samples=args.num_calibration_samples,
+        calibration_split=args.calibration_split,
+        primary_key=args.primary_key,
+        secondary_key=args.secondary_key,
+        question_key=args.question_key,
+        answer_key=args.answer_key,
+        image_key=args.image_key,
     )
 
     try:

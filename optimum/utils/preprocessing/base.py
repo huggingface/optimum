@@ -22,11 +22,20 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tupl
 
 from datasets import Dataset, DatasetDict
 from datasets import load_dataset as datasets_load_dataset
+from transformers import PreTrainedTokenizerBase
+from transformers.image_processing_utils import BaseImageProcessor
+
+from .. import logging
 
 
 if TYPE_CHECKING:
     from datasets import Metric
-    from transformers import FeatureExtractionMixin, Pipeline, PretrainedConfig, PreTrainedTokenizerBase
+    from transformers import Pipeline, PretrainedConfig
+
+
+logger = logging.get_logger(__name__)
+
+Preprocessor = Union[PreTrainedTokenizerBase, BaseImageProcessor]
 
 
 class TaskProcessor(ABC):
@@ -39,7 +48,7 @@ class TaskProcessor(ABC):
     def __init__(
         self,
         config: "PretrainedConfig",
-        preprocessor: Union["FeatureExtractionMixin", "PreTrainedTokenizerBase"],
+        preprocessor: Preprocessor,
         preprocessor_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -115,9 +124,9 @@ class TaskProcessor(ABC):
         data_keys: Optional[Dict[str, str]] = None,
         ref_keys: Optional[List[str]] = None,
         only_keep_necessary_columns: bool = False,
-        **kwargs,
+        **load_dataset_kwargs,
     ) -> Union[DatasetDict, Dataset]:
-        dataset = datasets_load_dataset(path, **kwargs)
+        dataset = datasets_load_dataset(path, **load_dataset_kwargs)
         column_names = dataset.column_names
         if isinstance(column_names, dict):
             column_names = list(set(itertools.chain.from_iterable(column_names.values())))
@@ -152,7 +161,7 @@ class TaskProcessor(ABC):
 
         return dataset
 
-    def load_default_dataset(self, only_keep_necessary_columns: bool = False):
+    def load_default_dataset(self, only_keep_necessary_columns: bool = False, **load_dataset_kwargs):
         if isinstance(self.DEFAULT_DATASET_ARGS, dict):
             path = self.DEFAULT_DATASET_ARGS.get("path", None)
             if path is None:
@@ -160,17 +169,25 @@ class TaskProcessor(ABC):
                     'When DEFAULT_DATASET_ARGS is a dictionary, it must contain a key called "path" corresponding to '
                     "the path or name of the dataset."
                 )
-            load_dataset_kwargs = {k: v for k, v in self.DEFAULT_DATASET_ARGS.items() if k != "path"}
+            common_keys = set(self.DEFAULT_DATASET_ARGS.keys()) & set(load_dataset_kwargs.keys())
+            if common_keys:
+                ", ".join(common_keys)
+                logger.warning(
+                    "The following provided arguments will be overriden because they are hardcoded when using "
+                    "load_default_dataset: {override_config_key}."
+                )
+            kwargs = copy.deepcopy(load_dataset_kwargs)
+            kwargs.update({k: v for k, v in self.DEFAULT_DATASET_ARGS.items() if k != "path"})
         else:
             path = self.DEFAULT_DATASET_ARGS
-            load_dataset_kwargs = {}
+            kwargs = load_dataset_kwargs
 
         return self.load_dataset(
             path,
             data_keys=self.DEFAUL_DATASET_DATA_KEYS,
             ref_keys=self.DEFAULT_REF_KEYS,
             only_keep_necessary_columns=only_keep_necessary_columns,
-            **load_dataset_kwargs,
+            **kwargs,
         )
 
     def run_inference(self, eval_dataset: "Dataset", pipeline: "Pipeline") -> Tuple[List, List]:
