@@ -652,10 +652,15 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
+        if direction == "inputs":
+            decoder_sequence_name = "past_sequence_length"
+        else:
+            decoder_sequence_name = "past_sequence_length + 1"
+
         name = "past_key_values" if direction == "inputs" else "present"
         for i in range(self._normalized_config.num_layers):
-            inputs_or_outputs[f"{name}.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
-            inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
+            inputs_or_outputs[f"{name}.{i}.key"] = {0: "batch_size", 2: decoder_sequence_name}
+            inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 2: decoder_sequence_name}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.key"] = t[0]
@@ -779,12 +784,15 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
         name = "past_key_values" if direction == "inputs" else "present"
         encoder_sequence = "encoder_sequence_length"
-        decoder_sequence = (
-            "past_decoder_sequence_length" if direction == "inputs" else "past_decoder_sequence_length + 1"
-        )
+
+        if direction == "inputs":
+            decoder_sequence_name = "past_decoder_sequence_length"
+        else:
+            decoder_sequence_name = "past_decoder_sequence_length + 1"
+
         for i in range(self._normalized_config.decoder_num_layers):
-            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch_size", 2: decoder_sequence}
-            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence}
+            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch_size", 2: decoder_sequence_name}
+            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence_name}
             inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: encoder_sequence}
             inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: encoder_sequence}
 
