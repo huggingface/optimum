@@ -153,6 +153,8 @@ if __name__ == "__main__":
 
             hf_time_per_epoch = benchmark_training(hf_model, num_epochs, train_dataloader, device)
 
+            print(f"Vanilla time / epoch : {hf_time_per_epoch:.3f} s")
+
             bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
             bt_model = bt_model.to(device=device, dtype=dtype)
 
@@ -163,7 +165,9 @@ if __name__ == "__main__":
                 device,
             )
 
+            print(f"BT time / epoch : {bt_time_per_epoch:.3f} s")
             speedup = hf_time_per_epoch / bt_time_per_epoch
+            print(f"Speedup: {speedup:.3f}x")
 
             output_file.write(
                 "{},{},{},{},{},{},{}\n".format(
