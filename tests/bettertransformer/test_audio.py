@@ -184,8 +184,8 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
     @parameterized.expand(grid_parameters(FULL_GRID))
     @require_torch_20
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
-        if model_type == "hubert" and keep_original_model is True:
-            self.skipTest("hubert does not support keep_original_model=True")
+        if model_type in ["hubert", "wav2vec2"] and keep_original_model is True:
+            self.skipTest(f"{model_type} does not support keep_original_model=True")
 
         model_ids = (
             MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
@@ -196,8 +196,8 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
     @parameterized.expand(grid_parameters(FULL_GRID))
     @require_torch_20
     def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
-        if model_type == "hubert" and keep_original_model is True:
-            self.skipTest("hubert does not support keep_original_model=True")
+        if model_type in ["hubert", "wav2vec2"] and keep_original_model is True:
+            self.skipTest(f"{model_type} does not support keep_original_model=True")
 
         model_ids = (
             MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
