@@ -14,7 +14,6 @@
 # limitations under the License.
 import gc
 import timeit
-import unittest
 
 import pytest
 import torch
@@ -24,10 +23,10 @@ from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoModel
 
 from optimum.bettertransformer import BetterTransformer
-from optimum.utils.testing_utils import require_accelerate, require_torch_gpu
+from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_20, require_torch_gpu
 
 
-class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCase):
+class BetterTransformersEncoderTest(BetterTransformersTestMixin):
     r"""
     Full testing suite of the `BetterTransformers` integration into Hugging Face
     `transformers` ecosystem. Check the docstring of each test to understand the
@@ -57,10 +56,15 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         "xlm_roberta",
     ]
 
+    FULL_GRID = {
+        "model_type": SUPPORTED_ARCH,
+        "keep_original_model": [True, False],
+    }
+
     def tearDown(self):
         gc.collect()
 
-    def prepare_inputs_for_class(self, model_id=None):
+    def prepare_inputs_for_class(self, model_id, model_type):
         input_dict = {
             "input_ids": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]]),
             "attention_mask": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]]),
@@ -201,12 +205,12 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
             )
 
         model_id = MODELS_DICT[model_type]
-        super()._test_raise_autocast(model_id)
+        self._test_raise_autocast(model_id, model_type)
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_train(self, model_type: str):
         model_id = MODELS_DICT[model_type]
-        super()._test_raise_train(model_id)
+        self._test_raise_train(model_id, model_type)
 
     @pytest.mark.gpu_test
     @pytest.mark.accelerate_test
@@ -246,39 +250,25 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin, unittest.TestCa
         max_memory = {0: "2GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
 
-    # TODO: re-enable once fixed
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_invert_modules(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_20
+    def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
+        model_id = MODELS_DICT[model_type]
+        self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_save_load_invertible(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_20
+    def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
+        model_id = MODELS_DICT[model_type]
+        self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 
-    # @parameterized.expand(
-    #     grid_parameters(
-    #         {
-    #             "model_id": all_models_to_test,
-    #             "keep_original_model": [True, False],
-    #         }
-    #     )
-    # )
-    # def test_invert_model_logits(self, test_name: str, model_id, keep_original_model=False):
-    #     super().test_invert_model_logits(model_id=model_id, keep_original_model=keep_original_model)
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_20
+    def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
+        model_id = MODELS_DICT[model_type]
+        self._test_invert_model_logits(
+            model_id=model_id, model_type=model_type, keep_original_model=keep_original_model
+        )
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):

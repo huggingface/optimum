@@ -231,15 +231,21 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
-        name = "past_key_values" if direction == "inputs" else "present"
+        if direction == "inputs":
+            decoder_sequence_name = "past_sequence_length"
+            name = "past_key_values"
+        else:
+            decoder_sequence_name = "past_sequence_length + 1"
+            name = "present"
+
         for i in range(self._normalized_config.num_layers):
             inputs_or_outputs[f"{name}.{i}.key"] = {
                 0: "batch_size x num_heads",
-                2: "past_sequence_length + sequence_length",
+                2: decoder_sequence_name,
             }
             inputs_or_outputs[f"{name}.{i}.value"] = {
                 0: "batch_size x num_heads",
-                1: "past_sequence_length + sequence_length",
+                1: decoder_sequence_name,
             }
 
 
