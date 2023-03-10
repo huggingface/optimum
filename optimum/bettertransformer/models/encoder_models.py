@@ -32,7 +32,7 @@ class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):
             albert_layer (`torch.nn.Module`):
                 The original ALBERT Layer where the weights needs to be retrieved.
         """
-        super().__init__(config, albert_layer)
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -154,7 +154,7 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer):
             bert_layer (`torch.nn.Module`):
                 The original BERT Layer where the weights needs to be retrieved.
         """
-        super().__init__(config, bert_layer)
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -280,7 +280,7 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             bart_layer (`torch.nn.Module`):
                 The original `BartEncoderLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config, bart_layer)
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -412,7 +412,7 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             mbart_layer (`torch.nn.Module`):
                 The original `MBartEncoderLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config, mbart_layer)
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -550,7 +550,7 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer):
             bert_layer (`torch.nn.Module`):
                 The original Distill-BERT Layer where the weights needs to be retrieved.
         """
-        super().__init__(config, bert_layer)
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -673,7 +673,7 @@ class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             whisper_layer (`torch.nn.Module`):
                 The original `WhisperEncoderLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config, whisper_layer)
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -785,7 +785,7 @@ class ViTLayerBetterTransformer(BetterTransformerBaseLayer):
             vit_layer (`torch.nn.Module`):
                 The original `ViTLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config, vit_layer)
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -904,7 +904,7 @@ class ViltLayerBetterTransformer(BetterTransformerBaseLayer):
             vilt_layer (`torch.nn.Module`):
                 The original `VilTLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config, vilt_layer)
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -1023,7 +1023,7 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             wav2vec2_layer (`torch.nn.Module`):
                 The original `Wav2Vec2EncoderLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config, wav2vec2_layer)
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -1242,7 +1242,7 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             fsmt_layer (`torch.nn.Module`):
                 The original FSMT Layer where the weights needs to be retrieved.
         """
-        super().__init__(config, fsmt_layer)
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -1379,7 +1379,7 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
             layer (`torch.nn.Module`):
                 The original `CLIPEncoderLayer` where the weights needs to be retrieved.
         """
-        super().__init__(config, layer)
+        super().__init__(config)
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
