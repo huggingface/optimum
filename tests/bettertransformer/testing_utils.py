@@ -35,6 +35,7 @@ MODELS_DICT = {
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "ernie": "hf-internal-testing/tiny-random-ErnieModel",
+    "flava": "ybelkada/tiny-random-flava",
     "fsmt": "hf-internal-testing/tiny-random-FSMTModel",
     "gpt2": "hf-internal-testing/tiny-random-GPT2Model",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",

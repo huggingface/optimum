@@ -261,3 +261,48 @@ class BetterTransformersCLIPTest(BetterTransformersTestMixin, unittest.TestCase)
 
     #     # Assert that the outputs are the same
     #     self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))
+
+class BetterTransformersFlavaTest(BetterTransformersTestMixin, unittest.TestCase):
+    r"""
+    Testing suite for Vision and Text Models - tests all the tests defined in `BetterTransformersTestMixin`
+    """
+    SUPPORTED_ARCH = ["flava"]
+
+    def prepare_inputs_for_class(self, model_id=None):
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        text = "How many cats are there?"
+
+        # Model takes image and text as input
+        processor = AutoProcessor.from_pretrained(model_id)
+        inputs = processor(image, text, return_tensors="pt")
+        return inputs
+    
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_logits(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super()._test_logits(model_id)
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_autocast(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super()._test_raise_autocast(model_id)
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_train(self, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        super()._test_raise_train(model_id)
+    
+    # def  test_raise_activation_fun(self):
+    #     r"""
+    #     A tests that checks if the conversion raises an error if the model contains an activation function
+    #     that is not supported by `BetterTransformer`. Here we need to loop over the config files
+    #     """
+    #     for hf_random_config in SUPPORTED_ARCH:#wrong
+    #         hf_random_config.vision_config.hidden_act = "silu"
+    #         hf_random_model = AutoModel.from_config(hf_random_config).eval()
+    #         with self.assertRaises(ValueError):
+    #             _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)  
+
+
+    
