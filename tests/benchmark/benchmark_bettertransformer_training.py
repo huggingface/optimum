@@ -6,7 +6,7 @@ import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-from transformers import AdamW, AutoModelForCausalLM, AutoTokenizer, get_scheduler
+from transformers import AutoModelForCausalLM, AutoTokenizer, get_scheduler
 
 from optimum.bettertransformer import BetterTransformer
 
@@ -44,13 +44,6 @@ def get_parser():
     return parser
 
 
-WARMUP_STEPS = 2
-MAX_STEPS = 20
-
-from datasets import load_dataset
-from transformers import AutoTokenizer
-
-
 def seed_init_fn(x):
     seed = 42
     np.random.seed(seed)
@@ -60,7 +53,7 @@ def seed_init_fn(x):
 
 
 def benchmark_training(model, num_epochs: int, train_dataloader, device):
-    optimizer = AdamW(model.parameters(), lr=5e-5)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
     num_training_steps = num_epochs * len(train_dataloader)
     lr_scheduler = get_scheduler(
         "linear",
@@ -83,7 +76,6 @@ def benchmark_training(model, num_epochs: int, train_dataloader, device):
         optimizer.step()
         lr_scheduler.step()
         optimizer.zero_grad()
-        progress_bar.update(1)
 
     start_event = torch.cuda.Event(enable_timing=True)
     end_event = torch.cuda.Event(enable_timing=True)

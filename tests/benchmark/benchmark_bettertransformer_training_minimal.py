@@ -1,5 +1,6 @@
 import argparse
 import random
+from typing import Dict
 
 import numpy as np
 import torch
@@ -7,7 +8,6 @@ from tqdm.auto import tqdm
 from transformers import AutoModelForCausalLM
 
 from optimum.bettertransformer import BetterTransformer
-from typing import Dict
 
 
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -67,6 +67,7 @@ def benchmark_training(model, inputs: Dict, num_epochs: int):
     start_event.record()
     for _ in range(num_epochs):
         for _ in range(num_training_steps):
+            model.zero_grad()
             outputs = model(**inputs)
             loss = outputs.logits.sum()
             loss.backward()
@@ -102,9 +103,11 @@ if __name__ == "__main__":
 
             vocab_size = hf_model.config.vocab_size
             inputs = {
-                "input_ids": torch.randint(vocab_size - 1, (batch_size, sequence_length), dtype=torch.int64).to(device),
-                "attention_mask": torch.ones(batch_size, sequence_length, dtype=torch.int64).to(device)
-            }            
+                "input_ids": torch.randint(vocab_size - 1, (batch_size, sequence_length), dtype=torch.int64).to(
+                    device
+                ),
+                "attention_mask": torch.ones(batch_size, sequence_length, dtype=torch.int64).to(device),
+            }
 
             hf_time_per_epoch = benchmark_training(hf_model, inputs=inputs, num_epochs=num_epochs)
 
@@ -134,4 +137,4 @@ if __name__ == "__main__":
                     f"{speedup:.3f}",
                 )
             )
-    output_file.close() 
+    output_file.close()
