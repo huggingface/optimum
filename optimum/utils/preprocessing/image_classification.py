@@ -17,7 +17,6 @@
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import torch
-from evaluate import combine, evaluator
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from transformers.image_processing_utils import VALID_SIZE_DICT_KEYS, BaseImageProcessor
 
@@ -29,8 +28,7 @@ logger = logging.get_logger(__name__)
 
 if TYPE_CHECKING:
     from datasets import Dataset, DatasetDict
-    from evaluate import Metric
-    from transformers import ImageClassificationPipeline, PretrainedConfig
+    from transformers import PretrainedConfig
 
 
 class ImageClassificationProcessing(TaskProcessor):
@@ -109,29 +107,3 @@ class ImageClassificationProcessing(TaskProcessor):
         # TODO: do we want to do that here?
         # eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])
         return dataset
-
-    def run_evaluation(self, eval_dataset: "Dataset", pipeline: "ImageClassificationPipeline", metrics: List[str]):
-        all_metrics = combine(metrics)
-
-        task_evaluator = evaluator("image-classification")
-
-        results = task_evaluator.compute(
-            model_or_pipeline=pipeline,
-            data=eval_dataset,
-            metric=all_metrics,
-            input_column=self.data_keys["primary"],
-            label_column=self.ref_keys[0],
-            label_mapping=self.config.label2id,
-        )
-
-        return results
-
-    def get_metrics(self, predictions: List, references: List, metric: "Metric") -> Dict[str, float]:
-        metrics_res = metric.compute(predictions=predictions, references=references)
-        # `metric.compute` may return a dict or a number
-        if not isinstance(metrics_res, dict):
-            metrics_res = {metric.name: metrics_res}
-        return metrics_res
-
-    def get_pipeline_kwargs(self) -> Dict[str, Any]:
-        return {}

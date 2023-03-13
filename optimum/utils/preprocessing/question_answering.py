@@ -17,15 +17,13 @@
 import copy
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from evaluate import combine, evaluator, load
 from transformers import PreTrainedTokenizerBase
 
 from .base import TaskProcessor
 
 
 if TYPE_CHECKING:
-    from datasets import Dataset
-    from transformers import QuestionAnsweringPipeline
+    pass
 
 
 class QuestionAnsweringProcessing(TaskProcessor):
@@ -91,25 +89,3 @@ class QuestionAnsweringProcessing(TaskProcessor):
         for name in column_names:
             if "answer" in name:
                 return [name]
-
-    def run_evaluation(self, eval_dataset: "Dataset", pipeline: "QuestionAnsweringPipeline", metrics: List[str]):
-        if len(metrics) == 1:
-            all_metrics = load(metrics[0])
-        else:
-            all_metrics = combine(metrics)
-
-        task_evaluator = evaluator("question-answering")
-
-        results = task_evaluator.compute(
-            model_or_pipeline=pipeline,
-            data=eval_dataset,
-            metric=all_metrics,
-            question_column=self.data_keys["question"],
-            context_column=self.data_keys["context"],
-            label_column=self.ref_keys[0],
-        )
-
-        return results
-
-    def get_pipeline_kwargs(self) -> Dict[str, Any]:
-        return {"max_answer_len": 30, "padding": "max_length"}

@@ -18,7 +18,6 @@ import copy
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-from evaluate import combine, evaluator
 from transformers import PreTrainedTokenizerBase
 
 from .base import TaskProcessor
@@ -26,7 +25,6 @@ from .base import TaskProcessor
 
 if TYPE_CHECKING:
     from datasets import Dataset, DatasetDict
-    from transformers import TextClassificationPipeline
 
 
 logger = logging.getLogger(__name__)
@@ -110,22 +108,3 @@ class TextClassificationProcessing(TaskProcessor):
         # TODO: do we want to do that here?
         # eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])
         return dataset
-
-    def run_evaluation(self, eval_dataset: "Dataset", pipeline: "TextClassificationPipeline", metrics: List[str]):
-        all_metrics = combine(metrics)
-
-        task_evaluator = evaluator("text-classification")
-
-        results = task_evaluator.compute(
-            model_or_pipeline=pipeline,
-            data=eval_dataset,
-            metric=all_metrics,
-            input_column=self.data_keys["primary"],
-            label_column=self.ref_keys[0],
-            label_mapping=self.config.label2id,
-        )
-
-        return results
-
-    def get_pipeline_kwargs(self) -> Dict[str, Any]:
-        return {}
