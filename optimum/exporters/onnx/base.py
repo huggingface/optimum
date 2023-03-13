@@ -704,8 +704,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
-        encoder_sequence = "encoder_sequence_length"
-
         if direction == "inputs":
             decoder_sequence_name = "past_decoder_sequence_length"
             name = "past_key_values"
@@ -714,12 +712,12 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             name = "present"
 
         for i in range(self._normalized_config.decoder_num_layers):
-            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch_size", 2: decoder_sequence}
-            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence}
+            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch_size", 2: decoder_sequence_name}
+            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence_name}
 
             if direction == "inputs" or (self._behavior is ConfigBehavior.DECODER and self.use_past is False):
-                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: encoder_sequence}
-                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: encoder_sequence}
+                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: decoder_sequence_name}
+                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: decoder_sequence_name}
 
         if direction == "outputs" and "encoder_last_hidden_state" in inputs_or_outputs:
             inputs_or_outputs.move_to_end("encoder_last_hidden_state")
