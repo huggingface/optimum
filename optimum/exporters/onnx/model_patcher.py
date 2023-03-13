@@ -131,7 +131,9 @@ class Seq2SeqModelPatcher(ModelPatcher):
                     if name != "past_key_values":
                         filterd_outputs[name] = value
                     else:
-                        if self.real_config._behavior == "decoder" and self.real_config.use_past is False:
+                        if self.real_config._behavior == "monolith" or (
+                            self.real_config._behavior == "decoder" and self.real_config.use_past is False
+                        ):
                             filterd_outputs[name] = value
                         elif self.real_config._behavior == "decoder" and self.real_config.use_past is True:
                             filterd_outputs[name] = tuple([v[:2] for v in value])
