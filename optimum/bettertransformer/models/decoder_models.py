@@ -33,14 +33,17 @@ def raise_on_head_mask(head_mask: Optional[torch.Tensor]):
 
 class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, gpt_layer: "nn.Module", config: "PretrainedConfig"):
-        super().__init__(config, gpt_layer)
+        super().__init__(config)
 
-        self.gpt_layer = gpt_layer
-        self.gpt_layer._attn = self.wrapped_scaled_dot_product
+        self.orig_layer = gpt_layer
+        self.orig_layer._attn = self.wrapped_scaled_dot_product
+
+        self.module_mapping = {"orig_layer": ""}
 
         self.downcast_qk = config.model_type in ["gptj", "gpt_neox"]
         self.is_decoder = True
 
+    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2Attention._attn
     def wrapped_scaled_dot_product(
         self,
         query: torch.Tensor,
@@ -73,7 +76,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             # causal_mask is always [True, ..., True] otherwise, so executing this
             # is unnecessary
             if query_length > 1:
-                causal_mask = self.gpt_layer.bias[:, :, key_length - query_length : key_length, :key_length].to(
+                causal_mask = self.orig_layer.bias[:, :, key_length - query_length : key_length, :key_length].to(
                     torch.bool
                 )
 
@@ -97,26 +100,29 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
-        return self.gpt_layer(*args, **kwargs)
+        return self.orig_layer(*args, **kwargs)
 
 
 class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, gpt_layer: "nn.Module", config: "PretrainedConfig"):
-        super().__init__(config, gpt_layer)
+        super().__init__(config)
 
-        self.gpt_layer = gpt_layer
-        self.gpt_layer._attn = self.wrapped_scaled_dot_product
+        self.orig_layer = gpt_layer
+        self.orig_layer._attn = self.wrapped_scaled_dot_product
 
-        if self.gpt_layer.bias[0][0][-1][0] == 1:
+        self.module_mapping = {"orig_layer": ""}
+
+        if self.orig_layer.bias[0][0][-1][0] == 1:
             self.attention_type = "global"
         else:
             self.attention_type = "local"
 
-        self.scale = torch.sqrt(torch.tensor(self.gpt_layer.head_dim, dtype=torch.float32)).to(
+        self.scale = torch.sqrt(torch.tensor(self.orig_layer.head_dim, dtype=torch.float32)).to(
             torch.get_default_dtype()
         )
         self.is_decoder = True
 
+    # Adapted from transformers.models.gpt_neo.modeling_gpt_neo.GPTNeoSelfAttention._attn
     def wrapped_scaled_dot_product(
         self,
         query: torch.Tensor,
@@ -147,7 +153,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         else:
             query_length, key_length = query.size(-2), key.size(-2)
 
-            causal_mask = self.gpt_layer.bias[:, :, key_length - query_length : key_length, :key_length]
+            causal_mask = self.orig_layer.bias[:, :, key_length - query_length : key_length, :key_length]
 
             causal_mask = torch.where(causal_mask, 0, mask_value)
             if batch_size > 1:
@@ -164,18 +170,21 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
-        return self.gpt_layer(*args, **kwargs)
+        return self.orig_layer(*args, **kwargs)
 
 
 class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, gpt_layer: "nn.Module", config: "PretrainedConfig"):
-        super().__init__(config, gpt_layer)
+        super().__init__(config)
 
-        self.gpt_layer = gpt_layer
-        self.gpt_layer._attn = self.wrapped_scaled_dot_product
+        self.orig_layer = gpt_layer
+        self.orig_layer._attn = self.wrapped_scaled_dot_product
+
+        self.module_mapping = {"orig_layer": ""}
 
         self.is_decoder = True
 
+    # Adapted from transformers.models.codegen.modeling_codegen.CodeGenAttention._attn
     def wrapped_scaled_dot_product(
         self,
         query: torch.Tensor,
@@ -211,9 +220,9 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             # causal_mask is always [True, ..., True] otherwise, so executing this
             # is unnecessary
             if query_length > 1:
-                causal_mask = self.gpt_layer.causal_mask[:, :, key_length - query_length : key_length, :key_length].to(
-                    torch.bool
-                )
+                causal_mask = self.orig_layer.causal_mask[
+                    :, :, key_length - query_length : key_length, :key_length
+                ].to(torch.bool)
 
                 causal_mask = torch.where(causal_mask, 0, mask_value)
 
@@ -236,21 +245,24 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
-        return self.gpt_layer(*args, **kwargs)
+        return self.orig_layer(*args, **kwargs)
 
 
 class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, opt_layer: "nn.Module", config: "PretrainedConfig"):
-        super().__init__(config, opt_layer)
+        super().__init__(config)
 
-        self.opt_layer = opt_layer
+        self.orig_layer = opt_layer
 
-        self.scale = torch.sqrt(torch.tensor(self.opt_layer.head_dim, dtype=torch.float32)).to(
+        self.scale = torch.sqrt(torch.tensor(self.orig_layer.head_dim, dtype=torch.float32)).to(
             torch.get_default_dtype()
         )
 
+        self.module_mapping = {"orig_layer": ""}
+
         self.is_decoder = True
 
+    # Adapted from transformers.models.opt.modeling_opt.OPTAttention.forward
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -275,7 +287,7 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         batch_size, tgt_len, _ = hidden_states.size()
 
         # get query proj
-        query_states = self.opt_layer.q_proj(hidden_states) * self.opt_layer.scaling
+        query_states = self.orig_layer.q_proj(hidden_states) * self.orig_layer.scaling
         # get key, value proj
         if is_cross_attention and past_key_value is not None:
             # reuse k,v, cross_attentions
@@ -283,20 +295,20 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             value_states = past_key_value[1]
         elif is_cross_attention:
             # cross_attentions
-            key_states = self.opt_layer._shape(self.opt_layer.k_proj(key_value_states), -1, batch_size)
-            value_states = self.opt_layer._shape(self.opt_layer.v_proj(key_value_states), -1, batch_size)
+            key_states = self.orig_layer._shape(self.orig_layer.k_proj(key_value_states), -1, batch_size)
+            value_states = self.orig_layer._shape(self.orig_layer.v_proj(key_value_states), -1, batch_size)
         elif past_key_value is not None:
             # reuse k, v, self_attention
-            key_states = self.opt_layer._shape(self.opt_layer.k_proj(hidden_states), -1, batch_size)
-            value_states = self.opt_layer._shape(self.opt_layer.v_proj(hidden_states), -1, batch_size)
+            key_states = self.orig_layer._shape(self.orig_layer.k_proj(hidden_states), -1, batch_size)
+            value_states = self.orig_layer._shape(self.orig_layer.v_proj(hidden_states), -1, batch_size)
             key_states = torch.cat([past_key_value[0], key_states], dim=2)
             value_states = torch.cat([past_key_value[1], value_states], dim=2)
         else:
             # self_attention
-            key_states = self.opt_layer._shape(self.opt_layer.k_proj(hidden_states), -1, batch_size)
-            value_states = self.opt_layer._shape(self.opt_layer.v_proj(hidden_states), -1, batch_size)
+            key_states = self.orig_layer._shape(self.orig_layer.k_proj(hidden_states), -1, batch_size)
+            value_states = self.orig_layer._shape(self.orig_layer.v_proj(hidden_states), -1, batch_size)
 
-        if self.opt_layer.is_decoder:
+        if self.orig_layer.is_decoder:
             # if cross_attention save Tuple(torch.Tensor, torch.Tensor) of all cross attention key/value_states.
             # Further calls to cross_attention layer can then reuse all cross-attention
             # key/value_states (first "if" case)
@@ -306,7 +318,7 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             # if encoder bi-directional self-attention `past_key_value` is always `None`
             past_key_value = (key_states, value_states)
 
-        query_states = self.opt_layer._shape(query_states, tgt_len, batch_size)
+        query_states = self.orig_layer._shape(query_states, tgt_len, batch_size)
 
         query_states = query_states * self.scale
         if batch_size == 1:
@@ -323,9 +335,9 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 query_states, key_states, value_states, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
             )
 
-        if attn_output.size() != (batch_size, self.opt_layer.num_heads, tgt_len, self.opt_layer.head_dim):
+        if attn_output.size() != (batch_size, self.orig_layer.num_heads, tgt_len, self.orig_layer.head_dim):
             raise ValueError(
-                f"`attn_output` should be of size {(batch_size, self.opt_layer.num_heads, tgt_len, self.opt_layer.head_dim)}, but is"
+                f"`attn_output` should be of size {(batch_size, self.orig_layer.num_heads, tgt_len, self.orig_layer.head_dim)}, but is"
                 f" {attn_output.size()}"
             )
 
@@ -333,24 +345,27 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         # Use the `embed_dim` from the config (stored in the class) rather than `hidden_state` because `attn_output` can be
         # partitioned aross GPUs when using tensor-parallelism.
-        attn_output = attn_output.reshape(batch_size, tgt_len, self.opt_layer.embed_dim)
+        attn_output = attn_output.reshape(batch_size, tgt_len, self.orig_layer.embed_dim)
 
-        attn_output = self.opt_layer.out_proj(attn_output)
+        attn_output = self.orig_layer.out_proj(attn_output)
 
         return attn_output, None, past_key_value
 
 
 class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
-        super().__init__(config, layer)
+        super().__init__(config)
 
-        self.layer = layer
+        self.orig_layer = layer
 
-        head_dim = self.layer.d_model // self.layer.n_heads  # hidden size / num attention heads
+        head_dim = self.orig_layer.d_model // self.orig_layer.n_heads  # hidden size / num attention heads
         self.scale = torch.sqrt(torch.tensor(head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
+
+        self.module_mapping = {"orig_layer": ""}
 
         self.is_decoder = True
 
+    # Adapted from transformers.models.t5.modeling_t5.T5Attention.forward
     def forward(
         self,
         hidden_states,
@@ -366,9 +381,9 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         super().forward_checker()
         raise_on_head_mask(layer_head_mask)
 
-        if len(self.layer.pruned_heads) > 0:
+        if len(self.orig_layer.pruned_heads) > 0:
             raise ValueError(
-                f"Setting `pruned_heads` is unsupported with BetterTransformer, found {self.layer.pruned_heads}."
+                f"Setting `pruned_heads` is unsupported with BetterTransformer, found {self.orig_layer.pruned_heads}."
             )
         batch_size, seq_length = hidden_states.shape[:2]
 
@@ -384,11 +399,13 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         def shape(states):
             """projection"""
-            return states.view(batch_size, -1, self.layer.n_heads, self.layer.key_value_proj_dim).transpose(1, 2)
+            return states.view(batch_size, -1, self.orig_layer.n_heads, self.orig_layer.key_value_proj_dim).transpose(
+                1, 2
+            )
 
         def unshape(states):
             """reshape"""
-            return states.transpose(1, 2).contiguous().view(batch_size, -1, self.layer.inner_dim)
+            return states.transpose(1, 2).contiguous().view(batch_size, -1, self.orig_layer.inner_dim)
 
         def project(hidden_states, proj_layer, key_value_states, past_key_value):
             """projects hidden states correctly to key/query states"""
@@ -418,26 +435,32 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             return hidden_states
 
         # get query states
-        query_states = shape(self.layer.q(hidden_states))  # (batch_size, n_heads, seq_length, dim_per_head)
+        query_states = shape(self.orig_layer.q(hidden_states))  # (batch_size, n_heads, seq_length, dim_per_head)
 
         # get key/value states
         key_states = project(
-            hidden_states, self.layer.k, key_value_states, past_key_value[0] if past_key_value is not None else None
+            hidden_states,
+            self.orig_layer.k,
+            key_value_states,
+            past_key_value[0] if past_key_value is not None else None,
         )
         value_states = project(
-            hidden_states, self.layer.v, key_value_states, past_key_value[1] if past_key_value is not None else None
+            hidden_states,
+            self.orig_layer.v,
+            key_value_states,
+            past_key_value[1] if past_key_value is not None else None,
         )
 
-        if (position_bias is None and not self.layer.has_relative_attention_bias) or (
+        if (position_bias is None and not self.orig_layer.has_relative_attention_bias) or (
             position_bias is not None and position_bias[0, 0, 0, 0] == 0
         ):
-            if position_bias is None and not self.layer.has_relative_attention_bias:
+            if position_bias is None and not self.orig_layer.has_relative_attention_bias:
                 position_bias = torch.zeros(
-                    (1, self.layer.n_heads, real_seq_length, key_length),
+                    (1, self.orig_layer.n_heads, real_seq_length, key_length),
                     device=query_states.device,
                     dtype=query_states.dtype,
                 )
-                if self.layer.gradient_checkpointing and self.layer.training:
+                if self.orig_layer.gradient_checkpointing and self.orig_layer.training:
                     position_bias.requires_grad = True
 
             query_states = self.scale * query_states
@@ -452,7 +475,7 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             )  # equivalent of torch.einsum("bnqd,bnkd->bnqk", query_states, key_states), compatible with onnx op>9
 
             if position_bias is None:
-                position_bias = self.layer.compute_bias(real_seq_length, key_length, device=scores.device)
+                position_bias = self.orig_layer.compute_bias(real_seq_length, key_length, device=scores.device)
 
                 # if key and values are already calculated
                 # we want only the last query position bias
@@ -467,15 +490,15 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 scores
             )  # (batch_size, n_heads, seq_length, key_length)
             attn_weights = torch.nn.functional.dropout(
-                attn_weights, p=self.layer.dropout, training=self.layer.training
+                attn_weights, p=self.orig_layer.dropout, training=self.orig_layer.training
             )  # (batch_size, n_heads, seq_length, key_length)
 
             attn_output = torch.matmul(attn_weights, value_states)
 
         attn_output = unshape(attn_output)  # (batch_size, seq_length, dim)
-        attn_output = self.layer.o(attn_output)
+        attn_output = self.orig_layer.o(attn_output)
 
-        present_key_value_state = (key_states, value_states) if (self.layer.is_decoder and use_cache) else None
+        present_key_value_state = (key_states, value_states) if (self.orig_layer.is_decoder and use_cache) else None
         outputs = (attn_output,) + (present_key_value_state,) + (position_bias,)
 
         if output_attentions:
@@ -485,11 +508,14 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
 class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
-        super().__init__(config, layer)
+        super().__init__(config)
 
-        self.layer = layer
+        self.orig_layer = layer
+
+        self.module_mapping = {"orig_layer": ""}
         self.is_decoder = True
 
+    # Adapted from transformers.models.bart.modeling_bart.BartAttention.forward
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -512,7 +538,7 @@ class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         bsz, tgt_len, _ = hidden_states.size()
 
         # get query proj
-        query_states = self.layer.q_proj(hidden_states)
+        query_states = self.orig_layer.q_proj(hidden_states)
         # get key, value proj
         # `past_key_value[0].shape[2] == key_value_states.shape[1]`
         # is checking that the `sequence_length` of the `past_key_value` is the same as
@@ -527,20 +553,20 @@ class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             value_states = past_key_value[1]
         elif is_cross_attention:
             # cross_attentions
-            key_states = self.layer._shape(self.layer.k_proj(key_value_states), -1, bsz)
-            value_states = self.layer._shape(self.layer.v_proj(key_value_states), -1, bsz)
+            key_states = self.orig_layer._shape(self.orig_layer.k_proj(key_value_states), -1, bsz)
+            value_states = self.orig_layer._shape(self.orig_layer.v_proj(key_value_states), -1, bsz)
         elif past_key_value is not None:
             # reuse k, v, self_attention
-            key_states = self.layer._shape(self.layer.k_proj(hidden_states), -1, bsz)
-            value_states = self.layer._shape(self.layer.v_proj(hidden_states), -1, bsz)
+            key_states = self.orig_layer._shape(self.orig_layer.k_proj(hidden_states), -1, bsz)
+            value_states = self.orig_layer._shape(self.orig_layer.v_proj(hidden_states), -1, bsz)
             key_states = torch.cat([past_key_value[0], key_states], dim=2)
             value_states = torch.cat([past_key_value[1], value_states], dim=2)
         else:
             # self_attention
-            key_states = self.layer._shape(self.layer.k_proj(hidden_states), -1, bsz)
-            value_states = self.layer._shape(self.layer.v_proj(hidden_states), -1, bsz)
+            key_states = self.orig_layer._shape(self.orig_layer.k_proj(hidden_states), -1, bsz)
+            value_states = self.orig_layer._shape(self.orig_layer.v_proj(hidden_states), -1, bsz)
 
-        if self.layer.is_decoder:
+        if self.orig_layer.is_decoder:
             # if cross_attention save Tuple(torch.Tensor, torch.Tensor) of all cross attention key/value_states.
             # Further calls to cross_attention layer can then reuse all cross-attention
             # key/value_states (first "if" case)
@@ -550,7 +576,7 @@ class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             # if encoder bi-directional self-attention `past_key_value` is always `None`
             past_key_value = (key_states, value_states)
 
-        query_states = self.layer._shape(query_states, tgt_len, bsz)
+        query_states = self.orig_layer._shape(query_states, tgt_len, bsz)
         key_states = key_states
         value_states = value_states
 
@@ -558,9 +584,9 @@ class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             query_states, key_states, value_states, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
         )
 
-        if attn_output.size() != (bsz, self.layer.num_heads, tgt_len, self.layer.head_dim):
+        if attn_output.size() != (bsz, self.orig_layer.num_heads, tgt_len, self.orig_layer.head_dim):
             raise ValueError(
-                f"`attn_output` should be of size {(bsz, self.layer.num_heads, tgt_len, self.layer.head_dim)}, but is"
+                f"`attn_output` should be of size {(bsz, self.orig_layer.num_heads, tgt_len, self.orig_layer.head_dim)}, but is"
                 f" {attn_output.size()}"
             )
 
@@ -568,8 +594,8 @@ class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         # Use the `embed_dim` from the config (stored in the class) rather than `hidden_state` because `attn_output` can be
         # partitioned aross GPUs when using tensor-parallelism.
-        attn_output = attn_output.reshape(bsz, tgt_len, self.layer.embed_dim)
+        attn_output = attn_output.reshape(bsz, tgt_len, self.orig_layer.embed_dim)
 
-        attn_output = self.layer.out_proj(attn_output)
+        attn_output = self.orig_layer.out_proj(attn_output)
 
         return attn_output, None, past_key_value

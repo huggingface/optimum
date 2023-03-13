@@ -13,10 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+import inspect
+import tempfile
+import unittest
+
 import torch
+from packaging.version import parse
 from transformers import AutoModel
 
-from optimum.bettertransformer import BetterTransformer
+from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
 from optimum.utils.testing_utils import flatten_dict, require_torch_gpu
 
 
@@ -66,7 +72,7 @@ MODELS_DICT = {
 }
 
 
-class BetterTransformersTestMixin:
+class BetterTransformersTestMixin(unittest.TestCase):
     r"""
     `BetterTransformersTestMixin` to wrap necessary functions for testing `BetterTransformer`
     integration. This includes the following tests:
@@ -78,16 +84,22 @@ class BetterTransformersTestMixin:
         - `test_raise_train`: A tests that checks if the conversion raises an error if the model is run in training mode.
     """
 
-    def prepare_inputs_for_class(self, model_id=None):
+    def prepare_inputs_for_class(self, model_id=None, model_type=None):
         raise NotImplementedError
 
+    def _skip_on_torch_version(self, model_type: str):
+        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("1.14"):
+            self.skipTest(f"The model type {model_type} require PyTorch 2.0 for BetterTransformer")
+
     @require_torch_gpu
-    def _test_fp16_inference(self, model_id: str, automodel_class, use_to_operator=False, **preprocessor_kwargs):
+    def _test_fp16_inference(
+        self, model_id: str, model_type: str, automodel_class, use_to_operator=False, **preprocessor_kwargs
+    ):
         r"""
         This tests if the converted model runs fine under fp16.
         """
         # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
-        inputs = self.prepare_inputs_for_class(model_id=model_id, **preprocessor_kwargs).to(0)
+        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs).to(0)
 
         torch.manual_seed(0)
         if not use_to_operator:
@@ -121,13 +133,13 @@ class BetterTransformersTestMixin:
                 f"Maxdiff: {(output_hf - output_bt).abs().max()}",
             )
 
-    def _test_logits(self, model_id: str, **preprocessor_kwargs):
+    def _test_logits(self, model_id: str, model_type: str, **preprocessor_kwargs):
         r"""
         This tests if the converted model produces the same logits
         than the original model.
         """
         # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
-        inputs = self.prepare_inputs_for_class(model_id=model_id, **preprocessor_kwargs)
+        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs)
 
         torch.manual_seed(0)
         hf_random_model = AutoModel.from_pretrained(model_id).eval()
@@ -164,7 +176,11 @@ class BetterTransformersTestMixin:
 
             if hasattr(self, "compare_outputs"):
                 self.compare_outputs(
-                    hf_hidden_states, bt_hidden_states, atol=tol, model_name=hf_random_model.__class__.__name__
+                    model_type,
+                    hf_hidden_states,
+                    bt_hidden_states,
+                    atol=tol,
+                    model_name=hf_random_model.__class__.__name__,
                 )
             elif "attention_mask" in inputs:
                 for i, attention_mask in enumerate(inputs["attention_mask"]):
@@ -190,12 +206,12 @@ class BetterTransformersTestMixin:
             f" Maxdiff: {torch.abs(tensor1 - tensor2).max()}",
         )
 
-    def _test_raise_autocast(self, model_id: str, **kwargs):
+    def _test_raise_autocast(self, model_id: str, model_type: str, **kwargs):
         r"""
         A tests that checks if the conversion raises an error if the model is run under
         `torch.cuda.amp.autocast`.
         """
-        inputs = self.prepare_inputs_for_class(model_id=model_id, **kwargs)
+        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **kwargs)
         hf_random_model = AutoModel.from_pretrained(model_id).eval()
 
         # Check for the autocast on CPU
@@ -203,12 +219,12 @@ class BetterTransformersTestMixin:
             bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
             _ = bt_model(**inputs)
 
-    def _test_raise_train(self, model_id: str, **kwargs):
+    def _test_raise_train(self, model_id: str, model_type: str, **kwargs):
         r"""
         A tests that checks if the conversion raises an error if the model is run under
         `model.train()`.
         """
-        inputs = self.prepare_inputs_for_class(model_id=model_id, **kwargs)
+        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **kwargs)
 
         hf_random_model = AutoModel.from_pretrained(model_id).eval()
         # Check for training mode
@@ -217,11 +233,11 @@ class BetterTransformersTestMixin:
             bt_model.train()
             _ = bt_model(**inputs)
 
-    def _test_train_decoder(self, model_id: str, **kwargs):
+    def _test_train_decoder(self, model_id: str, model_type: str, **kwargs):
         r"""
         A tests that checks if the training works as expected for decoder models.
         """
-        inputs = self.prepare_inputs_for_class(model_id=model_id, **kwargs)
+        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **kwargs)
 
         hf_random_model = AutoModel.from_pretrained(model_id).eval()
 
@@ -238,97 +254,105 @@ class BetterTransformersTestMixin:
                 continue
             self.assertIsNotNone(param.grad)
 
-    # TODO: re-enable once fixed
-    # def test_invert_modules(self, model_id, keep_original_model=False):
-    #     r"""
-    #     Test that the inverse converted model and hf model have the same modules
-    #     """
-    #     # get hf and bt model
-    #     hf_model = AutoModel.from_pretrained(model_id)
-    #     # get bt model and invert it
-    #     bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
-    #     bt_model = BetterTransformer.reverse(bt_model)
+    def _test_invert_modules(self, model_id, keep_original_model=False):
+        r"""
+        Test that the inverse converted model and hf model have the same modules
+        """
+        hf_model = AutoModel.from_pretrained(model_id)
+        hf_modules = list(hf_model.modules())
 
-    #     # get modules:
-    #     hf_modules = list(hf_model.modules())
-    #     bt_modules = list(bt_model.modules())
+        bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+        bt_model = BetterTransformer.reverse(bt_model)
 
-    #     # Assert that the modules are the same
-    #     self.assertEqual(len(hf_modules), len(bt_modules))
-    #     for hf_module, bt_module in zip(hf_modules, bt_modules):
-    #         # check the modules have the same signature and code
-    #         # for the `forward` and `__init__` methods
-    #         # as those are the only functions we change
-    #         self.assertEqual(inspect.signature(hf_module.forward), inspect.signature(bt_module.forward))
-    #         self.assertEqual(inspect.signature(hf_module.__init__), inspect.signature(bt_module.__init__))
+        bt_modules = list(bt_model.modules())
 
-    #         self.assertEqual(inspect.getsource(hf_module.forward), inspect.getsource(bt_module.forward))
-    #         self.assertEqual(inspect.getsource(hf_module.__init__), inspect.getsource(bt_module.__init__))
+        self.assertEqual(len(hf_modules), len(bt_modules))
+        for hf_module, bt_module in zip(hf_modules, bt_modules):
+            # check the modules have the same signature and code
+            # for the `forward` and `__init__` methods
+            # as those are the only functions we change
+            self.assertEqual(inspect.signature(hf_module.forward), inspect.signature(bt_module.forward))
+            self.assertEqual(inspect.signature(hf_module.__init__), inspect.signature(bt_module.__init__))
 
-    # def test_save_load_invertible(self, model_id, keep_original_model=True):
-    #     with tempfile.TemporaryDirectory() as tmpdirname:
-    #         hf_model = AutoModel.from_pretrained(model_id).eval()
-    #         bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+            self.assertEqual(inspect.getsource(hf_module.forward), inspect.getsource(bt_module.forward))
+            self.assertEqual(inspect.getsource(hf_module.__init__), inspect.getsource(bt_module.__init__))
 
-    #         bt_model = BetterTransformer.reverse(bt_model)
-    #         # check if no parameter is on the `meta` device
+    def _test_save_load_invertible(self, model_id, keep_original_model=True):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            hf_model = AutoModel.from_pretrained(model_id).eval()
+            hf_model_state_dict = copy.deepcopy(hf_model.state_dict())
 
-    #         for name, param in bt_model.named_parameters():
-    #             self.assertFalse(param.device.type == "meta", f"Parameter {name} is on the meta device.")
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
 
-    #         bt_model.save_pretrained(tmpdirname)
+            bt_model = BetterTransformer.reverse(bt_model)
 
-    #         bt_model_from_load = AutoModel.from_pretrained(tmpdirname)
+            for name, param in bt_model.named_parameters():
+                self.assertFalse(param.device.type == "meta", f"Parameter {name} is on the meta device.")
 
-    #         # check if the state dict is the same
-    #         # first check if the keys are the same
-    #         self.assertEqual(
-    #             set(bt_model.state_dict().keys()),
-    #             set(bt_model_from_load.state_dict().keys()),
-    #         )
-    #         # check also with HF model
-    #         self.assertEqual(
-    #             set(hf_model.state_dict().keys()),
-    #             set(bt_model_from_load.state_dict().keys()),
-    #         )
+            bt_model.save_pretrained(tmpdirname)
 
-    #         for key in bt_model.state_dict().keys():
-    #             self.assertTrue(
-    #                 torch.allclose(
-    #                     bt_model.state_dict()[key],
-    #                     bt_model_from_load.state_dict()[key],
-    #                 )
-    #             )
+            bt_model_from_load = AutoModel.from_pretrained(tmpdirname)
 
-    #             self.assertTrue(
-    #                 torch.allclose(
-    #                     hf_model.state_dict()[key],
-    #                     bt_model_from_load.state_dict()[key],
-    #                 )
-    #             )
+            self.assertEqual(
+                set(bt_model.state_dict().keys()),
+                set(bt_model_from_load.state_dict().keys()),
+            )
 
-    # def test_invert_model_logits(self, model_id, keep_original_model=True, **preprocessor_kwargs):
-    #     r"""
-    #     Test that the inverse converted model and hf model have the same logits
-    #     """
-    #     # get hf and bt model
-    #     hf_model = AutoModel.from_pretrained(model_id)
-    #     # get bt model and invert it
-    #     bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
-    #     bt_model = BetterTransformer.reverse(bt_model)
+            self.assertEqual(
+                hf_model_state_dict.keys(),
+                set(bt_model_from_load.state_dict().keys()),
+            )
 
-    #     # get inputs
-    #     inputs = self.prepare_inputs_for_class(model_id, **preprocessor_kwargs)
+            for key in bt_model.state_dict().keys():
+                self.assertTrue(
+                    torch.allclose(
+                        bt_model.state_dict()[key],
+                        bt_model_from_load.state_dict()[key],
+                    )
+                )
 
-    #     # get outputs
-    #     torch.manual_seed(42)
-    #     output_bt = bt_model(**inputs)
+                self.assertTrue(
+                    torch.allclose(
+                        hf_model_state_dict[key],
+                        bt_model_from_load.state_dict()[key],
+                    )
+                )
 
-    #     torch.manual_seed(42)
-    #     output_hf = hf_model(**inputs)
+    def _test_invert_model_logits(
+        self, model_id: str, model_type: str, keep_original_model=True, **preprocessor_kwargs
+    ):
+        r"""
+        Test that the inverse converted model and hf model have the same logits
+        """
+        inputs = self.prepare_inputs_for_class(model_id, model_type=model_type, **preprocessor_kwargs)
 
-    #     # Assert that the outputs are the same
-    #     self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))
+        hf_model = AutoModel.from_pretrained(model_id)
+        hf_model = hf_model.eval()
+
+        with torch.inference_mode():
+            torch.manual_seed(42)
+            output_hf = hf_model(**inputs)
+
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+            bt_model = BetterTransformer.reverse(bt_model)
+
+            torch.manual_seed(42)
+            output_bt = bt_model(**inputs)
+
+        for i in range(len(output_bt)):
+            if isinstance(output_bt[i], torch.Tensor):
+                self.assertTrue(
+                    torch.allclose(output_bt[i], output_hf[i], atol=1e-4),
+                    f" Maxdiff: {(output_bt[i] - output_hf[i]).abs().max()}",
+                )
+            elif isinstance(output_bt[i], tuple):
+                flattened_output_bt = [out for j in range(len(output_bt[i])) for out in output_bt[i][j]]
+                flattened_output_hf = [out for j in range(len(output_hf[i])) for out in output_hf[i][j]]
+                for j in range(len(flattened_output_bt)):
+                    self.assertTrue(
+                        torch.allclose(flattened_output_bt[j], flattened_output_hf[j], atol=1e-4),
+                        f" Maxdiff: {(flattened_output_bt[j] - flattened_output_hf[j]).abs().max()}",
+                    )
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):

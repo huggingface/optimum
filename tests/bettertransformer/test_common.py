@@ -25,7 +25,7 @@ from transformers import AutoModel
 
 from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
 from optimum.pipelines import pipeline
-from optimum.utils.testing_utils import grid_parameters
+from optimum.utils.testing_utils import grid_parameters, require_torch_20
 
 
 class BetterTransformerIntegrationTests(unittest.TestCase):
@@ -93,6 +93,7 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
             self.assertTrue(hasattr(converted_model, "generate"))
 
     @parameterized.expand(grid_parameters({"model_type": MODELS_DICT.keys(), "keep_original_model": [True, False]}))
+    @require_torch_20
     def test_raise_save_pretrained_error(self, test_name: str, model_type: str, keep_original_model: bool):
         r"""
         Test if the converted model raises an error when calling `save_pretrained`
@@ -114,11 +115,9 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
             with self.assertRaises(ValueError), tempfile.TemporaryDirectory() as tmpdirname:
                 bt_model.save_pretrained(tmpdirname)
 
-            # revert model and save it
-            # TODO: re-enable once fixed
-            # bt_model = BetterTransformer.reverse(bt_model)
-            # with tempfile.TemporaryDirectory() as tmpdirname:
-            #     bt_model.save_pretrained(tmpdirname)
+            model = BetterTransformer.reverse(bt_model)
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                model.save_pretrained(tmpdirname)
 
     @parameterized.expand(BetterTransformerManager.MODEL_MAPPING.keys())
     def test_raise_activation_fun(self, model_type: str):
