@@ -164,11 +164,11 @@ def export(
     calibration_dataset_config_name: Optional[str] = None,
     preprocessor: Optional[Preprocessor] = None,
     num_calibration_samples: int = 200,
-    calibration_split: str = "train",
+    calibration_split: Optional[str] = None,
     primary_key: Optional[str] = None,
     secondary_key: Optional[str] = None,
     question_key: Optional[str] = None,
-    answer_key: Optional[str] = None,
+    context_key: Optional[str] = None,
     image_key: Optional[str] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -220,7 +220,7 @@ def export(
             preprocessor_kwargs = {}
             if isinstance(preprocessor, PreTrainedTokenizerBase):
                 preprocessor_kwargs["max_length"] = config.sequence_length
-            task_processor = TaskProcessorsManager.get_dataset_processing_class_for_task(task)(
+            task_processor = TaskProcessorsManager.get_task_processor_class_for_task(task)(
                 model.config, preprocessor, preprocessor_kwargs
             )
             if calibration_dataset_name_or_path is None:
@@ -230,15 +230,15 @@ def export(
             else:
                 data_keys = {}
                 if primary_key is not None:
-                    data_keys["primary_key"] = primary_key
+                    data_keys["primary"] = primary_key
                 if secondary_key is not None:
-                    data_keys["secondary_key"] = secondary_key
+                    data_keys["secondary"] = secondary_key
                 if question_key is not None:
-                    data_keys["question_key"] = question_key
-                if answer_key is not None:
-                    data_keys["answer_key"] = answer_key
+                    data_keys["question"] = question_key
+                if context_key is not None:
+                    data_keys["context"] = context_key
                 if image_key is not None:
-                    data_keys["image_key"] = image_key
+                    data_keys["imagey"] = image_key
 
                 calibration_dataset = task_processor.load_dataset(
                     calibration_dataset_name_or_path,
@@ -257,15 +257,32 @@ def export(
 
             calibration_dataset = calibration_dataset.shuffle()
 
+            batch_size = config.batch_size
+
+            if num_calibration_samples % batch_size != 0:
+                new_num_calibration_samples = (num_calibration_samples // batch_size + 1) * batch_size
+                logger.info(
+                    f"The number of calibration examples ({num_calibration_samples}) does not divide the batch size "
+                    "({batch_size}), using {new_num_calibration_samples} examples instead." 
+                )
+                num_calibration_samples = new_num_calibration_samples
+
             if num_calibration_samples > calibration_dataset.num_rows:
                 raise ValueError(
                     f"There are only {calibration_dataset.num_rows} examples in the calibration dataset, but it was "
                     "requested to perform calibration using {num_calibration_samples} examples."
                 )
 
+
             calibration_dataset = calibration_dataset.select(range(num_calibration_samples))
-            # TODO: support batch size > 1
+
+            if batch_size > 1: 
+                def batching_function(examples):
+                    return {column_name: [col for col in examples[column_name]] for column_name in examples.keys()}
+                calibration_dataset = calibration_dataset.map(batching_function, batched=True, batch_size=batch_size)
+
             calibration_dataset = calibration_dataset.with_format("tf")
+            import pdb; pdb.set_trace()
 
             if quantization == "int8":
                 opsset = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]

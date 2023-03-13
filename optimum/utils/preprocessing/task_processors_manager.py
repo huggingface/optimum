@@ -35,15 +35,15 @@ class TaskProcessorsManager:
     }
 
     @classmethod
-    def get_dataset_processing_class_for_task(cls, task: str) -> Type:
+    def get_task_processor_class_for_task(cls, task: str) -> Type:
         if task not in cls._TASK_TO_DATASET_PROCESSING_CLASS:
             supported_tasks = ", ".join(cls._TASK_TO_DATASET_PROCESSING_CLASS.keys())
             raise KeyError(
-                f"Could not find a `DatasetProcessing` class for the task called {task}, supported tasks: "
+                f"Could not find a `TaskProcessor` class for the task called {task}, supported tasks: "
                 f"{supported_tasks}."
             )
         return cls._TASK_TO_DATASET_PROCESSING_CLASS[task]
 
     @classmethod
     def for_task(cls, task: str, *dataset_processing_args, **dataset_processing_kwargs: Any) -> "DatasetProcessing":
-        return cls.get_dataset_processing_class_for_task(task)(*dataset_processing_args, **dataset_processing_kwargs)
+        return cls.get_task_processor_class_for_task(task)(*dataset_processing_args, **dataset_processing_kwargs)

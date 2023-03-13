@@ -165,7 +165,7 @@ def parse_args_tflite(parser):
         help="The number of samples in the calibration dataset to use for calibration, usually something around 100-200 is enough.",
     )
     calibration_dataset_group.add_argument(
-        "--calibration_split", type=str, default="train", help="The split of the calibration dataset to use."
+        "--calibration_split", type=str, default=None, help="The split of the calibration dataset to use."
     )
     calibration_dataset_group.add_argument(
         "--primary_key",

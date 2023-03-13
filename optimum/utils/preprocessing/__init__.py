@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from .base import Preprocessor, TaskProcessor
-from .task_processor_manager import TaskProcessorsManager
+from .task_processors_manager import TaskProcessorsManager
 from .image_classification import ImageClassificationProcessing
 from .question_answering import QuestionAnsweringProcessing
 from .text_classification import TextClassificationProcessing

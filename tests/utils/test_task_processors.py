@@ -36,6 +36,25 @@ TOKENIZER = AutoTokenizer.from_pretrained(TEXT_MODEL_NAME)
 IMAGE_MODEL_NAME = "google/vit-base-patch16-224"
 IMAGE_PROCESSOR = AutoFeatureExtractor.from_pretrained(IMAGE_MODEL_NAME)
 
+TASK_TO_NON_DEFAULT_DATASET = {
+    "sequence-classification": {
+        "dataset_args": {"path": "glue", "name": "mnli"},
+        "dataset_data_keys": {"primary": "premise", "secondary": "hypothesis"},
+    },
+    "token-classification": {
+        "dataset_args": {"path": "wino_bias", "name": "type1_pro"},
+        "dataset_data_keys": {"primary": "tokens"},
+    },
+    "question-answering": {
+        "dataset_args": "wiki_qa",
+        "dataset_data_keys": {"question": "question", "context": "answer"},
+    },
+    "image-classification": {
+        "dataset_args": "mnist",
+        "dataset_data_keys": {"image": "image"},
+    },
+}
+
 
 # Taken from https://pynative.com/python-generate-random-string/
 def get_random_string(length: int) -> str:
@@ -54,26 +73,25 @@ class TaskProcessorTestBase:
     CONFIG: "PretrainedConfig"
     PREPROCESSOR: Union["PreTrainedTokenizerBase", "BaseImageProcessor"]
     WRONG_PREPROCESSOR: Union["PreTrainedTokenizerBase", "BaseImageProcessor"]
-    NOT_DEFAULT_DATASET_ARGS: Union[str, Dict[str, Any]]
-    NOT_DEFAULT_DATASET_DATA_KEYS: Dict[str, str]
 
     def get_dataset_path_and_kwargs(self) -> Tuple[str, Dict[str, Any]]:
-        if isinstance(self.NOT_DEFAULT_DATASET_ARGS, dict):
-            path = self.NOT_DEFAULT_DATASET_ARGS.get("path", None)
+        not_default_dataset_args = TASK_TO_NON_DEFAULT_DATASET[self.TASK_NAME]["dataset_args"]
+        if isinstance(not_default_dataset_args, dict):
+            path = not_default_dataset_args.get("path", None)
             if path is None:
                 raise ValueError(
-                    'When NOT_DEFAULT_DATASET_ARGS is a dictionary, it must contain a key called "path" corresponding to '
+                    'When not_default_dataset_args is a dictionary, it must contain a key called "path" corresponding to '
                     "the path or name of the dataset."
                 )
-            load_dataset_kwargs = {k: v for k, v in self.NOT_DEFAULT_DATASET_ARGS.items() if k != "path"}
+            load_dataset_kwargs = {k: v for k, v in not_default_dataset_args.items() if k != "path"}
         else:
-            path = self.NOT_DEFAULT_DATASET_ARGS
+            path = not_default_dataset_args 
             load_dataset_kwargs = {}
         return path, load_dataset_kwargs
 
     def test_accepted_preprocessor_classes_do_not_raise_exception(self):
         try:
-            cls = TaskProcessorsManager.get_dataset_processing_class_for_task(self.TASK_NAME)
+            cls = TaskProcessorsManager.get_task_processor_class_for_task(self.TASK_NAME)
             cls(self.CONFIG, self.PREPROCESSOR)
         except ValueError as e:
             if str(e).startswith("Preprocessor is incorrect"):
@@ -83,7 +101,7 @@ class TaskProcessorTestBase:
 
     def test_wrong_preprocessor_classes_raise_exception(self):
         with self.assertRaises(ValueError) as cm:
-            TaskProcessorsManager.get_dataset_processing_class_for_task(self.TASK_NAME)(
+            TaskProcessorsManager.get_task_processor_class_for_task(self.TASK_NAME)(
                 self.CONFIG, self.WRONG_PREPROCESSOR
             )
             msg = str(cm.exception)
@@ -96,13 +114,13 @@ class TaskProcessorTestBase:
     def test_create_defaults_and_kwargs_from_preprocessor_kwargs_does_not_mutate_preprecessor_kwargs(self):
         preprocessor_kwargs = get_random_dict_of_strings()
         clone = copy.deepcopy(preprocessor_kwargs)
-        TaskProcessorsManager.get_dataset_processing_class_for_task(self.TASK_NAME)(
+        TaskProcessorsManager.get_task_processor_class_for_task(self.TASK_NAME)(
             self.CONFIG, self.PREPROCESSOR, preprocessor_kwargs
         )
         self.assertDictEqual(preprocessor_kwargs, clone)
 
     def test_load_dataset_unallowed_data_keys(self):
-        task_processor = TaskProcessorsManager.get_dataset_processing_class_for_task(self.TASK_NAME)(
+        task_processor = TaskProcessorsManager.get_task_processor_class_for_task(self.TASK_NAME)(
             self.CONFIG, self.PREPROCESSOR
         )
         random_data_keys = get_random_dict_of_strings()
@@ -122,10 +140,10 @@ class TaskProcessorTestBase:
         only_keep_necessary_columns: bool,
         **preprocessor_kwargs,
     ):
-        task_processor = TaskProcessorsManager.get_dataset_processing_class_for_task(self.TASK_NAME)(
+        task_processor = TaskProcessorsManager.get_task_processor_class_for_task(self.TASK_NAME)(
             self.CONFIG, self.PREPROCESSOR, preprocessor_kwargs
         )
-        data_keys = self.NOT_DEFAULT_DATASET_DATA_KEYS if not try_to_guess_data_keys else None
+        data_keys = TASK_TO_NON_DEFAULT_DATASET[self.TASK_NAME]["dataset_data_keys"] if not try_to_guess_data_keys else None
         dataset_with_all_columns = None
         if default_dataset:
             dataset = task_processor.load_default_dataset(only_keep_necessary_columns=only_keep_necessary_columns)
@@ -173,8 +191,6 @@ class TextClassificationProcessorTest(TestCase, TaskProcessorTestBase):
     CONFIG = CONFIG
     PREPROCESSOR = TOKENIZER
     WRONG_PREPROCESSOR = IMAGE_PROCESSOR
-    NOT_DEFAULT_DATASET_ARGS = {"path": "glue", "name": "mnli"}
-    NOT_DEFAULT_DATASET_DATA_KEYS = {"primary": "premise", "secondary": "hypothesis"}
 
     def test_load_dataset_with_max_length(self):
         max_length = random.randint(4, 16)
@@ -191,8 +207,6 @@ class TokenClassificationProcessorTest(TestCase, TaskProcessorTestBase):
     CONFIG = CONFIG
     PREPROCESSOR = TOKENIZER
     WRONG_PREPROCESSOR = IMAGE_PROCESSOR
-    NOT_DEFAULT_DATASET_ARGS = {"path": "wino_bias", "name": "type1_pro"}
-    NOT_DEFAULT_DATASET_DATA_KEYS = {"primary": "tokens"}
 
     def test_load_dataset_with_max_length(self):
         max_length = random.randint(4, 16)
@@ -209,8 +223,6 @@ class QuestionAnsweringProcessorTest(TestCase, TaskProcessorTestBase):
     CONFIG = CONFIG
     PREPROCESSOR = TOKENIZER
     WRONG_PREPROCESSOR = IMAGE_PROCESSOR
-    NOT_DEFAULT_DATASET_ARGS = "wiki_qa"
-    NOT_DEFAULT_DATASET_DATA_KEYS = {"question": "question", "context": "answer"}
 
     def test_load_dataset_with_max_length(self):
         max_length = 384
@@ -227,5 +239,3 @@ class ImageClassificationProcessorTest(TestCase, TaskProcessorTestBase):
     CONFIG = CONFIG
     PREPROCESSOR = IMAGE_PROCESSOR
     WRONG_PREPROCESSOR = TOKENIZER
-    NOT_DEFAULT_DATASET_ARGS = "mnist"
-    NOT_DEFAULT_DATASET_DATA_KEYS = {"image": "image"}
