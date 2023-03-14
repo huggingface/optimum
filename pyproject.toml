@@ -18,8 +18,8 @@ target-version = ['py37']
 
 [tool.ruff]
 # Never enforce `E501` (line length violations).
-ignore = ["E501", "E741", "W605"]
-select = ["E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "W605"]
+select = ["C", "E", "F", "I", "W"]
 line-length = 119
 
 # Ignore import violations in all `__init__.py` files.
@@ -29,3 +29,13 @@ line-length = 119
 [tool.ruff.isort]
 lines-after-imports = 2
 known-first-party = ["optimum"]
+
+[tool.pytest.ini_options]
+markers = [
+    "gpu_test",
+    "tensorflow_test",
+    "run_in_series",
+    "run_slow",
+    "accelerate_test",
+    "fp16",
+]

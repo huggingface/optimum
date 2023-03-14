@@ -17,6 +17,7 @@ from tempfile import NamedTemporaryFile
 from typing import Dict, Optional, Union
 from unittest import TestCase
 
+import pytest
 from parameterized import parameterized
 from transformers import AutoConfig, is_tf_available
 from transformers.testing_utils import require_tf, require_vision, slow
@@ -173,6 +174,7 @@ class TFLiteExportTestCase(TestCase):
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @slow
+    @pytest.mark.run_slow
     @require_tf
     @require_vision
     def test_tensorflow_export(self, test_name, name, model_name, task, tflite_config_class_constructor):

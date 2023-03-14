@@ -13,6 +13,13 @@
 #  limitations under the License.
 
 
+from .constant import (
+    CONFIG_NAME,
+    DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
+    DIFFUSION_MODEL_UNET_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
+)
 from .import_utils import (
     ORT_QUANTIZE_MINIMUM_VERSION,
     TORCH_MINIMUM_VERSION,
@@ -40,7 +47,7 @@ from .input_generators import (
     DummyTrainingLabelsInputGenerator,
     DummyVisionInputGenerator,
 )
-from .modeling_utils import recurse_setattr
+from .modeling_utils import recurse_getattr, recurse_setattr
 from .normalized_config import (
     NormalizedConfig,
     NormalizedConfigManager,
@@ -50,6 +57,3 @@ from .normalized_config import (
     NormalizedTextConfig,
     NormalizedVisionConfig,
 )
-
-
-CONFIG_NAME = "config.json"

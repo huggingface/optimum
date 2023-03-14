@@ -14,9 +14,10 @@
 # limitations under the License.
 
 VALIDATE_EXPORT_ON_SHAPES_SLOW = {
-    "batch_size": [2, 4, 6],
-    "sequence_length": [8, 17, 33, 64, 96, 154],
+    "batch_size": [1, 3, 5],
+    "sequence_length": [8, 19, 33, 64, 96, 154],
     "num_choices": [2, 4],
+    "audio_sequence_length": [1000, 2000],
 }
 
 VALIDATE_EXPORT_ON_SHAPES_FAST = {
@@ -31,8 +32,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bart": "hf-internal-testing/tiny-random-bart",
-    "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
-    "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
+    # "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
+    # "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "blenderbot-small": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
@@ -58,6 +59,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
+    "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
@@ -81,6 +83,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     },
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
+    "regnet": "hf-internal-testing/tiny-random-RegNetModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
@@ -131,8 +134,8 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "beit": "microsoft/beit-base-patch16-224",
     "bert": "bert-base-cased",
     "bart": "facebook/bart-base",
-    "big-bird": "google/bigbird-roberta-base",
-    "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",  # Not using google/bigbird-pegasus-large-arxiv because it takes too much time for testing.
+    # "big-bird": "google/bigbird-roberta-base",
+    # "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "blenderbot-small": "facebook/blenderbot_small-90M",
     "blenderbot": "facebook/blenderbot-90M",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",  # Not using bigscience/bloom-560m because it goes OOM.
@@ -157,6 +160,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "gptj": "anton-l/gpt-j-tiny-random",  # TODO
     "groupvit": "nvidia/groupvit-gcc-yfcc",
     "ibert": "kssteven/ibert-roberta-base",
+    "imagegpt": "openai/imagegpt-small",
     "levit": "facebook/levit-128S",
     "layoutlm": "microsoft/layoutlm-base-uncased",
     "layoutlmv3": "microsoft/layoutlmv3-base",
@@ -175,6 +179,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
+    "regnet": "facebook/regnet-y-040",
     "resnet": "microsoft/resnet-50",
     "roberta": "roberta-base",
     "roformer": "junnyu/roformer_chinese_base",

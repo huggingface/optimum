@@ -1,3 +1,18 @@
+# Copyright 2023 The HuggingFace Inc. team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import collections
 import importlib.util
 import itertools
@@ -6,6 +21,9 @@ import subprocess
 import sys
 import unittest
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple
+
+import torch
+from packaging.version import parse
 
 from . import is_accelerate_available, is_diffusers_available
 
@@ -33,11 +51,14 @@ def require_accelerate(test_case):
 
 def require_torch_gpu(test_case):
     """Decorator marking a test that requires CUDA and PyTorch."""
-    import torch
-
     torch_device = "cuda" if torch.cuda.is_available() else "cpu"
 
     return unittest.skipUnless(torch_device == "cuda", "test requires CUDA")(test_case)
+
+
+def require_torch_20(test_case):
+    """Decorator marking a test that requires torch>=2.0."""
+    return unittest.skipUnless(parse(torch.__version__) > parse("1.14"), "test requires torch>=2.0")(test_case)
 
 
 def require_hf_token(test_case):

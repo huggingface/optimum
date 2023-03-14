@@ -13,18 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-
-from transformers import AutoModel
-
-from optimum.bettertransformer import BetterTransformer
-
-
-class BetterTransformerIntegrationTests(unittest.TestCase):
-    def test_raise_error_on_double_transform_call(self):
-        model = AutoModel.from_pretrained("hf-internal-testing/tiny-random-BertModel")
-
-        with self.assertRaises(Exception) as cm:
-            bt_model = BetterTransformer.transform(model)
-            bt_model = BetterTransformer.transform(bt_model)
-        self.assertTrue("was called on a model already using Better Transformer" in str(cm.exception))
+from .pipelines_base import (
+    MAPPING_LOADING_FUNC,
+    ORT_SUPPORTED_TASKS,
+    load_bettertransformer,
+    load_ort_pipeline,
+    pipeline,
+)
