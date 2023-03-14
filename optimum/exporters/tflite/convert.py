@@ -225,8 +225,6 @@ def export(
         raise ImportError("Cannot convert because TensorFlow is not installed. " "Please install TensorFlow first.")
     import tensorflow as tf
 
-    # TODO: validate quantization argument values.
-
     str_to_dtype = {"int8": tf.int8, "uint8": tf.uint8}
 
     output.parent.mkdir(parents=True, exist_ok=True)
