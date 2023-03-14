@@ -29,8 +29,7 @@ from .. import logging
 
 
 if TYPE_CHECKING:
-    from datasets import Metric
-    from transformers import Pipeline, PretrainedConfig
+    from transformers import PretrainedConfig
 
 
 logger = logging.get_logger(__name__)
@@ -124,9 +123,20 @@ class TaskProcessor(ABC):
         data_keys: Optional[Dict[str, str]] = None,
         ref_keys: Optional[List[str]] = None,
         only_keep_necessary_columns: bool = False,
+        load_smallest_split: bool = False,
         **load_dataset_kwargs,
     ) -> Union[DatasetDict, Dataset]:
         dataset = datasets_load_dataset(path, **load_dataset_kwargs)
+
+        if isinstance(dataset, DatasetDict) and load_smallest_split:
+            split = load_dataset_kwargs.get("split", None)
+            if split is not None:
+                raise ValueError(
+                    f"A split name was provided ({split}) but load_smallest_split is True, use either one or the other."
+                )
+            smallest_split = min(dataset.items(), key=lambda item: item[1].num_rows)[0]
+            dataset = dataset[smallest_split]
+
         column_names = dataset.column_names
         if isinstance(column_names, dict):
             column_names = list(set(itertools.chain.from_iterable(column_names.values())))
@@ -161,7 +171,9 @@ class TaskProcessor(ABC):
 
         return dataset
 
-    def load_default_dataset(self, only_keep_necessary_columns: bool = False, **load_dataset_kwargs):
+    def load_default_dataset(
+        self, only_keep_necessary_columns: bool = False, load_smallest_split: bool = False, **load_dataset_kwargs
+    ):
         if isinstance(self.DEFAULT_DATASET_ARGS, dict):
             path = self.DEFAULT_DATASET_ARGS.get("path", None)
             if path is None:
@@ -187,48 +199,6 @@ class TaskProcessor(ABC):
             data_keys=self.DEFAUL_DATASET_DATA_KEYS,
             ref_keys=self.DEFAULT_REF_KEYS,
             only_keep_necessary_columns=only_keep_necessary_columns,
+            load_smallest_split=load_smallest_split,
             **kwargs,
         )
-
-    def run_inference(self, eval_dataset: "Dataset", pipeline: "Pipeline") -> Tuple[List, List]:
-        """
-        Runs inference on the provided dataset using a pipeline, and returns all labels, predictions.
-
-        Args:
-            eval_dataset (`Dataset`):
-                Raw dataset to run inference on.
-            pipeline (`Pipeline`):
-                Pipeline used for inference. Should be initialized beforehand.
-
-        Returns:
-            `Tuple[List, List]` comprising labels and predictions:
-            - **labels** are the references for evaluation.
-            - **predictions** are the predictions on the dataset using the pipeline.
-        """
-        raise NotImplementedError()
-
-    def get_metrics(self, predictions: List, references: List, metric: "Metric") -> Dict[str, float]:
-        """
-        Computes a metric given pre-formatted predictions and references.
-
-        Args:
-            predictions (`List`):
-                The predictions.
-            references (`List`):
-                The references to compare the predictions against.
-            metric (`Metric`):
-                Pre-loaded metric to run evaluation on.
-
-        Returns:
-            `Dict[str, float]`: The computed metrics.
-        """
-        raise NotImplementedError()
-
-    def get_pipeline_kwargs(self) -> Dict[str, Any]:
-        """
-        Gets task-specific kwargs to initialize the pipeline.
-
-        Returns:
-            `Dict[str, Any]`: Task-specific kwargs to initialize the pipeline.
-        """
-        raise NotImplementedError()

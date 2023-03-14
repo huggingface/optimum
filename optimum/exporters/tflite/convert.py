@@ -19,7 +19,6 @@ from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import numpy as np
-from datasets import DatasetDict
 from transformers import PreTrainedTokenizerBase
 from transformers.utils import is_tf_available
 
@@ -236,9 +235,17 @@ def export(
             task_processor = TaskProcessorsManager.get_task_processor_class_for_task(task)(
                 model.config, preprocessor, preprocessor_kwargs
             )
+
+            load_smallest_split = calibration_split is None
+            if load_smallest_split:
+                logger.warning(
+                    "Since no calibration split was provided for the calibration dataset, the smallest split will be "
+                    "used if the dataset contains multiple splits."
+                )
+
             if calibration_dataset_name_or_path is None:
                 calibration_dataset = task_processor.load_default_dataset(
-                    only_keep_necessary_columns=True, split=calibration_split
+                    only_keep_necessary_columns=True, load_smallest_split=load_smallest_split, split=calibration_split
                 )
             else:
                 data_keys = {}
@@ -257,16 +264,10 @@ def export(
                     calibration_dataset_name_or_path,
                     data_keys=data_keys,
                     only_keep_necessary_columns=True,
+                    load_smallest_split=load_smallest_split,
                     name=calibration_dataset_config_name,
                     split=calibration_split,
                 )
-
-            if calibration_split is None and isinstance(calibration_dataset, DatasetDict):
-                split = list(calibration_dataset.keys())[0]
-                logger.warning(
-                    f"Since no calibration split was provided for the calibration dataset, defaulting to {split}."
-                )
-                calibration_dataset = calibration_dataset[split]
 
             calibration_dataset = calibration_dataset.shuffle()
 
