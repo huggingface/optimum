@@ -435,6 +435,11 @@ class TasksManager:
             "question-answering",
             onnx="IBertOnnxConfig",
         ),
+        "imagegpt": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="ImageGPTOnnxConfig",
+        ),
         "layoutlm": supported_tasks_mapping(
             "default",
             "masked-lm",
@@ -582,6 +587,11 @@ class TasksManager:
             "default",
             "image-classification",
             onnx="PoolFormerOnnxConfig",
+        ),
+        "regnet": supported_tasks_mapping(
+            "default",
+            "image-classification",
+            onnx="RegNetOnnxConfig",
         ),
         "resnet": supported_tasks_mapping(
             "default", "image-classification", onnx="ResNetOnnxConfig", tflite="ResNetTFLiteConfig"
