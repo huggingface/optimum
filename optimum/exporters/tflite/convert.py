@@ -145,8 +145,8 @@ def create_representative_dataset(signatures, dataset: "Dataset"):
             for example in dataset:
                 if inputs_to_keep is None:
                     args, kwargs = tf_function.structured_input_signature
-                    args_to_keep = set(input_.name for input_ in args if input_.name in example)
-                    kwargs_to_keep = set(input_.name for input_ in kwargs.values() if input_.name in example)
+                    args_to_keep = {input_.name for input_ in args if input_.name in example}
+                    kwargs_to_keep = {input_.name for input_ in kwargs.values() if input_.name in example}
                     inputs_to_keep = args_to_keep | kwargs_to_keep
                 yield sig_name, {name: value for name, value in example.items() if name in inputs_to_keep}
 
@@ -290,7 +290,7 @@ def export(
             if batch_size > 1:
 
                 def batching_function(examples):
-                    return {column_name: [[col for col in examples[column_name]]] for column_name in examples.keys()}
+                    return {column_name: [list(examples[column_name])] for column_name in examples.keys()}
 
                 calibration_dataset = calibration_dataset.map(batching_function, batched=True, batch_size=batch_size)
 

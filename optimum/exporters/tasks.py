@@ -137,7 +137,6 @@ class TasksManager:
             "multiple-choice": "TFAutoModelForMultipleChoice",
             "object-detection": "TFAutoModelForObjectDetection",
             "question-answering": "TFAutoModelForQuestionAnswering",
-            "image-classification": "TFAutoModelForImageClassification",
             "image-segmentation": "TFAutoModelForImageSegmentation",
             "masked-im": "TFAutoModelForMaskedImageModeling",
             "semantic-segmentation": "TFAutoModelForSemanticSegmentation",
@@ -1112,11 +1111,17 @@ class TasksManager:
         pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
         tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
         for auto_cls_name, task in itertools.chain.from_iterable(iterable):
-            if any((target_name.startswith("Auto"), target_name.startswith("TFAuto"), target_name == "StableDiffusionPipeline")):
+            if any(
+                (
+                    target_name.startswith("Auto"),
+                    target_name.startswith("TFAuto"),
+                    target_name == "StableDiffusionPipeline",
+                )
+            ):
                 if target_name == auto_cls_name:
                     task_name = task
                     break
-            
+
                 continue
 
             module = tf_auto_module if auto_cls_name.startswith("TF") else pt_auto_module

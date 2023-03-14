@@ -108,7 +108,7 @@ class TFLiteExportTestCase(TestCase):
         task: str,
         tflite_config_class_constructor,
         quantization: Optional[str] = None,
-        fallback_to_float: Optional[bool] = True,
+        fallback_to_float: bool = True,
         inputs_dtype: Optional[str] = None,
         outputs_dtype: Optional[str] = None,
         calibration_dataset_name_or_path: Optional[Union[str, Path]] = None,

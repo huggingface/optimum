@@ -128,7 +128,7 @@ def parse_args_tflite(parser):
     quantization_group.add_argument(
         "--fallback_to_float",
         type=bool,
-        default=False,
+        action="store_true",
         help=(
             "Whether to fall back to the float implementation for operators without an integer implementation. This "
             "needs to be disabled for integer-only hardware."

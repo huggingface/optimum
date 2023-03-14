@@ -14,7 +14,7 @@
 # limitations under the License.
 import unittest
 from tempfile import TemporaryDirectory
-from typing import Dict
+from typing import Dict, Optional
 
 import pytest
 from parameterized import parameterized
@@ -23,6 +23,7 @@ from transformers.testing_utils import require_tf
 
 from optimum.utils import DEFAULT_DUMMY_SHAPES
 
+from ...utils.test_task_processors import TASK_TO_NON_DEFAULT_DATASET
 from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 
 
@@ -83,20 +84,64 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
     Integration tests ensuring supported models are correctly exported.
     """
 
-    def _tflite_export(self, test_name: str, model_name: str, task: str, shapes: str):
+    def _tflite_export(
+        self,
+        model_name: str,
+        shapes: str,
+        task: Optional[str] = None,
+        quantization: Optional[str] = None,
+        fallback_to_float: bool = True,
+        inputs_dtype: Optional[str] = None,
+        outputs_dtype: Optional[str] = None,
+        calibration_dataset_name_or_path: Optional[str] = None,
+        calibration_dataset_config_name: Optional[str] = None,
+        num_calibration_samples: int = 200,
+        calibration_split: Optional[str] = None,
+        primary_key: Optional[str] = None,
+        secondary_key: Optional[str] = None,
+        question_key: Optional[str] = None,
+        context_key: Optional[str] = None,
+        image_key: Optional[str] = None,
+    ):
         with TemporaryDirectory() as tmpdir:
+            command = f"python3 -m optimum.exporters.tflite --model {model_name}"
+            to_join = [command]
             if task is not None:
-                subprocess.run(
-                    f"python3 -m optimum.exporters.tflite --model {model_name} --task {task} {shapes} {tmpdir}",
-                    shell=True,
-                    check=True,
-                )
-            else:
-                subprocess.run(
-                    f"python3 -m optimum.exporters.tflite --model {model_name} {shapes} {tmpdir}",
-                    shell=True,
-                    check=True,
-                )
+                to_join.append(f"--task {task}")
+            if quantization is not None:
+                to_join.append(f"--quantize {quantization}")
+            if fallback_to_float:
+                to_join.append("--fallback_to_float")
+            if inputs_dtype is not None:
+                to_join.append(f"--inputs_dtype {inputs_dtype}")
+            if outputs_dtype is not None:
+                to_join.append(f"--outputs_dtype {outputs_dtype}")
+            if calibration_dataset_name_or_path is not None:
+                to_join.append(f"--calibration_dataset {calibration_dataset_name_or_path}")
+            if calibration_dataset_config_name is not None:
+                to_join.append(f"--calibration_dataset_config_name {calibration_dataset_config_name}")
+            if calibration_split is not None:
+                to_join.append(f"--calibration_split {calibration_split}")
+            if primary_key is not None:
+                to_join.append(f"--primary_key {primary_key}")
+            if secondary_key is not None:
+                to_join.append(f"--secondary_key {secondary_key}")
+            if question_key is not None:
+                to_join.append(f"--question_key {question_key}")
+            if context_key is not None:
+                to_join.append(f"--context_key {context_key}")
+            if image_key is not None:
+                to_join.append(f"--image_key {image_key}")
+            to_join.append(f"--num_calibration_samples {num_calibration_samples}")
+
+            to_join.append(shapes)
+            to_join.append(tmpdir)
+
+            subprocess.run(
+                " ".join(to_join),
+                shell=True,
+                check=True,
+            )
 
     @pytest.mark.skip("Not supported yet, need to have proper list of models to export to do it")
     def test_all_models_tested(self):
@@ -110,7 +155,77 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
     def test_exporters_cli_tflite(self, test_name: str, model_name: str, task: str, shapes: str):
-        self._tflite_export(test_name, model_name, task, shapes)
+        self._tflite_export(model_name, shapes, task=task)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_tf
+    def test_exporters_cli_tflite_float16_quantization(self, test_name: str, model_name: str, task: str, shapes: str):
+        self._tflite_export(model_name, shapes, task=task, quantization="fp16")
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_tf
+    def test_exporters_cli_tflite_int8_dynamic_quantization(
+        self, test_name: str, model_name: str, task: str, shapes: str
+    ):
+        self._tflite_export(model_name, shapes, task=task, quantization="int8-dynamic")
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_tf
+    def test_exporters_cli_tflite_full_int8_quantization_with_default_dataset(
+        self, test_name: str, model_name: str, task: str, shapes: str
+    ):
+        self._tflite_export(
+            model_name,
+            shapes,
+            task=task,
+            quantization="int8",
+            num_calibration_samples=3,
+            inputs_dtype="int8",
+            outputs_dtype="int8",
+        )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_tf
+    def test_exporters_cli_tflite_int8_quantization_with_default_dataset(
+        self, test_name: str, model_name: str, task: str, shapes: str
+    ):
+        self._tflite_export(model_name, shapes, task=task, quantization="int8", num_calibration_samples=3)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_tf
+    def test_exporters_cli_tflite_int8x16_quantization_with_default_dataset(
+        self, test_name: str, model_name: str, task: str, shapes: str
+    ):
+        self._tflite_export(model_name, shapes, task=task, quantization="int8x16", num_calibration_samples=3)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_tf
+    def test_exporters_cli_tflite_int8_quantization_with_custom_dataset(
+        self, test_name: str, model_name: str, task: str, shapes: str
+    ):
+        # TODO: currently only 4 tasks are supported.
+        if task not in TASK_TO_NON_DEFAULT_DATASET:
+            return
+
+        custom_dataset = TASK_TO_NON_DEFAULT_DATASET[task]["dataset_args"]
+        config_name = None
+        if isinstance(custom_dataset, dict):
+            config_name = custom_dataset.get("name", None)
+            custom_dataset = custom_dataset["path"]
+
+        data_keys = TASK_TO_NON_DEFAULT_DATASET[task]["dataset_data_keys"]
+        kwargs = {f"{key_name}_key": value for key_name, value in data_keys.items()}
+
+        self._tflite_export(
+            model_name,
+            shapes,
+            task=task,
+            quantization="int8",
+            calibration_dataset_name_or_path=custom_dataset,
+            calibration_dataset_config_name=config_name,
+            num_calibration_samples=3,
+            **kwargs,
+        )
 
     @pytest.mark.skip("Not supported yet since we only support the export for BERT")
     def test_trust_remote_code(self):
