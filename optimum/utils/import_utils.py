@@ -38,7 +38,9 @@ TORCH_MINIMUM_VERSION = packaging.version.parse("1.11.0")
 ORT_QUANTIZE_MINIMUM_VERSION = packaging.version.parse("1.4.0")
 
 
+_onnx_available = importlib.util.find_spec("onnx") is not None
 _onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
+_tflite_available = importlib.util.find_spec("tflite") is not None
 _pydantic_available = importlib.util.find_spec("pydantic") is not None
 _accelerate_available = importlib.util.find_spec("accelerate") is not None
 _diffusers_available = importlib.util.find_spec("diffusers") is not None
@@ -59,6 +61,14 @@ _is_torch_onnx_support_available = is_torch_available() and (
 
 def is_torch_onnx_support_available():
     return _is_torch_onnx_support_available
+
+
+def is_tflite_available():
+    return _tflite_available
+
+
+def is_onnx_available():
+    return _onnx_available
 
 
 def is_onnxruntime_available():

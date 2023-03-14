@@ -14,10 +14,9 @@
 import copy
 import os
 from pathlib import Path
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import onnx
-from onnx import ModelProto
 
 from ..utils import logging
 from .transformations_utils import (
@@ -33,13 +32,17 @@ from .transformations_utils import (
 )
 
 
+if TYPE_CHECKING:
+    from onnx import ModelProto
+
+
 logger = logging.get_logger()
 
 
 ONNX_BYTE_SIZE_LIMIT = 2147483648
 
 
-def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelProto:
+def remove_duplicate_weights(model: "ModelProto", inplace: bool = False) -> "ModelProto":
     """
     Finds and removes duplicate weights in a model by keeping only unique weights, and make the duplicate values point
     to them.
@@ -62,7 +65,7 @@ def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelP
     return model
 
 
-def replace_atenops_to_gather(model: ModelProto) -> ModelProto:
+def replace_atenops_to_gather(model: "ModelProto") -> "ModelProto":
     """
     Replaces broken ATenOp nodes back to Gather nodes.
 
@@ -93,12 +96,12 @@ def replace_atenops_to_gather(model: ModelProto) -> ModelProto:
 
 
 def merge_decoders(
-    decoder: Union[ModelProto, Path, str],
-    decoder_with_past: Union[ModelProto, Path, str],
+    decoder: Union["ModelProto", Path, str],
+    decoder_with_past: Union["ModelProto", Path, str],
     graph_name: str = "merged",
     producer_name: str = "optimum-onnx",
     save_path: Optional[Union[str, Path]] = None,
-) -> ModelProto:
+) -> "ModelProto":
     """
     Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
 
@@ -241,7 +244,7 @@ def merge_decoders(
     return merged_model
 
 
-def cast_slice_nodes_inputs_to_int32(model: ModelProto) -> ModelProto:
+def cast_slice_nodes_inputs_to_int32(model: "ModelProto") -> "ModelProto":
     """
     Convert node inputs of `Slice` nodes from int64 to int32, casting the out of range values.
 
