@@ -24,7 +24,7 @@ import huggingface_hub
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
-from ..utils.import_utils import is_onnx_available, is_tflite_available
+from ..utils.import_utils import is_onnx_available
 
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
 def is_backend_available(backend):
     backend_availablilty = {
         "onnx": is_onnx_available(),
-        "tflite": is_tflite_available(),
+        "tflite": is_tf_available(),
     }
     return backend_availablilty[backend]
 
