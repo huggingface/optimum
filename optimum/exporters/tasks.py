@@ -86,7 +86,7 @@ def supported_tasks_mapping(
     """
     mapping = {}
     for backend, config_cls_name in exporters.items():
-        if is_backend_available(backend):
+        if is_backend_available(backend) or TYPE_CHECKING:
             config_cls = getattr(
                 importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name
             )
