@@ -1080,6 +1080,12 @@ class TasksManager:
         pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
         tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
         for auto_cls_name, task in itertools.chain.from_iterable(iterable):
+            if target_name.startswith("Auto") or target_name.startswith("TFAuto"):
+                if target_name == auto_cls_name:
+                    task_name = task
+                    break
+                continue
+                
             module = tf_auto_module if auto_cls_name.startswith("TF") else pt_auto_module
             # getattr(module, auto_cls_name)._model_mapping is a _LazyMapping, it also has an attribute called
             # "_model_mapping" that is what we want here: class names and not actual classes.
