@@ -157,7 +157,7 @@ def export(
     config: "TFLiteConfig",
     output: Path,
     quantization: Optional[Union[str, QuantizationApproach]] = None,
-    fallback_to_float: Optional[bool] = True,
+    fallback_to_float: bool = False,
     inputs_dtype: Optional[str] = None,
     outputs_dtype: Optional[str] = None,
     calibration_dataset_name_or_path: Optional[Union[str, Path]] = None,
@@ -181,6 +181,41 @@ def export(
             The TFLite configuration associated with the exported model.
         output (`Path`):
             Directory to store the exported TFLite model.
+        quantization (`Optional[Union[str, QuantizationApproach]]`, defaults to `None`):
+            The quantization to perform. No quantization is applied if left unspecified.
+        fallback_to_float (`bool`, defaults to `False`):
+            Allows to fallback to float kernels in quantization.
+        inputs_dtype (`Optional[str]`, defaults to `None`):
+            The data type of the inputs. If specified it must be either "int8" or "uint8". It allows to always take
+            integers as inputs, it is useful for interger-only hardware.
+        outputs_dtype (`Optional[str]`, defaults to `None`):
+            The data type of the outputs. If specified it must be either "int8" or "uint8". It allows to always output
+            integers, it is useful for interger-only hardware.
+        calibration_dataset_name_or_path (`Optional[Union[str, Path]]`, defaults to `None`):
+            The dataset to use for calibrating the quantization parameters for static quantization. If left unspecified,
+            a default dataset for the considered task will be used.
+        calibration_dataset_config_name (`Optional[str]`, defaults to `None`):
+            The configuration name of the dataset if needed.
+        preprocessor (`Optional[Preprocessor]`, defaults to `None`):
+            The preprocessor associated to the model. This is used for preprocessing the dataset before feeding data to
+            the model during calibration.
+        num_calibration_samples (`int`, defaults to `200`):
+            The number of example from the calibration dataset to use to compute the quantization parameters.
+        calibration_split (`Optional[str]`, defaults to `None`):
+            The split of the dataset to use. If none is specified and the dataset contains multiple splits, the
+            smallest split will be used.
+        primary_key (`Optional[str]`, defaults `None`):
+            The name of the column in the dataset containing the main data to preprocess. Only for
+            sequence-classification and token-classification.
+        secondary_key (`Optional[str]`, defaults `None`):
+            The name of the second column in the dataset containing the main data to preprocess, not always needed.
+            Only for sequence-classification and token-classification.
+        question_key (`Optional[str]`, defaults `None`):
+            The name of the column containing the question in the dataset. Only for question-answering.
+        context_key (`Optional[str]`, defaults `None`):
+            The name of the column containing the context in the dataset. Only for question-answering.
+        image_key (`Optional[str]`, defaults `None`):
+            The name of the column containing the image in the dataset. Only for image-classification.
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named inputs from
