@@ -91,7 +91,7 @@ def main():
         primary_key=args.primary_key,
         secondary_key=args.secondary_key,
         question_key=args.question_key,
-        answer_key=args.answer_key,
+        context_key=args.context_key,
         image_key=args.image_key,
     )
 

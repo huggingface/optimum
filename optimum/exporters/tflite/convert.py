@@ -283,9 +283,6 @@ def export(
                 calibration_dataset = calibration_dataset.map(batching_function, batched=True, batch_size=batch_size)
 
             calibration_dataset = calibration_dataset.with_format("tf")
-            import pdb
-
-            pdb.set_trace()
 
             if quantization == "int8":
                 opsset = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]

@@ -192,10 +192,10 @@ def parse_args_tflite(parser):
         help=("The name of the column containing the question in the dataset. Only for question-answering."),
     )
     calibration_dataset_group.add_argument(
-        "--answer_key",
+        "--context_key",
         type=str,
         default=None,
-        help=("The name of the column containing the answer in the dataset. Only for question-answering."),
+        help=("The name of the column containing the context in the dataset. Only for question-answering."),
     )
     calibration_dataset_group.add_argument(
         "--image_key",
