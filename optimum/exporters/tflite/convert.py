@@ -258,7 +258,6 @@ def export(
             calibration_dataset = calibration_dataset.shuffle()
 
             batch_size = config.batch_size
-
             if num_calibration_samples % batch_size != 0:
                 new_num_calibration_samples = (num_calibration_samples // batch_size + 1) * batch_size
                 logger.info(
@@ -278,11 +277,12 @@ def export(
             if batch_size > 1:
 
                 def batching_function(examples):
-                    return {column_name: [col for col in examples[column_name]] for column_name in examples.keys()}
+                    return {column_name: [[col for col in examples[column_name]]] for column_name in examples.keys()}
 
                 calibration_dataset = calibration_dataset.map(batching_function, batched=True, batch_size=batch_size)
 
             calibration_dataset = calibration_dataset.with_format("tf")
+            converter.representative_dataset = create_representative_dataset(signatures, calibration_dataset)
 
             if quantization == "int8":
                 opsset = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
@@ -295,11 +295,12 @@ def export(
             if fallback_to_float:
                 opsset.append(tf.lite.OpsSet.TFLITE_BUILTINS)
             converter.target_spec.supported_ops = opsset
+
             if inputs_dtype is not None:
                 converter.inference_input_type = str_to_dtype[inputs_dtype]
             if outputs_dtype is not None:
                 converter.inference_output_type = str_to_dtype[outputs_dtype]
-            converter.representative_dataset = create_representative_dataset(signatures, calibration_dataset)
+
         elif quantization == "fp16":
             converter.optimizations = [tf.lite.Optimize.DEFAULT]
             converter.target_spec.supported_types = [tf.float16]
