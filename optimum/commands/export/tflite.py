@@ -134,9 +134,9 @@ def parse_args_tflite(parser):
         ),
     )
     quantization_group.add_argument(
-        "--inputs_type", 
-        choices=["int8", "uint8"], 
-        default=None, 
+        "--inputs_type",
+        choices=["int8", "uint8"],
+        default=None,
         help="The inputs will be expected to be of the specified type. This is useful for integer-only hardware.",
     )
     quantization_group.add_argument(
