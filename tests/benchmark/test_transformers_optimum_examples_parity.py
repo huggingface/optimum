@@ -29,9 +29,7 @@ class TestParity(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.dir_path)
 
-    @unittest.skip(
-        "Out of date, skip for now."
-    )
+    @unittest.skip("Out of date, skip for now.")
     def test_text_classification_parity(self):
         model_name = "philschmid/tiny-bert-sst2-distilled"
         n_samples = 100
@@ -111,9 +109,7 @@ class TestParity(unittest.TestCase):
             optimum_results["accuracy"], benchmark_results["evaluation"]["others"]["optimized"]["accuracy"]
         )
 
-    @unittest.skip(
-        "Out of date, skip for now."
-    )
+    @unittest.skip("Out of date, skip for now.")
     def test_token_classification_parity(self):
         model_name = "hf-internal-testing/tiny-bert-for-token-classification"
         n_samples = 200
@@ -196,9 +192,7 @@ class TestParity(unittest.TestCase):
         )
         self.assertEqual(optimum_results["f1"], benchmark_results["evaluation"]["others"]["optimized"]["overall_f1"])
 
-    @unittest.skip(
-        "Out of date, skip for now."
-    )
+    @unittest.skip("Out of date, skip for now.")
     def test_question_answering_parity(self):
         model_name = "mrm8488/bert-tiny-finetuned-squadv2"
         n_samples = 100

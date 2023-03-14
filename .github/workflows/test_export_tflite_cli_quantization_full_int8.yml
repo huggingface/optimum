@@ -1,4 +1,4 @@
-name: Exporters TFLite CLI / Python - Test
+name: Exporters TFLite CLI Quantization Full INT8 Default Dataset / Python - Test
 
 on:
   push:
@@ -31,4 +31,4 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        pytest exporters/tflite/test_exporters_tflite_cli.py -m "not quantization" -s --durations=0
+        pytest exporters/tflite/test_exporters_tflite_cli.py -k "full_int8_quantization_with_default_dataset" -s --durations=0
