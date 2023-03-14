@@ -184,6 +184,7 @@ class TFLiteExportTestCase(TestCase):
     @slow
     @require_tf
     @require_vision
+    @pytest.mark.quantization
     def test_float16_quantization(self, test_name, name, model_name, task, tflite_config_class_constructor):
         self._tflite_export(name, model_name, task, tflite_config_class_constructor, quantization="fp16")
 
@@ -191,6 +192,7 @@ class TFLiteExportTestCase(TestCase):
     @slow
     @require_tf
     @require_vision
+    @pytest.mark.quantization
     def test_int8_dynamic_quantization(self, test_name, name, model_name, task, tflite_config_class_constructor):
         self._tflite_export(name, model_name, task, tflite_config_class_constructor, quantization="int8-dynamic")
 
@@ -198,6 +200,7 @@ class TFLiteExportTestCase(TestCase):
     @slow
     @require_tf
     @require_vision
+    @pytest.mark.quantization
     def test_full_int8_quantization_with_default_dataset(
         self, test_name, name, model_name, task, tflite_config_class_constructor
     ):
@@ -218,6 +221,7 @@ class TFLiteExportTestCase(TestCase):
     @slow
     @require_tf
     @require_vision
+    @pytest.mark.quantization
     def test_int8_quantization_with_default_dataset(
         self, test_name, name, model_name, task, tflite_config_class_constructor
     ):
@@ -236,6 +240,7 @@ class TFLiteExportTestCase(TestCase):
     @slow
     @require_tf
     @require_vision
+    @pytest.mark.quantization
     def test_int8x16_quantization_with_default_dataset(
         self, test_name, name, model_name, task, tflite_config_class_constructor
     ):
@@ -254,6 +259,7 @@ class TFLiteExportTestCase(TestCase):
     @slow
     @require_tf
     @require_vision
+    @pytest.mark.quantization
     def test_int8_quantization_with_custom_dataset(
         self, test_name, name, model_name, task, tflite_config_class_constructor
     ):
