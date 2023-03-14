@@ -87,7 +87,9 @@ def supported_tasks_mapping(
     mapping = {}
     for backend, config_cls_name in exporters.items():
         if is_backend_available(backend):
-            config_cls = getattr(importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name)
+            config_cls = getattr(
+                importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name
+            )
             mapping[backend] = {}
             for task in supported_tasks:
                 if isinstance(task, tuple):
