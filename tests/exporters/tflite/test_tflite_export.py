@@ -18,13 +18,13 @@ from typing import Dict, Optional, Union
 from unittest import TestCase
 
 from parameterized import parameterized
-from transformers import AutoConfig, is_tf_available, PreTrainedTokenizerBase
+from transformers import AutoConfig, is_tf_available
 from transformers.testing_utils import require_tf, require_vision, slow
 
 from optimum.exporters.tflite import export, validate_model_outputs
 from optimum.utils import DEFAULT_DUMMY_SHAPES
+from optimum.utils.preprocessing import Preprocessor
 from optimum.utils.save_utils import maybe_load_preprocessors
-from optimum.utils.preprocessing import Preprocessor, TaskProcessorsManager
 
 from ...utils.test_task_processors import TASK_TO_NON_DEFAULT_DATASET
 from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY
@@ -101,10 +101,10 @@ class TFLiteExportTestCase(TestCase):
     """
 
     def _tflite_export(
-        self, 
-        model_type: str, 
-        model_name: str, 
-        task: str, 
+        self,
+        model_type: str,
+        model_name: str,
+        task: str,
         tflite_config_class_constructor,
         quantization: Optional[str] = None,
         fallback_to_float: Optional[bool] = True,
@@ -183,37 +183,71 @@ class TFLiteExportTestCase(TestCase):
     @require_tf
     @require_vision
     def test_float16_quantization(self, test_name, name, model_name, task, tflite_config_class_constructor):
-        self._tflite_export(name, model_name, task, tflite_config_class_constructor,  quantization="fp16")
+        self._tflite_export(name, model_name, task, tflite_config_class_constructor, quantization="fp16")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @slow
     @require_tf
     @require_vision
-    def test_full_int8_quantization_with_default_dataset(self, test_name, name, model_name, task, tflite_config_class_constructor):
+    def test_full_int8_quantization_with_default_dataset(
+        self, test_name, name, model_name, task, tflite_config_class_constructor
+    ):
         preprocessor = maybe_load_preprocessors(model_name)
-        self._tflite_export(name, model_name, task, tflite_config_class_constructor, preprocessor=preprocessor, quantization="int8", num_calibration_samples=3, inputs_dtype="int8", outputs_dtype="int8")
+        self._tflite_export(
+            name,
+            model_name,
+            task,
+            tflite_config_class_constructor,
+            preprocessor=preprocessor,
+            quantization="int8",
+            num_calibration_samples=3,
+            inputs_dtype="int8",
+            outputs_dtype="int8",
+        )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @slow
     @require_tf
     @require_vision
-    def test_int8_quantization_with_default_dataset(self, test_name, name, model_name, task, tflite_config_class_constructor):
+    def test_int8_quantization_with_default_dataset(
+        self, test_name, name, model_name, task, tflite_config_class_constructor
+    ):
         preprocessor = maybe_load_preprocessors(model_name)
-        self._tflite_export(name, model_name, task, tflite_config_class_constructor, preprocessor=preprocessor, quantization="int8", num_calibration_samples=3)
+        self._tflite_export(
+            name,
+            model_name,
+            task,
+            tflite_config_class_constructor,
+            preprocessor=preprocessor,
+            quantization="int8",
+            num_calibration_samples=3,
+        )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @slow
     @require_tf
     @require_vision
-    def test_int8x16_quantization_with_default_dataset(self, test_name, name, model_name, task, tflite_config_class_constructor):
+    def test_int8x16_quantization_with_default_dataset(
+        self, test_name, name, model_name, task, tflite_config_class_constructor
+    ):
         preprocessor = maybe_load_preprocessors(model_name)
-        self._tflite_export(name, model_name, task, tflite_config_class_constructor, preprocessor=preprocessor, quantization="int8x16", num_calibration_samples=3)
+        self._tflite_export(
+            name,
+            model_name,
+            task,
+            tflite_config_class_constructor,
+            preprocessor=preprocessor,
+            quantization="int8x16",
+            num_calibration_samples=3,
+        )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @slow
     @require_tf
     @require_vision
-    def test_int8_quantization_with_custom_dataset(self, test_name, name, model_name, task, tflite_config_class_constructor):
+    def test_int8_quantization_with_custom_dataset(
+        self, test_name, name, model_name, task, tflite_config_class_constructor
+    ):
         # TODO: currently only 4 tasks are supported.
         if task not in TASK_TO_NON_DEFAULT_DATASET:
             return
@@ -229,4 +263,15 @@ class TFLiteExportTestCase(TestCase):
 
         preprocessor = maybe_load_preprocessors(model_name)[0]
 
-        self._tflite_export(name, model_name, task, tflite_config_class_constructor, preprocessor=preprocessor, quantization="int8", calibration_dataset_name_or_path=custom_dataset, calibration_dataset_config_name=config_name, num_calibration_samples=3, **kwargs)
+        self._tflite_export(
+            name,
+            model_name,
+            task,
+            tflite_config_class_constructor,
+            preprocessor=preprocessor,
+            quantization="int8",
+            calibration_dataset_name_or_path=custom_dataset,
+            calibration_dataset_config_name=config_name,
+            num_calibration_samples=3,
+            **kwargs,
+        )

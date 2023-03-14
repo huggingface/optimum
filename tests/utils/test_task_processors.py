@@ -85,7 +85,7 @@ class TaskProcessorTestBase:
                 )
             load_dataset_kwargs = {k: v for k, v in not_default_dataset_args.items() if k != "path"}
         else:
-            path = not_default_dataset_args 
+            path = not_default_dataset_args
             load_dataset_kwargs = {}
         return path, load_dataset_kwargs
 
@@ -143,7 +143,9 @@ class TaskProcessorTestBase:
         task_processor = TaskProcessorsManager.get_task_processor_class_for_task(self.TASK_NAME)(
             self.CONFIG, self.PREPROCESSOR, preprocessor_kwargs
         )
-        data_keys = TASK_TO_NON_DEFAULT_DATASET[self.TASK_NAME]["dataset_data_keys"] if not try_to_guess_data_keys else None
+        data_keys = (
+            TASK_TO_NON_DEFAULT_DATASET[self.TASK_NAME]["dataset_data_keys"] if not try_to_guess_data_keys else None
+        )
         dataset_with_all_columns = None
         if default_dataset:
             dataset = task_processor.load_default_dataset(only_keep_necessary_columns=only_keep_necessary_columns)

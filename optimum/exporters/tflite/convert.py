@@ -263,7 +263,7 @@ def export(
                 new_num_calibration_samples = (num_calibration_samples // batch_size + 1) * batch_size
                 logger.info(
                     f"The number of calibration examples ({num_calibration_samples}) does not divide the batch size "
-                    "({batch_size}), using {new_num_calibration_samples} examples instead." 
+                    "({batch_size}), using {new_num_calibration_samples} examples instead."
                 )
                 num_calibration_samples = new_num_calibration_samples
 
@@ -273,16 +273,19 @@ def export(
                     "requested to perform calibration using {num_calibration_samples} examples."
                 )
 
-
             calibration_dataset = calibration_dataset.select(range(num_calibration_samples))
 
-            if batch_size > 1: 
+            if batch_size > 1:
+
                 def batching_function(examples):
                     return {column_name: [col for col in examples[column_name]] for column_name in examples.keys()}
+
                 calibration_dataset = calibration_dataset.map(batching_function, batched=True, batch_size=batch_size)
 
             calibration_dataset = calibration_dataset.with_format("tf")
-            import pdb; pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
 
             if quantization == "int8":
                 opsset = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
