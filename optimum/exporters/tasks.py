@@ -121,6 +121,8 @@ class TasksManager:
             "audio-xvector": "AutoModelForAudioXVector",
             "vision2seq-lm": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
+            # TODO: available starting from Transformers 4.27
+            # "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
     if is_tf_available():
@@ -133,8 +135,21 @@ class TasksManager:
             "sequence-classification": "TFAutoModelForSequenceClassification",
             "token-classification": "TFAutoModelForTokenClassification",
             "multiple-choice": "TFAutoModelForMultipleChoice",
+            "object-detection": "TFAutoModelForObjectDetection",
             "question-answering": "TFAutoModelForQuestionAnswering",
+            "image-classification": "TFAutoModelForImageClassification",
+            "image-segmentation": "TFAutoModelForImageSegmentation",
+            "masked-im": "TFAutoModelForMaskedImageModeling",
             "semantic-segmentation": "TFAutoModelForSemanticSegmentation",
+            "speech2seq-lm": "TFAutoModelForSpeechSeq2Seq",
+            "audio-classification": "TFAutoModelForAudioClassification",
+            "audio-frame-classification": "TFAutoModelForAudioFrameClassification",
+            "audio-ctc": "TFAutoModelForCTC",
+            "audio-xvector": "TFAutoModelForAudioXVector",
+            "vision2seq-lm": "TFAutoModelForVision2Seq",
+            # TODO: available starting from Transformers 4.27
+            # "zero-shot-image-classification": "TFAutoModelForZeroShotImageClassification",
+            "zero-shot-object-detection": "TFAutoModelForZeroShotObjectDetection",
         }
 
     _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in _TASKS_TO_AUTOMODELS.items()}
@@ -161,6 +176,7 @@ class TasksManager:
         "audio-xvector": "transformers",
         "vision2seq-lm": "transformers",
         "stable-diffusion": "diffusers",
+        "zero-shot-image-classification": "transformers",
         "zero-shot-object-detection": "transformers",
     }
 
@@ -1096,10 +1112,11 @@ class TasksManager:
         pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
         tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
         for auto_cls_name, task in itertools.chain.from_iterable(iterable):
-            if target_name.startswith("Auto") or target_name.startswith("TFAuto"):
+            if any((target_name.startswith("Auto"), target_name.startswith("TFAuto"), target_name == "StableDiffusionPipeline")):
                 if target_name == auto_cls_name:
                     task_name = task
                     break
+            
                 continue
 
             module = tf_auto_module if auto_cls_name.startswith("TF") else pt_auto_module
