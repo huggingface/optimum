@@ -86,18 +86,18 @@ def supported_tasks_mapping(
     """
     mapping = {}
     for backend, config_cls_name in exporters.items():
-        # if is_backend_available(backend):
-        config_cls = getattr(importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name)
-        mapping[backend] = {}
-        for task in supported_tasks:
-            if isinstance(task, tuple):
-                task, supported_backends_for_task = task
-                if backend not in supported_backends_for_task:
-                    continue
-            if "-with-past" in task:
-                mapping[backend][task] = partial(config_cls.with_past, task=task.replace("-with-past", ""))
-            else:
-                mapping[backend][task] = partial(config_cls, task=task)
+        if is_backend_available(backend):
+            config_cls = getattr(importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name)
+            mapping[backend] = {}
+            for task in supported_tasks:
+                if isinstance(task, tuple):
+                    task, supported_backends_for_task = task
+                    if backend not in supported_backends_for_task:
+                        continue
+                if "-with-past" in task:
+                    mapping[backend][task] = partial(config_cls.with_past, task=task.replace("-with-past", ""))
+                else:
+                    mapping[backend][task] = partial(config_cls, task=task)
 
     return mapping
 
