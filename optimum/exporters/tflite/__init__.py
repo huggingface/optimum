@@ -13,5 +13,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import TFLiteConfig  # noqa
+from .base import QuantizationApproach, TFLiteConfig  # noqa
 from .convert import export, validate_model_outputs  # noqa

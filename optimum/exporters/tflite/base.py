@@ -16,6 +16,7 @@
 
 from abc import ABC, abstractmethod
 from ctypes import ArgumentError
+from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from transformers.utils import is_tf_available
@@ -38,6 +39,13 @@ if TYPE_CHECKING:
 
 class MissingMandatoryAxisDimension(ValueError):
     pass
+
+
+class QuantizationApproach(str, Enum):
+    INT8_DYNAMIC = "int8-dynamic"
+    INT8 = "int8"
+    INT8x16 = "int8x16"
+    FP16 = "fp16"
 
 
 class TFLiteConfig(ExportConfig, ABC):

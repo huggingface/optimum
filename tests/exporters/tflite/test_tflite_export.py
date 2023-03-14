@@ -189,6 +189,13 @@ class TFLiteExportTestCase(TestCase):
     @slow
     @require_tf
     @require_vision
+    def test_int8_dynamic_quantization(self, test_name, name, model_name, task, tflite_config_class_constructor):
+        self._tflite_export(name, model_name, task, tflite_config_class_constructor, quantization="int8-dynamic")
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @slow
+    @require_tf
+    @require_vision
     def test_full_int8_quantization_with_default_dataset(
         self, test_name, name, model_name, task, tflite_config_class_constructor
     ):

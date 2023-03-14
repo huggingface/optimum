@@ -26,6 +26,7 @@ from transformers.utils import is_tf_available
 from ...utils import logging
 from ...utils.preprocessing import Preprocessor, TaskProcessorsManager
 from ..error_utils import AtolError, OutputMatchError, ShapeError
+from .base import QuantizationApproach
 
 
 if TYPE_CHECKING:
@@ -156,7 +157,7 @@ def export(
     model: "TFPreTrainedModel",
     config: "TFLiteConfig",
     output: Path,
-    quantization: Optional[str] = None,
+    quantization: Optional[Union[str, QuantizationApproach]] = None,
     fallback_to_float: Optional[bool] = True,
     inputs_dtype: Optional[str] = None,
     outputs_dtype: Optional[str] = None,
@@ -212,8 +213,20 @@ def export(
         model.save(tmp_dir_name, signatures=signatures)
         converter = tf.lite.TFLiteConverter.from_saved_model(tmp_dir_name)
 
-        if quantization in ["int8", "int8x16"]:
+        if quantization is not None:
+            if isinstance(quantization, str) and not isinstance(quantization, QuantizationApproach):
+                quantization = QuantizationApproach(quantization)
+
+        if quantization in [QuantizationApproach.INT8, QuantizationApproach.INT8x16]:
             converter.optimizations = [tf.lite.Optimize.DEFAULT]
+
+            # Handling the calibration dataset:
+            # - Either loading the default dataset if no calibration dataset was provided or the required dataset,
+            # - Splitting the dataset with the provided a dataset split or with the first split if none is provided.
+            # - Shuffling the split.
+            # - Selecting num_calibration_samples in the dataset split.
+            # - Batching the dataset.
+            # - Converting it to the TensorFlow format.
             from ...exporters import TasksManager
 
             task = TasksManager.get_task_from_model(model)
@@ -284,7 +297,8 @@ def export(
             calibration_dataset = calibration_dataset.with_format("tf")
             converter.representative_dataset = create_representative_dataset(signatures, calibration_dataset)
 
-            if quantization == "int8":
+            # Handling the OpsSet.
+            if quantization is QuantizationApproach.INT8:
                 opsset = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
             else:
                 logger.warning(
@@ -296,12 +310,15 @@ def export(
                 opsset.append(tf.lite.OpsSet.TFLITE_BUILTINS)
             converter.target_spec.supported_ops = opsset
 
+            # Handling the inputs and outputs dtype, this allows to have a TFLite model taking integers inputs and
+            # outputting integers outputs, needed for integer-only hardware.
             if inputs_dtype is not None:
                 converter.inference_input_type = str_to_dtype[inputs_dtype]
             if outputs_dtype is not None:
                 converter.inference_output_type = str_to_dtype[outputs_dtype]
-
-        elif quantization == "fp16":
+        elif quantization is QuantizationApproach.INT8_DYNAMIC:
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        elif quantization is QuantizationApproach.FP16:
             converter.optimizations = [tf.lite.Optimize.DEFAULT]
             converter.target_spec.supported_types = [tf.float16]
 

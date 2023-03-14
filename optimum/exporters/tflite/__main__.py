@@ -95,32 +95,37 @@ def main():
         image_key=args.image_key,
     )
 
-    try:
-        validate_model_outputs(
-            config=tflite_config,
-            reference_model=model,
-            tflite_model_path=args.output,
-            tflite_named_outputs=tflite_config.outputs,
-            atol=args.atol,
-        )
+    if args.quantize is None:
+        try:
+            validate_model_outputs(
+                config=tflite_config,
+                reference_model=model,
+                tflite_model_path=args.output,
+                tflite_named_outputs=tflite_config.outputs,
+                atol=args.atol,
+            )
 
-        logger.info(
-            f"The TensorFlow Lite export succeeded and the exported model was saved at: {args.output.parent.as_posix()}"
-        )
-    except ShapeError as e:
-        raise e
-    except AtolError as e:
-        logger.warning(
-            f"The TensorFlow Lite export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
-        )
-    except OutputMatchError as e:
-        logger.warning(
-            f"The TensorFlow Lite export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
-        )
-    except Exception as e:
-        logger.error(
-            f"An error occured with the error message: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
-        )
+            logger.info(
+                "The TensorFlow Lite export succeeded and the exported model was saved at: "
+                f"{args.output.parent.as_posix()}"
+            )
+        except ShapeError as e:
+            raise e
+        except AtolError as e:
+            logger.warning(
+                f"The TensorFlow Lite export succeeded with the warning: {e}.\n The exported model was saved at: "
+                f"{args.output.parent.as_posix()}"
+            )
+        except OutputMatchError as e:
+            logger.warning(
+                f"The TensorFlow Lite export succeeded with the warning: {e}.\n The exported model was saved at: "
+                f"{args.output.parent.as_posix()}"
+            )
+        except Exception as e:
+            logger.error(
+                f"An error occured with the error message: {e}.\n The exported model was saved at: "
+                f"{args.output.parent.as_posix()}"
+            )
 
 
 if __name__ == "__main__":

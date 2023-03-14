@@ -17,6 +17,7 @@ import subprocess
 from pathlib import Path
 
 from ...exporters import TasksManager
+from ...exporters.tflite import QuantizationApproach
 
 
 def parse_args_tflite(parser):
@@ -119,7 +120,7 @@ def parse_args_tflite(parser):
     quantization_group = parser.add_argument_group("Quantization")
     quantization_group.add_argument(
         "--quantize",
-        choices=["int8", "int8x16", "fp16"],
+        choices=[e.value for e in QuantizationApproach],
         type=str,
         default=None,
         help="The method of quantization to perform. No quantization will happen if left unspecified.",
