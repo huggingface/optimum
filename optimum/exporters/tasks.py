@@ -24,6 +24,8 @@ import huggingface_hub
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
+from ..utils.import_utils import is_onnx_available
+
 
 if TYPE_CHECKING:
     import torch
@@ -42,6 +44,14 @@ if not is_torch_available() and not is_tf_available():
 
 ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
 TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
+
+
+def is_backend_available(backend):
+    backend_availablilty = {
+        "onnx": is_onnx_available(),
+        "tflite": is_tf_available(),
+    }
+    return backend_availablilty[backend]
 
 
 def supported_tasks_mapping(
@@ -76,17 +86,20 @@ def supported_tasks_mapping(
     """
     mapping = {}
     for backend, config_cls_name in exporters.items():
-        config_cls = getattr(importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name)
-        mapping[backend] = {}
-        for task in supported_tasks:
-            if isinstance(task, tuple):
-                task, supported_backends_for_task = task
-                if backend not in supported_backends_for_task:
-                    continue
-            if "-with-past" in task:
-                mapping[backend][task] = partial(config_cls.with_past, task=task.replace("-with-past", ""))
-            else:
-                mapping[backend][task] = partial(config_cls, task=task)
+        if is_backend_available(backend):
+            config_cls = getattr(
+                importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name
+            )
+            mapping[backend] = {}
+            for task in supported_tasks:
+                if isinstance(task, tuple):
+                    task, supported_backends_for_task = task
+                    if backend not in supported_backends_for_task:
+                        continue
+                if "-with-past" in task:
+                    mapping[backend][task] = partial(config_cls.with_past, task=task.replace("-with-past", ""))
+                else:
+                    mapping[backend][task] = partial(config_cls, task=task)
 
     return mapping
 
