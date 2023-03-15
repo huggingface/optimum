@@ -46,18 +46,21 @@ class ORTOptimizer:
     Handles the ONNX Runtime optimization process for models shared on huggingface.co/models.
     """
 
-    def __init__(self, onnx_model_path: List[os.PathLike], config: "PretrainedConfig"):
+    def __init__(self, onnx_model_path: List[os.PathLike], config: "PretrainedConfig", from_ortmodel: bool = False):
         """
         Args:
             onnx_model_path (`List[os.PathLike]`):
                 The paths of the onnx models to optimize.
             config ([`~transformers.PretrainedConfig`]):
                 An instance of the configuration associated to the model to optimize.
+            from_ortmodel (`bool`, defaults to `False`):
+                Whether the model being optimized is already loaded into an ORTModel, or if it was passed from disk.
         """
         super().__init__()
         self.onnx_model_path = onnx_model_path
         self.config = config
         self.model_type = self.config.model_type
+        self.from_ortmodel = from_ortmodel
 
         try:
             self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.model_type)(self.config)
@@ -84,6 +87,7 @@ class ORTOptimizer:
         onnx_model_path = []
         config = None
         if isinstance(model_or_path, ORTModel):
+            from_ortmodel = True
             if isinstance(model_or_path, ORTModelForSeq2SeqLM):
                 onnx_model_path += [
                     model_or_path.encoder_model_path,
@@ -107,6 +111,7 @@ class ORTOptimizer:
                 onnx_model_path.append(model_or_path.model_path)
             config = model_or_path.config
         elif os.path.isdir(model_or_path):
+            from_ortmodel = False
             file_names = [ONNX_WEIGHTS_NAME] if file_names is None else file_names
             model_or_path = Path(model_or_path)
             if CONFIG_NAME not in os.listdir(model_or_path):
@@ -116,7 +121,7 @@ class ORTOptimizer:
                 onnx_model_path.append(model_or_path.joinpath(file_name))
         else:
             raise ValueError(f"Unable to load the model from {model_or_path}.")
-        return cls(onnx_model_path, config=config)
+        return cls(onnx_model_path, config=config, from_ortmodel=from_ortmodel)
 
     def optimize(
         self,
@@ -212,6 +217,10 @@ class ORTOptimizer:
                 use_external_data_format=model_uses_external_data,
                 all_tensors_to_one_file=one_external_file,
             )
+
+            # if loading from disk and saving in the same repository, remove previous external data
+            if Path(model_path.as_posix() + "_data").is_file() and self.from_ortmodel is False:
+                os.remove(model_path.as_posix() + "_data")
 
         # Save the model configuration
         self.config.save_pretrained(save_dir)
