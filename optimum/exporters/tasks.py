@@ -912,38 +912,40 @@ class TasksManager:
         if framework is not None:
             return framework
 
-        framework_map = {"pt": "PyTorch", "tf": "TensorFlow"}
-
         full_model_path = Path(model_name_or_path) / subfolder
         if full_model_path.is_dir():
-            if (full_model_path / WEIGHTS_NAME).is_file():
-                framework = "pt"
-            elif (full_model_path / TF2_WEIGHTS_NAME).is_file():
-                framework = "tf"
-            else:
-                raise FileNotFoundError(
-                    "Cannot determine framework from given checkpoint location."
-                    f" There should be a {WEIGHTS_NAME} for PyTorch"
-                    f" or {TF2_WEIGHTS_NAME} for TensorFlow."
-                )
-            logger.info(f"Local {framework_map[framework]} model found.")
+            all_files = [
+                os.path.relpath(os.path.join(dirpath, file), full_model_path)
+                for dirpath, _, filenames in os.walk(full_model_path)
+                for file in filenames
+            ]
         else:
             if not isinstance(model_name_or_path, str):
                 model_name_or_path = str(model_name_or_path)
-            try:
-                url = huggingface_hub.hf_hub_url(model_name_or_path, WEIGHTS_NAME, subfolder=subfolder)
-                huggingface_hub.get_hf_file_metadata(url)
-                framework = "pt"
-            except Exception:
-                pass
+            all_files = huggingface_hub.list_repo_files(model_name_or_path, repo_type="model")
 
-            if framework is None:
-                try:
-                    url = huggingface_hub.hf_hub_url(model_name_or_path, TF2_WEIGHTS_NAME, subfolder=subfolder)
-                    huggingface_hub.get_hf_file_metadata(url)
-                    framework = "tf"
-                except Exception:
-                    pass
+            all_files = [file for file in all_files if file.startswith(subfolder)]
+
+        if any(
+            [
+                file.startswith(Path(WEIGHTS_NAME).stem) and file.endswith(Path(WEIGHTS_NAME).suffix)
+                for file in all_files
+            ]
+        ):
+            framework = "pt"
+        elif any(
+            [
+                file.startswith(Path(TF2_WEIGHTS_NAME).stem) and file.endswith(Path(TF2_WEIGHTS_NAME).suffix)
+                for file in all_files
+            ]
+        ):
+            framework = "tf"
+        else:
+            raise FileNotFoundError(
+                "Cannot determine framework from given checkpoint location."
+                f" There should be a {Path(WEIGHTS_NAME).stem}*{Path(WEIGHTS_NAME).suffix} for PyTorch"
+                f" or {Path(TF2_WEIGHTS_NAME).stem}*{Path(TF2_WEIGHTS_NAME).suffix} for TensorFlow."
+            )
 
         if is_torch_available():
             framework = framework or "pt"
