@@ -603,10 +603,10 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "logits_per_image": {0: "batch_size"},
-            "logits_per_text": {0: "batch_size"},
-            "text_embeds": {0: "batch_size"},
-            "image_embeds": {0: "batch_size"},
+            "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
+            "logits_per_text": {0: "text_batch_size", 1: "image_batch_size"},
+            "text_embeds": {0: "text_batch_size"},
+            "image_embeds": {0: "image_batch_size"},
         }
 
 
