@@ -447,6 +447,7 @@ def export_pytorch(
                 )
 
             # check if external data was exported
+            # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
             onnx_model = onnx.load(str(output), load_external_data=False)
             model_uses_external_data = check_model_uses_external_data(onnx_model)
 
