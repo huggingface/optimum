@@ -50,8 +50,6 @@ class TFLiteConfigTestCase(TestCase):
 
 def _get_models_to_test(export_models_dict: Dict):
     models_to_test = []
-    default_dummy_shapes = dict(DEFAULT_DUMMY_SHAPES)
-    sequence_length = default_dummy_shapes.pop("sequence_length")
     if is_tf_available():
         for model_type, model_names_tasks in export_models_dict.items():
             model_type = model_type.replace("_", "-")
@@ -75,13 +73,12 @@ def _get_models_to_test(export_models_dict: Dict):
 
             for model_name, tasks in model_tasks.items():
                 for task in tasks:
-                    sequence_length_for_task = sequence_length if task != "question-answering" else 384
                     tflite_config_constructor = TasksManager.get_exporter_config_constructor(
                         model_type=model_type,
                         exporter="tflite",
                         task=task,
                         model_name=model_name,
-                        exporter_config_kwargs={**default_dummy_shapes, "sequence_length": sequence_length_for_task},
+                        exporter_config_kwargs={**DEFAULT_DUMMY_SHAPES},
                     )
 
                     models_to_test.append(
@@ -204,7 +201,10 @@ class TFLiteExportTestCase(TestCase):
     def test_full_int8_quantization_with_default_dataset(
         self, test_name, name, model_name, task, tflite_config_class_constructor
     ):
-        preprocessor = maybe_load_preprocessors(model_name)
+        # TODO: currently only 4 tasks are supported.
+        if task not in TASK_TO_NON_DEFAULT_DATASET:
+            return
+        preprocessor = maybe_load_preprocessors(model_name)[0]
         self._tflite_export(
             name,
             model_name,
@@ -225,7 +225,10 @@ class TFLiteExportTestCase(TestCase):
     def test_int8_quantization_with_default_dataset(
         self, test_name, name, model_name, task, tflite_config_class_constructor
     ):
-        preprocessor = maybe_load_preprocessors(model_name)
+        # TODO: currently only 4 tasks are supported.
+        if task not in TASK_TO_NON_DEFAULT_DATASET:
+            return
+        preprocessor = maybe_load_preprocessors(model_name)[0]
         self._tflite_export(
             name,
             model_name,
@@ -244,7 +247,10 @@ class TFLiteExportTestCase(TestCase):
     def test_int8x16_quantization_with_default_dataset(
         self, test_name, name, model_name, task, tflite_config_class_constructor
     ):
-        preprocessor = maybe_load_preprocessors(model_name)
+        # TODO: currently only 4 tasks are supported.
+        if task not in TASK_TO_NON_DEFAULT_DATASET:
+            return
+        preprocessor = maybe_load_preprocessors(model_name)[0]
         self._tflite_export(
             name,
             model_name,

@@ -66,13 +66,8 @@ def _get_models_to_test(export_models_dict: Dict):
                         exporter_config_kwargs=DEFAULT_DUMMY_SHAPES,
                     )
 
-                    if task == "question-answering":
-                        default_shapes = dict(DEFAULT_DUMMY_SHAPES)
-                        default_shapes["sequence_length"] = 384
-                    else:
-                        default_shapes = DEFAULT_DUMMY_SHAPES
                     mandatory_axes = tflite_config_constructor.func.get_mandatory_axes_for_task(task)
-                    shapes = " ".join(f"--{name}={default_shapes[name]}" for name in mandatory_axes)
+                    shapes = " ".join(f"--{name}={DEFAULT_DUMMY_SHAPES[name]}" for name in mandatory_axes)
 
                     models_to_test.append((f"{model_type}_{task}", model_name, task, shapes))
 
@@ -95,7 +90,7 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
         shapes: str,
         task: Optional[str] = None,
         quantization: Optional[str] = None,
-        fallback_to_float: bool = True,
+        fallback_to_float: bool = False,
         inputs_dtype: Optional[str] = None,
         outputs_dtype: Optional[str] = None,
         calibration_dataset_name_or_path: Optional[str] = None,
@@ -213,6 +208,9 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_tflite_int8x16_quantization_with_default_dataset(
         self, test_name: str, model_name: str, task: str, shapes: str
     ):
+        # TODO: currently only 4 tasks are supported.
+        if task not in TASK_TO_NON_DEFAULT_DATASET:
+            return
         self._tflite_export(model_name, shapes, task=task, quantization="int8x16", num_calibration_samples=3)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))

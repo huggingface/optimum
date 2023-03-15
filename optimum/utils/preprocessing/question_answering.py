@@ -43,11 +43,12 @@ class QuestionAnsweringProcessing(TaskProcessor):
 
         pad_on_right = self.preprocessor.padding_side == "right"
         max_seq_length = min(self.preprocessor.model_max_length, 384)
+        max_seq_length = kwargs.pop("max_length", max_seq_length)
         stride = min(max_seq_length // 2, 128)
 
         defaults["padding"] = kwargs.pop("padding", "max_length")
         defaults["truncation"] = kwargs.pop("truncation", "only_second" if pad_on_right else "only_first")
-        defaults["max_length"] = kwargs.pop("max_length", max_seq_length)
+        defaults["max_length"] = max_seq_length
         defaults["stride"] = kwargs.pop("stride", stride)
         defaults["return_overflowing_tokens"] = kwargs.pop("return_overflowing_tokens", False)
         defaults["return_offsets_mapping"] = kwargs.pop("return_offsets_mapping", False)
