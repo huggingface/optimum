@@ -600,15 +600,6 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
             "attention_mask": {0: "batch_size", 1: "sequence_length"},
         }
 
-    @property
-    def outputs(self) -> Dict[str, Dict[int, str]]:
-        return {
-            "logits_per_image": {0: "batch_size"},
-            "logits_per_text": {0: "batch_size"},
-            "text_embeds": {0: "batch_size"},
-            "image_embeds": {0: "batch_size"},
-        }
-
 
 class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
