@@ -170,6 +170,7 @@ def prepare_converter_for_quantization(
                 "A preprocessor must be passed for INT8 and INT8x16 quantization since it is needed to preprocess "
                 "the calibration dataset."
             )
+
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
 
         # Handling the calibration dataset:
@@ -188,6 +189,15 @@ def prepare_converter_for_quantization(
         task_processor = TaskProcessorsManager.get_task_processor_class_for_task(task)(
             model.config, preprocessor, preprocessor_kwargs
         )
+
+        if task == "token-classification" and model.config.model_type in {
+            "bloom",
+            "camembert",
+            "deberta",
+            "gpt2",
+            "roberta",
+        }:
+            preprocessor.add_prefix_space = True
 
         load_smallest_split = quantization_config.calibration_split is None
         if load_smallest_split:
@@ -247,7 +257,7 @@ def prepare_converter_for_quantization(
         if batch_size > 1:
 
             def batching_function(examples):
-                return {column_name: [list(examples[column_name])] for column_name in examples.keys()}
+                return {column_name: [examples[column_name]] for column_name in examples.keys()}
 
             calibration_dataset = calibration_dataset.map(batching_function, batched=True, batch_size=batch_size)
 

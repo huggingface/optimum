@@ -44,6 +44,7 @@ class TokenClassificationProcessing(TaskProcessor):
         defaults["truncation"] = kwargs.pop("truncation", True)
         defaults["max_length"] = kwargs.pop("max_length", self.preprocessor.model_max_length)
         defaults["is_split_into_words"] = kwargs.pop("is_split_into_words", True)
+
         return defaults, kwargs
 
     def dataset_processing_func(
