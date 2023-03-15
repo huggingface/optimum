@@ -34,7 +34,7 @@ if is_accelerate_available():
 ERROR_MESSAGE = r"The Better Transformers implementation for the model {model_name} has not been implemented yet. Please open an issue requesting the addition of this model with its `BetterTransformer` implementation."
 
 
-def raise_save_or_push_incompatible(dummy, /, *_, **__):
+def raise_save_or_push_incompatible(*_, **__):
     r"""
     Simply raise an error if the user tries to save or push a model that is not compatible with
     `BetterTransformer` and needs to be reverted to the original model before calling these
