@@ -19,12 +19,12 @@ from transformers.utils import _LazyModule
 
 
 _import_structure = {
-    "base": ["QuantizationApproach", "TFLiteConfig"],
+    "base": ["QuantizationApproach", "QuantizationConfig", "TFLiteConfig"],
     "convert": ["export", "validate_model_outputs"],
 }
 
 if TYPE_CHECKING:
-    from .base import QuantizationApproach, TFLiteConfig  # noqa
+    from .base import QuantizationApproach, QuantizationConfig, TFLiteConfig  # noqa
     from .convert import export, validate_model_outputs  # noqa
 else:
     import sys

@@ -21,6 +21,7 @@ from ...utils import logging
 from ...utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
+from .base import QuantizationConfig
 from .convert import export, validate_model_outputs
 
 
@@ -75,24 +76,30 @@ def main():
     else:
         preprocessor = None
 
+    quantization_config = None
+    if args.quantize:
+        quantization_config = QuantizationConfig(
+            quantization=args.quantize,
+            fallback_to_float=args.fallback_to_float,
+            inputs_dtype=args.inputs_type,
+            outputs_dtype=args.outputs_type,
+            calibration_dataset_name_or_path=args.calibration_dataset,
+            calibration_dataset_config_name=args.calibration_dataset_config_name,
+            num_calibration_samples=args.num_calibration_samples,
+            calibration_split=args.calibration_split,
+            primary_key=args.primary_key,
+            secondary_key=args.secondary_key,
+            question_key=args.question_key,
+            context_key=args.context_key,
+            image_key=args.image_key,
+        )
+
     tflite_inputs, tflite_outputs = export(
         model=model,
         config=tflite_config,
         output=args.output,
-        quantization=args.quantize,
-        fallback_to_float=args.fallback_to_float,
-        inputs_dtype=args.inputs_type,
-        outputs_dtype=args.outputs_type,
-        calibration_dataset_name_or_path=args.calibration_dataset,
-        calibration_dataset_config_name=args.calibration_dataset_config_name,
         preprocessor=preprocessor,
-        num_calibration_samples=args.num_calibration_samples,
-        calibration_split=args.calibration_split,
-        primary_key=args.primary_key,
-        secondary_key=args.secondary_key,
-        question_key=args.question_key,
-        context_key=args.context_key,
-        image_key=args.image_key,
+        quantization_config=quantization_config,
     )
 
     if args.quantize is None:

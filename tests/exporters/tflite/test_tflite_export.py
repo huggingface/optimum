@@ -22,7 +22,7 @@ from parameterized import parameterized
 from transformers import AutoConfig, is_tf_available
 from transformers.testing_utils import require_tf, require_vision, slow
 
-from optimum.exporters.tflite import export, validate_model_outputs
+from optimum.exporters.tflite import QuantizationConfig, export, validate_model_outputs
 from optimum.utils import DEFAULT_DUMMY_SHAPES
 from optimum.utils.preprocessing import Preprocessor
 from optimum.utils.save_utils import maybe_load_preprocessors
@@ -129,26 +129,30 @@ class TFLiteExportTestCase(TestCase):
         if isinstance(atol, dict):
             atol = atol[task.replace("-with-past", "")]
 
+        quantization_config = QuantizationConfig(
+            quantization=quantization,
+            fallback_to_float=fallback_to_float,
+            inputs_dtype=inputs_dtype,
+            outputs_dtype=outputs_dtype,
+            calibration_dataset_name_or_path=calibration_dataset_name_or_path,
+            calibration_dataset_config_name=calibration_dataset_config_name,
+            num_calibration_samples=num_calibration_samples,
+            calibration_split=calibration_split,
+            primary_key=primary_key,
+            secondary_key=secondary_key,
+            question_key=question_key,
+            context_key=context_key,
+            image_key=image_key,
+        )
+
         with NamedTemporaryFile("w") as output:
             try:
                 _, tflite_outputs = export(
                     model=model,
                     config=tflite_config,
                     output=Path(output.name),
-                    quantization=quantization,
-                    fallback_to_float=fallback_to_float,
-                    inputs_dtype=inputs_dtype,
-                    outputs_dtype=outputs_dtype,
-                    calibration_dataset_name_or_path=calibration_dataset_name_or_path,
-                    calibration_dataset_config_name=calibration_dataset_config_name,
                     preprocessor=preprocessor,
-                    num_calibration_samples=num_calibration_samples,
-                    calibration_split=calibration_split,
-                    primary_key=primary_key,
-                    secondary_key=secondary_key,
-                    question_key=question_key,
-                    context_key=context_key,
-                    image_key=image_key,
+                    quantization_config=quantization_config,
                 )
 
                 if quantization is None:
