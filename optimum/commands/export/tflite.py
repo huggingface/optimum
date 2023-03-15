@@ -123,7 +123,10 @@ def parse_args_tflite(parser):
         choices=[e.value for e in QuantizationApproach],
         type=str,
         default=None,
-        help="The method of quantization to perform. No quantization will happen if left unspecified.",
+        help=(
+            'The method of quantization to perform, possible choices: "int8-dynamic", "int8", "int8x16", "fp16".  No '
+            "quantization will happen if left unspecified."
+        ),
     )
     quantization_group.add_argument(
         "--fallback_to_float",

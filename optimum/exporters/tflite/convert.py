@@ -14,11 +14,13 @@
 # limitations under the License.
 """TensorFlow Lite model check and export functions."""
 
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import numpy as np
+from optimum.onnxruntime.configuration import QuantizationConfig
 from transformers import PreTrainedTokenizerBase
 from transformers.utils import is_tf_available
 
@@ -33,10 +35,30 @@ if TYPE_CHECKING:
 
     if is_tf_available():
         from transformers import TFPreTrainedModel
+        import tensorflow as tf
     from .base import TFLiteConfig
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
+
+
+@dataclass
+class QuantizationConfig:
+    quantization: Optional[Union[str, QuantizationApproach]] = None
+    fallback_to_float: bool = False
+    inputs_dtype: Optional[str] = None
+    outputs_dtype: Optional[str] = None
+    calibration_dataset_name_or_path: Optional[Union[str, Path]] = None
+    calibration_dataset_config_name: Optional[str] = None
+    preprocessor: Optional[Preprocessor] = None
+    num_calibration_samples: int = 200
+    calibration_split: Optional[str] = None
+    primary_key: Optional[str] = None
+    secondary_key: Optional[str] = None
+    question_key: Optional[str] = None
+    context_key: Optional[str] = None
+    image_key: Optional[str] = None
+
 
 
 def validate_model_outputs(
@@ -150,6 +172,9 @@ def create_representative_dataset(signatures, dataset: "Dataset"):
                 yield sig_name, {name: value for name, value in example.items() if name in inputs_to_keep}
 
     return representative_dataset
+
+
+def prepare_converter_for_quantization(converter: "tf.lite.TFLiteConverter", quantization_config: QuantizationConfig):
 
 
 def export(
