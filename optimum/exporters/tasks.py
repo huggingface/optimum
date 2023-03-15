@@ -923,7 +923,6 @@ class TasksManager:
             if not isinstance(model_name_or_path, str):
                 model_name_or_path = str(model_name_or_path)
             all_files = huggingface_hub.list_repo_files(model_name_or_path, repo_type="model")
-
             all_files = [file for file in all_files if file.startswith(subfolder)]
 
         if any(
