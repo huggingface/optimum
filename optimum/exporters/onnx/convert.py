@@ -427,6 +427,8 @@ def export_pytorch(
         input_names = list(inputs.keys())
         output_names = list(config.outputs.keys())
 
+        print("output_names", output_names)
+        print("model type", type(model))
         # PyTorch deprecated the `enable_onnx_checker` and `use_external_data_format` arguments in v1.11,
         # so we check the torch version for backwards compatibility
         if is_torch_less_than_1_11:
