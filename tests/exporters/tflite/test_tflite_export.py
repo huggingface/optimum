@@ -73,12 +73,15 @@ def _get_models_to_test(export_models_dict: Dict):
 
             for model_name, tasks in model_tasks.items():
                 for task in tasks:
+                    default_shapes = dict(DEFAULT_DUMMY_SHAPES)
+                    if task == "question-answering":
+                        default_shapes["sequence_length"] = 384
                     tflite_config_constructor = TasksManager.get_exporter_config_constructor(
                         model_type=model_type,
                         exporter="tflite",
                         task=task,
                         model_name=model_name,
-                        exporter_config_kwargs={**DEFAULT_DUMMY_SHAPES},
+                        exporter_config_kwargs={**default_shapes},
                     )
 
                     models_to_test.append(
