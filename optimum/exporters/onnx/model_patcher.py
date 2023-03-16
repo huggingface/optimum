@@ -14,6 +14,7 @@
 # limitations under the License.
 import dataclasses
 import functools
+import inspect
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 from ...utils import logging
@@ -137,6 +138,38 @@ class Seq2SeqModelPatcher(ModelPatcher):
                             filterd_outputs[name] = value
                         elif self.real_config._behavior == "decoder" and self.real_config.use_past is True:
                             filterd_outputs[name] = tuple([v[:2] for v in value])
+            return filterd_outputs
+
+        self.patched_forward = patched_forward
+
+
+class WavLMModelPatcher(ModelPatcher):
+    def __init__(self, config: "OnnxConfig", model: Union["PreTrainedModel", "TFPreTrainedModel"]):
+        super().__init__(config, model)
+
+        allow_past_in_outputs = (
+            hasattr(self.real_config, "use_present_in_outputs") and self.real_config.use_present_in_outputs
+        )
+
+        @functools.wraps(self.orig_forward)
+        def patched_forward(*args, **kwargs):
+            args = list(args)
+
+            signature = inspect.signature(self.orig_forward)
+            output_attentions_index = list(signature.parameters.keys()).index("output_attentions")
+
+            # setting output_attentions=True in the model input to avoid calling torch.nn.functional.scaled_dot_product_attention
+            # in https://github.com/huggingface/transformers/blob/v4.27.1/src/transformers/models/wavlm/modeling_wavlm.py#L496
+            # that calls https://github.com/pytorch/pytorch/blob/v2.0.0/torch/nn/functional.py#L5334
+            args[output_attentions_index] = True
+            outputs = self.orig_forward(*args, **kwargs)
+
+            filterd_outputs = {}
+            for k, v in outputs.items():
+                if config.torch_to_onnx_output_map.get(k, k) in config.outputs or (
+                    allow_past_in_outputs and k.startswith("past_key_values")
+                ):
+                    filterd_outputs[k] = v
             return filterd_outputs
 
         self.patched_forward = patched_forward
