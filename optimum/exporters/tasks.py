@@ -927,11 +927,11 @@ class TasksManager:
 
         weight_name = Path(WEIGHTS_NAME).stem
         weight_extension = Path(WEIGHTS_NAME).suffix
-        is_pt_weight_file = (file.startswith(weight_name) and file.endswith(weight_extension) for file in all_files)
+        is_pt_weight_file = [file.startswith(weight_name) and file.endswith(weight_extension) for file in all_files]
 
         weight_name = Path(TF2_WEIGHTS_NAME).stem
         weight_extension = Path(TF2_WEIGHTS_NAME).suffix
-        is_tf_weight_file = (file.startswith(weight_name) and file.endswith(weight_extension) for file in all_files)
+        is_tf_weight_file = [file.startswith(weight_name) and file.endswith(weight_extension) for file in all_files]
 
         if any(is_pt_weight_file):
             framework = "pt"
