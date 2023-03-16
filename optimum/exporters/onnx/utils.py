@@ -167,6 +167,8 @@ def get_stable_diffusion_models_for_export(
         model=pipeline.unet, exporter="onnx", task="semantic-segmentation", model_type="unet"
     )
     unet_onnx_config = onnx_config_constructor(pipeline.unet.config)
+
+    # PyTorch does not support the ONNX export of torch.nn.functional.scaled_dot_product_attention
     pipeline.unet.set_attn_processor(CrossAttnProcessor())
     models_for_export["unet"] = (pipeline.unet, unet_onnx_config)
 
