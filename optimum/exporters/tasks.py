@@ -133,6 +133,7 @@ class TasksManager:
             "audio-xvector": "AutoModelForAudioXVector",
             "vision2seq-lm": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
+            "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
     if is_tf_available():
@@ -170,6 +171,7 @@ class TasksManager:
         "audio-xvector": "transformers",
         "vision2seq-lm": "transformers",
         "stable-diffusion": "diffusers",
+        "zero-shot-image-classification": "transformers",
         "zero-shot-object-detection": "transformers",
     }
 
@@ -282,6 +284,7 @@ class TasksManager:
         ),
         "clip": supported_tasks_mapping(
             "default",
+            "zero-shot-image-classification",
             onnx="CLIPOnnxConfig",
         ),
         "clip-text-model": supported_tasks_mapping(
@@ -1135,7 +1138,7 @@ class TasksManager:
         if task not in model_tasks:
             raise ValueError(
                 f"{model_type} doesn't support task {task} for the {exporter} backend."
-                f" Supported values are: {model_tasks}"
+                f" Supported tasks are: {', '.join(model_tasks.keys())}."
             )
 
         exporter_config_constructor = TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
