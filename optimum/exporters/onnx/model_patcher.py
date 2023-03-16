@@ -140,3 +140,32 @@ class Seq2SeqModelPatcher(ModelPatcher):
             return filterd_outputs
 
         self.patched_forward = patched_forward
+
+
+class WavLMModelPatcher(ModelPatcher):
+    def __init__(self, config: "OnnxConfig", model: Union["PreTrainedModel", "TFPreTrainedModel"]):
+        super().__init__(config, model)
+
+        allow_past_in_outputs = (
+            hasattr(self.real_config, "use_present_in_outputs") and self.real_config.use_present_in_outputs
+        )
+
+        @functools.wraps(self.orig_forward)
+        def patched_forward(*args, **kwargs):
+            args = list(args)
+
+            # setting output_attentions=True in the model input to avoid calling torch.nn.functional.scaled_dot_product_attention
+            # in https://github.com/huggingface/transformers/blob/v4.27.1/src/transformers/models/wavlm/modeling_wavlm.py#L496
+            # that calls https://github.com/pytorch/pytorch/blob/v2.0.0/torch/nn/functional.py#L5334
+            args[3] = True
+            outputs = self.orig_forward(*args, **kwargs)
+
+            filterd_outputs = {}
+            for k, v in outputs.items():
+                if config.torch_to_onnx_output_map.get(k, k) in config.outputs or (
+                    allow_past_in_outputs and k.startswith("past_key_values")
+                ):
+                    filterd_outputs[k] = v
+            return filterd_outputs
+
+        self.patched_forward = patched_forward
