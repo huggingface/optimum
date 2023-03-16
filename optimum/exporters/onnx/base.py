@@ -134,8 +134,7 @@ class OnnxConfig(ExportConfig, ABC):
                 "pred_masks": {0: "batch_size", 1: "num_queries"},
             }
         ),
-        # TODO: how about models accepting variable heigth / width?
-        "masked-im": OrderedDict({"reconstruction": {0: "batch_size"}}),
+        "masked-im": OrderedDict({"logits": {0: "batch_size"}}),
         "masked-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "multiple-choice": OrderedDict({"logits": {0: "batch_size", 1: "num_choices"}}),
         "object-detection": OrderedDict(
