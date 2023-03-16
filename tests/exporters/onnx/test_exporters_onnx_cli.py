@@ -129,7 +129,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
-    def test_exporters_cli_pytorch(
+    def test_exporters_cli_pytorch_cpu(
         self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
         self._onnx_export(model_name, task, monolith, no_post_process)
@@ -155,10 +155,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_pytorch_with_optimization(
         self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
-        # TODO: optimization for codegen not supported until https://github.com/microsoft/onnxruntime/pull/14751 is released
-        if model_type == "codegen":
-            self.skipTest("codegen not supported")
-
         for optimization_level in ["O1", "O2", "O3"]:
             try:
                 self._onnx_export(model_name, task, monolith, no_post_process, optimization_level=optimization_level)
@@ -180,14 +176,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_pytorch_with_O4_optimization(
         self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
-        # TODO: optimization for codegen not supported until https://github.com/microsoft/onnxruntime/pull/14751 is released
-        if model_type == "codegen":
-            self.skipTest("codegen not supported")
-
-        # TODO: investigate why gptj with past is the only failing one (as in ORTOptimizer)
-        if model_type == "gptj" and (task is None or "-with-past" in task):
-            self.skipTest("Test failing with Shape mismatch attempting to re-use buffer")
-
         # TODO: disable due to a bug in PyTorch: https://github.com/pytorch/pytorch/issues/95377
         if model_type == "yolos":
             self.skipTest("Export on cuda device fails for yolos due to a bug in PyTorch")

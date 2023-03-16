@@ -220,8 +220,10 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         sub_models = {}
 
         if not os.path.isdir(model_id):
-            allow_patterns = [os.path.join(k, "*") for k in config.keys() if not k.startswith("_")]
-            allow_patterns += list(
+            patterns = set(config.keys())
+            patterns.update({"vae_encoder", "vae_decoder"})
+            allow_patterns = {os.path.join(k, "*") for k in patterns if not k.startswith("_")}
+            allow_patterns.update(
                 {
                     vae_decoder_file_name,
                     text_encoder_file_name,
@@ -314,6 +316,7 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,
+            framework="pt",
         )
         output_names = [
             os.path.join(DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER, ONNX_WEIGHTS_NAME),

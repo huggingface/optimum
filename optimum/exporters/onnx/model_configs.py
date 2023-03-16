@@ -14,9 +14,10 @@
 # limitations under the License.
 """Model specific ONNX configurations."""
 import random
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from packaging import version
+from transformers.utils import is_tf_available
 
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
@@ -47,12 +48,18 @@ from .config import (
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
+from .model_patcher import WavLMModelPatcher
 
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
+    from transformers.modeling_utils import PreTrainedModel
 
     from ...utils import DummyInputGenerator
+    from .model_patcher import ModelPatcher
+
+    if is_tf_available():
+        from transformers.modeling_tf_utils import TFPreTrainedModel
 
 logger = logging.get_logger(__name__)
 
@@ -595,18 +602,18 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "input_ids": {0: "batch_size", 1: "sequence_length"},
-            "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
-            "attention_mask": {0: "batch_size", 1: "sequence_length"},
+            "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+            "pixel_values": {0: "image_batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
         }
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "logits_per_image": {0: "batch_size"},
-            "logits_per_text": {0: "batch_size"},
-            "text_embeds": {0: "batch_size"},
-            "image_embeds": {0: "batch_size"},
+            "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
+            "logits_per_text": {0: "text_batch_size", 1: "image_batch_size"},
+            "text_embeds": {0: "text_batch_size"},
+            "image_embeds": {0: "image_batch_size"},
         }
 
 
@@ -878,6 +885,12 @@ class UniSpeechSATOnnxConfig(HubertOnnxConfig):
 
 class WavLMOnnxConfig(HubertOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
+
+    # we need to set output_attentions=True in the model input to avoid calling
+    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
+    # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
+    def patch_model_for_export(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> "ModelPatcher":
+        return WavLMModelPatcher(self, model)
 
 
 class ASTDummyAudioInputGenerator(DummyAudioInputGenerator):
