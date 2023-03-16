@@ -133,7 +133,7 @@ class OnnxConfig(ExportConfig, ABC):
                 "pred_masks": {0: "batch_size", 1: "num_queries"},
             }
         ),
-        "masked-im": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "masked-im": OrderedDict({"logits": {0: "batch_size"}}),
         "masked-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "multiple-choice": OrderedDict({"logits": {0: "batch_size", 1: "num_choices"}}),
         "object-detection": OrderedDict(
@@ -154,6 +154,14 @@ class OnnxConfig(ExportConfig, ABC):
         "speech2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "vision2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "zero-shot-image-classification": OrderedDict(
+            {
+                "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
+                "logits_per_text": {0: "text_batch_size", 1: "image_batch_size"},
+                "text_embeds": {0: "text_batch_size"},
+                "image_embeds": {0: "image_batch_size"},
+            }
+        ),
         # TODO: enable that and verify that once OwlViTOnnxConfig can work.
         # "zero-shot-object-detection": OrderedDict({
         #     "logits": {0: "batch_size"},
