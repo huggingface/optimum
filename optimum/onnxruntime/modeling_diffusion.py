@@ -316,6 +316,7 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,
+            framework="pt",
         )
         output_names = [
             os.path.join(DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER, ONNX_WEIGHTS_NAME),
