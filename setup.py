@@ -97,7 +97,7 @@ setup(
     packages=find_namespace_packages(include=["optimum*"]),
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS_REQUIRE,
-    python_requires=">=3.7.0",
+    python_requires=">=3.8.0",
     include_package_data=True,
     zip_safe=False,
     entry_points={"console_scripts": ["optimum-cli=optimum.commands.optimum_cli:main"]},
