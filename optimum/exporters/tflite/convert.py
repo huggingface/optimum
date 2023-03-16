@@ -229,7 +229,7 @@ def prepare_converter_for_quantization(
             if quantization_config.context_key is not None:
                 data_keys["context"] = quantization_config.context_key
             if quantization_config.image_key is not None:
-                data_keys["imagey"] = quantization_config.image_key
+                data_keys["image"] = quantization_config.image_key
 
             calibration_dataset = task_processor.load_dataset(
                 quantization_config.calibration_dataset_name_or_path,
