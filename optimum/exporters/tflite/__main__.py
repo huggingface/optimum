@@ -79,7 +79,7 @@ def main():
     quantization_config = None
     if args.quantize:
         quantization_config = QuantizationConfig(
-            quantization=args.quantize,
+            approach=args.quantize,
             fallback_to_float=args.fallback_to_float,
             inputs_dtype=args.inputs_type,
             outputs_dtype=args.outputs_type,

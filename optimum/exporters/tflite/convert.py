@@ -25,7 +25,7 @@ from transformers.utils import is_tf_available
 from ...utils import logging
 from ...utils.preprocessing import Preprocessor, TaskProcessorsManager
 from ..error_utils import AtolError, OutputMatchError, ShapeError
-from .base import QuantizationApproach
+from .base import QuantizationApproach, QuantizationApproachNotSupported 
 
 
 if TYPE_CHECKING:
@@ -163,8 +163,14 @@ def prepare_converter_for_quantization(
 ):
     import tensorflow as tf
 
+    if not config.supports_quantization_approach(quantization_config.approach) and not quantization_config.fallback_to_float:
+        raise QuantizationApproachNotSupported(
+            f"{model.config.model_type} do not support full {quantization_config.approach} quantization, use "
+            "fallback_to_float=True to fallback to the float implementation for the unsupported ops."
+        )
+
     str_to_dtype = {"int8": tf.int8, "uint8": tf.uint8}
-    if quantization_config.quantization in [QuantizationApproach.INT8, QuantizationApproach.INT8x16]:
+    if quantization_config.approach in [QuantizationApproach.INT8, QuantizationApproach.INT8x16]:
         if preprocessor is None:
             raise ValueError(
                 "A preprocessor must be passed for INT8 and INT8x16 quantization since it is needed to preprocess "
@@ -265,7 +271,7 @@ def prepare_converter_for_quantization(
         converter.representative_dataset = create_representative_dataset(signatures, calibration_dataset)
 
         # Handling the OpsSet.
-        if quantization_config.quantization is QuantizationApproach.INT8:
+        if quantization_config.approach is QuantizationApproach.INT8:
             opsset = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
         else:
             logger.warning(
@@ -283,9 +289,9 @@ def prepare_converter_for_quantization(
             converter.inference_input_type = str_to_dtype[quantization_config.inputs_dtype]
         if quantization_config.outputs_dtype is not None:
             converter.inference_output_type = str_to_dtype[quantization_config.outputs_dtype]
-    elif quantization_config.quantization is QuantizationApproach.INT8_DYNAMIC:
+    elif quantization_config.approach is QuantizationApproach.INT8_DYNAMIC:
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    elif quantization_config.quantization is QuantizationApproach.FP16:
+    elif quantization_config.approach is QuantizationApproach.FP16:
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
         converter.target_spec.supported_types = [tf.float16]
 

@@ -19,7 +19,7 @@ from ctypes import ArgumentError
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union, Type
 
 from transformers.utils import is_tf_available
 
@@ -42,6 +42,9 @@ if TYPE_CHECKING:
 class MissingMandatoryAxisDimension(ValueError):
     pass
 
+class QuantizationApproachNotSupported(ValueError):
+    pass
+
 
 class QuantizationApproach(str, Enum):
     INT8_DYNAMIC = "int8-dynamic"
@@ -57,8 +60,8 @@ class QuantizationConfig:
 
     Attributes:
 
-        quantization (`Optional[Union[str, QuantizationApproach]]`, defaults to `None`):
-            The quantization to perform. No quantization is applied if left unspecified.
+        approach (`Optional[Union[str, QuantizationApproach]]`, defaults to `None`):
+            The quantization approach to perform. No quantization is applied if left unspecified.
         fallback_to_float (`bool`, defaults to `False`):
             Allows to fallback to float kernels in quantization.
         inputs_dtype (`Optional[str]`, defaults to `None`):
@@ -91,7 +94,7 @@ class QuantizationConfig:
             The name of the column containing the image in the dataset. Only for image-classification.
     """
 
-    quantization: Optional[Union[str, QuantizationApproach]] = None
+    approach: Optional[Union[str, QuantizationApproach]] = None
     fallback_to_float: bool = False
     inputs_dtype: Optional[str] = None
     outputs_dtype: Optional[str] = None
@@ -106,9 +109,9 @@ class QuantizationConfig:
     image_key: Optional[str] = None
 
     def __post_init__(self):
-        if self.quantization is not None:
-            if isinstance(self.quantization, str) and not isinstance(self.quantization, QuantizationApproach):
-                self.quantization = QuantizationApproach(self.quantization)
+        if self.approach is not None:
+            if isinstance(self.approach, str) and not isinstance(self.approach, QuantizationApproach):
+                self.approach = QuantizationApproach(self.approach)
 
 
 class TFLiteConfig(ExportConfig, ABC):
@@ -144,10 +147,11 @@ class TFLiteConfig(ExportConfig, ABC):
         They are required or not depending on the model the `TFLiteConfig` is designed for.
     """
 
-    NORMALIZED_CONFIG_CLASS = None
-    DUMMY_INPUT_GENERATOR_CLASSES = ()
+    NORMALIZED_CONFIG_CLASS: Type = None
+    DUMMY_INPUT_GENERATOR_CLASSES: Tuple[Type, ...] = ()
     ATOL_FOR_VALIDATION: Union[float, Dict[str, float]] = 1e-5
     MANDATORY_AXES = ()
+    SUPPORTED_QUANTIZATION_APPROACHES: Union[Dict[str, Tuple[QuantizationApproach, ...]], Tuple[QuantizationApproach, ...]] = tuple(approach for approach in QuantizationApproach)
 
     _TASK_TO_COMMON_OUTPUTS = {
         "causal-lm": ["logits"],
@@ -356,3 +360,10 @@ class TFLiteConfig(ExportConfig, ABC):
         function = tf.function(forward, input_signature=self.inputs_specs).get_concrete_function()
 
         return {"model": function}
+
+
+    def supports_quantization_approach(self, quantization_approach: QuantizationApproach) -> bool:
+        supported_approaches = self.SUPPORTED_QUANTIZATION_APPROACHES
+        if isinstance(supported_approaches, dict):
+            supported_approaches = supported_approaches.get(self.task, supported_approaches["default"])
+        return quantization_approach in supported_approaches 

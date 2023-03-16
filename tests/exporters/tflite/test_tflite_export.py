@@ -12,10 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from contextlib import nullcontext
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Dict, Optional, Union
 from unittest import TestCase
+from optimum.exporters.tflite.base import QuantizationApproachNotSupported
 
 import pytest
 from parameterized import parameterized
@@ -108,7 +110,7 @@ class TFLiteExportTestCase(TestCase):
         task: str,
         tflite_config_class_constructor,
         quantization: Optional[str] = None,
-        fallback_to_float: bool = True,
+        fallback_to_float: bool = False,
         inputs_dtype: Optional[str] = None,
         outputs_dtype: Optional[str] = None,
         calibration_dataset_name_or_path: Optional[Union[str, Path]] = None,
@@ -133,7 +135,7 @@ class TFLiteExportTestCase(TestCase):
             atol = atol[task.replace("-with-past", "")]
 
         quantization_config = QuantizationConfig(
-            quantization=quantization,
+            approach=quantization,
             fallback_to_float=fallback_to_float,
             inputs_dtype=inputs_dtype,
             outputs_dtype=outputs_dtype,
@@ -147,16 +149,18 @@ class TFLiteExportTestCase(TestCase):
             context_key=context_key,
             image_key=image_key,
         )
-
+        not_supported = quantization is not None and (not tflite_config.supports_quantization_approach(quantization) and not fallback_to_float)
         with NamedTemporaryFile("w") as output:
             try:
-                _, tflite_outputs = export(
-                    model=model,
-                    config=tflite_config,
-                    output=Path(output.name),
-                    preprocessor=preprocessor,
-                    quantization_config=quantization_config,
-                )
+                ctx = self.assertRaises(QuantizationApproachNotSupported) if not_supported else nullcontext()
+                with ctx:
+                    _, tflite_outputs = export(
+                        model=model,
+                        config=tflite_config,
+                        output=Path(output.name),
+                        preprocessor=preprocessor,
+                        quantization_config=quantization_config,
+                    )
 
                 if quantization is None:
                     validate_model_outputs(

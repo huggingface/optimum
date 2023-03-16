@@ -14,11 +14,11 @@
 # limitations under the License.
 import unittest
 from tempfile import TemporaryDirectory
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 import pytest
 from parameterized import parameterized
-from transformers import is_tf_available
+from transformers import is_tf_available, AutoConfig
 from transformers.testing_utils import require_tf
 
 from optimum.utils import DEFAULT_DUMMY_SHAPES
@@ -26,9 +26,12 @@ from optimum.utils import DEFAULT_DUMMY_SHAPES
 from ...utils.test_task_processors import TASK_TO_NON_DEFAULT_DATASET
 from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 
-
 if is_tf_available():
     from optimum.exporters.tasks import TasksManager
+
+if TYPE_CHECKING:
+    from optimum.exporters.tasks import ExportConfigConstructor 
+
 
 import subprocess
 
@@ -69,10 +72,7 @@ def _get_models_to_test(export_models_dict: Dict):
                         exporter_config_kwargs=default_shapes,
                     )
 
-                    mandatory_axes = tflite_config_constructor.func.get_mandatory_axes_for_task(task)
-                    shapes = " ".join(f"--{name}={default_shapes[name]}" for name in mandatory_axes)
-
-                    models_to_test.append((f"{model_type}_{task}", model_name, task, shapes))
+                    models_to_test.append((f"{model_type}_{task}", model_name, task, tflite_config_constructor))
 
         return sorted(models_to_test)
     else:
@@ -90,7 +90,7 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
     def _tflite_export(
         self,
         model_name: str,
-        shapes: str,
+        tflite_config_constructor: "ExportConfigConstructor",
         task: Optional[str] = None,
         quantization: Optional[str] = None,
         fallback_to_float: bool = False,
@@ -107,44 +107,52 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
         image_key: Optional[str] = None,
     ):
         with TemporaryDirectory() as tmpdir:
-            command = f"python3 -m optimum.exporters.tflite --model {model_name}"
-            to_join = [command]
+            command = f"python3 -m optimum.exporters.tflite --model {model_name}".split()
             if task is not None:
-                to_join.append(f"--task {task}")
+                command.append(f"--task={task}")
             if quantization is not None:
-                to_join.append(f"--quantize {quantization}")
+                command.append(f"--quantize={quantization}")
             if fallback_to_float:
-                to_join.append("--fallback_to_float")
+                command.append("--fallback_to_float")
             if inputs_dtype is not None:
-                to_join.append(f"--inputs_type {inputs_dtype}")
+                command.append(f"--inputs_type={inputs_dtype}")
             if outputs_dtype is not None:
-                to_join.append(f"--outputs_type {outputs_dtype}")
+                command.append(f"--outputs_type={outputs_dtype}")
             if calibration_dataset_name_or_path is not None:
-                to_join.append(f"--calibration_dataset {calibration_dataset_name_or_path}")
+                command.append(f"--calibration_dataset={calibration_dataset_name_or_path}")
             if calibration_dataset_config_name is not None:
-                to_join.append(f"--calibration_dataset_config_name {calibration_dataset_config_name}")
+                command.append(f"--calibration_dataset_config_name={calibration_dataset_config_name}")
             if calibration_split is not None:
-                to_join.append(f"--calibration_split {calibration_split}")
+                command.append(f"--calibration_split={calibration_split}")
             if primary_key is not None:
-                to_join.append(f"--primary_key {primary_key}")
+                command.append(f"--primary_key={primary_key}")
             if secondary_key is not None:
-                to_join.append(f"--secondary_key {secondary_key}")
+                command.append(f"--secondary_key={secondary_key}")
             if question_key is not None:
-                to_join.append(f"--question_key {question_key}")
+                command.append(f"--question_key={question_key}")
             if context_key is not None:
-                to_join.append(f"--context_key {context_key}")
+                command.append(f"--context_key={context_key}")
             if image_key is not None:
-                to_join.append(f"--image_key {image_key}")
-            to_join.append(f"--num_calibration_samples {num_calibration_samples}")
+                command.append(f"--image_key={image_key}")
+            command.append(f"--num_calibration_samples={num_calibration_samples}")
 
-            to_join.append(shapes)
-            to_join.append(tmpdir)
+            tflite_config = tflite_config_constructor(AutoConfig.from_pretrained(model_name))
+            mandatory_axes = tflite_config.get_mandatory_axes_for_task(task)
+            shapes = [f"--{name}={getattr(tflite_config, name)}" for name in mandatory_axes]
+            command += shapes
+            command.append(tmpdir)
 
-            subprocess.run(
-                " ".join(to_join),
-                shell=True,
-                check=True,
-            )
+            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
+            outs, errs = proc.communicate()
+            # Convenient to see the output with -s in PyTest.
+            print(outs.decode("utf-8"))
+            print(errs.decode("utf-8"))
+            not_supported = quantization is not None and (not tflite_config.supports_quantization_approach(quantization) and not fallback_to_float)
+            if not_supported:
+                self.assertIn("QuantizationApproachNotSupported", errs.decode("utf-8"))
+            else:
+                self.assertEqual(proc.returncode, 0)
+
 
     @pytest.mark.skip("Not supported yet, need to have proper list of models to export to do it")
     def test_all_models_tested(self):
@@ -157,28 +165,28 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
-    def test_exporters_cli_tflite(self, test_name: str, model_name: str, task: str, shapes: str):
-        self._tflite_export(model_name, shapes, task=task)
+    def test_exporters_cli_tflite(self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor"):
+        self._tflite_export(model_name, tflite_config_constructor, task=task)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
     @pytest.mark.quantization
-    def test_exporters_cli_tflite_float16_quantization(self, test_name: str, model_name: str, task: str, shapes: str):
-        self._tflite_export(model_name, shapes, task=task, quantization="fp16")
+    def test_exporters_cli_tflite_float16_quantization(self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor"):
+        self._tflite_export(model_name, tflite_config_constructor, task=task, quantization="fp16")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
     @pytest.mark.quantization
     def test_exporters_cli_tflite_int8_dynamic_quantization(
-        self, test_name: str, model_name: str, task: str, shapes: str
+        self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor", 
     ):
-        self._tflite_export(model_name, shapes, task=task, quantization="int8-dynamic")
+        self._tflite_export(model_name, tflite_config_constructor, task=task, quantization="int8-dynamic")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
     @pytest.mark.quantization
     def test_exporters_cli_tflite_full_int8_quantization_with_default_dataset(
-        self, test_name: str, model_name: str, task: str, shapes: str
+        self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor", 
     ):
         # TODO: currently only 4 tasks are supported.
         if task not in TASK_TO_NON_DEFAULT_DATASET:
@@ -186,7 +194,7 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
 
         self._tflite_export(
             model_name,
-            shapes,
+            tflite_config_constructor,
             task=task,
             quantization="int8",
             num_calibration_samples=3,
@@ -198,29 +206,29 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
     @require_tf
     @pytest.mark.quantization
     def test_exporters_cli_tflite_int8_quantization_with_default_dataset(
-        self, test_name: str, model_name: str, task: str, shapes: str
+        self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor",
     ):
         # TODO: currently only 4 tasks are supported.
         if task not in TASK_TO_NON_DEFAULT_DATASET:
             return
-        self._tflite_export(model_name, shapes, task=task, quantization="int8", num_calibration_samples=3)
+        self._tflite_export(model_name, tflite_config_constructor, task=task, quantization="int8", num_calibration_samples=3)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
     @pytest.mark.quantization
     def test_exporters_cli_tflite_int8x16_quantization_with_default_dataset(
-        self, test_name: str, model_name: str, task: str, shapes: str
+        self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor",
     ):
         # TODO: currently only 4 tasks are supported.
         if task not in TASK_TO_NON_DEFAULT_DATASET:
             return
-        self._tflite_export(model_name, shapes, task=task, quantization="int8x16", num_calibration_samples=3)
+        self._tflite_export(model_name, tflite_config_constructor, task=task, quantization="int8x16", num_calibration_samples=3)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
     @pytest.mark.quantization
     def test_exporters_cli_tflite_int8_quantization_with_custom_dataset(
-        self, test_name: str, model_name: str, task: str, shapes: str
+        self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor",
     ):
         # TODO: currently only 4 tasks are supported.
         if task not in TASK_TO_NON_DEFAULT_DATASET:
@@ -237,7 +245,7 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
 
         self._tflite_export(
             model_name,
-            shapes,
+            tflite_config_constructor,
             task=task,
             quantization="int8",
             calibration_dataset_name_or_path=custom_dataset,
