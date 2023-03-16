@@ -14,6 +14,7 @@
 # limitations under the License.
 import dataclasses
 import functools
+import inspect
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 from ...utils import logging
@@ -154,10 +155,13 @@ class WavLMModelPatcher(ModelPatcher):
         def patched_forward(*args, **kwargs):
             args = list(args)
 
+            signature = inspect.signature(self.orig_forward)
+            output_attentions_index = list(signature.parameters.keys()).index("output_attentions")
+
             # setting output_attentions=True in the model input to avoid calling torch.nn.functional.scaled_dot_product_attention
             # in https://github.com/huggingface/transformers/blob/v4.27.1/src/transformers/models/wavlm/modeling_wavlm.py#L496
             # that calls https://github.com/pytorch/pytorch/blob/v2.0.0/torch/nn/functional.py#L5334
-            args[3] = True
+            args[output_attentions_index] = True
             outputs = self.orig_forward(*args, **kwargs)
 
             filterd_outputs = {}
