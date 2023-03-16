@@ -17,6 +17,7 @@ import random
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from packaging import version
+from transformers.utils import is_tf_available
 
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
@@ -52,9 +53,13 @@ from .model_patcher import WavLMModelPatcher
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
+    from transformers.modeling_utils import PreTrainedModel
 
     from ...utils import DummyInputGenerator
     from .model_patcher import ModelPatcher
+
+    if is_tf_available():
+        from transformers.modeling_tf_utils import TFPreTrainedModel
 
 logger = logging.get_logger(__name__)
 
