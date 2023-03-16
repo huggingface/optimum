@@ -17,7 +17,6 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Dict, Optional, Union
 from unittest import TestCase
-from optimum.exporters.tflite.base import QuantizationApproachNotSupported
 
 import pytest
 from parameterized import parameterized
@@ -25,6 +24,7 @@ from transformers import AutoConfig, is_tf_available
 from transformers.testing_utils import require_tf, require_vision, slow
 
 from optimum.exporters.tflite import QuantizationConfig, export, validate_model_outputs
+from optimum.exporters.tflite.base import QuantizationApproachNotSupported
 from optimum.utils import DEFAULT_DUMMY_SHAPES
 from optimum.utils.preprocessing import Preprocessor
 from optimum.utils.save_utils import maybe_load_preprocessors
@@ -149,7 +149,9 @@ class TFLiteExportTestCase(TestCase):
             context_key=context_key,
             image_key=image_key,
         )
-        not_supported = quantization is not None and (not tflite_config.supports_quantization_approach(quantization) and not fallback_to_float)
+        not_supported = quantization is not None and (
+            not tflite_config.supports_quantization_approach(quantization) and not fallback_to_float
+        )
         with NamedTemporaryFile("w") as output:
             try:
                 ctx = self.assertRaises(QuantizationApproachNotSupported) if not_supported else nullcontext()

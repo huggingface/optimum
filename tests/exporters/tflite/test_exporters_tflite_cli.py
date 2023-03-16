@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Dict, Optional
 
 import pytest
 from parameterized import parameterized
-from transformers import is_tf_available, AutoConfig
+from transformers import AutoConfig, is_tf_available
 from transformers.testing_utils import require_tf
 
 from optimum.utils import DEFAULT_DUMMY_SHAPES
@@ -26,11 +26,12 @@ from optimum.utils import DEFAULT_DUMMY_SHAPES
 from ...utils.test_task_processors import TASK_TO_NON_DEFAULT_DATASET
 from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY
 
+
 if is_tf_available():
     from optimum.exporters.tasks import TasksManager
 
 if TYPE_CHECKING:
-    from optimum.exporters.tasks import ExportConfigConstructor 
+    from optimum.exporters.tasks import ExportConfigConstructor
 
 
 import subprocess
@@ -142,17 +143,18 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
             command += shapes
             command.append(tmpdir)
 
-            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
+            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             outs, errs = proc.communicate()
             # Convenient to see the output with -s in PyTest.
             print(outs.decode("utf-8"))
             print(errs.decode("utf-8"))
-            not_supported = quantization is not None and (not tflite_config.supports_quantization_approach(quantization) and not fallback_to_float)
+            not_supported = quantization is not None and (
+                not tflite_config.supports_quantization_approach(quantization) and not fallback_to_float
+            )
             if not_supported:
                 self.assertIn("QuantizationApproachNotSupported", errs.decode("utf-8"))
             else:
                 self.assertEqual(proc.returncode, 0)
-
 
     @pytest.mark.skip("Not supported yet, need to have proper list of models to export to do it")
     def test_all_models_tested(self):
@@ -165,20 +167,28 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
-    def test_exporters_cli_tflite(self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor"):
+    def test_exporters_cli_tflite(
+        self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor"
+    ):
         self._tflite_export(model_name, tflite_config_constructor, task=task)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
     @pytest.mark.quantization
-    def test_exporters_cli_tflite_float16_quantization(self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor"):
+    def test_exporters_cli_tflite_float16_quantization(
+        self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor"
+    ):
         self._tflite_export(model_name, tflite_config_constructor, task=task, quantization="fp16")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
     @pytest.mark.quantization
     def test_exporters_cli_tflite_int8_dynamic_quantization(
-        self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor", 
+        self,
+        test_name: str,
+        model_name: str,
+        task: str,
+        tflite_config_constructor: "ExportConfigConstructor",
     ):
         self._tflite_export(model_name, tflite_config_constructor, task=task, quantization="int8-dynamic")
 
@@ -186,7 +196,11 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
     @require_tf
     @pytest.mark.quantization
     def test_exporters_cli_tflite_full_int8_quantization_with_default_dataset(
-        self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor", 
+        self,
+        test_name: str,
+        model_name: str,
+        task: str,
+        tflite_config_constructor: "ExportConfigConstructor",
     ):
         # TODO: currently only 4 tasks are supported.
         if task not in TASK_TO_NON_DEFAULT_DATASET:
@@ -206,29 +220,45 @@ class TFLiteCLIExportTestCase(unittest.TestCase):
     @require_tf
     @pytest.mark.quantization
     def test_exporters_cli_tflite_int8_quantization_with_default_dataset(
-        self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor",
+        self,
+        test_name: str,
+        model_name: str,
+        task: str,
+        tflite_config_constructor: "ExportConfigConstructor",
     ):
         # TODO: currently only 4 tasks are supported.
         if task not in TASK_TO_NON_DEFAULT_DATASET:
             return
-        self._tflite_export(model_name, tflite_config_constructor, task=task, quantization="int8", num_calibration_samples=3)
+        self._tflite_export(
+            model_name, tflite_config_constructor, task=task, quantization="int8", num_calibration_samples=3
+        )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
     @pytest.mark.quantization
     def test_exporters_cli_tflite_int8x16_quantization_with_default_dataset(
-        self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor",
+        self,
+        test_name: str,
+        model_name: str,
+        task: str,
+        tflite_config_constructor: "ExportConfigConstructor",
     ):
         # TODO: currently only 4 tasks are supported.
         if task not in TASK_TO_NON_DEFAULT_DATASET:
             return
-        self._tflite_export(model_name, tflite_config_constructor, task=task, quantization="int8x16", num_calibration_samples=3)
+        self._tflite_export(
+            model_name, tflite_config_constructor, task=task, quantization="int8x16", num_calibration_samples=3
+        )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_tf
     @pytest.mark.quantization
     def test_exporters_cli_tflite_int8_quantization_with_custom_dataset(
-        self, test_name: str, model_name: str, task: str, tflite_config_constructor: "ExportConfigConstructor",
+        self,
+        test_name: str,
+        model_name: str,
+        task: str,
+        tflite_config_constructor: "ExportConfigConstructor",
     ):
         # TODO: currently only 4 tasks are supported.
         if task not in TASK_TO_NON_DEFAULT_DATASET:

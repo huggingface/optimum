@@ -54,7 +54,6 @@ class RoFormerTFLiteConfig(BertTFLiteConfig):
         QuantizationApproach.INT8x16,
         QuantizationApproach.FP16,
     )
-    
 
 
 class MobileBertTFLiteConfig(BertTFLiteConfig):

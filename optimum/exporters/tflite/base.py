@@ -19,7 +19,7 @@ from ctypes import ArgumentError
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
 from transformers.utils import is_tf_available
 
@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 
 class MissingMandatoryAxisDimension(ValueError):
     pass
+
 
 class QuantizationApproachNotSupported(ValueError):
     pass
@@ -151,7 +152,9 @@ class TFLiteConfig(ExportConfig, ABC):
     DUMMY_INPUT_GENERATOR_CLASSES: Tuple[Type, ...] = ()
     ATOL_FOR_VALIDATION: Union[float, Dict[str, float]] = 1e-5
     MANDATORY_AXES = ()
-    SUPPORTED_QUANTIZATION_APPROACHES: Union[Dict[str, Tuple[QuantizationApproach, ...]], Tuple[QuantizationApproach, ...]] = tuple(approach for approach in QuantizationApproach)
+    SUPPORTED_QUANTIZATION_APPROACHES: Union[
+        Dict[str, Tuple[QuantizationApproach, ...]], Tuple[QuantizationApproach, ...]
+    ] = tuple(approach for approach in QuantizationApproach)
 
     _TASK_TO_COMMON_OUTPUTS = {
         "causal-lm": ["logits"],
@@ -361,9 +364,8 @@ class TFLiteConfig(ExportConfig, ABC):
 
         return {"model": function}
 
-
     def supports_quantization_approach(self, quantization_approach: QuantizationApproach) -> bool:
         supported_approaches = self.SUPPORTED_QUANTIZATION_APPROACHES
         if isinstance(supported_approaches, dict):
             supported_approaches = supported_approaches.get(self.task, supported_approaches["default"])
-        return quantization_approach in supported_approaches 
+        return quantization_approach in supported_approaches

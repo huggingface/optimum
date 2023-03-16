@@ -25,7 +25,7 @@ from transformers.utils import is_tf_available
 from ...utils import logging
 from ...utils.preprocessing import Preprocessor, TaskProcessorsManager
 from ..error_utils import AtolError, OutputMatchError, ShapeError
-from .base import QuantizationApproach, QuantizationApproachNotSupported 
+from .base import QuantizationApproach, QuantizationApproachNotSupported
 
 
 if TYPE_CHECKING:
@@ -163,7 +163,10 @@ def prepare_converter_for_quantization(
 ):
     import tensorflow as tf
 
-    if not config.supports_quantization_approach(quantization_config.approach) and not quantization_config.fallback_to_float:
+    if (
+        not config.supports_quantization_approach(quantization_config.approach)
+        and not quantization_config.fallback_to_float
+    ):
         raise QuantizationApproachNotSupported(
             f"{model.config.model_type} do not support full {quantization_config.approach} quantization, use "
             "fallback_to_float=True to fallback to the float implementation for the unsupported ops."
