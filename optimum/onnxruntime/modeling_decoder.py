@@ -484,12 +484,11 @@ class ORTModelDecoder(ORTModel):
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
 
-        # TODO: support subfolder, revision, local_files_only, force_download, use_auth_token
         main_export(
             model_name_or_path=model_id,
             output=save_dir_path,
             task=task,
-            validate=False,
+            do_validation=False,
             no_post_process=not use_merged,
             subfolder=subfolder,
             revision=revision,

@@ -66,6 +66,7 @@ def main_export(
     local_files_only: bool = False,
     use_auth_token: Optional[Union[bool, str]] = None,
     for_ort: bool = False,
+    do_validation: bool = True,
     **kwargs_shapes,
 ):
     """
@@ -306,32 +307,33 @@ def main_export(
                 f"The post-processing of the ONNX export failed. The export can still be performed by passing the option --no-post-process. Detailed error: {e}"
             )
 
-    try:
-        validate_models_outputs(
-            models_and_onnx_configs=models_and_onnx_configs,
-            onnx_named_outputs=onnx_outputs,
-            atol=atol,
-            output_dir=output,
-            onnx_files_subpaths=onnx_files_subpaths,
-            input_shapes=input_shapes,
-            device=device,
-            dtype=torch_dtype,
-        )
-        logger.info(f"The ONNX export succeeded and the exported model was saved at: {output.as_posix()}")
-    except ShapeError as e:
-        raise e
-    except AtolError as e:
-        logger.warning(
-            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {output.as_posix()}"
-        )
-    except OutputMatchError as e:
-        logger.warning(
-            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {output.as_posix()}"
-        )
-    except Exception as e:
-        raise Exception(
-            f"An error occured during validation, but the model was saved nonetheless at {output.as_posix()}. Detailed error: {e}."
-        )
+    if do_validation is True:
+        try:
+            validate_models_outputs(
+                models_and_onnx_configs=models_and_onnx_configs,
+                onnx_named_outputs=onnx_outputs,
+                atol=atol,
+                output_dir=output,
+                onnx_files_subpaths=onnx_files_subpaths,
+                input_shapes=input_shapes,
+                device=device,
+                dtype=torch_dtype,
+            )
+            logger.info(f"The ONNX export succeeded and the exported model was saved at: {output.as_posix()}")
+        except ShapeError as e:
+            raise e
+        except AtolError as e:
+            logger.warning(
+                f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {output.as_posix()}"
+            )
+        except OutputMatchError as e:
+            logger.warning(
+                f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {output.as_posix()}"
+            )
+        except Exception as e:
+            raise Exception(
+                f"An error occured during validation, but the model was saved nonetheless at {output.as_posix()}. Detailed error: {e}."
+            )
 
 
 def main():

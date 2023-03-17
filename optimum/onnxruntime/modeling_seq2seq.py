@@ -790,7 +790,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             model_name_or_path=model_id,
             output=save_dir_path,
             task=task,
-            validate=False,
+            do_validation=False,
             no_post_process=True,
             subfolder=subfolder,
             revision=revision,
