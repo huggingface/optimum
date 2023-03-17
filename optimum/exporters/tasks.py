@@ -113,17 +113,6 @@ def supported_tasks_mapping(
                 if config_constructor is None:
                     continue
                 mapping[backend][task] = config_constructor
-                # if isinstance(task, tuple):
-                #     task, supported_backends_for_task = task
-                #     if backend not in supported_backends_for_task:
-                #         continue
-                # if "-with-past" in task:
-                #     if not hasattr(config_cls, "with_past"):
-                #         raise ValueError(f"{config_cls} does not support tasks with past.")
-                #     mapping[backend][task] = partial(config_cls.with_past, task=task.replace("-with-past", ""))
-                # else:
-                #     mapping[backend][task] = partial(config_cls, task=task)
-
     return mapping
 
 
