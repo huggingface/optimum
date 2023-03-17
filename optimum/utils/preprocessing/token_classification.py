@@ -79,6 +79,8 @@ class TokenClassificationProcessing(TaskProcessor):
         ref_keys: Optional[List[str]] = None,
         only_keep_necessary_columns: bool = False,
         load_smallest_split: bool = False,
+        num_samples: Optional[int] = None,
+        shuffle: bool = False,
         **load_dataset_kwargs,
     ) -> Union["DatasetDict", "Dataset"]:
         if data_keys is not None and data_keys.get("secondary", None) is not None:
@@ -89,6 +91,8 @@ class TokenClassificationProcessing(TaskProcessor):
             ref_keys=ref_keys,
             only_keep_necessary_columns=only_keep_necessary_columns,
             load_smallest_split=load_smallest_split,
+            num_samples=num_samples,
+            shuffle=shuffle,
             **load_dataset_kwargs,
         )
         # TODO: do we want to do that here?

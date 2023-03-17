@@ -124,6 +124,8 @@ class TaskProcessor(ABC):
         ref_keys: Optional[List[str]] = None,
         only_keep_necessary_columns: bool = False,
         load_smallest_split: bool = False,
+        num_samples: Optional[int] = None,
+        shuffle: bool = False,
         **load_dataset_kwargs,
     ) -> Union[DatasetDict, Dataset]:
         dataset = datasets_load_dataset(path, **load_dataset_kwargs)
@@ -136,6 +138,17 @@ class TaskProcessor(ABC):
                 )
             smallest_split = min(dataset.items(), key=lambda item: item[1].num_rows)[0]
             dataset = dataset[smallest_split]
+
+        if shuffle:
+            dataset = dataset.shuffle()
+
+        if isinstance(dataset, Dataset) and num_samples is not None:
+            if num_samples > dataset.num_rows:
+                raise ValueError(
+                    f"There are only {dataset.num_rows} examples in the dataset, but it was requested to select "
+                    f"{num_samples} examples."
+                )
+            dataset = dataset.select(range(num_samples))
 
         column_names = dataset.column_names
         if isinstance(column_names, dict):
@@ -172,7 +185,12 @@ class TaskProcessor(ABC):
         return dataset
 
     def load_default_dataset(
-        self, only_keep_necessary_columns: bool = False, load_smallest_split: bool = False, **load_dataset_kwargs
+        self,
+        only_keep_necessary_columns: bool = False,
+        load_smallest_split: bool = False,
+        num_samples: Optional[int] = None,
+        shuffle: bool = False,
+        **load_dataset_kwargs,
     ):
         if isinstance(self.DEFAULT_DATASET_ARGS, dict):
             path = self.DEFAULT_DATASET_ARGS.get("path", None)
@@ -200,5 +218,7 @@ class TaskProcessor(ABC):
             ref_keys=self.DEFAULT_REF_KEYS,
             only_keep_necessary_columns=only_keep_necessary_columns,
             load_smallest_split=load_smallest_split,
+            num_samples=num_samples,
+            shuffle=shuffle,
             **kwargs,
         )

@@ -215,10 +215,22 @@ def prepare_converter_for_quantization(
                 "used if the dataset contains multiple splits."
             )
 
+        batch_size = config.batch_size
+        num_calibration_samples = quantization_config.num_calibration_samples
+        if num_calibration_samples % batch_size != 0:
+            new_num_calibration_samples = (num_calibration_samples // batch_size + 1) * batch_size
+            logger.info(
+                f"The number of calibration examples ({num_calibration_samples}) does not divide the batch size "
+                f"({batch_size}), using {new_num_calibration_samples} examples instead."
+            )
+            num_calibration_samples = new_num_calibration_samples
+
         if quantization_config.calibration_dataset_name_or_path is None:
             calibration_dataset = task_processor.load_default_dataset(
                 only_keep_necessary_columns=True,
                 load_smallest_split=load_smallest_split,
+                num_samples=num_calibration_samples,
+                shuffle=True,
                 split=quantization_config.calibration_split,
             )
         else:
@@ -239,31 +251,26 @@ def prepare_converter_for_quantization(
                 data_keys=data_keys,
                 only_keep_necessary_columns=True,
                 load_smallest_split=load_smallest_split,
+                num_samples=num_calibration_samples,
+                shuffle=True,
                 name=quantization_config.calibration_dataset_config_name,
                 split=quantization_config.calibration_split,
             )
 
-        calibration_dataset = calibration_dataset.shuffle()
-
-        batch_size = config.batch_size
-        num_calibration_samples = quantization_config.num_calibration_samples
-        if num_calibration_samples % batch_size != 0:
-            new_num_calibration_samples = (num_calibration_samples // batch_size + 1) * batch_size
-            logger.info(
-                f"The number of calibration examples ({num_calibration_samples}) does not divide the batch size "
-                f"({batch_size}), using {new_num_calibration_samples} examples instead."
-            )
-            num_calibration_samples = new_num_calibration_samples
-
-        if num_calibration_samples > calibration_dataset.num_rows:
-            raise ValueError(
-                f"There are only {calibration_dataset.num_rows} examples in the calibration dataset, but it was "
-                "requested to perform calibration using {num_calibration_samples} examples."
-            )
-
-        calibration_dataset = calibration_dataset.select(range(num_calibration_samples))
-
         if batch_size > 1:
+            # Batching can be buggy if a column for on example is empty, and another is not.
+            # Since we only care about the columns used by the model (no evaluation), we can filter by only keeping
+            # columns that are used at least by one signature. If batching still fails, then it is wanted because it
+            # means that there is missing data for calibrating the model.
+            columns_needed_by_all_signatures = set()
+            for tf_function in signatures.values():
+                args, kwargs = tf_function.structured_input_signature
+                columns_needed_by_all_signatures |= {input_.name for input_ in args}
+                columns_needed_by_all_signatures |= {input_.name for input_ in kwargs.values()}
+
+            # TODO: maybe use calibration.select_columns(columns_needed_by_all_signatures) instead, did not work?
+            columns_to_remove = set(calibration_dataset.column_names) - columns_needed_by_all_signatures
+            calibration_dataset = calibration_dataset.remove_columns(columns_to_remove)
 
             def batching_function(examples):
                 return {column_name: [examples[column_name]] for column_name in examples.keys()}
