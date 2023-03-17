@@ -102,11 +102,8 @@ class XLMRobertaTFLiteConfig(DistilBertTFLiteConfig):
 
 
 class DebertaTFLiteConfig(BertTFLiteConfig):
-    SUPPORTED_QUANTIZATION_APPROACHES = {
-        "default": BertTFLiteConfig.SUPPORTED_QUANTIZATION_APPROACHES,
-        # INT8 quantization on question-answering is producing a segfault error.
-        "question-answering": (QuantizationApproach.INT8_DYNAMIC, QuantizationApproach.FP16),
-    }
+    # INT8 quantization is producing a segfault error.
+    SUPPORTED_QUANTIZATION_APPROACHES = (QuantizationApproach.INT8_DYNAMIC, QuantizationApproach.FP16)
 
     @property
     def inputs(self) -> List[str]:
