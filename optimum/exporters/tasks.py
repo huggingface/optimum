@@ -54,6 +54,23 @@ def is_backend_available(backend):
     return backend_availablilty[backend]
 
 
+def make_backend_config_constructor_for_task(
+    backend: str, config_cls: Type, task: Union[str, Tuple[str, Tuple[str, ...]]]
+) -> Optional[ExportConfigConstructor]:
+    constructor = None
+    if isinstance(task, tuple):
+        task, supported_backends_for_task = task
+        if backend not in supported_backends_for_task:
+            constructor = None
+    if "-with-past" in task:
+        if not hasattr(config_cls, "with_past"):
+            raise ValueError(f"{config_cls} does not support tasks with past.")
+        constructor = partial(config_cls.with_past, task=task.replace("-with-past", ""))
+    else:
+        constructor = partial(config_cls, task=task)
+    return constructor
+
+
 def supported_tasks_mapping(
     *supported_tasks: Union[str, Tuple[str, Tuple[str, ...]]], **exporters: str
 ) -> Dict[str, TaskNameToExportConfigDict]:
@@ -74,7 +91,7 @@ def supported_tasks_mapping(
         exporters (`Dict[str, str]`):
             The export backend name -> config class name mapping. For instance:
             ```python
-            >>> kwargs = {  # doctest: +SKIP
+            >>> exporters = {  # doctest: +SKIP
             ...     "onnx": "BertOnnxConfig",
             ...     "tflite": "BertTFLiteConfig",
             ...     ...
@@ -92,14 +109,20 @@ def supported_tasks_mapping(
             )
             mapping[backend] = {}
             for task in supported_tasks:
-                if isinstance(task, tuple):
-                    task, supported_backends_for_task = task
-                    if backend not in supported_backends_for_task:
-                        continue
-                if "-with-past" in task:
-                    mapping[backend][task] = partial(config_cls.with_past, task=task.replace("-with-past", ""))
-                else:
-                    mapping[backend][task] = partial(config_cls, task=task)
+                config_constructor = make_backend_config_constructor_for_task(backend, config_cls, task)
+                if config_constructor is None:
+                    continue
+                mapping[backend][task] = config_constructor
+                # if isinstance(task, tuple):
+                #     task, supported_backends_for_task = task
+                #     if backend not in supported_backends_for_task:
+                #         continue
+                # if "-with-past" in task:
+                #     if not hasattr(config_cls, "with_past"):
+                #         raise ValueError(f"{config_cls} does not support tasks with past.")
+                #     mapping[backend][task] = partial(config_cls.with_past, task=task.replace("-with-past", ""))
+                # else:
+                #     mapping[backend][task] = partial(config_cls, task=task)
 
     return mapping
 
@@ -791,6 +814,54 @@ class TasksManager:
     }
     _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae-encoder", "vae-decoder", "clip-text-model", "trocr"}
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
+
+    @classmethod
+    def create_register(
+        cls, backend: str, overwrite_existing: bool = False
+    ) -> Callable[[str, Tuple[str, ...]], Callable[[Type], Type]]:
+        """
+        Creates a register function for the specified backend.
+
+        Args:
+            backend (`str`):
+                The name of the backend that the register function will handle.
+            overwrite_existing (`bool`, defaults to `False`):
+                Whether or not the register function is allowed to overwrite an already existing config.
+
+        Returns:
+            `Callable[[str, Tuple[str, ...]], Callable[[Type], Type]]`: A decorator taking the model type and a the
+            supported tasks.
+
+        Example:
+            ```python
+            >>> register_for_new_backend = create_register("new-backend")
+
+            >>> @register_for_new_backend("bert", "sequence-classification", "token-classification")
+            >>> class BertNewBackendConfig(NewBackendConfig):
+            >>>     pass
+            ```
+        """
+
+        def wrapper(model_type: str, *supported_tasks: str) -> Callable[[Type], Type]:
+            def decorator(config_cls: Type) -> Type:
+                mapping = cls._SUPPORTED_MODEL_TYPE.get(model_type, {})
+                mapping_backend = mapping.get(backend, {})
+                for task in supported_tasks:
+                    if task not in cls._TASKS_TO_LIBRARY:
+                        known_tasks = ", ".join(cls._TASKS_TO_LIBRARY.keys())
+                        raise ValueError(
+                            f'The TasksManager does not know the task called "{task}", known tasks: {known_tasks}.'
+                        )
+                    if not overwrite_existing and task in mapping_backend:
+                        continue
+                    mapping_backend[task] = make_backend_config_constructor_for_task(backend, config_cls, task)
+                mapping[backend] = mapping_backend
+                cls._SUPPORTED_MODEL_TYPE[model_type] = mapping
+                return config_cls
+
+            return decorator
+
+        return wrapper
 
     @staticmethod
     def get_supported_tasks_for_model_type(
