@@ -24,6 +24,7 @@ from .config import TextEncoderTFliteConfig, VisionTFLiteConfig
 
 class BertTFLiteConfig(TextEncoderTFliteConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("bert")
+    # INT8x16 not supported because of the CAST op.
     SUPPORTED_QUANTIZATION_APPROACHES = (
         QuantizationApproach.INT8_DYNAMIC,
         QuantizationApproach.INT8,
@@ -48,12 +49,8 @@ class ElectraTFLiteConfig(BertTFLiteConfig):
 
 
 class RoFormerTFLiteConfig(BertTFLiteConfig):
-    SUPPORTED_QUANTIZATION_APPROACHES = (
-        QuantizationApproach.INT8_DYNAMIC,
-        QuantizationApproach.INT8,
-        QuantizationApproach.INT8x16,
-        QuantizationApproach.FP16,
-    )
+    # INT8x16 not supported because of the CAST and NEG ops.
+    pass
 
 
 class MobileBertTFLiteConfig(BertTFLiteConfig):
