@@ -102,7 +102,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     ):
         with TemporaryDirectory() as tmpdir:
             main_export(
-                model=model_name,
+                model_name_or_path=model_name,
                 output=tmpdir,
                 task=task,
                 device=device,
