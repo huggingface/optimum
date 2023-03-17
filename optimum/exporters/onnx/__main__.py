@@ -19,7 +19,7 @@ from argparse import ArgumentParser
 from transformers import AutoTokenizer
 from transformers.utils import is_torch_available
 
-from ...commands.export.onnx import parse_args_onnx
+from ...commands.export.onnx_parser import parse_args_onnx
 from ...onnxruntime import AutoOptimizationConfig, ORTOptimizer
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
@@ -37,42 +37,117 @@ from .utils import (
 if is_torch_available():
     import torch
 
+from typing import Optional, Union
+
 
 logger = logging.get_logger()
 logger.setLevel(logging.INFO)
 
 
-def main():
-    parser = ArgumentParser("Hugging Face Optimum ONNX exporter")
+# TODO: support subfolder, revision, local_files_only, force_download, use_auth_token
+def main_export(
+    model_name_or_path: str,
+    output: str,
+    task: Optional[str] = None,
+    opset: Optional[int] = None,
+    device: str = "cpu",
+    fp16: Optional[bool] = False,
+    optimize: Optional[str] = None,
+    monolith: bool = False,
+    no_post_process: bool = False,
+    framework: Optional[str] = None,
+    atol: Optional[float] = None,
+    cache_dir: Optional[str] = None,
+    trust_remote_code: bool = False,
+    pad_token_id: Optional[int] = None,
+    subfolder: str = "",
+    revision: str = "main",
+    force_download: bool = False,
+    local_files_only: bool = False,
+    use_auth_token: Optional[Union[bool, str]] = None,
+    for_ort: bool = False,
+    **kwargs_shapes,
+):
+    """
+    Full-suite ONNX export.
 
-    parse_args_onnx(parser)
+    Args:
+        model_name_or_path (`str`):
+            Model ID on huggingface.co or path on disk to the model repository to export.
+        output (`str`):
+            Path indicating the directory where to store generated ONNX model.
+        task (`Optional[str]`, defaults to `None`):
+            The task to export the model for. If not specified, the task will be auto-inferred based on the model. For decoder models,
+            use `xxx-with-past` to export the model using past key values in the decoder.
+        opset (`Optional[int]`, defaults to `None`):
+            If specified, ONNX opset version to export the model with. Otherwise, the default opset for the given model architecture
+            will be used.
+        device (`str`, defaults to `"cpu"`):
+            The device to use to do the export. Defaults to "cpu".
+        fp16 (`Optional[bool]`, defaults to `"False"`):
+            Use half precision during the export. PyTorch-only, requires `device="cuda"`.
+        optimize (`Optional[str]`, defaults to `None`):
+            Allows to run ONNX Runtime optimizations directly during the export. Some of these optimizations are specific to
+            ONNX Runtime, and the resulting ONNX will not be usable with other runtime as OpenVINO or TensorRT.
+            Available options: `"O1", "O2", "O3", "O4"`. Reference: [`~optimum.onnxruntime.AutoOptimizationConfig`]
+        monolith (`bool`, defaults to `False`):
+            Force to export the model as a single ONNX file.
+        no_post_process (`bool`, defaults to `False`):
+            Allows to disable any post-processing done by default on the exported ONNX models.
+        framework (`Optional[str]`, defaults to `None`):
+            The framework to use for the ONNX export (`"pt"` or `"tf"`). If not provided, will attempt to use to automatically detect
+            the framework for the checkpoint.
+        atol (`Optional[float]`, defaults to `None`):
+            If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.
+        cache_dir (`Optional[str]`, defaults to `None`):
+            Path indicating where to store cache. The default Hugging Face cache path will be used by default.
+        trust_remote_code (`bool`, defaults to `False`):
+            Allows to use custom code for the modeling hosted in the model repository. This option should only be set for repositories
+            you trust and in which you have read the code, as it will execute on your local machine arbitrary code present in the
+            model repository.
+        pad_token_id (`Optional[int]`, defaults to `None`):
+            This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess it.
+        subfolder (`str`, defaults to `""`):
+            In case the relevant files are located inside a subfolder of the model repo either locally or on huggingface.co, you can
+            specify the folder name here.
+        revision (`str`, defaults to `"main"`):
+            Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+        force_download (`bool`, defaults to `False`):
+            Whether or not to force the (re-)download of the model weights and configuration files, overriding the
+            cached versions if they exist.
+        local_files_only (`Optional[bool]`, defaults to `False`):
+            Whether or not to only look at local files (i.e., do not try to download the model).
+        use_auth_token (`Optional[str]`, defaults to `None`):
+            The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
+            when running `transformers-cli login` (stored in `~/.huggingface`).
+        **kwargs_shapes (`Dict`):
+            Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
+    """
+    if not output.exists():
+        output.mkdir(parents=True)
 
-    # Retrieve CLI arguments
-    args = parser.parse_args()
-
-    if not args.output.exists():
-        args.output.mkdir(parents=True)
-
-    if args.for_ort:
+    if for_ort:
         logger.warning(
             "The option --for-ort was passed, but its behavior is now the default in the ONNX exporter"
             " and passing it is not required anymore."
         )
 
     # Infer the task
-    task = args.task
+    task = task
     if task == "auto":
         try:
-            task = TasksManager.infer_task_from_model(args.model)
+            task = TasksManager.infer_task_from_model(model_name_or_path)
         except KeyError as e:
             raise KeyError(
                 f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
-    if (args.framework == "tf" and args.fp16 is True) or not is_torch_available():
+    framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
+
+    if (framework == "tf" and fp16 is True) or not is_torch_available():
         raise ValueError("The --fp16 option is supported only for PyTorch.")
 
-    if args.fp16 is True and args.device == "cpu":
+    if fp16 is True and device == "cpu":
         raise ValueError(
             "The --fp16 option is supported only when exporting on GPU. Please pass the option `--device cuda`."
         )
@@ -80,19 +155,26 @@ def main():
     # get the shapes to be used to generate dummy inputs
     input_shapes = {}
     for input_name in DEFAULT_DUMMY_SHAPES.keys():
-        input_shapes[input_name] = getattr(args, input_name)
+        input_shapes[input_name] = (
+            kwargs_shapes[input_name] if input_name in input_shapes else DEFAULT_DUMMY_SHAPES[input_name]
+        )
 
-    torch_dtype = None if args.fp16 is False else torch.float16
+    torch_dtype = None if fp16 is False else torch.float16
     model = TasksManager.get_model_from_task(
         task,
-        args.model,
-        framework=args.framework,
-        cache_dir=args.cache_dir,
-        trust_remote_code=args.trust_remote_code,
+        model_name_or_path,
+        subfolder=subfolder,
+        revision=revision,
+        cache_dir=cache_dir,
+        use_auth_token=use_auth_token,
+        local_files_only=local_files_only,
+        force_download=force_download,
+        trust_remote_code=trust_remote_code,
+        framework=framework,
         torch_dtype=torch_dtype,
     )
 
-    if task.endswith("-with-past") and args.monolith is True:
+    if task.endswith("-with-past") and monolith is True:
         task_non_past = task.replace("-with-past", "")
         raise ValueError(
             f"The task {task} is not compatible with the --monolith argument. Please either use"
@@ -102,7 +184,7 @@ def main():
     if task != "stable-diffusion" and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
         model.config.model_type.replace("_", "-"), "onnx"
     ):
-        if args.task == "auto":  # Make -with-past the default if --task was not explicitely specified
+        if task == "auto":  # Make -with-past the default if --task was not explicitely specified
             task = task + "-with-past"
         else:
             logger.info(
@@ -110,7 +192,7 @@ def main():
                 f" if needed, please pass `--task {task}-with-past` to export using the past key values."
             )
 
-    if args.task == "auto":
+    if task == "auto":
         logger.info(f"Automatic task detection to {task}.")
 
     if task != "stable-diffusion":
@@ -123,11 +205,11 @@ def main():
             and task in ["sequence_classification"]
         )
         if needs_pad_token_id:
-            if args.pad_token_id is not None:
-                model.config.pad_token_id = args.pad_token_id
+            if pad_token_id is not None:
+                model.config.pad_token_id = pad_token_id
             else:
                 try:
-                    tok = AutoTokenizer.from_pretrained(args.model)
+                    tok = AutoTokenizer.from_pretrained(model)
                     model.config.pad_token_id = tok.pad_token_id
                 except Exception:
                     raise ValueError(
@@ -135,22 +217,22 @@ def main():
                     )
 
         # Ensure the requested opset is sufficient
-        if args.opset is None:
-            args.opset = onnx_config.DEFAULT_ONNX_OPSET
+        if opset is None:
+            opset = onnx_config.DEFAULT_ONNX_OPSET
 
-        if args.opset < onnx_config.DEFAULT_ONNX_OPSET:
+        if opset < onnx_config.DEFAULT_ONNX_OPSET:
             raise ValueError(
-                f"Opset {args.opset} is not sufficient to export {model.config.model_type}. "
+                f"Opset {opset} is not sufficient to export {model.config.model_type}. "
                 f"At least  {onnx_config.DEFAULT_ONNX_OPSET} is required."
             )
-        if args.atol is None:
-            args.atol = onnx_config.ATOL_FOR_VALIDATION
-            if isinstance(args.atol, dict):
-                args.atol = args.atol[task.replace("-with-past", "")]
+        if atol is None:
+            atol = onnx_config.ATOL_FOR_VALIDATION
+            if isinstance(atol, dict):
+                atol = atol[task.replace("-with-past", "")]
 
         # Saving the model config and preprocessor as this is needed sometimes.
-        model.config.save_pretrained(args.output)
-        maybe_save_preprocessors(args.model, args.output)
+        model.config.save_pretrained(output)
+        maybe_save_preprocessors(model, output)
 
     if task == "stable-diffusion":
         onnx_files_subpaths = [
@@ -161,10 +243,11 @@ def main():
         ]
         models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
         # Saving the additional components needed to perform inference.
-        model.tokenizer.save_pretrained(args.output.joinpath("tokenizer"))
-        model.scheduler.save_pretrained(args.output.joinpath("scheduler"))
-        model.feature_extractor.save_pretrained(args.output.joinpath("feature_extractor"))
-        model.save_config(args.output)
+        model.tokenizer.save_pretrained(output.joinpath("tokenizer"))
+        model.scheduler.save_pretrained(output.joinpath("scheduler"))
+        if model.feature_extractor is not None:
+            model.feature_extractor.save_pretrained(output.joinpath("feature_extractor"))
+        model.save_config(output)
     else:
         if model.config.is_encoder_decoder and task.startswith("causal-lm"):
             raise ValueError(
@@ -177,46 +260,46 @@ def main():
         if (
             model.config.is_encoder_decoder
             and task.startswith(("seq2seq-lm", "speech2seq-lm", "vision2seq-lm", "default-with-past"))
-            and not args.monolith
+            and not monolith
         ):
             models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
-        elif task.startswith("causal-lm") and not args.monolith:
+        elif task.startswith("causal-lm") and not monolith:
             models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
         else:
             models_and_onnx_configs = {"model": (model, onnx_config)}
 
     _, onnx_outputs = export_models(
         models_and_onnx_configs=models_and_onnx_configs,
-        opset=args.opset,
-        output_dir=args.output,
+        opset=opset,
+        output_dir=output,
         output_names=onnx_files_subpaths,
         input_shapes=input_shapes,
-        device=args.device,
-        dtype="fp16" if args.fp16 is True else None,
+        device=device,
+        dtype="fp16" if fp16 is True else None,
     )
 
-    if args.optimize == "O4" and args.device != "cuda":
+    if optimize == "O4" and device != "cuda":
         raise ValueError(
             "Requested O4 optimization, but this optimization requires to do the export on GPU."
             " Please pass the argument `--device cuda`."
         )
 
-    if args.optimize is not None:
+    if optimize is not None:
         if onnx_files_subpaths is None:
             onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
-        optimizer = ORTOptimizer.from_pretrained(args.output, file_names=onnx_files_subpaths)
+        optimizer = ORTOptimizer.from_pretrained(output, file_names=onnx_files_subpaths)
 
-        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=args.optimize)
+        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=optimize)
 
         optimization_config.disable_shape_inference = True
-        optimizer.optimize(save_dir=args.output, optimization_config=optimization_config, file_suffix="")
+        optimizer.optimize(save_dir=output, optimization_config=optimization_config, file_suffix="")
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating stable diffusion separately is quite ugly
-    if not args.no_post_process and task != "stable-diffusion":
+    if not no_post_process and task != "stable-diffusion":
         try:
             models_and_onnx_configs, onnx_files_subpaths = onnx_config.post_process_exported_models(
-                args.output, models_and_onnx_configs, onnx_files_subpaths
+                output, models_and_onnx_configs, onnx_files_subpaths
             )
         except Exception as e:
             raise Exception(
@@ -227,28 +310,61 @@ def main():
         validate_models_outputs(
             models_and_onnx_configs=models_and_onnx_configs,
             onnx_named_outputs=onnx_outputs,
-            atol=args.atol,
-            output_dir=args.output,
+            atol=atol,
+            output_dir=output,
             onnx_files_subpaths=onnx_files_subpaths,
             input_shapes=input_shapes,
-            device=args.device,
+            device=device,
             dtype=torch_dtype,
         )
-        logger.info(f"The ONNX export succeeded and the exported model was saved at: {args.output.as_posix()}")
+        logger.info(f"The ONNX export succeeded and the exported model was saved at: {output.as_posix()}")
     except ShapeError as e:
         raise e
     except AtolError as e:
         logger.warning(
-            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.as_posix()}"
+            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {output.as_posix()}"
         )
     except OutputMatchError as e:
         logger.warning(
-            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.as_posix()}"
+            f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {output.as_posix()}"
         )
     except Exception as e:
         raise Exception(
-            f"An error occured during validation, but the model was saved nonetheless at {args.output.as_posix()}. Detailed error: {e}."
+            f"An error occured during validation, but the model was saved nonetheless at {output.as_posix()}. Detailed error: {e}."
         )
+
+
+def main():
+    parser = ArgumentParser("Hugging Face Optimum ONNX exporter")
+
+    parse_args_onnx(parser)
+
+    # Retrieve CLI arguments
+    args = parser.parse_args()
+
+    # get the shapes to be used to generate dummy inputs
+    input_shapes = {}
+    for input_name in DEFAULT_DUMMY_SHAPES.keys():
+        input_shapes[input_name] = getattr(args, input_name)
+
+    main_export(
+        model_name_or_path=args.model,
+        output=args.output,
+        task=args.task,
+        opset=args.opset,
+        device=args.device,
+        fp16=args.fp16,
+        optimize=args.optimize,
+        monolith=args.monolith,
+        no_post_process=args.no_post_process,
+        framework=args.framework,
+        atol=args.atol,
+        cache_dir=args.cache_dir,
+        trust_remote_code=args.trust_remote_code,
+        pad_token_id=args.pad_token_id,
+        for_ort=args.for_ort,
+        **input_shapes,
+    )
 
 
 if __name__ == "__main__":

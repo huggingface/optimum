@@ -23,6 +23,7 @@ from parameterized import parameterized
 from transformers import is_torch_available
 from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
 
+from optimum.exporters.onnx.__main__ import main_export
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
 
@@ -100,25 +101,16 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         fp16: bool = False,
     ):
         with TemporaryDirectory() as tmpdir:
-            monolith = " --monolith " if monolith is True else " "
-            no_post_process = " --no-post-process " if no_post_process is True else " "
-            optimization_level = f" --optimize {optimization_level} " if optimization_level is not None else " "
-            task = f" --task {task} " if task is not None else " "
-            device = " --device cuda " if device == "cuda" else " "
-            fp16 = " --fp16 --device cuda " if fp16 is True else " "
-            command = f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{fp16}{optimization_level}{device}{no_post_process}{task}{tmpdir}"
-            print("\nRUNNING:", command)
-            out = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
+            main_export(
+                model=model_name,
+                output=tmpdir,
+                task=task,
+                device=device,
+                fp16=fp16,
+                optimize=optimization_level,
+                monolith=monolith,
+                no_post_process=no_post_process,
             )
-            print(out.stdout.decode("utf-8"))
-            print(out.stderr.decode("utf-8"))  # logging's default output is stderr
-            if out.returncode != 0:
-                raise subprocess.CalledProcessError(
-                    returncode=out.returncode, cmd=out.args, stderr=out.stderr.decode("utf-8")
-                )
 
     def test_all_models_tested(self):
         # make sure we test all models
