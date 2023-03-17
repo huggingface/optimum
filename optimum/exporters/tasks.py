@@ -941,6 +941,9 @@ class TasksManager:
             framework = "pt"
         elif any(is_tf_weight_file):
             framework = "tf"
+        elif "model_index.json" in all_files and any(file.endswith(Path(WEIGHTS_NAME).suffix) for file in all_files):
+            # stable diffusion case
+            framework = "pt"
         else:
             raise FileNotFoundError(
                 "Cannot determine framework from given checkpoint location."
