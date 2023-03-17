@@ -31,7 +31,7 @@ from transformers import CLIPFeatureExtractor, CLIPTokenizer
 
 import onnxruntime as ort
 
-from ..exporters.onnx.__main__ import main_export
+from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
 from ..pipelines.diffusers.pipeline_stable_diffusion import StableDiffusionPipelineMixin
 from ..utils import (

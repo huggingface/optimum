@@ -57,7 +57,7 @@ from transformers.modeling_outputs import (
 import onnxruntime as ort
 
 from ..exporters import TasksManager
-from ..exporters.onnx.__main__ import main_export
+from ..exporters.onnx import main_export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from ..onnx.utils import _get_external_data_paths
 from ..utils.file_utils import find_files_matching_pattern

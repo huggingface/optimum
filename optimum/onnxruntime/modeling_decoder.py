@@ -26,7 +26,7 @@ from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 import onnxruntime
 
-from ..exporters.onnx.__main__ import main_export
+from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
 from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
@@ -473,6 +473,9 @@ class ORTModelDecoder(ORTModel):
     ) -> "ORTModelDecoder":
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
+
+            if use_cache is True:
+                task = task + "-with-past"
 
         if use_cache is False and use_merged is True:
             raise ValueError(

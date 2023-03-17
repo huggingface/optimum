@@ -32,7 +32,7 @@ from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
 import onnxruntime as ort
 
-from ..exporters.onnx.__main__ import main_export
+from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
 from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
@@ -782,6 +782,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
     ) -> "ORTModelForConditionalGeneration":
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
+
+            if use_cache is True:
+                task = task + "-with-past"
 
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)

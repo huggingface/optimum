@@ -14,11 +14,32 @@
 
 import sys
 from argparse import ArgumentParser, RawTextHelpFormatter
+from typing import TYPE_CHECKING
+
+from transformers.utils import _LazyModule
 
 from .. import BaseOptimumCLICommand
-from .onnx import ONNXExportCommand
-from .onnx_parser import parse_args_onnx
-from .tflite import TFLiteExportCommand, parse_args_tflite
+
+
+_import_structure = {
+    "onnx": ["ONNXExportCommand"],
+    "onnx_parser": ["parse_args_onnx"],
+    "tflite": ["TFLiteExportCommand", "parse_args_tflite"],
+}
+
+if TYPE_CHECKING:
+    from .onnx import ONNXExportCommand
+    from .onnx_parser import parse_args_onnx
+    from .tflite import TFLiteExportCommand, parse_args_tflite
+else:
+    import sys
+
+    sys.modules[__name__] = _LazyModule(
+        __name__,
+        globals()["__file__"],
+        _import_structure,
+        module_spec=__spec__,
+    )
 
 
 def onnx_export_factory(args):

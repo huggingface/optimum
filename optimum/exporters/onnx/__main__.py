@@ -20,7 +20,6 @@ from transformers import AutoTokenizer
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx_parser import parse_args_onnx
-from ...onnxruntime import AutoOptimizationConfig, ORTOptimizer
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
@@ -44,7 +43,6 @@ logger = logging.get_logger()
 logger.setLevel(logging.INFO)
 
 
-# TODO: support subfolder, revision, local_files_only, force_download, use_auth_token
 def main_export(
     model_name_or_path: str,
     output: str,
@@ -73,10 +71,15 @@ def main_export(
     Full-suite ONNX export.
 
     Args:
+        > Required parameters
+
         model_name_or_path (`str`):
             Model ID on huggingface.co or path on disk to the model repository to export.
         output (`str`):
             Path indicating the directory where to store generated ONNX model.
+
+        > Optional parameters
+
         task (`Optional[str]`, defaults to `None`):
             The task to export the model for. If not specified, the task will be auto-inferred based on the model. For decoder models,
             use `xxx-with-past` to export the model using past key values in the decoder.
@@ -123,6 +126,13 @@ def main_export(
             when running `transformers-cli login` (stored in `~/.huggingface`).
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
+
+    Example usage:
+    ```python
+    >>> from optimum.exporters.onnx import main_export
+
+    >>> main_export("gpt2", output="gpt2_onnx/")
+    ```
     """
     if not output.exists():
         output.mkdir(parents=True)
@@ -286,6 +296,8 @@ def main_export(
         )
 
     if optimize is not None:
+        from ...onnxruntime import AutoOptimizationConfig, ORTOptimizer
+
         if onnx_files_subpaths is None:
             onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
         optimizer = ORTOptimizer.from_pretrained(output, file_names=onnx_files_subpaths)
