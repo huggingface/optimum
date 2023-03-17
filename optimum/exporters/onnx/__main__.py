@@ -206,7 +206,7 @@ def parse_args_onnx(parser):
 
 def main_export(
     model_name_or_path: str,
-    output: str,
+    output: Union[str, Path],
     task: Optional[str] = None,
     opset: Optional[int] = None,
     device: str = "cpu",
@@ -236,7 +236,7 @@ def main_export(
 
         model_name_or_path (`str`):
             Model ID on huggingface.co or path on disk to the model repository to export.
-        output (`str`):
+        output (`Union[str, Path]`):
             Path indicating the directory where to store generated ONNX model.
 
         > Optional parameters
@@ -295,6 +295,7 @@ def main_export(
     >>> main_export("gpt2", output="gpt2_onnx/")
     ```
     """
+    output = Path(output)
     if not output.exists():
         output.mkdir(parents=True)
 
