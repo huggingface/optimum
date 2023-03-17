@@ -30,7 +30,7 @@ from transformers.utils import is_torch_available
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     DummyInputGenerator,
-    DummyTrainingLabelsInputGenerator,
+    DummyLabelsGenerator,
     is_diffusers_available,
     logging,
 )
@@ -775,7 +775,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         "default": OrderedDict({"loss": {}}),
     }
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTrainingLabelsInputGenerator,)
+    DUMMY_EXTRA_INPUT_GENERATOR_CLASSES = (DummyLabelsGenerator,)
 
     def __init__(self, config: OnnxConfig):
         self._onnx_config = config
@@ -810,10 +810,14 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         # TODO: doesn't this break attention_mask generation?
         if isinstance(self._onnx_config, OnnxConfigWithPast) and self._onnx_config.use_past_in_inputs is True:
             kwargs["sequence_length"] = 1
+        elif "sequence_length" in self._tasks_to_extra_inputs[self.task]:
+            kwargs["sequence_length"] = DEFAULT_DUMMY_SHAPES["sequence_length"]
+
+        kwargs["num_labels"] = self._onnx_config._config.num_labels
 
         dummy_inputs_generators = [
             cls_(self.task, self._normalized_config, batch_size=batch_size, **kwargs)
-            for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES
+            for cls_ in self.DUMMY_EXTRA_INPUT_GENERATOR_CLASSES
         ]
 
         for input_name in self._tasks_to_extra_inputs[self.task]:

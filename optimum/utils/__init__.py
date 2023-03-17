@@ -39,12 +39,12 @@ from .input_generators import (
     DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyInputGenerator,
+    DummyLabelsGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
-    DummyTrainingLabelsInputGenerator,
     DummyVisionInputGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr
