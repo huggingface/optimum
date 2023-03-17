@@ -124,8 +124,6 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
         "microsoft/trocr-small-handwritten": ["vision2seq-lm"],
     },
-    # Disabled for now because of high atol threshold requirement to pass
-    # "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel"
 }
 
 
