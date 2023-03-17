@@ -84,7 +84,15 @@ class FlaubertTFLiteConfig(BertTFLiteConfig):
 
 
 class XLMRobertaTFLiteConfig(DistilBertTFLiteConfig):
-    pass
+    SUPPORTED_QUANTIZATION_APPROACHES = {
+        "default": BertTFLiteConfig.SUPPORTED_QUANTIZATION_APPROACHES,
+        # INT8 quantization on question-answering is producing various errors depending on the model size and
+        # calibration dataset:
+        # - GATHER index out of bound
+        # - (CUMSUM) failed to invoke
+        # TODO => Needs to be investigated.
+        "question-answering": (QuantizationApproach.INT8_DYNAMIC, QuantizationApproach.FP16),
+    }
 
 
 # TODO: no TensorFlow implementation, but a Jax implementation is available.
@@ -94,6 +102,12 @@ class XLMRobertaTFLiteConfig(DistilBertTFLiteConfig):
 
 
 class DebertaTFLiteConfig(BertTFLiteConfig):
+    SUPPORTED_QUANTIZATION_APPROACHES = {
+        "default": BertTFLiteConfig.SUPPORTED_QUANTIZATION_APPROACHES,
+        # INT8 quantization on question-answering is producing a segfault error.
+        "question-answering": (QuantizationApproach.INT8_DYNAMIC, QuantizationApproach.FP16),
+    }
+
     @property
     def inputs(self) -> List[str]:
         common_inputs = super().inputs
