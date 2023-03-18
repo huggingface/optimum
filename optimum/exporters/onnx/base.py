@@ -810,8 +810,10 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         # TODO: doesn't this break attention_mask generation?
         if isinstance(self._onnx_config, OnnxConfigWithPast) and self._onnx_config.use_past_in_inputs is True:
             kwargs["sequence_length"] = 1
-        elif "sequence_length" in self._tasks_to_extra_inputs[self.task]:
-            kwargs["sequence_length"] = DEFAULT_DUMMY_SHAPES["sequence_length"]
+        else:
+            for input_name, dynamic_axes in self._tasks_to_extra_inputs[self.task].items():
+                if "sequence_length" in dynamic_axes.values():
+                    kwargs["sequence_length"] = DEFAULT_DUMMY_SHAPES["sequence_length"]
 
         kwargs["num_labels"] = self._onnx_config._config.num_labels
 

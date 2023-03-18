@@ -628,7 +628,11 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
 
 
 class DummyLabelsGenerator(DummyInputGenerator):
-    SUPPORTED_INPUT_NAMES = ("labels",)
+    SUPPORTED_INPUT_NAMES = (
+        "labels",
+        "start_positions",
+        "end_positions",
+    )
 
     def __init__(
         self,
