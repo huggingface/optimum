@@ -256,7 +256,7 @@ def main_export(
             ONNX Runtime, and the resulting ONNX will not be usable with other runtime as OpenVINO or TensorRT.
             Available options: `"O1", "O2", "O3", "O4"`. Reference: [`~optimum.onnxruntime.AutoOptimizationConfig`]
         monolith (`bool`, defaults to `False`):
-            Force to export the model as a single ONNX file.
+            Forces to export the model as a single ONNX file.
         no_post_process (`bool`, defaults to `False`):
             Allows to disable any post-processing done by default on the exported ONNX models.
         framework (`Optional[str]`, defaults to `None`):
