@@ -58,7 +58,11 @@ class TaskProcessor(ABC):
         Args:
             config (`PretrainedConfig`):
                 The config of the model.
-            preco
+            preprocessor: (`Preprocessor`):
+                The preprocessor associated to the model. This will be used to prepare the datasets.
+            preprocessor_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
+                Keyword arguments that will be passed to the preprocessor during dataset processing.
+                This allows customizing the behavior of the preprocessor.
         """
         if not isinstance(preprocessor, self.ACCEPTED_PREPROCESSOR_CLASSES):
             raise ValueError(
@@ -155,12 +159,15 @@ class TaskProcessor(ABC):
             column_names = list(set(itertools.chain.from_iterable(column_names.values())))
 
         if data_keys is None:
+            logger.warning("As no data keys were provided, trying to guess them.")
             data_keys = self.try_to_guess_data_keys(column_names)
             if data_keys is None:
                 raise ValueError(
                     "Data keys need to be specified manually since they could not be guessed from "
                     f"{', '.join(column_names)}"
                 )
+            else:
+                logger.warning(f"Guessed the following data keys: {data_keys}")
         elif not set(data_keys.keys()) <= self.ALLOWED_DATA_KEY_NAMES:
             raise ValueError(
                 f"data_keys contains unallowed keys {set(data_keys.keys())}, allowed_keys: {self.ALLOWED_DATA_KEY_NAMES}."
@@ -168,6 +175,7 @@ class TaskProcessor(ABC):
 
         if ref_keys is None:
             ref_keys = self.try_to_guess_ref_keys(column_names)
+            logger.warning(f"As no ref keys were provided, tried to guess them: {ref_keys}.")
 
         dataset = self.prepare_dataset(dataset, data_keys=data_keys, ref_keys=ref_keys)
 
