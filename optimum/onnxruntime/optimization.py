@@ -129,7 +129,7 @@ class ORTOptimizer:
         optimization_config: OptimizationConfig,
         save_dir: Union[str, os.PathLike],
         file_suffix: Optional[str] = "optimized",
-        use_external_data_format: bool = None,
+        use_external_data_format: Optional[bool] = None,
         one_external_file: bool = True,
     ):
         """
@@ -142,7 +142,7 @@ class ORTOptimizer:
                 The path used to save the optimized model.
             file_suffix (`str`, defaults to `"optimized"`):
                 The file suffix used to save the optimized model.
-            use_external_data_format (`bool`, defaults to `False`):
+            use_external_data_format (`Optional[bool]`, defaults to `None`):
                 Whether to use external data format to store model of size >= 2Gb. This argument is deprecated.
             one_external_file (`bool`, defaults to `True`):
                 When `use_external_data_format=True`, whether to save all tensors to one external file.
