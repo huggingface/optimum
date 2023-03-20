@@ -95,7 +95,7 @@ def parse_args_onnx(parser):
         "--monolith",
         action="store_true",
         help=(
-            "Force to export the model as a single ONNX file. By default, the ONNX exporter may break the model in several"
+            "Forces to export the model as a single ONNX file. By default, the ONNX exporter may break the model in several"
             " ONNX files, for example for encoder-decoder models where the encoder should be run only once while the"
             " decoder is looped over."
         ),
