@@ -21,7 +21,7 @@ from ...utils import logging
 from ...utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
-from .base import QuantizationConfig
+from .base import TFLiteQuantizationConfig
 from .convert import export, validate_model_outputs
 
 
@@ -78,7 +78,7 @@ def main():
 
     quantization_config = None
     if args.quantize:
-        quantization_config = QuantizationConfig(
+        quantization_config = TFLiteQuantizationConfig(
             approach=args.quantize,
             fallback_to_float=args.fallback_to_float,
             inputs_dtype=args.inputs_type,

@@ -55,7 +55,7 @@ class QuantizationApproach(str, Enum):
 
 
 @dataclass
-class QuantizationConfig:
+class TFLiteQuantizationConfig:
     """
     Contains all the information needed to perform quantization with TFLite.
 

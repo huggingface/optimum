@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     if is_tf_available():
         import tensorflow as tf
         from transformers import TFPreTrainedModel
-    from .base import QuantizationConfig, TFLiteConfig
+    from .base import TFLiteConfig, TFLiteQuantizationConfig
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -158,7 +158,7 @@ def prepare_converter_for_quantization(
     config: "TFLiteConfig",
     preprocessor: Optional[Preprocessor],
     signatures: Dict[str, Callable],
-    quantization_config: "QuantizationConfig",
+    quantization_config: "TFLiteQuantizationConfig",
     converter: "tf.lite.TFLiteConverter",
 ):
     import tensorflow as tf
@@ -311,7 +311,7 @@ def export(
     config: "TFLiteConfig",
     output: Path,
     preprocessor: Optional[Preprocessor] = None,
-    quantization_config: Optional["QuantizationConfig"] = None,
+    quantization_config: Optional["TFLiteQuantizationConfig"] = None,
 ) -> Tuple[List[str], List[str]]:
     """
     Exports a TensorFlow model to a TensorFlow Lite model.
@@ -326,7 +326,7 @@ def export(
         preprocessor (`Optional[Preprocessor]`, defaults to `None`):
             The preprocessor associated to the model. This is used for preprocessing the dataset before feeding data to
             the model during calibration.
-        quantization_config (`Optional[QuantizationConfig]`, defaults to `None`):
+        quantization_config (`Optional[TFLiteQuantizationConfig]`, defaults to `None`):
             The dataclass containing all the needed information to perform quantization.
 
     Returns:
