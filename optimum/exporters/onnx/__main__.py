@@ -260,7 +260,7 @@ def main_export(
         no_post_process (`bool`, defaults to `False`):
             Allows to disable any post-processing done by default on the exported ONNX models.
         framework (`Optional[str]`, defaults to `None`):
-            The framework to use for the ONNX export (`"pt"` or `"tf"`). If not provided, will attempt to use to automatically detect
+            The framework to use for the ONNX export (`"pt"` or `"tf"`). If not provided, will attempt to automatically detect
             the framework for the checkpoint.
         atol (`Optional[float]`, defaults to `None`):
             If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.
