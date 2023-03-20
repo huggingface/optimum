@@ -29,7 +29,7 @@ from ..utils.save_utils import maybe_save_preprocessors
 from .configuration import OptimizationConfig, ORTConfig
 from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import ORTModel
-from .modeling_seq2seq import ORTModelForSeq2SeqLM
+from .modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
 from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
 
 
@@ -83,7 +83,7 @@ class ORTOptimizer:
         onnx_model_path = []
         config = None
         if isinstance(model_or_path, ORTModel):
-            if isinstance(model_or_path, ORTModelForSeq2SeqLM):
+            if isinstance(model_or_path, (ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq)):
                 onnx_model_path += [
                     model_or_path.encoder_model_path,
                     model_or_path.decoder_model_path,
