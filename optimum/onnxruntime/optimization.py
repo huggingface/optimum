@@ -13,6 +13,7 @@
 #  limitations under the License.
 """Main class for performing graph optimization with ONNX Runtime."""
 
+import gc
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional, Union
@@ -174,6 +175,8 @@ class ORTOptimizer:
             if check_model_uses_external_data(onnx_model) is True:
                 model_uses_external_data = True
                 break
+        del onnx_model
+        gc.collect()
 
         # Create and save the configuration summarizing all the parameters related to optimization
         ort_config = ORTConfig(
