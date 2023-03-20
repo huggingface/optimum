@@ -54,14 +54,7 @@ def is_backend_available(backend):
     return backend_availablilty[backend]
 
 
-def make_backend_config_constructor_for_task(
-    backend: str, config_cls: Type, task: Union[str, Tuple[str, Tuple[str, ...]]]
-) -> Optional[ExportConfigConstructor]:
-    constructor = None
-    if isinstance(task, tuple):
-        task, supported_backends_for_task = task
-        if backend not in supported_backends_for_task:
-            constructor = None
+def make_backend_config_constructor_for_task(config_cls: Type, task: str) -> ExportConfigConstructor:
     if "-with-past" in task:
         if not hasattr(config_cls, "with_past"):
             raise ValueError(f"{config_cls} does not support tasks with past.")
@@ -109,9 +102,11 @@ def supported_tasks_mapping(
             )
             mapping[backend] = {}
             for task in supported_tasks:
-                config_constructor = make_backend_config_constructor_for_task(backend, config_cls, task)
-                if config_constructor is None:
-                    continue
+                if isinstance(task, tuple):
+                    task, supported_backends_for_task = task
+                    if backend not in supported_backends_for_task:
+                        continue
+                config_constructor = make_backend_config_constructor_for_task(config_cls, task)
                 mapping[backend][task] = config_constructor
     return mapping
 
@@ -843,7 +838,7 @@ class TasksManager:
                         )
                     if not overwrite_existing and task in mapping_backend:
                         continue
-                    mapping_backend[task] = make_backend_config_constructor_for_task(backend, config_cls, task)
+                    mapping_backend[task] = make_backend_config_constructor_for_task(config_cls, task)
                 mapping[backend] = mapping_backend
                 cls._SUPPORTED_MODEL_TYPE[model_type] = mapping
                 return config_cls
