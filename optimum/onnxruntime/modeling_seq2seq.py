@@ -32,8 +32,7 @@ from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
 import onnxruntime as ort
 
-from ..exporters.onnx import export_models, get_encoder_decoder_models_for_export
-from ..exporters.tasks import TasksManager
+from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
 from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
@@ -784,34 +783,25 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
 
+            if use_cache is True:
+                task = task + "-with-past"
+
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
 
-        model = TasksManager.get_model_from_task(
-            task,
-            model_id,
+        main_export(
+            model_name_or_path=model_id,
+            output=save_dir_path,
+            task=task,
+            do_validation=False,
+            no_post_process=True,
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,
-            config=config,
             use_auth_token=use_auth_token,
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,
-        )
-
-        onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
-        onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
-
-        output_names = [ONNX_ENCODER_NAME, ONNX_DECODER_NAME]
-        if use_cache is True:
-            output_names.append(ONNX_DECODER_WITH_PAST_NAME)
-        models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
-        export_models(
-            models_and_onnx_configs=models_and_onnx_configs,
-            opset=onnx_config.DEFAULT_ONNX_OPSET,
-            output_dir=save_dir_path,
-            output_names=output_names,
         )
 
         config.save_pretrained(save_dir_path)

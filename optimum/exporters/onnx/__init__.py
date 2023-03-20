@@ -27,6 +27,7 @@ _import_structure = {
         "get_encoder_decoder_models_for_export",
         "get_stable_diffusion_models_for_export",
     ],
+    "__main__": ["main_export"],
 }
 
 if TYPE_CHECKING:
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
         get_encoder_decoder_models_for_export,
         get_stable_diffusion_models_for_export,
     )
+    from .__main__ import main_export
 else:
     import sys
 
