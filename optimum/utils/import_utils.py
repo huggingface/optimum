@@ -145,6 +145,7 @@ def check_if_diffusers_greater(target_version: str) -> bool:
 
     return packaging.version.parse(_diffusers_version) >= packaging.version.parse(target_version)
 
+
 @contextmanager
 def require_numpy_strictly_lower(version: str, message: str):
     if not packaging.version.parse(np.__version__) < packaging.version.parse(version):

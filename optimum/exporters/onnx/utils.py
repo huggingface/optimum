@@ -21,7 +21,12 @@ import packaging
 import torch
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...utils import ORT_QUANTIZE_MINIMUM_VERSION, is_diffusers_available, check_if_diffusers_greater, DIFFUSERS_MINIMUM_VERSION
+from ...utils import (
+    ORT_QUANTIZE_MINIMUM_VERSION,
+    is_diffusers_available,
+    check_if_diffusers_greater,
+    DIFFUSERS_MINIMUM_VERSION,
+)
 from ...utils.import_utils import _diffusers_version
 from ..tasks import TasksManager
 from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
