@@ -98,6 +98,7 @@ def main():
         model=model,
         config=tflite_config,
         output=args.output,
+        task=task,
         preprocessor=preprocessor,
         quantization_config=quantization_config,
     )

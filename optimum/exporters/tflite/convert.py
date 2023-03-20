@@ -160,6 +160,7 @@ def prepare_converter_for_quantization(
     signatures: Dict[str, Callable],
     quantization_config: "TFLiteQuantizationConfig",
     converter: "tf.lite.TFLiteConverter",
+    task: Optional[str] = None,
 ):
     import tensorflow as tf
 
@@ -189,9 +190,12 @@ def prepare_converter_for_quantization(
         # - Selecting num_calibration_samples in the dataset split.
         # - Batching the dataset.
         # - Converting it to the TensorFlow format.
-        from ...exporters import TasksManager
 
-        task = TasksManager.get_task_from_model(model)
+        if task is None:
+            from ...exporters import TasksManager
+
+            task = TasksManager.infer_task_from_model(model)
+
         preprocessor_kwargs = {}
         if isinstance(preprocessor, PreTrainedTokenizerBase):
             preprocessor_kwargs["max_length"] = config.sequence_length
@@ -310,6 +314,7 @@ def export(
     model: "TFPreTrainedModel",
     config: "TFLiteConfig",
     output: Path,
+    task: Optional[str] = None,
     preprocessor: Optional[Preprocessor] = None,
     quantization_config: Optional["TFLiteQuantizationConfig"] = None,
 ) -> Tuple[List[str], List[str]]:
@@ -323,6 +328,9 @@ def export(
             The TFLite configuration associated with the exported model.
         output (`Path`):
             Directory to store the exported TFLite model.
+        task (`Optional[str]`, defaults to `None`):
+            The task of the model. If left unspecified the task will be inferred automatically. Only needed for static
+            quantization.
         preprocessor (`Optional[Preprocessor]`, defaults to `None`):
             The preprocessor associated to the model. This is used for preprocessing the dataset before feeding data to
             the model during calibration.
@@ -356,7 +364,9 @@ def export(
         converter = tf.lite.TFLiteConverter.from_saved_model(tmp_dir_name)
 
         if quantization_config is not None:
-            prepare_converter_for_quantization(model, config, preprocessor, signatures, quantization_config, converter)
+            prepare_converter_for_quantization(
+                model, config, preprocessor, signatures, quantization_config, converter, task=task
+            )
 
         tflite_model = converter.convert()
 

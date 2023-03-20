@@ -160,6 +160,7 @@ class TFLiteExportTestCase(TestCase):
                         model=model,
                         config=tflite_config,
                         output=Path(output.name),
+                        task=task,
                         preprocessor=preprocessor,
                         quantization_config=quantization_config,
                     )

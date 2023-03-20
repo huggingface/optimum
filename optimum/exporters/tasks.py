@@ -15,6 +15,7 @@
 """Model export tasks manager."""
 
 import importlib
+import inspect
 import itertools
 import os
 from functools import partial
@@ -30,7 +31,6 @@ from ..utils.import_utils import is_onnx_available
 
 if TYPE_CHECKING:
     import torch
-    from transformers import PreTrainedModel, TFPreTrainedModel
 
     from .base import ExportConfig
 
@@ -42,6 +42,12 @@ if not is_torch_available() and not is_tf_available():
         "The export tasks are only supported for PyTorch or TensorFlow. You will not be able to export models"
         " without one of these libraries installed."
     )
+
+if is_torch_available():
+    from transformers import PreTrainedModel
+
+if is_tf_available():
+    from transformers import TFPreTrainedModel
 
 ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
 TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
@@ -974,24 +980,52 @@ class TasksManager:
 
         return framework
 
-    @staticmethod
-    def infer_task_from_model(model_name_or_path: str, subfolder: str = "", revision: Optional[str] = None) -> str:
-        """
-        Infers the task from the model repo.
+    @classmethod
+    def _infer_task_from_model_or_model_class(
+        cls, model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None, model_class: Optional[Type] = None
+    ) -> str:
+        if model is not None and model_class is not None:
+            raise ValueError("Either a model or a model class must be provided, but both were given here.")
+        if model is None and model_class is None:
+            raise ValueError("Either a model or a model class must be provided, but none were given here.")
+        target_name = model.__class__.__name__ if model is not None else model_class.__name__
+        task_name = None
+        iterable = (cls._AUTOMODELS_TO_TASKS.items(), cls._TF_AUTOMODELS_TO_TASKS.items())
+        pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
+        tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
+        for auto_cls_name, task in itertools.chain.from_iterable(iterable):
+            if any(
+                (
+                    target_name.startswith("Auto"),
+                    target_name.startswith("TFAuto"),
+                    target_name == "StableDiffusionPipeline",
+                )
+            ):
+                if target_name == auto_cls_name:
+                    task_name = task
+                    break
 
-        Args:
-            model_name_or_path (`str`):
-                The model repo or local path (not supported for now).
-            subfolder (`str`, *optional*, defaults to `""`):
-                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
-                Face Hub, you can specify the subfolder name here.
-            revision (`Optional[str]`, *optional*):
-                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+                continue
 
-        Returns:
-            `str`: The task name automatically detected from the model repo.
-        """
+            module = tf_auto_module if auto_cls_name.startswith("TF") else pt_auto_module
+            # getattr(module, auto_cls_name)._model_mapping is a _LazyMapping, it also has an attribute called
+            # "_model_mapping" that is what we want here: class names and not actual classes.
+            auto_cls = getattr(module, auto_cls_name, None)
+            # This is the case for StableDiffusionPipeline for instance.
+            if auto_cls is None:
+                continue
+            model_mapping = auto_cls._model_mapping._model_mapping
+            if target_name in model_mapping.values():
+                task_name = task
+                break
+        if task_name is None:
+            raise ValueError(f"Could not infer the task name for {target_name}.")
+        return task_name
 
+    @classmethod
+    def _infer_task_from_model_name_or_path(
+        cls, model_name_or_path: str, subfolder: str = "", revision: Optional[str] = None
+    ) -> str:
         tasks_to_automodels = {}
         class_name_prefix = ""
         if is_torch_available():
@@ -1034,6 +1068,44 @@ class TasksManager:
         if inferred_task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
         return inferred_task_name
+
+    @classmethod
+    def infer_task_from_model(
+        cls,
+        model: Union[str, "PreTrainedModel", "TFPreTrainedModel", Type],
+        subfolder: str = "",
+        revision: Optional[str] = None,
+    ) -> str:
+        """
+        Infers the task from the model repo.
+
+        Args:
+            model (`str`):
+                The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
+                instance of a model, or a model class.
+            subfolder (`str`, *optional*, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            revision (`Optional[str]`, *optional*):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+
+        Returns:
+            `str`: The task name automatically detected from the model repo.
+        """
+        is_torch_pretrained_model = is_torch_available() and isinstance(model, PreTrainedModel)
+        is_tf_pretrained_model = is_tf_available() and isinstance(model, TFPreTrainedModel)
+        task = None
+        if isinstance(model, str):
+            task = cls._infer_task_from_model_name_or_path(model, subfolder=subfolder, revision=revision)
+        elif is_torch_pretrained_model or is_tf_pretrained_model:
+            task = cls._infer_task_from_model_or_model_class(model=model)
+        elif inspect.isclass(model):
+            task = cls._infer_task_from_model_or_model_class(model_class=model)
+
+        if task is None:
+            raise ValueError(f"Could not infer the task from {model}.")
+
+        return task
 
     @staticmethod
     def get_all_tasks():
@@ -1108,48 +1180,6 @@ class TasksManager:
                 kwargs["from_pt"] = True
                 model = model_class.from_pretrained(model_name_or_path, **kwargs)
         return model
-
-    @classmethod
-    def get_task_from_model(
-        cls, model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None, model_class: Optional[Type] = None
-    ) -> str:
-        if model is not None and model_class is not None:
-            raise ValueError("Either a model or a model class must be provided, but both were given here.")
-        if model is None and model_class is None:
-            raise ValueError("Either a model or a model class must be provided, but none were given here.")
-        target_name = model.__class__.__name__ if model is not None else model_class.__name__
-        task_name = None
-        iterable = (cls._AUTOMODELS_TO_TASKS.items(), cls._TF_AUTOMODELS_TO_TASKS.items())
-        pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
-        tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
-        for auto_cls_name, task in itertools.chain.from_iterable(iterable):
-            if any(
-                (
-                    target_name.startswith("Auto"),
-                    target_name.startswith("TFAuto"),
-                    target_name == "StableDiffusionPipeline",
-                )
-            ):
-                if target_name == auto_cls_name:
-                    task_name = task
-                    break
-
-                continue
-
-            module = tf_auto_module if auto_cls_name.startswith("TF") else pt_auto_module
-            # getattr(module, auto_cls_name)._model_mapping is a _LazyMapping, it also has an attribute called
-            # "_model_mapping" that is what we want here: class names and not actual classes.
-            auto_cls = getattr(module, auto_cls_name, None)
-            # This is the case for StableDiffusionPipeline for instance.
-            if auto_cls is None:
-                continue
-            model_mapping = auto_cls._model_mapping._model_mapping
-            if target_name in model_mapping.values():
-                task_name = task
-                break
-        if task_name is None:
-            raise ValueError(f"Could not infer the task name for {target_name}.")
-        return task_name
 
     @staticmethod
     def get_exporter_config_constructor(

@@ -172,7 +172,7 @@ class ORTModel(OptimizedModel):
         logger.warning(f"{cls.__name__}.export_feature is deprecated, and will be removed in optimum 2.0.")
 
         try:
-            feature = TasksManager.get_task_from_model(cls.auto_model_class)
+            feature = TasksManager.infer_task_from_model(cls.auto_model_class)
         except ValueError:
             feature = None
         return feature
@@ -182,7 +182,7 @@ class ORTModel(OptimizedModel):
         """
         Get the task corresponding to a class (for example AutoModelForXXX in transformers).
         """
-        return TasksManager.get_task_from_model(model_class=auto_model_class)
+        return TasksManager.infer_task_from_model(auto_model_class)
 
     def shared_attributes_init(
         self,
