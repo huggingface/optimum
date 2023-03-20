@@ -12,7 +12,7 @@ specific language governing permissions and limitations under the License.
 
 # Export functions
 
-You can to export models to ONNX from two frameworks in 🤗 Optimum: PyTorch and TensorFlow. There is an export function for each of these frameworks, [`~optimum.exporters.onnx.convert.export_pytorch`] and [`~optimum.exporters.onnx.convert.export_tensorflow`], but the recommended way of using those is via the main export function [`~optimum.exporters.__main__.main_export`], which will take care of using the proper exporting function according to the available framework, validate that the exported model is valide, and provide extended options to run optimizations on the export model.
+You can to export models to ONNX from two frameworks in 🤗 Optimum: PyTorch and TensorFlow. There is an export function for each of these frameworks, [`~optimum.exporters.onnx.convert.export_pytorch`] and [`~optimum.exporters.onnx.convert.export_tensorflow`], but the recommended way of using those is via the main export function [`~optimum.exporters.__main__.main_export`], which will take care of using the proper exporting function according to the available framework, check that the exported model is valid, and provide extended options to run optimizations on the exported model.
 
 ## Main functions
 
