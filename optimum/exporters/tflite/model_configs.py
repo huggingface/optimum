@@ -18,11 +18,18 @@
 from typing import List
 
 from ...utils.normalized_config import NormalizedConfigManager
+from .base import QuantizationApproach
 from .config import TextEncoderTFliteConfig, VisionTFLiteConfig
 
 
 class BertTFLiteConfig(TextEncoderTFliteConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("bert")
+    # INT8x16 not supported because of the CAST op.
+    SUPPORTED_QUANTIZATION_APPROACHES = (
+        QuantizationApproach.INT8_DYNAMIC,
+        QuantizationApproach.INT8,
+        QuantizationApproach.FP16,
+    )
 
     @property
     def inputs(self) -> List[str]:
@@ -42,6 +49,7 @@ class ElectraTFLiteConfig(BertTFLiteConfig):
 
 
 class RoFormerTFLiteConfig(BertTFLiteConfig):
+    # INT8x16 not supported because of the CAST and NEG ops.
     pass
 
 
@@ -76,7 +84,15 @@ class FlaubertTFLiteConfig(BertTFLiteConfig):
 
 
 class XLMRobertaTFLiteConfig(DistilBertTFLiteConfig):
-    pass
+    SUPPORTED_QUANTIZATION_APPROACHES = {
+        "default": BertTFLiteConfig.SUPPORTED_QUANTIZATION_APPROACHES,
+        # INT8 quantization on question-answering is producing various errors depending on the model size and
+        # calibration dataset:
+        # - GATHER index out of bound
+        # - (CUMSUM) failed to invoke
+        # TODO => Needs to be investigated.
+        "question-answering": (QuantizationApproach.INT8_DYNAMIC, QuantizationApproach.FP16),
+    }
 
 
 # TODO: no TensorFlow implementation, but a Jax implementation is available.
@@ -86,6 +102,9 @@ class XLMRobertaTFLiteConfig(DistilBertTFLiteConfig):
 
 
 class DebertaTFLiteConfig(BertTFLiteConfig):
+    # INT8 quantization is producing a segfault error.
+    SUPPORTED_QUANTIZATION_APPROACHES = (QuantizationApproach.INT8_DYNAMIC, QuantizationApproach.FP16)
+
     @property
     def inputs(self) -> List[str]:
         common_inputs = super().inputs
