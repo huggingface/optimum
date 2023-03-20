@@ -32,6 +32,7 @@ else:
 
 
 TORCH_MINIMUM_VERSION = packaging.version.parse("1.11.0")
+DIFFUSERS_MINIMUM_VERSION = packaging.version.parse("0.12.0")
 
 
 # This is the minimal required version to support some ONNX Runtime features
@@ -48,7 +49,6 @@ torch_version = None
 if is_torch_available():
     torch_version = packaging.version.parse(importlib_metadata.version("torch"))
 
-
 _is_torch_onnx_support_available = is_torch_available() and (
     TORCH_MINIMUM_VERSION.major,
     TORCH_MINIMUM_VERSION.minor,
@@ -56,6 +56,14 @@ _is_torch_onnx_support_available = is_torch_available() and (
     torch_version.major,
     torch_version.minor,
 )
+
+
+_diffusers_version = None
+if _diffusers_available:
+    try:
+        _diffusers_version = importlib_metadata.version("diffusers")
+    except importlib_metadata.PackageNotFoundError:
+        _diffusers_available = False
 
 
 def is_torch_onnx_support_available():
@@ -121,6 +129,21 @@ def check_if_transformers_greater(target_version: str) -> bool:
 
     return packaging.version.parse(transformers.__version__) >= packaging.version.parse(target_version)
 
+
+def check_if_diffusers_greater(target_version: str) -> bool:
+    """
+    Checks whether the current install of diffusers is greater than or equal to the target version.
+
+    Args:
+        target_version (str): version used as the reference for comparison.
+
+    Returns:
+        bool: whether the check is True or not.
+    """
+    if not _diffusers_available:
+        return False
+
+    return packaging.version.parse(_diffusers_version) >= packaging.version.parse(target_version)
 
 @contextmanager
 def require_numpy_strictly_lower(version: str, message: str):
