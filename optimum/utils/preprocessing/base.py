@@ -141,6 +141,10 @@ class TaskProcessor(ABC):
                     f"A split name was provided ({split}) but load_smallest_split is True, use either one or the other."
                 )
             smallest_split = min(dataset.items(), key=lambda item: item[1].num_rows)[0]
+            logger.info(
+                "Since no split was explicitely provided and load_smallest_split=True, using the smallest split of the "
+                f'dataset called "{smallest_split}".'
+            )
             dataset = dataset[smallest_split]
 
         if shuffle:
