@@ -21,12 +21,12 @@ from .constant import (
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
 )
 from .import_utils import (
+    DIFFUSERS_MINIMUM_VERSION,
     ORT_QUANTIZE_MINIMUM_VERSION,
     TORCH_MINIMUM_VERSION,
-    DIFFUSERS_MINIMUM_VERSION,
+    check_if_diffusers_greater,
     check_if_pytorch_greater,
     check_if_transformers_greater,
-    check_if_diffusers_greater,
     is_accelerate_available,
     is_diffusers_available,
     is_onnxruntime_available,
