@@ -75,7 +75,7 @@ def _get_models_to_test(export_models_dict: Dict):
             # TODO: xlm-roberta model auto-infers causal-lm, but we don't support it
             # TODO: perceiver auto-infers default, but we don't support it (why?)
             if model_type not in ["segformer", "xlm-roberta", "perceiver", "vision-encoder-decoder"]:
-                models_to_test.append((f"{model_type}_no_task", model_type, model_name, None, False, False))
+                models_to_test.append((f"{model_type}_no_task", model_type, model_name, "auto", False, False))
 
         return sorted(models_to_test)
     else:
@@ -93,7 +93,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def _onnx_export(
         self,
         model_name: str,
-        task: Optional[str],
+        task: str,
         monolith: bool = False,
         no_post_process: bool = False,
         optimization_level: Optional[str] = None,

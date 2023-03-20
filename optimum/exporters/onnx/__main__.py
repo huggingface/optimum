@@ -207,7 +207,7 @@ def parse_args_onnx(parser):
 def main_export(
     model_name_or_path: str,
     output: Union[str, Path],
-    task: Optional[str] = None,
+    task: str = "auto",
     opset: Optional[int] = None,
     device: str = "cpu",
     fp16: Optional[bool] = False,
@@ -305,8 +305,8 @@ def main_export(
             " and passing it is not required anymore."
         )
 
+    original_task = task
     # Infer the task
-    task = task
     if task == "auto":
         try:
             task = TasksManager.infer_task_from_model(model_name_or_path)
@@ -347,17 +347,10 @@ def main_export(
         torch_dtype=torch_dtype,
     )
 
-    if task.endswith("-with-past") and monolith is True:
-        task_non_past = task.replace("-with-past", "")
-        raise ValueError(
-            f"The task {task} is not compatible with the --monolith argument. Please either use"
-            f" `--task {task_non_past} --monolith`, or `--task {task}` without the monolith argument."
-        )
-
     if task != "stable-diffusion" and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
         model.config.model_type.replace("_", "-"), "onnx"
     ):
-        if task == "auto":  # Make -with-past the default if --task was not explicitely specified
+        if original_task == "auto":  # Make -with-past the default if --task was not explicitely specified
             task = task + "-with-past"
         else:
             logger.info(
@@ -365,7 +358,14 @@ def main_export(
                 f" if needed, please pass `--task {task}-with-past` to export using the past key values."
             )
 
-    if task == "auto":
+    if task.endswith("-with-past") and monolith is True:
+        task_non_past = task.replace("-with-past", "")
+        raise ValueError(
+            f"The task {task} is not compatible with the --monolith argument. Please either use"
+            f" `--task {task_non_past} --monolith`, or `--task {task}` without the monolith argument."
+        )
+
+    if original_task == "auto":
         logger.info(f"Automatic task detection to {task}.")
 
     if task != "stable-diffusion":
