@@ -161,15 +161,18 @@ def collate_fn(examples):
     labels = torch.tensor([example["labels"] for example in examples])
     return {"pixel_values": pixel_values, "labels": labels}
 
+
 @dataclass
 class InferenceArguments:
     """
     Arguments for inference(evaluate, predict).
     """
+
     inference_with_ort: bool = field(
         default=False,
         metadata={"help": "Whether use ONNX Runtime as backend for inference. Default set to false."},
     )
+
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -180,7 +183,9 @@ def main():
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, inference_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, inference_args = parser.parse_json_file(
+            json_file=os.path.abspath(sys.argv[1])
+        )
     else:
         model_args, data_args, training_args, inference_args = parser.parse_args_into_dataclasses()
 
@@ -362,6 +367,7 @@ def main():
         compute_metrics=compute_metrics,
         tokenizer=image_processor,
         data_collator=collate_fn,
+        feature="image-classification",
     )
 
     # Training
