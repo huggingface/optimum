@@ -142,7 +142,7 @@ def parse_args_onnx(parser):
     )
 
     input_group = parser.add_argument_group(
-        "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input.)"
+        "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input)."
     )
     doc_input = "to use in the example input given to the ONNX export."
     input_group.add_argument(
