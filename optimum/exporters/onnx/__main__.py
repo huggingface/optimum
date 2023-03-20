@@ -49,7 +49,7 @@ def parse_args_onnx(parser):
         "-m", "--model", type=str, required=True, help="Model ID on huggingface.co or path on disk to load model from."
     )
     required_group.add_argument(
-        "output", type=Path, help="Path indicating the directory where to store generated ONNX model."
+        "output", type=Path, help="Path indicating the directory where to store the generated ONNX model."
     )
 
     optional_group = parser.add_argument_group("Optional arguments")
