@@ -612,6 +612,15 @@ class TasksManager:
         #     "zero-shot-object-detection",
         #     onnx="OwlViTOnnxConfig",
         # ),
+        "opt": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "causal-lm",
+            "causal-lm-with-past",
+            "question-answering",
+            "sequence-classification",
+            onnx="OPTOnnxConfig",
+        ),
         "pegasus": supported_tasks_mapping(
             "default",
             "default-with-past",
