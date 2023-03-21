@@ -732,8 +732,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence_name}
 
             if direction == "inputs" or (self._behavior is ConfigBehavior.DECODER and self.use_past is False):
-                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: decoder_sequence_name}
-                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: decoder_sequence_name}
+                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: "encoder_sequence_length"}
+                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length"}
 
         if direction == "outputs" and "encoder_last_hidden_state" in inputs_or_outputs:
             inputs_or_outputs.move_to_end("encoder_last_hidden_state")
