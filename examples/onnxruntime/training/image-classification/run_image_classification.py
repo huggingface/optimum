@@ -162,18 +162,32 @@ def collate_fn(examples):
     return {"pixel_values": pixel_values, "labels": labels}
 
 
+@dataclass
+class InferenceArguments:
+    """
+    Arguments for inference(evaluate, predict).
+    """
+
+    inference_with_ort: bool = field(
+        default=False,
+        metadata={"help": "Whether use ONNX Runtime as backend for inference. Default set to false."},
+    )
+
+
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, ORTTrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, ORTTrainingArguments, InferenceArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, inference_args = parser.parse_json_file(
+            json_file=os.path.abspath(sys.argv[1])
+        )
     else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, inference_args = parser.parse_args_into_dataclasses()
 
     # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
     # information sent is the one passed as arguments along with your Python/PyTorch versions.
@@ -353,6 +367,7 @@ def main():
         compute_metrics=compute_metrics,
         tokenizer=image_processor,
         data_collator=collate_fn,
+        feature="image-classification",
     )
 
     # Training
@@ -370,7 +385,7 @@ def main():
 
     # Evaluation
     if training_args.do_eval:
-        metrics = trainer.evaluate()
+        metrics = trainer.evaluate(inference_with_ort=inference_args.inference_with_ort)
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
 
