@@ -197,6 +197,7 @@ class NormalizedConfigManager:
         "deberta-v2": NormalizedTextConfig,
         "deit": NormalizedVisionConfig,
         "distilbert": NormalizedTextConfig.with_args(num_attention_heads="n_heads", hidden_size="dim"),
+        "donut-swin": NormalizedVisionConfig,
         "electra": NormalizedTextConfig,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),

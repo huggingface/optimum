@@ -38,4 +38,5 @@ markers = [
     "run_slow",
     "accelerate_test",
     "fp16",
+    "quantization",
 ]

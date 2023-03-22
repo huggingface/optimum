@@ -207,8 +207,10 @@ def merge_decoders(
 
     merged_model = onnx.helper.make_model(merged_graph, producer_name=producer_name, opset_imports=opset_imports)
 
-    # For the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
+    # for large models, a path must be provided instead of a ModelProto:
+    # https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#checking-a-large-onnx-model-2gb
     if merged_model.ByteSize() < ONNX_BYTE_SIZE_LIMIT:
+        # For the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
         try:
             onnx.checker.check_model(merged_model)
         except Exception as e:
@@ -229,7 +231,7 @@ def merge_decoders(
             location=os.path.basename(save_path) + "_data",
         )
         try:
-            onnx.checker.check_model(merged_model)
+            onnx.checker.check_model(save_path)
         except Exception as e:
             if "No Op registered for" in str(e):
                 pass

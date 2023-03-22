@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2023 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,25 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TYPE_CHECKING
-
-from transformers.utils import _LazyModule
+from .import_utils import DummyObject, requires_backends
 
 
-_import_structure = {
-    "base": ["QuantizationApproach", "TFLiteQuantizationConfig", "TFLiteConfig"],
-    "convert": ["export", "validate_model_outputs"],
-}
+class ORTStableDiffusionPipeline(metaclass=DummyObject):
+    _backends = ["diffusers"]
 
-if TYPE_CHECKING:
-    from .base import QuantizationApproach, TFLiteQuantizationConfig, TFLiteConfig  # noqa
-    from .convert import export, validate_model_outputs  # noqa
-else:
-    import sys
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["diffusers"])
 
-    sys.modules[__name__] = _LazyModule(
-        __name__,
-        globals()["__file__"],
-        _import_structure,
-        module_spec=__spec__,
-    )
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        requires_backends(cls, ["diffusers"])

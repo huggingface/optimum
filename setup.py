@@ -17,6 +17,7 @@ REQUIRED_PKGS = [
     "sympy",
     "transformers[sentencepiece]>=4.26.0",
     "torch>=1.9",
+    "torchvision",
     "packaging",
     "numpy",
     "huggingface_hub>=0.8.0",

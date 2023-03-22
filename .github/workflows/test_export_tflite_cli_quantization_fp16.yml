@@ -1,6 +1,4 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
-name: ONNX Runtime / Python - Test
+name: Exporters TFLite CLI Quantization FP16 / Python - Test
 
 on:
   push:
@@ -18,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.8, 3.9]
-        os: [ubuntu-20.04, windows-2019, macos-latest]
+        os: [ubuntu-20.04]
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -29,9 +27,8 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        pip install .[tests,onnxruntime]
-    - name: Test with pytest
+        pip install .[tests,exporters-tf]
+    - name: Test with unittest
       working-directory: tests
       run: |
-        pytest -n auto -m "not run_in_series" --durations=0 -vs onnxruntime
-        pytest -m "run_in_series" --durations=0 onnxruntime
+        pytest exporters/tflite/test_exporters_tflite_cli.py -k "float16_quantization" -s --durations=0

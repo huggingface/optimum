@@ -15,6 +15,8 @@
 """Model export tasks manager."""
 
 import importlib
+import inspect
+import itertools
 import os
 from functools import partial
 from pathlib import Path
@@ -24,10 +26,11 @@ import huggingface_hub
 from transformers import PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
+from ..utils.import_utils import is_onnx_available
+
 
 if TYPE_CHECKING:
     import torch
-    from transformers import PreTrainedModel, TFPreTrainedModel
 
     from .base import ExportConfig
 
@@ -40,8 +43,32 @@ if not is_torch_available() and not is_tf_available():
         " without one of these libraries installed."
     )
 
+if is_torch_available():
+    from transformers import PreTrainedModel
+
+if is_tf_available():
+    from transformers import TFPreTrainedModel
+
 ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
 TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
+
+
+def is_backend_available(backend):
+    backend_availablilty = {
+        "onnx": is_onnx_available(),
+        "tflite": is_tf_available(),
+    }
+    return backend_availablilty[backend]
+
+
+def make_backend_config_constructor_for_task(config_cls: Type, task: str) -> ExportConfigConstructor:
+    if "-with-past" in task:
+        if not hasattr(config_cls, "with_past"):
+            raise ValueError(f"{config_cls} does not support tasks with past.")
+        constructor = partial(config_cls.with_past, task=task.replace("-with-past", ""))
+    else:
+        constructor = partial(config_cls, task=task)
+    return constructor
 
 
 def supported_tasks_mapping(
@@ -64,7 +91,7 @@ def supported_tasks_mapping(
         exporters (`Dict[str, str]`):
             The export backend name -> config class name mapping. For instance:
             ```python
-            >>> kwargs = {  # doctest: +SKIP
+            >>> exporters = {  # doctest: +SKIP
             ...     "onnx": "BertOnnxConfig",
             ...     "tflite": "BertTFLiteConfig",
             ...     ...
@@ -76,18 +103,18 @@ def supported_tasks_mapping(
     """
     mapping = {}
     for backend, config_cls_name in exporters.items():
-        config_cls = getattr(importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name)
-        mapping[backend] = {}
-        for task in supported_tasks:
-            if isinstance(task, tuple):
-                task, supported_backends_for_task = task
-                if backend not in supported_backends_for_task:
-                    continue
-            if "-with-past" in task:
-                mapping[backend][task] = partial(config_cls.with_past, task=task.replace("-with-past", ""))
-            else:
-                mapping[backend][task] = partial(config_cls, task=task)
-
+        if is_backend_available(backend):
+            config_cls = getattr(
+                importlib.import_module(f"optimum.exporters.{backend}.model_configs"), config_cls_name
+            )
+            mapping[backend] = {}
+            for task in supported_tasks:
+                if isinstance(task, tuple):
+                    task, supported_backends_for_task = task
+                    if backend not in supported_backends_for_task:
+                        continue
+                config_constructor = make_backend_config_constructor_for_task(config_cls, task)
+                mapping[backend][task] = config_constructor
     return mapping
 
 
@@ -120,6 +147,7 @@ class TasksManager:
             "audio-xvector": "AutoModelForAudioXVector",
             "vision2seq-lm": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
+            "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
     if is_tf_available():
@@ -132,9 +160,23 @@ class TasksManager:
             "sequence-classification": "TFAutoModelForSequenceClassification",
             "token-classification": "TFAutoModelForTokenClassification",
             "multiple-choice": "TFAutoModelForMultipleChoice",
+            "object-detection": "TFAutoModelForObjectDetection",
             "question-answering": "TFAutoModelForQuestionAnswering",
+            "image-segmentation": "TFAutoModelForImageSegmentation",
+            "masked-im": "TFAutoModelForMaskedImageModeling",
             "semantic-segmentation": "TFAutoModelForSemanticSegmentation",
+            "speech2seq-lm": "TFAutoModelForSpeechSeq2Seq",
+            "audio-classification": "TFAutoModelForAudioClassification",
+            "audio-frame-classification": "TFAutoModelForAudioFrameClassification",
+            "audio-ctc": "TFAutoModelForCTC",
+            "audio-xvector": "TFAutoModelForAudioXVector",
+            "vision2seq-lm": "TFAutoModelForVision2Seq",
+            "zero-shot-image-classification": "TFAutoModelForZeroShotImageClassification",
+            "zero-shot-object-detection": "TFAutoModelForZeroShotObjectDetection",
         }
+
+    _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in _TASKS_TO_AUTOMODELS.items()}
+    _TF_AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in _TASKS_TO_TF_AUTOMODELS.items()}
 
     _TASKS_TO_LIBRARY = {
         "default": "transformers",
@@ -157,6 +199,7 @@ class TasksManager:
         "audio-xvector": "transformers",
         "vision2seq-lm": "transformers",
         "stable-diffusion": "diffusers",
+        "zero-shot-image-classification": "transformers",
         "zero-shot-object-detection": "transformers",
     }
 
@@ -269,6 +312,7 @@ class TasksManager:
         ),
         "clip": supported_tasks_mapping(
             "default",
+            "zero-shot-image-classification",
             onnx="CLIPOnnxConfig",
         ),
         "clip-text-model": supported_tasks_mapping(
@@ -568,6 +612,15 @@ class TasksManager:
         #     "zero-shot-object-detection",
         #     onnx="OwlViTOnnxConfig",
         # ),
+        "opt": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "causal-lm",
+            "causal-lm-with-past",
+            "question-answering",
+            "sequence-classification",
+            onnx="OPTOnnxConfig",
+        ),
         "pegasus": supported_tasks_mapping(
             "default",
             "default-with-past",
@@ -776,6 +829,54 @@ class TasksManager:
     _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae-encoder", "vae-decoder", "clip-text-model", "trocr"}
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
+    @classmethod
+    def create_register(
+        cls, backend: str, overwrite_existing: bool = False
+    ) -> Callable[[str, Tuple[str, ...]], Callable[[Type], Type]]:
+        """
+        Creates a register function for the specified backend.
+
+        Args:
+            backend (`str`):
+                The name of the backend that the register function will handle.
+            overwrite_existing (`bool`, defaults to `False`):
+                Whether or not the register function is allowed to overwrite an already existing config.
+
+        Returns:
+            `Callable[[str, Tuple[str, ...]], Callable[[Type], Type]]`: A decorator taking the model type and a the
+            supported tasks.
+
+        Example:
+            ```python
+            >>> register_for_new_backend = create_register("new-backend")
+
+            >>> @register_for_new_backend("bert", "sequence-classification", "token-classification")
+            >>> class BertNewBackendConfig(NewBackendConfig):
+            >>>     pass
+            ```
+        """
+
+        def wrapper(model_type: str, *supported_tasks: str) -> Callable[[Type], Type]:
+            def decorator(config_cls: Type) -> Type:
+                mapping = cls._SUPPORTED_MODEL_TYPE.get(model_type, {})
+                mapping_backend = mapping.get(backend, {})
+                for task in supported_tasks:
+                    if task not in cls._TASKS_TO_LIBRARY:
+                        known_tasks = ", ".join(cls._TASKS_TO_LIBRARY.keys())
+                        raise ValueError(
+                            f'The TasksManager does not know the task called "{task}", known tasks: {known_tasks}.'
+                        )
+                    if not overwrite_existing and task in mapping_backend:
+                        continue
+                    mapping_backend[task] = make_backend_config_constructor_for_task(config_cls, task)
+                mapping[backend] = mapping_backend
+                cls._SUPPORTED_MODEL_TYPE[model_type] = mapping
+                return config_cls
+
+            return decorator
+
+        return wrapper
+
     @staticmethod
     def get_supported_tasks_for_model_type(
         model_type: str, exporter: str, model_name: Optional[str] = None
@@ -899,38 +1000,41 @@ class TasksManager:
         if framework is not None:
             return framework
 
-        framework_map = {"pt": "PyTorch", "tf": "TensorFlow"}
-
         full_model_path = Path(model_name_or_path) / subfolder
         if full_model_path.is_dir():
-            if (full_model_path / WEIGHTS_NAME).is_file():
-                framework = "pt"
-            elif (full_model_path / TF2_WEIGHTS_NAME).is_file():
-                framework = "tf"
-            else:
-                raise FileNotFoundError(
-                    "Cannot determine framework from given checkpoint location."
-                    f" There should be a {WEIGHTS_NAME} for PyTorch"
-                    f" or {TF2_WEIGHTS_NAME} for TensorFlow."
-                )
-            logger.info(f"Local {framework_map[framework]} model found.")
+            all_files = [
+                os.path.relpath(os.path.join(dirpath, file), full_model_path)
+                for dirpath, _, filenames in os.walk(full_model_path)
+                for file in filenames
+            ]
         else:
             if not isinstance(model_name_or_path, str):
                 model_name_or_path = str(model_name_or_path)
-            try:
-                url = huggingface_hub.hf_hub_url(model_name_or_path, WEIGHTS_NAME, subfolder=subfolder)
-                huggingface_hub.get_hf_file_metadata(url)
-                framework = "pt"
-            except Exception:
-                pass
+            all_files = huggingface_hub.list_repo_files(model_name_or_path, repo_type="model")
+            if subfolder != "":
+                all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
 
-            if framework is None:
-                try:
-                    url = huggingface_hub.hf_hub_url(model_name_or_path, TF2_WEIGHTS_NAME, subfolder=subfolder)
-                    huggingface_hub.get_hf_file_metadata(url)
-                    framework = "tf"
-                except Exception:
-                    pass
+        weight_name = Path(WEIGHTS_NAME).stem
+        weight_extension = Path(WEIGHTS_NAME).suffix
+        is_pt_weight_file = [file.startswith(weight_name) and file.endswith(weight_extension) for file in all_files]
+
+        weight_name = Path(TF2_WEIGHTS_NAME).stem
+        weight_extension = Path(TF2_WEIGHTS_NAME).suffix
+        is_tf_weight_file = [file.startswith(weight_name) and file.endswith(weight_extension) for file in all_files]
+
+        if any(is_pt_weight_file):
+            framework = "pt"
+        elif any(is_tf_weight_file):
+            framework = "tf"
+        elif "model_index.json" in all_files and any(file.endswith(Path(WEIGHTS_NAME).suffix) for file in all_files):
+            # stable diffusion case
+            framework = "pt"
+        else:
+            raise FileNotFoundError(
+                "Cannot determine framework from given checkpoint location."
+                f" There should be a {Path(WEIGHTS_NAME).stem}*{Path(WEIGHTS_NAME).suffix} for PyTorch"
+                f" or {Path(TF2_WEIGHTS_NAME).stem}*{Path(TF2_WEIGHTS_NAME).suffix} for TensorFlow."
+            )
 
         if is_torch_available():
             framework = framework or "pt"
@@ -943,24 +1047,52 @@ class TasksManager:
 
         return framework
 
-    @staticmethod
-    def infer_task_from_model(model_name_or_path: str, subfolder: str = "", revision: Optional[str] = None) -> str:
-        """
-        Infers the task from the model repo.
+    @classmethod
+    def _infer_task_from_model_or_model_class(
+        cls, model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None, model_class: Optional[Type] = None
+    ) -> str:
+        if model is not None and model_class is not None:
+            raise ValueError("Either a model or a model class must be provided, but both were given here.")
+        if model is None and model_class is None:
+            raise ValueError("Either a model or a model class must be provided, but none were given here.")
+        target_name = model.__class__.__name__ if model is not None else model_class.__name__
+        task_name = None
+        iterable = (cls._AUTOMODELS_TO_TASKS.items(), cls._TF_AUTOMODELS_TO_TASKS.items())
+        pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
+        tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
+        for auto_cls_name, task in itertools.chain.from_iterable(iterable):
+            if any(
+                (
+                    target_name.startswith("Auto"),
+                    target_name.startswith("TFAuto"),
+                    target_name == "StableDiffusionPipeline",
+                )
+            ):
+                if target_name == auto_cls_name:
+                    task_name = task
+                    break
 
-        Args:
-            model_name_or_path (`str`):
-                The model repo or local path (not supported for now).
-            subfolder (`str`, *optional*, defaults to `""`):
-                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
-                Face Hub, you can specify the subfolder name here.
-            revision (`Optional[str]`, *optional*):
-                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+                continue
 
-        Returns:
-            `str`: The task name automatically detected from the model repo.
-        """
+            module = tf_auto_module if auto_cls_name.startswith("TF") else pt_auto_module
+            # getattr(module, auto_cls_name)._model_mapping is a _LazyMapping, it also has an attribute called
+            # "_model_mapping" that is what we want here: class names and not actual classes.
+            auto_cls = getattr(module, auto_cls_name, None)
+            # This is the case for StableDiffusionPipeline for instance.
+            if auto_cls is None:
+                continue
+            model_mapping = auto_cls._model_mapping._model_mapping
+            if target_name in model_mapping.values():
+                task_name = task
+                break
+        if task_name is None:
+            raise ValueError(f"Could not infer the task name for {target_name}.")
+        return task_name
 
+    @classmethod
+    def _infer_task_from_model_name_or_path(
+        cls, model_name_or_path: str, subfolder: str = "", revision: Optional[str] = None
+    ) -> str:
         tasks_to_automodels = {}
         class_name_prefix = ""
         if is_torch_available():
@@ -1003,6 +1135,44 @@ class TasksManager:
         if inferred_task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
         return inferred_task_name
+
+    @classmethod
+    def infer_task_from_model(
+        cls,
+        model: Union[str, "PreTrainedModel", "TFPreTrainedModel", Type],
+        subfolder: str = "",
+        revision: Optional[str] = None,
+    ) -> str:
+        """
+        Infers the task from the model repo.
+
+        Args:
+            model (`str`):
+                The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
+                instance of a model, or a model class.
+            subfolder (`str`, *optional*, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            revision (`Optional[str]`, *optional*):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+
+        Returns:
+            `str`: The task name automatically detected from the model repo.
+        """
+        is_torch_pretrained_model = is_torch_available() and isinstance(model, PreTrainedModel)
+        is_tf_pretrained_model = is_tf_available() and isinstance(model, TFPreTrainedModel)
+        task = None
+        if isinstance(model, str):
+            task = cls._infer_task_from_model_name_or_path(model, subfolder=subfolder, revision=revision)
+        elif is_torch_pretrained_model or is_tf_pretrained_model:
+            task = cls._infer_task_from_model_or_model_class(model=model)
+        elif inspect.isclass(model):
+            task = cls._infer_task_from_model_or_model_class(model_class=model)
+
+        if task is None:
+            raise ValueError(f"Could not infer the task from {model}.")
+
+        return task
 
     @staticmethod
     def get_all_tasks():
@@ -1123,7 +1293,7 @@ class TasksManager:
         if task not in model_tasks:
             raise ValueError(
                 f"{model_type} doesn't support task {task} for the {exporter} backend."
-                f" Supported values are: {model_tasks}"
+                f" Supported tasks are: {', '.join(model_tasks.keys())}."
             )
 
         exporter_config_constructor = TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]

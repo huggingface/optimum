@@ -21,10 +21,25 @@ import packaging
 import torch
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...utils import ORT_QUANTIZE_MINIMUM_VERSION, is_diffusers_available
+from ...utils import (
+    DIFFUSERS_MINIMUM_VERSION,
+    ORT_QUANTIZE_MINIMUM_VERSION,
+    check_if_diffusers_greater,
+    is_diffusers_available,
+)
+from ...utils.import_utils import _diffusers_version
 from ..tasks import TasksManager
 from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
+
+if is_diffusers_available():
+    if not check_if_diffusers_greater(DIFFUSERS_MINIMUM_VERSION.base_version):
+        raise ImportError(
+            f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
+            "Please update diffusers by running `pip install --upgrade diffusers`"
+        )
+
+    from diffusers.models.cross_attention import CrossAttnProcessor
 
 if TYPE_CHECKING:
     from .base import OnnxConfig
@@ -164,6 +179,9 @@ def get_stable_diffusion_models_for_export(
         model=pipeline.unet, exporter="onnx", task="semantic-segmentation", model_type="unet"
     )
     unet_onnx_config = onnx_config_constructor(pipeline.unet.config)
+
+    # PyTorch does not support the ONNX export of torch.nn.functional.scaled_dot_product_attention
+    pipeline.unet.set_attn_processor(CrossAttnProcessor())
     models_for_export["unet"] = (pipeline.unet, unet_onnx_config)
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565

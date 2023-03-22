@@ -140,6 +140,11 @@ class ORTDecoder(ORTModelPart):
         if self.parent_model.use_cache is True and len(self.key_value_output_names) == 0:
             raise RuntimeError("Could not find the past key values in the provided model.")
 
+        if len(self.key_value_input_names) > 0:
+            self.use_past = True
+        else:
+            self.use_past = False
+
         if len(self.key_value_output_names) != 0:
             # Attributes useful when computing the past key/values output shapes.
             self.expected_key_symbolic_shape = None
@@ -385,6 +390,18 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
     Decoder model with a language modeling head on top for ONNX Runtime inference.
     """
 
+    def __init__(
+        self,
+        session: InferenceSession,
+        parent_model: "ORTModel",
+    ):
+        super().__init__(session, parent_model)
+
+        if self.use_past:
+            self.num_pkv = 2
+        else:
+            self.num_pkv = 4
+
     def compute_past_key_values_output_shapes(
         self, input_ids, encoder_hidden_states, past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     ) -> Dict[str, int]:
@@ -403,7 +420,8 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
         past_key_values_shapes = {}
         for idx, name in enumerate(self.key_value_output_names):
             is_self_attn = idx % 4 < 2
-            past_key_values_shapes[name] = self_attn_shape if is_self_attn else cross_attn_shape
+            # decoder with past does not ouput cross attention key/values as they are constants
+            past_key_values_shapes[name] = self_attn_shape if (is_self_attn or self.use_past) else cross_attn_shape
         return past_key_values_shapes
 
     def forward(
@@ -468,14 +486,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
 
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
             # self-attention layer and 2 to the cross-attention layer)
-            past_key_values = ()
+            out_past_key_values = ()
             for name in self.key_value_output_names:
-                past_key_values += (output_buffers[name].view(output_shapes[name]),)
-
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
-            # cross-attention per decoder layer
-            num_pkv = 4
-            past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
+                out_past_key_values += (output_buffers[name].view(output_shapes[name]),)
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
 
@@ -483,7 +496,6 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             if "loss" in self.output_names:
                 loss = output_buffers["loss"].view(output_shapes["loss"])
         else:
-            # from pdb import set_trace; set_trace()
             if use_torch:
                 onnx_inputs = {
                     "input_ids": input_ids.cpu().detach().numpy(),
@@ -530,17 +542,13 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             # Run inference
             outputs = self.session.run(None, onnx_inputs)
 
+            # TODO: using two loops here is probably unefficient
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
             # self-attention layer and 2 to the cross-attention layer)
-            past_key_values = tuple(
+            out_past_key_values = tuple(
                 torch.from_numpy(outputs[self.output_names[key]]).to(self.device)
                 for key in self.key_value_output_names
             )
-
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
-            # cross-attention per decoder layer
-            num_pkv = 4
-            past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
 
             logits = outputs[self.output_names["logits"]]
             if use_torch:
@@ -552,4 +560,19 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 if use_torch:
                     loss = torch.from_numpy(loss).to(self.device)
 
-        return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=past_key_values)
+        # TODO: this is extremely ugly and unreadable. What if cross-attention k/v change?
+        # Tuple of tuple of length `n_layers`, with each tuple of length equal to:
+        # * 4 for the decoder without cache (k/v of self-attention + k/v of cross-attention)
+        # * 2 for the decoder with cache (k/v of self-attention as cross-attention cache is constant)
+        if self.use_past is False:
+            out_past_key_values = tuple(
+                out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
+            )
+        else:
+            # grab the cross attention key/values from the inputs
+            out_past_key_values = tuple(
+                out_past_key_values[i : i + self.num_pkv] + past_key_values[2 * i + 2 : 2 * i + 2 + self.num_pkv]
+                for i in range(0, len(out_past_key_values), self.num_pkv)
+            )
+
+        return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=out_past_key_values)

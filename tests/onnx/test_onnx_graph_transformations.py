@@ -69,7 +69,6 @@ class WeightSharingTestCase(TestCase):
 class OnnxMergingTestCase(TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
         "hf-internal-testing/tiny-random-GPT2Model": "causal-lm-with-past",
-        "hf-internal-testing/tiny-random-T5Model": "seq2seq-lm-with-past",
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())

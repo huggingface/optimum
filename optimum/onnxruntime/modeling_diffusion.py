@@ -31,18 +31,13 @@ from transformers import CLIPFeatureExtractor, CLIPTokenizer
 
 import onnxruntime as ort
 
-from ..exporters.onnx import (
-    export_models,
-    get_stable_diffusion_models_for_export,
-)
-from ..exporters.tasks import TasksManager
+from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
 from ..pipelines.diffusers.pipeline_stable_diffusion import StableDiffusionPipelineMixin
 from ..utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
     DIFFUSION_MODEL_UNET_SUBFOLDER,
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
-    DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
 )
 from .modeling_ort import ORTModel
 from .utils import (
@@ -220,8 +215,10 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
         sub_models = {}
 
         if not os.path.isdir(model_id):
-            allow_patterns = [os.path.join(k, "*") for k in config.keys() if not k.startswith("_")]
-            allow_patterns += list(
+            patterns = set(config.keys())
+            patterns.update({"vae_encoder", "vae_decoder"})
+            allow_patterns = {os.path.join(k, "*") for k in patterns if not k.startswith("_")}
+            allow_patterns.update(
                 {
                     vae_decoder_file_name,
                     text_encoder_file_name,
@@ -304,9 +301,13 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
 
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
-        model = TasksManager.get_model_from_task(
-            task,
-            model_id,
+
+        main_export(
+            model_name_or_path=model_id,
+            output=save_dir_path,
+            task=task,
+            do_validation=False,
+            no_post_process=True,
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,
@@ -315,25 +316,7 @@ class ORTStableDiffusionPipeline(ORTModel, StableDiffusionPipelineMixin):
             force_download=force_download,
             trust_remote_code=trust_remote_code,
         )
-        output_names = [
-            os.path.join(DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER, ONNX_WEIGHTS_NAME),
-            os.path.join(DIFFUSION_MODEL_UNET_SUBFOLDER, ONNX_WEIGHTS_NAME),
-            os.path.join(DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER, ONNX_WEIGHTS_NAME),
-            os.path.join(DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER, ONNX_WEIGHTS_NAME),
-        ]
-        models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
 
-        model.save_config(save_dir_path)
-        model.tokenizer.save_pretrained(save_dir_path.joinpath("tokenizer"))
-        model.scheduler.save_pretrained(save_dir_path.joinpath("scheduler"))
-        if model.feature_extractor is not None:
-            model.feature_extractor.save_pretrained(save_dir_path.joinpath("feature_extractor"))
-
-        export_models(
-            models_and_onnx_configs=models_and_onnx_configs,
-            output_dir=save_dir_path,
-            output_names=output_names,
-        )
         return cls._from_pretrained(
             save_dir_path,
             config=config,

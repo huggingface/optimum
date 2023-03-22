@@ -15,13 +15,14 @@
 import sys
 from argparse import ArgumentParser, RawTextHelpFormatter
 
+from ...exporters.onnx.__main__ import parse_args_onnx
 from .. import BaseOptimumCLICommand
-from .onnx import ONNXExportCommand, parse_args_onnx
+from .onnx import ONNXExportCommand
 from .tflite import TFLiteExportCommand, parse_args_tflite
 
 
-def onnx_export_factory(_):
-    return ONNXExportCommand(" ".join(sys.argv[3:]))
+def onnx_export_factory(args):
+    return ONNXExportCommand(args)
 
 
 def tflite_export_factory(_):

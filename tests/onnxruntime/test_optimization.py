@@ -328,8 +328,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
 
     SUPPORTED_ARCHITECTURES = [
         "bloom",
-        # TODO: codegen is not supported until https://github.com/microsoft/onnxruntime/pull/14751 is merged
-        # "codegen",
+        "codegen",
         "gpt2",
         "gpt_neo",
         "gpt_neox",
@@ -432,10 +431,6 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     def test_optimization_levels_gpu(
         self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool, optimization_level: str
     ):
-        # TODO: investigate why gptj with past is the only failing one
-        if model_arch == "gptj" and use_cache and optimization_level == "O4":
-            self.skipTest("Test failing with Shape mismatch attempting to re-use buffer")
-
         for use_io_binding in [False, True]:
             self._test_optimization_levels(
                 test_name=test_name,
