@@ -31,7 +31,12 @@ logger.setLevel(logging.INFO)
 
 
 def export(
-    model: PreTrainedModel, tokenizer: PreTrainedTokenizer, ggml_config: GgmlConfig, output: Path, dtype: str = "fp32"
+    model: PreTrainedModel,
+    tokenizer: PreTrainedTokenizer,
+    ggml_config: GgmlConfig,
+    output: Path,
+    task: str,
+    dtype: str = "fp32",
 ):
     output = Path(output)
     if not output.exists():
@@ -63,10 +68,11 @@ def export(
     state_dict = model.state_dict()
     state_dict = ggml_config.patch_state_dict(state_dict)
 
-    name_map = ggml_config.get_name_map(state_dict.keys())
+    name_map = ggml_config.get_name_map(state_dict.keys(), task=task)
 
     for old_name, new_name in name_map.items():
-        logger.info(f"{old_name} -> {new_name}")
+        if old_name != new_name:
+            logger.info(f"Renaming: {old_name} -> {new_name}")
         data = state_dict[old_name].squeeze().numpy()
         data = data.astype(np.float32)
 
@@ -151,9 +157,51 @@ def main_export(
     if original_task == "auto":
         logger.info(f"Automatic task detection to {task}.")
 
-    export(model, tokenizer, ggml_config, output, dtype="fp16" if fp16 else "fp32")
+    export(model, tokenizer, ggml_config, output, dtype="fp16" if fp16 else "fp32", task=task)
 
     model.config.save_pretrained(output)
 
     if do_validation is True:
         raise NotImplementedError("Validation not implemented for ggml")
+
+
+def parse_args_ggml(parser):
+    required_group = parser.add_argument_group("Required arguments")
+    required_group.add_argument(
+        "-m", "--model", type=str, required=True, help="Model ID on huggingface.co or path on disk to load model from."
+    )
+    required_group.add_argument(
+        "output", type=Path, help="Path indicating the directory where to store the generated ggml model."
+    )
+
+    optional_group = parser.add_argument_group("Optional arguments")
+    optional_group.add_argument(
+        "--task",
+        default="auto",
+        help=(
+            "The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend"
+            f" on the model, but are among: {str(list(TasksManager._TASKS_TO_AUTOMODELS.keys()))}."
+        ),
+    )
+    optional_group.add_argument(
+        "--fp16",
+        action="store_true",
+        help="Use half precision during the export. PyTorch-only, requires `--device cuda`.",
+    )
+    optional_group.add_argument(
+        "--framework",
+        type=str,
+        choices=["pt", "tf"],
+        default=None,
+        help=(
+            "The framework to use for the export."
+            " If not provided, will attempt to use the local checkpoint's original framework"
+            " or what is available in the environment."
+        ),
+    )
+    optional_group.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
+    optional_group.add_argument(
+        "--trust-remote-code",
+        action="store_true",
+        help="Allows to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.",
+    )

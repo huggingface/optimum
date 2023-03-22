@@ -17,8 +17,12 @@ from typing import Dict, List
 
 import torch
 
-from ...utils import NormalizedTextConfig
+from ...utils import NormalizedTextConfig, logging
 from .base import GgmlConfig, TextGgmlConfig
+
+
+logger = logging.get_logger()
+logger.setLevel(logging.INFO)
 
 
 class BloomGgmlConfig(TextGgmlConfig):
@@ -56,7 +60,10 @@ class BloomGgmlConfig(TextGgmlConfig):
             self._normalized_config.num_layers,
         ]
 
-    def get_name_map(self, parameters_names: List[str]) -> Dict[str, str]:
+    def get_name_map(self, parameters_names: List[str], task: str) -> Dict[str, str]:
+        if task != "causal-lm":
+            return super().get_name_map(parameters_names, task=task)
+
         name_map = {}
         for name in parameters_names:
             src = name
@@ -84,12 +91,35 @@ class WhisperGgmlConfig(GgmlConfig):
 
 
 class GPT2GgmlConfig(TextGgmlConfig):
-    pass
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
+
+    def patch_state_dict(self, state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        for name, param in state_dict.items():
+            if name.endswith(".mlp.c_proj.weight"):
+                logger.info(f"Patching {name}: transpose for efficiency")
+                state_dict[name] = param.T
+        return state_dict
 
 
-class GPTJGgmlConfig(TextGgmlConfig):
+class GPTJGgmlConfig(GPT2GgmlConfig):
     @property
     def header_data(self):
         # reference: https://github.com/ggerganov/ggml/blob/master/examples/gpt-j/convert-h5-to-ggml.py
-        header_data = super().header_data()
-        header_data.append(self._normalized_config.rotary_dim)
+        header_data = super().header_data
+        header_data.append(self._config.rotary_dim)
+        return header_data
+
+    def patch_state_dict(self, state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        for name, param in state_dict.items():
+            if name.endswith(
+                (
+                    ".mlp.fc_in.weight",
+                    ".attn.out_proj.weight",
+                    ".attn.q_proj.weight",
+                    ".attn.k_proj.weight",
+                    ".attn.v_proj.weight",
+                )
+            ):
+                logger.info(f"Patching {name}: transpose for efficiency")
+                state_dict[name] = param.T
+        return state_dict

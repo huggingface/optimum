@@ -29,9 +29,9 @@ class GgmlConfig:
     # just a hack to please TasksManager
     @classmethod
     def with_past(cls, *args, **kwargs):
-        cls(*args, **kwargs)
+        return cls(*args, **kwargs)
 
-    def get_name_map(self, parameters_names: List[str]) -> Dict[str, str]:
+    def get_name_map(self, parameters_names: List[str], task: str) -> Dict[str, str]:
         name_map = {}
         for parameter_name in parameters_names:
             name_map[parameter_name] = parameter_name
@@ -46,7 +46,7 @@ class TextGgmlConfig(GgmlConfig):
     def header_data(self):
         return [
             self._normalized_config.vocab_size,
-            self._normalized_config.n_positions,
+            self._config.n_positions,  # TODO: this may be added to normalizedconfig
             self._normalized_config.hidden_size,
             self._normalized_config.num_attention_heads,
             self._normalized_config.num_layers,
