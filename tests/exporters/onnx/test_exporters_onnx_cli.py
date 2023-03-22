@@ -154,7 +154,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 if "Tried to use ORTOptimizer for the model type" in str(
                     e
                 ) or "doesn't support the graph optimization" in str(e):
-                    self.skipTest("unsupported model type in ORTOptimizer")
+                    self.skipTest(f"unsupported model type in ORTOptimizer: {model_type}")
                 else:
                     raise e
 
@@ -177,7 +177,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             if "Tried to use ORTOptimizer for the model type" in str(
                 e
             ) or "doesn't support the graph optimization" in str(e):
-                self.skipTest("unsupported model type in ORTOptimizer")
+                self.skipTest(f"unsupported model type in ORTOptimizer: {model_type}")
             else:
                 raise e
 
