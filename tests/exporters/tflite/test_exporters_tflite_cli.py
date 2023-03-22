@@ -56,12 +56,15 @@ def _get_models_to_test(export_models_dict: Dict):
                 model_tasks = {model_names_tasks: tasks}
             else:
                 n_tested_tasks = sum(len(tasks) for tasks in model_names_tasks.values())
-                if n_tested_tasks != len(task_config_mapping):
+                if n_tested_tasks < len(task_config_mapping):
                     raise ValueError(f"Not all tasks are tested for {model_type}.")
                 model_tasks = model_names_tasks  # possibly, test different tasks on different models
 
             for model_name, tasks in model_tasks.items():
                 for task in tasks:
+                    if task not in task_config_mapping:
+                        continue
+
                     default_shapes = dict(DEFAULT_DUMMY_SHAPES)
                     if task == "question-answering":
                         default_shapes["sequence_length"] = 384
