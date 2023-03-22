@@ -145,7 +145,7 @@ class ORTConfigManager:
         supported_model_types_for_optimization = ["bert", "gpt2", "bart", "unet"]
 
         if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):
-            raise KeyError(
+            raise NotImplementedError(
                 f"ONNX Runtime doesn't support the graph optimization of {model_type} yet. Only {list(cls._conf.keys())} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue in ONNX Runtime:https://github.com/microsoft/onnxruntime."
             )
