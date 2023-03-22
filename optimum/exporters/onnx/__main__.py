@@ -382,7 +382,7 @@ def main_export(
                 model.config.pad_token_id = pad_token_id
             else:
                 try:
-                    tok = AutoTokenizer.from_pretrained(model)
+                    tok = AutoTokenizer.from_pretrained(model_name_or_path)
                     model.config.pad_token_id = tok.pad_token_id
                 except Exception:
                     raise ValueError(
