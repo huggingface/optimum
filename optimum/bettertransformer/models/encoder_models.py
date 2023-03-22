@@ -1139,6 +1139,7 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states,)
 
+
 class FlavaLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, flava_layer, config):
         r"""
@@ -1232,6 +1233,7 @@ class FlavaLayerBetterTransformer(BetterTransformerBaseLayer):
         if hidden_states.is_nested and self.is_last_layer:
             hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states,)
+
 
 class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, fsmt_layer, config):

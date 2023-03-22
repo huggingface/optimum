@@ -127,5 +127,3 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
                 atol=atol,
                 model_name=model_name,
             )
-
-
