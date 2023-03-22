@@ -22,10 +22,9 @@ body:
         Please tag fewer than 3 people.
 
         - Pipelines: `@philschmid`
-        - Export of transformers model to onnx: `@michaelbenayoun`
+        - Export of transformers model to ONNX/TFLite: `@michaelbenayoun`
         - ONNX Runtime: `@JingyaHuang`, `@echarlaix`
         - Intel Neural Compressor: `@echarlaix`
-        - Graphcore: `@michaelbenayoun`
         - Habana: `@regisss`
 
       placeholder: "@Username ..."
