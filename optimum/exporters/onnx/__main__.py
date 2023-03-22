@@ -405,7 +405,7 @@ def main_export(
 
         # Saving the model config and preprocessor as this is needed sometimes.
         model.config.save_pretrained(output)
-        maybe_save_preprocessors(model, output)
+        maybe_save_preprocessors(model_name_or_path, output)
 
     if task == "stable-diffusion":
         onnx_files_subpaths = [
