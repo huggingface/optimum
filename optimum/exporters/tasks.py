@@ -55,6 +55,7 @@ TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
 
 def is_backend_available(backend):
     backend_availablilty = {
+        "ggml": True,
         "onnx": is_onnx_available(),
         "tflite": is_tf_available(),
     }
@@ -297,6 +298,7 @@ class TasksManager:
             "sequence-classification",
             "token-classification",
             onnx="BloomOnnxConfig",
+            ggml="BloomGgmlConfig",
         ),
         "camembert": supported_tasks_mapping(
             "default",
