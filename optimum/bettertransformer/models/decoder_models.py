@@ -458,33 +458,50 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             past_key_value[1] if past_key_value is not None else None,
         )
 
-        if True:
-            if position_bias is None:
-                if not self.orig_layer.has_relative_attention_bias:
-                    position_bias = torch.zeros(
-                        (1, self.orig_layer.n_heads, real_seq_length, key_length),
-                        device=value_states.device,
-                        dtype=value_states.dtype,
-                    )
-                    if self.orig_layer.gradient_checkpointing and self.orig_layer.training:
-                        position_bias.requires_grad = True
-                else:
-                    position_bias = self.orig_layer.compute_bias(
-                        real_seq_length, key_length, device=value_states.device
-                    )
+        if position_bias is None:
+            if not self.orig_layer.has_relative_attention_bias:
+                position_bias = torch.zeros(
+                    (1, self.orig_layer.n_heads, real_seq_length, key_length),
+                    device=value_states.device,
+                    dtype=value_states.dtype,
+                )
+                if self.orig_layer.gradient_checkpointing and self.orig_layer.training:
+                    position_bias.requires_grad = True
+            else:
+                position_bias = self.orig_layer.compute_bias(real_seq_length, key_length, device=value_states.device)
 
-                # if key and values are already calculated
-                # we want only the last query position bias
-                if past_key_value is not None:
-                    position_bias = position_bias[:, :, -hidden_states.size(1) :, :]
+            # if key and values are already calculated
+            # we want only the last query position bias
+            if past_key_value is not None:
+                position_bias = position_bias[:, :, -hidden_states.size(1) :, :]
 
-                if mask is not None:
-                    position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
+            if mask is not None:
+                position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
 
-            # query_states = self.scale * query_states
+        query_states = self.scale * query_states
+        if not self.orig_layer.has_relative_attention_bias:
             attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states, key_states, value_states, attn_mask=position_bias, dropout_p=0.0, is_causal=False
+                query_states,
+                key_states,
+                value_states,
+                attn_mask=mask if mask is not None else None,
+                dropout_p=0.0,
+                is_causal=False,
             )
+        else:
+            if mask is not None:
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    query_states, key_states, value_states, attn_mask=position_bias, dropout_p=0.0, is_causal=False
+                )
+            else:
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    query_states,
+                    key_states,
+                    value_states,
+                    attn_mask=position_bias + mask,
+                    dropout_p=0.0,
+                    is_causal=False,
+                )
 
         attn_output = unshape(attn_output)  # (batch_size, seq_length, dim)
         attn_output = self.orig_layer.o(attn_output)
