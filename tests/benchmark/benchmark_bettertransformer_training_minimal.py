@@ -5,7 +5,7 @@ from typing import Dict
 import numpy as np
 import torch
 from tqdm.auto import tqdm
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM
 
 from optimum.bettertransformer import BetterTransformer
 
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     dtype = torch.float32 if args.use_half is False else torch.float16
     hf_model = hf_model.to(device=device, dtype=dtype)
 
-    BATCH_SIZES = [64]
+    BATCH_SIZES = [8]
     SEQ_LEN = [1024]
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.use_cuda else "cpu")
 
@@ -119,11 +119,9 @@ if __name__ == "__main__":
             hf_time_per_epoch, eager_max_mem = benchmark_training(hf_model, inputs=inputs, num_epochs=num_epochs, batch_size=batch_size)
 
             bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
-            bt_model = bt_model.to(device=device, dtype=dtype)
-
 
             # raise error if no optimized kernel is available
-            with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=True):
+            with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=True, enable_mem_efficient=True):
                 bt_time_per_epoch, bt_max_mem = benchmark_training(
                     bt_model,
                     inputs=inputs,

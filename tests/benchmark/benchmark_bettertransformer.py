@@ -6,6 +6,7 @@ from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer, Generat
 
 from optimum.bettertransformer import BetterTransformer
 
+from optimum.exporters import TasksManager
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -150,7 +151,7 @@ if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
 
-    BATCH_SIZES = [8]
+    BATCH_SIZES = [2]
     SEQ_LEN = [64]
     if args.is_decoder:
         PAD_PERCENTAGES = [0]
@@ -163,8 +164,11 @@ if __name__ == "__main__":
     if not hasattr(tokenizer, "pad_token") or tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    if args.is_decoder:
-        # autoclass = AutoModelForCausalLM
+    task = TasksManager.infer_task_from_model(args.model_name)
+
+    if task == "causal-lm":
+        autoclass = AutoModelForCausalLM
+    elif task == "seq2seq-lm":
         autoclass = AutoModelForSeq2SeqLM
     else:
         autoclass = AutoModel
@@ -217,7 +221,7 @@ if __name__ == "__main__":
                     )
 
                     # raise error if no optimized kernel is available
-                    with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=True):
+                    with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=True, enable_mem_efficient=True):
                         total_bt_time, max_mem_bt = benchmark(
                             bt_model,
                             input_ids,
