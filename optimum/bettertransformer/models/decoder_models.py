@@ -58,6 +58,12 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         mask_value = torch.finfo(value.dtype).min
         mask_value = torch.full([], mask_value, dtype=value.dtype)
 
+        # in gpt-neo-x and gpt-j the query and keys are always in fp32
+        # thus we need to cast them to the value dtype
+        if self.downcast_qk:
+            query = query.to(value.dtype)
+            key = key.to(value.dtype)
+
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
             raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
@@ -86,15 +92,14 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
                 attention_mask = causal_mask + attention_mask
 
-            # in gpt-neo-x and gpt-j the query and keys are always in fp32
-            # thus we need to cast them to the value dtype
-            if self.downcast_qk:
-                query = query.to(value.dtype)
-                key = key.to(value.dtype)
-
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
             )
+
+        # in gpt-neo-x and gpt-j the query and keys are always in fp32
+        # thus we need to cast them to the value dtype
+        if self.downcast_qk:
+            sdpa_result = sdpa_result.to(value.dtype)
 
         return sdpa_result, None
 
@@ -201,6 +206,11 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
             raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
+        # in codegen the query and key are always in fp32 regardless of the dtype of the model
+        # https://github.com/huggingface/transformers/blob/5b28b7833297adf65c5160a685425ddb1eee5ce2/src/transformers/models/codegen/modeling_codegen.py#L226
+        query = query.to(value.dtype)
+        key = key.to(value.dtype)
+
         if batch_size == 1:
             if query.shape[2] > 1:
                 # first step of the decoding
@@ -231,11 +241,6 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
                 # we use torch.min to avoid having tensor(-inf)
                 attention_mask = torch.min(causal_mask, attention_mask)
-
-            # in codegen the query and key are always in fp32 regardless of the dtype of the model
-            # https://github.com/huggingface/transformers/blob/5b28b7833297adf65c5160a685425ddb1eee5ce2/src/transformers/models/codegen/modeling_codegen.py#L226
-            query = query.to(value.dtype)
-            key = key.to(value.dtype)
 
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
