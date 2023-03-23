@@ -386,6 +386,8 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         super().forward_checker()
         raise_on_head_mask(layer_head_mask)
 
+        if output_attentions is True:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
         if len(self.orig_layer.pruned_heads) > 0:
             raise ValueError(
                 f"Setting `pruned_heads` is unsupported with BetterTransformer, found {self.orig_layer.pruned_heads}."
@@ -456,31 +458,20 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             past_key_value[1] if past_key_value is not None else None,
         )
 
-        if (position_bias is None and not self.orig_layer.has_relative_attention_bias) or (
-            position_bias is not None and position_bias[0, 0, 0, 0] == 0
-        ):
-            if position_bias is None and not self.orig_layer.has_relative_attention_bias:
-                position_bias = torch.zeros(
-                    (1, self.orig_layer.n_heads, real_seq_length, key_length),
-                    device=query_states.device,
-                    dtype=query_states.dtype,
-                )
-                if self.orig_layer.gradient_checkpointing and self.orig_layer.training:
-                    position_bias.requires_grad = True
-
-            query_states = self.scale * query_states
-            attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=False
-            )
-
-        else:
-            # compute scores
-            scores = torch.matmul(
-                query_states, key_states.transpose(3, 2)
-            )  # equivalent of torch.einsum("bnqd,bnkd->bnqk", query_states, key_states), compatible with onnx op>9
-
+        if True:
             if position_bias is None:
-                position_bias = self.orig_layer.compute_bias(real_seq_length, key_length, device=scores.device)
+                if not self.orig_layer.has_relative_attention_bias:
+                    position_bias = torch.zeros(
+                        (1, self.orig_layer.n_heads, real_seq_length, key_length),
+                        device=value_states.device,
+                        dtype=value_states.dtype,
+                    )
+                    if self.orig_layer.gradient_checkpointing and self.orig_layer.training:
+                        position_bias.requires_grad = True
+                else:
+                    position_bias = self.orig_layer.compute_bias(
+                        real_seq_length, key_length, device=value_states.device
+                    )
 
                 # if key and values are already calculated
                 # we want only the last query position bias
@@ -490,15 +481,10 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 if mask is not None:
                     position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
 
-            scores += position_bias
-            attn_weights = torch.nn.functional.softmax(scores.float(), dim=-1).type_as(
-                scores
-            )  # (batch_size, n_heads, seq_length, key_length)
-            attn_weights = torch.nn.functional.dropout(
-                attn_weights, p=self.orig_layer.dropout, training=self.orig_layer.training
-            )  # (batch_size, n_heads, seq_length, key_length)
-
-            attn_output = torch.matmul(attn_weights, value_states)
+            # query_states = self.scale * query_states
+            attn_output = torch.nn.functional.scaled_dot_product_attention(
+                query_states, key_states, value_states, attn_mask=position_bias, dropout_p=0.0, is_causal=False
+            )
 
         attn_output = unshape(attn_output)  # (batch_size, seq_length, dim)
         attn_output = self.orig_layer.o(attn_output)
@@ -506,8 +492,6 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         present_key_value_state = (key_states, value_states) if (self.orig_layer.is_decoder and use_cache) else None
         outputs = (attn_output,) + (present_key_value_state,) + (position_bias,)
 
-        if output_attentions:
-            outputs = outputs + (attn_weights,)
         return outputs
 
 
