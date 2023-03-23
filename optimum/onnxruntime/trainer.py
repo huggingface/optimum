@@ -37,6 +37,7 @@ from transformers.integrations import (
 import numpy as np
 import torch
 import torch.distributed as dist
+from packaging import version
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
@@ -84,10 +85,11 @@ from transformers.trainer_utils import (
     set_seed,
     speed_metrics,
 )
-from transformers.utils import logging
+from transformers.utils import is_accelerate_available
 
 from ..exporters import TasksManager
 from ..exporters.onnx import OnnxConfigWithPast, export, export_models, get_decoder_models_for_export
+from ..utils import logging
 from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import (
     ORTModel,
@@ -119,6 +121,13 @@ if is_fairscale_available():
     dep_version_check("fairscale")
     from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
     from fairscale.optim import OSS
+
+skip_first_batches = None
+if is_accelerate_available():
+    from accelerate import __version__ as accelerate_version
+
+    if version.parse(accelerate_version) >= version.parse("0.16"):
+        from accelerate import skip_first_batches
 
 if TYPE_CHECKING:
     import optuna
@@ -358,7 +367,7 @@ class ORTTrainer(Trainer):
             if resume_from_checkpoint is None:
                 raise ValueError(f"No valid checkpoint found in output directory ({args.output_dir})")
 
-        if resume_from_checkpoint is not None and not is_sagemaker_mp_enabled():
+        if resume_from_checkpoint is not None and not is_sagemaker_mp_enabled() and args.deepspeed is None:
             self._load_from_checkpoint(resume_from_checkpoint)
 
         # If model was re-initialized, put it on the right device and update self.model_wrapped
@@ -538,12 +547,20 @@ class ORTTrainer(Trainer):
             logger.info(f"  Continuing training from epoch {epochs_trained}")
             logger.info(f"  Continuing training from global step {self.state.global_step}")
             if not args.ignore_data_skip:
-                logger.info(
-                    f"  Will skip the first {epochs_trained} epochs then the first {steps_trained_in_current_epoch} "
-                    "batches in the first epoch. If this takes a lot of time, you can add the `--ignore_data_skip` "
-                    "flag to your launch command, but you will resume the training on data already seen by your model."
-                )
-                if self.is_local_process_zero() and not args.disable_tqdm:
+                if skip_first_batches is None:
+                    logger.info(
+                        f"  Will skip the first {epochs_trained} epochs then the first"
+                        f" {steps_trained_in_current_epoch} batches in the first epoch. If this takes a lot of time,"
+                        " you can install the latest version of Accelerate with `pip install -U accelerate`.You can"
+                        " also add the `--ignore_data_skip` flag to your launch command, but you will resume the"
+                        " training on data already seen by your model."
+                    )
+                else:
+                    logger.info(
+                        f"  Will skip the first {epochs_trained} epochs then the first"
+                        f" {steps_trained_in_current_epoch} batches in the first epoch."
+                    )
+                if self.is_local_process_zero() and not args.disable_tqdm and skip_first_batches is None:
                     steps_trained_progress_bar = tqdm(total=steps_trained_in_current_epoch)
                     steps_trained_progress_bar.set_description("Skipping the first batches")
 
@@ -593,11 +610,14 @@ class ORTTrainer(Trainer):
                     # AT THE VERY END!
                     _ = list(train_dataloader.sampler)
 
+        total_batched_samples = 0
         for epoch in range(epochs_trained, num_train_epochs):
             if isinstance(train_dataloader, DataLoader) and isinstance(train_dataloader.sampler, DistributedSampler):
                 train_dataloader.sampler.set_epoch(epoch)
             elif hasattr(train_dataloader, "dataset") and isinstance(train_dataloader.dataset, IterableDatasetShard):
                 train_dataloader.dataset.set_epoch(epoch)
+
+            epoch_iterator = train_dataloader
 
             # Reset the past mems state at the beginning of each epoch if necessary.
             if args.past_index >= 0:
@@ -613,8 +633,21 @@ class ORTTrainer(Trainer):
             if epoch == epochs_trained and resume_from_checkpoint is not None and steps_trained_in_current_epoch == 0:
                 self._load_rng_state(resume_from_checkpoint)
 
+            rng_to_sync = False
+            steps_skipped = 0
+            if skip_first_batches is not None and steps_trained_in_current_epoch > 0:
+                skip_first_batches(epoch_iterator, steps_trained_in_current_epoch)
+                steps_skipped = steps_trained_in_current_epoch
+                steps_trained_in_current_epoch = 0
+                rng_to_sync = True
+
             step = -1
             for step, inputs in enumerate(train_dataloader):
+                total_batched_samples += 1
+                if rng_to_sync:
+                    self._load_rng_state(resume_from_checkpoint)
+                    rng_to_sync = False
+
                 # Skip past any already trained steps if resuming training
                 if steps_trained_in_current_epoch > 0:
                     steps_trained_in_current_epoch -= 1
@@ -631,7 +664,7 @@ class ORTTrainer(Trainer):
                     self.control = self.callback_handler.on_step_begin(args, self.state, self.control)
 
                 if (
-                    ((step + 1) % args.gradient_accumulation_steps != 0)
+                    (total_batched_samples % args.gradient_accumulation_steps != 0)
                     and args.local_rank != -1
                     and args._no_sync_in_gradient_accumulation
                 ):
@@ -657,7 +690,7 @@ class ORTTrainer(Trainer):
                 if self.deepspeed:
                     self.deepspeed.step()
 
-                if (step + 1) % args.gradient_accumulation_steps == 0 or (
+                if total_batched_samples % args.gradient_accumulation_steps == 0 or (
                     # last step in epoch but step is always smaller than gradient_accumulation_steps
                     steps_in_epoch <= args.gradient_accumulation_steps
                     and (step + 1) == steps_in_epoch
@@ -705,7 +738,7 @@ class ORTTrainer(Trainer):
 
                     model.zero_grad()
                     self.state.global_step += 1
-                    self.state.epoch = epoch + (step + 1) / steps_in_epoch
+                    self.state.epoch = epoch + (step + 1 + steps_skipped) / steps_in_epoch
                     self.control = self.callback_handler.on_step_end(args, self.state, self.control)
 
                     self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
@@ -976,7 +1009,7 @@ class ORTTrainer(Trainer):
 
             self.exported_with_loss = with_loss
             self.onnx_model_path = onnx_model_path.as_posix()
-            logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
+            logger.info(f"[INFO] ONNX model is stored in: {self.onnx_model_path}")
 
         # Load ORT model
         support_loss_in_modeling = self.feature in [
