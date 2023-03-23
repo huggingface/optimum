@@ -139,7 +139,7 @@ if __name__ == "__main__":
             mem_saved = eager_max_mem / bt_max_mem
 
             output_file.write(
-                "{},{},{},{},{},{},{}\n".format(
+                "{},{},{},{},{},{},{},{},{},{}\n".format(
                     num_epochs,
                     batch_size,
                     sequence_length,
