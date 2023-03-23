@@ -458,6 +458,17 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             past_key_value[1] if past_key_value is not None else None,
         )
 
+        query_states = self.scale * query_states
+        if position_bias is None and not self.orig_layer.has_relative_attention_bias:
+            if mask is None:
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=False
+                )
+            elif mask is not None:
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    query_states, key_states, value_states, attn_mask=mask, dropout_p=0.0, is_causal=False
+                )
+
         if position_bias is None:
             if not self.orig_layer.has_relative_attention_bias:
                 position_bias = torch.zeros(
@@ -478,30 +489,14 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             if mask is not None:
                 position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
 
-        query_states = self.scale * query_states
-        if not self.orig_layer.has_relative_attention_bias:
-            attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states,
-                key_states,
-                value_states,
-                attn_mask=mask if mask is not None else None,
-                dropout_p=0.0,
-                is_causal=False,
-            )
-        else:
-            if mask is not None:
+            if self.orig_layer.has_relative_attention_bias:
                 attn_output = torch.nn.functional.scaled_dot_product_attention(
                     query_states, key_states, value_states, attn_mask=position_bias, dropout_p=0.0, is_causal=False
                 )
-            else:
-                attn_output = torch.nn.functional.scaled_dot_product_attention(
-                    query_states,
-                    key_states,
-                    value_states,
-                    attn_mask=position_bias + mask,
-                    dropout_p=0.0,
-                    is_causal=False,
-                )
+        else:
+            attn_output = torch.nn.functional.scaled_dot_product_attention(
+                query_states, key_states, value_states, attn_mask=position_bias, dropout_p=0.0, is_causal=False
+            )
 
         attn_output = unshape(attn_output)  # (batch_size, seq_length, dim)
         attn_output = self.orig_layer.o(attn_output)
