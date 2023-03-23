@@ -269,7 +269,7 @@ class OnnxConfig(ExportConfig, ABC):
             for name, value in dummy_inputs.items():
                 if isinstance(value, (list, tuple)):
                     value = self.flatten_output_collection_property(name, value)
-                    onnx_inputs.update({tensor_name: tensor for tensor_name, tensor in value.items()})
+                    onnx_inputs.update(dict(value.items()))
                 else:
                     onnx_inputs[name] = value
             for name, value in onnx_inputs.items():
