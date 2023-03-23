@@ -20,10 +20,11 @@ import os
 import shutil
 import sys
 import time
+import types
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
-import types
+
 
 # Integrations must be imported before ML frameworks:
 # isort: off
@@ -349,7 +350,7 @@ class ORTTrainer(Trainer):
         # Run model forward + loss compute.
         if isinstance(self.model, ModuleWithLoss):
             # ORTModule Does not support the BatchEncoding Type so we have to convert to a dict.
-            dict_inputs = {k: v for k, v in inputs.items()}
+            dict_inputs = dict(inputs.items())
             return model_with_loss(dict_inputs, return_outputs)
         else:
             return super().compute_loss(model_with_loss, inputs, return_outputs)
