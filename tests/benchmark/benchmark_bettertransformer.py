@@ -2,11 +2,11 @@ import argparse
 
 import torch
 from tqdm import tqdm
-from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer, GenerationConfig, AutoModelForSeq2SeqLM
+from transformers import AutoModel, AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, GenerationConfig
 
 from optimum.bettertransformer import BetterTransformer
-
 from optimum.exporters import TasksManager
+
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -122,6 +122,7 @@ def timing_cuda(model, num_batches, input_ids, masks, is_decoder, generation_con
 
     return (start_event.elapsed_time(end_event) * 1.0e-3) / num_batches, max_memory
 
+
 def benchmark(model, input_ids, masks, num_batches, is_decoder, max_token, pad_token_id):
     # Warmup
     if is_decoder:
@@ -175,16 +176,12 @@ if __name__ == "__main__":
 
     if args.use_cuda:
         with torch.device("cuda:0"):
-            hf_model = autoclass.from_pretrained(
-                args.model_name, torch_dtype=torch.float16 if args.use_half else None
-            )
+            hf_model = autoclass.from_pretrained(args.model_name, torch_dtype=torch.float16 if args.use_half else None)
         # in PyTorch we trust :)
         hf_model = hf_model.to("cuda:0")
         hf_model = hf_model.to(torch.float16)
     else:
-        hf_model = autoclass.from_pretrained(
-            args.model_name, torch_dtype=torch.float16 if args.use_half else None
-        )
+        hf_model = autoclass.from_pretrained(args.model_name, torch_dtype=torch.float16 if args.use_half else None)
 
     bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
 
@@ -200,7 +197,9 @@ if __name__ == "__main__":
                 # max_seqlen = seq_len + current_std
                 max_seqlen = seq_len
                 mean_seqlen = int((1 - pad_perc) * max_seqlen)
-                input_ids, _, masks = get_batch(bs, mean_seqlen, max_seqlen, args.seqlen_stdev, vocab_size=hf_model.config.vocab_size)
+                input_ids, _, masks = get_batch(
+                    bs, mean_seqlen, max_seqlen, args.seqlen_stdev, vocab_size=hf_model.config.vocab_size
+                )
 
                 if args.use_cuda:
                     input_ids = input_ids.to(device)
@@ -221,7 +220,9 @@ if __name__ == "__main__":
                     )
 
                     # raise error if no optimized kernel is available
-                    with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=True, enable_mem_efficient=True):
+                    with torch.backends.cuda.sdp_kernel(
+                        enable_flash=True, enable_math=True, enable_mem_efficient=True
+                    ):
                         total_bt_time, max_mem_bt = benchmark(
                             bt_model,
                             input_ids,
@@ -255,7 +256,7 @@ if __name__ == "__main__":
                         f"{speedup:.3f}",
                         f"{max_mem_eager:.3f}",
                         f"{max_mem_bt:.3f}",
-                        f"{mem_saved:.3f}"
+                        f"{mem_saved:.3f}",
                     )
                 )
     output_file.close()

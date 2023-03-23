@@ -5,7 +5,7 @@ from typing import Dict
 import numpy as np
 import torch
 from tqdm.auto import tqdm
-from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM
+from transformers import AutoModelForCausalLM
 
 from optimum.bettertransformer import BetterTransformer
 
@@ -101,7 +101,9 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.use_cuda else "cpu")
 
     output_file = open("log_{}_train.csv".format(args.model_name.replace("/", "-")), "w")
-    output_file.write("num_epochs, batch_size, seq_len, is cuda, HF time / epoch (s), BT time / epoch (s), Speedup, Eager peak mem (MB), BT peak mem (MB), Mem saving\n")
+    output_file.write(
+        "num_epochs, batch_size, seq_len, is cuda, HF time / epoch (s), BT time / epoch (s), Speedup, Eager peak mem (MB), BT peak mem (MB), Mem saving\n"
+    )
     num_epochs = args.num_epochs
 
     for batch_size in BATCH_SIZES:
@@ -116,17 +118,16 @@ if __name__ == "__main__":
                 "attention_mask": torch.ones(batch_size, sequence_length, dtype=torch.int64).to(device),
             }
 
-            hf_time_per_epoch, eager_max_mem = benchmark_training(hf_model, inputs=inputs, num_epochs=num_epochs, batch_size=batch_size)
+            hf_time_per_epoch, eager_max_mem = benchmark_training(
+                hf_model, inputs=inputs, num_epochs=num_epochs, batch_size=batch_size
+            )
 
             bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
 
             # raise error if no optimized kernel is available
             with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=True, enable_mem_efficient=True):
                 bt_time_per_epoch, bt_max_mem = benchmark_training(
-                    bt_model,
-                    inputs=inputs,
-                    num_epochs=num_epochs,
-                    batch_size=batch_size
+                    bt_model, inputs=inputs, num_epochs=num_epochs, batch_size=batch_size
                 )
 
             eager_max_mem = eager_max_mem * 1e-6
@@ -148,7 +149,7 @@ if __name__ == "__main__":
                     f"{speedup:.3f}",
                     f"{eager_max_mem:.3f}",
                     f"{bt_max_mem:.3f}",
-                    f"{mem_saved:.3f}"
+                    f"{mem_saved:.3f}",
                 )
             )
     output_file.close()
