@@ -58,6 +58,12 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         mask_value = torch.finfo(value.dtype).min
         mask_value = torch.full([], mask_value, dtype=value.dtype)
 
+        # in gpt-neo-x and gpt-j the query and keys are always in fp32
+        # thus we need to cast them to the value dtype
+        if self.downcast_qk:
+            query = query.to(value.dtype)
+            key = key.to(value.dtype)
+
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
             raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
@@ -86,15 +92,14 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
                 attention_mask = causal_mask + attention_mask
 
-            # in gpt-neo-x and gpt-j the query and keys are always in fp32
-            # thus we need to cast them to the value dtype
-            if self.downcast_qk:
-                query = query.to(value.dtype)
-                key = key.to(value.dtype)
-
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
             )
+
+        # in gpt-neo-x and gpt-j the query and keys are always in fp32
+        # thus we need to cast them to the value dtype
+        if self.downcast_qk:
+            sdpa_result = sdpa_result.to(value.dtype)
 
         return sdpa_result, None
 
@@ -201,6 +206,11 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
             raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
+        # in codegen the query and key are always in fp32 regardless of the dtype of the model
+        # https://github.com/huggingface/transformers/blob/5b28b7833297adf65c5160a685425ddb1eee5ce2/src/transformers/models/codegen/modeling_codegen.py#L226
+        query = query.to(value.dtype)
+        key = key.to(value.dtype)
+
         if batch_size == 1:
             if query.shape[2] > 1:
                 # first step of the decoding
@@ -231,11 +241,6 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
                 # we use torch.min to avoid having tensor(-inf)
                 attention_mask = torch.min(causal_mask, attention_mask)
-
-            # in codegen the query and key are always in fp32 regardless of the dtype of the model
-            # https://github.com/huggingface/transformers/blob/5b28b7833297adf65c5160a685425ddb1eee5ce2/src/transformers/models/codegen/modeling_codegen.py#L226
-            query = query.to(value.dtype)
-            key = key.to(value.dtype)
 
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
@@ -381,6 +386,8 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         super().forward_checker()
         raise_on_head_mask(layer_head_mask)
 
+        if output_attentions is True:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
         if len(self.orig_layer.pruned_heads) > 0:
             raise ValueError(
                 f"Setting `pruned_heads` is unsupported with BetterTransformer, found {self.orig_layer.pruned_heads}."
@@ -451,49 +458,45 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             past_key_value[1] if past_key_value is not None else None,
         )
 
-        if (position_bias is None and not self.orig_layer.has_relative_attention_bias) or (
-            position_bias is not None and position_bias[0, 0, 0, 0] == 0
-        ):
-            if position_bias is None and not self.orig_layer.has_relative_attention_bias:
+        query_states = self.scale * query_states
+        if position_bias is None and not self.orig_layer.has_relative_attention_bias:
+            if mask is None:
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=False
+                )
+            elif mask is not None:
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    query_states, key_states, value_states, attn_mask=mask, dropout_p=0.0, is_causal=False
+                )
+
+        if position_bias is None:
+            if not self.orig_layer.has_relative_attention_bias:
                 position_bias = torch.zeros(
                     (1, self.orig_layer.n_heads, real_seq_length, key_length),
-                    device=query_states.device,
-                    dtype=query_states.dtype,
+                    device=value_states.device,
+                    dtype=value_states.dtype,
                 )
                 if self.orig_layer.gradient_checkpointing and self.orig_layer.training:
                     position_bias.requires_grad = True
+            else:
+                position_bias = self.orig_layer.compute_bias(real_seq_length, key_length, device=value_states.device)
 
-            query_states = self.scale * query_states
-            attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=False
-            )
+            # if key and values are already calculated
+            # we want only the last query position bias
+            if past_key_value is not None:
+                position_bias = position_bias[:, :, -hidden_states.size(1) :, :]
 
+            if mask is not None:
+                position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
+
+            if self.orig_layer.has_relative_attention_bias:
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    query_states, key_states, value_states, attn_mask=position_bias, dropout_p=0.0, is_causal=False
+                )
         else:
-            # compute scores
-            scores = torch.matmul(
-                query_states, key_states.transpose(3, 2)
-            )  # equivalent of torch.einsum("bnqd,bnkd->bnqk", query_states, key_states), compatible with onnx op>9
-
-            if position_bias is None:
-                position_bias = self.orig_layer.compute_bias(real_seq_length, key_length, device=scores.device)
-
-                # if key and values are already calculated
-                # we want only the last query position bias
-                if past_key_value is not None:
-                    position_bias = position_bias[:, :, -hidden_states.size(1) :, :]
-
-                if mask is not None:
-                    position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
-
-            scores += position_bias
-            attn_weights = torch.nn.functional.softmax(scores.float(), dim=-1).type_as(
-                scores
-            )  # (batch_size, n_heads, seq_length, key_length)
-            attn_weights = torch.nn.functional.dropout(
-                attn_weights, p=self.orig_layer.dropout, training=self.orig_layer.training
-            )  # (batch_size, n_heads, seq_length, key_length)
-
-            attn_output = torch.matmul(attn_weights, value_states)
+            attn_output = torch.nn.functional.scaled_dot_product_attention(
+                query_states, key_states, value_states, attn_mask=position_bias, dropout_p=0.0, is_causal=False
+            )
 
         attn_output = unshape(attn_output)  # (batch_size, seq_length, dim)
         attn_output = self.orig_layer.o(attn_output)
@@ -501,8 +504,6 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         present_key_value_state = (key_states, value_states) if (self.orig_layer.is_decoder and use_cache) else None
         outputs = (attn_output,) + (present_key_value_state,) + (position_bias,)
 
-        if output_attentions:
-            outputs = outputs + (attn_weights,)
         return outputs
 
 

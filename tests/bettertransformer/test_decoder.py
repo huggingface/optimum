@@ -68,18 +68,23 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
             {
                 "model_type": SUPPORTED_ARCH,
                 "use_to_operator": [True, False],
+                "batch_size": [1, 2],
             }
         )
     )
     @pytest.mark.fp16
     @require_torch_gpu
     @pytest.mark.gpu_test
-    def test_fp16_inference(self, test_name: str, model_type: str, use_to_operator: bool):
+    def test_fp16_inference(self, test_name: str, model_type: str, use_to_operator: bool, batch_size: int):
         self._skip_on_torch_version(model_type)
 
         model_id = MODELS_DICT[model_type]
         self._test_fp16_inference(
-            model_id, model_type=model_type, use_to_operator=use_to_operator, automodel_class=AutoModelForCausalLM
+            model_id,
+            model_type=model_type,
+            use_to_operator=use_to_operator,
+            automodel_class=AutoModelForCausalLM,
+            batch_size=batch_size,
         )
 
     @parameterized.expand(
