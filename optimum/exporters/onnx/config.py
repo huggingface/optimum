@@ -195,7 +195,6 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
-            print("adding encoder_hidden_states", common_inputs)
 
         return common_inputs
 
@@ -302,10 +301,12 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
         if self._behavior is ConfigBehavior.DECODER:
             reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
 
-            # ONNX model does not use the encoder_hidden_states input, althouhg PyTorch requires it to be not None
-            if self.use_past_in_inputs is True:
-                print("reference_model_inputs.encoder_outputs", reference_model_inputs["encoder_outputs"])
+            if self.use_past_in_inputs is False:
+                # ONNX without past uses encoder_hidden_states even when we don't outputing them
                 reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+            else:
+                # ONNX with past does not use encoder_hidden_states when we don't output them
+                reference_model_inputs.pop("encoder_outputs")
 
         return reference_model_inputs
 

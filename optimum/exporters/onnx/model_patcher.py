@@ -114,7 +114,6 @@ class ModelPatcher:
 class Seq2SeqModelPatcher(ModelPatcher):
     def __init__(self, config: "OnnxConfig", model: Union["PreTrainedModel", "TFPreTrainedModel"]):
         super().__init__(config, model)
-        print("CALLING Seq2SeqModelPatcher")
 
         allow_past_in_outputs = (
             hasattr(self.real_config, "use_present_in_outputs") and self.real_config.use_present_in_outputs
@@ -123,23 +122,20 @@ class Seq2SeqModelPatcher(ModelPatcher):
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
             outputs = self.orig_forward(*args, **kwargs)
-            
-            print("REAL CONFIG")
-            print("self.real_config._behavior:", self.real_config._behavior)
+
             # Filter out cross attention past key values
             filterd_outputs = {}
             for name, value in outputs.items():
-                print("name", name)
                 if name != "past_key_values":
                     if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
                         # who cares about the encoder outputs in the decoder?
                         continue
                     else:
                         filterd_outputs[name] = value
-                
+
                 if config.torch_to_onnx_output_map.get(name, name) in config.outputs or (
                     allow_past_in_outputs and name.startswith("past_key_values")
-                ):  
+                ):
                     if name == "past_key_values":
                         if self.real_config._behavior == "monolith" or (
                             self.real_config._behavior == "decoder" and self.real_config.use_past is False
@@ -147,7 +143,6 @@ class Seq2SeqModelPatcher(ModelPatcher):
                             filterd_outputs[name] = value
                         elif self.real_config._behavior == "decoder" and self.real_config.use_past is True:
                             filterd_outputs[name] = tuple([v[:2] for v in value])
-            print("filterd_outputs:", filterd_outputs.keys())
             return filterd_outputs
 
         self.patched_forward = patched_forward
