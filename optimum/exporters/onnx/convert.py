@@ -435,6 +435,8 @@ def export_pytorch(
             with config.patch_model_for_export(model):
                 # Export can work with named args but the dict containing named args has to be the last element of the args
                 # tuple.
+                print("input_names", input_names)
+                print("dummy_inputs keys", dummy_inputs.keys())
                 onnx_export(
                     model,
                     (dummy_inputs,),

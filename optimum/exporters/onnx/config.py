@@ -195,6 +195,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+            print("adding encoder_hidden_states", common_inputs)
 
         return common_inputs
 
@@ -396,12 +397,3 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
 
         return reference_model_inputs
-
-    @property
-    def outputs(self) -> Dict[str, Dict[int, str]]:
-        common_outputs = super().outputs
-        # This is handled by OnnxSeq2SeqConfigWithPast, but not by OnnxConfigWithPast, so we take care of this here to
-        # make sure this output is moved at the end.
-        if "encoder_last_hidden_state" in common_outputs:
-            common_outputs.move_to_end("encoder_last_hidden_state")
-        return common_outputs
