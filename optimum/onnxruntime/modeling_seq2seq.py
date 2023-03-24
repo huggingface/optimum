@@ -1086,7 +1086,7 @@ class _ORTModelForWhisper(
     ORTModelForSpeechSeq2Seq, WhisperForConditionalGeneration, metaclass=MetaClassRemoveParentsAndReorder
 ):
     """
-    Whisper implements its own generate() method
+    Whisper implements its own generate() method.
     """
 
     def generate(self, **kwargs):
