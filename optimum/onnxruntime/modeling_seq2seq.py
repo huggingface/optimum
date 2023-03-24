@@ -1089,9 +1089,6 @@ class _ORTModelForWhisper(
     Whisper implements its own generate() method.
     """
 
-    def generate(self, **kwargs):
-        return super().generate(**kwargs)
-
     @classmethod
     def _from_pretrained(
         cls,

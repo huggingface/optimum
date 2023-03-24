@@ -3386,13 +3386,9 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         data = self._generate_random_audio_data()
         features = processor.feature_extractor(data, return_tensors="pt")
 
-        outputs = model.generate(inputs=features["input_features"], return_timestamps=True)
+        outputs = model.generate(inputs=features["input_features"])
         res = processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertIsInstance(res[0], str)
-        self.assertTrue("chunks" in outputs)
-
-        outputs = model.generate(inputs=features["input_features"], return_timestamps=False)
-        self.assertTrue("chunks" in outputs)
 
         gc.collect()
 
@@ -3457,13 +3453,16 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             feature_extractor=processor.feature_extractor,
         )
         data = self._generate_random_audio_data()
-        outputs = pipe(data, return_timestamps=True)
+        outputs = pipe(data)
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs["text"], str)
-        self.assertTrue("chunks" in outputs)
 
-        outputs = pipe(data, return_timestamps=False)
-        self.assertTrue("chunks" not in outputs)
+        if model_arch == "whisper":
+            outputs = pipe(data, return_timestamps=True)
+            self.assertTrue("chunks" in outputs)
+
+            outputs = pipe(data, return_timestamps=False)
+            self.assertTrue("chunks" not in outputs)
 
         gc.collect()
 

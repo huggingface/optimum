@@ -405,7 +405,7 @@ def main_export(
 
         # Saving the model config and preprocessor as this is needed sometimes.
         model.config.save_pretrained(output)
-        generation_config = getattr(model, "generation_config")
+        generation_config = getattr(model, "generation_config", None)
         if generation_config is not None:
             generation_config.save_pretrained(output)
         maybe_save_preprocessors(model_name_or_path, output)
