@@ -621,6 +621,14 @@ class TasksManager:
             "sequence-classification",
             onnx="OPTOnnxConfig",
         ),
+        "llama": supported_tasks_mapping(
+            "default",
+            "default-with-past",
+            "causal-lm",
+            "causal-lm-with-past",
+            "sequence-classification",
+            onnx="LlamaOnnxConfig",
+        ),
         "pegasus": supported_tasks_mapping(
             "default",
             "default-with-past",
