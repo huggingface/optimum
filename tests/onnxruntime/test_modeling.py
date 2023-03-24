@@ -1969,6 +1969,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "gpt_neo",
         "gpt_neox",
         "gptj",
+        "llama",
     ]
 
     FULL_GRID = {
