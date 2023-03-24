@@ -405,8 +405,9 @@ def main_export(
 
         # Saving the model config and preprocessor as this is needed sometimes.
         model.config.save_pretrained(output)
-        if hasattr(model, "generation_config") and model.generation_config is not None:
-            model.generation_config.save_pretrained(output)
+        generation_config = getattr(model, "generation_config")
+        if generation_config is not None:
+            generation_config.save_pretrained(output)
         maybe_save_preprocessors(model_name_or_path, output)
 
     if task == "stable-diffusion":
