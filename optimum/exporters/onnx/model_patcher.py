@@ -131,7 +131,7 @@ class Seq2SeqModelPatcher(ModelPatcher):
             for name, value in outputs.items():
                 print("name", name)
                 if name != "past_key_values":
-                    if self.real_config._behavior == "decoder" and name == "encoder_outputs":
+                    if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
                         # who cares about the encoder outputs in the decoder?
                         continue
                     else:

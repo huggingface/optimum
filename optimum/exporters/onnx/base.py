@@ -264,7 +264,9 @@ class OnnxConfig(ExportConfig, ABC):
             if input_shapes is None:
                 input_shapes = {}
             dummy_inputs = self.generate_dummy_inputs(framework="np", **input_shapes)
+            print("dummy_inputs", dummy_inputs)
             dummy_inputs = self.generate_dummy_inputs_for_validation(dummy_inputs)
+            print("dummy_inputs", dummy_inputs)
             onnx_inputs = {}
             for name, value in dummy_inputs.items():
                 if isinstance(value, (list, tuple)):
@@ -530,6 +532,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             input_names.append("past_key_values")
 
         for input_name in input_names:
+            print("generating input_name", input_name)
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
@@ -707,9 +710,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 else:
                     new_axes_names[axis_idx] = axis_name
             common_outputs[name] = new_axes_names
-
-        if self._behavior is not ConfigBehavior.ENCODER and self.use_past_in_inputs is False:
-            common_outputs["encoder_last_hidden_state"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
