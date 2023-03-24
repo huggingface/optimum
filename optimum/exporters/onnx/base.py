@@ -708,6 +708,9 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                     new_axes_names[axis_idx] = axis_name
             common_outputs[name] = new_axes_names
 
+        if self._behavior is not ConfigBehavior.ENCODER and self.use_past_in_inputs is False:
+            common_outputs["encoder_last_hidden_state"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
         if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
 
@@ -731,6 +734,9 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             if direction == "inputs" or (self._behavior is ConfigBehavior.DECODER and self.use_past is False):
                 inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: "encoder_sequence_length"}
                 inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length"}
+
+        if direction == "outputs" and "encoder_last_hidden_state" in inputs_or_outputs:
+            inputs_or_outputs.move_to_end("encoder_last_hidden_state")
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
