@@ -732,9 +732,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: "encoder_sequence_length"}
                 inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length"}
 
-        if direction == "outputs" and "encoder_last_hidden_state" in inputs_or_outputs:
-            inputs_or_outputs.move_to_end("encoder_last_hidden_state")
-
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
         flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
