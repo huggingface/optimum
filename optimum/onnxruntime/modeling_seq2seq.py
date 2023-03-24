@@ -575,6 +575,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             dst_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src_path, dst_path)
 
+        self.generation_config.save_pretrained(save_directory)
+
     @classmethod
     def _from_pretrained(
         cls,
