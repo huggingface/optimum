@@ -481,7 +481,7 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer, T5Attention,
         )
 
         query_states = self.scale * query_states
-        if position_bias is None and not self.orig_layer.has_relative_attention_bias:
+        if position_bias is None and not self.has_relative_attention_bias:
             if mask is None:
                 attn_output = torch.nn.functional.scaled_dot_product_attention(
                     query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=False

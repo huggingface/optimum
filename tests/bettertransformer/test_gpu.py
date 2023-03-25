@@ -40,9 +40,9 @@ def benchmark(model_name: str, num_batches: int, batch_size: int, max_seqlen: in
     decoder_input_ids = torch.ones(batch_size, 1, dtype=torch.int64).to("cuda:0")
 
     # Warmup
-    _ = hf_model(input_ids)
+    _ = hf_model(input_ids, masks, decoder_input_ids=decoder_input_ids)
     torch.cuda.synchronize()
-    _ = bt_model(input_ids)
+    _ = bt_model(input_ids, masks, decoder_input_ids=decoder_input_ids)
     torch.cuda.synchronize()
 
     total_hf_time = timing_cuda(hf_model, num_batches, input_ids, masks, decoder_input_ids)
