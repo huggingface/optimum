@@ -14,6 +14,7 @@
 from typing import TYPE_CHECKING, Optional, Tuple
 
 import torch
+from transformers.models.t5.modeling_t5 import T5Attention
 
 from .base import BetterTransformerBaseLayer
 
@@ -357,18 +358,41 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer):
         return attn_output, None, past_key_value
 
 
-class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
+class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer, T5Attention, torch.nn.Module):
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
-        super().__init__(config)
+        super(T5Attention, self).__init__()
 
-        self.orig_layer = layer
+        # self.orig_layer = layer
 
-        head_dim = self.orig_layer.d_model // self.orig_layer.n_heads  # hidden size / num attention heads
+        head_dim = layer.d_model // layer.n_heads  # hidden size / num attention heads
         self.scale = torch.sqrt(torch.tensor(head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
 
-        self.module_mapping = {"orig_layer": ""}
+        # self.module_mapping = {"orig_layer": ""}
 
         self.is_decoder = True
+        self.original_layers_mapping = {"q": "q", "k": "k", "v": "v", "o": "o"}
+        self.module_mapping = None
+
+        self.is_decoder = config.is_decoder
+        self.has_relative_attention_bias = layer.has_relative_attention_bias
+        self.relative_attention_num_buckets = config.relative_attention_num_buckets
+        self.relative_attention_max_distance = config.relative_attention_max_distance
+        self.d_model = config.d_model
+        self.key_value_proj_dim = config.d_kv
+        self.n_heads = config.num_heads
+        self.dropout = config.dropout_rate
+        self.inner_dim = self.n_heads * self.key_value_proj_dim
+
+        # Mesh TensorFlow initialization to avoid scaling before softmax
+        self.q = layer.q
+        self.k = layer.k
+        self.v = layer.v
+        self.o = layer.o
+
+        if self.has_relative_attention_bias:
+            self.relative_attention_bias = layer.relative_attention_bias
+        self.pruned_heads = set()
+        self.gradient_checkpointing = False
 
     # Adapted from transformers.models.t5.modeling_t5.T5Attention.forward
     def forward(
@@ -388,9 +412,9 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         if output_attentions is True:
             raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
-        if len(self.orig_layer.pruned_heads) > 0:
+        if len(self.pruned_heads) > 0:
             raise ValueError(
-                f"Setting `pruned_heads` is unsupported with BetterTransformer, found {self.orig_layer.pruned_heads}."
+                f"Setting `pruned_heads` is unsupported with BetterTransformer, found {self.pruned_heads}."
             )
         batch_size, seq_length = hidden_states.shape[:2]
 
@@ -406,13 +430,11 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
 
         def shape(states):
             """projection"""
-            return states.view(batch_size, -1, self.orig_layer.n_heads, self.orig_layer.key_value_proj_dim).transpose(
-                1, 2
-            )
+            return states.view(batch_size, -1, self.n_heads, self.key_value_proj_dim).transpose(1, 2)
 
         def unshape(states):
             """reshape"""
-            return states.transpose(1, 2).contiguous().view(batch_size, -1, self.orig_layer.inner_dim)
+            return states.transpose(1, 2).contiguous().view(batch_size, -1, self.inner_dim)
 
         def project(hidden_states, proj_layer, key_value_states, past_key_value):
             """projects hidden states correctly to key/query states"""
@@ -442,18 +464,18 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             return hidden_states
 
         # get query states
-        query_states = shape(self.orig_layer.q(hidden_states))  # (batch_size, n_heads, seq_length, dim_per_head)
+        query_states = shape(self.q(hidden_states))  # (batch_size, n_heads, seq_length, dim_per_head)
 
         # get key/value states
         key_states = project(
             hidden_states,
-            self.orig_layer.k,
+            self.k,
             key_value_states,
             past_key_value[0] if past_key_value is not None else None,
         )
         value_states = project(
             hidden_states,
-            self.orig_layer.v,
+            self.v,
             key_value_states,
             past_key_value[1] if past_key_value is not None else None,
         )
@@ -470,16 +492,16 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
                 )
 
         if position_bias is None:
-            if not self.orig_layer.has_relative_attention_bias:
+            if not self.has_relative_attention_bias:
                 position_bias = torch.zeros(
-                    (1, self.orig_layer.n_heads, real_seq_length, key_length),
+                    (1, self.n_heads, real_seq_length, key_length),
                     device=value_states.device,
                     dtype=value_states.dtype,
                 )
-                if self.orig_layer.gradient_checkpointing and self.orig_layer.training:
+                if self.gradient_checkpointing and self.training:
                     position_bias.requires_grad = True
             else:
-                position_bias = self.orig_layer.compute_bias(real_seq_length, key_length, device=value_states.device)
+                position_bias = self.compute_bias(real_seq_length, key_length, device=value_states.device)
 
             # if key and values are already calculated
             # we want only the last query position bias
@@ -489,7 +511,7 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             if mask is not None:
                 position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
 
-            if self.orig_layer.has_relative_attention_bias:
+            if self.has_relative_attention_bias:
                 attn_output = torch.nn.functional.scaled_dot_product_attention(
                     query_states, key_states, value_states, attn_mask=position_bias, dropout_p=0.0, is_causal=False
                 )
@@ -499,9 +521,9 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer):
             )
 
         attn_output = unshape(attn_output)  # (batch_size, seq_length, dim)
-        attn_output = self.orig_layer.o(attn_output)
+        attn_output = self.o(attn_output)
 
-        present_key_value_state = (key_states, value_states) if (self.orig_layer.is_decoder and use_cache) else None
+        present_key_value_state = (key_states, value_states) if (self.is_decoder and use_cache) else None
         outputs = (attn_output,) + (present_key_value_state,) + (position_bias,)
 
         return outputs
