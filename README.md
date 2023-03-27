@@ -2,11 +2,7 @@
 
 # Hugging Face Optimum
 
-🤗 Optimum is an extension of 🤗 Transformers, providing a set of optimization tools enabling maximum efficiency to train and run models on targeted hardware.
-
-The AI ecosystem evolves quickly and more and more specialized hardware along with their own optimizations are emerging every day.
-As such, Optimum enables users to efficiently use any of these platforms with the same ease inherent to transformers.
-
+🤗 Optimum is an extension of 🤗 Transformers, providing a set of optimization tools enabling maximum efficiency to train and run models on targeted hardware, while keeping things straightforward.
 
 <!--
 ## Integration with Hardware Partners
@@ -38,8 +34,7 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 | [Graphcore IPU](https://www.graphcore.ai/products/ipu)                                                                 | `python -m pip install optimum[graphcore]`        |
 | [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `python -m pip install optimum[habana]`           |
 
-
-If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you can install the base library from source as follows:
+To install from source:
 
 ```bash
 python -m pip install git+https://github.com/huggingface/optimum.git
