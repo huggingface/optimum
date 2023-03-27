@@ -206,7 +206,7 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
                     model2.graph.output.insert(idx, constant_empty_output)
                 else:
                     raise ValueError(
-                        f"Can not match {model_output_1.name} with {model_output_2.name}. Make sure your"
+                        f"Cannot match {model_output_1.name} with {model_output_2.name}. Make sure your"
                         f" model protos have same outputs, have same data types and are in the same order."
                     )
             else:
