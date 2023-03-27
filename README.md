@@ -48,7 +48,12 @@ python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum
 
 ## Accelerated Inference
 
-🤗 Optimum provides multiple tools to export and run optimized models on various ecosystems: ONNX / ONNX Runtime, TensorFlow Lite, OpenVINO.
+🤗 Optimum provides multiple tools to export and run optimized models on various ecosystems: 
+
+- ONNX / ONNX Runtime
+- TensorFlow Lite
+- OpenVINO
+
 While everything can be done in a programmatic way for a more cutomized experience, we provide a command-line interface to perform common tasks easily. 
 
 ### ONNX + ONNX Runtime
