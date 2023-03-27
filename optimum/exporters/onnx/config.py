@@ -16,7 +16,7 @@
 
 from collections import OrderedDict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from transformers.utils import is_tf_available
 
@@ -64,7 +64,6 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
     PAD_ATTENTION_MASK_TO_PAST = True
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyPastKeyValuesGenerator)
-    DUMMY_PKV_GENERATOR_CLASS = DummyPastKeyValuesGenerator
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -132,7 +131,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
         return models_and_onnx_configs, onnx_files_subpaths
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Mapping[str, Any]) -> Mapping[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         if self.is_merged is True and self.use_cache_branch is True:
             reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
         elif self.is_merged is True and self.use_cache_branch is False:
