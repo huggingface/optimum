@@ -40,7 +40,7 @@ To install from source:
 python -m pip install git+https://github.com/huggingface/optimum.git
 ```
 
-For the accelerator-specific features, you can install them by appending `#egg=optimum[accelerator_type]` to the `pip` command, e.g.
+For the accelerator-specific features, append `#egg=optimum[accelerator_type]` to the above command:
 
 ```bash
 python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
@@ -48,17 +48,16 @@ python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum
 
 ## Accelerated Inference
 
-While everything can be done in a programmatic way in 🤗 Optimum for cutomized use-cases, we also proivde a command-line interface to perform common tasks easily. 
+🤗 Optimum provides multiple tools to export and run optimized models on various ecosystems: ONNX / ONNX Runtime, TensorFlow Lite, OpenVINO.
+While everything can be done in a programmatic way for a more cutomized experience, we provide a command-line interface to perform common tasks easily. 
 
 ### ONNX + ONNX Runtime
 
-It is possible to export 🤗 Transformers models to the ONNX format and perform graph optimization as well as quantization easily:
+It is possible to export 🤗 Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
 
 ```plain
 optimum-cli export onnx -m deepset/roberta-base-squad2 --optimize O2 roberta_base_qa
 ```
-
-This command will export `deepset/roberta-base-squad2` and perform [O2 graph optimization](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization#optimization-configuration) on the exported model.
 
 The model can then be quantized using `onnxruntime`:
 
@@ -66,13 +65,13 @@ The model can then be quantized using `onnxruntime`:
 optimum-cli onnxruntime quantize --avx512 --onnx_model roberta_base_qa
 ```
 
-**Note**: The `optimum-cli export onnx` command will allow performing quantization at export-time soon.
+These commands will export `deepset/roberta-base-squad2` perform [O2 graph optimization](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization#optimization-configuration) on the exported model, and finally quantize it.
 
 For more information on the ONNX export, please check the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model).
 
 #### Accelerated inference using ONNX Runtime
 
-Once the model exported to the ONNX format, we provide Python classes enabling you to run the exported file in a seemless manner using ONNX Runtime in the backend:
+Once the model exported to the ONNX format, we provide Python classes enabling you to run the exported file in a seemless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend:
 
 ```python
 from transformers import AutoTokenizer
@@ -108,7 +107,7 @@ optimum-cli export tflite -m deepset/roberta-base-squad2 --sequence_length 384 -
 
 ### OpenVINO
 
-To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class.
+To load a model and run inference with [OpenVINO Runtime](https://docs.openvino.ai/latest/home.html), you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class.
 If you want to load a PyTorch checkpoint, set `from_transformers=True` to convert your model to the OpenVINO IR (Intermediate Representation).
 
 ```diff
@@ -131,10 +130,19 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 ## Accelerated training
 
+🤗 Optimum provides wrappers around the original 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer) to enable training on powerful hardware easily.
+We support many providers:
+
+- Habana's Gaudi processors
+- Graphcore's IPUs 
+- ONNX Runtime TODO <= not a provider per-se, it is more software?
+
 #### Habana
 
+<!--
 To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
+-->
 ```diff
 - from transformers import Trainer, TrainingArguments
 + from optimum.habana import GaudiTrainer, GaudiTrainingArguments
@@ -170,8 +178,10 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 #### Graphcore
 
+<!--
 To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
 
+-->
 ```diff
 - from transformers import Trainer, TrainingArguments
 + from optimum.graphcore import IPUConfig, IPUTrainer, IPUTrainingArguments
@@ -209,7 +219,9 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 #### ONNX Runtime
 
+<!--
 To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum provides a `ORTTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
+-->
 
 ```diff
 - from transformers import Trainer, TrainingArguments
