@@ -146,7 +146,7 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
     if len(model1_outputs) != len(model2_outputs):
         if strict is True:
             raise ValueError(
-                f"Two model protos need to have the same outputs. But one has {len(model1_outputs)} "
+                f"The two model protos need to have the same outputs. But one has {len(model1_outputs)} "
                 f"outputs while the other has {len(model2_outputs)} outputs. You can do strict=False to override this behaviour."
             )
         else:
