@@ -87,7 +87,7 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 ort_model = ORTModelForQuestionAnswering.from_pretrained(model_name)
 
 question = "What's Optimum?"
-text = "An awesome library everyone should use!"
+text = "Optimum is an awesome library everyone should use!"
 inputs = tokenizer(question, text, return_tensors="pt") 
 
 # Run with ONNX Runtime.
@@ -105,7 +105,7 @@ answer = tokenizer.decode(predict_answer_tokens, skip_special_tokens=True)
 Just as for ONNX, it is possible to export to [TensorFlow Lite](https://www.tensorflow.org/lite) and quantize them:
 
 ```plain
-optimum-cli export tflite -m deepset/roberta-base-squad2 --sequence_length 384 --quantize int8-dynamic roberta_base_qa
+optimum-cli export tflite -m deepset/roberta-base-squad2 --sequence_length 384  --quantize int8-dynamic roberta_tflite_model
 ```
 
 ### OpenVINO
