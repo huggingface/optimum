@@ -143,11 +143,11 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
     model1_outputs = {output.name for output in model1.graph.output}
     model2_outputs = {output.name for output in model2.graph.output}
 
-    if len(model1_outputs) != len(model2_outputs):
+    if model1_outputs != model2_outputs:
         if strict is True:
             raise ValueError(
-                f"Two model protos need to have the same outputs. But one has {len(model1_outputs)} "
-                f"outputs while the other has {len(model2_outputs)} outputs."
+                f"The two model protos outputs are expected to have the same number of outputs and output names when strict=True. Found"
+                f" the outputs {model1_outputs - model2_outputs} only in model1, and {model2_outputs - model1_outputs} only in model2."
             )
         else:
             logger.info(
@@ -155,15 +155,8 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
                 " Constant outputs will be added to unify the two models outputs."
             )
 
-    outputs_only_in_1 = model1_outputs - model2_outputs
-    outputs_only_in_2 = model2_outputs - model1_outputs
-    if len(outputs_only_in_2) > 0:
-        raise ValueError("The ModelProto model2 should not have more outputs than model1.")
-
-    if strict is True and model1_outputs != model2_outputs:
-        raise ValueError(
-            f"The two model protos outputs are expected to have the same names when strict=True. Found the outputs {outputs_only_in_1} only in model1, and {outputs_only_in_2} only in model2."
-        )
+    if model2_outputs.issubset(model1_outputs) is False:
+        raise ValueError("The second ModelProto should not have more outputs than the first.")
 
     for idx in range(len(model1.graph.output)):
         model_output_1 = model1.graph.output[idx]
