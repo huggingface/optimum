@@ -369,7 +369,6 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer, T5Attention,
 
         # self.module_mapping = {"orig_layer": ""}
 
-        self.is_decoder = True
         self.original_layers_mapping = {"q": "q", "k": "k", "v": "v", "o": "o"}
         self.module_mapping = None
 
