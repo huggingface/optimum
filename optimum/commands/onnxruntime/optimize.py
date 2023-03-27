@@ -55,7 +55,7 @@ class ONNXRuntimmeOptimizeCommand:
 
     def run(self):
         if self.args.output == self.args.onnx_model:
-            raise ValueError(f"The output directory must be different than the directory hosting the ONNX model.")
+            raise ValueError("The output directory must be different than the directory hosting the ONNX model.")
 
         save_dir = self.args.output
 
