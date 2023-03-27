@@ -84,7 +84,7 @@ from optimum.onnxruntime import ORTModelForQuestionAnswering
 
 model_name = "roberta_base_qa"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-ort_model = ORTModelForSequenceClassification.from_pretrained(model_name)
+ort_model = ORTModelForQuestionAnswering.from_pretrained(model_name)
 
 question = "What's Optimum?"
 text = "Optimum is a library providing tools to train models on specific hardware and to optimize them for inference."
@@ -98,8 +98,6 @@ answer_end_index = outputs.end_logits.argmax()
 
 predict_answer_tokens = inputs.input_ids[0, answer_start_index : answer_end_index + 1]
 answer = tokenizer.decode(predict_answer_tokens, skip_special_tokens=True)
-
-print(f"Anwer: {answer}")
 ```
 
 ### TensorFlow Lite
@@ -142,7 +140,7 @@ We support many providers:
 - Graphcore's IPUs 
 - ONNX Runtime TODO <= not a provider per-se, it is more software?
 
-#### Habana
+### Habana
 
 <!--
 To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
@@ -181,7 +179,7 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `Gau
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/habana/quickstart) and in the [examples](https://github.com/huggingface/optimum-habana/tree/main/examples).
 
 
-#### Graphcore
+### Graphcore
 
 <!--
 To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
@@ -222,7 +220,7 @@ To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/graphcore/quickstart) and in the [examples](https://github.com/huggingface/optimum-graphcore/tree/main/examples).
 
 
-#### ONNX Runtime
+### ONNX Runtime
 
 <!--
 To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum provides a `ORTTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
