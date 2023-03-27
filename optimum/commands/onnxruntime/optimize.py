@@ -12,13 +12,12 @@ def parse_args_onnxruntime_optimize(parser):
         required=True,
         help="Path to the repository where the ONNX models to optimize are located.",
     )
-
-    optional_group = parser.add_argument_group("Optional arguments")
-    optional_group.add_argument(
+    required_group.add_argument(
         "-o",
         "--output",
         type=Path,
-        help="Path to the directory where to store generated ONNX model. (defaults to --onnx_model value).",
+        required=True,
+        help="Path to the directory where to store generated ONNX model.",
     )
 
     level_group = parser.add_mutually_exclusive_group(required=True)
@@ -55,13 +54,12 @@ class ONNXRuntimmeOptimizeCommand:
         self.args = args
 
     def run(self):
-        if not self.args.output:
-            save_dir = self.args.onnx_model
-        else:
-            save_dir = self.args.output
+        if self.args.output == self.args.onnx_model:
+            raise ValueError(f"The output directory must be different than the directory hosting the ONNX model.")
+
+        save_dir = self.args.output
 
         file_names = [model.name for model in self.args.onnx_model.glob("*.onnx")]
-
         optimizer = ORTOptimizer.from_pretrained(self.args.onnx_model, file_names)
 
         if self.args.config:
