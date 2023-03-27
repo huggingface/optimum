@@ -8,6 +8,7 @@ The AI ecosystem evolves quickly and more and more specialized hardware along wi
 As such, Optimum enables users to efficiently use any of these platforms with the same ease inherent to transformers.
 
 
+<!--
 ## Integration with Hardware Partners
 
 Optimum aims at providing more diversity towards the kind of hardware users can target to train and finetune their models.
@@ -17,6 +18,7 @@ To achieve this, we are collaborating with the following hardware manufacturers 
 - [Habana Gaudi Processor (HPU)](https://github.com/huggingface/optimum-habana) - [HPUs](https://docs.habana.ai/en/latest/Gaudi_Overview/Gaudi_Architecture.html) are designed to maximize training throughput and efficiency. More information [here](https://habana.ai/training/).
 - [Intel](https://github.com/huggingface/optimum-intel) - Enabling the usage of Intel tools to accelerate inference on Intel architectures. More information about [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) and [OpenVINO](https://docs.openvino.ai/latest/index.html).
 - More to come soon! :star:
+-->
 
 
 ## Installation
@@ -50,76 +52,67 @@ For the accelerator-specific features, you can install them by appending `#egg=o
 python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
 ```
 
+## Accelerated Inference
 
-## Optimizing models towards inference
+While everything can be done in a programmatic way in 🤗 Optimum for cutomized use-cases, we also proivde a command-line interface to perform common tasks easily. 
 
-Along with supporting dedicated AI hardware for training, Optimum also provides inference optimizations towards various frameworks and
-platforms.
+### ONNX + ONNX Runtime
 
-Optimum enables the usage of popular compression techniques such as quantization and pruning by supporting [ONNX Runtime](https://onnxruntime.ai/docs/) along with Intel [Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) and OpenVINO [NNCF](https://docs.openvino.ai/latest/tmo_introduction.html).
+It is possible to export 🤗 Transformers models to the ONNX format and perform graph optimization as well as quantization easily:
 
-| Features                           | ONNX Runtime          |     Neural Compressor   |         OpenVINO        |
-|:----------------------------------:|:---------------------:|:-----------------------:|:-----------------------:|
-| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |          N/A            |
-| Post-training Static Quantization  |  :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
-| Quantization Aware Training (QAT)  |  Stay tuned! :star:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
-| Pruning                            |        N/A            |    :heavy_check_mark:   |    :heavy_check_mark:   |
+```bash
+optimum-cli export onnx -m deepset/roberta-base-squad2 --optimize O2 roberta_base_qa
+```
 
-## Quick tour
+This command will export `deepset/roberta-base-squad2` and perform [O2 graph optimization](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization#optimization-configuration) on the exported model.
 
-Check out the examples below to see how 🤗 Optimum can be used to train and run inference on various hardware accelerators.
+The model can then be quantized using `onnxruntime`:
 
-## Accelerated inference
+```bash
+optimum-cli onnxruntime quantize --avx512 --onnx_model roberta_base_qa
+```
 
-#### ONNX Runtime
+**Note**: The `optimum-cli export onnx` command will allow performing quantization at export-time soon.
 
-To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for graph optimization and quantization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
+#### Accelerated inference using ONNX Runtime
 
-Before applying quantization or optimization, first we need to load our model. To load a model and run inference with ONNX Runtime, you can just replace the canonical Transformers [`AutoModelForXxx`](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoModel) class with the corresponding [`ORTModelForXxx`](https://huggingface.co/docs/optimum/onnxruntime/package_reference/modeling_ort#optimum.onnxruntime.ORTModel) class. If you want to load from a PyTorch checkpoint, set `from_transformers=True` to export your model to the ONNX format.
+Once the model exported to the ONNX format, we provide Python classes enabling you to run the exported file in a seemless manner using ONNX Runtime in the backend:
 
 ```python
-from optimum.onnxruntime import ORTModelForSequenceClassification
 from transformers import AutoTokenizer
+from optimum.onnxruntime import ORTModelForQuestionAnswering
 
-model_checkpoint = "distilbert-base-uncased-finetuned-sst-2-english"
-save_directory = "tmp/onnx/"
-# Load a model from transformers and export it to ONNX
-tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
-ort_model = ORTModelForSequenceClassification.from_pretrained(model_checkpoint, from_transformers=True)
-# Save the ONNX model and tokenizer
-ort_model.save_pretrained(save_directory)
-tokenizer.save_pretrained(save_directory)
+model_name = "roberta_base_qa"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+ort_model = ORTModelForSequenceClassification.from_pretrained(model_name)
+
+question = "What's Optimum?"
+text = "Optimum is a library providing tools to train models on specific hardware and to optimize them for inference."
+inputs = tokenizer(question, text, return_tensors="pt") 
+
+# Run with ONNX Runtime.
+outputs = ort_model(**inputs)
+
+answer_start_index = outputs.start_logits.argmax()
+answer_end_index = outputs.end_logits.argmax()
+
+predict_answer_tokens = inputs.input_ids[0, answer_start_index : answer_end_index + 1]
+answer = tokenizer.decode(predict_answer_tokens, skip_special_tokens=True)
+
+print(f"Anwer: {answer}")
 ```
 
-Let's see now how we can apply dynamic quantization with ONNX Runtime:
+### TensorFlow Lite
 
-```python
-from optimum.onnxruntime.configuration import AutoQuantizationConfig
-from optimum.onnxruntime import ORTQuantizer
+Just as for ONNX, it is possible to export to TensorFlow Lite and quantize them:
 
-# Define the quantization methodology
-qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=False)
-quantizer = ORTQuantizer.from_pretrained(ort_model)
-# Apply dynamic quantization on the model
-quantizer.quantize(save_dir=save_directory, quantization_config=qconfig)
+```bash
+optimum-cli export tflite -m deepset/roberta-base-squad2 --sequence_length 384 --quantize int8-dynamic roberta_base_qa
 ```
 
-In this example, we've quantized a model from the Hugging Face Hub, in the same manner we can quantize a model hosted locally by providing the path to the directory containing the model weights. The result from applying the `quantize()` method is a `model_quantized.onnx` file that can be used to run inference. Here's an example of how to load an ONNX Runtime model and generate predictions with it:
+### Other backends
 
-```python
-from optimum.onnxruntime import ORTModelForSequenceClassification
-from transformers import pipeline, AutoTokenizer
-
-model = ORTModelForSequenceClassification.from_pretrained(save_directory, file_name="model_quantized.onnx")
-tokenizer = AutoTokenizer.from_pretrained(save_directory)
-classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
-results = classifier("I love burritos!")
-```
-
-You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/quickstart) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime).
-
-
-#### Intel
+### OpenVINO
 
 To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class.
 If you want to load a PyTorch checkpoint, set `from_transformers=True` to convert your model to the OpenVINO IR (Intermediate Representation).
@@ -141,7 +134,6 @@ If you want to load a PyTorch checkpoint, set `from_transformers=True` to conver
 ```
 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
-
 
 ## Accelerated training
 
