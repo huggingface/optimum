@@ -20,7 +20,6 @@ To achieve this, we are collaborating with the following hardware manufacturers 
 - More to come soon! :star:
 -->
 
-
 ## Installation
 
 🤗 Optimum can be installed using `pip` as follows:
@@ -60,7 +59,7 @@ While everything can be done in a programmatic way in 🤗 Optimum for cutomized
 
 It is possible to export 🤗 Transformers models to the ONNX format and perform graph optimization as well as quantization easily:
 
-```bash
+```plain
 optimum-cli export onnx -m deepset/roberta-base-squad2 --optimize O2 roberta_base_qa
 ```
 
@@ -73,6 +72,8 @@ optimum-cli onnxruntime quantize --avx512 --onnx_model roberta_base_qa
 ```
 
 **Note**: The `optimum-cli export onnx` command will allow performing quantization at export-time soon.
+
+For more information on the ONNX export, please check the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model).
 
 #### Accelerated inference using ONNX Runtime
 
@@ -104,13 +105,11 @@ print(f"Anwer: {answer}")
 
 ### TensorFlow Lite
 
-Just as for ONNX, it is possible to export to TensorFlow Lite and quantize them:
+Just as for ONNX, it is possible to export to [TensorFlow Lite](https://www.tensorflow.org/lite) and quantize them:
 
-```bash
+```plain
 optimum-cli export tflite -m deepset/roberta-base-squad2 --sequence_length 384 --quantize int8-dynamic roberta_base_qa
 ```
-
-### Other backends
 
 ### OpenVINO
 
