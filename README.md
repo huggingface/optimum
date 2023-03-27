@@ -147,7 +147,7 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 -->
 
 | Features                           | ONNX Runtime       | Neural Compressor  | OpenVINO           | TensorFlow Lite    |
-|-:-:--------------------------------|-:-:----------------|-:-:----------------|-:-:----------------|-:-:----------------|
+|:----------------------------------:|:------------------:|:------------------:|:------------------:|:------------------:|
 | Graph optimization                 | :heavy_check_mark: | N/A                | N/A                | N/A                |
 | Post-training Dynamic Quantization | :heavy_check_mark: | :heavy_check_mark: | N/A                | :heavy_check_mark: |
 | Post-training Static Quantization  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
