@@ -476,6 +476,7 @@ def main_export(
     # TODO: treating stable diffusion separately is quite ugly
     if not no_post_process and task != "stable-diffusion":
         try:
+            logger.info("Post-processing the exported models...")
             models_and_onnx_configs, onnx_files_subpaths = onnx_config.post_process_exported_models(
                 output, models_and_onnx_configs, onnx_files_subpaths
             )

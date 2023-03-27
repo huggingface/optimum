@@ -33,7 +33,7 @@ from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     DummyInputGenerator,
     DummyLabelsGenerator,
-    DummyPastKeyValuesGenerator,
+    DummySeq2SeqPastKeyValuesGenerator,
     is_diffusers_available,
     logging,
 )
@@ -41,7 +41,7 @@ from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 from ...utils.doc import add_dynamic_docstring
 from ...utils.import_utils import is_onnx_available, is_onnxruntime_available
 from ..base import ExportConfig
-from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 from .model_patcher import ModelPatcher, Seq2SeqModelPatcher
 
 
@@ -456,7 +456,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     PAD_ATTENTION_MASK_TO_PAST: bool = False
     USE_PAST_IN_INPUTS: Optional[bool] = None
     USE_PRESENT_IN_OUTPUTS: Optional[bool] = None
-    DUMMY_PKV_GENERATOR_CLASS = DummyPastKeyValuesGenerator
 
     def __init__(
         self,
@@ -617,6 +616,26 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         return flattened_output
 
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
+        if self._behavior is ConfigBehavior.DECODER:
+            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+
+        if self.is_merged is True and self.use_cache_branch is True:
+            reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
+        elif self.is_merged is True and self.use_cache_branch is False:
+            reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=False)
+
+            # We don't support optional inputs for now, so even though the non-cache branch is used,
+            # dummy past key values are necessary
+            batch_size = reference_model_inputs["input_ids"].shape[0]
+            pkv_generator = self.DUMMY_PKV_GENERATOR_CLASS(
+                task=self.task, normalized_config=self._normalized_config, sequence_length=1, batch_size=batch_size
+            )
+            reference_model_inputs["past_key_values"] = pkv_generator.generate("past_key_values", framework="pt")
+
+        return reference_model_inputs
+
 
 class ConfigBehavior(str, enum.Enum):
     """
@@ -635,6 +654,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     """
     Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models.
     """
+
+    DUMMY_PKV_GENERATOR_CLASS = DummySeq2SeqPastKeyValuesGenerator
 
     def __init__(
         self,
@@ -702,7 +723,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             new_axes_names = {}
             for axis_idx, axis_name in axes_names.items():
                 if "sequence" in axis_name:
-                    if not self.use_past_in_inputs:
+                    if self.use_past_in_inputs is False or self.is_merged is True:
                         new_axes_names[axis_idx] = sequence_name
                     else:
                         # Trick to force it since ONNX sometimes infer a dynamic axis where it's not.
@@ -734,7 +755,11 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch_size", 2: decoder_sequence_name}
             inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence_name}
 
-            if direction == "inputs" or (self._behavior is ConfigBehavior.DECODER and self.use_past is False):
+            if (
+                direction == "inputs"
+                or (self._behavior is ConfigBehavior.DECODER and self.use_past is False)
+                or self.is_merged is True
+            ):
                 inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: "encoder_sequence_length"}
                 inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length"}
 
@@ -780,8 +805,12 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 raise Exception(f"Unable to merge decoders. Detailed error: {e}")
 
             # In order to do the validation of the two branches on the same file
-            onnx_files_subpaths[1] = decoder_merged_path.name
-            onnx_files_subpaths[2] = decoder_merged_path.name
+            if onnx_files_subpaths is not None:
+                encoder_path = onnx_files_subpaths[0]
+            else:
+                encoder_path = ONNX_ENCODER_NAME + ".onnx"
+
+            onnx_files_subpaths = [encoder_path, decoder_merged_path.name, decoder_merged_path.name]
 
             # We validate the two branches of the decoder model then
             models_and_onnx_configs[ONNX_DECODER_NAME][1].is_merged = True
@@ -795,22 +824,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].is_merged = True
 
         return models_and_onnx_configs, onnx_files_subpaths
-
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
-        if self._behavior == "decoder" and self.is_merged is True and self.use_cache_branch is True:
-            reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
-        elif self._behavior == "decoder" and self.is_merged is True and self.use_cache_branch is False:
-            reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=False)
-
-            # We don't support optional inputs for now, so even though the non-cache branch is used,
-            # dummy past key values are necessary
-            batch_size = reference_model_inputs["input_ids"].shape[0]
-            pkv_generator = self.DUMMY_PKV_GENERATOR_CLASS(
-                task=self.task, normalized_config=self._normalized_config, sequence_length=1, batch_size=batch_size
-            )
-            reference_model_inputs["past_key_values"] = pkv_generator.generate("past_key_values", framework="pt")
-
-        return reference_model_inputs
 
 
 class OnnxConfigWithLoss(OnnxConfig, ABC):

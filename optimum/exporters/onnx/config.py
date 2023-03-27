@@ -64,6 +64,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
     PAD_ATTENTION_MASK_TO_PAST = True
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyPastKeyValuesGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = DummyPastKeyValuesGenerator
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -130,22 +131,6 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
             models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].is_merged = True
 
         return models_and_onnx_configs, onnx_files_subpaths
-
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
-        if self.is_merged is True and self.use_cache_branch is True:
-            reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
-        elif self.is_merged is True and self.use_cache_branch is False:
-            reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=False)
-
-            # We don't support optional inputs for now, so even though the non-cache branch is used,
-            # dummy past key values are necessary
-            batch_size = reference_model_inputs["input_ids"].shape[0]
-            pkv_generator = self.DUMMY_PKV_GENERATOR_CLASS(
-                task=self.task, normalized_config=self._normalized_config, sequence_length=1, batch_size=batch_size
-            )
-            reference_model_inputs["past_key_values"] = pkv_generator.generate("past_key_values", framework="pt")
-
-        return reference_model_inputs
 
 
 class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
@@ -220,14 +205,6 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return dummy_inputs_generators
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
-        if self._behavior is ConfigBehavior.DECODER:
-            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-            # TODO: validate that it should be removed.
-            # reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
-        return reference_model_inputs
-
 
 class VisionOnnxConfig(OnnxConfig):
     """
@@ -294,13 +271,6 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 "attention_mask": "encoder_attention_mask",
             }
         return {}
-
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
-        if self._behavior is ConfigBehavior.DECODER:
-            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-
-        return reference_model_inputs
 
 
 class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
@@ -388,13 +358,6 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
-
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
-        if self._behavior is ConfigBehavior.DECODER:
-            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-
-        return reference_model_inputs
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
