@@ -74,7 +74,7 @@ These commands will export `deepset/roberta-base-squad2` perform [O2 graph optim
 
 For more information on the ONNX export, please check the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model).
 
-#### Accelerated inference using ONNX Runtime
+#### Run the exported model using ONNX Runtime
 
 Once the model exported to the ONNX format, we provide Python classes enabling you to run the exported file in a seemless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend:
 
@@ -130,6 +130,31 @@ If you want to load a PyTorch checkpoint, set `from_transformers=True` to conver
 ```
 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
+
+### Features summary
+
+<!--
+
+| Features                           | ONNX Runtime          |     Neural Compressor   |         OpenVINO        |         TensorFlow Lite |
+|:----------------------------------:|:---------------------:|:-----------------------:|:-----------------------:|:-----------------------:|
+| Graph optimization                 |  :heavy_check_mark:   |    N/A                  |          N/A            |     N/A                 |
+| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |          N/A            |     :heavy_check_mark:  |
+| Post-training Static Quantization  |  :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
+| Quantization Aware Training (QAT)  |  Stay tuned! :star:   |    :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
+| Floating-point 16                  |  :heavy_check_mark:   | N/A                     |    N/A                  |     :heavy_check_mark:  |
+| Pruning                            |        N/A            |    :heavy_check_mark:   |    :heavy_check_mark:   |    N/A                  |
+
+-->
+
+| Features                           | ONNX Runtime       | Neural Compressor  | OpenVINO           | TensorFlow Lite    |
+|-:-:--------------------------------|-:-:----------------|-:-:----------------|-:-:----------------|-:-:----------------|
+| Graph optimization                 | :heavy_check_mark: | N/A                | N/A                | N/A                |
+| Post-training Dynamic Quantization | :heavy_check_mark: | :heavy_check_mark: | N/A                | :heavy_check_mark: |
+| Post-training Static Quantization  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Quantization Aware Training (QAT)  | Stay tuned! :star: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Floating-point 16                  | :heavy_check_mark: | N/A                | N/A                | :heavy_check_mark: |
+| Pruning                            | N/A                | :heavy_check_mark: | :heavy_check_mark: | N/A                |
+
 
 ## Accelerated training
 
