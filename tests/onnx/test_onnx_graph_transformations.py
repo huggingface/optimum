@@ -91,11 +91,7 @@ class OnnxMergingTestCase(TestCase):
             decoder_with_past = onnx.load(os.path.join(tmpdir, "decoder_with_past_model.onnx"))
             merged_path = os.path.join(tmpdir, "decoder_model_merged.onnx")
 
-            merge_decoders(
-                decoder,
-                decoder_with_past,
-                save_path=merged_path,
-            )
+            merge_decoders(decoder, decoder_with_past, save_path=merged_path, strict=False)
 
             # ONNX Runtime does additional validity checks compared to onnx.checker.check_model
             InferenceSession(merged_path, providers=["CPUExecutionProvider"])

@@ -134,7 +134,7 @@ def _infer_output_shape(output: ValueInfoProto):
     return output_shape
 
 
-def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool = False):
+def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
     """
     Unifies the outputs of two ONNX model protos. The outputs of model1 will be replaced by outputs of model2.
     According to the rules of "If" op, two subgraphs must have the same number of outputs.
@@ -155,9 +155,15 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool = F
                 " Constant outputs will be added to unify the two models outputs."
             )
 
+    outputs_only_in_1 = model1_outputs - model2_outputs
     outputs_only_in_2 = model2_outputs - model1_outputs
     if len(outputs_only_in_2) > 0:
         raise ValueError("The ModelProto model2 should not have more outputs than model1.")
+
+    if strict is True and model1_outputs != model2_outputs:
+        raise ValueError(
+            f"The two model protos outputs are expected to have the same names when strict=True. Found the outputs {outputs_only_in_1} only in model1, and {outputs_only_in_2} only in model2."
+        )
 
     for idx in range(len(model1.graph.output)):
         model_output_1 = model1.graph.output[idx]
