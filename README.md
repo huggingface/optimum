@@ -87,7 +87,10 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 ort_model = ORTModelForQuestionAnswering.from_pretrained(model_name)
 
 question = "What's Optimum?"
-text = "Optimum is a library providing tools to train models on specific hardware and to optimize them for inference."
+text = (
+  "Optimum is a library providing tools to train models on specific hardware and to "
+  "optimize them for inference."
+)
 inputs = tokenizer(question, text, return_tensors="pt") 
 
 # Run with ONNX Runtime.
