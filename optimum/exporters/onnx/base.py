@@ -617,10 +617,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return flattened_output
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
-        if self._behavior is ConfigBehavior.DECODER:
-            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-
         if self.is_merged is True and self.use_cache_branch is True:
             reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
         elif self.is_merged is True and self.use_cache_branch is False:
@@ -756,9 +752,9 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence_name}
 
             if (
-                direction == "inputs"
+                self.is_merged is True
                 or (self._behavior is ConfigBehavior.DECODER and self.use_past is False)
-                or self.is_merged is True
+                or direction == "inputs"
             ):
                 inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: "encoder_sequence_length"}
                 inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length"}
@@ -824,6 +820,13 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].is_merged = True
 
         return models_and_onnx_configs, onnx_files_subpaths
+
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
+        if self._behavior is ConfigBehavior.DECODER:
+            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+
+        return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 
 
 class OnnxConfigWithLoss(OnnxConfig, ABC):

@@ -130,6 +130,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_pytorch_cpu(
         self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
+        print(model_name, task, monolith, no_post_process)
         self._onnx_export(model_name, task, monolith, no_post_process)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
