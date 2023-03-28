@@ -3457,6 +3457,13 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs["text"], str)
 
+        if model_arch == "whisper":
+            outputs = pipe(data, return_timestamps=True)
+            self.assertTrue("chunks" in outputs)
+
+            outputs = pipe(data, return_timestamps=False)
+            self.assertTrue("chunks" not in outputs)
+
         gc.collect()
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
