@@ -3482,7 +3482,6 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [False, True],
-        "use_merged": [False, True],
     }
 
     ORTMODEL_CLASS = ORTModelForSpeechSeq2Seq
@@ -3739,7 +3738,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [False, True],
-        "use_merged": [False, True],
     }
 
     ORTMODEL_CLASS = ORTModelForVision2Seq

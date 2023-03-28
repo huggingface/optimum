@@ -781,7 +781,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
             last_decoder_with_past_name = paths.get("last_decoder_with_past_model_name", None)
             if last_decoder_with_past_name is not None:
-                last_decoder_with_past_name = new_model_save_dir / last_decoder_with_past_name
+                decoder_with_past_path = new_model_save_dir / last_decoder_with_past_name
 
             if use_merged is True:
                 decoder_path = new_model_save_dir / paths["last_decoder_merged_name"]
@@ -830,6 +830,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             *ort_inference_sessions[:2],
             config,
             onnx_paths=onnx_paths,
+            use_cache=use_cache,
             decoder_with_past_session=ort_inference_sessions[2],
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
