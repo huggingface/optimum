@@ -179,7 +179,7 @@ class ORTDecoder(ORTModelPart):
 
     # TODO: this likely fails for seq2seq models
     def prepare_inputs_for_merged(
-        self, input_ids: Optional[torch.LongTensor] = None, past_key_values: Optional[List[torch.FloatTensor]] = None
+        self, input_ids: Optional[torch.LongTensor] = None, past_key_values: Optional[Tuple[torch.FloatTensor]] = None
     ):
         if past_key_values is None and self.parent_model.use_merged:
             # Uses "no past" branch of a merged decoder
@@ -204,13 +204,13 @@ class ORTDecoder(ORTModelPart):
                 shape_key = (batch_size * num_attention_heads, embed_size_per_head, 1)
                 key = torch.zeros(shape_key, dtype=torch.float32).to(self.device)
                 value = torch.zeros(shape_value, dtype=torch.float32).to(self.device)
-                past_key_values = [
+                past_key_values = tuple(
                     key_or_value for _ in range(len(self.key_value_input_names) // 2) for key_or_value in [key, value]
-                ]
+                )
             else:
                 shape = (batch_size, num_attention_heads, 1, embed_size_per_head)
                 key_or_value = torch.zeros(shape, dtype=torch.float32).to(self.device)
-                past_key_values = [key_or_value for _ in range(len(self.key_value_input_names))]
+                past_key_values = tuple(key_or_value for _ in range(len(self.key_value_input_names)))
 
         return use_cache_branch, past_key_values
 
@@ -278,7 +278,9 @@ class ORTDecoder(ORTModelPart):
 
         # Flatten the past_key_values
         if past_key_values is not None:
-            past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
+            past_key_values = tuple(
+                past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
+            )
 
         # no-ops if merged decoder is not used
         use_cache_branch, past_key_values = self.prepare_inputs_for_merged(input_ids, past_key_values)
@@ -442,11 +444,15 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
     ) -> Seq2SeqLMOutput:
         use_torch = isinstance(input_ids, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
+
         # Flatten the past_key_values
         if past_key_values is not None:
             past_key_values = tuple(
                 past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
             )
+
+        # no-ops if merged decoder is not used
+        use_cache_branch, past_key_values = self.prepare_inputs_for_merged(input_ids, past_key_values)
 
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
             known_output_shapes = self.compute_past_key_values_output_shapes(

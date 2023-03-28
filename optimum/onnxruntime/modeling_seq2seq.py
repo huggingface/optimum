@@ -597,17 +597,13 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 The directory where to save the model files.
         """
         save_directory = Path(save_directory)
-        src_paths = [self.encoder_model_path, self.decoder_model_path]
-        dst_paths = [save_directory / self.encoder_model_path.name, save_directory / self.decoder_model_path.name]
-        if self.use_cache:
-            src_paths.append(self.decoder_with_past_model_path)
-            dst_paths.append(save_directory / self.decoder_with_past_model_path.name)
+        src_paths = [Path(path) for path in self.onnx_paths]
+        dst_paths = [save_directory / path.name for path in src_paths]
 
         # add external data paths in case of large models
         src_paths, dst_paths = _get_external_data_paths(src_paths, dst_paths)
 
         for src_path, dst_path in zip(src_paths, dst_paths):
-            dst_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src_path, dst_path)
 
         self.generation_config.save_pretrained(save_directory)
@@ -824,7 +820,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         except OSError:
             logger.info("Generation config file not found, using a generation config created from the model config.")
 
-        onnx_paths = [decoder_without_past_path]
+        onnx_paths = [encoder_path, decoder_without_past_path]
         if decoder_merged_path is not None:
             onnx_paths.append(decoder_merged_path)
         if decoder_with_past_path is not None:
@@ -833,6 +829,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         return cls(
             *ort_inference_sessions[:2],
             config,
+            onnx_paths=onnx_paths,
             decoder_with_past_session=ort_inference_sessions[2],
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
@@ -981,6 +978,14 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
             decoder_outputs = self.decoder(
                 input_ids=decoder_input_ids,
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
+                encoder_attention_mask=attention_mask,
+                labels=labels,
+            )
+        elif self.use_merged is True:
+            decoder_outputs = self.decoder(
+                input_ids=input_ids[:, -1:],
+                encoder_hidden_states=encoder_outputs.last_hidden_state,
+                past_key_values=past_key_values,
                 encoder_attention_mask=attention_mask,
                 labels=labels,
             )

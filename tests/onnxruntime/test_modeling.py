@@ -3423,7 +3423,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         )
 
         self.assertFalse(onnx_model.use_io_binding)
-        self.asserTrue(io_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
