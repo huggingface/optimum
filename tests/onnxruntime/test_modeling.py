@@ -62,6 +62,7 @@ from transformers.testing_utils import get_gpu_count, require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED
 
 from optimum.exporters import TasksManager
+from optimum.exporters.onnx import main_export
 from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import (
     ONNX_DECODER_MERGED_NAME,
@@ -2042,11 +2043,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.skipTest("Unsupported export case")
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            subprocess.run(
-                f"optimum-cli export onnx --model {model_id} --task {task} {tmpdir}",
-                shell=True,
-                check=True,
-            )
+            main_export(model_id, tmpdir, task=task)
 
             model = ORTModelForCausalLM.from_pretrained(tmpdir)
 
@@ -3043,6 +3040,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [False, True],
+        "use_merged": [False, True],
     }
 
     ORTMODEL_CLASS = ORTModelForSeq2SeqLM
@@ -3080,18 +3078,82 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_merge_from_transformers_and_save(self, model_arch):
+        if "seq2seq-lm-with-past" not in TasksManager.get_supported_tasks_for_model_type(
+            model_arch.replace("_", "-"), exporter="onnx"
+        ):
+            self.skipTest("Unsupported -with-past export case")
+
+        model_id = MODEL_NAMES[model_arch]
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_merged=True)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model.save_pretrained(tmpdir)
+            save_path = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
+            self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
+
+            folder_contents = os.listdir(tmpdir)
+            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_merge_from_onnx_and_save(self, model_arch):
+        model_id = MODEL_NAMES[model_arch]
+        task = "causal-lm-with-past"
+
+        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
+            self.skipTest("Unsupported export case")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            main_export(model_id, tmpdir, task=task)
+
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdir)
+
+            self.assertTrue(model.use_merged)
+            self.assertTrue(model.decoder_with_past is None)
+
+            model.save_pretrained(tmpdir + "_save")
+            save_path = os.path.join(tmpdir + "_save", ONNX_DECODER_MERGED_NAME)
+            self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
+
+            folder_contents = os.listdir(tmpdir + "_save")
+            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+
     @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
+        if use_merged is False:
+            model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_NAME)
+            self.assertFalse(has_onnx_input(model_path, "use_cache_branch"))
+            self.assertEqual(onnx_model.use_merged, False)
+        else:
+            model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_MERGED_NAME)
+            self.assertTrue(has_onnx_input(model_path, "use_cache_branch"))
+            self.assertEqual(onnx_model.use_merged, True)
+
         self.assertIsInstance(onnx_model.decoder, ORTDecoderForSeq2Seq)
-        if onnx_model.use_cache is True:
+        if onnx_model.use_cache is True and onnx_model.use_merged is False:
             self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
+        if onnx_model.use_cache is True and onnx_model.use_merged is True:
+            self.assertTrue(onnx_model.decoder_with_past is None)
+
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -3121,8 +3183,16 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_pipeline_text_generation(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+    def test_pipeline_text_generation(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
@@ -3290,10 +3360,58 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             )
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
+        model_args = {
+            "test_name": test_name + "_True",
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": True,
+        }
+        self._setup(model_args)
+        model_args = {
+            "test_name": test_name + "_False",
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": False,
+        }
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        tokenizer = get_preprocessor(model_id)
+        text = "My Name is Philipp and i live"
+        tokens = tokenizer(text, return_tensors="pt")
+
+        model_not_merged_dir = self.onnx_model_dirs[test_name + "_False"]
+        model_merged_dir = self.onnx_model_dirs[test_name + "_True"]
+
+        model_not_merged = ORTModelForSeq2SeqLM.from_pretrained(model_not_merged_dir)
+        not_merged_onnx_path = Path(model_not_merged_dir, ONNX_DECODER_NAME)
+        self.assertFalse(has_onnx_input(not_merged_onnx_path, "use_cache_branch"))
+        self.assertEqual(model_not_merged.use_merged, False)
+
+        model_merged = ORTModelForSeq2SeqLM.from_pretrained(model_merged_dir)
+        merged_onnx_path = Path(model_merged_dir, ONNX_DECODER_MERGED_NAME)
+        self.assertTrue(has_onnx_input(merged_onnx_path, "use_cache_branch"))
+        self.assertEqual(model_merged.decoder_with_past, None)
+        self.assertEqual(model_merged.use_merged, True)
+
+        outputs_model_not_merged = model_not_merged.generate(**tokens)
+        outputs_model_merged = model_merged.generate(**tokens)
+
+        self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
+
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+    )
     @require_torch_gpu
     @pytest.mark.gpu_test
-    def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+    def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
@@ -3303,6 +3421,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         io_model = ORTModelForSeq2SeqLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
             "cuda"
         )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.asserTrue(io_model.use_io_binding)
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
@@ -3352,6 +3473,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [False, True],
+        "use_merged": [False, True],
     }
 
     ORTMODEL_CLASS = ORTModelForSpeechSeq2Seq
@@ -3608,6 +3730,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [False, True],
+        "use_merged": [False, True],
     }
 
     ORTMODEL_CLASS = ORTModelForVision2Seq

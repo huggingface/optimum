@@ -427,7 +427,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         encoder_session: ort.InferenceSession,
         decoder_session: ort.InferenceSession,
         config: "PretrainedConfig",
+        onnx_paths: List[str],
         decoder_with_past_session: Optional[ort.InferenceSession] = None,
+        use_cache: bool = True,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
@@ -443,6 +445,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             config ([`PretrainedConfig`]):
                 `config` is an instance of the configuration associated to the model. Initializing with a config file
                 does not load the weights associated with the model, only the configuration.
+            onnx_paths (`List[str]`):
+                Path to ONNX files associated with the model.
             decoder_with_past_session (`Optional[ort.InferenceSession]`, *optional*):
                 The ONNX Runtime inference session associated to the decoder with past key values.
             use_io_binding (`bool`, *optional*, defaults to `None`):
@@ -482,7 +486,36 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             preprocessors=preprocessors,
         )
         self.config = config
-        self.use_cache = decoder_with_past_session is not None
+
+        self.onnx_paths = onnx_paths
+        self.use_cache = use_cache
+
+        if use_cache is True:
+            # Auto-detect whether the provided session is a merged non-past / with-past or not
+            # TODO: make __init__ private and pass `use_merged` as an argument
+            use_merged = "use_cache_branch" in [inp.name for inp in decoder_session.get_inputs()]
+
+            if use_merged is True and decoder_with_past_session is not None:
+                raise ValueError(
+                    "Detected a merged decoder, but decoder_with_past_session was provided."
+                    "Please only set decoder_session, or provide a non-merged decoder_session."
+                )
+            if use_cache is True and use_merged is False and decoder_with_past_session is None:
+                raise ValueError(
+                    "The parameter use_cache was set as True, but neither decoder_with_past_session was passed"
+                    " nor a use_cache branch can be found in the decoder_session."
+                    " Please pass a decoder_with_past_session or set use_cache=False."
+                )
+        else:
+            use_merged = False
+
+            if decoder_with_past_session is not None:
+                raise ValueError(
+                    "The parameter decoder_with_past_session was passed, although use_cache is False."
+                    "Please pass use_cache=True for decoder_with_past_session to be used."
+                )
+
+        self.use_merged = use_merged
 
         self.encoder = self._initialize_encoder(encoder_session)
         self.encoder_model_path = Path(encoder_session._model_path)
@@ -497,7 +530,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         self.decoder_with_past = None
         self.decoder_with_past_model_path = None
         self.decoder_with_past_model_name = None
-        if self.use_cache:
+        if self.use_cache is True and self.use_merged is False:
             self.decoder_with_past = ORTDecoderForSeq2Seq(decoder_with_past_session, self)
             self.decoder_with_past_model_path = Path(decoder_with_past_session._model_path)
             self.decoder_with_past_model_name = self.decoder_with_past_model_path.name
@@ -709,172 +742,12 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         if model_path.is_dir():
             new_model_save_dir = model_path
             preprocessors = maybe_load_preprocessors(model_id)
-
-        onnx_paths = [encoder_path, decoder_path]
-        if use_cache is True and use_merged is False:
-            onnx_paths.append(decoder_with_past_path)
-        if use_cache is True and use_merged is True:
-            onnx_paths.append(decoder_with_past_path)
-
-        ort_inference_sessions = cls.load_model(
-            encoder_path=encoder_path,
-            decoder_path=decoder_path,
-            decoder_with_past_path=None if use_merged is True or use_cache is False else decoder_with_past_path,
-            provider=provider,
-            session_options=session_options,
-            provider_options=provider_options,
-        )
-
-        if model_save_dir is None:
-            model_save_dir = new_model_save_dir
-
-        generation_config = None
-        try:
-            generation_config = GenerationConfig.from_pretrained(
-                model_id,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                local_files_only=local_files_only,
-                use_auth_token=use_auth_token,
-                revision=revision,
-                subfolder=subfolder,
-            )
-        except OSError:
-            logger.info("Generation config file not found, using a generation config created from the model config.")
-
-        onnx_paths = [decoder_without_past_path]
-        if decoder_merged_path is not None:
-            onnx_paths.append(decoder_merged_path)
-        if decoder_with_past_path is not None:
-            onnx_paths.append(decoder_with_past_path)
-
-        return cls(
-            *ort_inference_sessions[:2],
-            config,
-            decoder_with_past_session=ort_inference_sessions[2],
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
-            preprocessors=preprocessors,
-            generation_config=generation_config,
-        )
-
-    @classmethod
-    def _from_pretrained(
-        cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: Optional[str] = None,
-        encoder_file_name: str = ONNX_ENCODER_NAME,
-        decoder_file_name: str = ONNX_DECODER_NAME,
-        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
-        subfolder: str = "",
-        local_files_only: bool = False,
-        use_cache: bool = True,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        **kwargs,
-    ):
-        model_path = Path(model_id)
-
-        if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision):
-            encoder_path = ORTModelForConditionalGeneration.infer_onnx_filename(
-                model_id,
-                [ENCODER_ONNX_FILE_PATTERN],
-                "encoder_file_name",
-                subfolder=subfolder,
-                use_auth_token=use_auth_token,
-                revision=revision,
-            )
-        else:
-            encoder_path = model_path / subfolder / encoder_file_name
-        if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
-            decoder_path = ORTModelForConditionalGeneration.infer_onnx_filename(
-                model_id,
-                [DECODER_ONNX_FILE_PATTERN],
-                "decoder_file_name",
-                subfolder=subfolder,
-                use_auth_token=use_auth_token,
-                revision=revision,
-            )
-        else:
-            decoder_path = model_path / subfolder / decoder_file_name
-
-        if use_cache is True:
-            if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
-                try:
-                    decoder_with_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
-                        model_id,
-                        [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
-                        "decoder_with_past_file_name",
-                        subfolder=subfolder,
-                        use_auth_token=use_auth_token,
-                        revision=revision,
-                    )
-                except FileNotFoundError as e:
-                    raise FileNotFoundError(
-                        "The parameter `use_cache=True` was passed to `ORTModelForConditionalGeneration.from_pretrained()`"
-                        " but no ONNX file using past key values could be found in"
-                        f" {str(Path(model_id, subfolder))}, with the error:\n    {e}"
-                    )
-            else:
-                decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
-
-        encoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
-            ONNX_ENCODER_NAME
-        )
-        decoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
-            ONNX_DECODER_NAME
-        )
-        decoder_with_past_regular_onnx_filenames = (
-            ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_WITH_PAST_NAME)
-        )
-
-        if encoder_path.name not in encoder_regular_onnx_filenames:
-            logger.warning(
-                f"The ONNX file {encoder_path.name} is not a regular name used in optimum.onnxruntime, the "
-                "ORTModelForConditionalGeneration might not behave as expected."
-            )
-
-        if decoder_path.name not in decoder_regular_onnx_filenames:
-            logger.warning(
-                f"The ONNX file {decoder_path.name} is not a regular name used in optimum.onnxruntime, the "
-                "ORTModelForConditionalGeneration might not behave as expected."
-            )
-        if (
-            use_cache is True
-            and decoder_with_past_path is not None
-            and decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames
-        ):
-            logger.warning(
-                f"The ONNX file {decoder_with_past_path.name} is not a regular name used in optimum.onnxruntime, "
-                "the ORTModelForConditionalGeneration might not behave as expected."
-            )
-
-        decoder_with_past_path = decoder_with_past_path if use_cache else None
-
-        preprocessors = None
-        if model_path.is_dir():
-            inference_sessions = cls.load_model(
-                encoder_path=encoder_path,
-                decoder_path=decoder_path,
-                decoder_with_past_path=decoder_with_past_path,
-                provider=provider,
-                session_options=session_options,
-                provider_options=provider_options,
-            )
-            new_model_save_dir = model_path
-            preprocessors = maybe_load_preprocessors(model_id)
         else:
             attribute_name_to_filename = {
                 "last_encoder_model_name": encoder_path.name,
                 "last_decoder_model_name": decoder_path.name,
                 "last_decoder_with_past_model_name": decoder_with_past_path.name if use_cache else None,
+                "last_decoder_merged_name": decoder_merged_path.name if decoder_merged_path is not None else None,
             }
             paths = {}
             for attr_name, filename in attribute_name_to_filename.items():
@@ -914,14 +787,25 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             if last_decoder_with_past_name is not None:
                 last_decoder_with_past_name = new_model_save_dir / last_decoder_with_past_name
 
-            inference_sessions = cls.load_model(
-                encoder_path=new_model_save_dir / paths["last_encoder_model_name"],
-                decoder_path=new_model_save_dir / paths["last_decoder_model_name"],
-                decoder_with_past_path=last_decoder_with_past_name,
-                provider=provider,
-                session_options=session_options,
-                provider_options=provider_options,
-            )
+            if use_merged is True:
+                decoder_path = new_model_save_dir / paths["last_decoder_merged_name"]
+            else:
+                decoder_path = new_model_save_dir / paths["last_decoder_model_name"]
+
+            decoder_without_past_path = new_model_save_dir / paths["last_decoder_model_name"]
+            if decoder_merged_path is not None:
+                decoder_merged_path = new_model_save_dir / paths["last_decoder_merged_name"]
+
+            encoder_path = new_model_save_dir / paths["last_encoder_model_name"]
+
+        ort_inference_sessions = cls.load_model(
+            encoder_path=encoder_path,
+            decoder_path=decoder_path,
+            decoder_with_past_path=None if use_merged is True or use_cache is False else decoder_with_past_path,
+            provider=provider,
+            session_options=session_options,
+            provider_options=provider_options,
+        )
 
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
@@ -940,10 +824,16 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         except OSError:
             logger.info("Generation config file not found, using a generation config created from the model config.")
 
+        onnx_paths = [decoder_without_past_path]
+        if decoder_merged_path is not None:
+            onnx_paths.append(decoder_merged_path)
+        if decoder_with_past_path is not None:
+            onnx_paths.append(decoder_with_past_path)
+
         return cls(
-            *inference_sessions[:2],
+            *ort_inference_sessions[:2],
             config,
-            decoder_with_past_session=inference_sessions[2],
+            decoder_with_past_session=ort_inference_sessions[2],
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,

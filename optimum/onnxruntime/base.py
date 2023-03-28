@@ -177,6 +177,7 @@ class ORTDecoder(ORTModelPart):
             ):
                 self.value_sequence_length_idx = -1
 
+    # TODO: this likely fails for seq2seq models
     def prepare_inputs_for_merged(
         self, input_ids: Optional[torch.LongTensor] = None, past_key_values: Optional[List[torch.FloatTensor]] = None
     ):
@@ -403,7 +404,11 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             self.num_pkv = 4
 
     def compute_past_key_values_output_shapes(
-        self, input_ids, encoder_hidden_states, past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+        self,
+        input_ids: torch.Tensor,
+        encoder_hidden_states: torch.Tensor,
+        use_cache_branch: Optional[bool],
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
     ) -> Dict[str, int]:
         batch_size = input_ids.size(0)
         num_attention_heads = self.normalized_config.num_attention_heads
@@ -411,7 +416,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
 
         sequence_length = input_ids.size(1)
         encoder_sequence_length = encoder_hidden_states.size(1)
-        if past_key_values is not None:
+        if past_key_values is not None and use_cache_branch is not False:
+            # Here, use_cache_branch may be None in the case of separate decoder without/with past, or True if the with past branch
+            # of a merged decoder is used
             sequence_length += past_key_values[0].size(2)
 
         self_attn_shape = (batch_size, num_attention_heads, sequence_length, embed_size_per_head)
@@ -431,6 +438,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
+        use_cache_branch: None = None,
     ) -> Seq2SeqLMOutput:
         use_torch = isinstance(input_ids, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
@@ -444,6 +452,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             known_output_shapes = self.compute_past_key_values_output_shapes(
                 input_ids,
                 encoder_hidden_states,
+                use_cache_branch=use_cache_branch.item() if use_cache_branch is not None else None,
                 past_key_values=past_key_values,
             )
 
@@ -462,6 +471,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
 
             if past_key_values is not None:
                 model_inputs += past_key_values
+
+            if use_cache_branch is not None:
+                model_inputs.append(use_cache_branch)
 
             if "labels" in self.input_names:
                 model_inputs.append(labels)
@@ -517,6 +529,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 if "labels" in self.input_names:
                     # TODO: Any preprocessing like  `self._shift_right(labels)`?
                     onnx_inputs["labels"] = labels.cpu().detach().numpy()
+
+                if self.parent_model.use_merged is True:
+                    onnx_inputs["use_cache_branch"] = use_cache_branch.cpu().detach().numpy()
             else:
                 onnx_inputs = {
                     "input_ids": input_ids,
@@ -538,6 +553,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 if "labels" in self.input_names:
                     # TODO: Any preprocessing like  `self._shift_right(labels)`?
                     onnx_inputs["labels"] = labels
+
+                if self.parent_model.use_merged is True:
+                    onnx_inputs["use_cache_branch"] = use_cache_branch
 
             # Run inference
             outputs = self.session.run(None, onnx_inputs)
