@@ -96,14 +96,15 @@ class BaseOptimumCLICommand(ABC):
     def run(self):
         raise NotImplementedError()
 
+
 class RootOptimumCLICommand(BaseOptimumCLICommand):
     COMMAND = CommandInfo(name="root", help="root cli")
+
     def __init__(
         self,
         cli_name: str,
         usage: Optional[str] = None,
     ):
-        
         self.parser = ArgumentParser(cli_name, usage=usage)
         self.subparsers = self.parser.add_subparsers()
         self.args = None

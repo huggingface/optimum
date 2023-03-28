@@ -13,11 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
+import os
 import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 
 class TestCLI(unittest.TestCase):
@@ -98,11 +99,14 @@ class TestCLI(unittest.TestCase):
         register_dir = current_dir.parent.parent / "optimum" / "commands" / "register"
         filename = "cli_with_custom_command.py"
 
-        # Registering by providing the command.
         shutil.copy(current_dir / filename, register_dir / filename)
         succeeded = self._run_command_and_check_content(custom_command, command_content)
         self.assertTrue(succeeded, "The command should succeed here since it is registered.")
-        shutil.rmtree(filename)
+        (register_dir / filename).unlink()
 
-        
-
+        shutil.copy(current_dir / filename, register_dir / filename)
+        os.environ["TEST_REGISTER_COMMAND_WITH_SUBCOMMAND"] = "true"
+        custom_command = "optimum-cli export blablabla"
+        succeeded = self._run_command_and_check_content(custom_command, command_content)
+        self.assertTrue(succeeded, "The command should succeed here since it is registered.")
+        (register_dir / filename).unlink()
