@@ -14,12 +14,10 @@
 # limitations under the License.
 """optimum.exporters command-line interface base classes."""
 
-import sys
-from argparse import ArgumentParser, RawTextHelpFormatter
-
 from .. import BaseOptimumCLICommand, CommandInfo
 from .onnx import ONNXExportCommand
-from .tflite import TFLiteExportCommand, parse_args_tflite
+from .tflite import TFLiteExportCommand
+
 
 class ExportCommand(BaseOptimumCLICommand):
     COMMAND = CommandInfo(

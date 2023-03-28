@@ -16,7 +16,7 @@
 
 from .. import BaseOptimumCLICommand, CommandInfo
 from .optimize import ONNXRuntimmeOptimizeCommand
-from .quantize import ONNXRuntimmeQuantizeCommand 
+from .quantize import ONNXRuntimmeQuantizeCommand
 
 
 class ONNXRuntimeCommand(BaseOptimumCLICommand):

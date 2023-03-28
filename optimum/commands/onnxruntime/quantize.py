@@ -17,11 +17,10 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-
 from ...onnxruntime.configuration import AutoQuantizationConfig, ORTConfig
 from ...onnxruntime.quantization import ORTQuantizer
-
 from .. import BaseOptimumCLICommand
+
 
 if TYPE_CHECKING:
     from argparse import ArgumentParser
@@ -66,7 +65,6 @@ def parse_args_onnxruntime_quantize(parser: "ArgumentParser"):
 
 
 class ONNXRuntimmeQuantizeCommand(BaseOptimumCLICommand):
-
     @staticmethod
     def parse_args(parser: "ArgumentParser"):
         return parse_args_onnxruntime_quantize(parser)

@@ -19,12 +19,12 @@ from ...exporters.onnx.__main__ import main_export, parse_args_onnx
 from ...utils import DEFAULT_DUMMY_SHAPES
 from ..base import BaseOptimumCLICommand
 
+
 if TYPE_CHECKING:
     from argparse import ArgumentParser
 
 
 class ONNXExportCommand(BaseOptimumCLICommand):
-
     @staticmethod
     def parse_args(parser: "ArgumentParser"):
         return parse_args_onnx(parser)

@@ -22,6 +22,7 @@ from optimum.commands.base import BaseOptimumCLICommand
 from ...onnxruntime.configuration import AutoOptimizationConfig, ORTConfig
 from ...onnxruntime.optimization import ORTOptimizer
 
+
 if TYPE_CHECKING:
     from argparse import ArgumentParser
 

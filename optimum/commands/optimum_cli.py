@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from argparse import ArgumentParser
-from typing import Type, TypeVar
+from typing import Type
 
 from optimum.commands.base import BaseOptimumCLICommand
 
@@ -22,11 +22,11 @@ from .env import EnvironmentCommand
 from .export import ExportCommand
 from .onnxruntime import ONNXRuntimeCommand
 
+
 OPTIMUM_CLI_SUBCOMMANDS = [
     ExportCommand,
     EnvironmentCommand,
     ONNXRuntimeCommand,
-    
 ]
 
 

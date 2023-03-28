@@ -23,6 +23,12 @@ from ...exporters.tflite import QuantizationApproach
 from ..base import BaseOptimumCLICommand
 
 
+if TYPE_CHECKING:
+    from argparse import ArgumentParser, Namespace, _SubParsersAction
+
+    from ..base import CommandInfo
+
+
 def parse_args_tflite(parser: "ArgumentParser"):
     required_group = parser.add_argument_group("Required arguments")
     required_group.add_argument(
@@ -214,14 +220,16 @@ def parse_args_tflite(parser: "ArgumentParser"):
         help=("The name of the column containing the image in the dataset. Only for image-classification."),
     )
 
-if TYPE_CHECKING:
-    from argparse import ArgumentParser, Namespace
-    from ..base import CommandInfo
-
 
 class TFLiteExportCommand(BaseOptimumCLICommand):
-    def __init__(self, parser: "ArgumentParser", args: Optional["Namespace"] = None, command: Optional["CommandInfo"] = None):
-        super().__init__(parser, args, command=command)
+    def __init__(
+        self,
+        parser: "_SubParsersAction",
+        args: Optional["Namespace"] = None,
+        command: Optional["CommandInfo"] = None,
+        from_defaults_factory: bool = False,
+    ):
+        super().__init__(parser, args, command=command, from_defaults_factory=from_defaults_factory)
         # TODO: hack until TFLiteExportCommand does not use subprocess anymore.
         self.args_string = " ".join(sys.argv[3:])
 

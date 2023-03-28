@@ -14,14 +14,14 @@
 # limitations under the License.
 """Optimum command-line interface base classes."""
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from argparse import RawTextHelpFormatter
 from dataclasses import dataclass
-from typing import Tuple, Type, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Tuple, Type
 
 
 if TYPE_CHECKING:
-    from argparse import ArgumentParser, Namespace
+    from argparse import ArgumentParser, Namespace, _SubParsersAction
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,7 @@ class CommandInfo:
     @property
     def is_subcommand_info(self):
         return self.subcommand_class is not None
-    
+
     def is_subcommand_info_or_raise(self):
         if not self.is_subcommand_info:
             raise ValueError(f"The command info must define a subcommand_class attribute, but got: {self}.")
@@ -46,20 +46,30 @@ class InvalidCLICommand(Exception):
 
 class BaseOptimumCLICommand(ABC):
     COMMAND: CommandInfo
-    SUBCOMMANDS: Tuple[CommandInfo, ...] = tuple()
+    SUBCOMMANDS: Tuple[CommandInfo, ...] = ()
 
-    def __init__(self, parser: "ArgumentParser", args: Optional["Namespace"] = None, command: Optional[CommandInfo] = None):
+    def __init__(
+        self,
+        subparsers: "_SubParsersAction",
+        args: Optional["Namespace"] = None,
+        command: Optional[CommandInfo] = None,
+        from_defaults_factory: bool = False,
+    ):
         if command is not None:
             self.COMMAND = command
 
-        self.parser = parser.add_parser(self.COMMAND.name, help=self.COMMAND.help)
-        self.subparsers = self.parser.add_subparsers()
-        self.parse_args(self.parser)
+        if from_defaults_factory:
+            self.parser = None
+            self.subparsers = subparsers
+        else:
+            self.parser = subparsers.add_parser(self.COMMAND.name, help=self.COMMAND.help)
+            self.subparsers = self.parser.add_subparsers()
+            self.parse_args(self.parser)
 
-        def defaults_factory(args):
-            return self.__class__(self.subparsers, args, command=command)
+            def defaults_factory(args):
+                return self.__class__(self.subparsers, args, command=command, from_defaults_factory=True)
 
-        self.parser.set_defaults(func=defaults_factory)
+            self.parser.set_defaults(func=defaults_factory)
 
         for subcommand in self.SUBCOMMANDS:
             if not isinstance(subcommand, CommandInfo):
@@ -77,11 +87,9 @@ class BaseOptimumCLICommand(ABC):
     def parse_args(parser: "ArgumentParser"):
         pass
 
-
     def register_subcommand(self, command_info: CommandInfo):
         command_info.is_subcommand_info_or_raise()
         command_info.subcommand_class(self.subparsers, command=command_info)
 
     def run(self):
         raise NotImplementedError()
-

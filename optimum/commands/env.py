@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import platform
-from argparse import ArgumentParser
 
 import huggingface_hub
 from transformers import __version__ as transformers_version
@@ -24,10 +23,7 @@ from . import BaseOptimumCLICommand, CommandInfo
 
 
 class EnvironmentCommand(BaseOptimumCLICommand):
-    COMMAND = CommandInfo(
-        name="env",
-        help="Get information about the environment used."
-    )
+    COMMAND = CommandInfo(name="env", help="Get information about the environment used.")
 
     @staticmethod
     def format_dict(d):
@@ -69,4 +65,3 @@ class EnvironmentCommand(BaseOptimumCLICommand):
         print(self.format_dict(info))
 
         return info
-
