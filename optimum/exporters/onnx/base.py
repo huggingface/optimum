@@ -821,7 +821,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
 
             if "encoder_outputs" in reference_model_inputs:
-                if self.use_past_in_inputs is False:
+                if self.use_past_in_inputs is False or self.is_merged:
                     # ONNX without past uses encoder_hidden_states even when we don't outputing them
                     reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
                 else:
