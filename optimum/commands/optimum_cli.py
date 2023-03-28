@@ -14,10 +14,24 @@
 # limitations under the License.
 
 from argparse import ArgumentParser
+from typing import Type, TypeVar
+
+from optimum.commands.base import BaseOptimumCLICommand
 
 from .env import EnvironmentCommand
 from .export import ExportCommand
 from .onnxruntime import ONNXRuntimeCommand
+
+OPTIMUM_CLI_SUBCOMMANDS = [
+    ExportCommand,
+    EnvironmentCommand,
+    ONNXRuntimeCommand,
+    
+]
+
+
+def register_optimum_cli_subcommand(subcommand_cls: Type[BaseOptimumCLICommand]):
+    OPTIMUM_CLI_SUBCOMMANDS.append(subcommand_cls)
 
 
 def main():
@@ -25,6 +39,10 @@ def main():
     commands_parser = parser.add_subparsers(help="optimum-cli command helpers")
 
     # Register commands
+    for subcommand_cls in OPTIMUM_CLI_SUBCOMMANDS:
+        subcommand = subcommand_cls(commands_parser)
+
+
     ExportCommand.register_subcommand(commands_parser)
     EnvironmentCommand.register_subcommand(commands_parser)
     ONNXRuntimeCommand.register_subcommand(commands_parser)
