@@ -983,7 +983,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
             )
         elif self.use_merged is True:
             decoder_outputs = self.decoder(
-                input_ids=input_ids[:, -1:],
+                input_ids=decoder_input_ids[:, -1:],
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
                 past_key_values=past_key_values,
                 encoder_attention_mask=attention_mask,
