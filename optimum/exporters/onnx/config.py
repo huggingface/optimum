@@ -375,3 +375,12 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
+
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
+        if self._behavior is ConfigBehavior.DECODER:
+            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+
+            # for encoder-decoder custom models, always pass encoder_hidden_states as input
+            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+
+        return reference_model_inputs
