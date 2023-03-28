@@ -300,6 +300,16 @@ class T5OnnxConfig(TextSeq2SeqOnnxConfig):
         allow_new=True,
     )
 
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
+        if self._behavior is ConfigBehavior.DECODER:
+            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+
+            # T5 requires encoder_hidden_states as an input for both the without/with past models,
+            # which is different than other architectures that require it only for the without past case
+            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+
+        return reference_model_inputs
+
 
 class MT5OnnxConfig(T5OnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
