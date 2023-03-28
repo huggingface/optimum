@@ -126,17 +126,16 @@ class Seq2SeqModelPatcher(ModelPatcher):
             # Filter out cross attention past key values
             filterd_outputs = {}
             for name, value in outputs.items():
-                if name != "past_key_values":
-                    if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
-                        # Who cares about the encoder outputs in the decoder?
-                        continue
-                    else:
-                        filterd_outputs[name] = value
-
                 if config.torch_to_onnx_output_map.get(name, name) in config.outputs or (
                     allow_past_in_outputs and name.startswith("past_key_values")
                 ):
-                    if name == "past_key_values":
+                    if name != "past_key_values":
+                        if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
+                            # Who cares about the encoder outputs in the decoder?
+                            continue
+                        else:
+                            filterd_outputs[name] = value
+                    else:
                         if self.real_config._behavior == "monolith" or (
                             self.real_config._behavior == "decoder" and self.real_config.use_past is False
                         ):
