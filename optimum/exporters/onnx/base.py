@@ -817,14 +817,16 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
-            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+            if "decoder_input_ids" in reference_model_inputs:
+                reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
 
-            if self.use_past_in_inputs is False:
-                # ONNX without past uses encoder_hidden_states even when we don't outputing them
-                reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-            else:
-                # ONNX with past does not use encoder_hidden_states when we don't output them
-                reference_model_inputs.pop("encoder_outputs")
+            if "encoder_outputs" in reference_model_inputs:
+                if self.use_past_in_inputs is False:
+                    # ONNX without past uses encoder_hidden_states even when we don't outputing them
+                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+                else:
+                    # ONNX with past does not use encoder_hidden_states when we don't output them
+                    reference_model_inputs.pop("encoder_outputs")
 
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 

@@ -308,7 +308,7 @@ class T5OnnxConfig(TextSeq2SeqOnnxConfig):
             # which is different than other architectures that require it only for the without past case
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
 
-        return reference_model_inputs
+        return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 
 
 class MT5OnnxConfig(T5OnnxConfig):
