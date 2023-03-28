@@ -3441,10 +3441,19 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+    )
     @require_torch_gpu
-    def test_compare_generation_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
+    def test_compare_generation_to_io_binding(
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
+    ):
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]

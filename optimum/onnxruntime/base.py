@@ -400,9 +400,12 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
     ):
         super().__init__(session, parent_model)
 
-        if self.use_past:
+        if self.parent_model.use_merged is False and self.use_past:
             self.num_pkv = 2
         else:
+            # when using a merged model, we always have the same number of output whether we use past key values or not,
+            # and in the case past key values are used, empty tensors are given as cross-attention past key values as they
+            # are constants
             self.num_pkv = 4
 
     def compute_past_key_values_output_shapes(
@@ -424,13 +427,17 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             sequence_length += past_key_values[0].size(2)
 
         self_attn_shape = (batch_size, num_attention_heads, sequence_length, embed_size_per_head)
-        cross_attn_shape = (batch_size, num_attention_heads, encoder_sequence_length, embed_size_per_head)
+
+        if past_key_values is not None and use_cache_branch is True:
+            cross_attn_shape = (0, num_attention_heads, 1, embed_size_per_head)
+        else:
+            cross_attn_shape = (batch_size, num_attention_heads, encoder_sequence_length, embed_size_per_head)
 
         past_key_values_shapes = {}
         for idx, name in enumerate(self.key_value_output_names):
             is_self_attn = idx % 4 < 2
             # decoder with past does not ouput cross attention key/values as they are constants
-            past_key_values_shapes[name] = self_attn_shape if (is_self_attn or self.use_past) else cross_attn_shape
+            past_key_values_shapes[name] = self_attn_shape if (is_self_attn or self.num_pkv == 2) else cross_attn_shape
         return past_key_values_shapes
 
     def forward(
