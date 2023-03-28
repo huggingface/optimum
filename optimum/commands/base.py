@@ -15,20 +15,20 @@
 """Optimum command-line interface base classes."""
 
 from abc import ABC
-from argparse import RawTextHelpFormatter
+from argparse import ArgumentParser, RawTextHelpFormatter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Tuple, Type
 
 
 if TYPE_CHECKING:
-    from argparse import ArgumentParser, Namespace, _SubParsersAction
+    from argparse import Namespace, _SubParsersAction
 
 
 @dataclass(frozen=True)
 class CommandInfo:
     name: str
     help: str
-    subcommand_class: Optional[Type] = None
+    subcommand_class: Optional[Type["BaseOptimumCLICommand"]] = None
     formatter_class: Type = RawTextHelpFormatter
 
     @property
@@ -78,10 +78,11 @@ class BaseOptimumCLICommand(ABC):
 
         self.args = args
 
-    @classmethod
-    def add_subcommand(cls, command_info: CommandInfo):
-        command_info.is_subcommand_info_or_raise()
-        cls.SUBCOMMANDS = cls.SUBCOMMANDS + (command_info,)
+    @property
+    def registered_subcommands(self):
+        if not hasattr(self, "_registered_subcommands"):
+            self._registered_subcommands = []
+        return self._registered_subcommands
 
     @staticmethod
     def parse_args(parser: "ArgumentParser"):
@@ -89,7 +90,20 @@ class BaseOptimumCLICommand(ABC):
 
     def register_subcommand(self, command_info: CommandInfo):
         command_info.is_subcommand_info_or_raise()
-        command_info.subcommand_class(self.subparsers, command=command_info)
+        self.SUBCOMMANDS = self.SUBCOMMANDS + (command_info,)
+        self.registered_subcommands.append(command_info.subcommand_class(self.subparsers, command=command_info))
 
     def run(self):
         raise NotImplementedError()
+
+class RootOptimumCLICommand(BaseOptimumCLICommand):
+    COMMAND = CommandInfo(name="root", help="root cli")
+    def __init__(
+        self,
+        cli_name: str,
+        usage: Optional[str] = None,
+    ):
+        
+        self.parser = ArgumentParser(cli_name, usage=usage)
+        self.subparsers = self.parser.add_subparsers()
+        self.args = None

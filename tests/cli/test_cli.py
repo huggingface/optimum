@@ -16,6 +16,19 @@
 import subprocess
 import tempfile
 import unittest
+import random
+import string
+
+from optimum.commands import BaseOptimumCLICommand, CommandInfo, register_optimum_cli_subcommand
+
+class MyCustomCommand(BaseOptimumCLICommand):
+    COMMAND = CommandInfo(name="blablabla", help="Says something thing")
+
+    # def _generate_random_string(self, length: int):
+    #     return "".join(random.choice(string.ascii_lowercase) for _ in range(length))
+
+    def run(self):
+        print("If the CI can read this, it means it worked!")
 
 
 class TestCLI(unittest.TestCase):
@@ -77,3 +90,24 @@ class TestCLI(unittest.TestCase):
             for export, quantize in zip(export_commands, quantize_commands):
                 subprocess.run(export, shell=True, check=True)
                 subprocess.run(quantize, shell=True, check=True)
+
+    def _run_command_and_check_content(self, command: str, content: str) -> bool:
+        proc = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = proc.communicate()
+        stdout = stdout.decode("utf-8")
+        print(stderr)
+        return content in stdout
+
+    def test_register_command(self):
+        custom_command = "optimum-cli blablabla"
+        command_content = "If the CI can read this, it means it worked!"
+        succeeded = self._run_command_and_check_content(custom_command, command_content)
+        self.assertFalse(succeeded, "The command should fail here since it is not registered yet.")
+
+        # Registering by providing the command.
+        register_optimum_cli_subcommand(MyCustomCommand)
+        succeeded = self._run_command_and_check_content(custom_command, command_content)
+        self.assertTrue(succeeded, "The command should succeed here since it is registered.")
+
+        
+

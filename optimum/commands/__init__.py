@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import BaseOptimumCLICommand, CommandInfo
+from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
+from .optimum_cli import register_optimum_cli_subcommand
