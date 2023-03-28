@@ -1,33 +1,16 @@
-import sys
-from argparse import ArgumentParser
+# coding=utf-8
+# Copyright 2023 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-from .. import BaseOptimumCLICommand
-from .optimize import ONNXRuntimmeOptimizeCommand, parse_args_onnxruntime_optimize
-from .quantize import ONNXRuntimmeQuantizeCommand, parse_args_onnxruntime_quantize
-
-
-def onnxruntime_optimize_factory(args):
-    return ONNXRuntimmeOptimizeCommand(args)
-
-
-def onnxruntime_quantize_factory(args):
-    return ONNXRuntimmeQuantizeCommand(args)
-
-
-class ONNXRuntimeCommand(BaseOptimumCLICommand):
-    @staticmethod
-    def register_subcommand(parser: ArgumentParser):
-        onnxruntime_parser = parser.add_parser("onnxruntime", help="ONNX Runtime optimize and quantize utilities.")
-        onnxruntime_sub_parsers = onnxruntime_parser.add_subparsers()
-
-        optimize_parser = onnxruntime_sub_parsers.add_parser("optimize", help="Optimize ONNX models.")
-        quantize_parser = onnxruntime_sub_parsers.add_parser("quantize", help="Dynammic quantization for ONNX models.")
-
-        parse_args_onnxruntime_optimize(optimize_parser)
-        parse_args_onnxruntime_quantize(quantize_parser)
-
-        optimize_parser.set_defaults(func=onnxruntime_optimize_factory)
-        quantize_parser.set_defaults(func=onnxruntime_quantize_factory)
-
-    def run(self):
-        raise NotImplementedError()
+from .base import ONNXRuntimeCommand

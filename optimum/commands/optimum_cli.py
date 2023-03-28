@@ -40,12 +40,7 @@ def main():
 
     # Register commands
     for subcommand_cls in OPTIMUM_CLI_SUBCOMMANDS:
-        subcommand = subcommand_cls(commands_parser)
-
-
-    ExportCommand.register_subcommand(commands_parser)
-    EnvironmentCommand.register_subcommand(commands_parser)
-    ONNXRuntimeCommand.register_subcommand(commands_parser)
+        subcommand_cls(commands_parser)
 
     args = parser.parse_args()
 

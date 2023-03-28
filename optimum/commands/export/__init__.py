@@ -13,13 +13,5 @@
 # limitations under the License.
 
 
-def onnx_export_factory(args):
-    return ONNXExportCommand(args)
-
-
-def tflite_export_factory(_):
-    return TFLiteExportCommand(" ".join(sys.argv[3:]))
-
-
 from .base import ExportCommand
 
