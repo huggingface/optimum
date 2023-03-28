@@ -13,22 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
-import random
-import string
-
-from optimum.commands import BaseOptimumCLICommand, CommandInfo, register_optimum_cli_subcommand
-
-class MyCustomCommand(BaseOptimumCLICommand):
-    COMMAND = CommandInfo(name="blablabla", help="Says something thing")
-
-    # def _generate_random_string(self, length: int):
-    #     return "".join(random.choice(string.ascii_lowercase) for _ in range(length))
-
-    def run(self):
-        print("If the CI can read this, it means it worked!")
 
 
 class TestCLI(unittest.TestCase):
@@ -95,6 +84,7 @@ class TestCLI(unittest.TestCase):
         proc = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = proc.communicate()
         stdout = stdout.decode("utf-8")
+        print(stdout)
         print(stderr)
         return content in stdout
 
@@ -104,10 +94,15 @@ class TestCLI(unittest.TestCase):
         succeeded = self._run_command_and_check_content(custom_command, command_content)
         self.assertFalse(succeeded, "The command should fail here since it is not registered yet.")
 
+        current_dir = Path(__file__).parent
+        register_dir = current_dir.parent.parent / "optimum" / "commands" / "register"
+        filename = "cli_with_custom_command.py"
+
         # Registering by providing the command.
-        register_optimum_cli_subcommand(MyCustomCommand)
+        shutil.copy(current_dir / filename, register_dir / filename)
         succeeded = self._run_command_and_check_content(custom_command, command_content)
         self.assertTrue(succeeded, "The command should succeed here since it is registered.")
+        shutil.rmtree(filename)
 
         
 

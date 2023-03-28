@@ -13,24 +13,52 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from argparse import ArgumentParser
-from typing import Type, Optional, Union
+import importlib
+from pathlib import Path
+from typing import Type, Optional, Union, List, Tuple
 
-from optimum.commands.base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
+from ..utils import logging
 
+from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
 from .export import ExportCommand
 from .onnxruntime import ONNXRuntimeCommand
 
+logger = logging.get_logger()
 
 OPTIMUM_CLI_SUBCOMMANDS = [
     ExportCommand,
     EnvironmentCommand,
     ONNXRuntimeCommand,
 ]
-
 ROOT = RootOptimumCLICommand("Optimum CLI tool", usage="optimum-cli <command> [<args>]")
 
+
+def dynamic_load_commands_in_register() -> List[Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]]:
+    commands_to_register = []
+    register_dir_path = Path(__file__).parent / "register"
+    for filename in register_dir_path.iterdir():
+        if filename.is_dir() or filename.suffix != ".py":
+            logger.warning(
+                f"Skipping {filename} because only python files are allowed when registering commands dynamically."
+            )
+            continue
+        module_name = f".register.{filename.stem}"
+        module = importlib.import_module(module_name, package="optimum.commands")
+        commands_to_register_in_file = getattr(module, "REGISTER_COMMANDS", [])
+        for command_idx, command in enumerate(commands_to_register_in_file):
+            if isinstance(command, tuple):
+                command_or_command_info, parent_command_cls = command
+            else:
+                command_or_command_info = command
+                parent_command_cls = None
+            print(command_or_command_info, parent_command_cls)
+            if not isinstance(command_or_command_info, (BaseOptimumCLICommand, CommandInfo)):
+                raise ValueError(
+                    f"The command at index {command_idx} in {filename} is not of the right type: {type(command_or_command_info)}."
+                )
+            commands_to_register.append((command_or_command_info, parent_command_cls))
+    return commands_to_register
 
 
 def register_optimum_cli_subcommand(command_or_command_info: Union[Type[BaseOptimumCLICommand], CommandInfo], parent_command_cls: Optional[Type[BaseOptimumCLICommand]] = None):
@@ -43,7 +71,6 @@ def register_optimum_cli_subcommand(command_or_command_info: Union[Type[BaseOpti
     command_info.is_subcommand_info_or_raise()
 
     parent_command = ROOT
-
     was_registered = False
     to_visit = [parent_command]
     while to_visit:
@@ -61,13 +88,15 @@ def register_optimum_cli_subcommand(command_or_command_info: Union[Type[BaseOpti
 
 
 def main():
-    # parser = ArgumentParser("Optimum CLI tool", usage="optimum-cli <command> [<args>]")
-    # commands_parser = parser.add_subparsers()
-
     # Register commands
     for subcommand_cls in OPTIMUM_CLI_SUBCOMMANDS:
         # subcommand_cls(commands_parser)
         register_optimum_cli_subcommand(subcommand_cls)
+
+    commands_in_register = dynamic_load_commands_in_register()
+    for command_or_command_info, parent_command_cls in  commands_in_register:
+        register_optimum_cli_subcommand(command_or_command_info, parent_command_cls=parent_command_cls)
+
 
     parser = ROOT.parser
     args = parser.parse_args()
