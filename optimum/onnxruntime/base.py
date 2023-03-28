@@ -14,8 +14,9 @@
 """Defines the base classes that are used to perform inference with ONNX Runtime of Transformers models."""
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import torch
 from transformers.modeling_outputs import BaseModelOutput, CausalLMOutputWithCrossAttentions, Seq2SeqLMOutput
 
@@ -177,23 +178,29 @@ class ORTDecoder(ORTModelPart):
             ):
                 self.value_sequence_length_idx = -1
 
-    # TODO: this likely fails for seq2seq models
     def prepare_inputs_for_merged(
-        self, input_ids: Optional[torch.LongTensor] = None, past_key_values: Optional[Tuple[torch.FloatTensor]] = None
+        self,
+        input_ids: Union[None, torch.LongTensor, np.ndarray] = None,
+        past_key_values: Optional[Union[Tuple[torch.FloatTensor], Tuple[np.ndarray]]] = None,
+        use_torch: bool = False,
     ):
+        constructor = torch if use_torch is True else np
         if past_key_values is None and self.parent_model.use_merged:
             # Uses "no past" branch of a merged decoder
-            use_cache_branch = torch.full((1,), False).to(self.device)
+            use_cache_branch = constructor.full((1,), False)
         elif past_key_values is not None and self.parent_model.use_merged:
             # Uses "with past" branch of a merged decoder
-            use_cache_branch = torch.full((1,), True).to(self.device)
+            use_cache_branch = constructor.full((1,), True)
         else:
             # Uses separate decoders
             use_cache_branch = None
 
+        if use_torch and use_cache_branch is not None:
+            use_cache_branch = use_cache_branch.to(self.device)
+
         # Generate dummy past for the first forward if uses a merged decoder
         if self.parent_model.use_merged and past_key_values is None:
-            batch_size = input_ids.size(0)
+            batch_size = input_ids.shape[0]
             num_attention_heads = self.normalized_config.num_attention_heads
             embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
 
@@ -202,14 +209,23 @@ class ORTDecoder(ORTModelPart):
             if self.parent_model.config.model_type == "bloom":
                 shape_value = (batch_size * num_attention_heads, 1, embed_size_per_head)
                 shape_key = (batch_size * num_attention_heads, embed_size_per_head, 1)
-                key = torch.zeros(shape_key, dtype=torch.float32).to(self.device)
-                value = torch.zeros(shape_value, dtype=torch.float32).to(self.device)
+                key = constructor.zeros(shape_key, dtype=constructor.float32)
+                value = constructor.zeros(shape_value, dtype=constructor.float32)
+
+                if use_torch is True:
+                    key = key.to(self.device)
+                    value = value.to(self.device)
+
                 past_key_values = tuple(
                     key_or_value for _ in range(len(self.key_value_input_names) // 2) for key_or_value in [key, value]
                 )
             else:
                 shape = (batch_size, num_attention_heads, 1, embed_size_per_head)
-                key_or_value = torch.zeros(shape, dtype=torch.float32).to(self.device)
+                key_or_value = constructor.zeros(shape, dtype=constructor.float32)
+
+                if use_torch is True:
+                    key_or_value = key_or_value.to(self.device)
+
                 past_key_values = tuple(key_or_value for _ in range(len(self.key_value_input_names)))
 
         return use_cache_branch, past_key_values
@@ -283,7 +299,9 @@ class ORTDecoder(ORTModelPart):
             )
 
         # no-ops if merged decoder is not used
-        use_cache_branch, past_key_values = self.prepare_inputs_for_merged(input_ids, past_key_values)
+        use_cache_branch, past_key_values = self.prepare_inputs_for_merged(
+            input_ids, past_key_values, use_torch=use_torch
+        )
 
         if self.device.type == "cuda" and self.parent_model.use_io_binding:
             known_output_shapes = self.compute_past_key_values_output_shapes(
@@ -459,7 +477,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             )
 
         # no-ops if merged decoder is not used
-        use_cache_branch, past_key_values = self.prepare_inputs_for_merged(input_ids, past_key_values)
+        use_cache_branch, past_key_values = self.prepare_inputs_for_merged(
+            input_ids, past_key_values, use_torch=use_torch
+        )
 
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
             known_output_shapes = self.compute_past_key_values_output_shapes(

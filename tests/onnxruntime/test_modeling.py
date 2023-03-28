@@ -3100,7 +3100,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
-        task = "causal-lm-with-past"
+        task = "seq2seq-lm-with-past"
 
         if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
             self.skipTest("Unsupported export case")
