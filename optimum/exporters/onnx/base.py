@@ -826,7 +826,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 # ONNX with past does not use encoder_hidden_states when we don't output them
                 reference_model_inputs.pop("encoder_outputs")
 
-        return reference_model_inputs
+        return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 
 
 class OnnxConfigWithLoss(OnnxConfig, ABC):
