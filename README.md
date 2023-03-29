@@ -56,6 +56,17 @@ python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum
 
 While everything can be done in a programmatic way for a more cutomized experience, we provide a command-line interface to perform common tasks easily. 
 
+### Features summary
+
+| Features                           | ONNX Runtime       | Neural Compressor  | OpenVINO           | TensorFlow Lite    |
+|:----------------------------------:|:------------------:|:------------------:|:------------------:|:------------------:|
+| Graph optimization                 | :heavy_check_mark: | N/A                | N/A                | N/A                |
+| Post-training Dynamic Quantization | :heavy_check_mark: | :heavy_check_mark: | N/A                | :heavy_check_mark: |
+| Post-training Static Quantization  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Quantization Aware Training (QAT)  | N/A                | :heavy_check_mark: | :heavy_check_mark: | N/A                |
+| Floating-point 16                  | :heavy_check_mark: | N/A                | N/A                | :heavy_check_mark: |
+| Pruning                            | N/A                | :heavy_check_mark: | :heavy_check_mark: | N/A                |
+
 ### ONNX + ONNX Runtime
 
 It is possible to export 🤗 Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
@@ -107,7 +118,6 @@ Just as for ONNX, it is possible to export to [TensorFlow Lite](https://www.tens
 ```plain
 optimum-cli export tflite -m deepset/roberta-base-squad2 --sequence_length 384  --quantize int8-dynamic roberta_tflite_model
 ```
-
 ### OpenVINO
 
 To load a model and run inference with [OpenVINO Runtime](https://docs.openvino.ai/latest/home.html), you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class.
@@ -130,30 +140,6 @@ If you want to load a PyTorch checkpoint, set `from_transformers=True` to conver
 ```
 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
-
-### Features summary
-
-<!--
-
-| Features                           | ONNX Runtime          |     Neural Compressor   |         OpenVINO        |         TensorFlow Lite |
-|:----------------------------------:|:---------------------:|:-----------------------:|:-----------------------:|:-----------------------:|
-| Graph optimization                 |  :heavy_check_mark:   |    N/A                  |          N/A            |     N/A                 |
-| Post-training Dynamic Quantization |  :heavy_check_mark:   |    :heavy_check_mark:   |          N/A            |     :heavy_check_mark:  |
-| Post-training Static Quantization  |  :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
-| Quantization Aware Training (QAT)  |  Stay tuned! :star:   |    :heavy_check_mark:   |    :heavy_check_mark:   |    :heavy_check_mark:   |
-| Floating-point 16                  |  :heavy_check_mark:   | N/A                     |    N/A                  |     :heavy_check_mark:  |
-| Pruning                            |        N/A            |    :heavy_check_mark:   |    :heavy_check_mark:   |    N/A                  |
-
--->
-
-| Features                           | ONNX Runtime       | Neural Compressor  | OpenVINO           | TensorFlow Lite    |
-|:----------------------------------:|:------------------:|:------------------:|:------------------:|:------------------:|
-| Graph optimization                 | :heavy_check_mark: | N/A                | N/A                | N/A                |
-| Post-training Dynamic Quantization | :heavy_check_mark: | :heavy_check_mark: | N/A                | :heavy_check_mark: |
-| Post-training Static Quantization  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
-| Quantization Aware Training (QAT)  | Stay tuned! :star: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
-| Floating-point 16                  | :heavy_check_mark: | N/A                | N/A                | :heavy_check_mark: |
-| Pruning                            | N/A                | :heavy_check_mark: | :heavy_check_mark: | N/A                |
 
 
 ## Accelerated training
