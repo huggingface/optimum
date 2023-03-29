@@ -74,12 +74,10 @@ class BaseOptimumCLICommand(ABC):
                 raise ValueError(f"Subcommands must be instances of CommandInfo, but got {type(subcommand)} here.")
             self.register_subcommand(subcommand)
 
-
         self.args = args
 
     @property
     def defaults_factory(self):
-        
         def defaults_factory_func(args):
             return self.__class__(self.subparsers, args, command=self.COMMAND, from_defaults_factory=True)
 
@@ -95,7 +93,7 @@ class BaseOptimumCLICommand(ABC):
                     self.parser.set_defaults(func=self.defaults_factory)
             else:
                 self._subparsers = None
-        return self._subparsers 
+        return self._subparsers
 
     @subparsers.setter
     def subparsers(self, subparsers: Optional["_SubParsersAction"]):
@@ -112,7 +110,6 @@ class BaseOptimumCLICommand(ABC):
         pass
 
     def register_subcommand(self, command_info: CommandInfo):
-
         command_info.is_subcommand_info_or_raise()
         self.SUBCOMMANDS = self.SUBCOMMANDS + (command_info,)
         self.registered_subcommands.append(command_info.subcommand_class(self.subparsers, command=command_info))
@@ -124,12 +121,7 @@ class BaseOptimumCLICommand(ABC):
 class RootOptimumCLICommand(BaseOptimumCLICommand):
     COMMAND = CommandInfo(name="root", help="optimum-cli root command")
 
-    def __init__(
-        self,
-        cli_name: str,
-        usage: Optional[str] = None,
-        args: Optional["Namespace"] = None
-    ):
+    def __init__(self, cli_name: str, usage: Optional[str] = None, args: Optional["Namespace"] = None):
         self.parser = ArgumentParser(cli_name, usage=usage)
         self.subparsers = self.parser.add_subparsers()
         self.args = None
