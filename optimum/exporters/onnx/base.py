@@ -728,9 +728,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                     new_axes_names[axis_idx] = axis_name
             common_outputs[name] = new_axes_names
 
-        if self._behavior is not ConfigBehavior.ENCODER:
-            common_outputs["encoder_last_hidden_state"] = {0: "batch_size", 1: "encoder_sequence_length"}
-
         if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
 
@@ -758,9 +755,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             ):
                 inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: "encoder_sequence_length"}
                 inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length"}
-
-        if direction == "outputs" and "encoder_last_hidden_state" in inputs_or_outputs:
-            inputs_or_outputs.move_to_end("encoder_last_hidden_state")
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
@@ -823,8 +817,16 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
     def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
-            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+            if "decoder_input_ids" in reference_model_inputs:
+                reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+
+            if "encoder_outputs" in reference_model_inputs:
+                if self.use_past_in_inputs is False or self.is_merged:
+                    # ONNX without past uses encoder_hidden_states even when we don't outputing them
+                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+                else:
+                    # ONNX with past does not use encoder_hidden_states when we don't output them
+                    reference_model_inputs.pop("encoder_outputs")
 
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 

@@ -130,7 +130,11 @@ class Seq2SeqModelPatcher(ModelPatcher):
                     allow_past_in_outputs and name.startswith("past_key_values")
                 ):
                     if name != "past_key_values":
-                        filterd_outputs[name] = value
+                        if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
+                            # Who cares about the encoder outputs in the decoder?
+                            continue
+                        else:
+                            filterd_outputs[name] = value
                     else:
                         if self.real_config._behavior == "monolith" or (
                             self.real_config._behavior == "decoder" and self.real_config.use_past is False

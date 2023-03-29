@@ -160,9 +160,10 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
 
     for idx in range(len(model1.graph.output)):
         model_output_1 = model1.graph.output[idx]
-        model_output_2 = model2.graph.output[idx]
-        if model_output_1 != model_output_2:
-            if not (
+        model_output_2 = model2.graph.output[idx] if idx < len(model2.graph.output) else None
+
+        if model_output_2 is None or model_output_1 != model_output_2:
+            if model_output_2 is None or not (
                 model_output_1.name == model_output_2.name
                 and model_output_1.type.tensor_type.elem_type == model_output_2.type.tensor_type.elem_type
             ):
@@ -205,10 +206,16 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
                     )
                     model2.graph.output.insert(idx, constant_empty_output)
                 else:
-                    raise ValueError(
-                        f"Cannot match {model_output_1.name} with {model_output_2.name}. Make sure your"
-                        f" model protos have same outputs, have same data types and are in the same order."
-                    )
+                    if model_output_2 is not None:
+                        raise ValueError(
+                            f"Cannot match {model_output_1.name} with {model_output_2.name}. Make sure your"
+                            f" model protos have same outputs, have same data types and are in the same order."
+                        )
+                    else:
+                        raise ValueError(
+                            f"Too few outputs of model2 were found to match with {model_output_1.name}."
+                            f" Please try to pass strict=False, or fill a bug report at https://github.com/huggingface/optimum."
+                        )
             else:
                 model2.graph.output.remove(model_output_2)
 

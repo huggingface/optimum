@@ -365,6 +365,8 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         else:
             if self._behavior is ConfigBehavior.DECODER:
                 reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+
+                # for encoder-decoder custom models, always pass encoder_hidden_states as input
                 reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
 
             return self._decoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
@@ -392,12 +394,3 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1]._decoder_onnx_config.is_merged = True
 
         return models_and_onnx_configs, onnx_files_subpaths
-
-    @property
-    def outputs(self) -> Dict[str, Dict[int, str]]:
-        common_outputs = super().outputs
-        # This is handled by OnnxSeq2SeqConfigWithPast, but not by OnnxConfigWithPast, so we take care of this here to
-        # make sure this output is moved at the end.
-        if "encoder_last_hidden_state" in common_outputs:
-            common_outputs.move_to_end("encoder_last_hidden_state")
-        return common_outputs
