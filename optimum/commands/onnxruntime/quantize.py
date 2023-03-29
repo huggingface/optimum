@@ -12,14 +12,15 @@ def parse_args_onnxruntime_quantize(parser):
         required=True,
         help="Path to the repository where the ONNX models to quantize are located.",
     )
-
-    optional_group = parser.add_argument_group("Optional arguments")
-    optional_group.add_argument(
+    required_group.add_argument(
         "-o",
         "--output",
         type=Path,
-        help="Path to the directory where to store generated ONNX model. (defaults to --onnx_model value).",
+        required=True,
+        help="Path to the directory where to store generated ONNX model.",
     )
+
+    optional_group = parser.add_argument_group("Optional arguments")
     optional_group.add_argument(
         "--per_channel",
         action="store_true",
@@ -47,15 +48,14 @@ class ONNXRuntimmeQuantizeCommand:
         self.args = args
 
     def run(self):
-        if not self.args.output:
-            save_dir = self.args.onnx_model
-        else:
-            save_dir = self.args.output
+        if self.args.output == self.args.onnx_model:
+            raise ValueError("The output directory must be different than the directory hosting the ONNX model.")
 
+        save_dir = self.args.output
         quantizers = []
 
         quantizers = [
-            ORTQuantizer.from_pretrained(save_dir, file_name=model.name)
+            ORTQuantizer.from_pretrained(self.args.onnx_model, file_name=model.name)
             for model in self.args.onnx_model.glob("*.onnx")
         ]
 
@@ -68,7 +68,7 @@ class ONNXRuntimmeQuantizeCommand:
         elif self.args.avx512_vnni:
             qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=self.args.per_channel)
         elif self.args.tensorrt:
-            qconfig = AutoQuantizationConfig.tensorrt(is_static=False, per_channel=self.args.per_channel)
+            qconfig = AutoQuantizationConfig.tensorrt(per_channel=self.args.per_channel)
         else:
             qconfig = ORTConfig.from_pretained(self.args.config).quantization
 
