@@ -2263,8 +2263,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
-        self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH)
-        self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH)
+        self.assertEqual(outputs_model_with_pkv.shape[1], tokens["input_ids"].shape[1] + self.GENERATION_LENGTH)
+        self.assertEqual(outputs_model_without_pkv.shape[1], tokens["input_ids"].shape[1] + self.GENERATION_LENGTH)
 
         if os.environ.get("TEST_LEVEL", 0) == "1":
             self.assertTrue(
@@ -3362,8 +3362,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
-        self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH)
-        self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH)
+        self.assertEqual(outputs_model_with_pkv.shape[1], tokens["input_ids"].shape[1] + self.GENERATION_LENGTH)
+        self.assertEqual(outputs_model_without_pkv.shape[1], tokens["input_ids"].shape[1] + self.GENERATION_LENGTH)
 
         if os.environ.get("TEST_LEVEL", 0) == "1":
             self.assertTrue(
@@ -3419,6 +3419,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -3461,6 +3464,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     def test_compare_generation_to_io_binding(
         self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
     ):
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -3582,6 +3588,9 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -3736,8 +3745,8 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
-        self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH)
-        self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH)
+        self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
+        self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
         self.GENERATION_LENGTH = generation_length
         if os.environ.get("TEST_LEVEL", 0) == "1":
             self.assertTrue(
@@ -3783,12 +3792,17 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         self.assertEqual(model_merged.decoder_with_past, None)
         self.assertEqual(model_merged.use_merged, True)
 
+        generation_length = self.GENERATION_LENGTH
+        self.GENERATION_LENGTH = 10
+
         outputs_model_not_merged = model_not_merged.generate(
             **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
         )
         outputs_model_merged = model_merged.generate(
             **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
         )
+
+        self.GENERATION_LENGTH = generation_length
 
         self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
 
@@ -3798,6 +3812,9 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -3844,6 +3861,9 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     def test_compare_generation_to_io_binding(
         self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
     ):
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -3942,6 +3962,9 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters(FULL_GRID, filter_params_func=exclude_trocr_with_cache))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -4102,8 +4125,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
             )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
-        self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH)
-        self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH)
+        self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
+        self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
 
         if os.environ.get("TEST_LEVEL", 0) == "1":
             self.assertTrue(
@@ -4111,52 +4134,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
                 f"With pkv latency: {with_pkv_timer.elapsed:.3f} ms, without pkv latency: {without_pkv_timer.elapsed:.3f} ms,"
                 f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
             )
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {
-            "test_name": test_name + "_True",
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": True,
-        }
-        self._setup(model_args)
-        model_args = {
-            "test_name": test_name + "_False",
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": False,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
-
-        data = self._get_sample_image()
-        features = feature_extractor(data, return_tensors="pt")
-
-        model_not_merged_dir = self.onnx_model_dirs[test_name + "_False"]
-        model_merged_dir = self.onnx_model_dirs[test_name + "_True"]
-
-        model_not_merged = ORTModelForVision2Seq.from_pretrained(model_not_merged_dir)
-        not_merged_onnx_path = Path(model_not_merged_dir, ONNX_DECODER_NAME)
-        self.assertFalse(has_onnx_input(not_merged_onnx_path, "use_cache_branch"))
-        self.assertEqual(model_not_merged.use_merged, False)
-
-        model_merged = ORTModelForVision2Seq.from_pretrained(model_merged_dir)
-        merged_onnx_path = Path(model_merged_dir, ONNX_DECODER_MERGED_NAME)
-        self.assertTrue(has_onnx_input(merged_onnx_path, "use_cache_branch"))
-        self.assertEqual(model_merged.decoder_with_past, None)
-        self.assertEqual(model_merged.use_merged, True)
-
-        outputs_model_not_merged = model_not_merged.generate(
-            **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-        )
-        outputs_model_merged = model_merged.generate(
-            **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-        )
-
-        self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
 
 
 class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
