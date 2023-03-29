@@ -1984,6 +1984,19 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
 
+    def test_load_model_from_hub_onnx(self):
+        model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-without-merge")
+
+        self.assertFalse(model.use_merged)
+        self.assertTrue(model.use_cache)
+        self.assertTrue(model.decoder_with_past is not None)
+
+        model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge")
+
+        self.assertTrue(model.use_merged)
+        self.assertTrue(model.use_cache)
+        self.assertTrue(model.decoder_with_past is None)
+
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"], from_transformers=True)
