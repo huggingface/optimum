@@ -975,7 +975,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
             encoder_outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
 
         # Decode
-        if past_key_values is None or self.decoder_with_past is None:
+        if past_key_values is None or self.use_cache is False:
             decoder_outputs = self.decoder(
                 input_ids=decoder_input_ids,
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
@@ -1081,10 +1081,18 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
             encoder_outputs = self.encoder(input_features=input_features, attention_mask=attention_mask)
 
         # Decode
-        if past_key_values is None or self.decoder_with_past is None:
+        if past_key_values is None or self.use_cache is False:
             decoder_outputs = self.decoder(
                 input_ids=decoder_input_ids,
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
+                labels=labels,
+            )
+        elif self.use_merged is True:
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids[:, -1:],
+                encoder_hidden_states=encoder_outputs.last_hidden_state,
+                past_key_values=past_key_values,
+                encoder_attention_mask=attention_mask,
                 labels=labels,
             )
         else:
@@ -1256,10 +1264,17 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
             encoder_outputs = self.encoder(pixel_values=pixel_values)
 
         # Decode
-        if past_key_values is None or self.decoder_with_past is None:
+        if past_key_values is None or self.use_cache is False:
             decoder_outputs = self.decoder(
                 input_ids=decoder_input_ids,
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
+                labels=labels,
+            )
+        elif self.use_merged is True:
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids[:, -1:],
+                encoder_hidden_states=encoder_outputs.last_hidden_state,
+                past_key_values=past_key_values,
                 labels=labels,
             )
         else:
