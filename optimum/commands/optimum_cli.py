@@ -85,10 +85,9 @@ def dynamic_load_commands_in_register() -> (
     """
     commands_to_register = []
     register_dir_path = Path(__file__).parent / "register"
-    print(list(register_dir_path.parent.iterdir()))
     for filename in register_dir_path.iterdir():
         if filename.is_dir() or filename.suffix != ".py":
-            if filename.name != "__pycache__":
+            if filename.name not in ["__pycache__", "README.md"]:
                 logger.warning(
                     f"Skipping {filename} because only python files are allowed when registering commands dynamically."
                 )
