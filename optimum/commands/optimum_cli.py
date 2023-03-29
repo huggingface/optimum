@@ -48,7 +48,7 @@ def resolve_command_to_command_instance(
             break
         to_visit += current_command_instance.registered_subcommands
     if remaining_commands:
-        class_names = map(lambda x: x.__name__, remaining_commands)
+        class_names = (command.__name__ for command in remaining_commands)
         raise RuntimeError(
             f"Could not find an instance of the following commands in the CLI {root}: {', '.join(class_names)}."
         )

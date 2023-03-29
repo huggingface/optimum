@@ -21,7 +21,17 @@ import unittest
 from pathlib import Path
 
 
+CLI_WIH_CUSTOM_COMMAND_PATH = Path(__file__).parent / "cli_with_custom_command.py"
+REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH = (
+    Path(__file__).parent.parent.parent / "optimum" / "commands" / "register" / "cli_with_custom_command.py"
+)
+
+
 class TestCLI(unittest.TestCase):
+    def tearDown(self):
+        super().tearDown()
+        REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink(missing_ok=True)
+
     def test_helps_no_raise(self):
         commands = [
             "optimum-cli --help",
@@ -95,18 +105,14 @@ class TestCLI(unittest.TestCase):
         succeeded = self._run_command_and_check_content(custom_command, command_content)
         self.assertFalse(succeeded, "The command should fail here since it is not registered yet.")
 
-        current_dir = Path(__file__).parent
-        register_dir = current_dir.parent.parent / "optimum" / "commands" / "register"
-        filename = "cli_with_custom_command.py"
-
-        shutil.copy(current_dir / filename, register_dir / filename)
+        shutil.copy(CLI_WIH_CUSTOM_COMMAND_PATH, REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
         succeeded = self._run_command_and_check_content(custom_command, command_content)
         self.assertTrue(succeeded, "The command should succeed here since it is registered.")
-        (register_dir / filename).unlink()
+        REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink()
 
-        shutil.copy(current_dir / filename, register_dir / filename)
+        shutil.copy(CLI_WIH_CUSTOM_COMMAND_PATH, REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
         os.environ["TEST_REGISTER_COMMAND_WITH_SUBCOMMAND"] = "true"
         custom_command = "optimum-cli export blablabla"
         succeeded = self._run_command_and_check_content(custom_command, command_content)
         self.assertTrue(succeeded, "The command should succeed here since it is registered.")
-        (register_dir / filename).unlink()
+        REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink()
