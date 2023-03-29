@@ -753,8 +753,11 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 or (self._behavior is ConfigBehavior.DECODER and self.use_past is False)
                 or direction == "inputs"
             ):
-                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: "encoder_sequence_length"}
-                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length"}
+                # TODO: we only need to call it encoder_sequence_length_out in the merge case - but at torch.onnx.export()
+                # time we have currently no case to check whether we will merge at a later step or not (self.is_merged is
+                # not yet set at this time)
+                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: "encoder_sequence_length_out"}
+                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length_out"}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.decoder.key"] = t[0]

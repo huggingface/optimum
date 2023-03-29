@@ -783,6 +783,7 @@ class ORTModel(OptimizedModel):
                 for axis_name in output_node.shape:
                     output_shape.append(self._output_shape_inference(axis_name, dimensions))
             output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
+
             io_binding.bind_output(
                 output_name,
                 output_buffer.device.type,
