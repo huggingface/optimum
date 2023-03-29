@@ -591,8 +591,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                     onnx_inputs["use_cache_branch"] = use_cache_branch
 
             # Run inference
-            with timing():
-                outputs = self.session.run(None, onnx_inputs)
+            outputs = self.session.run(None, onnx_inputs)
 
             # TODO: using two loops here is probably unefficient
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
