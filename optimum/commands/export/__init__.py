@@ -15,8 +15,10 @@
 import sys
 from argparse import ArgumentParser, RawTextHelpFormatter
 
+from ...exporters.ggml.convert import parse_args_ggml
 from ...exporters.onnx.__main__ import parse_args_onnx
 from .. import BaseOptimumCLICommand
+from .ggml import GgmlExportCommand
 from .onnx import ONNXExportCommand
 from .tflite import TFLiteExportCommand, parse_args_tflite
 
@@ -29,11 +31,16 @@ def tflite_export_factory(_):
     return TFLiteExportCommand(" ".join(sys.argv[3:]))
 
 
+def ggml_export_factory(args):
+    return GgmlExportCommand(args)
+
+
 class ExportCommand(BaseOptimumCLICommand):
     @staticmethod
     def register_subcommand(parser: ArgumentParser):
         export_parser = parser.add_parser(
-            "export", help="Export PyTorch and TensorFlow models to several format (currently supported: onnx)."
+            "export",
+            help="Export PyTorch and TensorFlow models to several format (currently supported: onnx, tflite, ggml).",
         )
         export_sub_parsers = export_parser.add_subparsers()
 
@@ -45,6 +52,13 @@ class ExportCommand(BaseOptimumCLICommand):
         onnx_parser.set_defaults(func=onnx_export_factory)
 
         tflite_parser = export_sub_parsers.add_parser("tflite", help="Export TensorFlow to TensorFlow Lite.")
+
+        ggml_parser = export_sub_parsers.add_parser(
+            "ggml", help="Export PyTorch models to ggml.", formatter_class=RawTextHelpFormatter
+        )
+
+        parse_args_ggml(ggml_parser)
+        ggml_parser.set_defaults(func=ggml_export_factory)
 
         parse_args_tflite(tflite_parser)
         tflite_parser.set_defaults(func=tflite_export_factory)

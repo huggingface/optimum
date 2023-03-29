@@ -55,6 +55,7 @@ TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
 
 def is_backend_available(backend):
     backend_availablilty = {
+        "ggml": True,
         "onnx": is_onnx_available(),
         "tflite": is_tf_available(),
     }
@@ -297,6 +298,7 @@ class TasksManager:
             "sequence-classification",
             "token-classification",
             onnx="BloomOnnxConfig",
+            ggml="BloomGgmlConfig",
         ),
         "camembert": supported_tasks_mapping(
             "default",
@@ -435,6 +437,7 @@ class TasksManager:
             "sequence-classification",
             "token-classification",
             onnx="GPT2OnnxConfig",
+            ggml="GPT2GgmlConfig",
         ),
         "gptj": supported_tasks_mapping(
             "default",
@@ -444,6 +447,7 @@ class TasksManager:
             "question-answering",
             "sequence-classification",
             onnx="GPTJOnnxConfig",
+            ggml="GPTJGgmlConfig",
         ),
         "gpt-neo": supported_tasks_mapping(
             "default",
@@ -898,6 +902,7 @@ class TasksManager:
         """
         model_type = model_type.lower()
         model_type_and_model_name = f"{model_type} ({model_name})" if model_name else model_type
+
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet. "
@@ -905,11 +910,7 @@ class TasksManager:
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
         elif exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
-            raise KeyError(
-                f"{model_type_and_model_name} is not supported yet with the {exporter} backend. "
-                f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE[model_type].keys())} are supported. "
-                f"If you want to support {exporter} please propose a PR or open up an issue."
-            )
+            return {}
         else:
             return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
 
@@ -1043,7 +1044,7 @@ class TasksManager:
         else:
             raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
 
-        logger.info(f"Framework not specified. Using {framework} to export to ONNX.")
+        logger.info(f"Framework not specified, using {framework}.")
 
         return framework
 
