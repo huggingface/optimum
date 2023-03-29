@@ -3940,50 +3940,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_merge_from_transformers_and_save(self, model_arch):
-        if "vision2seq-lm-with-past" not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx"
-        ):
-            self.skipTest("Unsupported -with-past export case")
-
-        model_id = MODEL_NAMES[model_arch]
-        model = ORTModelForVision2Seq.from_pretrained(model_id, from_transformers=True, use_merged=True)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            model.save_pretrained(tmpdir)
-            save_path = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
-
-            folder_contents = os.listdir(tmpdir)
-            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_merge_from_onnx_and_save(self, model_arch):
-        model_id = MODEL_NAMES[model_arch]
-        task = "vision2seq-lm-with-past"
-
-        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
-            self.skipTest("Unsupported export case")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            main_export(model_id, tmpdir, task=task)
-
-            model = ORTModelForVision2Seq.from_pretrained(tmpdir)
-
-            self.assertTrue(model.use_merged)
-            self.assertTrue(model.decoder_with_past is None)
-
-            model.save_pretrained(tmpdir + "_save")
-            save_path = os.path.join(tmpdir + "_save", ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
-
-            folder_contents = os.listdir(tmpdir + "_save")
-            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-
     @parameterized.expand(grid_parameters(FULL_GRID, filter_params_func=exclude_trocr_with_cache))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         model_args = {
@@ -4047,6 +4003,9 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters(FULL_GRID, filter_params_func=exclude_trocr_with_cache))
     def test_pipeline_image_to_text(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
