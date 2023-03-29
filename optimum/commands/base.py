@@ -67,7 +67,7 @@ class BaseOptimumCLICommand(ABC):
             self.parser = subparsers.add_parser(self.COMMAND.name, help=self.COMMAND.help)
             self.parse_args(self.parser)
 
-            self.parser.set_defaults(func=self.get_defaults_factory(None))
+            self.parser.set_defaults(func=self.defaults_factory)
 
         for subcommand in self.SUBCOMMANDS:
             if not isinstance(subcommand, CommandInfo):
@@ -77,10 +77,11 @@ class BaseOptimumCLICommand(ABC):
 
         self.args = args
 
-    def get_defaults_factory(self, subparsers: Optional["_SubParsersAction"]):
+    @property
+    def defaults_factory(self):
         
         def defaults_factory_func(args):
-            return self.__class__(subparsers, args, command=self.COMMAND, from_defaults_factory=True)
+            return self.__class__(self.subparsers, args, command=self.COMMAND, from_defaults_factory=True)
 
         return defaults_factory_func
 
@@ -91,7 +92,7 @@ class BaseOptimumCLICommand(ABC):
             if self.SUBCOMMANDS:
                 if self.parser is not None:
                     self._subparsers = self.parser.add_subparsers()
-                    self.parser.set_defaults(func=self.get_defaults_factory(self._subparsers))
+                    self.parser.set_defaults(func=self.defaults_factory)
             else:
                 self._subparsers = None
         return self._subparsers 
