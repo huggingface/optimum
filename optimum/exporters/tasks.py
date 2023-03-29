@@ -391,6 +391,11 @@ class TasksManager:
             "image-segmentation",
             onnx="DetrOnnxConfig",
         ),
+        "deformable-detr": supported_tasks_mapping(
+            "default",
+            "object-detection",
+            onnx="DeformableDetrOnnxConfig"
+        ),
         "distilbert": supported_tasks_mapping(
             "default",
             "masked-lm",
