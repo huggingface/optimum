@@ -418,7 +418,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
         if self.parent_model.use_merged is False and self.use_past is True:
             self.num_pkv = 2
         else:
-            # when using a merged model, we always have the same number of output whether we use past key values or not,
+            # When using a merged model, we always have the same number of output whether we use past key values or not,
             # and in the case past key values are used, empty tensors are given as cross-attention past key values as they
             # are constants
             self.num_pkv = 4
