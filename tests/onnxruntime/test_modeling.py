@@ -2044,8 +2044,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
 
             folder_contents = os.listdir(tmpdir)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME not in folder_contents)
+            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
@@ -2068,8 +2068,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
 
             folder_contents = os.listdir(tmpdir + "_save")
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME not in folder_contents)
+            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
@@ -3107,8 +3107,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
             folder_contents = os.listdir(tmpdir)
             self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME not in folder_contents)
+            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
@@ -3132,8 +3132,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
             folder_contents = os.listdir(tmpdir + "_save")
             self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+            self.assertFalse(ONNX_DECODER_NAME in folder_contents)
+            self.assertFalse(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
@@ -3534,8 +3534,8 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
             folder_contents = os.listdir(tmpdir)
             self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+            self.assertTrue(ONNX_DECODER_NAME not in folder_contents)
+            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
@@ -3559,8 +3559,8 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
             folder_contents = os.listdir(tmpdir + "_save")
             self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
+            self.assertFalse(ONNX_DECODER_NAME in folder_contents)
+            self.assertFalse(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:

@@ -598,6 +598,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         """
         save_directory = Path(save_directory)
         src_paths = [Path(path) for path in self.onnx_paths]
+        print("src_paths", src_paths)
         dst_paths = [save_directory / path.name for path in src_paths]
 
         # add external data paths in case of large models
@@ -682,27 +683,27 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
         # If the decoder without / with past has been merged, we do not need to look for any additional file
         decoder_with_past_path = None
-        if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
-            try:
-                decoder_with_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
-                    model_id,
-                    [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
-                    "decoder_with_past_file_name",
-                    subfolder=subfolder,
-                    use_auth_token=use_auth_token,
-                    revision=revision,
-                )
-            except FileNotFoundError as e:
-                if use_cache is True and use_merged is False:
-                    raise FileNotFoundError(
-                        "The parameter `use_cache=True` was passed to ORTModelForCausalLM.from_pretrained()"
-                        " but no ONNX file using past key values could be found in"
-                        f" {str(Path(model_id, subfolder))}, with the error: {e}"
-                    )
-        else:
-            decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
-
         if use_cache is True and use_merged is False:
+            if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
+                try:
+                    decoder_with_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
+                        model_id,
+                        [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
+                        "decoder_with_past_file_name",
+                        subfolder=subfolder,
+                        use_auth_token=use_auth_token,
+                        revision=revision,
+                    )
+                except FileNotFoundError as e:
+                    if use_cache is True and use_merged is False:
+                        raise FileNotFoundError(
+                            "The parameter `use_cache=True` was passed to ORTModelForCausalLM.from_pretrained()"
+                            " but no ONNX file using past key values could be found in"
+                            f" {str(Path(model_id, subfolder))}, with the error: {e}"
+                        )
+            else:
+                decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
+
             decoder_with_past_regular_onnx_filenames = (
                 ORTModelForConditionalGeneration._generate_regular_names_for_filename(ONNX_DECODER_WITH_PAST_NAME)
             )
@@ -741,9 +742,11 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         else:
             attribute_name_to_filename = {
                 "last_encoder_model_name": encoder_path.name,
-                "last_decoder_model_name": decoder_path.name,
-                "last_decoder_with_past_model_name": decoder_with_past_path.name if use_cache else None,
-                "last_decoder_merged_name": decoder_merged_path.name if decoder_merged_path is not None else None,
+                "last_decoder_model_name": decoder_path.name if use_merged is False else None,
+                "last_decoder_with_past_model_name": decoder_with_past_path.name
+                if (use_merged is False and use_cache is True)
+                else None,
+                "last_decoder_merged_name": decoder_merged_path.name if use_merged is True else None,
             }
             paths = {}
             for attr_name, filename in attribute_name_to_filename.items():
@@ -779,18 +782,15 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             new_model_save_dir = Path(model_cache_path).parent
             preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)
 
-            last_decoder_with_past_name = paths.get("last_decoder_with_past_model_name", None)
-            if last_decoder_with_past_name is not None:
-                decoder_with_past_path = new_model_save_dir / last_decoder_with_past_name
-
             if use_merged is True:
                 decoder_path = new_model_save_dir / paths["last_decoder_merged_name"]
+                decoder_merged_path = new_model_save_dir / paths["last_decoder_merged_name"]
             else:
                 decoder_path = new_model_save_dir / paths["last_decoder_model_name"]
+                decoder_without_past_path = new_model_save_dir / paths["last_decoder_model_name"]
 
-            decoder_without_past_path = new_model_save_dir / paths["last_decoder_model_name"]
-            if decoder_merged_path is not None:
-                decoder_merged_path = new_model_save_dir / paths["last_decoder_merged_name"]
+                if use_cache is True:
+                    decoder_with_past_path = new_model_save_dir / paths["last_decoder_with_past_model_name"]
 
             encoder_path = new_model_save_dir / paths["last_encoder_model_name"]
 
@@ -820,11 +820,13 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         except OSError:
             logger.info("Generation config file not found, using a generation config created from the model config.")
 
-        onnx_paths = [encoder_path, decoder_without_past_path]
-        if decoder_merged_path is not None:
+        onnx_paths = [encoder_path]
+        if use_merged is False:
+            onnx_paths.append(decoder_without_past_path)
+            if use_cache is True:
+                onnx_paths.append(decoder_with_past_path)
+        else:
             onnx_paths.append(decoder_merged_path)
-        if decoder_with_past_path is not None:
-            onnx_paths.append(decoder_with_past_path)
 
         return cls(
             *ort_inference_sessions[:2],
