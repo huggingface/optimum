@@ -181,7 +181,7 @@ class ORTDecoder(ORTModelPart):
     def prepare_inputs_for_merged(
         self,
         input_ids: Union[None, torch.LongTensor, np.ndarray] = None,
-        past_key_values: Optional[Union[Tuple[torch.FloatTensor], Tuple[np.ndarray]]] = None,
+        past_key_values: Union[None, Tuple[torch.FloatTensor], Tuple[np.ndarray]] = None,
         use_torch: bool = False,
     ):
         constructor = torch if use_torch is True else np
