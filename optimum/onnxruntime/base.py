@@ -185,12 +185,9 @@ class ORTDecoder(ORTModelPart):
         use_torch: bool = False,
     ):
         constructor = torch if use_torch is True else np
-        if past_key_values is None and self.parent_model.use_merged:
-            # Uses "no past" branch of a merged decoder
-            use_cache_branch = constructor.full((1,), False)
-        elif past_key_values is not None and self.parent_model.use_merged:
-            # Uses "with past" branch of a merged decoder
-            use_cache_branch = constructor.full((1,), True)
+        if self.parent_model.use_merged:
+            # Uses without/with branch of a merged decoder depending on whether real past key values are passed
+            use_cache_branch = constructor.full((1,), past_key_values is not None)
         else:
             # Uses separate decoders
             use_cache_branch = None
@@ -418,7 +415,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
     ):
         super().__init__(session, parent_model)
 
-        if self.parent_model.use_merged is False and self.use_past:
+        if self.parent_model.use_merged is False and self.use_past is True:
             self.num_pkv = 2
         else:
             # when using a merged model, we always have the same number of output whether we use past key values or not,
