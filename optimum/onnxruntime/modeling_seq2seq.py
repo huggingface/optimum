@@ -695,12 +695,11 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                         revision=revision,
                     )
                 except FileNotFoundError as e:
-                    if use_cache is True and use_merged is False:
-                        raise FileNotFoundError(
-                            "The parameter `use_cache=True` was passed to ORTModelForCausalLM.from_pretrained()"
-                            " but no ONNX file using past key values could be found in"
-                            f" {str(Path(model_id, subfolder))}, with the error: {e}"
-                        )
+                    raise FileNotFoundError(
+                        "The parameter `use_cache=True` was passed to ORTModelForCausalLM.from_pretrained()"
+                        " but no ONNX file using past key values could be found in"
+                        f" {str(Path(model_id, subfolder))}, with the error: {e}"
+                    )
             else:
                 decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
 
