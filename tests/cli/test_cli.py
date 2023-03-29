@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import os
 import shutil
 import subprocess
@@ -20,11 +21,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import optimum.commands
+
 
 CLI_WIH_CUSTOM_COMMAND_PATH = Path(__file__).parent / "cli_with_custom_command.py"
-REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH = (
-    Path(__file__).parent.parent.parent / "optimum" / "commands" / "register" / "cli_with_custom_command.py"
-)
+OPTIMUM_COMMANDS_DIR = Path(inspect.getfile(optimum.commands)).parent
+REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH = OPTIMUM_COMMANDS_DIR / "register" / "cli_with_custom_command.py"
 
 
 class TestCLI(unittest.TestCase):
