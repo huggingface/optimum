@@ -36,6 +36,19 @@ OPTIMUM_CLI_SUBCOMMANDS = [
 def resolve_command_to_command_instance(
     root: RootOptimumCLICommand, commands: List[Type[BaseOptimumCLICommand]]
 ) -> Dict[Type[BaseOptimumCLICommand], BaseOptimumCLICommand]:
+    """
+    Retrieves command instances in the root CLI command from a list of command classes.
+
+    Args:
+        root (`RootOptimumCLICommand`):
+            The root CLI command instance.
+        commands (`List[Type[BaseOptimumCLICommand]]`):
+            The list of command classes to retrieve the instances of in root.
+
+    Returns:
+        `Dict[Type[BaseOptimumCLICommand], BaseOptimumCLICommand]`: A dictionary mapping a command class to a command
+        instance in the root CLI.
+    """
     to_visit = [root]
     remaining_commands = set(commands)
     command2command_instance = {}
@@ -58,6 +71,18 @@ def resolve_command_to_command_instance(
 def dynamic_load_commands_in_register() -> (
     List[Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]]
 ):
+    """
+    Loads a list of command classes to register to the CLI from the `optimum/commands/register/` directory.
+    It will look in any python file if there is a `REGISTER_COMMANDS` list, and load the commands to register
+    accordingly.
+    At this point, nothing is actually registered in the root CLI.
+
+    Returns:
+        `List[Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]]`: A list
+        of tuples with two elements. The first element corresponds to the command to register, it can either be a
+        subclass of `BaseOptimumCLICommand` or a `CommandInfo`. The second element corresponds to the parent command,
+        where `None` means that the parent command is the root CLI command.
+    """
     commands_to_register = []
     register_dir_path = Path(__file__).parent / "register"
     for filename in register_dir_path.iterdir():
@@ -91,6 +116,15 @@ def register_optimum_cli_subcommand(
     command_or_command_info: Union[Type[BaseOptimumCLICommand], CommandInfo],
     parent_command: BaseOptimumCLICommand,
 ):
+    """
+    Registers a command as being a subcommand of `parent_command`.
+
+    Args:
+        command_or_command_info (`Union[Type[BaseOptimumCLICommand], CommandInfo]`):
+            The command to register.
+        parent_command (`BaseOptimumCLICommand`):
+            The instance of the parent command.
+    """
     if not isinstance(command_or_command_info, CommandInfo):
         command_info = CommandInfo(
             command_or_command_info.COMMAND.name,

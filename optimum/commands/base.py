@@ -66,7 +66,6 @@ class BaseOptimumCLICommand(ABC):
                 raise ValueError(f"A subparsers instance is needed when from_defaults_factory=False, command: {self}.")
             self.parser = subparsers.add_parser(self.COMMAND.name, help=self.COMMAND.help)
             self.parse_args(self.parser)
-
             self.parser.set_defaults(func=self.defaults_factory)
 
         for subcommand in self.SUBCOMMANDS:
@@ -85,6 +84,11 @@ class BaseOptimumCLICommand(ABC):
 
     @property
     def subparsers(self):
+        """
+        This property handles how subparsers are created, which are only needed when registering a subcommand.
+        If `self` does not have any subcommand, no subparsers should be created or it will mess with the command.
+        This property ensures that we create subparsers only if needed.
+        """
         subparsers = getattr(self, "_subparsers", None)
         if subparsers is None:
             if self.SUBCOMMANDS:
