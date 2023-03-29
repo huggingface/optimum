@@ -98,13 +98,15 @@ class BaseOptimumCLICommand(ABC):
 
 
 class RootOptimumCLICommand(BaseOptimumCLICommand):
-    COMMAND = CommandInfo(name="root", help="root cli")
+    COMMAND = CommandInfo(name="root", help="optimum-cli root command")
 
     def __init__(
         self,
         cli_name: str,
         usage: Optional[str] = None,
+        args: Optional["Namespace"] = None
     ):
         self.parser = ArgumentParser(cli_name, usage=usage)
         self.subparsers = self.parser.add_subparsers()
+        # super().__init__(self.subparsers)
         self.args = None

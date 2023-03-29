@@ -15,7 +15,7 @@
 
 import importlib
 from pathlib import Path
-from typing import List, Optional, Tuple, Type, Union
+from typing import List, Optional, Tuple, Type, Union, Dict
 
 from ..utils import logging
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
@@ -31,8 +31,26 @@ OPTIMUM_CLI_SUBCOMMANDS = [
     EnvironmentCommand,
     ONNXRuntimeCommand,
 ]
-ROOT = RootOptimumCLICommand("Optimum CLI tool", usage="optimum-cli <command> [<args>]")
 
+
+def resolve_command_to_command_instance(root: RootOptimumCLICommand, commands: List[Type[BaseOptimumCLICommand]]) -> Dict[Type[BaseOptimumCLICommand], BaseOptimumCLICommand]:
+    to_visit = [root]
+    remaining_commands = set(commands)
+    command2command_instance = {}
+    while to_visit:
+        current_command_instance = to_visit.pop(0)
+        if current_command_instance.__class__ in remaining_commands:
+            remaining_commands.remove(current_command_instance.__class__)
+            command2command_instance[current_command_instance.__class__] = current_command_instance
+        if not remaining_commands:
+            break
+        to_visit += current_command_instance.registered_subcommands
+    if remaining_commands:
+        class_names = map(lambda x: x.__name__, remaining_commands)
+        raise RuntimeError(
+            f"Could not find an instance of the following commands in the CLI {root}: {', '.join(class_names)}."
+        )
+    return command2command_instance
 
 def dynamic_load_commands_in_register() -> (
     List[Tuple[Union[Type[BaseOptimumCLICommand], CommandInfo], Optional[Type[BaseOptimumCLICommand]]]]
@@ -55,6 +73,7 @@ def dynamic_load_commands_in_register() -> (
             else:
                 command_or_command_info = command
                 parent_command_cls = None
+
             if not isinstance(command_or_command_info, CommandInfo) and not issubclass(
                 command_or_command_info, BaseOptimumCLICommand
             ):
@@ -64,13 +83,10 @@ def dynamic_load_commands_in_register() -> (
             commands_to_register.append((command_or_command_info, parent_command_cls))
     return commands_to_register
 
-
 def register_optimum_cli_subcommand(
     command_or_command_info: Union[Type[BaseOptimumCLICommand], CommandInfo],
-    parent_command_cls: Optional[Type[BaseOptimumCLICommand]] = None,
+    parent_command: BaseOptimumCLICommand,
 ):
-    if parent_command_cls is None:
-        parent_command_cls = RootOptimumCLICommand
     if not isinstance(command_or_command_info, CommandInfo):
         command_info = CommandInfo(
             command_or_command_info.COMMAND.name,
@@ -80,34 +96,29 @@ def register_optimum_cli_subcommand(
     else:
         command_info = command_or_command_info
     command_info.is_subcommand_info_or_raise()
-
-    parent_command = ROOT
-    was_registered = False
-    to_visit = [parent_command]
-    while to_visit:
-        subcommand = to_visit.pop(0)
-        if isinstance(subcommand, parent_command_cls):
-            subcommand.register_subcommand(command_info)
-            was_registered = True
-            break
-        to_visit += parent_command.registered_subcommands
-    if not was_registered:
-        raise RuntimeError(
-            f"Could not register the subcommand called {command_info.name} to the parent command {parent_command} "
-            f"because this parent command is not in the Optimum CLI subcommands."
-        )
+    parent_command.register_subcommand(command_info)
 
 
 def main():
-    # Register commands
+    root = RootOptimumCLICommand("Optimum CLI tool", usage="optimum-cli <command> [<args>]")
+    parser = root.parser
+
     for subcommand_cls in OPTIMUM_CLI_SUBCOMMANDS:
-        register_optimum_cli_subcommand(subcommand_cls)
+        register_optimum_cli_subcommand(subcommand_cls, parent_command=root)
 
     commands_in_register = dynamic_load_commands_in_register()
-    for command_or_command_info, parent_command_cls in commands_in_register:
-        register_optimum_cli_subcommand(command_or_command_info, parent_command_cls=parent_command_cls)
+    command2command_instance = resolve_command_to_command_instance(
+        root, 
+        [parent_command_cls for _, parent_command_cls in commands_in_register if parent_command_cls is not None]
+    )
+    
+    for command_or_command_info, parent_command in commands_in_register:
+        if parent_command is None:
+            parent_command_instance  = root
+        else:
+            parent_command_instance = command2command_instance[parent_command]
+        register_optimum_cli_subcommand(command_or_command_info, parent_command=parent_command_instance)
 
-    parser = ROOT.parser
     args = parser.parse_args()
 
     if not hasattr(args, "func"):
