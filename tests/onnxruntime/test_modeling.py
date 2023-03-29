@@ -3362,8 +3362,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
-        self.assertEqual(outputs_model_with_pkv.shape[1], tokens["input_ids"].shape[1] + self.GENERATION_LENGTH)
-        self.assertEqual(outputs_model_without_pkv.shape[1], tokens["input_ids"].shape[1] + self.GENERATION_LENGTH)
+        self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
+        self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
 
         if os.environ.get("TEST_LEVEL", 0) == "1":
             self.assertTrue(

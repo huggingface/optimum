@@ -367,30 +367,30 @@ class ORTModelDecoder(ORTModel):
 
         # If the decoder without / with past has been merged, we do not need to look for any additional file
         decoder_with_past_path = None
-        if use_cache is True and use_merged is False:
-            if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
-                try:
-                    decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
-                        model_id,
-                        [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
-                        "decoder_with_past_file_name",
-                        subfolder=subfolder,
-                        use_auth_token=use_auth_token,
-                        revision=revision,
-                    )
-                except FileNotFoundError as e:
-                    if use_cache is True and use_merged is False:
-                        raise FileNotFoundError(
-                            "The parameter `use_cache=True` was passed to ORTModelForCausalLM.from_pretrained()"
-                            " but no ONNX file using past key values could be found in"
-                            f" {str(Path(model_id, subfolder))}, with the error: {e}"
-                        )
-            else:
-                decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
-
-                decoder_with_past_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(
-                    ONNX_DECODER_WITH_PAST_NAME
+        if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
+            try:
+                decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
+                    model_id,
+                    [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
+                    "decoder_with_past_file_name",
+                    subfolder=subfolder,
+                    use_auth_token=use_auth_token,
+                    revision=revision,
                 )
+            except FileNotFoundError as e:
+                if use_cache is True and use_merged is False:
+                    raise FileNotFoundError(
+                        "The parameter `use_cache=True` was passed to ORTModelForCausalLM.from_pretrained()"
+                        " but no ONNX file using past key values could be found in"
+                        f" {str(Path(model_id, subfolder))}, with the error: {e}"
+                    )
+        else:
+            decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
+
+        if use_cache is True and use_merged is False:
+            decoder_with_past_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(
+                ONNX_DECODER_WITH_PAST_NAME
+            )
 
             if decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames:
                 logger.warning(
