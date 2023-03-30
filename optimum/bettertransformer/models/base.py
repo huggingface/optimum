@@ -38,7 +38,6 @@ class BetterTransformerBaseLayer:
         self,
         config: "PretrainedConfig",
     ):
-        print("in BetterTransformerBaseLayer init")
         r"""
         Base layer for `BetterTransformer` integration. This class is used to wrap all the necessary
         components for the `BetterTransformer` integration.

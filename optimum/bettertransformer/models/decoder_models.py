@@ -216,21 +216,30 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer, T5Attention,
         return t5_forward(self, *args, **kwargs)
 
 
+def bart_bettertransformer_init(self, layer: "nn.Module", config: "PretrainedConfig"):
+    with torch.device("meta"):
+        super(BetterTransformerBaseLayer, self).__init__(
+            layer.embed_dim,
+            layer.num_heads,
+            layer.dropout,
+            layer.is_decoder,
+            layer.k_proj.bias is not None,
+        )
+
+    self.module_mapping = None
+    submodules = ["k_proj", "v_proj", "q_proj", "out_proj"]
+    for attr in submodules:
+        setattr(self, attr, getattr(layer, attr))
+
+    self.original_layers_mapping = {submodule: submodule for submodule in submodules}
+
+    self.is_decoder = True
+
+
 class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BartAttention, nn.Module):
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
         super().__init__(config)
-
-        with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(config, layer.has_relative_attention_bias)
-
-        self.module_mapping = None
-        submodules = ["k_proj", "v_proj", "q_proj", "out_proj"]
-        for attr in submodules:
-            setattr(self, attr, getattr(layer, attr))
-
-        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
-
-        self.is_decoder = True
+        bart_bettertransformer_init(self, layer, config)
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -240,25 +249,7 @@ class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BartAttent
 class BlenderbotAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BlenderbotAttention, nn.Module):
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
         super().__init__(config)
-
-        with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(
-                config,
-                layer.embed_dim,
-                layer.num_heads,
-                layer.dropout,
-                layer.is_decoder,
-                layer.k_proj.bias is not None,
-            )
-
-        self.module_mapping = None
-        submodules = ["k_proj", "v_proj", "q_proj", "out_proj"]
-        for attr in submodules:
-            setattr(self, attr, getattr(layer, attr))
-
-        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
-
-        self.is_decoder = True
+        bart_bettertransformer_init(self, layer, config)
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -268,25 +259,7 @@ class BlenderbotAttentionLayerBetterTransformer(BetterTransformerBaseLayer, Blen
 class M2M100AttentionLayerBetterTransformer(BetterTransformerBaseLayer, M2M100Attention, nn.Module):
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
         super().__init__(config)
-
-        with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(
-                config,
-                layer.embed_dim,
-                layer.num_heads,
-                layer.dropout,
-                layer.is_decoder,
-                layer.k_proj.bias is not None,
-            )
-
-        self.module_mapping = None
-        submodules = ["k_proj", "v_proj", "q_proj", "out_proj"]
-        for attr in submodules:
-            setattr(self, attr, getattr(layer, attr))
-
-        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
-
-        self.is_decoder = True
+        bart_bettertransformer_init(self, layer, config)
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -296,25 +269,7 @@ class M2M100AttentionLayerBetterTransformer(BetterTransformerBaseLayer, M2M100At
 class MarianAttentionLayerBetterTransformer(BetterTransformerBaseLayer, MarianAttention, nn.Module):
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
         super().__init__(config)
-
-        with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(
-                config,
-                layer.embed_dim,
-                layer.num_heads,
-                layer.dropout,
-                layer.is_decoder,
-                layer.k_proj.bias is not None,
-            )
-
-        self.module_mapping = None
-        submodules = ["k_proj", "v_proj", "q_proj", "out_proj"]
-        for attr in submodules:
-            setattr(self, attr, getattr(layer, attr))
-
-        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
-
-        self.is_decoder = True
+        bart_bettertransformer_init(self, layer, config)
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -323,26 +278,7 @@ class MarianAttentionLayerBetterTransformer(BetterTransformerBaseLayer, MarianAt
 
 class PegasusAttentionLayerBetterTransformer(BetterTransformerBaseLayer, PegasusAttention, nn.Module):
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
-        super().__init__(config)
-
-        with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(
-                config,
-                layer.embed_dim,
-                layer.num_heads,
-                layer.dropout,
-                layer.is_decoder,
-                layer.k_proj.bias is not None,
-            )
-
-        self.module_mapping = None
-        submodules = ["k_proj", "v_proj", "q_proj", "out_proj"]
-        for attr in submodules:
-            setattr(self, attr, getattr(layer, attr))
-
-        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
-
-        self.is_decoder = True
+        bart_bettertransformer_init(self, layer, config)
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
