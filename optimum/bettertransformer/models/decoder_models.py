@@ -78,7 +78,7 @@ class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttent
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
         super().__init__(config)
         with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
+            super(BetterTransformerBaseLayer, self).__init__(config)
 
         submodules = ["k_proj", "v_proj", "q_proj", "out_proj", "attn_dropout", "resid_dropout", "bias"]
         for attr in submodules:
