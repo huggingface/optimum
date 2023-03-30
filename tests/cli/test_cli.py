@@ -51,9 +51,9 @@ class TestCLI(unittest.TestCase):
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-bart {tempdir}/encoder-decoder",
             ]
             optimize_commands = [
-                f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/encoder -O1",
-                f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/decoder -O1",
-                f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/encoder-decoder -O1",
+                f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/encoder -O1 -o {tempdir}/optimized_encoder",
+                f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/decoder -O1 -o {tempdir}/optimized_decoder",
+                f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/encoder-decoder -O1 -o {tempdir}/optimized_encoder_decoder",
             ]
 
             for export, optimize in zip(export_commands, optimize_commands):
@@ -69,9 +69,9 @@ class TestCLI(unittest.TestCase):
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-t5 {tempdir}/encoder-decoder",
             ]
             quantize_commands = [
-                f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder --avx2",
-                f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/decoder --avx2",
-                f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder-decoder --avx2",
+                f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder --avx2 -o {tempdir}/quantized_encoder",
+                f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/decoder --avx2 -o {tempdir}/quantized_decoder",
+                f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder-decoder --avx2 -o {tempdir}/quantized_encoder_decoder",
             ]
 
             for export, quantize in zip(export_commands, quantize_commands):
