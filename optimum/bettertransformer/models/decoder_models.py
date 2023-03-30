@@ -89,7 +89,6 @@ class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttent
             "resid_dropout",
             "bias",
             "scale_attn",
-            "embed_positions",
             "masked_bias",
         ]
         for attr in submodules:
@@ -97,6 +96,11 @@ class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttent
 
         self.module_mapping = None
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
+
+        # this attributes does not exist in transformers<=4.27.4
+        if hasattr(self, "embed_positions"):
+            self.original_layers_mapping["embed_positions"] = "embed_positions"
+            setattr(self, "embed_positions", getattr(layer, "embed_positions"))
 
         self.downcast_qk = True
         self.supports_training = True
