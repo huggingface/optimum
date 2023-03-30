@@ -55,7 +55,7 @@ class BetterTransformerBaseLayer:
         self.num_layers = None
         self.original_layers_mapping = {}
         self.module_mapping = None
-        self.is_decoder = False
+        self.supports_training = False
         # Some models does not have some attributes thus needs to be ignored
         # e.g. whisper does not have self_attn.k_proj.bias but has self_attn.v_proj.bias & self_attn.q_proj.bias
         self.keys_to_ignore = []
@@ -130,6 +130,12 @@ class BetterTransformerBaseLayer:
     def forward_checker(self, *args, **kwargs):
         if torch.is_autocast_enabled() or torch.is_autocast_cpu_enabled():
             raise ValueError("Autocast is not supported for `BetterTransformer` integration.")
+
+        if self.training and not self.supports_training:
+            raise ValueError(
+                "Training is not supported for `BetterTransformer` integration.",
+                " Please use `model.eval()` before running the model.",
+            )
 
     def _revert(self, module: torch.nn.Module) -> torch.nn.Module:
         if self.module_mapping is not None:

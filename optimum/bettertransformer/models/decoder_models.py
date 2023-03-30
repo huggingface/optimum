@@ -63,8 +63,8 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPT2Attent
             setattr(self, "q_attn", getattr(layer, "q_attn"))
             self.original_layers_mapping["q_attn"] = "q_attn"
 
+        self.supports_training = True
         self.downcast_qk = False
-        self.is_decoder = True
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -99,7 +99,7 @@ class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttent
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
         self.downcast_qk = True
-        self.is_decoder = True
+        self.supports_training = True
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -122,7 +122,7 @@ class GPTNeoXAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoX
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
         self.downcast_qk = True
-        self.is_decoder = True
+        self.supports_training = True
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -151,7 +151,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
         self.scale = torch.sqrt(torch.tensor(layer.head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
-        self.is_decoder = True
+        self.supports_training = True
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -174,7 +174,7 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGen
 
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
-        self.is_decoder = True
+        self.supports_training = True
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -203,7 +203,7 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer, OPTAttentio
 
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
-        self.is_decoder = True
+        self.supports_training = True
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -232,6 +232,7 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer, T5Attention,
 
         self.module_mapping = None
 
+        self.supports_training = True
         self.is_decoder = layer.is_decoder
 
     def forward(self, *args, **kwargs):
@@ -256,6 +257,7 @@ def bart_bettertransformer_init(self, layer: "nn.Module", config: "PretrainedCon
 
     self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
+    self.supports_training = True
     self.is_decoder = layer.is_decoder
 
 
