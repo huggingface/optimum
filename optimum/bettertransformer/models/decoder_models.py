@@ -216,6 +216,8 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer, T5Attention,
 
         self.module_mapping = None
 
+        self.is_decoder = layer.is_decoder
+
     def forward(self, *args, **kwargs):
         super().forward_checker()
         return t5_forward(self, *args, **kwargs)
@@ -238,7 +240,7 @@ def bart_bettertransformer_init(self, layer: "nn.Module", config: "PretrainedCon
 
     self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
-    self.is_decoder = True
+    self.is_decoder = layer.is_decoder
 
 
 class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BartAttention, nn.Module):
