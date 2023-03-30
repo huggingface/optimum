@@ -67,7 +67,7 @@ optimum-cli export onnx -m deepset/roberta-base-squad2 --optimize O2 roberta_bas
 The model can then be quantized using `onnxruntime`:
 
 ```bash
-optimum-cli onnxruntime quantize --avx512 --onnx_model roberta_base_qa_onnx
+optimum-cli onnxruntime quantize --avx512 --onnx_model roberta_base_qa_onnx -o quantized_roberta_base_qa_onnx
 ```
 
 These commands will export `deepset/roberta-base-squad2` and perform [O2 graph optimization](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization#optimization-configuration) on the exported model, and finally quantize it with the [avx512 configuration](https://huggingface.co/docs/optimum/main/en/onnxruntime/package_reference/configuration#optimum.onnxruntime.AutoQuantizationConfig.avx512).
