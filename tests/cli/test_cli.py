@@ -13,12 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
+import os
+import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
+
+import optimum.commands
+
+
+CLI_WIH_CUSTOM_COMMAND_PATH = Path(__file__).parent / "cli_with_custom_command.py"
+OPTIMUM_COMMANDS_DIR = Path(inspect.getfile(optimum.commands)).parent
+REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH = OPTIMUM_COMMANDS_DIR / "register" / "cli_with_custom_command.py"
 
 
 class TestCLI(unittest.TestCase):
+    def tearDown(self):
+        super().tearDown()
+        REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink(missing_ok=True)
+
     def test_helps_no_raise(self):
         commands = [
             "optimum-cli --help",
@@ -77,3 +92,29 @@ class TestCLI(unittest.TestCase):
             for export, quantize in zip(export_commands, quantize_commands):
                 subprocess.run(export, shell=True, check=True)
                 subprocess.run(quantize, shell=True, check=True)
+
+    def _run_command_and_check_content(self, command: str, content: str) -> bool:
+        proc = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = proc.communicate()
+        stdout = stdout.decode("utf-8")
+        print(stdout)
+        print(stderr)
+        return content in stdout
+
+    def test_register_command(self):
+        custom_command = "optimum-cli blablabla"
+        command_content = "If the CI can read this, it means it worked!"
+        succeeded = self._run_command_and_check_content(custom_command, command_content)
+        self.assertFalse(succeeded, "The command should fail here since it is not registered yet.")
+
+        shutil.copy(CLI_WIH_CUSTOM_COMMAND_PATH, REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
+        succeeded = self._run_command_and_check_content(custom_command, command_content)
+        self.assertTrue(succeeded, "The command should succeed here since it is registered.")
+        REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink()
+
+        shutil.copy(CLI_WIH_CUSTOM_COMMAND_PATH, REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
+        os.environ["TEST_REGISTER_COMMAND_WITH_SUBCOMMAND"] = "true"
+        custom_command = "optimum-cli export blablabla"
+        succeeded = self._run_command_and_check_content(custom_command, command_content)
+        self.assertTrue(succeeded, "The command should succeed here since it is registered.")
+        REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink()

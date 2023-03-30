@@ -14,13 +14,22 @@
 """Defines the command line for the export with TensorFlow Lite."""
 
 import subprocess
+import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 from ...exporters import TasksManager
 from ...exporters.tflite import QuantizationApproach
+from ..base import BaseOptimumCLICommand
 
 
-def parse_args_tflite(parser):
+if TYPE_CHECKING:
+    from argparse import ArgumentParser, Namespace, _SubParsersAction
+
+    from ..base import CommandInfo
+
+
+def parse_args_tflite(parser: "ArgumentParser"):
     required_group = parser.add_argument_group("Required arguments")
     required_group.add_argument(
         "-m", "--model", type=str, required=True, help="Model ID on huggingface.co or path on disk to load model from."
@@ -212,9 +221,21 @@ def parse_args_tflite(parser):
     )
 
 
-class TFLiteExportCommand:
-    def __init__(self, args_string):
-        self.args_string = args_string
+class TFLiteExportCommand(BaseOptimumCLICommand):
+    def __init__(
+        self,
+        parser: "_SubParsersAction",
+        args: Optional["Namespace"] = None,
+        command: Optional["CommandInfo"] = None,
+        from_defaults_factory: bool = False,
+    ):
+        super().__init__(parser, args, command=command, from_defaults_factory=from_defaults_factory)
+        # TODO: hack until TFLiteExportCommand does not use subprocess anymore.
+        self.args_string = " ".join(sys.argv[3:])
+
+    @staticmethod
+    def parse_args(parser: "ArgumentParser"):
+        return parse_args_tflite(parser)
 
     def run(self):
         full_command = f"python3 -m optimum.exporters.tflite {self.args_string}"

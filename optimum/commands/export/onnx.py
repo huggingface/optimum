@@ -13,16 +13,24 @@
 # limitations under the License.
 """Defines the command line for the export with ONNX."""
 
-from ...exporters.onnx.__main__ import main_export
+from typing import TYPE_CHECKING
+
+from ...exporters.onnx.__main__ import main_export, parse_args_onnx
 from ...utils import DEFAULT_DUMMY_SHAPES
+from ..base import BaseOptimumCLICommand
 
 
-class ONNXExportCommand:
-    def __init__(self, args):
-        self.args = args
+if TYPE_CHECKING:
+    from argparse import ArgumentParser
+
+
+class ONNXExportCommand(BaseOptimumCLICommand):
+    @staticmethod
+    def parse_args(parser: "ArgumentParser"):
+        return parse_args_onnx(parser)
 
     def run(self):
-        # get the shapes to be used to generate dummy inputs
+        # Get the shapes to be used to generate dummy inputs
         input_shapes = {}
         for input_name in DEFAULT_DUMMY_SHAPES.keys():
             input_shapes[input_name] = getattr(self.args, input_name)

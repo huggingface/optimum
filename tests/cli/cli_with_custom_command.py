@@ -13,6 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import ONNXRuntimeCommand
-from .optimize import ONNXRuntimmeOptimizeCommand
-from .quantize import ONNXRuntimmeQuantizeCommand
+import os
+
+from optimum.commands import BaseOptimumCLICommand, CommandInfo, ExportCommand
+
+
+class MyCustomCommand(BaseOptimumCLICommand):
+    COMMAND = CommandInfo(name="blablabla", help="Says something thing")
+
+    def run(self):
+        print("If the CI can read this, it means it worked!")
+
+
+parent_command_cls = os.environ.get("TEST_REGISTER_COMMAND_WITH_SUBCOMMAND", None)
+
+if parent_command_cls == "true":
+    REGISTER_COMMANDS = [
+        (MyCustomCommand, ExportCommand),
+    ]
+else:
+    REGISTER_COMMANDS = [
+        MyCustomCommand,
+    ]
