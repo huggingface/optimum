@@ -54,6 +54,7 @@ MODELS_DICT = {
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
+    "prophetnet": "hirotasoshu/tiny-random-prophetnet",  # the other tiny ones have a too small max_position_embeddings
     "rembert": "hf-internal-testing/tiny-random-rembert",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "rocbert": "hf-internal-testing/tiny-random-RoCBertModel",
