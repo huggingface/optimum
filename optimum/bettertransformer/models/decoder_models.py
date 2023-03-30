@@ -167,7 +167,7 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGen
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
-        return super()(*args, **kwargs)
+        return super().forward(*args, **kwargs)
 
 
 class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer, OPTAttention, nn.Module):
