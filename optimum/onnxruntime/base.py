@@ -432,6 +432,10 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             if output_name.startswith("present") and "encoder" in output_name:
                 self.past_key_values_cross_attention_output_names.add(output_name)
 
+        self.use_legacy_outputs = any(
+            "encoder" in output_name and "present" in output_name for output_name in self.output_names
+        )
+
     def compute_past_key_values_output_shapes(
         self,
         input_ids: torch.Tensor,
@@ -470,7 +474,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             for output_name in self.output_names
             if (not output_name.startswith("present") and output_name not in {"loss", "logits"})
         }
-        if use_merged_cache is True:
+        if use_merged_cache is True and self.use_legacy_outputs is False:
+            # When using a merged decoder and the use cache branch, we output 0-dim tensors that IO Binding d not support.
+            # Therefore, we do not bind them.
             result = result.union(self.past_key_values_cross_attention_output_names)
         return result
 
@@ -567,8 +573,19 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                     out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
                 )
             else:
+                if self.use_legacy_outputs is True:
+                    msg = (
+                        "For the decoder with past, using ONNX models outputting cross attention past key values"
+                        " is deprecated and the support will be removed in optimum 2.0. We recommend exporting again the model"
+                        " with optimum>=1.7.3."
+                    )
+                    warn_once(logger, msg=msg)
+                    out_past_key_values = tuple(
+                        out_past_key_values[i : i + self.num_pkv]
+                        for i in range(0, len(out_past_key_values), self.num_pkv)
+                    )
                 # grab the cross attention key/values from the inputs
-                if self.num_pkv == 2:
+                elif self.num_pkv == 2:
                     out_past_key_values = tuple(
                         out_past_key_values[i : i + self.num_pkv]
                         + past_key_values[2 * i + 2 : 2 * i + 2 + self.num_pkv]
@@ -662,7 +679,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                     out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
                 )
             else:
-                if self.legacy_outputs is True:
+                if self.use_legacy_outputs is True:
                     msg = (
                         "For the decoder with past, using ONNX models outputting cross attention past key values"
                         " is deprecated and the support will be removed in optimum 2.0. We recommend exporting again the model"
