@@ -12,8 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from transformers.utils import is_tf_available
+
+from ..utils import is_onnx_available, is_onnxruntime_available
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
-from .export import ExportCommand, ONNXExportCommand, TFLiteExportCommand
-from .onnxruntime import ONNXRuntimeCommand, ONNXRuntimmeOptimizeCommand, ONNXRuntimmeQuantizeCommand
+from .export import ExportCommand
 from .optimum_cli import register_optimum_cli_subcommand
+
+
+if is_onnx_available():
+    from .export import ONNXExportCommand
+
+if is_tf_available():
+    from .export import TFLiteExportCommand
+
+if is_onnxruntime_available():
+    from .onnxruntime import ONNXRuntimeCommand, ONNXRuntimmeOptimizeCommand, ONNXRuntimmeQuantizeCommand

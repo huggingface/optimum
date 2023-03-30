@@ -17,11 +17,10 @@ import importlib
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Type, Union
 
-from ..utils import logging
+from ..utils import is_onnxruntime_available, logging
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
 from .export import ExportCommand
-from .onnxruntime import ONNXRuntimeCommand
 
 
 logger = logging.get_logger()
@@ -29,8 +28,12 @@ logger = logging.get_logger()
 OPTIMUM_CLI_SUBCOMMANDS = [
     ExportCommand,
     EnvironmentCommand,
-    ONNXRuntimeCommand,
 ]
+
+if is_onnxruntime_available():
+    from .onnxruntime import ONNXRuntimeCommand
+
+    OPTIMUM_CLI_SUBCOMMANDS.append(ONNXRuntimeCommand)
 
 
 def resolve_command_to_command_instance(

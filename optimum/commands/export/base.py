@@ -14,9 +14,10 @@
 # limitations under the License.
 """optimum.exporters command-line interface base classes."""
 
+from transformers.utils import is_tf_available
+
+from ...utils import is_onnx_available
 from .. import BaseOptimumCLICommand, CommandInfo
-from .onnx import ONNXExportCommand
-from .tflite import TFLiteExportCommand
 
 
 class ExportCommand(BaseOptimumCLICommand):
@@ -24,15 +25,25 @@ class ExportCommand(BaseOptimumCLICommand):
         name="export",
         help="Export PyTorch and TensorFlow models to several format.",
     )
-    SUBCOMMANDS = (
-        CommandInfo(
-            name="onnx",
-            help="Export PyTorch and TensorFlow to ONNX.",
-            subcommand_class=ONNXExportCommand,
-        ),
-        CommandInfo(
-            name="tflite",
-            help="Export TensorFlow to TensorFlow Lite.",
-            subcommand_class=TFLiteExportCommand,
-        ),
-    )
+    SUBCOMMANDS = ()
+    if is_onnx_available():
+        from .onnx import ONNXExportCommand
+
+        SUBCOMMANDS += (
+            CommandInfo(
+                name="onnx",
+                help="Export PyTorch and TensorFlow to ONNX.",
+                subcommand_class=ONNXExportCommand,
+            ),
+        )
+
+    if is_tf_available():
+        from .tflite import TFLiteExportCommand
+
+        SUBCOMMANDS += (
+            CommandInfo(
+                name="tflite",
+                help="Export TensorFlow to TensorFlow Lite.",
+                subcommand_class=TFLiteExportCommand,
+            ),
+        )
