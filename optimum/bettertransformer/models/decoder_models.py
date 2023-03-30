@@ -52,7 +52,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPT2Attent
         with torch.device("meta"):
             super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
 
-        submodules = ["c_proj", "c_attn", "attn_dropout", "resid_dropout", "bias"]
+        submodules = ["c_proj", "c_attn", "attn_dropout", "resid_dropout", "bias", "masked_bias"]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
@@ -80,7 +80,18 @@ class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttent
         with torch.device("meta"):
             super(BetterTransformerBaseLayer, self).__init__(config)
 
-        submodules = ["k_proj", "v_proj", "q_proj", "out_proj", "attn_dropout", "resid_dropout", "bias"]
+        submodules = [
+            "k_proj",
+            "v_proj",
+            "q_proj",
+            "out_proj",
+            "attn_dropout",
+            "resid_dropout",
+            "bias",
+            "scale_attn",
+            "embed_positions",
+            "masked_bias",
+        ]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
@@ -104,7 +115,7 @@ class GPTNeoXAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoX
             super(BetterTransformerBaseLayer, self).__init__(config)
 
         self.module_mapping = None
-        submodules = ["rotary_emb", "query_key_value", "dense", "bias"]
+        submodules = ["rotary_emb", "query_key_value", "dense", "bias", "masked_bias"]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
@@ -133,7 +144,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
             super(BetterTransformerBaseLayer, self).__init__(config, self.attention_type)
 
         self.module_mapping = None
-        submodules = ["attn_dropout", "resid_dropout", "k_proj", "v_proj", "q_proj", "out_proj", "bias"]
+        submodules = ["attn_dropout", "resid_dropout", "k_proj", "v_proj", "q_proj", "out_proj", "bias", "masked_bias"]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 

@@ -131,12 +131,6 @@ class BetterTransformerBaseLayer:
         if torch.is_autocast_enabled() or torch.is_autocast_cpu_enabled():
             raise ValueError("Autocast is not supported for `BetterTransformer` integration.")
 
-        if self.training and not self.is_decoder:
-            raise ValueError(
-                "Training is not supported for `BetterTransformer` integration.",
-                " Please use `model.eval()` before running the model.",
-            )
-
     def _revert(self, module: torch.nn.Module) -> torch.nn.Module:
         if self.module_mapping is not None:
             if "" in self.module_mapping.values():
