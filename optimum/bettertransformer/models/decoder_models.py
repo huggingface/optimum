@@ -209,6 +209,11 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer, T5Attention,
         self.scale = torch.sqrt(torch.tensor(head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
 
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
+
+        if layer.has_relative_attention_bias:
+            setattr(self, "relative_attention_bias", layer.relative_attention_bias)
+            self.original_layers_mapping["relative_attention_bias"] = "relative_attention_bias"
+
         self.module_mapping = None
 
     def forward(self, *args, **kwargs):
