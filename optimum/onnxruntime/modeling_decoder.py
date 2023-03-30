@@ -332,6 +332,7 @@ class ORTModelDecoder(ORTModel):
                     revision=revision,
                 )
                 use_merged = True
+                decoder_path = decoder_merged_path
             except FileNotFoundError as e:
                 if use_merged is True:
                     raise FileNotFoundError(
@@ -341,61 +342,62 @@ class ORTModelDecoder(ORTModel):
                     )
                 use_merged = False
 
-        if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
-            decoder_without_past_path = ORTModelDecoder.infer_onnx_filename(
-                model_id,
-                [DECODER_ONNX_FILE_PATTERN],
-                "decoder_file_name",
-                subfolder=subfolder,
-                use_auth_token=use_auth_token,
-                revision=revision,
-            )
-        else:
-            decoder_without_past_path = model_path / subfolder / decoder_file_name
+        decoder_without_past_path = None
+        decoder_with_past_path = None
+        if use_merged is False:
+            if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
+                decoder_without_past_path = ORTModelDecoder.infer_onnx_filename(
+                    model_id,
+                    [DECODER_ONNX_FILE_PATTERN],
+                    "decoder_file_name",
+                    subfolder=subfolder,
+                    use_auth_token=use_auth_token,
+                    revision=revision,
+                )
+            else:
+                decoder_without_past_path = model_path / subfolder / decoder_file_name
 
-        if use_merged is True:
-            decoder_path = decoder_merged_path
-        else:
             decoder_path = decoder_without_past_path
 
-        decoder_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(ONNX_DECODER_NAME)
-        if decoder_path.name not in decoder_regular_onnx_filenames:
-            logger.warning(
-                f"The ONNX file {decoder_path.name} is not a regular name used in optimum.onnxruntime that are {decoder_regular_onnx_filenames}, the "
-                f"{cls.__name__} might not behave as expected."
-            )
-
-        # If the decoder without / with past has been merged, we do not need to look for any additional file
-        decoder_with_past_path = None
-        if use_cache is True and use_merged is False:
-            if not validate_file_exists(model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision):
-                try:
-                    decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
-                        model_id,
-                        [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
-                        "decoder_with_past_file_name",
-                        subfolder=subfolder,
-                        use_auth_token=use_auth_token,
-                        revision=revision,
-                    )
-                except FileNotFoundError as e:
-                    raise FileNotFoundError(
-                        "The parameter `use_cache=True` was passed to ORTModelForCausalLM.from_pretrained()"
-                        " but no ONNX file using past key values could be found in"
-                        f" {str(Path(model_id, subfolder))}, with the error: {e}"
-                    )
-            else:
-                decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
-
-            decoder_with_past_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(
-                ONNX_DECODER_WITH_PAST_NAME
-            )
-
-            if decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames:
+            decoder_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(ONNX_DECODER_NAME)
+            if decoder_path.name not in decoder_regular_onnx_filenames:
                 logger.warning(
-                    f"The ONNX file {decoder_with_past_path.name} is not a regular name used in optimum.onnxruntime that are {decoder_with_past_regular_onnx_filenames}, "
-                    f"the {cls.__name__} might not behave as expected."
+                    f"The ONNX file {decoder_path.name} is not a regular name used in optimum.onnxruntime that are {decoder_regular_onnx_filenames}, the "
+                    f"{cls.__name__} might not behave as expected."
                 )
+
+            # If the decoder without / with past has been merged, we do not need to look for any additional file
+            if use_cache is True:
+                if not validate_file_exists(
+                    model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision
+                ):
+                    try:
+                        decoder_with_past_path = ORTModelDecoder.infer_onnx_filename(
+                            model_id,
+                            [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
+                            "decoder_with_past_file_name",
+                            subfolder=subfolder,
+                            use_auth_token=use_auth_token,
+                            revision=revision,
+                        )
+                    except FileNotFoundError as e:
+                        raise FileNotFoundError(
+                            "The parameter `use_cache=True` was passed to ORTModelForCausalLM.from_pretrained()"
+                            " but no ONNX file using past key values could be found in"
+                            f" {str(Path(model_id, subfolder))}, with the error: {e}"
+                        )
+                else:
+                    decoder_with_past_path = model_path / subfolder / decoder_with_past_file_name
+
+                decoder_with_past_regular_onnx_filenames = ORTModelDecoder._generate_regular_names_for_filename(
+                    ONNX_DECODER_WITH_PAST_NAME
+                )
+
+                if decoder_with_past_path.name not in decoder_with_past_regular_onnx_filenames:
+                    logger.warning(
+                        f"The ONNX file {decoder_with_past_path.name} is not a regular name used in optimum.onnxruntime that are {decoder_with_past_regular_onnx_filenames}, "
+                        f"the {cls.__name__} might not behave as expected."
+                    )
 
         preprocessors = None
         if model_path.is_dir():
