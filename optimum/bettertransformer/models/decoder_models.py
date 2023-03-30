@@ -52,7 +52,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPT2Attent
         with torch.device("meta"):
             super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
 
-        submodules = ["c_proj", "c_attn", "attn_dropout", "resid_dropout"]
+        submodules = ["c_proj", "c_attn", "attn_dropout", "resid_dropout", "bias"]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
@@ -80,7 +80,7 @@ class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttent
         with torch.device("meta"):
             super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
 
-        submodules = ["k_proj", "v_proj", "q_proj", "out_proj", "attn_dropout", "resid_dropout"]
+        submodules = ["k_proj", "v_proj", "q_proj", "out_proj", "attn_dropout", "resid_dropout", "bias"]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
@@ -105,7 +105,7 @@ class GPTNeoXAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoX
             super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
 
         self.module_mapping = None
-        submodules = ["rotary_emb", "query_key_value", "dense"]
+        submodules = ["rotary_emb", "query_key_value", "dense", "bias"]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
@@ -129,7 +129,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
             super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
 
         self.module_mapping = None
-        submodules = ["attn_dropout", "resid_dropout", "k_proj", "v_proj", "q_proj", "out_proj"]
+        submodules = ["attn_dropout", "resid_dropout", "k_proj", "v_proj", "q_proj", "out_proj", "bias"]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
@@ -158,7 +158,7 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGen
             super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
 
         self.module_mapping = None
-        submodules = ["attn_dropout", "resid_dropout", "qkv_proj", "out_proj"]
+        submodules = ["attn_dropout", "resid_dropout", "qkv_proj", "out_proj", "causal_mask"]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
