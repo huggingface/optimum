@@ -432,7 +432,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             if output_name.startswith("present") and "encoder" in output_name:
                 self.past_key_values_cross_attention_output_names.add(output_name)
 
-        self.use_legacy_outputs = any(
+        self.use_legacy_outputs = self.parent_model.use_merged is False and any(
             "encoder" in output_name and "present" in output_name for output_name in self.output_names
         )
 
@@ -474,8 +474,8 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             for output_name in self.output_names
             if (not output_name.startswith("present") and output_name not in {"loss", "logits"})
         }
-        if use_merged_cache is True and self.use_legacy_outputs is False:
-            # When using a merged decoder and the use cache branch, we output 0-dim tensors that IO Binding d not support.
+        if use_merged_cache is True:
+            # When using a merged decoder and the use cache branch, we output 0-dim tensors that IO Binding do not support.
             # Therefore, we do not bind them.
             result = result.union(self.past_key_values_cross_attention_output_names)
         return result

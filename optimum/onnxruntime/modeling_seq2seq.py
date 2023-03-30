@@ -598,7 +598,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         """
         save_directory = Path(save_directory)
         src_paths = [Path(path) for path in self.onnx_paths]
-        print("src_paths", src_paths)
         dst_paths = [save_directory / path.name for path in src_paths]
 
         # add external data paths in case of large models
