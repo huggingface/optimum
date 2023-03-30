@@ -19,6 +19,7 @@ import logging
 import os
 import sys
 import threading
+from functools import lru_cache
 from logging import (
     CRITICAL,  # NOQA
     DEBUG,  # NOQA
@@ -29,7 +30,11 @@ from logging import (
     WARN,  # NOQA
     WARNING,  # NOQA
 )
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+
+if TYPE_CHECKING:
+    from logging import Logger
 
 
 _lock = threading.Lock()
@@ -262,3 +267,8 @@ def reset_format() -> None:
 
     for handler in handlers:
         handler.setFormatter(None)
+
+
+@lru_cache(None)
+def warn_once(logger: "Logger", msg: str):
+    logger.warning(msg)
