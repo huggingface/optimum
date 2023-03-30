@@ -131,7 +131,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
             self.attention_type = "local"
 
         with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(config, config, self.attention_type)
+            super(BetterTransformerBaseLayer, self).__init__(config, self.attention_type)
 
         self.module_mapping = None
         submodules = ["attn_dropout", "resid_dropout", "k_proj", "v_proj", "q_proj", "out_proj", "bias"]
