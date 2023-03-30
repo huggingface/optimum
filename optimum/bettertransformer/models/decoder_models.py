@@ -119,7 +119,7 @@ class GPTNeoXAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoX
             super(BetterTransformerBaseLayer, self).__init__(config)
 
         self.module_mapping = None
-        submodules = ["rotary_emb", "query_key_value", "dense", "bias", "masked_bias"]
+        submodules = ["rotary_emb", "query_key_value", "dense", "bias", "masked_bias", "norm_factor"]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
