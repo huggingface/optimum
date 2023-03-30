@@ -106,7 +106,7 @@ More details on how to run ONNX models with `ORTModelForXXX` classes [here](http
 
 Just as for ONNX, it is possible to export models to [TensorFlow Lite](https://www.tensorflow.org/lite) and quantize them:
 
-```bash
+```plain
 optimum-cli export tflite \
   -m deepset/roberta-base-squad2 \
   --sequence_length 384  \
