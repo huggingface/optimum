@@ -155,7 +155,7 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGen
         super().__init__(config)
 
         with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
+            super(BetterTransformerBaseLayer, self).__init__(config)
 
         self.module_mapping = None
         submodules = ["attn_dropout", "resid_dropout", "qkv_proj", "out_proj", "causal_mask"]
@@ -176,7 +176,13 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer, OPTAttentio
         super().__init__(config)
 
         with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
+            super(BetterTransformerBaseLayer, self).__init__(
+                layer.embed_dim,
+                layer.num_heads,
+                layer.dropout,
+                layer.is_decoder,
+                layer.k_proj.bias is not None,
+            )
 
         self.scale = torch.sqrt(torch.tensor(layer.head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
 
