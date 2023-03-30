@@ -588,7 +588,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                     out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
                 )
             else:
-                # grab the cross attention key/values from the inputs
+                # Grab the cross attention key/values from the inputs
                 out_past_key_values = tuple(
                     out_past_key_values[i : i + self.num_pkv] + past_key_values[2 * i + 2 : 2 * i + 2 + self.num_pkv]
                     for i in range(0, len(out_past_key_values), self.num_pkv)
