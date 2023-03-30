@@ -671,6 +671,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             else:
                 decoder_without_past_path = model_path / subfolder / decoder_file_name
 
+            decoder_path = decoder_without_past_path
+
             decoder_regular_onnx_filenames = ORTModelForConditionalGeneration._generate_regular_names_for_filename(
                 ONNX_DECODER_NAME
             )
