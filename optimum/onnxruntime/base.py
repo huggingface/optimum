@@ -23,7 +23,6 @@ from transformers.modeling_outputs import BaseModelOutput, CausalLMOutputWithCro
 from onnxruntime import InferenceSession
 
 from ..utils import NormalizedConfigManager
-from .utils import get_ordered_input_names
 from ..utils.logging import warn_once
 from .utils import get_ordered_input_names, logging
 
@@ -671,7 +670,8 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                     )
                     warn_once(logger, msg=msg)
                     out_past_key_values = tuple(
-                        out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
+                        out_past_key_values[i : i + self.num_pkv]
+                        for i in range(0, len(out_past_key_values), self.num_pkv)
                     )
                 # grab the cross attention key/values from the inputs
                 elif self.num_pkv == 2:
