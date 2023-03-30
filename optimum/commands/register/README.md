@@ -6,7 +6,7 @@ Steps to follow:
 
 1. Create a command as a subclass of `optimum.commands.BaseOptimumCLICommand`.
 2. Create a Python file under `optimum/commands/register/`, and define a `REGISTER_COMMANDS` list variable there.
-3. Fill the `REGISTER_COMMANDS` as folows:
+3. Fill the `REGISTER_COMMANDS` as follows:
 
 ```python
 # CustomCommand1 and CustomCommand2 could also be defined in this file actually.

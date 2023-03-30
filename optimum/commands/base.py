@@ -40,10 +40,6 @@ class CommandInfo:
             raise ValueError(f"The command info must define a subcommand_class attribute, but got: {self}.")
 
 
-class InvalidCLICommand(Exception):
-    pass
-
-
 class BaseOptimumCLICommand(ABC):
     COMMAND: CommandInfo
     SUBCOMMANDS: Tuple[CommandInfo, ...] = ()
