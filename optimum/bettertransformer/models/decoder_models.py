@@ -157,7 +157,7 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGen
             super(BetterTransformerBaseLayer, self).__init__(config)
 
         self.module_mapping = None
-        submodules = ["attn_dropout", "resid_dropout", "qkv_proj", "out_proj", "causal_mask"]
+        submodules = ["attn_dropout", "resid_dropout", "qkv_proj", "out_proj", "causal_mask", "scale_attn"]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
