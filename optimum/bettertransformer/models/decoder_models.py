@@ -95,14 +95,13 @@ class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttent
         return super().forward(*args, **kwargs)
 
 
-# TODO: validate
 class GPTNeoXAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoXAttention, nn.Module):
     _attn = gpt2_wrapped_scaled_dot_product
 
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
         super().__init__(config)
         with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
+            super(BetterTransformerBaseLayer, self).__init__(config)
 
         self.module_mapping = None
         submodules = ["rotary_emb", "query_key_value", "dense", "bias"]
