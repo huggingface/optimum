@@ -125,8 +125,13 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
         super().__init__(config)
 
+        if layer.bias[0][0][-1][0] == 1:
+            self.attention_type = "global"
+        else:
+            self.attention_type = "local"
+
         with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
+            super(BetterTransformerBaseLayer, self).__init__(config, config, self.attention_type)
 
         self.module_mapping = None
         submodules = ["attn_dropout", "resid_dropout", "k_proj", "v_proj", "q_proj", "out_proj", "bias"]
@@ -134,11 +139,6 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
             setattr(self, attr, getattr(layer, attr))
 
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
-
-        if layer.bias[0][0][-1][0] == 1:
-            self.attention_type = "global"
-        else:
-            self.attention_type = "local"
 
         self.scale = torch.sqrt(torch.tensor(layer.head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
         self.is_decoder = True
