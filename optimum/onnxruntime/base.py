@@ -24,6 +24,11 @@ from onnxruntime import InferenceSession
 
 from ..utils import NormalizedConfigManager
 from .utils import get_ordered_input_names
+from ..utils.logging import warn_once
+from .utils import get_ordered_input_names, logging
+
+
+logger = logging.get_logger(__name__)
 
 
 if TYPE_CHECKING:
@@ -658,8 +663,18 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                     out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
                 )
             else:
+                if self.legacy_outputs is True:
+                    msg = (
+                        "For the decoder with past, using ONNX models outputting cross attention past key values"
+                        " is deprecated and the support will be removed in optimum 2.0. We recommend exporting again the model"
+                        " with optimum>=1.7.3."
+                    )
+                    warn_once(logger, msg=msg)
+                    out_past_key_values = tuple(
+                        out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
+                    )
                 # grab the cross attention key/values from the inputs
-                if self.num_pkv == 2:
+                elif self.num_pkv == 2:
                     out_past_key_values = tuple(
                         out_past_key_values[i : i + self.num_pkv]
                         + past_key_values[2 * i + 2 : 2 * i + 2 + self.num_pkv]

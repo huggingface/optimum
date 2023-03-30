@@ -13,25 +13,21 @@
 # limitations under the License.
 
 import platform
-from argparse import ArgumentParser
 
 import huggingface_hub
 from transformers import __version__ as transformers_version
 from transformers.utils import is_tf_available, is_torch_available
 
 from ..version import __version__ as version
-from . import BaseOptimumCLICommand
-
-
-def info_command_factory(_):
-    return EnvironmentCommand()
+from . import BaseOptimumCLICommand, CommandInfo
 
 
 class EnvironmentCommand(BaseOptimumCLICommand):
+    COMMAND = CommandInfo(name="env", help="Get information about the environment used.")
+
     @staticmethod
-    def register_subcommand(parser: ArgumentParser):
-        download_parser = parser.add_parser("env", help="Get information about the environment used.")
-        download_parser.set_defaults(func=info_command_factory)
+    def format_dict(d):
+        return "\n".join([f"- {prop}: {val}" for prop, val in d.items()]) + "\n"
 
     def run(self):
         pt_version = "not installed"
@@ -69,7 +65,3 @@ class EnvironmentCommand(BaseOptimumCLICommand):
         print(self.format_dict(info))
 
         return info
-
-    @staticmethod
-    def format_dict(d):
-        return "\n".join([f"- {prop}: {val}" for prop, val in d.items()]) + "\n"
