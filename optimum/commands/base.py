@@ -55,6 +55,21 @@ class BaseOptimumCLICommand(ABC):
         command: Optional[CommandInfo] = None,
         from_defaults_factory: bool = False,
     ):
+        """
+        Initializes the instance.
+
+        Args:
+            subparsers (`Optional[_SubParsersAction]`):
+                The parent subparsers this command will create its parser on.
+            args (`Optional[Namespace]`, defaults to `None`):
+                The arguments that are going to be parsed by the CLI.
+            command (`Optional[CommandInfo]`, defaults to `None`):
+                The command info for this instance. This can be used to set the class attribute `COMMAND`.
+            from_defaults_factory (`bool`, defaults to `False`):
+                When setting the parser defaults, we create a second instance of self. By setting
+                `from_defaults_factory=True`, we do not do unnecessary actions for setting the defaults, such as
+                creating a parser.
+        """
         if command is not None:
             self.COMMAND = command
 
