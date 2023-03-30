@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import hashlib
 from collections import defaultdict
 from typing import DefaultDict, Dict, List, Set, Tuple
 
@@ -29,7 +30,7 @@ logger.setLevel(logging.INFO)
 
 def _find_duplicate_initializers(
     models: List[ModelProto],
-) -> DefaultDict[Tuple[int, bytes, Tuple], Set[Tuple[str, int]]]:
+) -> DefaultDict[Tuple[int, str, Tuple], Set[Tuple[str, int]]]:
     """
     Creates a map (unique data) --> set of (initializer name, model id)
 
@@ -40,18 +41,21 @@ def _find_duplicate_initializers(
         for initializer in models[i].graph.initializer:
             tensor_dims = tuple(getattr(initializer, "dims"))
             if len(tensor_dims) > 1 or (len(tensor_dims) == 1 and initializer.data_type not in [6, 7]):
-                for data_attr in ["raw_data", "int32_data", "int64_data", "uint64_data", "float_data", "double_data"]:
-                    tensor_data = getattr(initializer, data_attr)
-                    if tensor_data:
-                        tensor_data = tuple(tensor_data)
-                        break
-                duplicates[(initializer.data_type, tensor_data, tensor_dims)].add((initializer.name, i))
+                # Extract tensor data as numpy array
+                tensor_data = numpy_helper.to_array(initializer)
+
+                # Hash tensor data to avoid storing large amounts of data in memory
+                hashed = hashlib.sha512()
+                hashed.update(tensor_data)
+                tensor_digest = hashed.hexdigest()
+
+                duplicates[(initializer.data_type, tensor_digest, tensor_dims)].add((initializer.name, i))
 
     return duplicates
 
 
 def _create_name_sharing_dict(
-    duplicate_weights: DefaultDict[Tuple[int, bytes], Set[Tuple[str, int]]], suffix: str = ""
+    duplicate_weights: DefaultDict[Tuple[int, str, Tuple], Set[Tuple[str, int]]], suffix: str = ""
 ) -> Dict[Tuple[str, int], str]:
     """
     Creates a map mapping old initializer names to new initializer names. As different ONNX models
