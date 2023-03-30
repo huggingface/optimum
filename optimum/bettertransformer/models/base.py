@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
 import torch
-import torch.nn as nn
 
 from ...utils import logging, recurse_getattr, recurse_setattr
 
@@ -34,11 +33,12 @@ USE_AT_OWN_RISK_ACTIVATION_FUNCTIONS = ["quick_gelu"]
 logger = logging.get_logger(__name__)
 
 
-class BetterTransformerBaseLayer(nn.Module):
+class BetterTransformerBaseLayer:
     def __init__(
         self,
         config: "PretrainedConfig",
     ):
+        print("in BetterTransformerBaseLayer init")
         r"""
         Base layer for `BetterTransformer` integration. This class is used to wrap all the necessary
         components for the `BetterTransformer` integration.
@@ -47,7 +47,6 @@ class BetterTransformerBaseLayer(nn.Module):
             config (`transformers.PretrainedConfig`):
                 The config of the model.
         """
-        super().__init__()
         self.norm_first = False
         self.use_gelu = False
         self.act_fn = None
