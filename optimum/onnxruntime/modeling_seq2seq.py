@@ -634,6 +634,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         model_path = Path(model_id)
 
         decoder_merged_path = None
+        # We use `is not False` here to include two cases: use_merged = None (in which case we auto-detect it),
+        # and use_merged = True (explicitely specified by the user)
         if use_merged is not False:
             try:
                 decoder_merged_path = ORTModelForConditionalGeneration.infer_onnx_filename(

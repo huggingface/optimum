@@ -14,7 +14,7 @@
 """Defines the base classes that are used to perform inference with ONNX Runtime of Transformers models."""
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
@@ -432,8 +432,8 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             if output_name.startswith("present") and "encoder" in output_name:
                 self.past_key_values_cross_attention_output_names.add(output_name)
 
-        self.use_legacy_outputs = self.parent_model.use_merged is False and any(
-            "encoder" in output_name and "present" in output_name for output_name in self.output_names
+        self.use_legacy_outputs = (
+            self.parent_model.use_merged is False and len(self.past_key_values_cross_attention_output_names) > 0
         )
 
     def compute_past_key_values_output_shapes(
