@@ -126,10 +126,12 @@ To load a model and run inference with [OpenVINO Runtime](https://docs.openvino.
 + from optimum.intel.openvino import OVModelForSequenceClassification
   from transformers import AutoTokenizer, pipeline
 
-  tokenizer = AutoTokenizer.from_pretrained(model_id)
   model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+  tokenizer = AutoTokenizer.from_pretrained(model_id)
 - model = AutoModelForSequenceClassification.from_pretrained(model_id)
 + model = OVModelForSequenceClassification.from_pretrained(model_id, export=True)
+  # Save the exported model
+  model.save_pretrained("./openvino")
 
   classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
   results = classifier("He's a dreadful magician.")
