@@ -489,7 +489,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
         labels: Optional[torch.LongTensor] = None,
         use_cache_branch: None = None,
     ) -> Seq2SeqLMOutput:
-        # adding use_cache_branch in the signature here is just a hack for IO Binding
+        # Adding use_cache_branch in the signature here is just a hack for IO Binding
 
         use_torch = isinstance(input_ids, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
