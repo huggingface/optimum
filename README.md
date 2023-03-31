@@ -53,7 +53,7 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 | Dynamic Quantization               | :heavy_check_mark: | :heavy_check_mark: | N/A                | :heavy_check_mark: |
 | Static Quantization                | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
 | Quantization Aware Training (QAT)  | N/A                | :heavy_check_mark: | :heavy_check_mark: | N/A                |
-| fp16 (half precision)              | :heavy_check_mark: | N/A                | :heavy_check_mark: | :heavy_check_mark: |
+| FP16 (half precision)              | :heavy_check_mark: | N/A                | :heavy_check_mark: | :heavy_check_mark: |
 | Pruning                            | N/A                | :heavy_check_mark: | :heavy_check_mark: | N/A                |
 | Knowledge Distillation             | N/A                | :heavy_check_mark: | :heavy_check_mark: | N/A                |
 
