@@ -160,7 +160,6 @@ def main():
 
     # Run
     service = args.func(args)
-    service.check_requirements()
     service.run()
 
 
