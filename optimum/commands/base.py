@@ -50,6 +50,7 @@ class BaseOptimumCLICommand(ABC):
         args: Optional["Namespace"] = None,
         command: Optional[CommandInfo] = None,
         from_defaults_factory: bool = False,
+        parser: Optional["ArgumentParser"] = None,
     ):
         """
         Initializes the instance.
@@ -58,7 +59,7 @@ class BaseOptimumCLICommand(ABC):
             subparsers (`Optional[_SubParsersAction]`):
                 The parent subparsers this command will create its parser on.
             args (`Optional[Namespace]`, defaults to `None`):
-                The arguments that are going to be parsed by the CLI.
+                The parsed arguments that are going to be use in self.run().
             command (`Optional[CommandInfo]`, defaults to `None`):
                 The command info for this instance. This can be used to set the class attribute `COMMAND`.
             from_defaults_factory (`bool`, defaults to `False`):
@@ -66,11 +67,18 @@ class BaseOptimumCLICommand(ABC):
                 `from_defaults_factory=True`, we do not do unnecessary actions for setting the defaults, such as
                 creating a parser.
         """
+        # For leaf commands, it is redundant to define the `COMMAND` attribute since it was already defined in the
+        # parent command, by doing this we pass this information between parent and child command.
         if command is not None:
             self.COMMAND = command
 
         if from_defaults_factory:
-            self.parser = None
+            if parser is None:
+                raise ValueError(
+                    "The instance of the original parser must be passed when creating a defaults factory, command: "
+                    f"{self}."
+                )
+            self.parser = parser
             self.subparsers = subparsers
         else:
             if subparsers is None:
@@ -79,14 +87,16 @@ class BaseOptimumCLICommand(ABC):
             self.parse_args(self.parser)
 
             def defaults_factory(args):
-                return self.__class__(self.subparsers, args, command=self.COMMAND, from_defaults_factory=True)
+                return self.__class__(
+                    self.subparsers, args, command=self.COMMAND, from_defaults_factory=True, parser=self.parser
+                )
 
             self.parser.set_defaults(func=defaults_factory)
 
-        for subcommand in self.SUBCOMMANDS:
-            if not isinstance(subcommand, CommandInfo):
-                raise ValueError(f"Subcommands must be instances of CommandInfo, but got {type(subcommand)} here.")
-            self.register_subcommand(subcommand)
+            for subcommand in self.SUBCOMMANDS:
+                if not isinstance(subcommand, CommandInfo):
+                    raise ValueError(f"Subcommands must be instances of CommandInfo, but got {type(subcommand)} here.")
+                self.register_subcommand(subcommand)
 
         self.args = args
 
@@ -100,10 +110,7 @@ class BaseOptimumCLICommand(ABC):
         subparsers = getattr(self, "_subparsers", None)
         if subparsers is None:
             if self.SUBCOMMANDS:
-                if self.parser is not None:
-                    self._subparsers = self.parser.add_subparsers()
-                else:
-                    self._subparsers = None
+                self._subparsers = self.parser.add_subparsers()
             else:
                 self._subparsers = None
         return self._subparsers
@@ -128,7 +135,7 @@ class BaseOptimumCLICommand(ABC):
         self.registered_subcommands.append(command_info.subcommand_class(self.subparsers, command=command_info))
 
     def run(self):
-        raise NotImplementedError()
+        self.parser.print_help()
 
 
 class RootOptimumCLICommand(BaseOptimumCLICommand):
