@@ -247,7 +247,7 @@ def opt_forward(
     query_states = self._shape(query_states, tgt_len, batch_size)
 
     query_states = query_states * self.scale
-    if batch_size == 1:
+    if batch_size == 1 or self.training:
         if query_states.shape[2] > 1:
             attn_output = torch.nn.functional.scaled_dot_product_attention(
                 query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=True
