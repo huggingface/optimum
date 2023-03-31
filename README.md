@@ -49,8 +49,8 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 | Features                           | ONNX Runtime       | Neural Compressor  | OpenVINO           | TensorFlow Lite    |
 |:----------------------------------:|:------------------:|:------------------:|:------------------:|:------------------:|
 | Graph optimization                 | :heavy_check_mark: | N/A                | :heavy_check_mark: | N/A                |
-| Post-training Dynamic Quantization | :heavy_check_mark: | :heavy_check_mark: | N/A                | :heavy_check_mark: |
-| Post-training Static Quantization  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Post-training dynamic quantization | :heavy_check_mark: | :heavy_check_mark: | N/A                | :heavy_check_mark: |
+| Post-training static quantization  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
 | Quantization Aware Training (QAT)  | N/A                | :heavy_check_mark: | :heavy_check_mark: | N/A                |
 | FP16 (half precision)              | :heavy_check_mark: | N/A                | :heavy_check_mark: | :heavy_check_mark: |
 | Pruning                            | N/A                | :heavy_check_mark: | :heavy_check_mark: | N/A                |
@@ -119,21 +119,19 @@ optimum-cli export tflite \
 
 *This requires to install the Optimum OpenVINO extra by doing `pip install optimum[openvino,nncf]`.*
 
-To load a model and run inference with [OpenVINO Runtime](https://docs.openvino.ai/latest/home.html), you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class.
-If you want to load a PyTorch checkpoint, set `export=True` to convert your model to the OpenVINO IR (Intermediate Representation).
+To load a model and run inference with [OpenVINO Runtime](https://docs.openvino.ai/latest/home.html), you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class. To load a PyTorch checkpoint and convert it to the OpenVINO format on-the-fly, you can set `export=True` when loading your model.
 
 ```diff
 - from transformers import AutoModelForSequenceClassification
-+ from optimum.intel.openvino import OVModelForSequenceClassification
++ from optimum.intel import OVModelForSequenceClassification
   from transformers import AutoTokenizer, pipeline
 
-  # Download a tokenizer and model from the Hub and convert to OpenVINO format
-  tokenizer = AutoTokenizer.from_pretrained(model_id)
   model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+  tokenizer = AutoTokenizer.from_pretrained(model_id)
 - model = AutoModelForSequenceClassification.from_pretrained(model_id)
 + model = OVModelForSequenceClassification.from_pretrained(model_id, export=True)
+  model.save_pretrained("./distilbert")
 
-  # Run inference!
   classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
   results = classifier("He's a dreadful magician.")
 ```
