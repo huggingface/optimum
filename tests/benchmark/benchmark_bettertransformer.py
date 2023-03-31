@@ -185,7 +185,7 @@ if __name__ == "__main__":
 
     output_file = open("log_{}.csv".format(args.model_name.replace("/", "-")), "w")
     output_file.write(
-        "num_batches, batch_size, seq_len, is cuda, is half, use mask, pad percentage, HF time, BT time, Speedup, Mem eager (MB), Mem BT (MB), Mem saved\n"
+        "num_batches, batch_size, seq_len, is cuda, is half, use mask, pad percentage, Latency eager (s), Latency BT (s), Speedup (%), Mem eager (MB), Mem BT (MB), Mem saved (%)\n"
     )
 
     all_total_hf_time = {}
@@ -262,8 +262,8 @@ if __name__ == "__main__":
                 total_hf_time = all_total_hf_time[(bs, seq_len)]
                 max_mem_eager = all_max_mem_eager[(bs, seq_len)]
 
-                speedup = total_hf_time / total_bt_time
-                mem_saved = max_mem_eager / max_mem_bt
+                speedup = total_hf_time / total_bt_time * 100
+                mem_saved = max_mem_eager / max_mem_bt * 100
 
                 max_mem_eager = max_mem_eager * 1e-6
                 max_mem_bt = max_mem_bt * 1e-6
