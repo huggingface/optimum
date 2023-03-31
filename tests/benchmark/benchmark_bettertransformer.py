@@ -262,8 +262,8 @@ if __name__ == "__main__":
                 total_hf_time = all_total_hf_time[(bs, seq_len)]
                 max_mem_eager = all_max_mem_eager[(bs, seq_len)]
 
-                speedup = total_hf_time / total_bt_time * 100
-                mem_saved = max_mem_eager / max_mem_bt * 100
+                speedup = (total_hf_time / total_bt_time - 1) * 100
+                mem_saved = (max_mem_eager / max_mem_bt - 1) * 100
 
                 max_mem_eager = max_mem_eager * 1e-6
                 max_mem_bt = max_mem_bt * 1e-6

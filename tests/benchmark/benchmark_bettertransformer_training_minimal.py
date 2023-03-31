@@ -150,8 +150,8 @@ if __name__ == "__main__":
 
             print(f"PT eager: {hf_time_per_batch:.3f} s, peak {eager_max_mem:.2f} MB")
             print(f"PT native: {bt_time_per_batch:.3f} s, peak {bt_max_mem:.2f} MB")
-            speedup = hf_time_per_batch / bt_time_per_batch * 100
-            mem_saved = eager_max_mem / bt_max_mem * 100
+            speedup = (hf_time_per_batch / bt_time_per_batch - 1) * 100
+            mem_saved = (eager_max_mem / bt_max_mem - 1) * 100
 
             output_file.write(
                 "{},{},{},{},{},{},{},{},{},{}\n".format(
