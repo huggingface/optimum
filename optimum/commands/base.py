@@ -118,6 +118,9 @@ class BaseOptimumCLICommand(ABC):
             self._registered_subcommands = []
         return self._registered_subcommands
 
+    def check_requirements(self):
+        pass
+
     @staticmethod
     def parse_args(parser: "ArgumentParser"):
         pass

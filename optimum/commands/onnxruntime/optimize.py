@@ -19,8 +19,7 @@ from typing import TYPE_CHECKING
 
 from optimum.commands.base import BaseOptimumCLICommand
 
-from ...onnxruntime.configuration import AutoOptimizationConfig, ORTConfig
-from ...onnxruntime.optimization import ORTOptimizer
+from ...utils import is_onnxruntime_available
 
 
 if TYPE_CHECKING:
@@ -77,26 +76,35 @@ class ONNXRuntimmeOptimizeCommand(BaseOptimumCLICommand):
     def parse_args(parser: "ArgumentParser"):
         return parse_args_onnxruntime_optimize(parser)
 
+    def check_requirements(self):
+        if is_onnxruntime_available():
+            from ...onnxruntime.configuration import AutoOptimizationConfig, ORTConfig  # noqa
+            from ...onnxruntime.optimization import ORTOptimizer  # noqa
+        else:
+            raise ImportError("Onnxruntime is not installed. Please install Onnxruntime first.")
+
     def run(self):
+        self.check_requirements()
+
         if self.args.output == self.args.onnx_model:
             raise ValueError("The output directory must be different than the directory hosting the ONNX model.")
 
         save_dir = self.args.output
 
         file_names = [model.name for model in self.args.onnx_model.glob("*.onnx")]
-        optimizer = ORTOptimizer.from_pretrained(self.args.onnx_model, file_names)
+        optimizer = ORTOptimizer.from_pretrained(self.args.onnx_model, file_names)  # noqa: F821
 
         if self.args.config:
-            optimization_config = ORTConfig
+            optimization_config = ORTConfig  # noqa: F821
         elif self.args.O1:
-            optimization_config = AutoOptimizationConfig.O1()
+            optimization_config = AutoOptimizationConfig.O1()  # noqa: F821
         elif self.args.O2:
-            optimization_config = AutoOptimizationConfig.O2()
+            optimization_config = AutoOptimizationConfig.O2()  # noqa: F821
         elif self.args.O3:
-            optimization_config = AutoOptimizationConfig.O3()
+            optimization_config = AutoOptimizationConfig.O3()  # noqa: F821
         elif self.args.O4:
-            optimization_config = AutoOptimizationConfig.O4()
+            optimization_config = AutoOptimizationConfig.O4()  # noqa: F821
         else:
-            optimization_config = ORTConfig.from_pretained(self.args.config).optimization
+            optimization_config = ORTConfig.from_pretained(self.args.config).optimization  # noqa: F821
 
         optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)

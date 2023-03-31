@@ -12,13 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from transformers.utils import is_tf_available
-
-from ...utils import is_onnx_available
 from .base import ExportCommand
-
-
-if is_onnx_available():
-    from .onnx import ONNXExportCommand
-if is_tf_available():
-    from .tflite import TFLiteExportCommand
+from .onnx import ONNXExportCommand
+from .tflite import TFLiteExportCommand

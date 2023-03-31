@@ -17,8 +17,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ...onnxruntime.configuration import AutoQuantizationConfig, ORTConfig
-from ...onnxruntime.quantization import ORTQuantizer
+from ...utils import is_onnxruntime_available
 from .. import BaseOptimumCLICommand
 
 
@@ -70,7 +69,16 @@ class ONNXRuntimmeQuantizeCommand(BaseOptimumCLICommand):
     def parse_args(parser: "ArgumentParser"):
         return parse_args_onnxruntime_quantize(parser)
 
+    def check_requirements(self):
+        if is_onnxruntime_available():
+            from ...onnxruntime.configuration import AutoQuantizationConfig, ORTConfig  # noqa
+            from ...onnxruntime.quantization import ORTQuantizer  # noqa
+        else:
+            raise ImportError("Onnxruntime is not installed. Please install Onnxruntime first.")
+
     def run(self):
+        self.check_requirements()
+
         if self.args.output == self.args.onnx_model:
             raise ValueError("The output directory must be different than the directory hosting the ONNX model.")
 
@@ -78,22 +86,24 @@ class ONNXRuntimmeQuantizeCommand(BaseOptimumCLICommand):
         quantizers = []
 
         quantizers = [
-            ORTQuantizer.from_pretrained(self.args.onnx_model, file_name=model.name)
+            ORTQuantizer.from_pretrained(self.args.onnx_model, file_name=model.name)  # noqa: F821
             for model in self.args.onnx_model.glob("*.onnx")
         ]
 
         if self.args.arm64:
-            qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=self.args.per_channel)
+            qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=self.args.per_channel)  # noqa: F821
         elif self.args.avx2:
-            qconfig = AutoQuantizationConfig.avx2(is_static=False, per_channel=self.args.per_channel)
+            qconfig = AutoQuantizationConfig.avx2(is_static=False, per_channel=self.args.per_channel)  # noqa: F821
         elif self.args.avx512:
-            qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=self.args.per_channel)
+            qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=self.args.per_channel)  # noqa: F821
         elif self.args.avx512_vnni:
-            qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=self.args.per_channel)
+            qconfig = AutoQuantizationConfig.avx512_vnni(  # noqa: F821
+                is_static=False, per_channel=self.args.per_channel
+            )
         elif self.args.tensorrt:
-            qconfig = AutoQuantizationConfig.tensorrt(per_channel=self.args.per_channel)
+            qconfig = AutoQuantizationConfig.tensorrt(per_channel=self.args.per_channel)  # noqa: F821
         else:
-            qconfig = ORTConfig.from_pretained(self.args.config).quantization
+            qconfig = ORTConfig.from_pretained(self.args.config).quantization  # noqa: F821
 
         for q in quantizers:
             q.quantize(save_dir=save_dir, quantization_config=qconfig)
