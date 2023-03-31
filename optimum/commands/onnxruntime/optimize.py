@@ -80,10 +80,13 @@ class ONNXRuntimmeOptimizeCommand(BaseOptimumCLICommand):
         if is_onnxruntime_available():
             from ...onnxruntime.configuration import AutoOptimizationConfig, ORTConfig  # noqa
             from ...onnxruntime.optimization import ORTOptimizer  # noqa
+
+            return AutoOptimizationConfig, ORTConfig, ORTOptimizer
         else:
             raise ImportError("Onnxruntime is not installed. Please install Onnxruntime first.")
 
     def run(self):
+        AutoOptimizationConfig, ORTConfig, ORTOptimizer = self.check_requirements()
         if self.args.output == self.args.onnx_model:
             raise ValueError("The output directory must be different than the directory hosting the ONNX model.")
 

@@ -73,10 +73,13 @@ class ONNXRuntimmeQuantizeCommand(BaseOptimumCLICommand):
         if is_onnxruntime_available():
             from ...onnxruntime.configuration import AutoQuantizationConfig, ORTConfig  # noqa
             from ...onnxruntime.quantization import ORTQuantizer  # noqa
+
+            return AutoQuantizationConfig, ORTConfig, ORTQuantizer
         else:
             raise ImportError("Onnxruntime is not installed. Please install Onnxruntime first.")
 
     def run(self):
+        AutoQuantizationConfig, ORTConfig, ORTQuantizer = self.check_requirements()
         if self.args.output == self.args.onnx_model:
             raise ValueError("The output directory must be different than the directory hosting the ONNX model.")
 

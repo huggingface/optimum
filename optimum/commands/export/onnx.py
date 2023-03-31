@@ -194,11 +194,14 @@ class ONNXExportCommand(BaseOptimumCLICommand):
 
     def check_requirements(self):
         if is_onnx_available():
-            from ...exporters.onnx.__main__ import main_export  # noqa
+            from ...exporters.onnx.__main__ import main_export
+
+            return main_export
         else:
             raise ImportError("Onnx is not installed. Please install Onnx first.")
 
     def run(self):
+        main_export = self.check_requirements()
         # Get the shapes to be used to generate dummy inputs
         input_shapes = {}
         for input_name in DEFAULT_DUMMY_SHAPES.keys():
