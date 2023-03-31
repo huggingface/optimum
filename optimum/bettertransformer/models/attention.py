@@ -49,7 +49,7 @@ def gpt2_wrapped_scaled_dot_product(
     if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
         raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
-    if batch_size == 1 or self.is_training:
+    if batch_size == 1 or self.training:
         if query.shape[2] > 1:
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=None, dropout_p=0.0, is_causal=True
@@ -103,7 +103,7 @@ def gpt_neo_wrapped_scaled_dot_product(
     if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
         raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
-    if (batch_size == 1 or self.is_training) and self.attention_type == "global":
+    if (batch_size == 1 or self.training) and self.attention_type == "global":
         if query.shape[2] > 1:
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
                 query, key, value, attn_mask=None, dropout_p=0.0, is_causal=True
@@ -153,7 +153,7 @@ def codegen_wrapped_scaled_dot_product(
     query = query.to(value.dtype)
     key = key.to(value.dtype)
 
-    if batch_size == 1 or self.is_training:
+    if batch_size == 1 or self.training:
         if query.shape[2] > 1:
             # first step of the decoding
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
@@ -247,7 +247,7 @@ def opt_forward(
     query_states = self._shape(query_states, tgt_len, batch_size)
 
     query_states = query_states * self.scale
-    if batch_size == 1 or self.is_training:
+    if batch_size == 1 or self.training:
         if query_states.shape[2] > 1:
             attn_output = torch.nn.functional.scaled_dot_product_attention(
                 query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=True
