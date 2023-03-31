@@ -84,8 +84,6 @@ class ONNXRuntimmeOptimizeCommand(BaseOptimumCLICommand):
             raise ImportError("Onnxruntime is not installed. Please install Onnxruntime first.")
 
     def run(self):
-        self.check_requirements()
-
         if self.args.output == self.args.onnx_model:
             raise ValueError("The output directory must be different than the directory hosting the ONNX model.")
 

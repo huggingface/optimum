@@ -244,6 +244,5 @@ class TFLiteExportCommand(BaseOptimumCLICommand):
             raise ImportError("TensorFlow is not installed. Please install TensorFlow first.")
 
     def run(self):
-        self.check_requirements()
         full_command = f"python3 -m optimum.exporters.tflite {self.args_string}"
         subprocess.run(full_command, shell=True, check=True)
