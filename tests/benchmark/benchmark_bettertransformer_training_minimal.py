@@ -88,11 +88,12 @@ if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
 
-    hf_model = AutoModelForCausalLM.from_pretrained(args.model_name)
-
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    dtype = torch.float32 if args.use_half is False else torch.float16
-    hf_model = hf_model.to(device=device, dtype=dtype)
+    with torch.device(device):
+        hf_model = AutoModelForCausalLM.from_pretrained(
+            args.model_name, torch_dtype=torch.float16 if args.use_half else None
+        )
+    hf_model = hf_model.to(device)
 
     BATCH_SIZES = [8]
     SEQ_LEN = [1024]
@@ -100,7 +101,7 @@ if __name__ == "__main__":
 
     output_file = open("log_{}_train.csv".format(args.model_name.replace("/", "-")), "w")
     output_file.write(
-        "num_training_steps, batch_size, seq_len, is cuda, Time per batch (eager, s), Time per batch (BT, s), Speedup (%), Eager peak mem (MB), BT peak mem (MB), Mem saving (%)\n"
+        "num_training_steps, batch_size, seq_len, is cuda, Time per batch (eager - s), Time per batch (BT - s), Speedup (%), Eager peak mem (MB), BT peak mem (MB), Mem saving (%)\n"
     )
     all_hf_time_per_batch = {}
     all_eager_max_mem = {}
