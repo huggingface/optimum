@@ -183,12 +183,14 @@ if __name__ == "__main__":
     else:
         hf_model = autoclass.from_pretrained(args.model_name, torch_dtype=torch.float16 if args.use_half else None)
 
-    bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
-
     output_file = open("log_{}.csv".format(args.model_name.replace("/", "-")), "w")
     output_file.write(
         "num_batches, batch_size, seq_len, is cuda, is half, use mask, pad percentage, HF time, BT time, Speedup, Mem eager (MB), Mem BT (MB), Mem saved\n"
     )
+
+    all_total_hf_time = {}
+    all_max_mem_eager = {}
+
     for bs in tqdm(BATCH_SIZES):
         for seq_len in tqdm(SEQ_LEN):
             for pad_perc in tqdm(PAD_PERCENTAGES):
@@ -219,6 +221,30 @@ if __name__ == "__main__":
                         tokenizer.pad_token_id,
                     )
 
+            all_total_hf_time[(bs, seq_len)] = total_hf_time
+            all_max_mem_eager[(bs, seq_len)] = max_mem_eager
+
+    bt_model = BetterTransformer.transform(hf_model)
+    for bs in tqdm(BATCH_SIZES):
+        for seq_len in tqdm(SEQ_LEN):
+            for pad_perc in tqdm(PAD_PERCENTAGES):
+                print(f"-- Running: bs={bs}, seq_len={seq_len}")
+                # current_std = int(seq_len*pad_perc)
+                # max_seqlen = seq_len + current_std
+                max_seqlen = seq_len
+                mean_seqlen = int((1 - pad_perc) * max_seqlen)
+                input_ids, _, masks = get_batch(
+                    bs, mean_seqlen, max_seqlen, args.seqlen_stdev, vocab_size=hf_model.config.vocab_size
+                )
+
+                if args.use_cuda:
+                    input_ids = input_ids.to(device)
+                    masks = masks.to(device)
+
+                if args.use_mask is False and bs == 1:
+                    masks = None
+
+                with torch.inference_mode():
                     # raise error if no optimized kernel is available
                     with torch.backends.cuda.sdp_kernel(
                         enable_flash=True, enable_math=True, enable_mem_efficient=True
@@ -232,6 +258,9 @@ if __name__ == "__main__":
                             args.max_token,
                             tokenizer.pad_token_id,
                         )
+
+                total_hf_time = all_total_hf_time[(bs, seq_len)]
+                max_mem_eager = all_max_mem_eager[(bs, seq_len)]
 
                 speedup = total_hf_time / total_bt_time
                 mem_saved = max_mem_eager / max_mem_bt
@@ -259,4 +288,5 @@ if __name__ == "__main__":
                         f"{mem_saved:.3f}",
                     )
                 )
+
     output_file.close()

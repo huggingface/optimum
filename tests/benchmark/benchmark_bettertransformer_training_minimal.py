@@ -106,9 +106,12 @@ if __name__ == "__main__":
     )
     num_epochs = args.num_epochs
 
+    all_hf_time_per_epoch = {}
+    all_eager_max_mem = {}
+
     for batch_size in BATCH_SIZES:
         for sequence_length in SEQ_LEN:
-            print(f"Benchmark on: bs={batch_size}, seq_len={sequence_length}")
+            print(f"Benchmark PT on: bs={batch_size}, seq_len={sequence_length}")
 
             vocab_size = hf_model.config.vocab_size
             inputs = {
@@ -122,7 +125,25 @@ if __name__ == "__main__":
                 hf_model, inputs=inputs, num_epochs=num_epochs, batch_size=batch_size
             )
 
-            bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
+            all_hf_time_per_epoch[(batch_size, sequence_length)] = hf_time_per_epoch
+            all_eager_max_mem[(batch_size, sequence_length)] = eager_max_mem
+
+    bt_model = BetterTransformer.transform(hf_model)
+    for batch_size in BATCH_SIZES:
+        for sequence_length in SEQ_LEN:
+            print(f"Benchmark BT on: bs={batch_size}, seq_len={sequence_length}")
+
+            vocab_size = hf_model.config.vocab_size
+            inputs = {
+                "input_ids": torch.randint(vocab_size - 1, (batch_size, sequence_length), dtype=torch.int64).to(
+                    device
+                ),
+                "attention_mask": torch.ones(batch_size, sequence_length, dtype=torch.int64).to(device),
+            }
+
+            hf_time_per_epoch, eager_max_mem = benchmark_training(
+                hf_model, inputs=inputs, num_epochs=num_epochs, batch_size=batch_size
+            )
 
             # raise error if no optimized kernel is available
             with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=True, enable_mem_efficient=True):
@@ -132,6 +153,9 @@ if __name__ == "__main__":
 
             eager_max_mem = eager_max_mem * 1e-6
             bt_max_mem = bt_max_mem * 1e-6
+
+            hf_time_per_epoch = all_hf_time_per_epoch[(batch_size, sequence_length)]
+            eager_max_mem = all_eager_max_mem[(batch_size, sequence_length)]
 
             print(f"PT eager: {hf_time_per_epoch:.3f} s, peak {eager_max_mem:.2f} MB")
             print(f"PT native: {bt_time_per_epoch:.3f} s, peak {bt_max_mem:.2f} MB")
@@ -152,4 +176,5 @@ if __name__ == "__main__":
                     f"{mem_saved:.3f}",
                 )
             )
+
     output_file.close()
