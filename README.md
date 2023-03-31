@@ -120,7 +120,7 @@ optimum-cli export tflite \
 *This requires to install the Optimum OpenVINO extra by doing `pip install optimum[openvino,nncf]`.*
 
 To load a model and run inference with [OpenVINO Runtime](https://docs.openvino.ai/latest/home.html), you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class.
-If you want to load a PyTorch checkpoint, set `from_transformers=True` to convert your model to the OpenVINO IR (Intermediate Representation).
+If you want to load a PyTorch checkpoint, set `export=True` to convert your model to the OpenVINO IR (Intermediate Representation).
 
 ```diff
 - from transformers import AutoModelForSequenceClassification
@@ -131,7 +131,7 @@ If you want to load a PyTorch checkpoint, set `from_transformers=True` to conver
   tokenizer = AutoTokenizer.from_pretrained(model_id)
   model_id = "distilbert-base-uncased-finetuned-sst-2-english"
 - model = AutoModelForSequenceClassification.from_pretrained(model_id)
-+ model = OVModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
++ model = OVModelForSequenceClassification.from_pretrained(model_id, export=True)
 
   # Run inference!
   classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
