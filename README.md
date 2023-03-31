@@ -19,7 +19,6 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 | [ONNX Runtime](https://onnxruntime.ai/docs/)                                                                           | `python -m pip install optimum[onnxruntime]`      |
 | [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html)       | `python -m pip install optimum[neural-compressor]`|
 | [OpenVINO](https://docs.openvino.ai/latest/index.html)                                                                 | `python -m pip install optimum[openvino,nncf]`    |
-| [Graphcore IPU](https://www.graphcore.ai/products/ipu)                                                                 | `python -m pip install optimum[graphcore]`        |
 | [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `python -m pip install optimum[habana]`           |
 
 To install from source:
@@ -148,15 +147,10 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 We support many providers:
 
 - Habana's Gaudi processors
-- Graphcore's IPUs 
 - ONNX Runtime (optimized for GPUs)
 
 ### Habana
 
-<!--
-To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `GaudiTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
-
--->
 ```diff
 - from transformers import Trainer, TrainingArguments
 + from optimum.habana import GaudiTrainer, GaudiTrainingArguments
@@ -189,53 +183,7 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `Gau
 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/habana/quickstart) and in the [examples](https://github.com/huggingface/optimum-habana/tree/main/examples).
 
-
-### Graphcore
-
-<!--
-To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
-
--->
-```diff
-- from transformers import Trainer, TrainingArguments
-+ from optimum.graphcore import IPUConfig, IPUTrainer, IPUTrainingArguments
-
-  # Download a pretrained model from the Hub
-  model = AutoModelForXxx.from_pretrained("bert-base-uncased")
-
-  # Define the training arguments
-- training_args = TrainingArguments(
-+ training_args = IPUTrainingArguments(
-      output_dir="path/to/save/folder/",
-+     ipu_config_name="Graphcore/bert-base-ipu", # Any IPUConfig on the Hub or stored locally
-      ...
-  )
-
-  # Define the configuration to compile and put the model on the IPU
-+ ipu_config = IPUConfig.from_pretrained(training_args.ipu_config_name)
-
-  # Initialize the trainer
-- trainer = Trainer(
-+ trainer = IPUTrainer(
-      model=model,
-+     ipu_config=ipu_config
-      args=training_args,
-      train_dataset=train_dataset
-      ...
-  )
-
-  # Use Graphcore IPU for training!
-  trainer.train()
-```
-
-You can find more examples in the [documentation](https://huggingface.co/docs/optimum/graphcore/quickstart) and in the [examples](https://github.com/huggingface/optimum-graphcore/tree/main/examples).
-
-
 ### ONNX Runtime
-
-<!--
-To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum provides a `ORTTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
--->
 
 ```diff
 - from transformers import Trainer, TrainingArguments
