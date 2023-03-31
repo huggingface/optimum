@@ -468,7 +468,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             past_key_values_shapes[name] = self_attn_shape if (is_self_attn or self.num_pkv == 2) else cross_attn_shape
         return past_key_values_shapes
 
-    def get_outputs_not_to_bind(self, use_merged_cache):
+    def get_outputs_not_to_bind(self, use_merged_cache: bool) -> Set[str]:
         result = {
             output_name
             for output_name in self.output_names
