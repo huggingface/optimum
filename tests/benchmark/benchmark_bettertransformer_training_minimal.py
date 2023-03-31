@@ -143,11 +143,10 @@ if __name__ == "__main__":
                     bt_model, inputs=inputs, num_training_steps=args.num_training_steps
                 )
 
-            eager_max_mem = eager_max_mem * 1e-6
+            eager_max_mem = all_eager_max_mem[(batch_size, sequence_length)] * 1e-6
             bt_max_mem = bt_max_mem * 1e-6
 
             hf_time_per_batch = all_hf_time_per_batch[(batch_size, sequence_length)]
-            eager_max_mem = all_eager_max_mem[(batch_size, sequence_length)]
 
             print(f"PT eager: {hf_time_per_batch:.3f} s, peak {eager_max_mem:.2f} MB")
             print(f"PT native: {bt_time_per_batch:.3f} s, peak {bt_max_mem:.2f} MB")
