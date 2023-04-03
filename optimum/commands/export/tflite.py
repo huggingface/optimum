@@ -238,6 +238,5 @@ class TFLiteExportCommand(BaseOptimumCLICommand):
         return parse_args_tflite(parser)
 
     def run(self):
-        self.check_requirements()
         full_command = f"python3 -m optimum.exporters.tflite {self.args_string}"
         subprocess.run(full_command, shell=True, check=True)
