@@ -312,6 +312,39 @@ def validate_model_outputs(
     if "diffusers" in str(reference_model.__class__) and not is_diffusers_available():
         raise ImportError("The pip package `diffusers` is required to validate stable diffusion ONNX models.")
 
+    # Check that different inputs/outputs do not share the same axis names if their lengths are different
+    length_per_dynamic_axis = {}
+
+    ort_inputs = {inp.name: inp for inp in session.get_inputs()}
+    ort_outputs = {output.name: output for output in session.get_outputs()}
+
+    print("------")
+    for input_name, input_value in onnx_inputs.items():
+        for i, axis in enumerate(ort_inputs[input_name].shape):
+            print(input_name, axis, input_value.shape[i])
+            if isinstance(axis, str):
+                if axis not in length_per_dynamic_axis:
+                    length_per_dynamic_axis[axis] = {input_value.shape[i]}
+                else:
+                    length_per_dynamic_axis[axis].add(input_value.shape[i])
+
+    for output_name, output_value in zip(onnx_named_outputs, onnx_outputs):
+        for i, axis in enumerate(ort_outputs[output_name].shape):
+            print(output_name, axis, output_value.shape[i])
+            if isinstance(axis, str):
+                if axis not in length_per_dynamic_axis:
+                    length_per_dynamic_axis[axis] = {output_value.shape[i]}
+                else:
+                    length_per_dynamic_axis[axis].add(output_value.shape[i])
+
+    print("length_per_dynamic_axis", length_per_dynamic_axis)
+    wrong_axis = [axis_name for axis_name, axis_lengths in length_per_dynamic_axis.items() if len(axis_lengths) > 1]
+    if len(wrong_axis) > 0:
+        raise DynamicAxisNameError(
+            f"Several inputs/outputs share the same dynamic length axis name ({', '.join(wrong_axis)}), although"
+            " with a different length, which may result in unexpected errors."
+        )
+
     # Check the shape and values match
     shape_failures = []
     value_failures = []

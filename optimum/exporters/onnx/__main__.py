@@ -25,7 +25,7 @@ from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .convert import export_models, validate_models_outputs
+from .convert import DynamicAxisNameError, export_models, validate_models_outputs
 from .utils import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
@@ -499,6 +499,8 @@ def main_export(
             )
             logger.info(f"The ONNX export succeeded and the exported model was saved at: {output.as_posix()}")
         except ShapeError as e:
+            raise e
+        except DynamicAxisNameError as e:
             raise e
         except AtolError as e:
             logger.warning(

@@ -622,6 +622,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         elif self.is_merged is True and self.use_cache_branch is False:
             reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=False)
 
+            # Beware: in ORT implem, batch size is zero, hence we need to have it have a different axis name?
             # We don't support optional inputs for now, so even though the non-cache branch is used,
             # dummy past key values are necessary
             batch_size = reference_model_inputs["input_ids"].shape[0]
