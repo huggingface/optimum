@@ -57,6 +57,12 @@ class TestCLI(unittest.TestCase):
             )
             subprocess.run(command, shell=True, check=True)
 
+        with tempfile.TemporaryDirectory() as tempdir:
+            command = (
+                f"optimum-cli export tflite --model hf-internal-testing/tiny-random-bert --task sequence-classification {tempdir}",
+            )
+            subprocess.run(command, shell=True, check=True)
+
     def test_optimize_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             # First export a tiny encoder, decoder only and encoder-decoder
