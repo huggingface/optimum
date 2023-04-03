@@ -88,7 +88,7 @@ class BaseOptimumCLICommand(ABC):
 
             def defaults_factory(args):
                 return self.__class__(
-                    self.subparsers, args, command=self.COMMAND, from_defaults_factory=True, parser=self.parser
+                    self.subparsers, args=args, command=self.COMMAND, from_defaults_factory=True, parser=self.parser
                 )
 
             self.parser.set_defaults(func=defaults_factory)
