@@ -26,11 +26,7 @@ from .onnxruntime import ONNXRuntimeCommand
 
 logger = logging.get_logger()
 
-OPTIMUM_CLI_SUBCOMMANDS = [
-    ExportCommand,
-    EnvironmentCommand,
-    ONNXRuntimeCommand,
-]
+OPTIMUM_CLI_SUBCOMMANDS = [ExportCommand, EnvironmentCommand, ONNXRuntimeCommand]
 
 
 def resolve_command_to_command_instance(
