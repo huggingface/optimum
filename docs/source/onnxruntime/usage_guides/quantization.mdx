@@ -105,7 +105,7 @@ find an easy end-to-end example on how to quantize dynamically
 >>> from optimum.onnxruntime.configuration import AutoQuantizationConfig
 
 # Load PyTorch model and convert to ONNX
->>> onnx_model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True)
+>>> onnx_model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english", export=True)
 
 # Create quantizer
 >>> quantizer = ORTQuantizer.from_pretrained(onnx_model)
@@ -135,7 +135,7 @@ an easy end-to-end example on how to quantize statically
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
 
 # Load PyTorch model and convert to ONNX and create Quantizer and setup config
->>> onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
+>>> onnx_model = ORTModelForSequenceClassification.from_pretrained(model_id, export=True)
 >>> tokenizer = AutoTokenizer.from_pretrained(model_id)
 >>> quantizer = ORTQuantizer.from_pretrained(onnx_model)
 >>> qconfig = AutoQuantizationConfig.arm64(is_static=True, per_channel=False)

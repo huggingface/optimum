@@ -176,7 +176,7 @@ As you can see, converting a model to ONNX does not mean leaving the Hugging Fac
 It is also possible to export the model to ONNX directly from the `ORTModelForQuestionAnswering` class by doing the following:
 
 ```python
->>> model = ORTModelForQuestionAnswering.from_pretrained("distilbert-base-uncased-distilled-squad", from_transformers=True)
+>>> model = ORTModelForQuestionAnswering.from_pretrained("distilbert-base-uncased-distilled-squad", export=True)
 ```
 
 For more information, check the `optimum.onnxruntime` documentation [page on this topic](/onnxruntime/overview).
