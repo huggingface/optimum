@@ -192,6 +192,7 @@ class BetterTransformer(object):
         # Check if we have to load the model using `accelerate`
         if hasattr(model, "hf_device_map"):
             load_accelerate = True
+            hf_device_map = model.hf_device_map
         else:
             load_accelerate = False
 
@@ -253,12 +254,12 @@ class BetterTransformer(object):
         setattr(model_fast, "use_bettertransformer", True)
 
         if load_accelerate:
-            model_fast = dispatch_model(model_fast, model.hf_device_map)
+            model_fast = dispatch_model(model_fast, hf_device_map)
 
             # It is not recommended to have `keep_original_model=True` with a model
             # that is loaded with accelerate but just in case
             if keep_original_model:
-                model = dispatch_model(model, model.hf_device_map)
+                model = dispatch_model(model, hf_device_map)
 
         # Overwrite the `save_pretrained` method
         # by raising an error if the user tries to save the model
