@@ -18,8 +18,6 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from transformers.utils import is_tf_available
-
 from ...exporters import TasksManager
 from ...exporters.tflite import QuantizationApproach
 from ..base import BaseOptimumCLICommand
@@ -238,10 +236,6 @@ class TFLiteExportCommand(BaseOptimumCLICommand):
     @staticmethod
     def parse_args(parser: "ArgumentParser"):
         return parse_args_tflite(parser)
-
-    def check_requirements(self):
-        if not is_tf_available():
-            raise ImportError("TensorFlow is not installed. Please install TensorFlow first.")
 
     def run(self):
         self.check_requirements()

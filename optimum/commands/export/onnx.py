@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ...exporters import TasksManager
-from ...utils import DEFAULT_DUMMY_SHAPES, is_onnx_available
+from ...utils import DEFAULT_DUMMY_SHAPES
 from ..base import BaseOptimumCLICommand
 
 
@@ -192,10 +192,6 @@ class ONNXExportCommand(BaseOptimumCLICommand):
     def parse_args(parser: "ArgumentParser"):
         return parse_args_onnx(parser)
 
-    def check_requirements(self):
-        if not is_onnx_available():
-            raise ImportError("Onnx is not installed. Please install Onnx first.")
-
     def run(self):
         from ...exporters.onnx.__main__ import main_export
 
@@ -204,7 +200,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
         for input_name in DEFAULT_DUMMY_SHAPES.keys():
             input_shapes[input_name] = getattr(self.args, input_name)
 
-        main_export(  # noqa: F821
+        main_export(
             model_name_or_path=self.args.model,
             output=self.args.output,
             task=self.args.task,

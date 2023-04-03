@@ -17,7 +17,6 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ...utils import is_onnxruntime_available
 from .. import BaseOptimumCLICommand
 
 
@@ -68,10 +67,6 @@ class ONNXRuntimmeQuantizeCommand(BaseOptimumCLICommand):
     @staticmethod
     def parse_args(parser: "ArgumentParser"):
         return parse_args_onnxruntime_quantize(parser)
-
-    def check_requirements(self):
-        if not is_onnxruntime_available():
-            raise ImportError("Onnxruntime is not installed. Please install Onnxruntime first.")
 
     def run(self):
         from ...onnxruntime.configuration import AutoQuantizationConfig, ORTConfig
