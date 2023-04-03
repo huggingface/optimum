@@ -76,7 +76,7 @@ Once you have picked an appropriate model, you can create the [`~pipelines.pipel
 >>> pred = onnx_qa(question=question, context=context)
 ```
 
-It is also possible to load it with the `from_pretrained(model_name_or_path, from_transformers=True)`
+It is also possible to load it with the `from_pretrained(model_name_or_path, export=True)`
 method associated with the `ORTModelForXXX` class.
 
 For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnswering`] class for question answering:
@@ -89,10 +89,10 @@ For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnsw
 >>> tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
 >>> # Loading the PyTorch checkpoint and converting to the ONNX format by providing
->>> # from_transformers=True
+>>> # export=True
 >>> model = ORTModelForQuestionAnswering.from_pretrained(
 ...     "deepset/roberta-base-squad2",
-...     from_transformers=True
+...     export=True
 ... )
 
 >>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer, accelerator="ort")
@@ -162,7 +162,7 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
 >>> save_dir = "distilbert_quantized"
 
->>> model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
+>>> model = ORTModelForSequenceClassification.from_pretrained(model_id, export=True)
 
 >>> # Load the quantization configuration detailing the quantization we wish to apply
 >>> qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=True)
@@ -203,7 +203,7 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 >>> save_dir = "distilbert_optimized"
 
 >>> tokenizer = AutoTokenizer.from_pretrained(model_id)
->>> model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
+>>> model = ORTModelForSequenceClassification.from_pretrained(model_id, export=True)
 
 >>> # Load the optimization configuration detailing the optimization we wish to apply
 >>> optimization_config = AutoOptimizationConfig.O3()

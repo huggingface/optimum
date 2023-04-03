@@ -105,26 +105,26 @@ of Transformers. You can easily adapt the codes by replacing `Trainer` of transf
 empowered by ONNX Runtime. Here is an example of how to use `ORTTrainer` compared with `Trainer`:
 
 ```diff
--from transformers import Trainer, TrainingArguments
-+from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
+- from transformers import Trainer, TrainingArguments
++ from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
 
-# Step 1: Define training arguments
--training_args = TrainingArguments(
-+training_args = ORTTrainingArguments(
-    output_dir="path/to/save/folder/",
--   optim = "adamw_hf",
-+   optim="adamw_ort_fused",
-    ...
+  # Step 1: Define training arguments
+- training_args = TrainingArguments(
++ training_args = ORTTrainingArguments(
+      output_dir="path/to/save/folder/",
+-     optim = "adamw_hf",
++     optim="adamw_ort_fused",
+      ...
 )
 
-# Step 2: Create your ONNX Runtime Trainer
--trainer = Trainer(
-+trainer = ORTTrainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-+   feature="sequence-classification",
-    ...
+ # Step 2: Create your ONNX Runtime Trainer
+- trainer = Trainer(
++ trainer = ORTTrainer(
+      model=model,
+      args=training_args,
+      train_dataset=train_dataset,
++     feature="sequence-classification",
+      ...
 )
 
 # Step 3: Use ONNX Runtime for training!🤗
@@ -141,30 +141,30 @@ of Transformers. You can easily adapt the codes by replacing `Seq2SeqTrainer` of
 empowered by ONNX Runtime. Here is an example of how to use `ORTSeq2SeqTrainer` compared with `Seq2SeqTrainer`:
 
 ```diff
--from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
-+from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTSeq2SeqTrainingArguments
+- from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
++ from optimum.onnxruntime import ORTSeq2SeqTrainer, ORTSeq2SeqTrainingArguments
 
-# Step 1: Define training arguments
--training_args = Seq2SeqTrainingArguments(
-+training_args = ORTSeq2SeqTrainingArguments(
-    output_dir="path/to/save/folder/",
--   optim = "adamw_hf",
-+   optim="adamw_ort_fused",
-    ...
+  # Step 1: Define training arguments
+- training_args = Seq2SeqTrainingArguments(
++ training_args = ORTSeq2SeqTrainingArguments(
+      output_dir="path/to/save/folder/",
+-     optim = "adamw_hf",
++     optim="adamw_ort_fused",
+      ...
 )
 
-# Step 2: Create your ONNX Runtime Seq2SeqTrainer
--trainer = Seq2SeqTrainer(
-+trainer = ORTSeq2SeqTrainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-+   feature="seq2seq-lm",
-    ...
+  # Step 2: Create your ONNX Runtime Seq2SeqTrainer
+- trainer = Seq2SeqTrainer(
++ trainer = ORTSeq2SeqTrainer(
+      model=model,
+      args=training_args,
+      train_dataset=train_dataset,
++     feature="seq2seq-lm",
+      ...
 )
 
-# Step 3: Use ONNX Runtime for training!🤗
-trainer.train()
+  # Step 3: Use ONNX Runtime for training!🤗
+  trainer.train()
 ```
 
 Check out more detailed [example scripts](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training) in the optimum repository.
@@ -211,20 +211,20 @@ Replace `Seq2SeqTrainingArguments` with `ORTSeq2SeqTrainingArguments`:
 
 
 ```diff
--from transformers import Seq2SeqTrainingArguments
-+from optimum.onnxruntime import ORTSeq2SeqTrainingArguments
+- from transformers import Seq2SeqTrainingArguments
++ from optimum.onnxruntime import ORTSeq2SeqTrainingArguments
 
--training_args = Seq2SeqTrainingArguments(
-+training_args =  ORTSeq2SeqTrainingArguments(
-    output_dir="path/to/save/folder/",
-    num_train_epochs=1,
-    per_device_train_batch_size=8,
-    per_device_eval_batch_size=8,
-    warmup_steps=500,
-    weight_decay=0.01,
-    logging_dir="path/to/save/folder/",
--   optim = "adamw_hf",
-+   optim="adamw_ort_fused",  # Fused Adam optimizer implemented by ORT
+- training_args = Seq2SeqTrainingArguments(
++ training_args =  ORTSeq2SeqTrainingArguments(
+      output_dir="path/to/save/folder/",
+      num_train_epochs=1,
+      per_device_train_batch_size=8,
+      per_device_eval_batch_size=8,
+      warmup_steps=500,
+      weight_decay=0.01,
+      logging_dir="path/to/save/folder/",
+-     optim = "adamw_hf",
++     optim="adamw_ort_fused",  # Fused Adam optimizer implemented by ORT
 )
 ```
 

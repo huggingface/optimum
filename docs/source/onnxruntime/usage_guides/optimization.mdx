@@ -113,7 +113,7 @@ Below you will find an easy end-to-end example on how to optimize [distilbert-ba
 >>> save_dir = "distilbert_optimized"
 
 >>> # Load a PyTorch model and export it to the ONNX format
->>> model = ORTModelForSequenceClassification.from_pretrained(model_id, from_transformers=True)
+>>> model = ORTModelForSequenceClassification.from_pretrained(model_id, export=True)
 
 >>> # Create the optimizer
 >>> optimizer = ORTOptimizer.from_pretrained(model)
@@ -136,7 +136,7 @@ Below you will find an easy end-to-end example on how to optimize a Seq2Seq mode
 >>> save_dir = "distilbart_optimized"
 
 >>> # Load a PyTorch model and export it to the ONNX format
->>> model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True)
+>>> model = ORTModelForSeq2SeqLM.from_pretrained(model_id, export=True)
 
 >>> # Create the optimizer
 >>> optimizer = ORTOptimizer.from_pretrained(model)

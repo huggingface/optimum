@@ -13,11 +13,11 @@ You do not need to adapt your code to get it to work with `ORTModelForXXX` class
 
 ```diff
 from transformers import AutoTokenizer, pipeline
--from transformers import AutoModelForQuestionAnswering
-+from optimum.onnxruntime import ORTModelForQuestionAnswering
+- from transformers import AutoModelForQuestionAnswering
++ from optimum.onnxruntime import ORTModelForQuestionAnswering
 
--model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2") # PyTorch checkpoint
-+model = ORTModelForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2") # ONNX checkpoint
+- model = AutoModelForQuestionAnswering.from_pretrained("deepset/roberta-base-squad2") # PyTorch checkpoint
++ model = ORTModelForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2") # ONNX checkpoint
 tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
 onnx_qa = pipeline("question-answering",model=model,tokenizer=tokenizer)
@@ -30,16 +30,15 @@ pred = onnx_qa(question, context)
 ### Loading a vanilla Transformers model
 
 Because the model you want to work with might not be already converted to ONNX,  [`~optimum.onnxruntime.ORTModel`]
-includes a method to convert vanilla Transformers models to ONNX ones. Simply pass `from_transformers=True` to the
+includes a method to convert vanilla Transformers models to ONNX ones. Simply pass `export=True` to the
 [`~optimum.onnxruntime.ORTModel.from_pretrained`] method, and your model will be loaded and converted to ONNX on-the-fly:
 
 ```python
->>> from optimum.onnxruntime import ORTModelForSequenceClassification
+from optimum.onnxruntime import ORTModelForSequenceClassification
 
->>> # Load the model from the hub and export it to the ONNX format
->>> model = ORTModelForSequenceClassification.from_pretrained(
-...     "distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True
-... )
+# Load the model from the hub and export it to the ONNX format
+model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+model = ORTModelForSequenceClassification.from_pretrained(model_id, export=True)
 ```
 
 ### Pushing ONNX models to the Hugging Face Hub
@@ -48,20 +47,17 @@ It is also possible, just as with regular [`~transformers.PreTrainedModel`]s, to
 [Hugging Face Model Hub](https://hf.co/models):
 
 ```python
->>> from optimum.onnxruntime import ORTModelForSequenceClassification
+from optimum.onnxruntime import ORTModelForSequenceClassification
 
->>> # Load the model from the hub and export it to the ONNX format
->>> model = ORTModelForSequenceClassification.from_pretrained(
-...     "distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True
-... )
+# Load the model from the hub and export it to the ONNX format
+model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+model = ORTModelForSequenceClassification.from_pretrained(model_id, export=True)
 
->>> # Save the converted model
->>> model.save_pretrained("a_local_path_for_convert_onnx_model")
+# Save the converted model
+model.save_pretrained("a_local_path_for_convert_onnx_model")
 
 # Push the onnx model to HF Hub
->>> model.push_to_hub(  # doctest: +SKIP
-...   "a_local_path_for_convert_onnx_model", repository_id="my-onnx-repo", use_auth_token=True
-... )
+model.push_to_hub("a_local_path_for_convert_onnx_model", repository_id="my-onnx-repo", use_auth_token=True)
 ```
 
 ## Export and inference of sequence-to-sequence models
@@ -77,19 +73,19 @@ Here is an example of how you can load a T5 model to the ONNX format and run inf
 
 
 ```python
->>> from transformers import AutoTokenizer, pipeline
->>> from optimum.onnxruntime import ORTModelForSeq2SeqLM
+from transformers import AutoTokenizer, pipeline
+from optimum.onnxruntime import ORTModelForSeq2SeqLM
 
 # Load the model from the hub and export it to the ONNX format
->>> model_name = "t5-small"
->>> model = ORTModelForSeq2SeqLM.from_pretrained(model_name, from_transformers=True)
->>> tokenizer = AutoTokenizer.from_pretrained(model_name)
+model_name = "t5-small"
+model = ORTModelForSeq2SeqLM.from_pretrained(model_name, export=True)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 # Create a pipeline
->>> onnx_translation = pipeline("translation_en_to_fr", model=model, tokenizer=tokenizer)
->>> text = "He never went out without a book under his arm, and he often came back with two."
->>> result = onnx_translation(text)
->>> # [{'translation_text': "Il n'est jamais sorti sans un livre sous son bras, et il est souvent revenu avec deux."}]
+onnx_translation = pipeline("translation_en_to_fr", model=model, tokenizer=tokenizer)
+text = "He never went out without a book under his arm, and he often came back with two."
+result = onnx_translation(text)
+# [{'translation_text': "Il n'est jamais sorti sans un livre sous son bras, et il est souvent revenu avec deux."}]
 ```
 
 ## Export and inference of Stable Diffusion models
