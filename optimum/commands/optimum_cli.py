@@ -138,7 +138,7 @@ def register_optimum_cli_subcommand(
 
 
 def main():
-    root = RootOptimumCLICommand("Optimum CLI tool", usage="optimum-cli <command> [<args>]")
+    root = RootOptimumCLICommand("Optimum CLI tool", usage="optimum-cli")
     parser = root.parser
 
     for subcommand_cls in OPTIMUM_CLI_SUBCOMMANDS:
