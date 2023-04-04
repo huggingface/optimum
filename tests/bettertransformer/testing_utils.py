@@ -217,7 +217,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
         hf_random_model = AutoModel.from_pretrained(model_id).eval()
 
         assert_context_manager = ContextManager()
-        if parse(torch.__version__) < parse('2.0.0'):
+        if parse(torch.__version__) < parse("2.0.0"):
             assert_context_manager = self.assertRaises(ValueError)
 
         # Check for the autocast on CPU
