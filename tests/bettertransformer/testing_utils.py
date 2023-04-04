@@ -19,7 +19,6 @@ import tempfile
 import unittest
 
 import torch
-from humanfriendly.testing import ContextManager
 from packaging.version import parse
 from transformers import AutoModel
 
@@ -216,14 +215,16 @@ class BetterTransformersTestMixin(unittest.TestCase):
         inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **kwargs)
         hf_random_model = AutoModel.from_pretrained(model_id).eval()
 
-        assert_context_manager = ContextManager()
         if parse(torch.__version__) < parse("2.0.0"):
-            assert_context_manager = self.assertRaises(ValueError)
-
-        # Check for the autocast on CPU
-        with assert_context_manager, torch.amp.autocast("cpu"):
-            bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
-            _ = bt_model(**inputs)
+            # Check for the autocast on CPU
+            with self.assertRaises(ValueError), torch.amp.autocast("cpu"):
+                bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+                _ = bt_model(**inputs)
+        else:
+            # with torch >= 2.0.0 this should not raise any exceptions
+            with torch.amp.autocast("cpu"):
+                bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+                _ = bt_model(**inputs)
 
     def _test_raise_train(self, model_id: str, model_type: str, **kwargs):
         r"""
