@@ -212,17 +212,17 @@ class BetterTransformersTestMixin(unittest.TestCase):
         A tests that checks if the conversion raises an error if the model is run under
         `torch.cuda.amp.autocast` with torch version < 2.0.0.
         """
-        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **kwargs)
-        hf_random_model = AutoModel.from_pretrained(model_id).eval()
+        with torch.amp.autocast("cpu"):
+            inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **kwargs)
+            hf_random_model = AutoModel.from_pretrained(model_id).eval()
 
-        if parse(torch.__version__) < parse("2.0.0"):
-            # Check for the autocast on CPU
-            with self.assertRaises(ValueError), torch.amp.autocast("cpu"):
-                bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
-                _ = bt_model(**inputs)
-        else:
-            # with torch >= 2.0.0 this should not raise any exceptions
-            with torch.amp.autocast("cpu"):
+            if parse(torch.__version__) < parse("2.0.0"):
+                # Check for the autocast on CPU
+                with self.assertRaises(ValueError):
+                    bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+                    _ = bt_model(**inputs)
+            else:
+                # with torch >= 2.0.0 this should not raise any exceptions
                 bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
                 _ = bt_model(**inputs)
 
