@@ -1,6 +1,5 @@
-# use version with cudnn 8.5 to match torch==1.13.1 that uses 8.5.0.96
-# has Python 3.8.10
-FROM nvcr.io/nvidia/tensorrt:22.08-py3
+# use version with CUDA 11.8 and TensorRT 8.5.1.7 to match ORT 1.14 requirements
+FROM nvcr.io/nvidia/tensorrt:22.12-py3
 CMD nvidia-smi
 
 # Ignore interactive questions during `docker build`

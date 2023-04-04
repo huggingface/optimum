@@ -627,19 +627,37 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
         return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)
 
 
-class DummyTrainingLabelsInputGenerator(DummyTextInputGenerator):
-    SUPPORTED_INPUT_NAMES = ("labels", "start_positions", "end_positions")
+class DummyLabelsGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = (
+        "labels",
+        "start_positions",
+        "end_positions",
+    )
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
+    ):
+        self.task = task
+
+        if random_batch_size_range:
+            low, high = random_batch_size_range
+            self.batch_size = random.randint(low, high)
+        else:
+            self.batch_size = batch_size
+
+        self.sequence_length = kwargs.get("sequence_length", None)
+        self.num_labels = kwargs.get("num_labels", None)
 
     def generate(self, input_name: str, framework: str = "pt"):
-        max_value = 1 if self.task != "seq2seq-lm" else self.vocab_size
-        shape = [self.batch_size, self.sequence_length]
-        if self.task in [
-            "default",
-            "sequence-classification",
-            "multiple-choice",
-            "question-answering",
-            "image-classification",
-        ]:
+        max_value = self.num_labels if self.num_labels is not None else 0
+        if self.sequence_length is None:
             shape = [self.batch_size]
+        else:
+            shape = [self.batch_size, self.sequence_length]
 
         return self.random_int_tensor(shape, max_value=max_value, framework=framework)

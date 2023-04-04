@@ -14,11 +14,16 @@
 """Defines the command line for the export with ONNX."""
 
 import argparse
-import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ...exporters import TasksManager
 from ...utils import DEFAULT_DUMMY_SHAPES
+from ..base import BaseOptimumCLICommand
+
+
+if TYPE_CHECKING:
+    from argparse import ArgumentParser
 
 
 def parse_args_onnx(parser):
@@ -27,7 +32,7 @@ def parse_args_onnx(parser):
         "-m", "--model", type=str, required=True, help="Model ID on huggingface.co or path on disk to load model from."
     )
     required_group.add_argument(
-        "output", type=Path, help="Path indicating the directory where to store generated ONNX model."
+        "output", type=Path, help="Path indicating the directory where to store the generated ONNX model."
     )
 
     optional_group = parser.add_argument_group("Optional arguments")
@@ -40,13 +45,10 @@ def parse_args_onnx(parser):
         ),
     )
     optional_group.add_argument(
-        "--monolith",
-        action="store_true",
-        help=(
-            "Force to export the model as a single ONNX file. By default, the ONNX exporter may break the model in several"
-            " ONNX files, for example for encoder-decoder models where the encoder should be run only once while the"
-            " decoder is looped over."
-        ),
+        "--opset",
+        type=int,
+        default=None,
+        help="If specified, ONNX opset version to export the model with. Otherwise, the default opset for the given model architecture will be used.",
     )
     optional_group.add_argument(
         "--device",
@@ -57,53 +59,7 @@ def parse_args_onnx(parser):
     optional_group.add_argument(
         "--fp16",
         action="store_true",
-        help="Experimental option: use half precision during the export. PyTorch-only, requires `--device cuda`.",
-    )
-    optional_group.add_argument(
-        "--opset",
-        type=int,
-        default=None,
-        help="If specified, ONNX opset version to export the model with. Otherwise, the default opset will be used.",
-    )
-    optional_group.add_argument(
-        "--atol",
-        type=float,
-        default=None,
-        help="If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.",
-    )
-    optional_group.add_argument(
-        "--framework",
-        type=str,
-        choices=["pt", "tf"],
-        default=None,
-        help=(
-            "The framework to use for the ONNX export."
-            " If not provided, will attempt to use the local checkpoint's original framework"
-            " or what is available in the environment."
-        ),
-    )
-    optional_group.add_argument(
-        "--pad_token_id",
-        type=int,
-        default=None,
-        help=(
-            "This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess"
-            " it."
-        ),
-    )
-    optional_group.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
-    optional_group.add_argument(
-        "--trust-remote-code",
-        action="store_true",
-        help="Allows to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.",
-    )
-    optional_group.add_argument(
-        "--no-post-process",
-        action="store_true",
-        help=(
-            "Allows to disable any post-processing done by default on the exported ONNX models. For example, the merging of decoder"
-            " and decoder-with-past models into a single ONNX model file to reduce memory usage."
-        ),
+        help="Use half precision during the export. PyTorch-only, requires `--device cuda`.",
     )
     optional_group.add_argument(
         "--optimize",
@@ -118,9 +74,58 @@ def parse_args_onnx(parser):
             "    - O4: Same as O3 with mixed precision (fp16, GPU-only, requires `--device cuda`)"
         ),
     )
+    optional_group.add_argument(
+        "--monolith",
+        action="store_true",
+        help=(
+            "Forces to export the model as a single ONNX file. By default, the ONNX exporter may break the model in several"
+            " ONNX files, for example for encoder-decoder models where the encoder should be run only once while the"
+            " decoder is looped over."
+        ),
+    )
+    optional_group.add_argument(
+        "--no-post-process",
+        action="store_true",
+        help=(
+            "Allows to disable any post-processing done by default on the exported ONNX models. For example, the merging of decoder"
+            " and decoder-with-past models into a single ONNX model file to reduce memory usage."
+        ),
+    )
+    optional_group.add_argument(
+        "--framework",
+        type=str,
+        choices=["pt", "tf"],
+        default=None,
+        help=(
+            "The framework to use for the ONNX export."
+            " If not provided, will attempt to use the local checkpoint's original framework"
+            " or what is available in the environment."
+        ),
+    )
+    optional_group.add_argument(
+        "--atol",
+        type=float,
+        default=None,
+        help="If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.",
+    )
+    optional_group.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
+    optional_group.add_argument(
+        "--trust-remote-code",
+        action="store_true",
+        help="Allows to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.",
+    )
+    optional_group.add_argument(
+        "--pad_token_id",
+        type=int,
+        default=None,
+        help=(
+            "This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess"
+            " it."
+        ),
+    )
 
     input_group = parser.add_argument_group(
-        "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input.)"
+        "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input)."
     )
     doc_input = "to use in the example input given to the ONNX export."
     input_group.add_argument(
@@ -182,10 +187,34 @@ def parse_args_onnx(parser):
     parser.add_argument("--for-ort", action="store_true", help=argparse.SUPPRESS)
 
 
-class ONNXExportCommand:
-    def __init__(self, args_string):
-        self.args_string = args_string
+class ONNXExportCommand(BaseOptimumCLICommand):
+    @staticmethod
+    def parse_args(parser: "ArgumentParser"):
+        return parse_args_onnx(parser)
 
     def run(self):
-        full_command = f"python3 -m optimum.exporters.onnx {self.args_string}"
-        subprocess.run(full_command, shell=True, check=True)
+        from ...exporters.onnx.__main__ import main_export
+
+        # Get the shapes to be used to generate dummy inputs
+        input_shapes = {}
+        for input_name in DEFAULT_DUMMY_SHAPES.keys():
+            input_shapes[input_name] = getattr(self.args, input_name)
+
+        main_export(
+            model_name_or_path=self.args.model,
+            output=self.args.output,
+            task=self.args.task,
+            opset=self.args.opset,
+            device=self.args.device,
+            fp16=self.args.fp16,
+            optimize=self.args.optimize,
+            monolith=self.args.monolith,
+            no_post_process=self.args.no_post_process,
+            framework=self.args.framework,
+            atol=self.args.atol,
+            cache_dir=self.args.cache_dir,
+            trust_remote_code=self.args.trust_remote_code,
+            pad_token_id=self.args.pad_token_id,
+            for_ort=self.args.for_ort,
+            **input_shapes,
+        )

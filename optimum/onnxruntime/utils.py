@@ -145,8 +145,8 @@ class ORTConfigManager:
         supported_model_types_for_optimization = ["bert", "gpt2", "bart", "unet"]
 
         if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):
-            raise KeyError(
-                f"ONNX Runtime doesn't support the graph optimization of {model_type} yet. Only {supported_model_types_for_optimization} are supported. "
+            raise NotImplementedError(
+                f"ONNX Runtime doesn't support the graph optimization of {model_type} yet. Only {list(cls._conf.keys())} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue in ONNX Runtime:https://github.com/microsoft/onnxruntime."
             )
 
@@ -248,7 +248,7 @@ def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None
     """
     Whether to use IOBinding or not.
     """
-    if providers[0] == "CUDAExecutionProvider" and use_io_binding is None:
+    if use_io_binding is None and providers[0] == "CUDAExecutionProvider":
         use_io_binding = True
     elif providers[0] != "CUDAExecutionProvider":
         if use_io_binding is True:

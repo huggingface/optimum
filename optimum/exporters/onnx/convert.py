@@ -441,12 +441,13 @@ def export_pytorch(
                     f=output.as_posix(),
                     input_names=input_names,
                     output_names=output_names,
-                    dynamic_axes={name: axes for name, axes in chain(inputs.items(), config.outputs.items())},
+                    dynamic_axes=dict(chain(inputs.items(), config.outputs.items())),
                     do_constant_folding=True,
                     opset_version=opset,
                 )
 
             # check if external data was exported
+            # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
             onnx_model = onnx.load(str(output), load_external_data=False)
             model_uses_external_data = check_model_uses_external_data(onnx_model)
 

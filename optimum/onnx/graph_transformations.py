@@ -98,6 +98,7 @@ def merge_decoders(
     graph_name: str = "merged",
     producer_name: str = "optimum-onnx",
     save_path: Optional[Union[str, Path]] = None,
+    strict: bool = True,
 ) -> ModelProto:
     """
     Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
@@ -113,6 +114,10 @@ def merge_decoders(
             Graph producer name.
         save_path (`Optional[Union[str, Path]]`, defaults to `None`):
             The path to save merged ONNX model. The model will be saved if the path is given.
+        strict (`bool`, defaults to `True`):
+            When set, the decoder and decoder_with_past are expected to have strictly the same number of outputs. When False,
+            the decoder is allowed to have more outputs that decoder_with_past, in which case constant outputs are added to match
+            the number of outputs.
 
     Returns:
         `~onnx.ModelProto`: The fused decoder ONNX model.
@@ -132,7 +137,7 @@ def merge_decoders(
             f"Decoder's opset is {decoder_opset}, but decoder with past's opset is {decoder_with_past_opset}. Make sure having the same opset before merging."
         )
 
-    _unify_onnx_outputs(decoder, decoder_with_past)
+    _unify_onnx_outputs(decoder, decoder_with_past, strict=strict)
     all_inputs = _get_all_inputs([decoder, decoder_with_past])
 
     # Replace the axis name `sequence_length` of the attention_mask input by `attention_mask_sequence_length`.
@@ -207,8 +212,10 @@ def merge_decoders(
 
     merged_model = onnx.helper.make_model(merged_graph, producer_name=producer_name, opset_imports=opset_imports)
 
-    # For the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
+    # for large models, a path must be provided instead of a ModelProto:
+    # https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#checking-a-large-onnx-model-2gb
     if merged_model.ByteSize() < ONNX_BYTE_SIZE_LIMIT:
+        # For the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
         try:
             onnx.checker.check_model(merged_model)
         except Exception as e:
@@ -229,7 +236,7 @@ def merge_decoders(
             location=os.path.basename(save_path) + "_data",
         )
         try:
-            onnx.checker.check_model(merged_model)
+            onnx.checker.check_model(save_path)
         except Exception as e:
             if "No Op registered for" in str(e):
                 pass

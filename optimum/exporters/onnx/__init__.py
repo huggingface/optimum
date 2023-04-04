@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from typing import TYPE_CHECKING
 
 from transformers.utils import _LazyModule
@@ -26,6 +27,7 @@ _import_structure = {
         "get_encoder_decoder_models_for_export",
         "get_stable_diffusion_models_for_export",
     ],
+    "__main__": ["main_export"],
 }
 
 if TYPE_CHECKING:
@@ -37,6 +39,7 @@ if TYPE_CHECKING:
         get_encoder_decoder_models_for_export,
         get_stable_diffusion_models_for_export,
     )
+    from .__main__ import main_export
 else:
     import sys
 

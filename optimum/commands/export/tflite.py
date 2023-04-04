@@ -14,12 +14,22 @@
 """Defines the command line for the export with TensorFlow Lite."""
 
 import subprocess
+import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 from ...exporters import TasksManager
+from ...exporters.tflite import QuantizationApproach
+from ..base import BaseOptimumCLICommand
 
 
-def parse_args_tflite(parser):
+if TYPE_CHECKING:
+    from argparse import ArgumentParser, Namespace, _SubParsersAction
+
+    from ..base import CommandInfo
+
+
+def parse_args_tflite(parser: "ArgumentParser"):
     required_group = parser.add_argument_group("Required arguments")
     required_group.add_argument(
         "-m", "--model", type=str, required=True, help="Model ID on huggingface.co or path on disk to load model from."
@@ -116,10 +126,116 @@ def parse_args_tflite(parser):
         help=f"Audio tasks only. Audio sequence length {doc_input}",
     )
 
+    quantization_group = parser.add_argument_group("Quantization")
+    quantization_group.add_argument(
+        "--quantize",
+        choices=[e.value for e in QuantizationApproach],
+        type=str,
+        default=None,
+        help=(
+            'The method of quantization to perform, possible choices: "int8-dynamic", "int8", "int8x16", "fp16".  No '
+            "quantization will happen if left unspecified."
+        ),
+    )
+    quantization_group.add_argument(
+        "--fallback_to_float",
+        action="store_true",
+        help=(
+            "Whether to fall back to the float implementation for operators without an integer implementation. This "
+            "needs to be disabled for integer-only hardware."
+        ),
+    )
+    quantization_group.add_argument(
+        "--inputs_type",
+        choices=["int8", "uint8"],
+        default=None,
+        help="The inputs will be expected to be of the specified type. This is useful for integer-only hardware.",
+    )
+    quantization_group.add_argument(
+        "--outputs_type",
+        choices=["int8", "uint8"],
+        default=None,
+        help="The outputs will be of the specified type. This is useful for integer-only hardware.",
+    )
 
-class TFLiteExportCommand:
-    def __init__(self, args_string):
-        self.args_string = args_string
+    calibration_dataset_group = parser.add_argument_group("Quantization Calibration dataset")
+    calibration_dataset_group.add_argument(
+        "--calibration_dataset",
+        type=str,
+        default=None,
+        help=(
+            "The dataset to use to calibration integer ranges when quantizing the model. This is needed to perform "
+            "static quantization."
+        ),
+    )
+    calibration_dataset_group.add_argument(
+        "--calibration_dataset_config_name",
+        type=str,
+        default=None,
+        help="The calibration dataset configuration name, this is needed for some datasets.",
+    )
+    calibration_dataset_group.add_argument(
+        "--num_calibration_samples",
+        type=int,
+        default=200,
+        help="The number of samples in the calibration dataset to use for calibration, usually something around 100-200 is enough.",
+    )
+    calibration_dataset_group.add_argument(
+        "--calibration_split", type=str, default=None, help="The split of the calibration dataset to use."
+    )
+    calibration_dataset_group.add_argument(
+        "--primary_key",
+        type=str,
+        default=None,
+        help=(
+            "The name of the column in the dataset containing the main data to preprocess. "
+            "Only for sequence-classification and token-classification. "
+        ),
+    )
+    calibration_dataset_group.add_argument(
+        "--secondary_key",
+        type=str,
+        default=None,
+        help=(
+            "The name of the second column in the dataset containing the main data to preprocess, not always needed. "
+            "Only for sequence-classification and token-classification. "
+        ),
+    )
+    calibration_dataset_group.add_argument(
+        "--question_key",
+        type=str,
+        default=None,
+        help=("The name of the column containing the question in the dataset. Only for question-answering."),
+    )
+    calibration_dataset_group.add_argument(
+        "--context_key",
+        type=str,
+        default=None,
+        help=("The name of the column containing the context in the dataset. Only for question-answering."),
+    )
+    calibration_dataset_group.add_argument(
+        "--image_key",
+        type=str,
+        default=None,
+        help=("The name of the column containing the image in the dataset. Only for image-classification."),
+    )
+
+
+class TFLiteExportCommand(BaseOptimumCLICommand):
+    def __init__(
+        self,
+        parser: "_SubParsersAction",
+        args: Optional["Namespace"] = None,
+        command: Optional["CommandInfo"] = None,
+        from_defaults_factory: bool = False,
+    ):
+        super().__init__(parser, args, command=command, from_defaults_factory=from_defaults_factory)
+        # TODO: hack until TFLiteExportCommand does not use subprocess anymore.
+        self.args_string = " ".join(sys.argv[3:])
+
+    @staticmethod
+    def parse_args(parser: "ArgumentParser"):
+        return parse_args_tflite(parser)
 
     def run(self):
         full_command = f"python3 -m optimum.exporters.tflite {self.args_string}"

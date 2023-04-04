@@ -5,6 +5,10 @@ CMD nvidia-smi
 # Ignore interactive questions during `docker build`
 ENV DEBIAN_FRONTEND noninteractive
 
+# Bash shell
+RUN chsh -s /bin/bash
+SHELL ["/bin/bash", "-c"]
+
 # Versions
 ARG TORCH_CUDA_VERSION=cu116
 ARG TORCH_VERSION=1.13.1
@@ -26,7 +30,6 @@ RUN pip install -U pip
 RUN pip install pygit2 pgzip
 
 # (Optional) Intall test dependencies
-RUN pip install pytest pytest-xdist
 RUN pip install git+https://github.com/huggingface/transformers
 RUN pip install datasets accelerate evaluate coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk scikit-learn parameterized sentencepiece
 RUN pip install fairscale deepspeed mpi4py
@@ -35,7 +38,7 @@ RUN pip install fairscale deepspeed mpi4py
 # Install onnxruntime-training dependencies
 RUN pip install onnx ninja
 RUN pip install torch==${TORCH_VERSION}+${TORCH_CUDA_VERSION} torchvision==${TORCHVISION_VERSION} -f https://download.pytorch.org/whl/cu116/torch_stable.html
-RUN pip install --pre --no-deps --no-index onnxruntime-training -f https://download.onnxruntime.ai/onnxruntime_nightly_cu116.html && TORCH_CUDA_ARCH_LIST='7.0;8.0+PTX'
+RUN pip install onnxruntime-training==1.14.1 -f https://download.onnxruntime.ai/onnxruntime_stable_cu116.html
 RUN pip install torch-ort
 RUN pip install --upgrade protobuf==3.20.2
 

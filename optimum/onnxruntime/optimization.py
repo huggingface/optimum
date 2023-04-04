@@ -13,18 +13,20 @@
 #  limitations under the License.
 """Main class for performing graph optimization with ONNX Runtime."""
 
-import logging
+import gc
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
+import onnx
 from onnx import load_model
 from transformers.models.auto.configuration_auto import AutoConfig
 
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import optimize_model
 
-from ..utils import CONFIG_NAME, NormalizedConfigManager
+from ..onnx.utils import check_model_uses_external_data
+from ..utils import CONFIG_NAME, NormalizedConfigManager, logging
 from ..utils.save_utils import maybe_save_preprocessors
 from .configuration import OptimizationConfig, ORTConfig
 from .modeling_decoder import ORTModelForCausalLM
@@ -37,7 +39,7 @@ if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.get_logger()
 
 
 class ORTOptimizer:
@@ -45,18 +47,21 @@ class ORTOptimizer:
     Handles the ONNX Runtime optimization process for models shared on huggingface.co/models.
     """
 
-    def __init__(self, onnx_model_path: List[os.PathLike], config: "PretrainedConfig"):
+    def __init__(self, onnx_model_path: List[os.PathLike], config: "PretrainedConfig", from_ortmodel: bool = False):
         """
         Args:
             onnx_model_path (`List[os.PathLike]`):
                 The paths of the onnx models to optimize.
             config ([`~transformers.PretrainedConfig`]):
                 An instance of the configuration associated to the model to optimize.
+            from_ortmodel (`bool`, defaults to `False`):
+                Whether the model being optimized is already loaded into an ORTModel, or if it was passed from disk.
         """
         super().__init__()
         self.onnx_model_path = onnx_model_path
         self.config = config
         self.model_type = self.config.model_type
+        self.from_ortmodel = from_ortmodel
 
         try:
             self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.model_type)(self.config)
@@ -83,6 +88,7 @@ class ORTOptimizer:
         onnx_model_path = []
         config = None
         if isinstance(model_or_path, ORTModel):
+            from_ortmodel = True
             if isinstance(model_or_path, ORTModelForSeq2SeqLM):
                 onnx_model_path += [
                     model_or_path.encoder_model_path,
@@ -106,6 +112,7 @@ class ORTOptimizer:
                 onnx_model_path.append(model_or_path.model_path)
             config = model_or_path.config
         elif os.path.isdir(model_or_path):
+            from_ortmodel = False
             file_names = [ONNX_WEIGHTS_NAME] if file_names is None else file_names
             model_or_path = Path(model_or_path)
             if CONFIG_NAME not in os.listdir(model_or_path):
@@ -115,14 +122,14 @@ class ORTOptimizer:
                 onnx_model_path.append(model_or_path.joinpath(file_name))
         else:
             raise ValueError(f"Unable to load the model from {model_or_path}.")
-        return cls(onnx_model_path, config=config)
+        return cls(onnx_model_path, config=config, from_ortmodel=from_ortmodel)
 
     def optimize(
         self,
         optimization_config: OptimizationConfig,
         save_dir: Union[str, os.PathLike],
         file_suffix: Optional[str] = "optimized",
-        use_external_data_format: bool = False,
+        use_external_data_format: Optional[bool] = None,
         one_external_file: bool = True,
     ):
         """
@@ -135,13 +142,19 @@ class ORTOptimizer:
                 The path used to save the optimized model.
             file_suffix (`str`, defaults to `"optimized"`):
                 The file suffix used to save the optimized model.
-            use_external_data_format (`bool`, defaults to `False`):
-                Whether to use external data format to store model of size >= 2Gb.
+            use_external_data_format (`Optional[bool]`, defaults to `None`):
+                Whether to use external data format to store model of size >= 2Gb. This argument is deprecated.
             one_external_file (`bool`, defaults to `True`):
                 When `use_external_data_format=True`, whether to save all tensors to one external file.
-                If false, save each tensor to a file named with the tensor name.
+                If False, save each tensor to a file named with the tensor name.
 
         """
+        if use_external_data_format is not None:
+            logger.warning(
+                "The argument use_external_data_format in the ORTOptimizer.optimize() method is deprecated and will"
+                " be removed in optimum 2.0."
+            )
+
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         ORTConfigManager.check_optimization_supported_model(self.model_type, optimization_config)
@@ -149,17 +162,28 @@ class ORTOptimizer:
         self.config.save_pretrained(save_dir)
         maybe_save_preprocessors(self.onnx_model_path[0].parent, save_dir)
 
-        # Create and save the configuration summarizing all the parameters related to optimization
-        ort_config = ORTConfig(
-            optimization=optimization_config,
-            use_external_data_format=use_external_data_format,
-            one_external_file=one_external_file,
-        )
-
         model_type = ORTConfigManager.get_model_ort_type(self.config.model_type)
         optimization_options = optimization_config.create_fusion_options(model_type)
 
-        LOGGER.info("Optimizing model...")
+        logger.info("Optimizing model...")
+
+        # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
+        model_uses_external_data = False
+        for model_path in self.onnx_model_path:
+            # check if external data was exported
+            onnx_model = onnx.load(str(model_path), load_external_data=False)
+            if check_model_uses_external_data(onnx_model) is True:
+                model_uses_external_data = True
+                break
+        del onnx_model
+        gc.collect()
+
+        # Create and save the configuration summarizing all the parameters related to optimization
+        ort_config = ORTConfig(
+            optimization=optimization_config,
+            use_external_data_format=model_uses_external_data,
+            one_external_file=one_external_file,
+        )
 
         for model_path in self.onnx_model_path:
             try:
@@ -189,15 +213,25 @@ class ORTOptimizer:
 
             suffix = f"_{file_suffix}" if file_suffix else ""
             output_path = save_dir.joinpath(f"{model_path.stem}{suffix}").with_suffix(model_path.suffix)
-            optimizer.save_model_to_file(output_path.as_posix(), use_external_data_format, one_external_file)
+
+            # TODO: ORT save_model_to_file will save as `.data` although we save as `.onnx_data` in the export
+            optimizer.save_model_to_file(
+                output_path.as_posix(),
+                use_external_data_format=model_uses_external_data,
+                all_tensors_to_one_file=one_external_file,
+            )
+
+            # if loading from disk and saving in the same repository, remove previous external data
+            if Path(model_path.as_posix() + "_data").is_file() and self.from_ortmodel is False:
+                os.remove(model_path.as_posix() + "_data")
 
         # Save the model configuration
         self.config.save_pretrained(save_dir)
         ort_config.save_pretrained(save_dir)
 
-        LOGGER.info(
+        logger.info(
             f"Optimized model saved at: {save_dir} (external data format: "
-            f"{use_external_data_format}; saved all tensor to one file: "
+            f"{model_uses_external_data}; saved all tensor to one file: "
             f"{one_external_file})"
         )
 
@@ -217,7 +251,7 @@ class ORTOptimizer:
         """
         onnx_optimized_model = BertOnnxModel(load_model(onnx_model_path))
         fused_operator = onnx_optimized_model.get_fused_operator_statistics()
-        LOGGER.info(
+        logger.info(
             f"The following operators were fused : { ', '.join([k for k,v in fused_operator.items() if v > 0])}"
         )
         return {k: v for k, v in fused_operator.items() if v > 0}
@@ -245,7 +279,7 @@ class ORTOptimizer:
         nodes_number_onnx_model = len(onnx_model.nodes())
         nodes_number_onnx_optimized_model = len(onnx_optimized_model.nodes())
         difference_nodes_number = nodes_number_onnx_model - nodes_number_onnx_optimized_model
-        LOGGER.info(
+        logger.info(
             f"There are {nodes_number_onnx_model} nodes before optimization and {nodes_number_onnx_optimized_model}"
             f"nodes after. The number of nodes removed is {difference_nodes_number}"
         )

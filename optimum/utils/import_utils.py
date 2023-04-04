@@ -32,12 +32,14 @@ else:
 
 
 TORCH_MINIMUM_VERSION = packaging.version.parse("1.11.0")
+DIFFUSERS_MINIMUM_VERSION = packaging.version.parse("0.12.0")
 
 
 # This is the minimal required version to support some ONNX Runtime features
 ORT_QUANTIZE_MINIMUM_VERSION = packaging.version.parse("1.4.0")
 
 
+_onnx_available = importlib.util.find_spec("onnx") is not None
 _onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
 _pydantic_available = importlib.util.find_spec("pydantic") is not None
 _accelerate_available = importlib.util.find_spec("accelerate") is not None
@@ -46,7 +48,6 @@ _diffusers_available = importlib.util.find_spec("diffusers") is not None
 torch_version = None
 if is_torch_available():
     torch_version = packaging.version.parse(importlib_metadata.version("torch"))
-
 
 _is_torch_onnx_support_available = is_torch_available() and (
     TORCH_MINIMUM_VERSION.major,
@@ -57,8 +58,20 @@ _is_torch_onnx_support_available = is_torch_available() and (
 )
 
 
+_diffusers_version = None
+if _diffusers_available:
+    try:
+        _diffusers_version = importlib_metadata.version("diffusers")
+    except importlib_metadata.PackageNotFoundError:
+        _diffusers_available = False
+
+
 def is_torch_onnx_support_available():
     return _is_torch_onnx_support_available
+
+
+def is_onnx_available():
+    return _onnx_available
 
 
 def is_onnxruntime_available():
@@ -115,6 +128,22 @@ def check_if_transformers_greater(target_version: str) -> bool:
     import transformers
 
     return packaging.version.parse(transformers.__version__) >= packaging.version.parse(target_version)
+
+
+def check_if_diffusers_greater(target_version: str) -> bool:
+    """
+    Checks whether the current install of diffusers is greater than or equal to the target version.
+
+    Args:
+        target_version (str): version used as the reference for comparison.
+
+    Returns:
+        bool: whether the check is True or not.
+    """
+    if not _diffusers_available:
+        return False
+
+    return packaging.version.parse(_diffusers_version) >= packaging.version.parse(target_version)
 
 
 @contextmanager

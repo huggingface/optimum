@@ -23,6 +23,7 @@ from parameterized import parameterized
 from transformers import is_torch_available
 from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
 
+from optimum.exporters.onnx.__main__ import main_export
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
 
@@ -55,7 +56,7 @@ def _get_models_to_test(export_models_dict: Dict):
                 for task in tasks:
                     models_to_test.append((f"{model_type}_{task}", model_type, model_name, task, False, False))
 
-                    # -with-past and monolith case are absurd, so we don't test them as not supported
+                    # -with-past and monolith cases are absurd, so we don't test them as not supported
                     if any(
                         task == ort_special_task
                         for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
@@ -65,7 +66,13 @@ def _get_models_to_test(export_models_dict: Dict):
                         )
 
                     # For other tasks, we don't test --no-post-process as there is none anyway
-                    if task == "causal-lm-with-past":
+                    if task in [
+                        "default-with-past",
+                        "causal-lm-with-past",
+                        "speech2seq-lm-with-past",
+                        "vision2seq-lm-with-past",
+                        "seq2seq-lm-with-past",
+                    ]:
                         models_to_test.append(
                             (f"{model_type}_{task}_no_postprocess", model_type, model_name, task, False, True)
                         )
@@ -74,7 +81,7 @@ def _get_models_to_test(export_models_dict: Dict):
             # TODO: xlm-roberta model auto-infers causal-lm, but we don't support it
             # TODO: perceiver auto-infers default, but we don't support it (why?)
             if model_type not in ["segformer", "xlm-roberta", "perceiver", "vision-encoder-decoder"]:
-                models_to_test.append((f"{model_type}_no_task", model_type, model_name, None, False, False))
+                models_to_test.append((f"{model_type}_no_task", model_type, model_name, "auto", False, False))
 
         return sorted(models_to_test)
     else:
@@ -92,33 +99,24 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def _onnx_export(
         self,
         model_name: str,
-        task: Optional[str],
+        task: str,
         monolith: bool = False,
         no_post_process: bool = False,
         optimization_level: Optional[str] = None,
-        device: str = None,
+        device: str = "cpu",
         fp16: bool = False,
     ):
         with TemporaryDirectory() as tmpdir:
-            monolith = " --monolith " if monolith is True else " "
-            no_post_process = " --no-post-process " if no_post_process is True else " "
-            optimization_level = f" --optimize {optimization_level} " if optimization_level is not None else " "
-            task = f" --task {task} " if task is not None else " "
-            device = " --device cuda " if device == "cuda" else " "
-            fp16 = " --fp16 --device cuda " if fp16 is True else " "
-            command = f"python3 -m optimum.exporters.onnx --model {model_name}{monolith}{fp16}{optimization_level}{device}{no_post_process}{task}{tmpdir}"
-            print("\nRUNNING:", command)
-            out = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
+            main_export(
+                model_name_or_path=model_name,
+                output=tmpdir,
+                task=task,
+                device=device,
+                fp16=fp16,
+                optimize=optimization_level,
+                monolith=monolith,
+                no_post_process=no_post_process,
             )
-            print(out.stdout.decode("utf-8"))
-            print(out.stderr.decode("utf-8"))  # logging's default output is stderr
-            if out.returncode != 0:
-                raise subprocess.CalledProcessError(
-                    returncode=out.returncode, cmd=out.args, stderr=out.stderr.decode("utf-8")
-                )
 
     def test_all_models_tested(self):
         # make sure we test all models
@@ -129,7 +127,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
-    def test_exporters_cli_pytorch(
+    def test_exporters_cli_pytorch_cpu(
         self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
         self._onnx_export(model_name, task, monolith, no_post_process)
@@ -155,19 +153,14 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_pytorch_with_optimization(
         self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
-        # TODO: optimization for codegen not supported until https://github.com/microsoft/onnxruntime/pull/14751 is released
-        if model_type == "codegen":
-            self.skipTest("codegen not supported")
-
         for optimization_level in ["O1", "O2", "O3"]:
             try:
                 self._onnx_export(model_name, task, monolith, no_post_process, optimization_level=optimization_level)
-            except subprocess.CalledProcessError as e:
-                if (
-                    "Tried to use ORTOptimizer for the model type" in e.stderr
-                    or "doesn't support the graph optimization" in e.stderr
-                ):
-                    self.skipTest("unsupported model type in ORTOptimizer")
+            except NotImplementedError as e:
+                if "Tried to use ORTOptimizer for the model type" in str(
+                    e
+                ) or "doesn't support the graph optimization" in str(e):
+                    self.skipTest(f"unsupported model type in ORTOptimizer: {model_type}")
                 else:
                     raise e
 
@@ -180,26 +173,17 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_pytorch_with_O4_optimization(
         self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
-        # TODO: optimization for codegen not supported until https://github.com/microsoft/onnxruntime/pull/14751 is released
-        if model_type == "codegen":
-            self.skipTest("codegen not supported")
-
-        # TODO: investigate why gptj with past is the only failing one (as in ORTOptimizer)
-        if model_type == "gptj" and (task is None or "-with-past" in task):
-            self.skipTest("Test failing with Shape mismatch attempting to re-use buffer")
-
         # TODO: disable due to a bug in PyTorch: https://github.com/pytorch/pytorch/issues/95377
         if model_type == "yolos":
             self.skipTest("Export on cuda device fails for yolos due to a bug in PyTorch")
 
         try:
             self._onnx_export(model_name, task, monolith, no_post_process, optimization_level="O4", device="cuda")
-        except subprocess.CalledProcessError as e:
-            if (
-                "Tried to use ORTOptimizer for the model type" in e.stderr
-                or "doesn't support the graph optimization" in e.stderr
-            ):
-                self.skipTest("unsupported model type in ORTOptimizer")
+        except NotImplementedError as e:
+            if "Tried to use ORTOptimizer for the model type" in str(
+                e
+            ) or "doesn't support the graph optimization" in str(e):
+                self.skipTest(f"unsupported model type in ORTOptimizer: {model_type}")
             else:
                 raise e
 

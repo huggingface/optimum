@@ -63,7 +63,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "levit": "hf-internal-testing/tiny-random-LevitModel",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
-    "longt5": "hf-internal-testing/tiny-random-LongT5Model",
+    "longt5": "fxmarty/tiny-random-working-LongT5Model",
     # "longformer": "allenai/longformer-base-4096",
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
@@ -75,6 +75,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
+    "opt": "hf-internal-testing/tiny-random-OPTModel",
     # "owlvit": "google/owlvit-base-patch32",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
@@ -124,8 +125,6 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
         "microsoft/trocr-small-handwritten": ["vision2seq-lm"],
     },
-    # Disabled for now because of high atol threshold requirement to pass
-    # "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel"
 }
 
 
@@ -164,7 +163,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "levit": "facebook/levit-128S",
     "layoutlm": "microsoft/layoutlm-base-uncased",
     "layoutlmv3": "microsoft/layoutlmv3-base",
-    "longt5": "hf-internal-testing/tiny-random-longt5",  # Not using google/long-t5-local-base because it takes too much time for testing.
+    "longt5": "fxmarty/tiny-random-working-LongT5Model",  # Not using google/long-t5-local-base because it takes too much time for testing.
     # "longformer": "allenai/longformer-base-4096",
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",  # Not using facebook/m2m100_418M because it takes too much time for testing.
     "marian": "Helsinki-NLP/opus-mt-en-de",

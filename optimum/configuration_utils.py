@@ -20,6 +20,7 @@ import os
 import re
 from typing import Any, Dict, List, Tuple, Union
 
+from huggingface_hub import HfFolder
 from packaging import version
 from transformers import PretrainedConfig
 from transformers import __version__ as transformers_version_str
@@ -89,7 +90,11 @@ class BaseConfig(PretrainedConfig):
                 repo = self._create_or_get_repo(save_directory, **kwargs)
             else:
                 repo_id = kwargs.pop("repo_id", save_directory.split(os.path.sep)[-1])
-                repo_id, token = self._create_repo(repo_id, **kwargs)
+                repo_id = self._create_repo(repo_id, **kwargs)
+
+                use_auth_token = kwargs.get("use_auth_token", None)
+                token = HfFolder.get_token() if use_auth_token is True else use_auth_token
+
                 files_timestamps = self._get_files_timestamps(save_directory)
 
         # TODO: remove once transformers release version is way above 4.22.

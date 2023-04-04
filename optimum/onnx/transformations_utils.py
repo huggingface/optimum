@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import hashlib
 from collections import defaultdict
 from typing import DefaultDict, Dict, List, Set, Tuple
 
@@ -20,10 +21,16 @@ import numpy as np
 import onnx
 from onnx import ModelProto, ValueInfoProto, numpy_helper
 
+from ..utils import logging
+
+
+logger = logging.get_logger()
+logger.setLevel(logging.INFO)
+
 
 def _find_duplicate_initializers(
     models: List[ModelProto],
-) -> DefaultDict[Tuple[int, bytes, Tuple], Set[Tuple[str, int]]]:
+) -> DefaultDict[Tuple[int, str, Tuple], Set[Tuple[str, int]]]:
     """
     Creates a map (unique data) --> set of (initializer name, model id)
 
@@ -34,18 +41,21 @@ def _find_duplicate_initializers(
         for initializer in models[i].graph.initializer:
             tensor_dims = tuple(getattr(initializer, "dims"))
             if len(tensor_dims) > 1 or (len(tensor_dims) == 1 and initializer.data_type not in [6, 7]):
-                for data_attr in ["raw_data", "int32_data", "int64_data", "uint64_data", "float_data", "double_data"]:
-                    tensor_data = getattr(initializer, data_attr)
-                    if tensor_data:
-                        tensor_data = tuple(tensor_data)
-                        break
-                duplicates[(initializer.data_type, tensor_data, tensor_dims)].add((initializer.name, i))
+                # Extract tensor data as numpy array
+                tensor_data = numpy_helper.to_array(initializer)
+
+                # Hash tensor data to avoid storing large amounts of data in memory
+                hashed = hashlib.sha512()
+                hashed.update(tensor_data)
+                tensor_digest = hashed.hexdigest()
+
+                duplicates[(initializer.data_type, tensor_digest, tensor_dims)].add((initializer.name, i))
 
     return duplicates
 
 
 def _create_name_sharing_dict(
-    duplicate_weights: DefaultDict[Tuple[int, bytes], Set[Tuple[str, int]]], suffix: str = ""
+    duplicate_weights: DefaultDict[Tuple[int, str, Tuple], Set[Tuple[str, int]]], suffix: str = ""
 ) -> Dict[Tuple[str, int], str]:
     """
     Creates a map mapping old initializer names to new initializer names. As different ONNX models
@@ -128,44 +138,100 @@ def _infer_output_shape(output: ValueInfoProto):
     return output_shape
 
 
-def _check_num_outputs(model1: ModelProto, model2: ModelProto):
-    """
-    Checks that `model1` and `model2` have the same number of outputs.
-    """
-    if not len(model1.graph.output) == len(model2.graph.output):
-        raise ValueError(
-            f"Two model protos need to have the same outputs. But one has {len(model1.graph.output)} "
-            f"outputs while the other has {len(model2.graph.output)} outputs."
-        )
-
-
-def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto):
+def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
     """
     Unifies the outputs of two ONNX model protos. The outputs of model1 will be replaced by outputs of model2.
     According to the rules of "If" op, two subgraphs must have the same number of outputs.
     """
-    _check_num_outputs(model1, model2)
+
+    model1_outputs = {output.name for output in model1.graph.output}
+    model2_outputs = {output.name for output in model2.graph.output}
+
+    if model1_outputs != model2_outputs:
+        if strict is True:
+            raise ValueError(
+                f"The two model protos outputs are expected to have the same number of outputs and output names when strict=True. Found"
+                f" the outputs {model1_outputs - model2_outputs} only in model1, and {model2_outputs - model1_outputs} only in model2."
+            )
+        else:
+            logger.info(
+                f"The two models proto have different outputs ({len(model1_outputs)} and {len(model2_outputs)} outputs)."
+                " Constant outputs will be added to unify the two models outputs."
+            )
+
+    if model2_outputs.issubset(model1_outputs) is False:
+        raise ValueError("The second ModelProto should not have more outputs than the first.")
 
     for idx in range(len(model1.graph.output)):
         model_output_1 = model1.graph.output[idx]
-        model_output_2 = model2.graph.output[idx]
-        if not model_output_1 == model_output_2:
-            if not (
+        model_output_2 = model2.graph.output[idx] if idx < len(model2.graph.output) else None
+
+        if model_output_2 is None or model_output_1 != model_output_2:
+            if model_output_2 is None or not (
                 model_output_1.name == model_output_2.name
                 and model_output_1.type.tensor_type.elem_type == model_output_2.type.tensor_type.elem_type
             ):
-                raise ValueError(
-                    f"Can not match {model_output_1.name} with {model_output_2.name}. Make sure your"
-                    f" model protos have same outputs, have same data types and are in the same order."
-                )
-            model2.graph.output.remove(model_output_2)
+                if strict is False and model_output_1.name not in model2_outputs:
+                    data_type = model_output_1.type.tensor_type.elem_type
+                    dims_output_1 = _infer_output_shape(model_output_1)
+                    if not isinstance(dims_output_1[0], str):
+                        raise ValueError(
+                            f"Expected a dynamic shape for the axis zero of {model_output_1.name}, found a static shape: {dims_output_1[0]}"
+                        )
 
-            new_output = onnx.helper.make_tensor_value_info(
-                model_output_1.name,
-                model_output_1.type.tensor_type.elem_type,
-                _infer_output_shape(model_output_1),
-            )
-            model2.graph.output.insert(idx, new_output)
+                    # fill the constant shape with the original shape, except for the axis zero that is 0 for an empty constant,
+                    # and the dynamic axis set to 1
+                    dims_dummy_output = [0]
+                    for dim in dims_output_1[1:]:
+                        if isinstance(dim, str):
+                            dims_dummy_output.append(1)
+                        else:
+                            dims_dummy_output.append(dim)
+
+                    logger.info(
+                        f"Addind a constant output for {model_output_1.name} of shape {dims_dummy_output} in model2."
+                    )
+                    value = onnx.helper.make_tensor(
+                        name="const_tensor", data_type=data_type, dims=dims_dummy_output, vals=[]
+                    )
+                    constant_node = onnx.helper.make_node(
+                        "Constant",
+                        name=f"Constant_{len(model2.graph.node) + 1}",
+                        inputs=[],
+                        outputs=[f"{model_output_1.name}"],
+                        value=value,
+                    )
+                    model2.graph.node.append(constant_node)
+
+                    constant_empty_output = onnx.helper.make_tensor_value_info(
+                        model_output_1.name,
+                        model_output_1.type.tensor_type.elem_type,
+                        _infer_output_shape(model_output_1),
+                    )
+                    model2.graph.output.insert(idx, constant_empty_output)
+                else:
+                    if model_output_2 is not None:
+                        raise ValueError(
+                            f"Cannot match {model_output_1.name} with {model_output_2.name}. Make sure your"
+                            f" model protos have same outputs, have same data types and are in the same order."
+                        )
+                    else:
+                        raise ValueError(
+                            f"Too few outputs of model2 were found to match with {model_output_1.name}."
+                            f" Please try to pass strict=False, or fill a bug report at https://github.com/huggingface/optimum."
+                        )
+            else:
+                model2.graph.output.remove(model_output_2)
+
+                # We use model1 (normally the decoder) for the output shape
+                # TODO: relax this, and keep the most permissive output shape between model1 and model2
+                # while checking they are compatible
+                new_output = onnx.helper.make_tensor_value_info(
+                    model_output_1.name,
+                    model_output_1.type.tensor_type.elem_type,
+                    _infer_output_shape(model_output_1),
+                )
+                model2.graph.output.insert(idx, new_output)
 
     if not all(
         model_output_1 == model_output_2

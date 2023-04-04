@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
 import torch
-import torch.nn as nn
 
 from ...utils import logging, recurse_getattr, recurse_setattr
 
@@ -34,7 +33,7 @@ USE_AT_OWN_RISK_ACTIVATION_FUNCTIONS = ["quick_gelu"]
 logger = logging.get_logger(__name__)
 
 
-class BetterTransformerBaseLayer(nn.Module):
+class BetterTransformerBaseLayer:
     def __init__(
         self,
         config: "PretrainedConfig",
@@ -47,7 +46,6 @@ class BetterTransformerBaseLayer(nn.Module):
             config (`transformers.PretrainedConfig`):
                 The config of the model.
         """
-        super().__init__()
         self.norm_first = False
         self.use_gelu = False
         self.act_fn = None
@@ -57,7 +55,7 @@ class BetterTransformerBaseLayer(nn.Module):
         self.num_layers = None
         self.original_layers_mapping = {}
         self.module_mapping = None
-        self.is_decoder = False
+        self.supports_training = False
         # Some models does not have some attributes thus needs to be ignored
         # e.g. whisper does not have self_attn.k_proj.bias but has self_attn.v_proj.bias & self_attn.q_proj.bias
         self.keys_to_ignore = []
@@ -133,7 +131,7 @@ class BetterTransformerBaseLayer(nn.Module):
         if torch.is_autocast_enabled() or torch.is_autocast_cpu_enabled():
             raise ValueError("Autocast is not supported for `BetterTransformer` integration.")
 
-        if self.training and not self.is_decoder:
+        if self.training and not self.supports_training:
             raise ValueError(
                 "Training is not supported for `BetterTransformer` integration.",
                 " Please use `model.eval()` before running the model.",

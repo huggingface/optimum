@@ -15,123 +15,45 @@
 """ONNX configuration base classes."""
 
 import copy
-import dataclasses
 import enum
-import functools
 import gc
 import inspect
 import itertools
 import re
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
-import onnx
-from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
 from transformers.utils import is_torch_available
 
+from ...onnx import merge_decoders
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     DummyInputGenerator,
-    DummyTrainingLabelsInputGenerator,
+    DummyLabelsGenerator,
+    DummySeq2SeqPastKeyValuesGenerator,
     is_diffusers_available,
     logging,
 )
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 from ...utils.doc import add_dynamic_docstring
+from ...utils.import_utils import is_onnx_available, is_onnxruntime_available
 from ..base import ExportConfig
+from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
+from .model_patcher import ModelPatcher, Seq2SeqModelPatcher
 
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
 
     if is_diffusers_available():
         from diffusers import ModelMixin
 
+    from .model_patcher import PatchingSpec
 
 logger = logging.get_logger(__name__)
-
-
-@dataclasses.dataclass
-class PatchingSpec:
-    """
-    Data class that holds patching specifications.
-
-    Args:
-        o: Module / object where the op to patch is located
-        name: Name of the op to monkey patch
-        custom_op: Custom op that patches the original op
-        orig_op: Original op that is being patched
-        op_wrapper: Wrapper (optional) that wraps both the original and custom ops.
-            It is useful for ops that are class or static methods for instance.
-    """
-
-    o: Any
-    name: str
-    custom_op: Callable
-    orig_op: Optional[Callable] = None
-    op_wrapper: Optional[Callable] = None
-
-
-class ModelPatcher:
-    def __init__(self, config: "OnnxConfig", model: Union["PreTrainedModel", "TFPreTrainedModel"]):
-        self._model = model
-
-        patching_specs = config.PATCHING_SPECS
-        self._patching_specs = []
-        for spec in patching_specs if patching_specs is not None else []:
-            final_spec = spec
-            if spec.orig_op is None:
-                final_spec = dataclasses.replace(spec, orig_op=getattr(spec.o, spec.name))
-            self._patching_specs.append(final_spec)
-
-        self.orig_forward_name = "forward" if hasattr(self._model, "forward") else "call"
-        self.orig_forward = getattr(self._model, self.orig_forward_name)
-
-        # TODO: remove that once we got rid of OnnxConfigWithLoss or we implemented it better.
-        if isinstance(config, OnnxConfigWithLoss):
-            real_config = config._onnx_config
-        else:
-            real_config = config
-        allow_past_in_outputs = isinstance(real_config, OnnxConfigWithPast) and real_config.use_present_in_outputs
-
-        @functools.wraps(self.orig_forward)
-        def patched_forward(*args, **kwargs):
-            outputs = self.orig_forward(*args, **kwargs)
-            return {
-                k: v
-                for k, v in outputs.items()
-                if config.torch_to_onnx_output_map.get(k, k) in config.outputs
-                or (allow_past_in_outputs and k.startswith("past_key_values"))
-            }
-
-        self.patched_forward = patched_forward
-
-    def patch_ops(self):
-        for spec in self._patching_specs:
-            custom_op = spec.custom_op if spec.op_wrapper is None else spec.op_wrapper(spec.custom_op)
-            setattr(spec.o, spec.name, custom_op)
-
-    def restore_ops(self):
-        for spec in self._patching_specs:
-            orig_op = spec.orig_op if spec.op_wrapper is None else spec.op_wrapper(spec.orig_op)
-            setattr(spec.o, spec.name, orig_op)
-
-    def __enter__(self):
-        self.patch_ops()
-        setattr(self._model, self.orig_forward_name, self.patched_forward)
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.restore_ops()
-        setattr(self._model, self.orig_forward_name, self.orig_forward)
-
-    def __call__(self, *args, **kwargs):
-        if getattr(self._model, self.orig_forward_name) is self.orig_forward:
-            logger.warning("Running the non-patched model")
-        return self._model(*args, **kwargs)
 
 
 GENERATE_DUMMY_DOCSTRING = r"""
@@ -196,7 +118,7 @@ class OnnxConfig(ExportConfig, ABC):
     DEFAULT_ONNX_OPSET = 11
     ATOL_FOR_VALIDATION: Union[float, Dict[str, float]] = 1e-5
     MIN_TORCH_VERSION = GLOBAL_MIN_TORCH_VERSION
-    PATCHING_SPECS: Optional[List[PatchingSpec]] = None
+    PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
@@ -213,7 +135,7 @@ class OnnxConfig(ExportConfig, ABC):
                 "pred_masks": {0: "batch_size", 1: "num_queries"},
             }
         ),
-        "masked-im": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "masked-im": OrderedDict({"logits": {0: "batch_size"}}),
         "masked-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "multiple-choice": OrderedDict({"logits": {0: "batch_size", 1: "num_choices"}}),
         "object-detection": OrderedDict(
@@ -234,6 +156,14 @@ class OnnxConfig(ExportConfig, ABC):
         "speech2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "vision2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "zero-shot-image-classification": OrderedDict(
+            {
+                "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
+                "logits_per_text": {0: "text_batch_size", 1: "image_batch_size"},
+                "text_embeds": {0: "text_batch_size"},
+                "image_embeds": {0: "image_batch_size"},
+            }
+        ),
         # TODO: enable that and verify that once OwlViTOnnxConfig can work.
         # "zero-shot-object-detection": OrderedDict({
         #     "logits": {0: "batch_size"},
@@ -301,6 +231,15 @@ class OnnxConfig(ExportConfig, ABC):
             model_path (`Path`):
                 The path of the freshly exported ONNX model.
         """
+        if not (is_onnx_available() and is_onnxruntime_available()):
+            raise RuntimeError(
+                "The onnx and onnxruntime packages are necessary to fix the dynamic shapes of the exported model. "
+                "You can install them by doing: pip install onnx onnxruntime"
+            )
+
+        import onnx
+        from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
+
         allowed_dynamic_axes = set()
         for input_ in self.inputs.values():
             allowed_dynamic_axes |= set(input_.values())
@@ -332,7 +271,7 @@ class OnnxConfig(ExportConfig, ABC):
             for name, value in dummy_inputs.items():
                 if isinstance(value, (list, tuple)):
                     value = self.flatten_output_collection_property(name, value)
-                    onnx_inputs.update({tensor_name: tensor for tensor_name, tensor in value.items()})
+                    onnx_inputs.update(dict(value.items()))
                 else:
                     onnx_inputs[name] = value
             for name, value in onnx_inputs.items():
@@ -677,6 +616,22 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         return flattened_output
 
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
+        if self.is_merged is True and self.use_cache_branch is True:
+            reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
+        elif self.is_merged is True and self.use_cache_branch is False:
+            reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=False)
+
+            # We don't support optional inputs for now, so even though the non-cache branch is used,
+            # dummy past key values are necessary
+            batch_size = reference_model_inputs["input_ids"].shape[0]
+            pkv_generator = self.DUMMY_PKV_GENERATOR_CLASS(
+                task=self.task, normalized_config=self._normalized_config, sequence_length=1, batch_size=batch_size
+            )
+            reference_model_inputs["past_key_values"] = pkv_generator.generate("past_key_values", framework="pt")
+
+        return reference_model_inputs
+
 
 class ConfigBehavior(str, enum.Enum):
     """
@@ -695,6 +650,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     """
     Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models.
     """
+
+    DUMMY_PKV_GENERATOR_CLASS = DummySeq2SeqPastKeyValuesGenerator
 
     def __init__(
         self,
@@ -762,7 +719,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             new_axes_names = {}
             for axis_idx, axis_name in axes_names.items():
                 if "sequence" in axis_name:
-                    if not self.use_past_in_inputs:
+                    if self.use_past_in_inputs is False or self.is_merged is True:
                         new_axes_names[axis_idx] = sequence_name
                     else:
                         # Trick to force it since ONNX sometimes infer a dynamic axis where it's not.
@@ -770,9 +727,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 else:
                     new_axes_names[axis_idx] = axis_name
             common_outputs[name] = new_axes_names
-
-        if self._behavior is not ConfigBehavior.ENCODER:
-            common_outputs["encoder_last_hidden_state"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
@@ -782,8 +736,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
-
-        encoder_sequence = "encoder_sequence_length"
 
         if direction == "inputs":
             decoder_sequence_name = "past_decoder_sequence_length"
@@ -795,17 +747,91 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         for i in range(self._normalized_config.decoder_num_layers):
             inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch_size", 2: decoder_sequence_name}
             inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence_name}
-            inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: encoder_sequence}
-            inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: encoder_sequence}
 
-        if direction == "outputs" and "encoder_last_hidden_state" in inputs_or_outputs:
-            inputs_or_outputs.move_to_end("encoder_last_hidden_state")
+            if (
+                self.is_merged is True
+                or (self._behavior is ConfigBehavior.DECODER and self.use_past is False)
+                or direction == "inputs"
+            ):
+                # TODO: we only need to call it encoder_sequence_length_out in the merge case - but at torch.onnx.export()
+                # time we have currently no case to check whether we will merge at a later step or not (self.is_merged is
+                # not yet set at this time)
+                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: "encoder_sequence_length_out"}
+                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length_out"}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
         flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
         flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
         flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
+
+    def patch_model_for_export(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> ModelPatcher:
+        return Seq2SeqModelPatcher(self, model)
+
+    def post_process_exported_models(
+        self,
+        path: Path,
+        models_and_onnx_configs: Dict[
+            str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+        ],
+        onnx_files_subpaths: List[str],
+    ):
+        # Attempt to merge only if the decoder was exported without/with past
+        if self.use_past is True and len(models_and_onnx_configs) == 3:
+            if onnx_files_subpaths is not None:
+                decoder_path = Path(path, onnx_files_subpaths[1])
+                decoder_with_past_path = Path(path, onnx_files_subpaths[2])
+            else:
+                decoder_path = Path(path, ONNX_DECODER_NAME + ".onnx")
+                decoder_with_past_path = Path(path, ONNX_DECODER_WITH_PAST_NAME + ".onnx")
+            decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
+            try:
+                # The decoder with past does not output the cross attention past key values as they are constant,
+                # hence the need for strict=False
+                merge_decoders(
+                    decoder=decoder_path,
+                    decoder_with_past=decoder_with_past_path,
+                    save_path=decoder_merged_path,
+                    strict=False,
+                )
+            except Exception as e:
+                raise Exception(f"Unable to merge decoders. Detailed error: {e}")
+
+            # In order to do the validation of the two branches on the same file
+            if onnx_files_subpaths is not None:
+                encoder_path = onnx_files_subpaths[0]
+            else:
+                encoder_path = ONNX_ENCODER_NAME + ".onnx"
+
+            onnx_files_subpaths = [encoder_path, decoder_merged_path.name, decoder_merged_path.name]
+
+            # We validate the two branches of the decoder model then
+            models_and_onnx_configs[ONNX_DECODER_NAME][1].is_merged = True
+            models_and_onnx_configs[ONNX_DECODER_NAME][1].use_cache_branch = False
+
+            # Past key values won't be generated by default, but added in the input
+            models_and_onnx_configs[ONNX_DECODER_NAME][1].use_past = False
+            models_and_onnx_configs[ONNX_DECODER_NAME][1].use_past_in_inputs = True
+
+            models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].use_cache_branch = True
+            models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].is_merged = True
+
+        return models_and_onnx_configs, onnx_files_subpaths
+
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
+        if self._behavior is ConfigBehavior.DECODER:
+            if "decoder_input_ids" in reference_model_inputs:
+                reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+
+            if "encoder_outputs" in reference_model_inputs:
+                if self.use_past_in_inputs is False or self.is_merged:
+                    # ONNX without past uses encoder_hidden_states even when we don't outputing them
+                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+                else:
+                    # ONNX with past does not use encoder_hidden_states when we don't output them
+                    reference_model_inputs.pop("encoder_outputs")
+
+        return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 
 
 class OnnxConfigWithLoss(OnnxConfig, ABC):
@@ -835,7 +861,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         "default": OrderedDict({"loss": {}}),
     }
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTrainingLabelsInputGenerator,)
+    DUMMY_EXTRA_INPUT_GENERATOR_CLASSES = (DummyLabelsGenerator,)
 
     def __init__(self, config: OnnxConfig):
         self._onnx_config = config
@@ -870,10 +896,16 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         # TODO: doesn't this break attention_mask generation?
         if isinstance(self._onnx_config, OnnxConfigWithPast) and self._onnx_config.use_past_in_inputs is True:
             kwargs["sequence_length"] = 1
+        else:
+            for input_name, dynamic_axes in self._tasks_to_extra_inputs[self.task].items():
+                if "sequence_length" in dynamic_axes.values():
+                    kwargs["sequence_length"] = DEFAULT_DUMMY_SHAPES["sequence_length"]
+
+        kwargs["num_labels"] = self._onnx_config._config.num_labels
 
         dummy_inputs_generators = [
             cls_(self.task, self._normalized_config, batch_size=batch_size, **kwargs)
-            for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES
+            for cls_ in self.DUMMY_EXTRA_INPUT_GENERATOR_CLASSES
         ]
 
         for input_name in self._tasks_to_extra_inputs[self.task]:

@@ -18,9 +18,10 @@ from argparse import ArgumentParser
 
 from ...commands.export.tflite import parse_args_tflite
 from ...utils import logging
-from ...utils.save_utils import maybe_save_preprocessors
+from ...utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
+from .base import TFLiteQuantizationConfig
 from .convert import export, validate_model_outputs
 
 
@@ -69,38 +70,70 @@ def main():
     model.config.save_pretrained(args.output.parent)
     maybe_save_preprocessors(args.model, args.output.parent)
 
+    preprocessor = maybe_load_preprocessors(args.output.parent)
+    if preprocessor:
+        preprocessor = preprocessor[0]
+    else:
+        preprocessor = None
+
+    quantization_config = None
+    if args.quantize:
+        quantization_config = TFLiteQuantizationConfig(
+            approach=args.quantize,
+            fallback_to_float=args.fallback_to_float,
+            inputs_dtype=args.inputs_type,
+            outputs_dtype=args.outputs_type,
+            calibration_dataset_name_or_path=args.calibration_dataset,
+            calibration_dataset_config_name=args.calibration_dataset_config_name,
+            num_calibration_samples=args.num_calibration_samples,
+            calibration_split=args.calibration_split,
+            primary_key=args.primary_key,
+            secondary_key=args.secondary_key,
+            question_key=args.question_key,
+            context_key=args.context_key,
+            image_key=args.image_key,
+        )
+
     tflite_inputs, tflite_outputs = export(
         model=model,
         config=tflite_config,
         output=args.output,
+        task=task,
+        preprocessor=preprocessor,
+        quantization_config=quantization_config,
     )
 
-    try:
-        validate_model_outputs(
-            config=tflite_config,
-            reference_model=model,
-            tflite_model_path=args.output,
-            tflite_named_outputs=tflite_config.outputs,
-            atol=args.atol,
-        )
+    if args.quantize is None:
+        try:
+            validate_model_outputs(
+                config=tflite_config,
+                reference_model=model,
+                tflite_model_path=args.output,
+                tflite_named_outputs=tflite_config.outputs,
+                atol=args.atol,
+            )
 
-        logger.info(
-            f"The TensorFlow Lite export succeeded and the exported model was saved at: {args.output.parent.as_posix()}"
-        )
-    except ShapeError as e:
-        raise e
-    except AtolError as e:
-        logger.warning(
-            f"The TensorFlow Lite export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
-        )
-    except OutputMatchError as e:
-        logger.warning(
-            f"The TensorFlow Lite export succeeded with the warning: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
-        )
-    except Exception as e:
-        logger.error(
-            f"An error occured with the error message: {e}.\n The exported model was saved at: {args.output.parent.as_posix()}"
-        )
+            logger.info(
+                "The TensorFlow Lite export succeeded and the exported model was saved at: "
+                f"{args.output.parent.as_posix()}"
+            )
+        except ShapeError as e:
+            raise e
+        except AtolError as e:
+            logger.warning(
+                f"The TensorFlow Lite export succeeded with the warning: {e}.\n The exported model was saved at: "
+                f"{args.output.parent.as_posix()}"
+            )
+        except OutputMatchError as e:
+            logger.warning(
+                f"The TensorFlow Lite export succeeded with the warning: {e}.\n The exported model was saved at: "
+                f"{args.output.parent.as_posix()}"
+            )
+        except Exception as e:
+            logger.error(
+                f"An error occured with the error message: {e}.\n The exported model was saved at: "
+                f"{args.output.parent.as_posix()}"
+            )
 
 
 if __name__ == "__main__":

@@ -1,88 +1,116 @@
-from functools import partial
-from typing import Dict, List
+# coding=utf-8
+# Copyright 2022 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Text classification processing."""
 
-from datasets import Dataset, load_dataset
-from evaluate import combine, evaluator
-from transformers import PreTrainedTokenizerBase, TextClassificationPipeline
+import copy
+import logging
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-from .base import DatasetProcessing
+from transformers import PreTrainedTokenizerBase
+
+from .base import TaskProcessor
 
 
-class TextClassificationProcessing(DatasetProcessing):
-    def __init__(self, **kwargs):
-        if "secondary" not in kwargs["data_keys"]:
-            kwargs["data_keys"]["secondary"] = None
+if TYPE_CHECKING:
+    from datasets import Dataset, DatasetDict
 
-        super().__init__(**kwargs)
-        self.label_to_id = None
 
-        if not isinstance(self.preprocessor, PreTrainedTokenizerBase):
-            raise ValueError(f"Preprocessor is expected to be a tokenizer, provided {type(self.preprocessor)}.")
+logger = logging.getLogger(__name__)
 
-    def load_datasets(self):
-        # Downloading and loading a dataset from the hub.
-        raw_datasets = load_dataset(path=self.dataset_path, name=self.dataset_name)
 
-        # Preprocessing the raw_datasets
-        def preprocess_function(examples, data_keys: Dict[str, str], tokenizer: PreTrainedTokenizerBase):
-            # Tokenize the texts
+class TextClassificationProcessing(TaskProcessor):
+    ACCEPTED_PREPROCESSOR_CLASSES = (PreTrainedTokenizerBase,)
+    DEFAULT_DATASET_ARGS = {"path": "glue", "name": "sst2"}
+    DEFAUL_DATASET_DATA_KEYS = {"primary": "sentence"}
+    ALLOWED_DATA_KEY_NAMES = {"primary", "secondary"}
+    DEFAULT_REF_KEYS = ["label"]
 
-            tokenized_inputs = tokenizer(
-                text=examples[data_keys["primary"]],
-                text_pair=examples[data_keys["secondary"]] if data_keys["secondary"] else None,
-                padding="max_length",
-                max_length=tokenizer.model_max_length,
-                truncation=True,
-            )
-            return tokenized_inputs
+    def create_defaults_and_kwargs_from_preprocessor_kwargs(
+        self, preprocessor_kwargs
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        if preprocessor_kwargs is None:
+            preprocessor_kwargs = {}
+        kwargs = copy.deepcopy(preprocessor_kwargs)
+        defaults = {}
+        defaults["padding"] = kwargs.pop("padding", "max_length")
+        defaults["truncation"] = kwargs.pop("truncation", True)
+        defaults["max_length"] = kwargs.pop("max_length", self.preprocessor.model_max_length)
+        return defaults, kwargs
 
-        eval_dataset = raw_datasets[self.eval_split]
-        if self.max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(self.max_eval_samples))
-        eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])
-
-        datasets_dict = {"eval": eval_dataset}
-
-        if self.static_quantization:
-            assert self.calibration_split
-            # Run the tokenizer on the calibration dataset
-            calibration_dataset = raw_datasets[self.calibration_split].map(
-                partial(
-                    preprocess_function,
-                    tokenizer=self.preprocessor,
-                    data_keys=self.data_keys,
-                ),
-                batched=True,
-                load_from_cache_file=True,
-                desc="Running tokenizer on calibration dataset",
-            )
-
-            columns_to_remove = raw_datasets.column_names[self.calibration_split]
-            columns_to_remove = [name for name in columns_to_remove if name not in self.preprocessor.model_input_names]
-            calibration_dataset = calibration_dataset.remove_columns(columns_to_remove)
-
-            if self.num_calibration_samples is not None:
-                calibration_dataset = calibration_dataset.select(range(self.num_calibration_samples))
-
-            datasets_dict["calibration"] = calibration_dataset
-
-        return datasets_dict
-
-    def run_evaluation(self, eval_dataset: Dataset, pipeline: TextClassificationPipeline, metrics: List[str]):
-        all_metrics = combine(metrics)
-
-        task_evaluator = evaluator("text-classification")
-
-        results = task_evaluator.compute(
-            model_or_pipeline=pipeline,
-            data=eval_dataset,
-            metric=all_metrics,
-            input_column=self.data_keys["primary"],
-            label_column=self.ref_keys[0],
-            label_mapping=self.config.label2id,
+    def dataset_processing_func(
+        self, example: Dict[str, Any], data_keys: Dict[str, str], ref_keys: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        tokenized_inputs = self.preprocessor(
+            text=example[data_keys["primary"]],
+            text_pair=example[data_keys["secondary"]] if "secondary" in data_keys else None,
+            **self.defaults,
+            **self.preprocessor_kwargs,
         )
+        return tokenized_inputs
 
-        return results
+    def try_to_guess_data_keys(self, column_names: List[str]) -> Optional[Dict[str, str]]:
+        primary_key_name = None
+        primary_key_name_candidates = ["sentence", "text", "premise"]
+        for name in column_names:
+            if any(candidate in name for candidate in primary_key_name_candidates):
+                primary_key_name = name
+                break
 
-    def get_pipeline_kwargs(self):
-        return {}
+        secondary_key_name = None
+        secondary_key_name_candidates = ["hypothesis"]
+        for name in column_names:
+            if any(candidate in name for candidate in secondary_key_name_candidates):
+                secondary_key_name = name
+                break
+
+        if primary_key_name is None:
+            return None
+        elif secondary_key_name is None:
+            logger.info(
+                "Could not infer the secondary key in the dataset, if it does contain one, please provided it manually."
+            )
+            return {"primary": primary_key_name}
+        else:
+            return {"primary": primary_key_name, "secondary": secondary_key_name}
+
+    def try_to_guess_ref_keys(self, column_names: List[str]) -> Optional[List[str]]:
+        for name in column_names:
+            if "label" in name:
+                return [name]
+
+    def load_dataset(
+        self,
+        path: str,
+        data_keys: Optional[Dict[str, str]] = None,
+        ref_keys: Optional[List[str]] = None,
+        only_keep_necessary_columns: bool = False,
+        load_smallest_split: bool = False,
+        num_samples: Optional[int] = None,
+        shuffle: bool = False,
+        **load_dataset_kwargs,
+    ) -> Union["DatasetDict", "Dataset"]:
+        dataset = super().load_dataset(
+            path,
+            data_keys=data_keys,
+            ref_keys=ref_keys,
+            only_keep_necessary_columns=only_keep_necessary_columns,
+            load_smallest_split=load_smallest_split,
+            num_samples=num_samples,
+            shuffle=shuffle,
+            **load_dataset_kwargs,
+        )
+        # TODO: do we want to do that here?
+        # eval_dataset = eval_dataset.align_labels_with_mapping(self.config.label2id, self.ref_keys[0])
+        return dataset
