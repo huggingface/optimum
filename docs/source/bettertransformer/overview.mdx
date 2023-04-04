@@ -21,7 +21,7 @@ Since its 1.13 version, [PyTorch released](https://pytorch.org/blog/PyTorch-1.13
 You can now use this feature in 🤗 Optimum together with Transformers and use it for major models in the Hugging Face ecosystem.
 
 In the 2.0 version, PyTorch includes a scaled dot-product attention function (SDPA) as part of `torch.nn.functional`. This function encompasses several implementations that can be applied depending on the inputs and the hardware in use. See the [official documentation](https://pytorch.org/docs/master/generated/torch.nn.functional.scaled_dot_product_attention) in detail for more information.
-We provide an integration with `BetterTransforer` API to use this function in 🤗 Optimum, so that you can convert any supported `transformers` model to call the `scaled_dot_product_attention` function when relevant.
+We provide an integration with `BetterTransforer` API to use this function in 🤗 Optimum, so that you can convert any supported 🤗 Transformers model to call the `scaled_dot_product_attention` function when relevant.
 
 
 ### Supported models

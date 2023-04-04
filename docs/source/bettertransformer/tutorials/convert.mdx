@@ -99,11 +99,18 @@ Please refer to the [official documentation of `pipeline`](https://huggingface.c
 You can now benefit from the `BetterTransformer` API for your training scripts. Just make sure to convert back your model to its original version by calling `BetterTransformer.reverse` before saving your model.
 The code snippet below shows how:
 ```python
-...
+from optimum.bettertransformer import BetterTransformer
+from transformers import AutoModelForCausalLM
+
+with torch.device(“cuda”):
+    model = AutoModelForCausalLM.from_pretrained(“gpt2-large”, torch_dtype=torch.float16)
+
 model = BetterTransformer.transform(model)
 
-# Your training script here
-model = BetterTransformer.reverse(model)
+# do your inference or training here
 
-model.save_pretrained("path/to/save/model")
+# if training and want to save the model
+model = BetterTransformer.reverse(model)
+model.save_pretrained("fine_tuned_model")
+model.push_to_hub("fine_tuned_model")
 ```
