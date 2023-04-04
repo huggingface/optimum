@@ -219,11 +219,11 @@ class BetterTransformersTestMixin(unittest.TestCase):
             if parse(torch.__version__) < parse("2.0.0"):
                 # Check for the autocast on CPU
                 with self.assertRaises(ValueError):
-                    bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+                    bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=False)
                     _ = bt_model(**inputs)
             else:
                 # with torch >= 2.0.0 this should not raise any exceptions
-                bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+                bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=False)
                 _ = bt_model(**inputs)
 
     def _test_raise_train(self, model_id: str, model_type: str, **kwargs):
