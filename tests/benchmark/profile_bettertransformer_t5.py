@@ -1,6 +1,7 @@
 import argparse
 
 import torch
+from torch.profiler import ProfilerActivity, profile, record_function, tensorboard_trace_handler
 from tqdm import tqdm
 from transformers import AutoModel, AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, GenerationConfig
 
@@ -102,29 +103,9 @@ def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_s
     return tokens, lengths, mask
 
 
-def timing_cuda(model, num_batches, input_ids, masks, is_decoder, generation_config=None):
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
-
-    torch.cuda.reset_peak_memory_stats(device)
-    torch.cuda.empty_cache()
-    torch.cuda.synchronize()
-
-    start_event.record()
-    for _ in tqdm(range(num_batches)):
-        if is_decoder:
-            _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
-        else:
-            _ = model(input_ids, masks)
-    end_event.record()
-    torch.cuda.synchronize()
-    max_memory = torch.cuda.max_memory_allocated(device)
-
-    return (start_event.elapsed_time(end_event) * 1.0e-3) / num_batches, max_memory
-
-
-def benchmark(model, input_ids, masks, num_batches, is_decoder, max_token, pad_token_id):
+def profile_model(model, profile_name, input_ids, masks, num_batches, is_decoder, max_token, pad_token_id):
     # Warmup
+    gen_config = None
     if is_decoder:
         gen_config = GenerationConfig(
             max_new_tokens=max_token,
@@ -139,20 +120,29 @@ def benchmark(model, input_ids, masks, num_batches, is_decoder, max_token, pad_t
         _ = model(input_ids, masks)
         torch.cuda.synchronize()
 
-    # benchmark
-    if is_decoder:
-        total_time, max_mem = timing_cuda(model, num_batches, input_ids, masks, is_decoder, gen_config)
-    else:
-        total_time, max_mem = timing_cuda(model, num_batches, input_ids, masks, is_decoder)
+    name = f"{profile_name}_bs={input_ids.shape[0]}_slen={input_ids.shape[1]}_gen={max_token}"
+    with profile(
+        activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+        record_shapes=True,
+        profile_memory=True,
+        with_stack=True,
+        on_trace_ready=tensorboard_trace_handler("./tb_logs/" + name),
+    ):
+        for _ in tqdm(range(num_batches)):
+            if is_decoder:
+                with record_function("generate"):
+                    _ = model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
+            else:
+                _ = model(input_ids, masks)
 
-    return total_time, max_mem
+    # prof.export_chrome_trace("./traces/" + name + ".json")
 
 
 if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
 
-    BATCH_SIZES = [2]
+    BATCH_SIZES = [1]
     SEQ_LEN = [64]
     if args.is_decoder:
         PAD_PERCENTAGES = [0]
@@ -183,13 +173,7 @@ if __name__ == "__main__":
     else:
         hf_model = autoclass.from_pretrained(args.model_name, torch_dtype=torch.float16 if args.use_half else None)
 
-    output_file = open("log_{}.csv".format(args.model_name.replace("/", "-")), "w")
-    output_file.write(
-        "num_batches, batch_size, seq_len, is cuda, is half, use mask, pad percentage, Latency eager (s), Latency BT (s), Speedup (%), Mem eager (MB), Mem BT (MB), Mem saved (%)\n"
-    )
-
-    all_total_hf_time = {}
-    all_max_mem_eager = {}
+    bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
 
     for bs in tqdm(BATCH_SIZES):
         for seq_len in tqdm(SEQ_LEN):
@@ -211,8 +195,9 @@ if __name__ == "__main__":
                     masks = None
 
                 with torch.inference_mode():
-                    total_hf_time, max_mem_eager = benchmark(
+                    profile_model(
                         hf_model,
+                        args.model_name + "_hf_",
                         input_ids,
                         masks,
                         args.num_batches,
@@ -221,36 +206,13 @@ if __name__ == "__main__":
                         tokenizer.pad_token_id,
                     )
 
-            all_total_hf_time[(bs, seq_len)] = total_hf_time
-            all_max_mem_eager[(bs, seq_len)] = max_mem_eager
-
-    bt_model = BetterTransformer.transform(hf_model)
-    for bs in tqdm(BATCH_SIZES):
-        for seq_len in tqdm(SEQ_LEN):
-            for pad_perc in tqdm(PAD_PERCENTAGES):
-                print(f"-- Running: bs={bs}, seq_len={seq_len}")
-                # current_std = int(seq_len*pad_perc)
-                # max_seqlen = seq_len + current_std
-                max_seqlen = seq_len
-                mean_seqlen = int((1 - pad_perc) * max_seqlen)
-                input_ids, _, masks = get_batch(
-                    bs, mean_seqlen, max_seqlen, args.seqlen_stdev, vocab_size=hf_model.config.vocab_size
-                )
-
-                if args.use_cuda:
-                    input_ids = input_ids.to(device)
-                    masks = masks.to(device)
-
-                if args.use_mask is False and bs == 1:
-                    masks = None
-
-                with torch.inference_mode():
                     # raise error if no optimized kernel is available
                     with torch.backends.cuda.sdp_kernel(
                         enable_flash=True, enable_math=True, enable_mem_efficient=True
                     ):
-                        total_bt_time, max_mem_bt = benchmark(
+                        profile_model(
                             bt_model,
+                            args.model_name + "_bt_",
                             input_ids,
                             masks,
                             args.num_batches,
@@ -258,35 +220,3 @@ if __name__ == "__main__":
                             args.max_token,
                             tokenizer.pad_token_id,
                         )
-
-                total_hf_time = all_total_hf_time[(bs, seq_len)]
-                max_mem_eager = all_max_mem_eager[(bs, seq_len)]
-
-                speedup = (total_hf_time / total_bt_time - 1) * 100
-                mem_saved = (max_mem_eager / max_mem_bt - 1) * 100
-
-                max_mem_eager = max_mem_eager * 1e-6
-                max_mem_bt = max_mem_bt * 1e-6
-
-                print(f"PT eager: {total_hf_time:.3f} s, peak {max_mem_eager:.2f} MB")
-                print(f"PT native: {total_bt_time:.3f} s, peak {max_mem_bt:.2f} MB")
-
-                output_file.write(
-                    "{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
-                        args.num_batches,
-                        args.use_cuda,
-                        bs,
-                        seq_len,
-                        args.use_half,
-                        args.use_mask,
-                        pad_perc,
-                        f"{total_hf_time:.3f}",
-                        f"{total_bt_time:.3f}",
-                        f"{speedup:.3f}",
-                        f"{max_mem_eager:.3f}",
-                        f"{max_mem_bt:.3f}",
-                        f"{mem_saved:.3f}",
-                    )
-                )
-
-    output_file.close()

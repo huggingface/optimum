@@ -14,15 +14,20 @@
 """Defines the base classes that are used to perform inference with ONNX Runtime of Transformers models."""
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 
+import numpy as np
 import torch
 from transformers.modeling_outputs import BaseModelOutput, CausalLMOutputWithCrossAttentions, Seq2SeqLMOutput
 
 from onnxruntime import InferenceSession
 
 from ..utils import NormalizedConfigManager
-from .utils import get_ordered_input_names
+from ..utils.logging import warn_once
+from .utils import get_ordered_input_names, logging
+
+
+logger = logging.get_logger(__name__)
 
 
 if TYPE_CHECKING:
@@ -178,21 +183,25 @@ class ORTDecoder(ORTModelPart):
                 self.value_sequence_length_idx = -1
 
     def prepare_inputs_for_merged(
-        self, input_ids: Optional[torch.LongTensor] = None, past_key_values: Optional[List[torch.FloatTensor]] = None
+        self,
+        input_ids: Union[None, torch.LongTensor, np.ndarray] = None,
+        past_key_values: Union[None, Tuple[torch.FloatTensor], Tuple[np.ndarray]] = None,
+        use_torch: bool = False,
     ):
-        if past_key_values is None and self.parent_model.use_merged:
-            # Uses "no past" branch of a merged decoder
-            use_cache_branch = torch.full((1,), False).to(self.device)
-        elif past_key_values is not None and self.parent_model.use_merged:
-            # Uses "with past" branch of a merged decoder
-            use_cache_branch = torch.full((1,), True).to(self.device)
+        constructor = torch if use_torch is True else np
+        if self.parent_model.use_merged:
+            # Uses without/with branch of a merged decoder depending on whether real past key values are passed
+            use_cache_branch = constructor.full((1,), past_key_values is not None)
         else:
             # Uses separate decoders
             use_cache_branch = None
 
+        if use_torch and use_cache_branch is not None:
+            use_cache_branch = use_cache_branch.to(self.device)
+
         # Generate dummy past for the first forward if uses a merged decoder
         if self.parent_model.use_merged and past_key_values is None:
-            batch_size = input_ids.size(0)
+            batch_size = input_ids.shape[0]
             num_attention_heads = self.normalized_config.num_attention_heads
             embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
 
@@ -201,15 +210,24 @@ class ORTDecoder(ORTModelPart):
             if self.parent_model.config.model_type == "bloom":
                 shape_value = (batch_size * num_attention_heads, 1, embed_size_per_head)
                 shape_key = (batch_size * num_attention_heads, embed_size_per_head, 1)
-                key = torch.zeros(shape_key, dtype=torch.float32).to(self.device)
-                value = torch.zeros(shape_value, dtype=torch.float32).to(self.device)
-                past_key_values = [
+                key = constructor.zeros(shape_key, dtype=constructor.float32)
+                value = constructor.zeros(shape_value, dtype=constructor.float32)
+
+                if use_torch is True:
+                    key = key.to(self.device)
+                    value = value.to(self.device)
+
+                past_key_values = tuple(
                     key_or_value for _ in range(len(self.key_value_input_names) // 2) for key_or_value in [key, value]
-                ]
+                )
             else:
                 shape = (batch_size, num_attention_heads, 1, embed_size_per_head)
-                key_or_value = torch.zeros(shape, dtype=torch.float32).to(self.device)
-                past_key_values = [key_or_value for _ in range(len(self.key_value_input_names))]
+                key_or_value = constructor.zeros(shape, dtype=constructor.float32)
+
+                if use_torch is True:
+                    key_or_value = key_or_value.to(self.device)
+
+                past_key_values = tuple(key_or_value for _ in range(len(self.key_value_input_names)))
 
         return use_cache_branch, past_key_values
 
@@ -277,15 +295,19 @@ class ORTDecoder(ORTModelPart):
 
         # Flatten the past_key_values
         if past_key_values is not None:
-            past_key_values = [past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer]
+            past_key_values = tuple(
+                past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
+            )
 
         # no-ops if merged decoder is not used
-        use_cache_branch, past_key_values = self.prepare_inputs_for_merged(input_ids, past_key_values)
+        use_cache_branch_tensor, past_key_values = self.prepare_inputs_for_merged(
+            input_ids, past_key_values, use_torch=use_torch
+        )
 
         if self.device.type == "cuda" and self.parent_model.use_io_binding:
             known_output_shapes = self.compute_past_key_values_output_shapes(
                 input_ids,
-                use_cache_branch=use_cache_branch.item() if use_cache_branch is not None else None,
+                use_cache_branch=use_cache_branch_tensor.item() if use_cache_branch_tensor is not None else None,
                 past_key_values=past_key_values,
             )
 
@@ -297,8 +319,8 @@ class ORTDecoder(ORTModelPart):
             if past_key_values is not None:
                 model_inputs += past_key_values
 
-            if use_cache_branch is not None:
-                model_inputs.append(use_cache_branch)
+            if use_cache_branch_tensor is not None:
+                model_inputs.append(use_cache_branch_tensor)
 
             if "labels" in self.input_names:
                 model_inputs.append(labels)
@@ -337,7 +359,7 @@ class ORTDecoder(ORTModelPart):
                 }
 
                 if self.parent_model.use_merged is True:
-                    onnx_inputs["use_cache_branch"] = use_cache_branch.cpu().detach().numpy()
+                    onnx_inputs["use_cache_branch"] = use_cache_branch_tensor.cpu().detach().numpy()
 
                 if past_key_values is not None:
                     # Add the past_key_values to the decoder inputs
@@ -353,7 +375,7 @@ class ORTDecoder(ORTModelPart):
                 }
 
                 if self.parent_model.use_merged is True:
-                    onnx_inputs["use_cache_branch"] = use_cache_branch
+                    onnx_inputs["use_cache_branch"] = use_cache_branch_tensor
 
                 if past_key_values is not None:
                     # Add the past_key_values to the decoder inputs
@@ -397,13 +419,29 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
     ):
         super().__init__(session, parent_model)
 
-        if self.use_past:
+        if self.parent_model.use_merged is False and self.use_past is True:
             self.num_pkv = 2
         else:
+            # When using a merged model, we always have the same number of output whether we use past key values or not,
+            # and in the case past key values are used, empty tensors are given as cross-attention past key values as they
+            # are constants
             self.num_pkv = 4
 
+        self.past_key_values_cross_attention_output_names = set()
+        for output_name in self.output_names:
+            if output_name.startswith("present") and "encoder" in output_name:
+                self.past_key_values_cross_attention_output_names.add(output_name)
+
+        self.use_legacy_outputs = (
+            self.parent_model.use_merged is False and len(self.past_key_values_cross_attention_output_names) > 0
+        )
+
     def compute_past_key_values_output_shapes(
-        self, input_ids, encoder_hidden_states, past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+        self,
+        input_ids: torch.Tensor,
+        encoder_hidden_states: torch.Tensor,
+        use_cache_branch: Optional[bool],
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
     ) -> Dict[str, int]:
         batch_size = input_ids.size(0)
         num_attention_heads = self.normalized_config.num_attention_heads
@@ -411,18 +449,36 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
 
         sequence_length = input_ids.size(1)
         encoder_sequence_length = encoder_hidden_states.size(1)
-        if past_key_values is not None:
+        if past_key_values is not None and use_cache_branch is not False:
+            # Here, use_cache_branch may be None in the case of separate decoder without/with past, or True if the with past branch
+            # of a merged decoder is used
             sequence_length += past_key_values[0].size(2)
 
         self_attn_shape = (batch_size, num_attention_heads, sequence_length, embed_size_per_head)
-        cross_attn_shape = (batch_size, num_attention_heads, encoder_sequence_length, embed_size_per_head)
+
+        if past_key_values is not None and use_cache_branch is True:
+            cross_attn_shape = (0, num_attention_heads, 1, embed_size_per_head)
+        else:
+            cross_attn_shape = (batch_size, num_attention_heads, encoder_sequence_length, embed_size_per_head)
 
         past_key_values_shapes = {}
         for idx, name in enumerate(self.key_value_output_names):
             is_self_attn = idx % 4 < 2
             # decoder with past does not ouput cross attention key/values as they are constants
-            past_key_values_shapes[name] = self_attn_shape if (is_self_attn or self.use_past) else cross_attn_shape
+            past_key_values_shapes[name] = self_attn_shape if (is_self_attn or self.num_pkv == 2) else cross_attn_shape
         return past_key_values_shapes
+
+    def get_outputs_not_to_bind(self, use_merged_cache: bool) -> Set[str]:
+        result = {
+            output_name
+            for output_name in self.output_names
+            if (not output_name.startswith("present") and output_name not in {"loss", "logits"})
+        }
+        if use_merged_cache is True:
+            # When using a merged decoder and the use cache branch, we output 0-dim tensors that IO Binding do not support.
+            # Therefore, we do not bind them.
+            result = result.union(self.past_key_values_cross_attention_output_names)
+        return result
 
     def forward(
         self,
@@ -431,26 +487,35 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
+        use_cache_branch: None = None,
     ) -> Seq2SeqLMOutput:
+        # Adding use_cache_branch in the signature here is just a hack for IO Binding
+
         use_torch = isinstance(input_ids, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
+
         # Flatten the past_key_values
         if past_key_values is not None:
             past_key_values = tuple(
                 past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
             )
 
+        # no-ops if merged decoder is not used
+        use_merged_no_cache = past_key_values is None and self.parent_model.use_merged
+        use_merged_cache = past_key_values is not None and self.parent_model.use_merged
+        use_cache_branch_tensor, past_key_values = self.prepare_inputs_for_merged(
+            input_ids, past_key_values, use_torch=use_torch
+        )
+
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
             known_output_shapes = self.compute_past_key_values_output_shapes(
                 input_ids,
                 encoder_hidden_states,
+                use_cache_branch=use_cache_branch_tensor.item() if use_cache_branch_tensor is not None else None,
                 past_key_values=past_key_values,
             )
 
-            def filter_out_output(output_name):
-                return not output_name.startswith("present") and output_name not in {"loss", "logits"}
-
-            outputs_to_not_bind = {name for name in self.output_names if filter_out_output(name)}
+            outputs_to_not_bind = self.get_outputs_not_to_bind(use_merged_cache)
 
             model_inputs = [input_ids]
 
@@ -462,6 +527,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
 
             if past_key_values is not None:
                 model_inputs += past_key_values
+
+            if use_cache_branch_tensor is not None:
+                model_inputs.append(use_cache_branch_tensor)
 
             if "labels" in self.input_names:
                 model_inputs.append(labels)
@@ -488,6 +556,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             # self-attention layer and 2 to the cross-attention layer)
             out_past_key_values = ()
             for name in self.key_value_output_names:
+                # TODO: this should be improved
+                if name in self.past_key_values_cross_attention_output_names and use_merged_cache:
+                    continue
                 out_past_key_values += (output_buffers[name].view(output_shapes[name]),)
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
@@ -495,6 +566,39 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             loss = None
             if "loss" in self.output_names:
                 loss = output_buffers["loss"].view(output_shapes["loss"])
+
+            # IO Binding does not support 0-dim output with null pointer, so handle this case here
+            if self.use_past is False or use_merged_no_cache:
+                out_past_key_values = tuple(
+                    out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
+                )
+            else:
+                if self.use_legacy_outputs is True:
+                    msg = (
+                        "For the decoder with past, using ONNX models outputting cross attention past key values"
+                        " is deprecated and the support will be removed in optimum 2.0. We recommend exporting again the model"
+                        " with optimum>=1.7.3."
+                    )
+                    warn_once(logger, msg=msg)
+                    out_past_key_values = tuple(
+                        out_past_key_values[i : i + self.num_pkv]
+                        for i in range(0, len(out_past_key_values), self.num_pkv)
+                    )
+                # grab the cross attention key/values from the inputs
+                elif self.num_pkv == 2:
+                    out_past_key_values = tuple(
+                        out_past_key_values[i : i + self.num_pkv]
+                        + past_key_values[2 * i + 2 : 2 * i + 2 + self.num_pkv]
+                        for i in range(0, len(out_past_key_values), self.num_pkv)
+                    )
+                elif self.num_pkv == 4:
+                    # despite num_pkv being 4, we did not bind the cross-attention output
+                    out_past_key_values = tuple(
+                        out_past_key_values[i : i + 2] + past_key_values[2 * i + 2 : 2 * i + 4]
+                        for i in range(0, len(out_past_key_values), 2)
+                    )
+                else:
+                    raise ValueError("Unsupported num_pkv")
         else:
             if use_torch:
                 onnx_inputs = {
@@ -517,6 +621,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 if "labels" in self.input_names:
                     # TODO: Any preprocessing like  `self._shift_right(labels)`?
                     onnx_inputs["labels"] = labels.cpu().detach().numpy()
+
+                if self.parent_model.use_merged is True:
+                    onnx_inputs["use_cache_branch"] = use_cache_branch_tensor.cpu().detach().numpy()
             else:
                 onnx_inputs = {
                     "input_ids": input_ids,
@@ -539,6 +646,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                     # TODO: Any preprocessing like  `self._shift_right(labels)`?
                     onnx_inputs["labels"] = labels
 
+                if self.parent_model.use_merged is True:
+                    onnx_inputs["use_cache_branch"] = use_cache_branch_tensor
+
             # Run inference
             outputs = self.session.run(None, onnx_inputs)
 
@@ -560,19 +670,39 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 if use_torch:
                     loss = torch.from_numpy(loss).to(self.device)
 
-        # TODO: this is extremely ugly and unreadable. What if cross-attention k/v change?
-        # Tuple of tuple of length `n_layers`, with each tuple of length equal to:
-        # * 4 for the decoder without cache (k/v of self-attention + k/v of cross-attention)
-        # * 2 for the decoder with cache (k/v of self-attention as cross-attention cache is constant)
-        if self.use_past is False:
-            out_past_key_values = tuple(
-                out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
-            )
-        else:
-            # grab the cross attention key/values from the inputs
-            out_past_key_values = tuple(
-                out_past_key_values[i : i + self.num_pkv] + past_key_values[2 * i + 2 : 2 * i + 2 + self.num_pkv]
-                for i in range(0, len(out_past_key_values), self.num_pkv)
-            )
+            # TODO: this is extremely ugly and unreadable. What if cross-attention k/v change?
+            # Tuple of tuple of length `n_layers`, with each tuple of length equal to:
+            # * 4 for the decoder without cache (k/v of self-attention + k/v of cross-attention)
+            # * 2 for the decoder with cache (k/v of self-attention as cross-attention cache is constant)
+            if self.use_past is False or use_merged_no_cache:
+                out_past_key_values = tuple(
+                    out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
+                )
+            else:
+                if self.use_legacy_outputs is True:
+                    msg = (
+                        "For the decoder with past, using ONNX models outputting cross attention past key values"
+                        " is deprecated and the support will be removed in optimum 2.0. We recommend exporting again the model"
+                        " with optimum>=1.7.3."
+                    )
+                    warn_once(logger, msg=msg)
+                    out_past_key_values = tuple(
+                        out_past_key_values[i : i + self.num_pkv]
+                        for i in range(0, len(out_past_key_values), self.num_pkv)
+                    )
+                # grab the cross attention key/values from the inputs
+                elif self.num_pkv == 2:
+                    out_past_key_values = tuple(
+                        out_past_key_values[i : i + self.num_pkv]
+                        + past_key_values[2 * i + 2 : 2 * i + 2 + self.num_pkv]
+                        for i in range(0, len(out_past_key_values), self.num_pkv)
+                    )
+                elif self.num_pkv == 4:
+                    out_past_key_values = tuple(
+                        out_past_key_values[i : i + 2] + past_key_values[i + 2 : i + 4]
+                        for i in range(0, len(out_past_key_values), self.num_pkv)
+                    )
+                else:
+                    raise ValueError("Unsupported num_pkv")
 
         return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=out_past_key_values)

@@ -56,7 +56,7 @@ def _get_models_to_test(export_models_dict: Dict):
                 for task in tasks:
                     models_to_test.append((f"{model_type}_{task}", model_type, model_name, task, False, False))
 
-                    # -with-past and monolith case are absurd, so we don't test them as not supported
+                    # -with-past and monolith cases are absurd, so we don't test them as not supported
                     if any(
                         task == ort_special_task
                         for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
@@ -66,7 +66,13 @@ def _get_models_to_test(export_models_dict: Dict):
                         )
 
                     # For other tasks, we don't test --no-post-process as there is none anyway
-                    if task == "causal-lm-with-past":
+                    if task in [
+                        "default-with-past",
+                        "causal-lm-with-past",
+                        "speech2seq-lm-with-past",
+                        "vision2seq-lm-with-past",
+                        "seq2seq-lm-with-past",
+                    ]:
                         models_to_test.append(
                             (f"{model_type}_{task}_no_postprocess", model_type, model_name, task, False, True)
                         )
