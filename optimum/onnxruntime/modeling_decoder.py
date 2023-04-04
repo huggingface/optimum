@@ -161,6 +161,12 @@ class ORTModelDecoder(ORTModel):
                 The generation configuration used by default when calling `generate()`.
                 Refer to https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationMixin.generate.
         """
+        if use_io_binding is None:
+            if decoder_session.get_providers()[0] == "CUDAExecutionProvider":
+                use_io_binding = True
+            else:
+                use_io_binding = False
+
         self.shared_attributes_init(
             decoder_session,
             use_io_binding=use_io_binding,
@@ -207,6 +213,14 @@ class ORTModelDecoder(ORTModel):
                     "The parameter decoder_with_past_session was passed, although use_cache is False."
                     "Please pass use_cache=True for decoder_with_past_session to be used."
                 )
+
+        if use_cache is False and use_io_binding is True:
+            raise ValueError(
+                "When using CUDAExecutionProvider, the parameters combination use_cache=False, use_io_binding=True"
+                " is not supported. Please either pass use_cache=True, use_io_binding=True (default),"
+                " or use_cache=False, use_io_binding=False."
+            )
+
         self.onnx_paths = onnx_paths
         self.use_cache = use_cache
         self.use_merged = use_merged
