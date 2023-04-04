@@ -633,6 +633,15 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
     ):
         model_path = Path(model_id)
 
+        # We do not implement the logic for use_cache=False, use_merged=True
+        if use_cache is False:
+            if use_merged is True:
+                raise ValueError(
+                    "The parameters combination use_cache=False, use_merged=True is not supported."
+                    " To use a merged decoder, past key values must be used."
+                )
+            use_merged = False
+
         decoder_merged_path = None
         # We use `is not False` here to include two cases: use_merged = None (in which case we auto-detect it),
         # and use_merged = True (explicitely specified by the user)
