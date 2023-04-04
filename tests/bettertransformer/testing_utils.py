@@ -19,6 +19,7 @@ import tempfile
 import unittest
 
 import torch
+from humanfriendly.testing import ContextManager
 from packaging.version import parse
 from transformers import AutoModel
 
@@ -210,13 +211,17 @@ class BetterTransformersTestMixin(unittest.TestCase):
     def _test_raise_autocast(self, model_id: str, model_type: str, **kwargs):
         r"""
         A tests that checks if the conversion raises an error if the model is run under
-        `torch.cuda.amp.autocast`.
+        `torch.cuda.amp.autocast` with torch version < 2.0.0.
         """
         inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **kwargs)
         hf_random_model = AutoModel.from_pretrained(model_id).eval()
 
+        assert_context_manager = ContextManager()
+        if parse(torch.__version__) < parse('2.0.0'):
+            assert_context_manager = self.assertRaises(ValueError)
+
         # Check for the autocast on CPU
-        with self.assertRaises(ValueError), torch.amp.autocast("cpu"):
+        with assert_context_manager, torch.amp.autocast("cpu"):
             bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
             _ = bt_model(**inputs)
 
