@@ -21,6 +21,7 @@ from contextlib import contextmanager
 
 import numpy as np
 import packaging
+from packaging.version import parse
 from transformers.utils import is_torch_available
 
 
@@ -46,8 +47,12 @@ _accelerate_available = importlib.util.find_spec("accelerate") is not None
 _diffusers_available = importlib.util.find_spec("diffusers") is not None
 
 torch_version = None
+nested_tensors_have_fp16_backend = False
 if is_torch_available():
+    import torch
+
     torch_version = packaging.version.parse(importlib_metadata.version("torch"))
+    nested_tensors_have_fp16_backend = parse(torch.__version__) >= parse("2.0.0")
 
 _is_torch_onnx_support_available = is_torch_available() and (
     TORCH_MINIMUM_VERSION.major,
