@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from pip._internal.utils import packaging
 
+
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
@@ -129,7 +130,9 @@ class BetterTransformerBaseLayer:
             )
 
     def forward_checker(self, *args, **kwargs):
-        nested_tensors_have_fp16_backend = packaging.version.parse(torch.__version__) >= packaging.version.parse('2.0.0')
+        nested_tensors_have_fp16_backend = packaging.version.parse(torch.__version__) >= packaging.version.parse(
+            "2.0.0"
+        )
         if not nested_tensors_have_fp16_backend and (torch.is_autocast_enabled() or torch.is_autocast_cpu_enabled()):
             raise ValueError("Autocast is not supported for `BetterTransformer` integration.")
 
