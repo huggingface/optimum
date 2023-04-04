@@ -261,6 +261,14 @@ class BetterTransformer(object):
             if keep_original_model:
                 model = dispatch_model(model, hf_device_map)
 
+        # See: https://github.com/pytorch/pytorch/issues/96099
+        if BetterTransformerManager.requires_torch_20(model_fast.config.model_type):
+            logging.warning(
+                f"For training, the BetterTransformer implementation for {model_fast.config.model_type} "
+                " architecture currently does not support padding as fused kernels do not support custom"
+                " attention masks. Beware that passing padded batched training data may result in unexpected outputs."
+            )
+
         # Overwrite the `save_pretrained` method
         # by raising an error if the user tries to save the model
         # or push it to the hub.
