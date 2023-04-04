@@ -64,6 +64,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
     "longt5": "hf-internal-testing/tiny-random-LongT5Model",
+    "llama": "trl-internal-testing/tiny-random-LlamaForCausalLM",
     # "longformer": "allenai/longformer-base-4096",
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
@@ -75,8 +76,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
-    "opt": "hf-internal-testing/tiny-random-llama",
-    "llama": "hf-internal-testing/tiny-random-OPTModel",
+    "opt": "hf-internal-testing/tiny-random-OPTModel",
     # "owlvit": "google/owlvit-base-patch32",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
