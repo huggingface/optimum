@@ -35,7 +35,7 @@ Before going further, run the following sample code to check whether the install
 
 >>> ort_model = ORTModelForSequenceClassification.from_pretrained(
 ...   "philschmid/tiny-bert-sst2-distilled",
-...   from_transformers=True,
+...   export=True,
 ...   provider="CUDAExecutionProvider",
 ... )
 
@@ -63,7 +63,7 @@ For non-quantized models, the use is straightforward. Simply specify the `provid
 
 >>> ort_model = ORTModelForSequenceClassification.from_pretrained(
 ...   "distilbert-base-uncased-finetuned-sst-2-english",
-...   from_transformers=True,
+...   export=True,
 ...   provider="CUDAExecutionProvider",
 ... )
 ```
@@ -93,7 +93,7 @@ Additionally, you can pass the session option `log_severity_level = 0` (verbose)
 
 >>> ort_model = ORTModelForSequenceClassification.from_pretrained(
 ...     "distilbert-base-uncased-finetuned-sst-2-english",
-...     from_transformers=True,
+...     export=True,
 ...     provider="CUDAExecutionProvider",
 ...     session_options=session_options
 ... )
@@ -134,7 +134,7 @@ And if you want to turn off IOBinding:
 >>> from optimum.onnxruntime import ORTModelForSeq2SeqLM
 
 # Load the model from the hub and export it to the ONNX format
->>> model = ORTModelForSeq2SeqLM.from_pretrained("t5-small", from_transformers=True, use_io_binding=False)
+>>> model = ORTModelForSeq2SeqLM.from_pretrained("t5-small", export=True, use_io_binding=False)
 >>> tokenizer = AutoTokenizer.from_pretrained("t5-small")
 
 # Create a pipeline
@@ -247,7 +247,7 @@ Before going further, run the following sample code to check whether the install
 
 >>> ort_model = ORTModelForSequenceClassification.from_pretrained(
 ...     "philschmid/tiny-bert-sst2-distilled",
-...     from_transformers=True,
+...     export=True,
 ...     provider="TensorrtExecutionProvider",
 ... )
 
@@ -379,7 +379,7 @@ For non-quantized models, the use is straightforward, by simply using the `provi
 
 >>> ort_model = ORTModelForSequenceClassification.from_pretrained(
 ...     "distilbert-base-uncased-finetuned-sst-2-english",
-...     from_transformers=True,
+...     export=True,
 ...     provider="TensorrtExecutionProvider",
 ... )
 ```

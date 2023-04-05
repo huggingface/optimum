@@ -252,6 +252,12 @@ class ORTModel(OptimizedModel):
     ):
         super().__init__(model, config)
 
+        if use_io_binding is None:
+            if model.get_providers()[0] == "CUDAExecutionProvider":
+                use_io_binding = True
+            else:
+                use_io_binding = False
+
         self.model_path = Path(model._model_path)
         self.model_name = self.model_path.name
 

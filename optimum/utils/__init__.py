@@ -29,6 +29,7 @@ from .import_utils import (
     check_if_transformers_greater,
     is_accelerate_available,
     is_diffusers_available,
+    is_onnx_available,
     is_onnxruntime_available,
     is_pydantic_available,
     is_torch_onnx_support_available,

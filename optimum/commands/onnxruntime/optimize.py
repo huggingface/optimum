@@ -19,9 +19,6 @@ from typing import TYPE_CHECKING
 
 from optimum.commands.base import BaseOptimumCLICommand
 
-from ...onnxruntime.configuration import AutoOptimizationConfig, ORTConfig
-from ...onnxruntime.optimization import ORTOptimizer
-
 
 if TYPE_CHECKING:
     from argparse import ArgumentParser
@@ -78,6 +75,9 @@ class ONNXRuntimmeOptimizeCommand(BaseOptimumCLICommand):
         return parse_args_onnxruntime_optimize(parser)
 
     def run(self):
+        from ...onnxruntime.configuration import AutoOptimizationConfig, ORTConfig
+        from ...onnxruntime.optimization import ORTOptimizer
+
         if self.args.output == self.args.onnx_model:
             raise ValueError("The output directory must be different than the directory hosting the ONNX model.")
 
