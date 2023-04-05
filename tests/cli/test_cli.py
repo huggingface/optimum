@@ -63,7 +63,11 @@ class TestCLI(unittest.TestCase):
                 f"optimum-cli export tflite --model hf-internal-testing/tiny-random-bert --sequence_length 128 --task "
                 f"sequence-classification {tempdir}"
             )
-            proc = subprocess.run(command, shell=True, check=True)
+            proc = subprocess.Popen(command.split())
+            stdout, stderr = proc.communicate()
+            print(stdout)
+            print(stderr)
+            self.assertEqual(proc.returncode, 0)
 
     def test_optimize_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
