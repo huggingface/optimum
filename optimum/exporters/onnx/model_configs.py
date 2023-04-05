@@ -868,7 +868,7 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         return dummy_inputs
 
 
-class Pix2StructOnnxConfig(BertOnnxConfig): #layoutlm2 #splinter
+class Pix2StructOnnxConfig(BertOnnxConfig):
     pass
 
 

@@ -636,7 +636,6 @@ class TasksManager:
             "sequence-classification",
             onnx="PerceiverOnnxConfig",
         ),
-        #layoutlmv2
         "pix2struct": supported_tasks_mapping(
             "default",
             "question-answering",
