@@ -212,6 +212,7 @@ class NormalizedConfigManager:
         "nystromformer": NormalizedTextConfig,
         "opt": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
+        "pix2struct": NormalizedTextConfig,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,

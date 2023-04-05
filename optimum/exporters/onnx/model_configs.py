@@ -868,6 +868,10 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         return dummy_inputs
 
 
+class Pix2StructOnnxConfig(BertOnnxConfig): #layoutlm2 #splinter
+    pass
+
+
 class HubertOnnxConfig(AudioOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfig
 

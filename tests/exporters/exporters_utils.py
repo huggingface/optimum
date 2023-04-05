@@ -82,6 +82,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "hf-internal-testing/tiny-random-language_perceiver": ["masked-lm", "sequence-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
+    "pix2struct": "google/pix2struct-docvqa-base",
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
@@ -177,6 +178,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
+    "pix2struct": "google/pix2struct-docvqa-base",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "regnet": "facebook/regnet-y-040",
     "resnet": "microsoft/resnet-50",
