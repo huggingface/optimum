@@ -59,7 +59,7 @@ class TestCLI(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tempdir:
             command = (
-                f"optimum-cli export tflite --model hf-internal-testing/tiny-random-bert --sequence_length 128 --task sequence-classification {tempdir}",
+                f"optimum-cli export tflite --model hf-internal-testing/tiny-random-bert --sequence_length 16 --task sequence-classification {tempdir}",
             )
             subprocess.run(command, shell=True, check=True)
 
