@@ -19,7 +19,7 @@ from optimum.commands import BaseOptimumCLICommand, CommandInfo, ExportCommand
 
 
 class MyCustomCommand(BaseOptimumCLICommand):
-    COMMAND = CommandInfo(name="blablabla", help="Says something thing")
+    COMMAND = CommandInfo(name="blablabla", help="Says something.")
 
     def run(self):
         print("If the CI can read this, it means it worked!")

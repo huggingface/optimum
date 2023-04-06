@@ -20,6 +20,10 @@ support for decoders and training path is coming soon.
 Since its 1.13 version, [PyTorch released](https://pytorch.org/blog/PyTorch-1.13-release/) the stable version of a fast path for its standard Transformer APIs that provides out of the box performance improvements for transformer-based models. You can benefit from interesting speedup on most consumer-type devices, including CPUs, older and newer versions of NIVIDIA GPUs.
 You can now use this feature in 🤗 Optimum together with Transformers and use it for major models in the Hugging Face ecosystem.
 
+In the 2.0 version, PyTorch includes a scaled dot-product attention function (SDPA) as part of `torch.nn.functional`. This function encompasses several implementations that can be applied depending on the inputs and the hardware in use. See the [official documentation](https://pytorch.org/docs/master/generated/torch.nn.functional.scaled_dot_product_attention) in detail for more information.
+We provide an integration with `BetterTransforer` API to use this function in 🤗 Optimum, so that you can convert any supported 🤗 Transformers model to call the `scaled_dot_product_attention` function when relevant.
+
+
 ### Supported models
 
 The list of supported model below:
@@ -30,6 +34,7 @@ The list of supported model below:
 - [BERT-generation](https://arxiv.org/abs/1907.12461)
 - [CamemBERT](https://arxiv.org/abs/1911.03894)
 - [CLIP](https://arxiv.org/abs/2103.00020)
+- [CodeGen](https://arxiv.org/abs/2203.13474)
 - [Data2VecText](https://arxiv.org/abs/2202.03555)
 - [DistilBert](https://arxiv.org/abs/1910.01108)
 - [DeiT](https://arxiv.org/abs/2012.12877)
@@ -37,12 +42,17 @@ The list of supported model below:
 - [Ernie](https://arxiv.org/abs/1904.09223)
 - [Flava](https://arxiv.org/abs/2112.04482)
 - [FSMT](https://arxiv.org/abs/1907.06616)
+- [GPT2](https://d4mucfpksywv.cloudfront.net/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
+- [GPT-j](https://huggingface.co/EleutherAI/gpt-j-6B)
+- [GPT-neo](https://github.com/EleutherAI/gpt-neo)
+- [GPT-neo-x](https://arxiv.org/abs/2204.06745)
 - [HuBERT](https://arxiv.org/pdf/2106.07447.pdf)
 - [LayoutLM](https://arxiv.org/abs/1912.13318)
 - [MarkupLM](https://arxiv.org/abs/2110.08518)
 - [Marian](https://arxiv.org/abs/1804.00344)
 - [MBart](https://arxiv.org/abs/2001.08210)
 - [M2M100](https://arxiv.org/abs/2010.11125)
+- [OPT](https://arxiv.org/abs/2205.01068)
 - [ProphetNet](https://arxiv.org/abs/2001.04063)
 - [RemBERT](https://arxiv.org/abs/2010.12821)
 - [RoBERTa](https://arxiv.org/abs/1907.11692)
@@ -58,8 +68,6 @@ The list of supported model below:
 - [Whisper](https://cdn.openai.com/papers/whisper.pdf)
 - [XLMRoberta](https://arxiv.org/abs/1911.02116)
 - [YOLOS](https://arxiv.org/abs/2106.00666)
-
-Note that for encoder-decoder models, only the encoder part is supported by PyTorch's BetterTransformer for now.
 
 Let us know by opening an issue in 🤗 Optimum if you want more models to be supported, or check out the contribution guideline if you want to add it by yourself!
 

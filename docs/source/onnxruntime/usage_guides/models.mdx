@@ -30,7 +30,7 @@ pred = onnx_qa(question, context)
 ### Loading a vanilla Transformers model
 
 Because the model you want to work with might not be already converted to ONNX,  [`~optimum.onnxruntime.ORTModel`]
-includes a method to convert vanilla Transformers models to ONNX ones. Simply pass `from_transformers=True` to the
+includes a method to convert vanilla Transformers models to ONNX ones. Simply pass `export=True` to the
 [`~optimum.onnxruntime.ORTModel.from_pretrained`] method, and your model will be loaded and converted to ONNX on-the-fly:
 
 ```python
@@ -38,7 +38,7 @@ includes a method to convert vanilla Transformers models to ONNX ones. Simply pa
 
 >>> # Load the model from the hub and export it to the ONNX format
 >>> model = ORTModelForSequenceClassification.from_pretrained(
-...     "distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True
+...     "distilbert-base-uncased-finetuned-sst-2-english", export=True
 ... )
 ```
 
@@ -52,7 +52,7 @@ It is also possible, just as with regular [`~transformers.PreTrainedModel`]s, to
 
 >>> # Load the model from the hub and export it to the ONNX format
 >>> model = ORTModelForSequenceClassification.from_pretrained(
-...     "distilbert-base-uncased-finetuned-sst-2-english", from_transformers=True
+...     "distilbert-base-uncased-finetuned-sst-2-english", export=True
 ... )
 
 >>> # Save the converted model
@@ -82,7 +82,7 @@ Here is an example of how you can load a T5 model to the ONNX format and run inf
 
 # Load the model from the hub and export it to the ONNX format
 >>> model_name = "t5-small"
->>> model = ORTModelForSeq2SeqLM.from_pretrained(model_name, from_transformers=True)
+>>> model = ORTModelForSeq2SeqLM.from_pretrained(model_name, export=True)
 >>> tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 # Create a pipeline

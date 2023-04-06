@@ -26,11 +26,7 @@ from .onnxruntime import ONNXRuntimeCommand
 
 logger = logging.get_logger()
 
-OPTIMUM_CLI_SUBCOMMANDS = [
-    ExportCommand,
-    EnvironmentCommand,
-    ONNXRuntimeCommand,
-]
+OPTIMUM_CLI_SUBCOMMANDS = [ExportCommand, EnvironmentCommand, ONNXRuntimeCommand]
 
 
 def resolve_command_to_command_instance(
@@ -138,7 +134,7 @@ def register_optimum_cli_subcommand(
 
 
 def main():
-    root = RootOptimumCLICommand("Optimum CLI tool", usage="optimum-cli <command> [<args>]")
+    root = RootOptimumCLICommand("Optimum CLI tool", usage="optimum-cli")
     parser = root.parser
 
     for subcommand_cls in OPTIMUM_CLI_SUBCOMMANDS:

@@ -252,6 +252,12 @@ class ORTModel(OptimizedModel):
     ):
         super().__init__(model, config)
 
+        if use_io_binding is None:
+            if model.get_providers()[0] == "CUDAExecutionProvider":
+                use_io_binding = True
+            else:
+                use_io_binding = False
+
         self.model_path = Path(model._model_path)
         self.model_name = self.model_path.name
 
@@ -783,6 +789,7 @@ class ORTModel(OptimizedModel):
                 for axis_name in output_node.shape:
                     output_shape.append(self._output_shape_inference(axis_name, dimensions))
             output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
+
             io_binding.bind_output(
                 output_name,
                 output_buffer.device.type,

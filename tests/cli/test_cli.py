@@ -102,19 +102,34 @@ class TestCLI(unittest.TestCase):
         return content in stdout
 
     def test_register_command(self):
+        # Nothing was registered, it should fail.
         custom_command = "optimum-cli blablabla"
         command_content = "If the CI can read this, it means it worked!"
         succeeded = self._run_command_and_check_content(custom_command, command_content)
         self.assertFalse(succeeded, "The command should fail here since it is not registered yet.")
 
+        # As a "base" command in `optimum-cli`.
         shutil.copy(CLI_WIH_CUSTOM_COMMAND_PATH, REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
+
+        # We check that the print_help method prints the registered command.
+        succeeded = self._run_command_and_check_content("optimum-cli", "blablabla")
+        self.assertTrue(succeeded, "The command name should appear in the help.")
+
         succeeded = self._run_command_and_check_content(custom_command, command_content)
         self.assertTrue(succeeded, "The command should succeed here since it is registered.")
+
         REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink()
 
+        # As a subcommand of an existing command, `optimum-cli export` here.
         shutil.copy(CLI_WIH_CUSTOM_COMMAND_PATH, REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH)
         os.environ["TEST_REGISTER_COMMAND_WITH_SUBCOMMAND"] = "true"
+
+        # We check that the print_help method prints the registered command.
+        succeeded = self._run_command_and_check_content("optimum-cli export", "blablabla")
+        self.assertTrue(succeeded, "The command name should appear in the help.")
+
         custom_command = "optimum-cli export blablabla"
         succeeded = self._run_command_and_check_content(custom_command, command_content)
         self.assertTrue(succeeded, "The command should succeed here since it is registered.")
+
         REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink()

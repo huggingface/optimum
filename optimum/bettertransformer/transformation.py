@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 if is_accelerate_available():
-    from accelerate import dispatch_model, infer_auto_device_map
+    from accelerate import dispatch_model
     from accelerate.hooks import remove_hook_from_module
 
 ERROR_MESSAGE = r"The Better Transformers implementation for the model {model_name} has not been implemented yet. Please open an issue requesting the addition of this model with its `BetterTransformer` implementation."
@@ -192,6 +192,7 @@ class BetterTransformer(object):
         # Check if we have to load the model using `accelerate`
         if hasattr(model, "hf_device_map"):
             load_accelerate = True
+            hf_device_map = model.hf_device_map
         else:
             load_accelerate = False
 
@@ -224,8 +225,7 @@ class BetterTransformer(object):
         hf_config = model.config
 
         if load_accelerate:
-            # remove the hooks from the original model to
-            # avoid weights being on `meta` device.
+            # Remove the hooks from the original model to avoid weights being on `meta` device.
             remove_hook_from_module(model, recurse=True)
 
         if keep_original_model:
@@ -249,24 +249,27 @@ class BetterTransformer(object):
         if BetterTransformerManager.requires_nested_tensor(model_fast.config.model_type):
             set_last_layer(model_fast)
 
-        # Step 6: Add a class arguments, we might need to identify whether the model
+        # Add a class arguments, we might need to identify whether the model
         # has been correctly converted to its `BetterTransformer` version.
         setattr(model_fast, "use_bettertransformer", True)
 
-        # Step 7: dispatch model if `accelerate` is enabled
         if load_accelerate:
-            device_map_bt = infer_auto_device_map(model_fast, max_memory=max_memory)
+            model_fast = dispatch_model(model_fast, hf_device_map)
 
-            remove_hook_from_module(model_fast, recurse=True)
-
-            model_fast = dispatch_model(model_fast, device_map_bt)
-
+            # It is not recommended to have `keep_original_model=True` with a model
+            # that is loaded with accelerate but just in case
             if keep_original_model:
-                # It is not recommended to have `keep_original_model=True` with a model
-                # that is loaded with accelerate but just in case ..
-                model = dispatch_model(model, model.hf_device_map)
+                model = dispatch_model(model, hf_device_map)
 
-        # Step 8: overwrite the `save_pretrained` method
+        # See: https://github.com/pytorch/pytorch/issues/96099
+        if BetterTransformerManager.requires_torch_20(model_fast.config.model_type):
+            logging.warning(
+                f"For training, the BetterTransformer implementation for {model_fast.config.model_type} "
+                " architecture currently does not support padding as fused kernels do not support custom"
+                " attention masks. Beware that passing padded batched training data may result in unexpected outputs."
+            )
+
+        # Overwrite the `save_pretrained` method
         # by raising an error if the user tries to save the model
         # or push it to the hub.
         model_fast._old_save_pretrained = model_fast.save_pretrained
