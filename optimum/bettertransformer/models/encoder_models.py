@@ -942,7 +942,7 @@ class ViltLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
         self.linear1_bias = vilt_layer.intermediate.dense.bias
 
         # Linear layer 2
-        self.linear2_weight = a.output.dense.weight
+        self.linear2_weight = vilt_layer.output.dense.weight
         self.linear2_bias = vilt_layer.output.dense.bias
 
         # Layer norm 1
