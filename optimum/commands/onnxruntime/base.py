@@ -12,7 +12,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""optimum.onnxruntime command-line interface base classes."""
 
-from .base import ONNXRuntimeCommand
+from .. import BaseOptimumCLICommand, CommandInfo
 from .optimize import ONNXRuntimmeOptimizeCommand
 from .quantize import ONNXRuntimmeQuantizeCommand
+
+
+class ONNXRuntimeCommand(BaseOptimumCLICommand):
+    COMMAND = CommandInfo(
+        name="onnxruntime",
+        help="ONNX Runtime optimize and quantize utilities.",
+    )
+    SUBCOMMANDS = (
+        CommandInfo(
+            name="optimize",
+            help="Optimize ONNX models.",
+            subcommand_class=ONNXRuntimmeOptimizeCommand,
+        ),
+        CommandInfo(
+            name="quantize",
+            help="Dynammic quantization for ONNX models.",
+            subcommand_class=ONNXRuntimmeQuantizeCommand,
+        ),
+    )

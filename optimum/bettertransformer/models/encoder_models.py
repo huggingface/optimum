@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
 
-class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):
+class AlbertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, albert_layer, config):
         r"""
         A simple conversion of the ALBERT layer to its `BetterTransformer` implementation.
@@ -33,6 +33,7 @@ class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):
                 The original ALBERT Layer where the weights needs to be retrieved.
         """
         super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -145,7 +146,7 @@ class AlbertLayerBetterTransformer(BetterTransformerBaseLayer):
         return (hidden_states,)
 
 
-class BertLayerBetterTransformer(BetterTransformerBaseLayer):
+class BertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, bert_layer, config):
         r"""
         A simple conversion of the BERT layer to its `BetterTransformer` implementation.
@@ -155,6 +156,7 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer):
                 The original BERT Layer where the weights needs to be retrieved.
         """
         super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -271,7 +273,7 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer):
         return (hidden_states,)
 
 
-class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
+class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, bart_layer, config):
         r"""
         A simple conversion of the `BartEncoderLayer` to its `BetterTransformer` implementation.
@@ -281,6 +283,7 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
                 The original `BartEncoderLayer` where the weights needs to be retrieved.
         """
         super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -404,7 +407,7 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         return (hidden_states,)
 
 
-class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
+class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, mbart_layer, config):
         r"""
         A simple conversion of the `MBartEncoderLayer` to its `BetterTransformer` implementation.
@@ -413,6 +416,7 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
                 The original `MBartEncoderLayer` where the weights needs to be retrieved.
         """
         super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -541,7 +545,7 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         return (hidden_states,)
 
 
-class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer):
+class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, bert_layer, config):
         r"""
         A simple conversion of the Distill-BERTLayer to its `BetterTransformer` implementation.
@@ -551,6 +555,7 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer):
                 The original Distill-BERT Layer where the weights needs to be retrieved.
         """
         super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -664,7 +669,7 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer):
         return (x,)
 
 
-class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
+class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, whisper_layer, config):
         r"""
         A simple conversion of the WhisperEncoderLayer to its `BetterTransformer` implementation.
@@ -674,6 +679,7 @@ class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
                 The original `WhisperEncoderLayer` where the weights needs to be retrieved.
         """
         super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -776,7 +782,7 @@ class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         return (hidden_states,)
 
 
-class ViTLayerBetterTransformer(BetterTransformerBaseLayer):
+class ViTLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, vit_layer, config):
         r"""
         A simple conversion of the ViTLayer to its `BetterTransformer` implementation.
@@ -786,6 +792,7 @@ class ViTLayerBetterTransformer(BetterTransformerBaseLayer):
                 The original `ViTLayer` where the weights needs to be retrieved.
         """
         super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -895,7 +902,7 @@ class ViTLayerBetterTransformer(BetterTransformerBaseLayer):
         return (hidden_states,)
 
 
-class ViltLayerBetterTransformer(BetterTransformerBaseLayer):
+class ViltLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, vilt_layer, config):
         r"""
         A simple conversion of the VilTLayer to its `BetterTransformer` implementation.
@@ -905,6 +912,7 @@ class ViltLayerBetterTransformer(BetterTransformerBaseLayer):
                 The original `VilTLayer` where the weights needs to be retrieved.
         """
         super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -934,7 +942,7 @@ class ViltLayerBetterTransformer(BetterTransformerBaseLayer):
         self.linear1_bias = vilt_layer.intermediate.dense.bias
 
         # Linear layer 2
-        self.linear2_weight = vilt_layer.output.dense.weight
+        self.linear2_weight = a.output.dense.weight
         self.linear2_bias = vilt_layer.output.dense.bias
 
         # Layer norm 1
@@ -1014,7 +1022,7 @@ class ViltLayerBetterTransformer(BetterTransformerBaseLayer):
         return (hidden_states,)
 
 
-class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer):
+class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, wav2vec2_layer, config):
         r"""
         A simple conversion of the Wav2Vec2EncoderLayer to its `BetterTransformer` implementation.
@@ -1024,6 +1032,7 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer):
                 The original `Wav2Vec2EncoderLayer` where the weights needs to be retrieved.
         """
         super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -1140,7 +1149,7 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         return (hidden_states,)
 
 
-class FlavaLayerBetterTransformer(BetterTransformerBaseLayer):
+class FlavaLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, flava_layer, config):
         r"""
         A simple conversion of the FlavaLayer to its `BetterTransformer` implementation.
@@ -1199,6 +1208,31 @@ class FlavaLayerBetterTransformer(BetterTransformerBaseLayer):
         self.is_last_layer = False
         self.norm_first = True
 
+        self.original_layers_mapping = {
+            "in_proj_weight": [
+                "attention.attention.query.weight",
+                "attention.attention.key.weight",
+                "attention.attention.value.weight",
+            ],
+            "in_proj_bias": [
+                "attention.attention.query.bias",
+                "attention.attention.key.bias",
+                "attention.attention.value.bias",
+            ],
+            "out_proj_weight": "attention.output.dense.weight",
+            "out_proj_bias": "attention.output.dense.bias",
+            "linear1_weight": "intermediate.dense.weight",
+            "linear1_bias": "intermediate.dense.bias",
+            "linear2_weight": "output.dense.weight",
+            "linear2_bias": "output.dense.bias",
+            "norm1_eps": "layernorm_before.eps",
+            "norm1_weight": "layernorm_before.weight",
+            "norm1_bias": "layernorm_before.bias",
+            "norm2_eps": "layernorm_after.eps",
+            "norm2_weight": "layernorm_after.weight",
+            "norm2_bias": "layernorm_after.bias",
+        }
+
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, *_, **__):
@@ -1234,8 +1268,7 @@ class FlavaLayerBetterTransformer(BetterTransformerBaseLayer):
             hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states,)
 
-
-class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
+class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, fsmt_layer, config):
         r"""
         A simple conversion of the FSMT Encoder layer to its `BetterTransformer` implementation.
@@ -1245,6 +1278,7 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
                 The original FSMT Layer where the weights needs to be retrieved.
         """
         super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
@@ -1370,7 +1404,141 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         return (hidden_states, attention_mask)
 
 
-class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
+class ProphetNetEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
+    def __init__(self, prophetnet_layer, config):
+        r"""
+        A simple conversion of the ProphetNet Encoder layer to its `BetterTransformer` implementation.
+
+        Args:
+            prophet_net_layer (`torch.nn.Module`):
+                The original ProphetNet Layer where the weights needs to be retrieved.
+        """
+        super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
+        self.config = config
+        # In_proj layer
+        self.in_proj_weight = nn.Parameter(
+            torch.cat(
+                [
+                    prophetnet_layer.self_attn.query_proj.weight,
+                    prophetnet_layer.self_attn.key_proj.weight,
+                    prophetnet_layer.self_attn.value_proj.weight,
+                ]
+            )
+        )
+        self.in_proj_bias = nn.Parameter(
+            torch.cat(
+                [
+                    prophetnet_layer.self_attn.query_proj.bias,
+                    prophetnet_layer.self_attn.key_proj.bias,
+                    prophetnet_layer.self_attn.value_proj.bias,
+                ]
+            )
+        )
+
+        # Out proj layer
+        self.out_proj_weight = prophetnet_layer.self_attn.out_proj.weight
+        self.out_proj_bias = prophetnet_layer.self_attn.out_proj.bias
+
+        # Linear layer 1
+        self.linear1_weight = prophetnet_layer.feed_forward.intermediate.weight
+        self.linear1_bias = prophetnet_layer.feed_forward.intermediate.bias
+
+        # Linear layer 2
+        self.linear2_weight = prophetnet_layer.feed_forward.output.weight
+        self.linear2_bias = prophetnet_layer.feed_forward.output.bias
+
+        # Layer norm 1
+        self.norm1_eps = prophetnet_layer.self_attn_layer_norm.eps
+        self.norm1_weight = prophetnet_layer.self_attn_layer_norm.weight
+        self.norm1_bias = prophetnet_layer.self_attn_layer_norm.bias
+
+        # Layer norm 2
+        self.norm2_eps = prophetnet_layer.feed_forward_layer_norm.eps
+        self.norm2_weight = prophetnet_layer.feed_forward_layer_norm.weight
+        self.norm2_bias = prophetnet_layer.feed_forward_layer_norm.bias
+
+        # Model hyper parameters
+        self.num_heads = prophetnet_layer.self_attn.num_attn_heads
+        self.embed_dim = prophetnet_layer.self_attn.head_dim * self.num_heads
+
+        # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
+        self.is_last_layer = False
+
+        self.original_layers_mapping = {
+            "in_proj_weight": [
+                "self_attn.query_proj.weight",
+                "self_attn.key_proj.weight",
+                "self_attn.value_proj.weight",
+            ],
+            "in_proj_bias": ["self_attn.query_proj.bias", "self_attn.key_proj.bias", "self_attn.value_proj.bias"],
+            "out_proj_weight": "self_attn.out_proj.weight",
+            "out_proj_bias": "self_attn.out_proj.bias",
+            "linear1_weight": "feed_forward.intermediate.weight",
+            "linear1_bias": "feed_forward.intermediate.bias",
+            "linear2_weight": "feed_forward.output.weight",
+            "linear2_bias": "feed_forward.output.bias",
+            "norm1_weight": "self_attn_layer_norm.weight",
+            "norm1_bias": "self_attn_layer_norm.bias",
+            "norm2_weight": "feed_forward_layer_norm.weight",
+            "norm2_bias": "feed_forward_layer_norm.bias",
+        }
+
+        self.validate_bettertransformer()
+
+    def forward(self, hidden_states, attention_mask, *_, **__):
+        r"""
+        This is just a wrapper around the forward function proposed in:
+        https://github.com/huggingface/transformers/pull/19553
+        """
+        super().forward_checker()
+
+        if not hasattr(hidden_states, "original_shape"):
+            original_shape = hidden_states.shape
+        else:
+            original_shape = hidden_states.original_shape
+
+        if hidden_states.is_nested:
+            attention_mask = None
+
+        if attention_mask is not None:
+            # attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
+            # 0->false->keep this token -inf->true->mask this token
+            attention_mask = attention_mask.squeeze(1)[:, 0]
+            attention_mask = attention_mask.bool()
+            attention_mask = torch.reshape(attention_mask, (attention_mask.shape[0], attention_mask.shape[-1]))
+            hidden_states = torch._nested_tensor_from_mask(hidden_states, ~attention_mask)
+            attention_mask = None
+
+        hidden_states = torch._transformer_encoder_layer_fwd(
+            hidden_states,
+            self.embed_dim,
+            self.num_heads,
+            self.in_proj_weight,
+            self.in_proj_bias,
+            self.out_proj_weight,
+            self.out_proj_bias,
+            self.use_gelu,
+            self.norm_first,
+            self.norm1_eps,
+            self.norm1_weight,
+            self.norm1_bias,
+            self.norm2_weight,
+            self.norm2_bias,
+            self.linear1_weight,
+            self.linear1_bias,
+            self.linear2_weight,
+            self.linear2_bias,
+            attention_mask,
+        )
+        if not self.is_last_layer:
+            hidden_states.original_shape = original_shape
+        elif hidden_states.is_nested and self.is_last_layer:
+            hidden_states = hidden_states.to_padded_tensor(0.0, original_shape)
+        return (hidden_states,)
+
+
+class CLIPLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, layer, config):
         r"""
         A simple conversion of the CLIPEncoderLayer to its `BetterTransformer` implementation.
@@ -1382,6 +1550,7 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer):
                 The original `CLIPEncoderLayer` where the weights needs to be retrieved.
         """
         super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(

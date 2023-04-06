@@ -38,7 +38,7 @@ RUN pip install fairscale deepspeed mpi4py
 # Install onnxruntime-training dependencies
 RUN pip install onnx ninja
 RUN pip install torch==${TORCH_VERSION}+${TORCH_CUDA_VERSION} torchvision==${TORCHVISION_VERSION} -f https://download.pytorch.org/whl/cu116/torch_stable.html
-RUN pip install onnxruntime-training==1.14.0 -f https://download.onnxruntime.ai/onnxruntime_stable_cu116.html
+RUN pip install onnxruntime-training==1.14.1 -f https://download.onnxruntime.ai/onnxruntime_stable_cu116.html
 RUN pip install torch-ort
 RUN pip install --upgrade protobuf==3.20.2
 

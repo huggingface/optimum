@@ -22,7 +22,11 @@ from transformers.modeling_outputs import BaseModelOutput, CausalLMOutputWithCro
 from onnxruntime import InferenceSession
 
 from ..utils import NormalizedConfigManager
-from .utils import get_ordered_input_names
+from ..utils.logging import warn_once
+from .utils import get_ordered_input_names, logging
+
+
+logger = logging.get_logger(__name__)
 
 
 if TYPE_CHECKING:
@@ -402,6 +406,10 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
         else:
             self.num_pkv = 4
 
+        self.legacy_outputs = any(
+            "encoder" in output_name and "present" in output_name for output_name in self.output_names
+        )
+
     def compute_past_key_values_output_shapes(
         self, input_ids, encoder_hidden_states, past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     ) -> Dict[str, int]:
@@ -569,10 +577,21 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
             )
         else:
-            # grab the cross attention key/values from the inputs
-            out_past_key_values = tuple(
-                out_past_key_values[i : i + self.num_pkv] + past_key_values[2 * i + 2 : 2 * i + 2 + self.num_pkv]
-                for i in range(0, len(out_past_key_values), self.num_pkv)
-            )
+            if self.legacy_outputs is True:
+                msg = (
+                    "For the decoder with past, using ONNX models outputting cross attention past key values"
+                    " is deprecated and the support will be removed in optimum 2.0. We recommend exporting again the model"
+                    " with optimum>=1.7.3."
+                )
+                warn_once(logger, msg=msg)
+                out_past_key_values = tuple(
+                    out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
+                )
+            else:
+                # Grab the cross attention key/values from the inputs
+                out_past_key_values = tuple(
+                    out_past_key_values[i : i + self.num_pkv] + past_key_values[2 * i + 2 : 2 * i + 2 + self.num_pkv]
+                    for i in range(0, len(out_past_key_values), self.num_pkv)
+                )
 
         return Seq2SeqLMOutput(loss=loss, logits=logits, past_key_values=out_past_key_values)

@@ -382,7 +382,7 @@ def main_export(
                 model.config.pad_token_id = pad_token_id
             else:
                 try:
-                    tok = AutoTokenizer.from_pretrained(model)
+                    tok = AutoTokenizer.from_pretrained(model_name_or_path)
                     model.config.pad_token_id = tok.pad_token_id
                 except Exception:
                     raise ValueError(
@@ -405,7 +405,10 @@ def main_export(
 
         # Saving the model config and preprocessor as this is needed sometimes.
         model.config.save_pretrained(output)
-        maybe_save_preprocessors(model, output)
+        generation_config = getattr(model, "generation_config", None)
+        if generation_config is not None:
+            generation_config.save_pretrained(output)
+        maybe_save_preprocessors(model_name_or_path, output)
 
     if task == "stable-diffusion":
         onnx_files_subpaths = [
@@ -473,6 +476,7 @@ def main_export(
     # TODO: treating stable diffusion separately is quite ugly
     if not no_post_process and task != "stable-diffusion":
         try:
+            logger.info("Post-processing the exported models...")
             models_and_onnx_configs, onnx_files_subpaths = onnx_config.post_process_exported_models(
                 output, models_and_onnx_configs, onnx_files_subpaths
             )

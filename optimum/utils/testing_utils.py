@@ -13,13 +13,13 @@
 # limitations under the License.
 
 
-import collections
 import importlib.util
 import itertools
 import os
 import subprocess
 import sys
 import unittest
+from collections.abc import MutableMapping
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
 import torch
@@ -35,7 +35,7 @@ def flatten_dict(dictionary: Dict):
     items = []
     for k, v in dictionary.items():
         new_key = k
-        if isinstance(v, collections.MutableMapping):
+        if isinstance(v, MutableMapping):
             items.extend(flatten_dict(v).items())
         else:
             items.append((new_key, v))

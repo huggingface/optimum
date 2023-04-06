@@ -1,4 +1,4 @@
-#  Copyright 2021 The HuggingFace Team. All rights reserved.
+#  Copyright 2023 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,4 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-__version__ = "1.7.4.dev0"
+ENCODER_ONNX_FILE_PATTERN = r"(.*)?encoder(.*)?\.onnx"
+DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!with_past).)*?\.onnx"
+DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"
+DECODER_MERGED_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?merged(.*)?\.onnx"

@@ -18,7 +18,7 @@ Transformers.
 
 import logging
 import shutil
-from abc import ABC, abstractmethod
+from abc import ABC, ABCMeta, abstractmethod
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
@@ -26,7 +26,13 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
-from transformers import AutoModelForSeq2SeqLM, AutoModelForSpeechSeq2Seq, AutoModelForVision2Seq, GenerationConfig
+from transformers import (
+    AutoModelForSeq2SeqLM,
+    AutoModelForSpeechSeq2Seq,
+    AutoModelForVision2Seq,
+    GenerationConfig,
+    WhisperForConditionalGeneration,
+)
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
@@ -569,6 +575,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             dst_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src_path, dst_path)
 
+        self.generation_config.save_pretrained(save_directory)
+
     @classmethod
     def _from_pretrained(
         cls,
@@ -1045,6 +1053,50 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     def can_generate(self):
         """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
         return True
+
+    @classmethod
+    def _from_pretrained(
+        cls,
+        model_id: Union[str, Path],
+        config: "PretrainedConfig",
+        **kwargs,
+    ):
+        if "WhisperForConditionalGeneration" in config.architectures:
+            return _ORTModelForWhisper._from_pretrained(model_id, config, **kwargs)
+        else:
+            return super()._from_pretrained(model_id, config, **kwargs)
+
+
+class MetaClassRemoveParentsAndReorder(ABCMeta):
+    def mro(cls):
+        """
+        Avoids inheritting from PreTrainedModel, nn.Module, ModuleUtilsMixin, PushToHubMixin,
+        and put GenerationMixin at the end of the MRO
+        """
+        top_inheritance_index = ORTModelForSpeechSeq2Seq.__mro__.index(GenerationMixin)
+        return (
+            (cls,)
+            + ORTModelForSpeechSeq2Seq.__mro__[:top_inheritance_index]
+            + (WhisperForConditionalGeneration,)
+            + ORTModelForSpeechSeq2Seq.__mro__[top_inheritance_index:]
+        )
+
+
+class _ORTModelForWhisper(
+    ORTModelForSpeechSeq2Seq, WhisperForConditionalGeneration, metaclass=MetaClassRemoveParentsAndReorder
+):
+    """
+    Whisper implements its own generate() method.
+    """
+
+    @classmethod
+    def _from_pretrained(
+        cls,
+        model_id: Union[str, Path],
+        config: "PretrainedConfig",
+        **kwargs,
+    ):
+        return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)
 
 
 class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):

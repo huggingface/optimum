@@ -56,7 +56,7 @@ def _get_models_to_test(export_models_dict: Dict):
                 for task in tasks:
                     models_to_test.append((f"{model_type}_{task}", model_type, model_name, task, False, False))
 
-                    # -with-past and monolith case are absurd, so we don't test them as not supported
+                    # -with-past and monolith cases are absurd, so we don't test them as not supported
                     if any(
                         task == ort_special_task
                         for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
@@ -66,7 +66,13 @@ def _get_models_to_test(export_models_dict: Dict):
                         )
 
                     # For other tasks, we don't test --no-post-process as there is none anyway
-                    if task == "causal-lm-with-past":
+                    if task in [
+                        "default-with-past",
+                        "causal-lm-with-past",
+                        "speech2seq-lm-with-past",
+                        "vision2seq-lm-with-past",
+                        "seq2seq-lm-with-past",
+                    ]:
                         models_to_test.append(
                             (f"{model_type}_{task}_no_postprocess", model_type, model_name, task, False, True)
                         )
@@ -150,12 +156,11 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         for optimization_level in ["O1", "O2", "O3"]:
             try:
                 self._onnx_export(model_name, task, monolith, no_post_process, optimization_level=optimization_level)
-            except subprocess.CalledProcessError as e:
-                if (
-                    "Tried to use ORTOptimizer for the model type" in e.stderr
-                    or "doesn't support the graph optimization" in e.stderr
-                ):
-                    self.skipTest("unsupported model type in ORTOptimizer")
+            except NotImplementedError as e:
+                if "Tried to use ORTOptimizer for the model type" in str(
+                    e
+                ) or "doesn't support the graph optimization" in str(e):
+                    self.skipTest(f"unsupported model type in ORTOptimizer: {model_type}")
                 else:
                     raise e
 
@@ -174,12 +179,11 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
         try:
             self._onnx_export(model_name, task, monolith, no_post_process, optimization_level="O4", device="cuda")
-        except subprocess.CalledProcessError as e:
-            if (
-                "Tried to use ORTOptimizer for the model type" in e.stderr
-                or "doesn't support the graph optimization" in e.stderr
-            ):
-                self.skipTest("unsupported model type in ORTOptimizer")
+        except NotImplementedError as e:
+            if "Tried to use ORTOptimizer for the model type" in str(
+                e
+            ) or "doesn't support the graph optimization" in str(e):
+                self.skipTest(f"unsupported model type in ORTOptimizer: {model_type}")
             else:
                 raise e
 

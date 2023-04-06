@@ -43,6 +43,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         "marian",
         "mbart",
         "pegasus",
+        "prophetnet",
         "t5",
     ]
 

@@ -99,6 +99,7 @@ jobs:
 
       - name: Make Optimum documentation
         run: |
+          sudo docker system prune -a -f
           cd optimum
           make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }} COMMIT_SHA_OPTIMUM=${{ env.VERSION }}
           cd ..
