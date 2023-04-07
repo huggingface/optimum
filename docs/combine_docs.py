@@ -104,9 +104,6 @@ def main():
     # Copy and rename all files from subpackages' docs to Optimum doc
     for subpackage in args.subpackages:
         subpackage_path = Path(f"{subpackage}-doc-build")
-        if "habana" in subpackage:
-            print(f"Removing {subpackage_path} for debugging...")
-            shutil.rmtree(subpackage_path)
 
         # Copy all HTML files from subpackage into optimum
         rename_copy_subpackage_html_paths(
@@ -117,7 +114,8 @@ def main():
         )
 
         # Load subpackage table of contents
-        subpackage_toc_path = next(subpackage_path.rglob("_toctree.yml"))
+        # subpackage_toc_path = next(subpackage_path.rglob("_toctree.yml"))
+        subpackage_toc_path = next(iter(()))
         with open(subpackage_toc_path, "r") as f:
             subpackage_toc = yaml.safe_load(f)
         # Extend table of contents sections with the subpackage name as the parent folder
