@@ -636,6 +636,10 @@ class TasksManager:
             "sequence-classification",
             onnx="PerceiverOnnxConfig",
         ),
+        "pix2struct": supported_tasks_mapping(
+            "default",
+            onnx="Pix2StructOnnxConfig",
+        ),
         "poolformer": supported_tasks_mapping(
             "default",
             "image-classification",
