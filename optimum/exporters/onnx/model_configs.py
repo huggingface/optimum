@@ -868,7 +868,7 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         return dummy_inputs
 
 
-class Pix2StructOnnxConfig(BertOnnxConfig):
+class Pix2StructOnnxConfig(ViTOnnxConfig):
     pass
 
 

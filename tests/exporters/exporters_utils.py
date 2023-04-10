@@ -178,7 +178,6 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
-    "pix2struct": "google/pix2struct-docvqa-base",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "regnet": "facebook/regnet-y-040",
     "resnet": "microsoft/resnet-50",

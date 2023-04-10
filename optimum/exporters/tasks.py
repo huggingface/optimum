@@ -638,7 +638,6 @@ class TasksManager:
         ),
         "pix2struct": supported_tasks_mapping(
             "default",
-            "question-answering",
             onnx="Pix2StructOnnxConfig",
         ),
         "poolformer": supported_tasks_mapping(
