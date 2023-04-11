@@ -940,7 +940,7 @@ class TasksManager:
         ]
 
     @staticmethod
-    def format_task(task: str) -> str:
+    def map_from_legacy(task: str) -> str:
         if task in TasksManager._LEGACY_TASK_MAP:
             task = TasksManager._LEGACY_TASK_MAP[task]
         return task
@@ -976,7 +976,7 @@ class TasksManager:
             The AutoModel class corresponding to the task.
         """
         task = task.replace("-with-past", "")
-        task = TasksManager.format_task(task)
+        task = TasksManager.map_from_legacy(task)
 
         TasksManager._validate_framework_choice(framework)
         if framework == "pt":
@@ -1320,7 +1320,7 @@ class TasksManager:
 
         model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
 
-        task = TasksManager.format_task(task)
+        task = TasksManager.map_from_legacy(task)
         if task not in model_tasks:
             raise ValueError(
                 f"{model_type} doesn't support task {task} for the {exporter} backend."

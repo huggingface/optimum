@@ -154,6 +154,8 @@ def main_export(
             raise KeyError(
                 f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
+    else:
+        task = TasksManager.map_from_legacy(task)
 
     framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
 
@@ -215,7 +217,7 @@ def main_export(
         needs_pad_token_id = (
             isinstance(onnx_config, OnnxConfigWithPast)
             and getattr(model.config, "pad_token_id", None) is None
-            and task in ["sequence_classification"]
+            and task in ["text-classification"]
         )
         if needs_pad_token_id:
             if pad_token_id is not None:
