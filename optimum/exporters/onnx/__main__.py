@@ -278,7 +278,7 @@ def main_export(
         if (
             model.config.is_encoder_decoder
             and task.startswith(
-                ("text2text-generation", "automatic-speech-recognition", "vision2seq-lm", "default-with-past")
+                ("text2text-generation", "automatic-speech-recognition", "image-to-text", "default-with-past")
             )
             and not monolith
         ):

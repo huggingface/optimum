@@ -1271,7 +1271,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForMaskedLM
-    TASK = "masked-lm"
+    TASK = "fill-mask"
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
@@ -3924,7 +3924,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
     ORTMODEL_CLASS = ORTModelForVision2Seq
 
-    TASK = "vision2seq-lm"
+    TASK = "image-to-text"
 
     GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1

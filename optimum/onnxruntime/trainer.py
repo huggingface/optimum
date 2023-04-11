@@ -173,7 +173,7 @@ class ModuleWithLoss(nn.Module):
 class ORTFeaturesManager:
     _TASKS_TO_ORTMODELS = {
         "default": ORTModelForFeatureExtraction,
-        "masked-lm": ORTModelForMaskedLM,
+        "fill-mask": ORTModelForMaskedLM,
         "text-generation": ORTModelForCausalLM,
         "text-generation-with-past": ORTModelForCausalLM,
         "text2text-generation": ORTModelForSeq2SeqLM,

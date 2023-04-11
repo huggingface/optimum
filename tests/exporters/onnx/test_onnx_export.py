@@ -172,7 +172,7 @@ def _get_models_to_test(export_models_dict: Dict):
                             "text-generation",
                             "text2text-generation",
                             "automatic-speech-recognition",
-                            "vision2seq-lm",
+                            "image-to-text",
                         ]
                     ):
                         models_to_test.append(
@@ -244,7 +244,7 @@ class OnnxExportTestCase(TestCase):
         if (
             model.config.is_encoder_decoder
             and task.startswith(
-                ("text2text-generation", "automatic-speech-recognition", "vision2seq-lm", "default-with-past")
+                ("text2text-generation", "automatic-speech-recognition", "image-to-text", "default-with-past")
             )
             and monolith is False
         ):

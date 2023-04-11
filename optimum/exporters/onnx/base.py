@@ -136,7 +136,7 @@ class OnnxConfig(ExportConfig, ABC):
             }
         ),
         "masked-im": OrderedDict({"logits": {0: "batch_size"}}),
-        "masked-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "multiple-choice": OrderedDict({"logits": {0: "batch_size", 1: "num_choices"}}),
         "object-detection": OrderedDict(
             {
@@ -155,7 +155,7 @@ class OnnxConfig(ExportConfig, ABC):
         "text-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "automatic-speech-recognition": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "vision2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "zero-shot-image-classification": OrderedDict(
             {
                 "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
@@ -843,7 +843,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
 
     _tasks_to_extra_inputs = {
         "default": {"labels": {0: "batch_size"}},
-        "masked-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
+        "fill-mask": {"labels": {0: "batch_size", 1: "sequence_length"}},
         "text-generation": {"labels": {0: "batch_size", 1: "sequence_length"}},
         "text-generation-with-past": {"labels": {0: "batch_size"}},
         "text2text-generation": {"labels": {0: "batch_size", 1: "sequence_length"}},

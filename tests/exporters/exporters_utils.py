@@ -79,7 +79,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     # "owlvit": "google/owlvit-base-patch32",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
-        "hf-internal-testing/tiny-random-language_perceiver": ["masked-lm", "text-classification"],
+        "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
     # "rembert": "google/rembert",
@@ -120,10 +120,10 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
     "vision-encoder-decoder": {
         "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
-            "vision2seq-lm",
-            "vision2seq-lm-with-past",
+            "image-to-text",
+            "image-to-text-with-past",
         ],
-        "microsoft/trocr-small-handwritten": ["vision2seq-lm"],
+        "microsoft/trocr-small-handwritten": ["image-to-text"],
     },
 }
 

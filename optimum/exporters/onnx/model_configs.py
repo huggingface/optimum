@@ -840,7 +840,7 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
     @property
     def inputs_name(self):
         if self.is_generating_dummy_inputs:
-            if self.task in ["masked-lm", "text-classification"]:
+            if self.task in ["fill-mask", "text-classification"]:
                 return "input_ids"
             else:
                 return "pixel_values"

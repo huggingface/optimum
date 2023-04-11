@@ -162,7 +162,7 @@ class TFLiteConfig(ExportConfig, ABC):
         "image-classification": ["logits"],
         "image-segmentation": ["logits", "pred_boxes", "pred_masks"],
         "masked-im": ["logits"],
-        "masked-lm": ["logits"],
+        "fill-mask": ["logits"],
         "multiple-choice": ["logits"],
         "object-detection": ["logits", "pred_boxes"],
         "question-answering": ["start_logits", "end_logits"],
