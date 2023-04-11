@@ -67,17 +67,17 @@ class TFLiteQuantizationConfig:
             Allows to fallback to float kernels in quantization.
         inputs_dtype (`Optional[str]`, defaults to `None`):
             The data type of the inputs. If specified it must be either "int8" or "uint8". It allows to always take
-            integers as inputs, it is useful for interger-only hardware.
+            integers as inputs, it is useful for integer-only hardware.
         outputs_dtype (`Optional[str]`, defaults to `None`):
             The data type of the outputs. If specified it must be either "int8" or "uint8". It allows to always output
-            integers, it is useful for interger-only hardware.
+            integers, it is useful for integer-only hardware.
         calibration_dataset_name_or_path (`Optional[Union[str, Path]]`, defaults to `None`):
             The dataset to use for calibrating the quantization parameters for static quantization. If left unspecified,
             a default dataset for the considered task will be used.
         calibration_dataset_config_name (`Optional[str]`, defaults to `None`):
             The configuration name of the dataset if needed.
         num_calibration_samples (`int`, defaults to `200`):
-            The number of example from the calibration dataset to use to compute the quantization parameters.
+            The number of examples from the calibration dataset to use to compute the quantization parameters.
         calibration_split (`Optional[str]`, defaults to `None`):
             The split of the dataset to use. If none is specified and the dataset contains multiple splits, the
             smallest split will be used.
