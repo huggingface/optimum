@@ -164,7 +164,7 @@ def parse_args_tflite(parser: "ArgumentParser"):
         type=str,
         default=None,
         help=(
-            "The dataset to use to calibration integer ranges when quantizing the model. This is needed to perform "
+            "The dataset to use to calibrate integer ranges when quantizing the model. This is needed to perform "
             "static quantization."
         ),
     )

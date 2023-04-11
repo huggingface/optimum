@@ -79,7 +79,7 @@ class TextClassificationProcessing(TaskProcessor):
             return None
         elif secondary_key_name is None:
             logger.info(
-                "Could not infer the secondary key in the dataset, if it does contain one, please provided it manually."
+                "Could not infer the secondary key in the dataset, if it does contain one, please provide it manually."
             )
             return {"primary": primary_key_name}
         else:
