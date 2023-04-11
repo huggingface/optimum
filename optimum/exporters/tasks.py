@@ -951,6 +951,10 @@ class TasksManager:
     @staticmethod
     def map_from_legacy(task: str) -> str:
         if task in TasksManager._LEGACY_TASK_MAP:
+            logger.warning(
+                f"The task name {task} is deprecated, and will not be supported in"
+                f" optimum 2.0. Please use {TasksManager._LEGACY_TASK_MAP[task]} instead."
+            )
             task = TasksManager._LEGACY_TASK_MAP[task]
         return task
 
