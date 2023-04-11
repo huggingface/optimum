@@ -1463,7 +1463,8 @@ class TasksManager:
             if "model_index.json" in all_files:
                 return "diffusers"
             if "config.json" in all_files:
-                cfg = json.load("config.json")
+                with open("config.json") as fp:
+                    cfg = json.load(fp)
                 if "pretrained_cfg" in cfg:
                     return "timm"
                 elif "_diffusers_version" in cfg:
