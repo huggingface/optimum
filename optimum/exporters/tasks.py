@@ -175,6 +175,16 @@ class TasksManager:
             "zero-shot-object-detection": "TFAutoModelForZeroShotObjectDetection",
         }
 
+    _LEGACY_TASK_MAP = {
+        "sequence-classification": "text-classification",
+        "causal-lm": "text-generation",
+        "causal-lm-with-past": "text-generation-with-past",
+        "seq2seq-lm": "text2text-generation",
+        "seq2seq-lm-with-past": "text2text-generation-with-past",
+        "speech2seq-lm": "automatic-speech-recognition",
+        "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
+    }
+
     _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in _TASKS_TO_AUTOMODELS.items()}
     _TF_AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in _TASKS_TO_TF_AUTOMODELS.items()}
 
@@ -930,7 +940,9 @@ class TasksManager:
 
     @staticmethod
     def format_task(task: str) -> str:
-        return task.replace("-with-past", "")
+        if task in TasksManager._LEGACY_TASK_MAP:
+            task = TasksManager._LEGACY_TASK_MAP[task]
+        return task
 
     @staticmethod
     def _validate_framework_choice(framework: str):
@@ -962,7 +974,9 @@ class TasksManager:
         Returns:
             The AutoModel class corresponding to the task.
         """
+        task = task.replace("-with-past", "")
         task = TasksManager.format_task(task)
+
         TasksManager._validate_framework_choice(framework)
         if framework == "pt":
             tasks_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
@@ -1304,6 +1318,8 @@ class TasksManager:
             model_name = getattr(model, "name", model_name)
 
         model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
+
+        task = TasksManager.format_task(task)
         if task not in model_tasks:
             raise ValueError(
                 f"{model_type} doesn't support task {task} for the {exporter} backend."

@@ -275,3 +275,22 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             self.skipTest("ibert can not be supported in fp16")
 
         self._onnx_export(model_name, task, monolith, no_post_process, fp16=True)
+
+    @parameterized.expand(
+        [
+            ["causal-lm", "gpt2"],
+            ["seq2seq-lm", "t5"],
+            ["speech2seq-lm", "whisper"],
+            ["causal-lm-with-past", "gpt2"],
+            ["seq2seq-lm-with-past", "t5"],
+            ["speech2seq-lm-with-past", "whisper"],
+            ["sequence-classification", "bert"],
+        ]
+    )
+    @slow
+    @pytest.mark.run_slow
+    def test_legacy_tasks_backward_compatibility(self, task: str, model_type: str):
+        model_name = PYTORCH_EXPORT_MODELS_TINY[model_type]
+
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path=model_name, output=tmpdir, task=task)
