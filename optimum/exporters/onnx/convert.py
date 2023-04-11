@@ -52,6 +52,7 @@ if is_diffusers_available():
 
 if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
+import tensorflow as tf
 
 
 mp.set_start_method("spawn", force=True)

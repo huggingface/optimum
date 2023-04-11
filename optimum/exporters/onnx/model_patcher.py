@@ -23,9 +23,6 @@ from transformers.utils import is_torch_available
 if is_torch_available():
     import torch
 
-import tensorflow as tf
-import torch
-
 from ...utils import logging
 
 

@@ -1457,40 +1457,70 @@ class TasksManager:
         else:
             return huggingface_hub.model_info(model, revision=revision).library_name
 
+    # @classmethod
+    # def infer_model_type_from_model(
+    #     cls,
+    #     model_name_or_path: str,
+    #     model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    #     subfolder: str = "",
+    #     revision: Optional[str] = None,
+    # ):
+    #     library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
+
+    #     full_model_path = Path(model_name_or_path) / subfolder
+    #     is_local = full_model_path.is_dir()
+
+    #     model_type = None
+    #     if library_name == "timm":
+    #         config_path = (
+    #             full_model_path / "config.json"
+    #             if is_local
+    #             else huggingface_hub.hf_hub_download(
+    #                 model_name_or_path, "config.json", subfolder=subfolder, revision=revision
+    #             )
+    #         )
+    #         with open(config_path) as fp:
+    #             model_type = json.load(fp)["architecture"]
+    #     else:
+    #         model_type = getattr(model.config, "model_type", model_type)
+
+    #     if model_type is None:
+    #         raise ValueError("Model type cannot be inferred!")
+
+    #     return model_type
+
+    # @classmethod
+    # def get_or_update_config_from_model(
+    #     cls,
+    #     model_name_or_path: str,
+    #     model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    #     subfolder: str = "",
+    #     revision: Optional[str] = None,
+    # ):
+    #     library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
+
+    #     full_model_path = Path(model_name_or_path) / subfolder
+    #     is_local = full_model_path.is_dir()
+
+    #     model_config = None
+    #     if library_name == "timm":
+    #         config_path = (
+    #             full_model_path / "config.json"
+    #             if is_local
+    #             else huggingface_hub.hf_hub_download(
+    #                 model_name_or_path, "config.json", subfolder=subfolder, revision=revision
+    #             )
+    #         )
+    #         with open(config_path):
+    #             model_config = PretrainedConfig.from_json_file(config_path)
+    #         setattr(model, "config", model_config)
+    #     else:
+    #         model_config = model.config
+
+    #     return model_config
+
     @classmethod
-    def infer_model_type_from_model(
-        cls,
-        model_name_or_path: str,
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        subfolder: str = "",
-        revision: Optional[str] = None,
-    ):
-        library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
-
-        full_model_path = Path(model_name_or_path) / subfolder
-        is_local = full_model_path.is_dir()
-
-        model_type = None
-        if library_name == "timm":
-            config_path = (
-                full_model_path / "config.json"
-                if is_local
-                else huggingface_hub.hf_hub_download(
-                    model_name_or_path, "config.json", subfolder=subfolder, revision=revision
-                )
-            )
-            with open(config_path) as fp:
-                model_type = json.load(fp)["architecture"]
-        else:
-            model_type = getattr(model.config, "model_type", model_type)
-
-        if model_type is None:
-            raise ValueError("Model type cannot be inferred!")
-
-        return model_type
-
-    @classmethod
-    def get_config_from_model(
+    def patch_model_for_export(
         cls,
         model_name_or_path: str,
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
@@ -1504,6 +1534,7 @@ class TasksManager:
 
         model_config = None
         if library_name == "timm":
+            # retrieve model config
             config_path = (
                 full_model_path / "config.json"
                 if is_local
@@ -1513,6 +1544,14 @@ class TasksManager:
             )
             with open(config_path):
                 model_config = PretrainedConfig.from_json_file(config_path)
+
+            # set config as in transformers
+            setattr(model, "config", model_config)
+
+            # update model_type for model
+            with open(config_path) as fp:
+                model_type = json.load(fp)["architecture"]
+            setattr(model.config, "model_type", model_type)
         else:
             model_config = model.config
 
@@ -1643,6 +1682,9 @@ class TasksManager:
                     logger.info("Loading PyTorch model in TensorFlow before exporting.")
                     kwargs["from_pt"] = True
                     model = model_class.from_pretrained(model_name_or_path, **kwargs)
+
+        TasksManager.patch_model_for_export(model_name_or_path, model, subfolder, revision)
+
         return model
 
     @staticmethod
