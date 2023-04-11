@@ -602,6 +602,10 @@ class RegNetOnnxConfig(ViTOnnxConfig):
 class ResNetOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
 
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"x": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+
 
 class DetrOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 12

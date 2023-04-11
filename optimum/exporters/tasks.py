@@ -17,6 +17,7 @@
 import importlib
 import inspect
 import itertools
+import json
 import os
 from functools import partial
 from pathlib import Path
@@ -174,6 +175,7 @@ class TasksManager:
             "stable-diffusion-xl": "StableDiffusionXLImg2ImgPipeline",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
+            "timm-image-classification": "create_model",
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
@@ -274,6 +276,7 @@ class TasksManager:
         "zero-shot-classification": "transformers",
         "zero-shot-image-classification": "transformers",
         "zero-shot-object-detection": "transformers",
+        "timm-image-classification": "timm",
     }
 
     # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
@@ -770,6 +773,12 @@ class TasksManager:
         "resnet": supported_tasks_mapping(
             "feature-extraction", "image-classification", onnx="ResNetOnnxConfig", tflite="ResNetTFLiteConfig"
         ),
+        "resnext26ts": supported_tasks_mapping("image-classification", onnx="ResNetOnnxConfig"),
+        "resnext50-32x4d": supported_tasks_mapping("image-classification", onnx="ResNetOnnxConfig"),
+        "resnext50d-32x4d": supported_tasks_mapping("image-classification", onnx="ResNetOnnxConfig"),
+        "resnext101-32x4d": supported_tasks_mapping("image-classification", onnx="ResNetOnnxConfig"),
+        "resnext101-32x8d": supported_tasks_mapping("image-classification", onnx="ResNetOnnxConfig"),
+        "resnext101-64x4d": supported_tasks_mapping("image-classification", onnx="ResNetOnnxConfig"),
         "roberta": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -1421,6 +1430,94 @@ class TasksManager:
 
         return task
 
+    @classmethod
+    def infer_library_from_model(
+        cls,
+        model: str,
+        subfolder: str = "",
+        revision: Optional[str] = None,
+    ):
+        full_model_path = Path(model) / subfolder
+        if full_model_path.is_dir():
+            all_files = [
+                os.path.relpath(os.path.join(dirpath, file), full_model_path)
+                for dirpath, _, filenames in os.walk(full_model_path)
+                for file in filenames
+            ]
+            if "model_index.json" in all_files:
+                return "diffusers"
+            if "config.json" in all_files:
+                cfg = json.load("config.json")
+                if "pretrained_cfg" in cfg:
+                    return "timm"
+                elif "_diffusers_version" in cfg:
+                    return "diffusers"
+
+            return "transformers"
+        else:
+            return huggingface_hub.model_info(model, revision=revision).library_name
+
+    @classmethod
+    def infer_model_type_from_model(
+        cls,
+        model_name_or_path: str,
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        subfolder: str = "",
+        revision: Optional[str] = None,
+    ):
+        library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
+
+        full_model_path = Path(model_name_or_path) / subfolder
+        is_local = full_model_path.is_dir()
+
+        model_type = None
+        if library_name == "timm":
+            config_path = (
+                full_model_path / "config.json"
+                if is_local
+                else huggingface_hub.hf_hub_download(
+                    model_name_or_path, "config.json", subfolder=subfolder, revision=revision
+                )
+            )
+            with open(config_path) as fp:
+                model_type = json.load(fp)["architecture"]
+        else:
+            model_type = getattr(model.config, "model_type", model_type)
+
+        if model_type is None:
+            raise ValueError("Model type cannot be inferred!")
+
+        return model_type
+
+    @classmethod
+    def get_config_from_model(
+        cls,
+        model_name_or_path: str,
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        subfolder: str = "",
+        revision: Optional[str] = None,
+    ):
+        library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
+
+        full_model_path = Path(model_name_or_path) / subfolder
+        is_local = full_model_path.is_dir()
+
+        model_config = None
+        if library_name == "timm":
+            config_path = (
+                full_model_path / "config.json"
+                if is_local
+                else huggingface_hub.hf_hub_download(
+                    model_name_or_path, "config.json", subfolder=subfolder, revision=revision
+                )
+            )
+            with open(config_path):
+                model_config = PretrainedConfig.from_json_file(config_path)
+        else:
+            model_config = model.config
+
+        return model_config
+
     @staticmethod
     def get_all_tasks():
         """
@@ -1498,6 +1595,9 @@ class TasksManager:
             if original_task == "automatic-speech-recognition" or task == "automatic-speech-recognition":
                 if original_task == "auto" and config.architectures is not None:
                     model_class_name = config.architectures[0]
+        
+        library_name = huggingface_hub.model_info(model_name_or_path, revision=revision).library_name
+        task = "timm-" + task if library_name == "timm" else task
 
         model_class = TasksManager.get_model_class_for_task(
             task, framework, model_type=model_type, model_class_name=model_class_name
@@ -1534,6 +1634,15 @@ class TasksManager:
                 logger.info("Loading PyTorch model in TensorFlow before exporting.")
                 kwargs["from_pt"] = True
                 model = model_class.from_pretrained(model_name_or_path, **kwargs)
+            except OSError:
+                if framework == "pt":
+                    logger.info("Loading TensorFlow model in PyTorch before exporting.")
+                    kwargs["from_tf"] = True
+                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
+                else:
+                    logger.info("Loading PyTorch model in TensorFlow before exporting.")
+                    kwargs["from_pt"] = True
+                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
         return model
 
     @staticmethod
@@ -1567,7 +1676,6 @@ class TasksManager:
         """
         if model is None and model_type is None:
             raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
-
         if model_type is None:
             model_type = getattr(model.config, "model_type", model_type)
 

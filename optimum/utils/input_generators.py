@@ -577,6 +577,7 @@ class DummyVisionInputGenerator(DummyInputGenerator):
 
     SUPPORTED_INPUT_NAMES = (
         "pixel_values",
+        "x",
         "pixel_mask",
         "sample",
         "latent_sample",
