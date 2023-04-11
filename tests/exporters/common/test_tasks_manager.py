@@ -17,7 +17,9 @@ import inspect
 from typing import Optional, Set
 from unittest import TestCase
 
-from transformers import BertConfig
+import pytest
+from transformers import BertConfig, Pix2StructForConditionalGeneration
+from transformers.testing_utils import slow
 
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx.model_configs import BertOnnxConfig
@@ -154,3 +156,12 @@ class TasksManagerTestCase(TestCase):
             BertNewBackendConfigTaskSpecific,
             "Wrong config class compared to the registered one.",
         )
+
+    @slow
+    @pytest.mark.run_slow
+    def test_custom_class(self):
+        task = TasksManager.infer_task_from_model("google/pix2struct-base")
+        self.assertEqual(task, "image-to-text")
+
+        model = TasksManager.get_model_from_task("image-to-text", "google/pix2struct-base")
+        self.assertTrue(isinstance(model, Pix2StructForConditionalGeneration))
