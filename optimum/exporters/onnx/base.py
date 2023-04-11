@@ -406,6 +406,9 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return {}
 
+    def patch_inputs_for_export(self, inputs) -> Dict[str, Dict[int, str]]:
+        return inputs
+
     def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> Dict[str, Dict[int, str]]:
         """
         Re-orders the inputs using the model forward pass signature.
@@ -418,6 +421,7 @@ class OnnxConfig(ExportConfig, ABC):
             `Dict[str, Dict[int, str]]`: The properly ordered inputs.
         """
         inputs = self.inputs
+        inputs = self.patch_inputs_for_export(inputs)
 
         ordered_inputs = {}
         if hasattr(model, "forward"):

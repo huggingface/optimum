@@ -52,7 +52,6 @@ if is_diffusers_available():
 
 if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
-import tensorflow as tf
 
 
 mp.set_start_method("spawn", force=True)
@@ -269,6 +268,7 @@ def _run_validation(
     if input_shapes is None:
         input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
     reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
+    reference_model_inputs = config.patch_inputs_for_export(reference_model_inputs)
 
     # Create ONNX Runtime session
     session_options = SessionOptions()

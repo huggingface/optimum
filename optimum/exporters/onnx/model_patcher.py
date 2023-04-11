@@ -82,7 +82,6 @@ class ModelPatcher:
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         self._model = model
-        self.config = config
 
         patching_specs = config.PATCHING_SPECS
         self._patching_specs = []

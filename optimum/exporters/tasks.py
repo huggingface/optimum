@@ -773,12 +773,12 @@ class TasksManager:
         "resnet": supported_tasks_mapping(
             "feature-extraction", "image-classification", onnx="ResNetOnnxConfig", tflite="ResNetTFLiteConfig"
         ),
-        "resnext26ts": supported_tasks_mapping("image-classification", onnx="ResNetOnnxConfig"),
-        "resnext50-32x4d": supported_tasks_mapping("image-classification", onnx="ResNetOnnxConfig"),
-        "resnext50d-32x4d": supported_tasks_mapping("image-classification", onnx="ResNetOnnxConfig"),
-        "resnext101-32x4d": supported_tasks_mapping("image-classification", onnx="ResNetOnnxConfig"),
-        "resnext101-32x8d": supported_tasks_mapping("image-classification", onnx="ResNetOnnxConfig"),
-        "resnext101-64x4d": supported_tasks_mapping("image-classification", onnx="ResNetOnnxConfig"),
+        "resnext26ts": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "resnext50-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "resnext50d-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "resnext101-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "resnext101-32x8d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "resnext101-64x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
         "roberta": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -1718,6 +1718,7 @@ class TasksManager:
         """
         if model is None and model_type is None:
             raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
+
         if model_type is None:
             model_type = getattr(model.config, "model_type", model_type)
 
