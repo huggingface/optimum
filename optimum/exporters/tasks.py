@@ -1482,7 +1482,7 @@ class TasksManager:
         revision: Optional[str] = None,
     ):
         """
-        Updates the model for export. This function is suitable to make required changes to the models from differet
+        Updates the model for export. This function is suitable to make required changes to the models from different
         libraries to follow transformers style.
 
         Args:
@@ -1600,7 +1600,7 @@ class TasksManager:
                 if original_task == "auto" and config.architectures is not None:
                     model_class_name = config.architectures[0]
         
-        library_name = huggingface_hub.model_info(model_name_or_path, revision=revision).library_name
+        library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
         task = "timm-" + task if library_name == "timm" else task
 
         model_class = TasksManager.get_model_class_for_task(

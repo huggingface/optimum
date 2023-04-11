@@ -408,7 +408,7 @@ class OnnxConfig(ExportConfig, ABC):
 
     def patch_inputs_for_export(self, inputs) -> Dict[str, Dict[int, str]]:
         """
-        Method to update the inputs of the model for export..
+        Method to update the inputs of the model for export.
         Override the function when the model input names are too generic.
 
         Returns:
