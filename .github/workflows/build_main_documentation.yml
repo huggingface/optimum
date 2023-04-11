@@ -11,9 +11,6 @@ on:
 jobs:
   build_documentation:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash -l {0}
 
     steps:
       - uses: actions/checkout@v2
