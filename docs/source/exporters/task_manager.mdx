@@ -35,7 +35,7 @@ It is possible to know which tasks are supported for a model for a given backend
 >>> distilbert_tasks = list(TasksManager.get_supported_tasks_for_model_type(model_type, backend).keys())
 
 >>> print(distilbert_tasks)
-['default', 'masked-lm', 'sequence-classification', 'multiple-choice', 'token-classification', 'question-answering']
+['default', 'fill-mask', 'sequence-classification', 'multiple-choice', 'token-classification', 'question-answering']
 ```
 
 </Tip>
@@ -46,7 +46,7 @@ It is possible to know which tasks are supported for a model for a given backend
 |--------------------------------------|--------------------------------------|
 | `text-generation`, `text-generation-with-past`   | `AutoModelForCausalLM`               |
 | `default`, `default-with-past`       | `AutoModel`                          |
-| `masked-lm`                          | `AutoModelForMaskedLM`               |
+| `fill-mask`                          | `AutoModelForMaskedLM`               |
 | `question-answering`                 | `AutoModelForQuestionAnswering`      |
 | `text2text-generation`, `text2text-generation-with-past` | `AutoModelForSeq2SeqLM`              |
 | `sequence-classification`            | `AutoModelForSequenceClassification` |
@@ -65,7 +65,7 @@ It is possible to know which tasks are supported for a model for a given backend
 |--------------------------------------|----------------------------------------|
 | `text-generation`, `text-generation-with-past`   | `TFAutoModelForCausalLM`               |
 | `default`, `default-with-past`       | `TFAutoModel`                          |
-| `masked-lm`                          | `TFAutoModelForMaskedLM`               |
+| `fill-mask`                          | `TFAutoModelForMaskedLM`               |
 | `question-answering`                 | `TFAutoModelForQuestionAnswering`      |
 | `text2text-generation`, `text2text-generation-with-past` | `TFAutoModelForSeq2SeqLM`              |
 | `sequence-classification`            | `TFAutoModelForSequenceClassification` |

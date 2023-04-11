@@ -183,6 +183,7 @@ class TasksManager:
         "seq2seq-lm-with-past": "text2text-generation-with-past",
         "speech2seq-lm": "automatic-speech-recognition",
         "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
+        "masked-lm": "fill-mask",
     }
 
     _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in _TASKS_TO_AUTOMODELS.items()}
