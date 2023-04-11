@@ -173,7 +173,6 @@ class TFLiteConfig(ExportConfig, ABC):
         "automatic-speech-recognition": ["logits"],
         "audio-classification": ["logits"],
         "audio-frame-classification": ["logits"],
-        "audio-ctc": ["logits"],
         "audio-xvector": ["logits"],
     }
 

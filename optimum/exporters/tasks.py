@@ -141,10 +141,10 @@ class TasksManager:
             "image-segmentation": "AutoModelForImageSegmentation",
             "masked-im": "AutoModelForMaskedImageModeling",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
+            # TODO: make clear that it handles as well AutoModelForCTC
             "automatic-speech-recognition": "AutoModelForSpeechSeq2Seq",
             "audio-classification": "AutoModelForAudioClassification",
             "audio-frame-classification": "AutoModelForAudioFrameClassification",
-            "audio-ctc": "AutoModelForCTC",
             "audio-xvector": "AutoModelForAudioXVector",
             "image-to-text": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
@@ -166,10 +166,10 @@ class TasksManager:
             "image-segmentation": "TFAutoModelForImageSegmentation",
             "masked-im": "TFAutoModelForMaskedImageModeling",
             "semantic-segmentation": "TFAutoModelForSemanticSegmentation",
+            # TODO: make clear that it handles as well TFAutoModelForCTC
             "automatic-speech-recognition": "TFAutoModelForSpeechSeq2Seq",
             "audio-classification": "TFAutoModelForAudioClassification",
             "audio-frame-classification": "TFAutoModelForAudioFrameClassification",
-            "audio-ctc": "TFAutoModelForCTC",
             "audio-xvector": "TFAutoModelForAudioXVector",
             "image-to-text": "TFAutoModelForVision2Seq",
             "zero-shot-image-classification": "TFAutoModelForZeroShotImageClassification",
@@ -188,6 +188,7 @@ class TasksManager:
         "vision2seq-lm": "image-to-text",
         "default": "feature-extraction",
         "default-with-past": "feature-extraction-with-past",
+        "audio-ctc": "automatic-speech-recognition",
     }
 
     _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in _TASKS_TO_AUTOMODELS.items()}
@@ -213,7 +214,6 @@ class TasksManager:
         "masked-im": "transformers",
         "semantic-segmentation": "transformers",
         "automatic-speech-recognition": "transformers",
-        "audio-ctc": "transformers",
         "audio-classification": "transformers",
         "audio-frame-classification": "transformers",
         "audio-xvector": "transformers",
@@ -379,7 +379,7 @@ class TasksManager:
         ),
         "data2vec-audio": supported_tasks_mapping(
             "feature-extraction",
-            "audio-ctc",
+            "automatic-speech-recognition",
             "audio-classification",
             "audio-frame-classification",
             "audio-xvector",
@@ -488,7 +488,7 @@ class TasksManager:
         ),
         "hubert": supported_tasks_mapping(
             "feature-extraction",
-            "audio-ctc",
+            "automatic-speech-recognition",
             "audio-classification",
             onnx="HubertOnnxConfig",
         ),
@@ -567,7 +567,7 @@ class TasksManager:
         # TODO: enable once the missing operator is supported.
         # "mctct": supported_tasks_mapping(
         #     "feature-extraction",
-        #     "audio-ctc",
+        #     "automatic-speech-recognition",
         #     onnx="MCTCTOnnxConfig",
         # ),
         "mobilebert": supported_tasks_mapping(
@@ -704,13 +704,13 @@ class TasksManager:
         ),
         "sew": supported_tasks_mapping(
             "feature-extraction",
-            "audio-ctc",
+            "automatic-speech-recognition",
             "audio-classification",
             onnx="SEWOnnxConfig",
         ),
         "sew-d": supported_tasks_mapping(
             "feature-extraction",
-            "audio-ctc",
+            "automatic-speech-recognition",
             "audio-classification",
             onnx="SEWDOnnxConfig",
         ),
@@ -761,13 +761,13 @@ class TasksManager:
         ),
         "unispeech": supported_tasks_mapping(
             "feature-extraction",
-            "audio-ctc",
+            "automatic-speech-recognition",
             "audio-classification",
             onnx="UniSpeechOnnxConfig",
         ),
         "unispeech-sat": supported_tasks_mapping(
             "feature-extraction",
-            "audio-ctc",
+            "automatic-speech-recognition",
             "audio-classification",
             "audio-frame-classification",
             "audio-xvector",
@@ -791,7 +791,7 @@ class TasksManager:
         ),
         "wavlm": supported_tasks_mapping(
             "feature-extraction",
-            "audio-ctc",
+            "automatic-speech-recognition",
             "audio-classification",
             "audio-frame-classification",
             "audio-xvector",
@@ -799,7 +799,7 @@ class TasksManager:
         ),
         "wav2vec2": supported_tasks_mapping(
             "feature-extraction",
-            "audio-ctc",
+            "automatic-speech-recognition",
             "audio-classification",
             "audio-frame-classification",
             "audio-xvector",
@@ -807,7 +807,7 @@ class TasksManager:
         ),
         "wav2vec2-conformer": supported_tasks_mapping(
             "feature-extraction",
-            "audio-ctc",
+            "automatic-speech-recognition",
             "audio-classification",
             "audio-frame-classification",
             "audio-xvector",
@@ -968,7 +968,9 @@ class TasksManager:
             raise RuntimeError("Cannot export model using TensorFlow because no TensorFlow package was found.")
 
     @staticmethod
-    def get_model_class_for_task(task: str, framework: str = "pt", model_type: Optional[str] = None) -> Type:
+    def get_model_class_for_task(
+        task: str, framework: str = "pt", model_type: Optional[str] = None, model_class_name: Optional[str] = None
+    ) -> Type:
         """
         Attempts to retrieve an AutoModel class from a task name.
 
@@ -980,6 +982,10 @@ class TasksManager:
             model_type (`Optional[str]`, defaults to `None`):
                 The model type to retrieve the model class for. Some architectures need a custom class to be loaded,
                 and can not be loaded from auto class.
+            model_class_name (`Optional[str]`, defaults to `None`):
+                A model class name, allowing to override the default class that would be detected for the task. This
+                parameter is useful for example for "automatic-speech-recognition", that may map to
+                AutoModelForSpeechSeq2Seq or to AutoModelForCTC.
 
         Returns:
             The AutoModel class corresponding to the task.
@@ -988,10 +994,6 @@ class TasksManager:
         task = TasksManager.map_from_legacy(task)
 
         TasksManager._validate_framework_choice(framework)
-        if framework == "pt":
-            tasks_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
-        else:
-            tasks_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
 
         if (framework, model_type, task) in TasksManager._CUSTOM_CLASSES:
             library, class_name = TasksManager._CUSTOM_CLASSES[(framework, model_type, task)]
@@ -999,14 +1001,22 @@ class TasksManager:
 
             return getattr(module, class_name)
         else:
+            if framework == "pt":
+                tasks_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
+            else:
+                tasks_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
+
             if task not in tasks_to_automodel:
                 raise KeyError(
                     f"Unknown task: {task}. Possible values are: "
                     + ", ".join([f"`{key}` for {tasks_to_automodel[key]}" for key in tasks_to_automodel])
                 )
 
+            if model_class_name is None:
+                model_class_name = tasks_to_automodel[task]
+
             module = importlib.import_module(TasksManager._TASKS_TO_LIBRARY[task])
-            return getattr(module, tasks_to_automodel[task])
+            return getattr(module, model_class_name)
 
     @staticmethod
     def determine_framework(
@@ -1267,14 +1277,26 @@ class TasksManager:
 
         """
         framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
+
+        original_task = task
         if task == "auto":
             task = TasksManager.infer_task_from_model(model_name_or_path, subfolder=subfolder, revision=revision)
 
         model_type = None
+        model_class_name = None
         if TasksManager._TASKS_TO_LIBRARY[task.replace("-with-past", "")] == "transformers":
-            model_type = AutoConfig.from_pretrained(model_name_or_path).model_type.replace("_", "-")
+            # TODO: if automatic-speech-recognition is passed as task, as it may map to several
+            # different auto class (AutoModelForSpeechSeq2Seq or to AutoModelForCTC),
+            # which is currently not well handled. Hence the hack here
+            if original_task in ["auto", "automatic-speech-recognition"]:
+                config = AutoConfig.from_pretrained(model_name_or_path)
+                model_type = config.model_type.replace("_", "-")
+                model_class_name = config.architectures[0]
 
-        model_class = TasksManager.get_model_class_for_task(task, framework, model_type=model_type)
+        model_class = TasksManager.get_model_class_for_task(
+            task, framework, model_type=model_type, model_class_name=model_class_name
+        )
+
         kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
         try:
             if framework == "pt":

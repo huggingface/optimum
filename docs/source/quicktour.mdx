@@ -194,7 +194,7 @@ To train transformers with ONNX Runtime's acceleration features, 🤗 Optimum pr
       model=model,
       args=training_args,
       train_dataset=train_dataset,
-+     feature="sequence-classification", # The model type to export to ONNX
++     feature="text-classification", # The model type to export to ONNX
       ...
   )
 

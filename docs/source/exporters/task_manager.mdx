@@ -35,7 +35,7 @@ It is possible to know which tasks are supported for a model for a given backend
 >>> distilbert_tasks = list(TasksManager.get_supported_tasks_for_model_type(model_type, backend).keys())
 
 >>> print(distilbert_tasks)
-['default', 'fill-mask', 'sequence-classification', 'multiple-choice', 'token-classification', 'question-answering']
+['default', 'fill-mask', 'text-classification', 'multiple-choice', 'token-classification', 'question-answering']
 ```
 
 </Tip>
@@ -49,7 +49,7 @@ It is possible to know which tasks are supported for a model for a given backend
 | `fill-mask`                          | `AutoModelForMaskedLM`               |
 | `question-answering`                 | `AutoModelForQuestionAnswering`      |
 | `text2text-generation`, `text2text-generation-with-past` | `AutoModelForSeq2SeqLM`              |
-| `sequence-classification`            | `AutoModelForSequenceClassification` |
+| `text-classification`            | `AutoModelForSequenceClassification` |
 | `token-classification`               | `AutoModelForTokenClassification`    |
 | `multiple-choice`                    | `AutoModelForMultipleChoice`         |
 | `image-classification`               | `AutoModelForImageClassification`    |
@@ -68,7 +68,7 @@ It is possible to know which tasks are supported for a model for a given backend
 | `fill-mask`                          | `TFAutoModelForMaskedLM`               |
 | `question-answering`                 | `TFAutoModelForQuestionAnswering`      |
 | `text2text-generation`, `text2text-generation-with-past` | `TFAutoModelForSeq2SeqLM`              |
-| `sequence-classification`            | `TFAutoModelForSequenceClassification` |
+| `text-classification`            | `TFAutoModelForSequenceClassification` |
 | `token-classification`               | `TFAutoModelForTokenClassification`    |
 | `multiple-choice`                    | `TFAutoModelForMultipleChoice`         |
 | `semantic-segmentation`              | `TFAutoModelForSemanticSegmentation`   |

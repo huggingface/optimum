@@ -146,16 +146,8 @@ def main_export(
         )
 
     original_task = task
-    # Infer the task
-    if task == "auto":
-        try:
-            task = TasksManager.infer_task_from_model(model_name_or_path)
-        except KeyError as e:
-            raise KeyError(
-                f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
-            )
-    else:
-        task = TasksManager.map_from_legacy(task)
+
+    task = TasksManager.map_from_legacy(task)
 
     framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
 
@@ -188,6 +180,14 @@ def main_export(
         framework=framework,
         torch_dtype=torch_dtype,
     )
+
+    if task == "auto":
+        try:
+            task = TasksManager.infer_task_from_model(model_name_or_path)
+        except KeyError as e:
+            raise KeyError(
+                f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
+            )
 
     if task != "stable-diffusion" and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
         model.config.model_type.replace("_", "-"), "onnx"

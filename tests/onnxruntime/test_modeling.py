@@ -4242,7 +4242,7 @@ class TestBothExportersORTModel(unittest.TestCase):
             ["text2text-generation", ORTModelForSeq2SeqLMIntegrationTest],
             ["automatic-speech-recognition", ORTModelForSpeechSeq2SeqIntegrationTest],
             ["audio-classification", ORTModelForAudioClassificationIntegrationTest],
-            ["audio-ctc", ORTModelForCTCIntegrationTest],
+            ["automatic-speech-recognition", ORTModelForCTCIntegrationTest],
             ["audio-xvector", ORTModelForAudioXVectorIntegrationTest],
             ["audio-frame-classification", ORTModelForAudioFrameClassificationIntegrationTest],
         ]

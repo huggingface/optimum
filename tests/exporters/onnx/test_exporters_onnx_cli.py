@@ -289,6 +289,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             ["masked-lm", "bert"],
             ["default", "blenderbot"],
             ["default-with-past", "blenderbot"],
+            ["audio-ctc", "wav2vec2-conformer"],
         ]
     )
     @slow
