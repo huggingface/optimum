@@ -216,9 +216,15 @@ class OnnxExportTestCase(TestCase):
         monolith: bool,
         device="cpu",
     ):
-        config = AutoConfig.from_pretrained(model_name)
-        model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
-        model = model_class.from_config(config)
+        library_name = TasksManager.infer_library_from_model(model_name)
+        if library_name == "timm":
+            model_class = TasksManager.get_model_class_for_task("timm-" + task)
+            model = model_class(f"hf_hub:{model_name}", pretrained=True)
+            TasksManager.patch_model_for_export(model_name, model)
+        else:
+            config = AutoConfig.from_pretrained(model_name)
+            model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
+            model = model_class.from_config(config)
 
         # Dynamic axes aren't supported for YOLO-like models. This means they cannot be exported to ONNX on CUDA devices.
         # See: https://github.com/ultralytics/yolov5/pull/8378
