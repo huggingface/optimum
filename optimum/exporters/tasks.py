@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import huggingface_hub
-from transformers import PretrainedConfig, is_tf_available, is_torch_available
+from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
 from ..utils.import_utils import is_onnx_available
@@ -1148,11 +1148,11 @@ class TasksManager:
                 if "stable-diffusion" in model_info.tags:
                     inferred_task_name = "stable-diffusion"
             else:
-                transformers_info = model_info.transformersInfo
-
-                if getattr(transformers_info, "pipeline_tag", None) is not None:
-                    inferred_task_name = transformers_info.pipeline_tag
+                if getattr(model_info, "pipeline_tag", None) is not None:
+                    inferred_task_name = model_info.pipeline_tag
                 else:
+                    transformers_info = model_info.transformersInfo
+
                     if transformers_info is None or transformers_info.get("auto_model") is None:
                         raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
                     auto_model_class_name = transformers_info["auto_model"]
@@ -1261,7 +1261,12 @@ class TasksManager:
         framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
         if task == "auto":
             task = TasksManager.infer_task_from_model(model_name_or_path, subfolder=subfolder, revision=revision)
-        model_class = TasksManager.get_model_class_for_task(task, framework)
+
+        model_type = None
+        if TasksManager._TASKS_TO_LIBRARY[task] == "transformers":
+            model_type = AutoConfig.from_pretrained(model_name_or_path).model_type.replace("_", "-")
+
+        model_class = TasksManager.get_model_class_for_task(task, framework, model_type=model_type)
         kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
         try:
             if framework == "pt":
