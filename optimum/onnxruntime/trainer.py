@@ -172,7 +172,7 @@ class ModuleWithLoss(nn.Module):
 
 class ORTFeaturesManager:
     _TASKS_TO_ORTMODELS = {
-        "default": ORTModelForFeatureExtraction,
+        "feature-extraction": ORTModelForFeatureExtraction,
         "fill-mask": ORTModelForMaskedLM,
         "text-generation": ORTModelForCausalLM,
         "text-generation-with-past": ORTModelForCausalLM,
@@ -289,7 +289,7 @@ class ORTTrainer(Trainer):
         self,
         model: Union[PreTrainedModel, nn.Module] = None,
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
-        feature: str = "default",
+        feature: str = "feature-extraction",
         args: ORTTrainingArguments = None,
         data_collator: Optional[DataCollator] = None,
         train_dataset: Optional[Dataset] = None,

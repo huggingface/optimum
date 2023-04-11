@@ -100,7 +100,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
     "wavlm": {
-        "hf-internal-testing/tiny-random-wavlm": ["default", "audio-ctc", "audio-classification"],
+        "hf-internal-testing/tiny-random-wavlm": ["feature-extraction", "audio-ctc", "audio-classification"],
         "hf-internal-testing/tiny-random-WavLMForCTC": ["audio-frame-classification"],
         "hf-internal-testing/tiny-random-WavLMForXVector": ["audio-xvector"],
     },
@@ -108,7 +108,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "sew-d": "hf-internal-testing/tiny-random-SEWDModel",
     "unispeech": "hf-internal-testing/tiny-random-unispeech",
     "unispeech-sat": {
-        "hf-internal-testing/tiny-random-unispeech-sat": ["default", "audio-ctc", "audio-classification"],
+        "hf-internal-testing/tiny-random-unispeech-sat": ["feature-extraction", "audio-ctc", "audio-classification"],
         "hf-internal-testing/tiny-random-UniSpeechSatForPreTraining": ["audio-frame-classification"],
         "hf-internal-testing/tiny-random-UniSpeechSatForXVector": ["audio-xvector"],
     },

@@ -43,7 +43,7 @@ class WeightSharingTestCase(TestCase):
                 tokenizer = AutoTokenizer.from_pretrained(model_id)
                 model = AutoModel.from_pretrained(model_id)
 
-                task = "default"
+                task = "feature-extraction"
                 with TemporaryDirectory() as tmpdir:
                     subprocess.run(
                         f"python3 -m optimum.exporters.onnx --model {model_id} --task {task} {tmpdir}",

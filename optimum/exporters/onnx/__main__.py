@@ -278,7 +278,12 @@ def main_export(
         if (
             model.config.is_encoder_decoder
             and task.startswith(
-                ("text2text-generation", "automatic-speech-recognition", "image-to-text", "default-with-past")
+                (
+                    "text2text-generation",
+                    "automatic-speech-recognition",
+                    "image-to-text",
+                    "feature-extraction-with-past",
+                )
             )
             and not monolith
         ):

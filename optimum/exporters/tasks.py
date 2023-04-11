@@ -126,8 +126,9 @@ class TasksManager:
     _TASKS_TO_AUTOMODELS = {}
     _TASKS_TO_TF_AUTOMODELS = {}
     if is_torch_available():
+        # refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
         _TASKS_TO_AUTOMODELS = {
-            "default": "AutoModel",
+            "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
             "text-generation": "AutoModelForCausalLM",
             "text2text-generation": "AutoModelForSeq2SeqLM",
@@ -152,7 +153,7 @@ class TasksManager:
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
-            "default": "TFAutoModel",
+            "feature-extraction": "TFAutoModel",
             "fill-mask": "TFAutoModelForMaskedLM",
             "text-generation": "TFAutoModelForCausalLM",
             "image-classification": "TFAutoModelForImageClassification",
@@ -185,6 +186,8 @@ class TasksManager:
         "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
         "masked-lm": "fill-mask",
         "vision2seq-lm": "image-to-text",
+        "default": "feature-extraction",
+        "default-with-past": "feature-extraction-with-past",
     }
 
     _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in _TASKS_TO_AUTOMODELS.items()}
@@ -192,10 +195,11 @@ class TasksManager:
 
     _CUSTOM_CLASSES = {
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
+        ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
     }
 
     _TASKS_TO_LIBRARY = {
-        "default": "transformers",
+        "feature-extraction": "transformers",
         "fill-mask": "transformers",
         "text-generation": "transformers",
         "text2text-generation": "transformers",
@@ -223,12 +227,12 @@ class TasksManager:
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
     _SUPPORTED_MODEL_TYPE = {
         "audio-spectrogram-transformer": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "audio-classification",
             onnx="ASTOnnxConfig",
         ),
         "albert": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "text-classification",
             "multiple-choice",
@@ -238,8 +242,8 @@ class TasksManager:
             tflite="AlbertTFLiteConfig",
         ),
         "bart": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             "text2text-generation",
@@ -249,9 +253,9 @@ class TasksManager:
             onnx="BartOnnxConfig",
         ),
         # BEiT cannot be used with the masked image modeling autoclass, so this task is excluded here
-        "beit": supported_tasks_mapping("default", "image-classification", onnx="BeitOnnxConfig"),
+        "beit": supported_tasks_mapping("feature-extraction", "image-classification", onnx="BeitOnnxConfig"),
         "bert": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             # the logic for text-generation is not supported for BERT
             # "text-generation",
@@ -264,7 +268,7 @@ class TasksManager:
         ),
         # For big-bird and bigbird-pegasus being unsupported, refer to model_configs.py
         # "big-bird": supported_tasks_mapping(
-        #     "default",
+        #     "feature-extraction",
         #     "fill-mask",
         #     # the logic for text-generation is not supported for big-bird
         #     # "text-generation",
@@ -277,8 +281,8 @@ class TasksManager:
         #     # tflite="BigBirdTFLiteConfig",
         # ),
         # "bigbird-pegasus": supported_tasks_mapping(
-        #     "default",
-        #     "default-with-past",
+        #     "feature-extraction",
+        #     "feature-extraction-with-past",
         #     "text-generation",
         #     "text-generation-with-past",
         #     "text2text-generation",
@@ -288,8 +292,8 @@ class TasksManager:
         #     onnx="BigBirdPegasusOnnxConfig",
         # ),
         "blenderbot": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             "text2text-generation",
@@ -297,8 +301,8 @@ class TasksManager:
             onnx="BlenderbotOnnxConfig",
         ),
         "blenderbot-small": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             "text2text-generation",
@@ -306,8 +310,8 @@ class TasksManager:
             onnx="BlenderbotSmallOnnxConfig",
         ),
         "bloom": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             "text-classification",
@@ -315,7 +319,7 @@ class TasksManager:
             onnx="BloomOnnxConfig",
         ),
         "camembert": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             # the logic for text-generation is not supported for camembert
             # "text-generation",
@@ -327,23 +331,23 @@ class TasksManager:
             tflite="CamembertTFLiteConfig",
         ),
         "clip": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "zero-shot-image-classification",
             onnx="CLIPOnnxConfig",
         ),
         "clip-text-model": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             onnx="CLIPTextOnnxConfig",
         ),
         "codegen": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             onnx="CodeGenOnnxConfig",
         ),
         "convbert": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "text-classification",
             "multiple-choice",
@@ -353,12 +357,12 @@ class TasksManager:
             tflite="ConvBertTFLiteConfig",
         ),
         "convnext": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "image-classification",
             onnx="ConvNextOnnxConfig",
         ),
         "data2vec-text": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "text-classification",
             "multiple-choice",
@@ -367,14 +371,14 @@ class TasksManager:
             onnx="Data2VecTextOnnxConfig",
         ),
         "data2vec-vision": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "image-classification",
             # ONNX doesn't support `adaptive_avg_pool2d` yet
             # "semantic-segmentation",
             onnx="Data2VecVisionOnnxConfig",
         ),
         "data2vec-audio": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "audio-ctc",
             "audio-classification",
             "audio-frame-classification",
@@ -382,7 +386,7 @@ class TasksManager:
             onnx="Data2VecAudioOnnxConfig",
         ),
         "deberta": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "text-classification",
             "token-classification",
@@ -391,7 +395,7 @@ class TasksManager:
             tflite="DebertaTFLiteConfig",
         ),
         "deberta-v2": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "text-classification",
             ("multiple-choice", ("onnx",)),
@@ -400,15 +404,17 @@ class TasksManager:
             onnx="DebertaV2OnnxConfig",
             tflite="DebertaV2TFLiteConfig",
         ),
-        "deit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="DeiTOnnxConfig"),
+        "deit": supported_tasks_mapping(
+            "feature-extraction", "image-classification", "masked-im", onnx="DeiTOnnxConfig"
+        ),
         "detr": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "object-detection",
             "image-segmentation",
             onnx="DetrOnnxConfig",
         ),
         "distilbert": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "text-classification",
             "multiple-choice",
@@ -418,11 +424,11 @@ class TasksManager:
             tflite="DistilBertTFLiteConfig",
         ),
         "donut-swin": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             onnx="DonutSwinOnnxConfig",
         ),
         "electra": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             # the logic for text-generation is not supported for electra
             # "text-generation",
@@ -434,7 +440,7 @@ class TasksManager:
             tflite="ElectraTFLiteConfig",
         ),
         "flaubert": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "text-classification",
             "multiple-choice",
@@ -444,8 +450,8 @@ class TasksManager:
             tflite="FlaubertTFLiteConfig",
         ),
         "gpt2": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             "text-classification",
@@ -453,8 +459,8 @@ class TasksManager:
             onnx="GPT2OnnxConfig",
         ),
         "gptj": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             "question-answering",
@@ -462,32 +468,32 @@ class TasksManager:
             onnx="GPTJOnnxConfig",
         ),
         "gpt-neo": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             "text-classification",
             onnx="GPTNeoOnnxConfig",
         ),
         "gpt-neox": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             onnx="GPTNeoXOnnxConfig",
         ),
         "groupvit": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             onnx="GroupViTOnnxConfig",
         ),
         "hubert": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "audio-ctc",
             "audio-classification",
             onnx="HubertOnnxConfig",
         ),
         "ibert": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "text-classification",
             "multiple-choice",
@@ -496,41 +502,41 @@ class TasksManager:
             onnx="IBertOnnxConfig",
         ),
         "imagegpt": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "image-classification",
             onnx="ImageGPTOnnxConfig",
         ),
         "layoutlm": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "text-classification",
             "token-classification",
             onnx="LayoutLMOnnxConfig",
         ),
         # "layoutlmv2": supported_tasks_mapping(
-        #     "default",
+        #     "feature-extraction",
         #     "question-answering",
         #     "text-classification",
         #     "token-classification",
         #     onnx="LayoutLMv2OnnxConfig",
         # ),
         "layoutlmv3": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "question-answering",
             "text-classification",
             "token-classification",
             onnx="LayoutLMv3OnnxConfig",
         ),
-        "levit": supported_tasks_mapping("default", "image-classification", onnx="LevitOnnxConfig"),
+        "levit": supported_tasks_mapping("feature-extraction", "image-classification", onnx="LevitOnnxConfig"),
         "longt5": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text2text-generation",
             "text2text-generation-with-past",
             onnx="LongT5OnnxConfig",
         ),
         # "longformer": supported_tasks_mapping(
-        #     "default",
+        #     "feature-extraction",
         #     "fill-mask",
         #     "multiple-choice",
         #     "question-answering",
@@ -539,8 +545,8 @@ class TasksManager:
         #     onnx_config_cls="models.longformer.LongformerOnnxConfig",
         # ),
         "marian": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text2text-generation",
             "text2text-generation-with-past",
             "text-generation",
@@ -548,8 +554,8 @@ class TasksManager:
             onnx="MarianOnnxConfig",
         ),
         "mbart": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             "text2text-generation",
@@ -560,12 +566,12 @@ class TasksManager:
         ),
         # TODO: enable once the missing operator is supported.
         # "mctct": supported_tasks_mapping(
-        #     "default",
+        #     "feature-extraction",
         #     "audio-ctc",
         #     onnx="MCTCTOnnxConfig",
         # ),
         "mobilebert": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "text-classification",
             "multiple-choice",
@@ -575,22 +581,22 @@ class TasksManager:
             tflite="MobileBertTFLiteConfig",
         ),
         "mobilevit": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "image-classification",
             onnx="MobileViTOnnxConfig",
         ),
         "mobilenet-v1": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "image-classification",
             onnx="MobileNetV1OnnxConfig",
         ),
         "mobilenet-v2": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "image-classification",
             onnx="MobileNetV2OnnxConfig",
         ),
         "mpnet": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "text-classification",
             "multiple-choice",
@@ -600,21 +606,21 @@ class TasksManager:
             tflite="MPNetTFLiteConfig",
         ),
         "mt5": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text2text-generation",
             "text2text-generation-with-past",
             onnx="MT5OnnxConfig",
         ),
         "m2m-100": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text2text-generation",
             "text2text-generation-with-past",
             onnx="M2M100OnnxConfig",
         ),
         "nystromformer": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "multiple-choice",
             "question-answering",
@@ -624,13 +630,13 @@ class TasksManager:
         ),
         # TODO: owlvit cannot be exported yet, check model_config.py to know why.
         # "owlvit": supported_tasks_mapping(
-        #     "default",
+        #     "feature-extraction",
         #     "zero-shot-object-detection",
         #     onnx="OwlViTOnnxConfig",
         # ),
         "opt": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             "question-answering",
@@ -638,8 +644,8 @@ class TasksManager:
             onnx="OPTOnnxConfig",
         ),
         "pegasus": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             "text2text-generation",
@@ -653,20 +659,20 @@ class TasksManager:
             onnx="PerceiverOnnxConfig",
         ),
         "poolformer": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "image-classification",
             onnx="PoolFormerOnnxConfig",
         ),
         "regnet": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "image-classification",
             onnx="RegNetOnnxConfig",
         ),
         "resnet": supported_tasks_mapping(
-            "default", "image-classification", onnx="ResNetOnnxConfig", tflite="ResNetTFLiteConfig"
+            "feature-extraction", "image-classification", onnx="ResNetOnnxConfig", tflite="ResNetTFLiteConfig"
         ),
         "roberta": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             # the logic for text-generation is not supported for roberta
             # "text-generation",
@@ -678,7 +684,7 @@ class TasksManager:
             tflite="RobertaTFLiteConfig",
         ),
         "roformer": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             # the logic for text-generation is not supported for roformer
             # "text-generation",
@@ -691,37 +697,37 @@ class TasksManager:
             tflite="RoFormerTFLiteConfig",
         ),
         "segformer": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "image-classification",
             "semantic-segmentation",
             onnx="SegformerOnnxConfig",
         ),
         "sew": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "audio-ctc",
             "audio-classification",
             onnx="SEWOnnxConfig",
         ),
         "sew-d": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "audio-ctc",
             "audio-classification",
             onnx="SEWDOnnxConfig",
         ),
         "speech-to-text": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "automatic-speech-recognition",
             "automatic-speech-recognition-with-past",
             onnx="Speech2TextOnnxConfig",
         ),
         "splinter": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "question-answering",
             onnx="SplinterOnnxConfig",
         ),
         "squeezebert": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             "text-classification",
             "multiple-choice",
@@ -730,21 +736,21 @@ class TasksManager:
             onnx="SqueezeBertOnnxConfig",
         ),
         "swin": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "image-classification",
             "masked-im",
             onnx="SwinOnnxConfig",
         ),
         "t5": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "text2text-generation",
             "text2text-generation-with-past",
             onnx="T5OnnxConfig",
         ),
         "trocr": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "image-to-text",
             "image-to-text-with-past",
             onnx="TrOCROnnxConfig",
@@ -754,13 +760,13 @@ class TasksManager:
             onnx="UNetOnnxConfig",
         ),
         "unispeech": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "audio-ctc",
             "audio-classification",
             onnx="UniSpeechOnnxConfig",
         ),
         "unispeech-sat": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "audio-ctc",
             "audio-classification",
             "audio-frame-classification",
@@ -780,9 +786,11 @@ class TasksManager:
             "image-to-text-with-past",
             onnx="VisionEncoderDecoderOnnxConfig",
         ),
-        "vit": supported_tasks_mapping("default", "image-classification", "masked-im", onnx="ViTOnnxConfig"),
+        "vit": supported_tasks_mapping(
+            "feature-extraction", "image-classification", "masked-im", onnx="ViTOnnxConfig"
+        ),
         "wavlm": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "audio-ctc",
             "audio-classification",
             "audio-frame-classification",
@@ -790,7 +798,7 @@ class TasksManager:
             onnx="WavLMOnnxConfig",
         ),
         "wav2vec2": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "audio-ctc",
             "audio-classification",
             "audio-frame-classification",
@@ -798,7 +806,7 @@ class TasksManager:
             onnx="Wav2Vec2OnnxConfig",
         ),
         "wav2vec2-conformer": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "audio-ctc",
             "audio-classification",
             "audio-frame-classification",
@@ -806,14 +814,14 @@ class TasksManager:
             onnx="Wav2Vec2ConformerOnnxConfig",
         ),
         "whisper": supported_tasks_mapping(
-            "default",
-            "default-with-past",
+            "feature-extraction",
+            "feature-extraction-with-past",
             "automatic-speech-recognition",
             "automatic-speech-recognition-with-past",
             onnx="WhisperOnnxConfig",
         ),
         "xlm": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             # the logic for text-generation is not supported for xlm
             # "text-generation",
@@ -825,7 +833,7 @@ class TasksManager:
             tflite="XLMTFLiteConfig",
         ),
         "xlm-roberta": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "fill-mask",
             # the logic for text-generation is not supported for xlm-roberta
             # "text-generation",
@@ -837,7 +845,7 @@ class TasksManager:
             tflite="XLMRobertaTFLiteConfig",
         ),
         "yolos": supported_tasks_mapping(
-            "default",
+            "feature-extraction",
             "object-detection",
             onnx="YolosOnnxConfig",
         ),
@@ -1263,7 +1271,7 @@ class TasksManager:
             task = TasksManager.infer_task_from_model(model_name_or_path, subfolder=subfolder, revision=revision)
 
         model_type = None
-        if TasksManager._TASKS_TO_LIBRARY[task] == "transformers":
+        if TasksManager._TASKS_TO_LIBRARY[task.replace("-with-past", "")] == "transformers":
             model_type = AutoConfig.from_pretrained(model_name_or_path).model_type.replace("_", "-")
 
         model_class = TasksManager.get_model_class_for_task(task, framework, model_type=model_type)
@@ -1287,7 +1295,7 @@ class TasksManager:
     def get_exporter_config_constructor(
         exporter: str,
         model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None,
-        task: str = "default",
+        task: str = "feature-extraction",
         model_type: Optional[str] = None,
         model_name: Optional[str] = None,
         exporter_config_kwargs: Optional[Dict[str, Any]] = None,
@@ -1300,7 +1308,7 @@ class TasksManager:
                 The exporter to use.
             model (`Optional[Union[PreTrainedModel, TFPreTrainedModel]]`, defaults to `None`):
                 The instance of the model.
-            task (`str`, defaults to `"default"`):
+            task (`str`, defaults to `"feature-extraction"`):
                 The task to retrieve the config for.
             model_type (`Optional[str]`, defaults to `None`):
                 The model type to retrieve the config for.

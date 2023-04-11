@@ -279,7 +279,7 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def __init__(
         self,
         config: "PretrainedConfig",
-        task: str = "default",
+        task: str = "feature-extraction",
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -300,14 +300,14 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         if self._behavior is not ConfigBehavior.DECODER:
             encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                exporter="onnx", task="default", model_type=config.encoder.model_type
+                exporter="onnx", task="feature-extraction", model_type=config.encoder.model_type
             )
             self._encoder_onnx_config = encoder_onnx_config_constructor(config.encoder)
             self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = self._encoder_onnx_config._normalized_config
 
         if self._behavior is not ConfigBehavior.ENCODER:
             decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                exporter="onnx", task="default", model_type=config.decoder.model_type
+                exporter="onnx", task="feature-extraction", model_type=config.decoder.model_type
             )
             kwargs = {}
             if issubclass(decoder_onnx_config_constructor.func, OnnxConfigWithPast):

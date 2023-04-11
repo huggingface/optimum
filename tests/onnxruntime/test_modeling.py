@@ -1735,7 +1735,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForFeatureExtraction
-    TASK = "default"
+    TASK = "feature-extraction"
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -4234,7 +4234,7 @@ class TestBothExportersORTModel(unittest.TestCase):
             ["question-answering", ORTModelForQuestionAnsweringIntegrationTest],
             ["text-classification", ORTModelForSequenceClassificationIntegrationTest],
             ["token-classification", ORTModelForTokenClassificationIntegrationTest],
-            ["default", ORTModelForFeatureExtractionIntegrationTest],
+            ["feature-extraction", ORTModelForFeatureExtractionIntegrationTest],
             ["multiple-choice", ORTModelForMultipleChoiceIntegrationTest],
             ["text-generation", ORTModelForCausalLMIntegrationTest],
             ["image-classification", ORTModelForImageClassificationIntegrationTest],

@@ -371,11 +371,11 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BartDummyTextInputGenerator,
         {
-            "default": DummySeq2SeqDecoderTextInputGenerator,
+            "feature-extraction": DummySeq2SeqDecoderTextInputGenerator,
             "text-generation": DummyDecoderTextInputGenerator,
         },
         {
-            "default": DummySeq2SeqPastKeyValuesGenerator,
+            "feature-extraction": DummySeq2SeqPastKeyValuesGenerator,
             "text-generation": DummyPastKeyValuesGenerator,
         },
     )
@@ -384,7 +384,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
         dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](
             self.task, self._normalized_config, **kwargs
         )
-        task = "default" if self.task != "text-generation" else "text-generation"
+        task = "feature-extraction" if self.task != "text-generation" else "text-generation"
         dummy_decoder_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[1][task](
             self.task, self._normalized_config, **kwargs
         )
@@ -440,7 +440,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         inputs_properties = {
-            "default": self.inputs_for_default_and_seq2seq_lm,
+            "feature-extraction": self.inputs_for_default_and_seq2seq_lm,
             "text2text-generation": self.inputs_for_default_and_seq2seq_lm,
             "text-generation": self.inputs_for_causal_lm,
             "other": self.inputs_for_other_tasks,
@@ -449,7 +449,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        if self.task in ["default", "text2text-generation"]:
+        if self.task in ["feature-extraction", "text2text-generation"]:
             common_outputs = super().outputs
         else:
             common_outputs = super(OnnxConfigWithPast, self).outputs
@@ -474,7 +474,7 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
         return dummy_inputs
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
-        if self.task in ["default", "text2text-generation"]:
+        if self.task in ["feature-extraction", "text2text-generation"]:
             flattened_output = super().flatten_past_key_values(flattened_output, name, idx, t)
         else:
             flattened_output = super(OnnxSeq2SeqConfigWithPast, self).flatten_past_key_values(
@@ -833,7 +833,7 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         PerceiverDummyInputGenerator,
     ) + TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
 
-    def __init__(self, config: "PretrainedConfig", task: str = "default"):
+    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
         super().__init__(config, task=task)
         self.is_generating_dummy_inputs = False
 
@@ -1046,7 +1046,7 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
     def __init__(
         self,
         config: "PretrainedConfig",
-        task: str = "default",
+        task: str = "feature-extraction",
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,

@@ -169,7 +169,7 @@ def get_stable_diffusion_models_for_export(
 
     # Text encoder
     text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
-        model=pipeline.text_encoder, exporter="onnx", task="default"
+        model=pipeline.text_encoder, exporter="onnx", task="feature-extraction"
     )
     text_encoder_onnx_config = text_encoder_config_constructor(pipeline.text_encoder.config)
     models_for_export["text_encoder"] = (pipeline.text_encoder, text_encoder_onnx_config)

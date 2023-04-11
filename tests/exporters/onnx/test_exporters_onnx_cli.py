@@ -72,7 +72,7 @@ def _get_models_to_test(export_models_dict: Dict):
 
                     # For other tasks, we don't test --no-post-process as there is none anyway
                     if task in [
-                        "default-with-past",
+                        "feature-extraction-with-past",
                         "text-generation-with-past",
                         "automatic-speech-recognition-with-past",
                         "image-to-text-with-past",
@@ -287,6 +287,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             ["vision2seq-lm", "vision-encoder-decoder"],
             ["sequence-classification", "bert"],
             ["masked-lm", "bert"],
+            ["default", "blenderbot"],
+            ["default-with-past", "blenderbot"],
         ]
     )
     @slow

@@ -141,7 +141,7 @@ class TFLiteConfig(ExportConfig, ABC):
     Args:
         config (`transformers.PretrainedConfig`):
             The model configuration.
-        task (`str`, defaults to `"default"`):
+        task (`str`, defaults to `"feature-extraction"`):
             The task the model should be exported for.
 
         The rest of the arguments are used to specify the shape of the inputs the model can take.
@@ -158,7 +158,7 @@ class TFLiteConfig(ExportConfig, ABC):
 
     _TASK_TO_COMMON_OUTPUTS = {
         "text-generation": ["logits"],
-        "default": ["last_hidden_state"],
+        "feature-extraction": ["last_hidden_state"],
         "image-classification": ["logits"],
         "image-segmentation": ["logits", "pred_boxes", "pred_masks"],
         "masked-im": ["logits"],
