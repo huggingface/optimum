@@ -1512,8 +1512,8 @@ class TasksManager:
                     model_name_or_path, "config.json", subfolder=subfolder, revision=revision
                 )
             )
-            with open(config_path):
-                model_config = PretrainedConfig.from_json_file(config_path)
+
+            model_config = PretrainedConfig.from_json_file(config_path)
 
             # set config as in transformers
             setattr(model, "config", model_config)
