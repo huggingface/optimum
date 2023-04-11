@@ -265,7 +265,7 @@ def main_export(
             model.feature_extractor.save_pretrained(output.joinpath("feature_extractor"))
         model.save_config(output)
     else:
-        if model.config.is_encoder_decoder and task.startswith("causal-lm"):
+        if model.config.is_encoder_decoder and task.startswith("text-generation"):
             raise ValueError(
                 f"model.config.is_encoder_decoder is True and task is `{task}`, which are incompatible. If the task was auto-inferred, please fill a bug report"
                 f"at https://github.com/huggingface/optimum, if --task was explicitely passed, make sure you selected the right task for the model,"
@@ -275,11 +275,13 @@ def main_export(
         onnx_files_subpaths = None
         if (
             model.config.is_encoder_decoder
-            and task.startswith(("seq2seq-lm", "speech2seq-lm", "vision2seq-lm", "default-with-past"))
+            and task.startswith(
+                ("text2text-generation", "automatic-speech-recognition", "vision2seq-lm", "default-with-past")
+            )
             and not monolith
         ):
             models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
-        elif task.startswith("causal-lm") and not monolith:
+        elif task.startswith("text-generation") and not monolith:
             models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
         else:
             models_and_onnx_configs = {"model": (model, onnx_config)}

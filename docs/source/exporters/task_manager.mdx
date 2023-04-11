@@ -44,11 +44,11 @@ It is possible to know which tasks are supported for a model for a given backend
 
 | Task                                 | Auto Class                           |
 |--------------------------------------|--------------------------------------|
-| `causal-lm`, `causal-lm-with-past`   | `AutoModelForCausalLM`               |
+| `text-generation`, `text-generation-with-past`   | `AutoModelForCausalLM`               |
 | `default`, `default-with-past`       | `AutoModel`                          |
 | `masked-lm`                          | `AutoModelForMaskedLM`               |
 | `question-answering`                 | `AutoModelForQuestionAnswering`      |
-| `seq2seq-lm`, `seq2seq-lm-with-past` | `AutoModelForSeq2SeqLM`              |
+| `text2text-generation`, `text2text-generation-with-past` | `AutoModelForSeq2SeqLM`              |
 | `sequence-classification`            | `AutoModelForSequenceClassification` |
 | `token-classification`               | `AutoModelForTokenClassification`    |
 | `multiple-choice`                    | `AutoModelForMultipleChoice`         |
@@ -57,17 +57,17 @@ It is possible to know which tasks are supported for a model for a given backend
 | `image-segmentation`                 | `AutoModelForImageSegmentation`      |
 | `masked-im`                          | `AutoModelForMaskedImageModeling`    |
 | `semantic-segmentation`              | `AutoModelForSemanticSegmentation`   |
-| `speech2seq-lm`                      | `AutoModelForSpeechSeq2Seq`          |
+| `automatic-speech-recognition`                      | `AutoModelForSpeechSeq2Seq`          |
 
 ### TensorFlow
 
 | Task                                 | Auto Class                             |
 |--------------------------------------|----------------------------------------|
-| `causal-lm`, `causal-lm-with-past`   | `TFAutoModelForCausalLM`               |
+| `text-generation`, `text-generation-with-past`   | `TFAutoModelForCausalLM`               |
 | `default`, `default-with-past`       | `TFAutoModel`                          |
 | `masked-lm`                          | `TFAutoModelForMaskedLM`               |
 | `question-answering`                 | `TFAutoModelForQuestionAnswering`      |
-| `seq2seq-lm`, `seq2seq-lm-with-past` | `TFAutoModelForSeq2SeqLM`              |
+| `text2text-generation`, `text2text-generation-with-past` | `TFAutoModelForSeq2SeqLM`              |
 | `sequence-classification`            | `TFAutoModelForSequenceClassification` |
 | `token-classification`               | `TFAutoModelForTokenClassification`    |
 | `multiple-choice`                    | `TFAutoModelForMultipleChoice`         |

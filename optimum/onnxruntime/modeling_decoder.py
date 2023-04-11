@@ -11,7 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-"""Classes handling causal-lm related architectures in ONNX Runtime."""
+"""Classes handling text-generation related architectures in ONNX Runtime."""
 
 import logging
 import shutil

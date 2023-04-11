@@ -189,7 +189,7 @@ def parse_args_tflite(parser: "ArgumentParser"):
         default=None,
         help=(
             "The name of the column in the dataset containing the main data to preprocess. "
-            "Only for sequence-classification and token-classification. "
+            "Only for text-classification and token-classification. "
         ),
     )
     calibration_dataset_group.add_argument(
@@ -198,7 +198,7 @@ def parse_args_tflite(parser: "ArgumentParser"):
         default=None,
         help=(
             "The name of the second column in the dataset containing the main data to preprocess, not always needed. "
-            "Only for sequence-classification and token-classification. "
+            "Only for text-classification and token-classification. "
         ),
     )
     calibration_dataset_group.add_argument(

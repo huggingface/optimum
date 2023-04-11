@@ -79,7 +79,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     # "owlvit": "google/owlvit-base-patch32",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
-        "hf-internal-testing/tiny-random-language_perceiver": ["masked-lm", "sequence-classification"],
+        "hf-internal-testing/tiny-random-language_perceiver": ["masked-lm", "text-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
     # "rembert": "google/rembert",

@@ -206,7 +206,7 @@ class ORTOptimizerTest(unittest.TestCase):
 
 
 class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
-    TASK = "seq2seq-lm"
+    TASK = "text2text-generation"
     ORTMODEL_CLASS = ORTModelForSeq2SeqLM
 
     SUPPORTED_ARCHITECTURES = [
@@ -323,7 +323,7 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
 
 
 class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
-    TASK = "causal-lm"
+    TASK = "text-generation"
     ORTMODEL_CLASS = ORTModelForCausalLM
 
     SUPPORTED_ARCHITECTURES = [

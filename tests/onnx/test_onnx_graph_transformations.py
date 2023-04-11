@@ -69,10 +69,10 @@ class WeightSharingTestCase(TestCase):
 
 class OnnxMergingTestCase(TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
-        "hf-internal-testing/tiny-random-GPT2Model": "causal-lm-with-past",
-        "hf-internal-testing/tiny-random-t5": "seq2seq-lm-with-past",
-        "hf-internal-testing/tiny-random-bart": "seq2seq-lm-with-past",
-        "openai/whisper-tiny.en": "speech2seq-lm-with-past",
+        "hf-internal-testing/tiny-random-GPT2Model": "text-generation-with-past",
+        "hf-internal-testing/tiny-random-t5": "text2text-generation-with-past",
+        "hf-internal-testing/tiny-random-bart": "text2text-generation-with-past",
+        "openai/whisper-tiny.en": "automatic-speech-recognition-with-past",
     }
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())

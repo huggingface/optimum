@@ -652,7 +652,7 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics if training_args.predict_with_generate else None,
-        feature="seq2seq-lm",
+        feature="text2text-generation",
     )
 
     # Training

@@ -71,14 +71,14 @@ class TasksManagerTestCase(TestCase):
         # Case 1: We try to register a config that was already registered, it should not register anything.
         register_for_onnx = TasksManager.create_register("onnx")
 
-        @register_for_onnx("bert", "sequence-classification")
+        @register_for_onnx("bert", "text-classification")
         class BadBertOnnxConfig(BertOnnxConfig):
             pass
 
         bert_config_constructor = TasksManager.get_exporter_config_constructor(
             "onnx",
             model_type="bert",
-            task="sequence-classification",
+            task="text-classification",
         )
         bert_onnx_config = bert_config_constructor(BertConfig())
 
@@ -92,14 +92,14 @@ class TasksManagerTestCase(TestCase):
         # the new config.
         register_for_onnx = TasksManager.create_register("onnx", overwrite_existing=True)
 
-        @register_for_onnx("bert", "sequence-classification")
+        @register_for_onnx("bert", "text-classification")
         class BadBertOnnxConfig2(BertOnnxConfig):
             pass
 
         bert_config_constructor = TasksManager.get_exporter_config_constructor(
             "onnx",
             model_type="bert",
-            task="sequence-classification",
+            task="text-classification",
         )
         bert_onnx_config = bert_config_constructor(BertConfig())
 
@@ -122,14 +122,14 @@ class TasksManagerTestCase(TestCase):
         # Case 4: Registering for a new backend.
         register_for_new_backend = TasksManager.create_register("new-backend")
 
-        @register_for_new_backend("bert", "sequence-classification")
+        @register_for_new_backend("bert", "text-classification")
         class BertNewBackendConfig(BertOnnxConfig):
             pass
 
         bert_config_constructor = TasksManager.get_exporter_config_constructor(
             "new-backend",
             model_type="bert",
-            task="sequence-classification",
+            task="text-classification",
         )
         bert_onnx_config = bert_config_constructor(BertConfig())
 

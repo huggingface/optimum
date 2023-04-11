@@ -168,7 +168,12 @@ def _get_models_to_test(export_models_dict: Dict):
 
                     if any(
                         task == ort_special_task
-                        for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
+                        for ort_special_task in [
+                            "text-generation",
+                            "text2text-generation",
+                            "automatic-speech-recognition",
+                            "vision2seq-lm",
+                        ]
                     ):
                         models_to_test.append(
                             (
@@ -219,7 +224,7 @@ class OnnxExportTestCase(TestCase):
         if (
             isinstance(onnx_config, OnnxConfigWithPast)
             and getattr(model.config, "pad_token_id", None) is None
-            and task == "sequence-classification"
+            and task == "text-classification"
         ):
             model.config.pad_token_id = 0
 
@@ -238,11 +243,13 @@ class OnnxExportTestCase(TestCase):
 
         if (
             model.config.is_encoder_decoder
-            and task.startswith(("seq2seq-lm", "speech2seq-lm", "vision2seq-lm", "default-with-past"))
+            and task.startswith(
+                ("text2text-generation", "automatic-speech-recognition", "vision2seq-lm", "default-with-past")
+            )
             and monolith is False
         ):
             models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
-        elif task.startswith("causal-lm") and monolith is False:
+        elif task.startswith("text-generation") and monolith is False:
             models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
         else:
             models_and_onnx_configs = {"model": (model, onnx_config)}

@@ -124,7 +124,7 @@ class OnnxConfig(ExportConfig, ABC):
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "audio-ctc": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
-        "causal-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "text-generation": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "default": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
         # TODO: Is this the same thing as semantic-segmentation?
@@ -151,9 +151,9 @@ class OnnxConfig(ExportConfig, ABC):
             }
         ),
         "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
-        "seq2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
-        "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
-        "speech2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "text2text-generation": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
+        "text-classification": OrderedDict({"logits": {0: "batch_size"}}),
+        "automatic-speech-recognition": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "vision2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "zero-shot-image-classification": OrderedDict(
@@ -844,11 +844,11 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     _tasks_to_extra_inputs = {
         "default": {"labels": {0: "batch_size"}},
         "masked-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
-        "causal-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
-        "causal-lm-with-past": {"labels": {0: "batch_size"}},
-        "seq2seq-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
-        "seq2seq-lm-with-past": {"labels": {0: "batch_size"}},
-        "sequence-classification": {"labels": {0: "batch_size"}},
+        "text-generation": {"labels": {0: "batch_size", 1: "sequence_length"}},
+        "text-generation-with-past": {"labels": {0: "batch_size"}},
+        "text2text-generation": {"labels": {0: "batch_size", 1: "sequence_length"}},
+        "text2text-generation-with-past": {"labels": {0: "batch_size"}},
+        "text-classification": {"labels": {0: "batch_size"}},
         "token-classification": {"labels": {0: "batch_size", 1: "sequence_length"}},
         "multiple-choice": {"labels": {0: "batch_size"}},
         "question-answering": {
@@ -938,10 +938,10 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         flattened_output = {}
         if name in ["present", "past_key_values"]:
-            if "causal-lm" in self.task:
+            if "text-generation" in self.task:
                 for idx, t in enumerate(field):
                     self.flatten_decoder_past_key_values(flattened_output, name, idx, t)
-            elif "seq2seq-lm" in self.task:
+            elif "text2text-generation" in self.task:
                 for idx, t in enumerate(field):
                     self.flatten_seq2seq_past_key_values(flattened_output, name, idx, t)
         else:
