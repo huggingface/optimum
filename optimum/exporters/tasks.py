@@ -1437,6 +1437,22 @@ class TasksManager:
         subfolder: str = "",
         revision: Optional[str] = None,
     ):
+        """
+        Infers the library from the model repo.
+
+        Args:
+            model (`str`):
+                The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
+                instance of a model, or a model class.
+            subfolder (`str`, *optional*, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            revision (`Optional[str]`, *optional*):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+
+        Returns:
+            `str`: The library name automatically detected from the model repo.
+        """
         full_model_path = Path(model) / subfolder
         if full_model_path.is_dir():
             all_files = [
@@ -1457,68 +1473,6 @@ class TasksManager:
         else:
             return huggingface_hub.model_info(model, revision=revision).library_name
 
-    # @classmethod
-    # def infer_model_type_from_model(
-    #     cls,
-    #     model_name_or_path: str,
-    #     model: Union["PreTrainedModel", "TFPreTrainedModel"],
-    #     subfolder: str = "",
-    #     revision: Optional[str] = None,
-    # ):
-    #     library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
-
-    #     full_model_path = Path(model_name_or_path) / subfolder
-    #     is_local = full_model_path.is_dir()
-
-    #     model_type = None
-    #     if library_name == "timm":
-    #         config_path = (
-    #             full_model_path / "config.json"
-    #             if is_local
-    #             else huggingface_hub.hf_hub_download(
-    #                 model_name_or_path, "config.json", subfolder=subfolder, revision=revision
-    #             )
-    #         )
-    #         with open(config_path) as fp:
-    #             model_type = json.load(fp)["architecture"]
-    #     else:
-    #         model_type = getattr(model.config, "model_type", model_type)
-
-    #     if model_type is None:
-    #         raise ValueError("Model type cannot be inferred!")
-
-    #     return model_type
-
-    # @classmethod
-    # def get_or_update_config_from_model(
-    #     cls,
-    #     model_name_or_path: str,
-    #     model: Union["PreTrainedModel", "TFPreTrainedModel"],
-    #     subfolder: str = "",
-    #     revision: Optional[str] = None,
-    # ):
-    #     library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
-
-    #     full_model_path = Path(model_name_or_path) / subfolder
-    #     is_local = full_model_path.is_dir()
-
-    #     model_config = None
-    #     if library_name == "timm":
-    #         config_path = (
-    #             full_model_path / "config.json"
-    #             if is_local
-    #             else huggingface_hub.hf_hub_download(
-    #                 model_name_or_path, "config.json", subfolder=subfolder, revision=revision
-    #             )
-    #         )
-    #         with open(config_path):
-    #             model_config = PretrainedConfig.from_json_file(config_path)
-    #         setattr(model, "config", model_config)
-    #     else:
-    #         model_config = model.config
-
-    #     return model_config
-
     @classmethod
     def patch_model_for_export(
         cls,
@@ -1527,12 +1481,27 @@ class TasksManager:
         subfolder: str = "",
         revision: Optional[str] = None,
     ):
+        """
+        Updates the model for export. This function is suitable to make required changes to the models from differet
+        libraries to follow transformers style.
+
+        Args:
+            model_name_or_path (`Union[str, Path]`):
+                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
+                containing a model.
+            model (`Union[PreTrainedModel, TFPreTrainedModel]`):
+                The instance of the model.
+            subfolder (`str`, *optional*, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            revision (`Optional[str]`, *optional*):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+        """
         library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
 
         full_model_path = Path(model_name_or_path) / subfolder
         is_local = full_model_path.is_dir()
 
-        model_config = None
         if library_name == "timm":
             # retrieve model config
             config_path = (
@@ -1552,10 +1521,6 @@ class TasksManager:
             with open(config_path) as fp:
                 model_type = json.load(fp)["architecture"]
             setattr(model.config, "model_type", model_type)
-        else:
-            model_config = model.config
-
-        return model_config
 
     @staticmethod
     def get_all_tasks():

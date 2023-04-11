@@ -407,6 +407,13 @@ class OnnxConfig(ExportConfig, ABC):
         return {}
 
     def patch_inputs_for_export(self, inputs) -> Dict[str, Dict[int, str]]:
+        """
+        Method to update the inputs of the model for export..
+        Override the function when the model input names are too generic.
+
+        Returns:
+            `Dict[str, Dict[int, str]]`: Updated inputs.
+        """
         return inputs
 
     def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> Dict[str, Dict[int, str]]:

@@ -658,14 +658,11 @@ class TimmResNextOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
 
     def patch_inputs_for_export(self, inputs) -> Union[Dict[str, Dict[int, str]], Dict[str, Dict[int, str]]]:
+        #  The input name in the model signature is `x, hence the export input name is updated.
         model_inputs = {}
         model_inputs["x"] = inputs["pixel_values"]
 
         return model_inputs
-
-    # @property
-    # def inputs(self) -> Dict[str, Dict[int, str]]:
-    #     return {"x": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
 
 
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
