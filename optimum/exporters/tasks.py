@@ -26,7 +26,7 @@ import huggingface_hub
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
-from ..utils.import_utils import is_onnx_available
+from ..utils.import_utils import is_diffusers_available, is_onnx_available
 
 
 if TYPE_CHECKING:
@@ -48,6 +48,9 @@ if is_torch_available():
 
 if is_tf_available():
     from transformers import TFPreTrainedModel
+
+if is_diffusers_available():
+    from diffusers import ModelMixin
 
 ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
 TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
@@ -164,6 +167,7 @@ class TasksManager:
             "audio-xvector": "AutoModelForAudioXVector",
             "image-to-text": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
+            "stable-diffusion-control": "ControlNetModel",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
@@ -235,6 +239,7 @@ class TasksManager:
         "audio-xvector": "transformers",
         "image-to-text": "transformers",
         "stable-diffusion": "diffusers",
+        "stable-diffusion-control": "diffusers",
         "zero-shot-image-classification": "transformers",
         "zero-shot-object-detection": "transformers",
     }
@@ -361,6 +366,10 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             onnx="CodeGenOnnxConfig",
+        ),
+        "controlnet": supported_tasks_mapping(
+            "stable-diffusion-control",
+            onnx="ControlNetOnnxConfig",
         ),
         "convbert": supported_tasks_mapping(
             "feature-extraction",
@@ -1212,7 +1221,9 @@ class TasksManager:
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             if model_info.library_name == "diffusers":
                 # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
-                if "stable-diffusion" in model_info.tags:
+                if "controlnet" in model_info.tags:
+                    inferred_task_name = "stable-diffusion-control"
+                else:
                     inferred_task_name = "stable-diffusion"
             else:
                 if getattr(model_info, "pipeline_tag", None) is not None:
@@ -1396,7 +1407,13 @@ class TasksManager:
             raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
 
         if model_type is None:
-            model_type = getattr(model.config, "model_type", model_type)
+            if isinstance(model, PreTrainedModel):
+                model_type = getattr(model.config, "model_type", None)
+            elif is_diffusers_available() and isinstance(model, ModelMixin):
+                if model.config["_class_name"] == "ControlNetModel":
+                    model_type = "controlnet"
+                else:
+                    model_type = "stable-diffusion"
 
             if model_type is None:
                 raise ValueError("Model type cannot be inferred. Please provide the model_type for the model!")

@@ -14,7 +14,7 @@
 # limitations under the License.
 """Model specific ONNX configurations."""
 import random
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from packaging import version
 from transformers.utils import is_tf_available
@@ -23,11 +23,13 @@ from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     DummyAudioInputGenerator,
     DummyDecoderTextInputGenerator,
+    DummyInputGenerator,
     DummyPastKeyValuesGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
+    DummyUnetEncoderHiddenStatesInputGenerator,
     DummyVisionInputGenerator,
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
@@ -48,14 +50,13 @@ from .config import (
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
-from .model_patcher import WavLMModelPatcher
+from .model_patcher import ControlNetModelPatcher, WavLMModelPatcher
 
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
     from transformers.modeling_utils import PreTrainedModel
 
-    from ...utils import DummyInputGenerator
     from .model_patcher import ModelPatcher
 
     if is_tf_available():
@@ -671,22 +672,21 @@ class UNetOnnxConfig(VisionOnnxConfig):
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         image_size="sample_size",
-        num_channels="in_channels",
+        num_channels_latent="in_channels",
         hidden_size="cross_attention_dim",
-        vocab_size="norm_num_groups",
         allow_new=True,
     )
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyVisionInputGenerator,
         DummyTimestepInputGenerator,
-        DummySeq2SeqDecoderTextInputGenerator,
+        DummyUnetEncoderHiddenStatesInputGenerator,
     )
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "sample": {0: "batch_size", 1: "num_channels_latent", 2: "height_latent", 3: "width_latent"},
             "timestep": {0: "steps"},
             "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
         }
@@ -694,7 +694,7 @@ class UNetOnnxConfig(VisionOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "out_sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "out_sample": {0: "batch_size", 1: "num_channels_latent", 2: "height_latent", 3: "width_latent"},
         }
 
     @property
@@ -702,11 +702,6 @@ class UNetOnnxConfig(VisionOnnxConfig):
         return {
             "sample": "out_sample",
         }
-
-    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
-        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
-        dummy_inputs["encoder_hidden_states"] = dummy_inputs["encoder_hidden_states"][0]
-        return dummy_inputs
 
 
 class VaeEncoderOnnxConfig(VisionOnnxConfig):
@@ -756,6 +751,89 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
         return {
             "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
         }
+
+
+class ConditioningScaleInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("conditioning_scale",)
+
+    def __init__(self, task: str, normalized_config: NormalizedTextConfig, **kwargs):
+        pass
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        return self.random_float_tensor(shape=[1], min_value=0.8, max_value=1, framework=framework)
+
+
+class ControlNetOnnxConfig(VisionOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
+    DEFAULT_ONNX_OPSET = 14
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        hidden_size="cross_attention_dim", num_channels_latent="in_channels", allow_new=True
+    )
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyVisionInputGenerator,
+        DummyTimestepInputGenerator,
+        ConditioningScaleInputGenerator,
+        DummyUnetEncoderHiddenStatesInputGenerator,
+    )
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        # batch_size may be higher than the real batch size in the classifier free guidance case
+        return {
+            "sample": {0: "batch_size", 1: "num_channels_latent", 2: "height_latent", 3: "width_latent"},
+            "timestep": {0: "steps"},
+            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
+            "controlnet_cond": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "conditioning_scale": {},
+        }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        block_out_channels = self._config.block_out_channels
+        n_downsamples = len(block_out_channels) - 1
+        outputs = {
+            "down_block_res_samples.0": {
+                0: "batch_size",
+                2: "height_latent",
+                3: "width_latent",
+            }
+        }
+
+        counter = 1
+        for i in range(len(self._config.block_out_channels)):
+            for _ in range(self._config.layers_per_block):
+                outputs[f"down_block_res_samples.{counter}"] = {
+                    0: "batch_size",
+                    2: f"height_latent // {2**i}",
+                    3: f"width_latent // {2**i}",
+                }
+                counter += 1
+            if i != len(self._config.block_out_channels) - 1:
+                # downsample
+                outputs[f"down_block_res_samples.{counter}"] = {
+                    0: "batch_size",
+                    2: f"height_latent // {2**(i + 1)}",
+                    3: f"width_latent // {2**(i + 1)}",
+                }
+                counter += 1
+
+        outputs["mid_block_res_sample"] = {
+            0: "batch_size",
+            2: f"height_latent // {2**n_downsamples}",
+            3: f"width_latent // {2**n_downsamples}",
+        }
+
+        return outputs
+
+    def patch_model_for_export(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> "ModelPatcher":
+        return ControlNetModelPatcher(self, model)
+
+    @classmethod
+    def flatten_output_collection_property(cls, name: str, field: Iterable[Any]) -> Dict[str, Any]:
+        return {f"{name}.{idx}": item for idx, item in enumerate(field)}
 
 
 class GroupViTOnnxConfig(CLIPOnnxConfig):

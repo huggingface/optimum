@@ -17,11 +17,11 @@
 import argparse
 from pathlib import Path
 
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, PretrainedConfig
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
-from ...utils import DEFAULT_DUMMY_SHAPES, logging
+from ...utils import DEFAULT_DUMMY_SHAPES, is_diffusers_available, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
@@ -36,6 +36,9 @@ from .utils import (
 
 if is_torch_available():
     import torch
+
+if is_diffusers_available():
+    from diffusers import ConfigMixin
 
 from typing import Optional, Union
 
@@ -188,7 +191,9 @@ def main_export(
                 f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
-    if task != "stable-diffusion" and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
+    if isinstance(
+        model.config, PretrainedConfig
+    ) and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
         model.config.model_type.replace("_", "-"), "onnx"
     ):
         if original_task == "auto":  # Make -with-past the default if --task was not explicitely specified
@@ -245,7 +250,11 @@ def main_export(
                 atol = atol[task.replace("-with-past", "")]
 
         # Saving the model config and preprocessor as this is needed sometimes.
-        model.config.save_pretrained(output)
+        if isinstance(model.config, PretrainedConfig):
+            model.config.save_pretrained(output)
+        elif is_diffusers_available() and isinstance(model.config, ConfigMixin):
+            model.config.save_config(output)
+
         generation_config = getattr(model, "generation_config", None)
         if generation_config is not None:
             generation_config.save_pretrained(output)
@@ -266,7 +275,11 @@ def main_export(
             model.feature_extractor.save_pretrained(output.joinpath("feature_extractor"))
         model.save_config(output)
     else:
-        if model.config.is_encoder_decoder and task.startswith("text-generation"):
+        if (
+            hasattr(model.config, "is_encoder_decoder")
+            and model.config.is_encoder_decoder
+            and task.startswith("text-generation")
+        ):
             raise ValueError(
                 f"model.config.is_encoder_decoder is True and task is `{task}`, which are incompatible. If the task was auto-inferred, please fill a bug report"
                 f"at https://github.com/huggingface/optimum, if --task was explicitely passed, make sure you selected the right task for the model,"
@@ -275,7 +288,8 @@ def main_export(
 
         onnx_files_subpaths = None
         if (
-            model.config.is_encoder_decoder
+            hasattr(model.config, "is_encoder_decoder")
+            and model.config.is_encoder_decoder
             and task.startswith(
                 (
                     "text2text-generation",
