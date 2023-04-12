@@ -1295,7 +1295,8 @@ class TasksManager:
             if original_task in ["auto", "automatic-speech-recognition"]:
                 config = AutoConfig.from_pretrained(model_name_or_path)
                 model_type = config.model_type.replace("_", "-")
-                model_class_name = config.architectures[0]
+                if config.architectures is not None:
+                    model_class_name = config.architectures[0]
 
         model_class = TasksManager.get_model_class_for_task(
             task, framework, model_type=model_type, model_class_name=model_class_name
