@@ -294,7 +294,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     )
     @slow
     @pytest.mark.run_slow
-    def test_legacy_tasks_backward_compatibility(self, task: str, model_type: str):
+    def test_synonym_tasks_backward_compatibility(self, task: str, model_type: str):
         model_name = PYTORCH_EXPORT_MODELS_TINY[model_type]
 
         if isinstance(model_name, dict):

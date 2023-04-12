@@ -118,6 +118,21 @@ def supported_tasks_mapping(
     return mapping
 
 
+def get_automodels_to_tasks(tasks_to_automodel: Dict[str, Union[str, Tuple[str]]]) -> Dict[str, str]:
+    """
+    Reverses tasks_to_automodel while flattening the case where the same task maps to several
+    auto classes (e.g. automatic-speech-recognition).
+    """
+    automodels_to_tasks = {}
+    for task, automodels in tasks_to_automodel.items():
+        if isinstance(automodels, str):
+            automodels_to_tasks[task] = automodels
+        else:
+            automodels_to_tasks.update({automodel_name: task for automodel_name in automodels})
+
+    return automodels_to_tasks
+
+
 class TasksManager:
     """
     Handles the `task name -> model class` and `architecture -> configuration` mappings.
@@ -126,7 +141,9 @@ class TasksManager:
     _TASKS_TO_AUTOMODELS = {}
     _TASKS_TO_TF_AUTOMODELS = {}
     if is_torch_available():
-        # refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
+        # Refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
+        # In case the same task (pipeline tag) may map to several loading classes, we use a tuple and the
+        # auto-class _model_mapping to determine the right one.
         _TASKS_TO_AUTOMODELS = {
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
@@ -141,8 +158,7 @@ class TasksManager:
             "image-segmentation": "AutoModelForImageSegmentation",
             "masked-im": "AutoModelForMaskedImageModeling",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
-            # TODO: make clear that it handles as well AutoModelForCTC
-            "automatic-speech-recognition": "AutoModelForSpeechSeq2Seq",
+            "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
             "audio-classification": "AutoModelForAudioClassification",
             "audio-frame-classification": "AutoModelForAudioFrameClassification",
             "audio-xvector": "AutoModelForAudioXVector",
@@ -166,7 +182,6 @@ class TasksManager:
             "image-segmentation": "TFAutoModelForImageSegmentation",
             "masked-im": "TFAutoModelForMaskedImageModeling",
             "semantic-segmentation": "TFAutoModelForSemanticSegmentation",
-            # TODO: make clear that it handles as well TFAutoModelForCTC
             "automatic-speech-recognition": "TFAutoModelForSpeechSeq2Seq",
             "audio-classification": "TFAutoModelForAudioClassification",
             "audio-frame-classification": "TFAutoModelForAudioFrameClassification",
@@ -176,7 +191,7 @@ class TasksManager:
             "zero-shot-object-detection": "TFAutoModelForZeroShotObjectDetection",
         }
 
-    _LEGACY_TASK_MAP = {
+    _SYNONYM_TASK_MAP = {
         "sequence-classification": "text-classification",
         "causal-lm": "text-generation",
         "causal-lm-with-past": "text-generation-with-past",
@@ -191,8 +206,9 @@ class TasksManager:
         "audio-ctc": "automatic-speech-recognition",
     }
 
-    _AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in _TASKS_TO_AUTOMODELS.items()}
-    _TF_AUTOMODELS_TO_TASKS = {cls_name: task for task, cls_name in _TASKS_TO_TF_AUTOMODELS.items()}
+    # Reverse dictionaries str -> str, where several automodels may map to the same task
+    _AUTOMODELS_TO_TASKS = get_automodels_to_tasks(_TASKS_TO_AUTOMODELS)
+    _TF_AUTOMODELS_TO_TASKS = get_automodels_to_tasks(_TASKS_TO_TF_AUTOMODELS)
 
     _CUSTOM_CLASSES = {
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
@@ -949,13 +965,9 @@ class TasksManager:
         ]
 
     @staticmethod
-    def map_from_legacy(task: str) -> str:
-        if task in TasksManager._LEGACY_TASK_MAP:
-            logger.warning(
-                f"The task name {task} is deprecated, and will not be supported in"
-                f" optimum 2.0. Please use {TasksManager._LEGACY_TASK_MAP[task]} instead."
-            )
-            task = TasksManager._LEGACY_TASK_MAP[task]
+    def map_from_synonym(task: str) -> str:
+        if task in TasksManager._SYNONYM_TASK_MAP:
+            task = TasksManager._SYNONYM_TASK_MAP[task]
         return task
 
     @staticmethod
@@ -981,7 +993,7 @@ class TasksManager:
         Args:
             task (`str`):
                 The task required.
-            framework (`Optional[str]`, defaults to `"pt"`):
+            framework (`str`, defaults to `"pt"`):
                 The framework to use for the export.
             model_type (`Optional[str]`, defaults to `None`):
                 The model type to retrieve the model class for. Some architectures need a custom class to be loaded,
@@ -995,15 +1007,15 @@ class TasksManager:
             The AutoModel class corresponding to the task.
         """
         task = task.replace("-with-past", "")
-        task = TasksManager.map_from_legacy(task)
+        task = TasksManager.map_from_synonym(task)
 
         TasksManager._validate_framework_choice(framework)
 
         if (framework, model_type, task) in TasksManager._CUSTOM_CLASSES:
             library, class_name = TasksManager._CUSTOM_CLASSES[(framework, model_type, task)]
-            module = importlib.import_module(library)
+            loaded_library = importlib.import_module(library)
 
-            return getattr(module, class_name)
+            return getattr(loaded_library, class_name)
         else:
             if framework == "pt":
                 tasks_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
@@ -1016,11 +1028,38 @@ class TasksManager:
                     + ", ".join([f"`{key}` for {tasks_to_automodel[key]}" for key in tasks_to_automodel])
                 )
 
-            if model_class_name is None:
-                model_class_name = tasks_to_automodel[task]
+            library = TasksManager._TASKS_TO_LIBRARY[task]
+            loaded_library = importlib.import_module(library)
 
-            module = importlib.import_module(TasksManager._TASKS_TO_LIBRARY[task])
-            return getattr(module, model_class_name)
+            if model_class_name is None:
+                if isinstance(tasks_to_automodel[task], str):
+                    model_class_name = tasks_to_automodel[task]
+                else:
+                    # automatic-speech-recognition case, which may map to several auto class
+                    if library == "transformers":
+                        if model_type is None:
+                            logger.warning(
+                                f"No model type passed for the task {task}, that may be mapped to several loading"
+                                f" classes ({tasks_to_automodel[task]}). Defaulting to {tasks_to_automodel[task][0]}"
+                                " to load the model."
+                            )
+                            model_class_name = tasks_to_automodel[task][0]
+                        else:
+                            for autoclass_name in tasks_to_automodel[task]:
+                                module = getattr(loaded_library, autoclass_name)
+                                # TODO: we must really get rid of this - and _ mess
+                                if (
+                                    model_type in module._model_mapping._model_mapping
+                                    or model_type.replace("-", "_") in module._model_mapping._model_mapping
+                                ):
+                                    model_class_name = autoclass_name
+                                    break
+                    else:
+                        raise NotImplementedError(
+                            "For library other than transformers, the _TASKS_TO_AUTOMODELS mapping should be one to one."
+                        )
+
+            return getattr(loaded_library, model_class_name)
 
     @staticmethod
     def determine_framework(
@@ -1291,11 +1330,11 @@ class TasksManager:
         if TasksManager._TASKS_TO_LIBRARY[task.replace("-with-past", "")] == "transformers":
             # TODO: if automatic-speech-recognition is passed as task, it may map to several
             # different auto class (AutoModelForSpeechSeq2Seq or AutoModelForCTC),
-            # which is currently not well handled. Hence the hack here
+            # depending on the model type
             if original_task in ["auto", "automatic-speech-recognition"]:
                 config = AutoConfig.from_pretrained(model_name_or_path)
                 model_type = config.model_type.replace("_", "-")
-                if config.architectures is not None:
+                if original_task == "auto" and config.architectures is not None:
                     model_class_name = config.architectures[0]
 
         model_class = TasksManager.get_model_class_for_task(
@@ -1361,7 +1400,7 @@ class TasksManager:
 
         model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
 
-        task = TasksManager.map_from_legacy(task)
+        task = TasksManager.map_from_synonym(task)
         if task not in model_tasks:
             raise ValueError(
                 f"{model_type} doesn't support task {task} for the {exporter} backend."
