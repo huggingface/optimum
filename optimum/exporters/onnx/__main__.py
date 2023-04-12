@@ -146,8 +146,7 @@ def main_export(
         )
 
     original_task = task
-
-    task = TasksManager.map_from_legacy(task)
+    task = TasksManager.map_from_synonym(task)
 
     framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
 

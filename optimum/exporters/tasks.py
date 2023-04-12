@@ -126,7 +126,7 @@ def get_automodels_to_tasks(tasks_to_automodel: Dict[str, Union[str, Tuple[str]]
     automodels_to_tasks = {}
     for task, automodels in tasks_to_automodel.items():
         if isinstance(automodels, str):
-            automodels_to_tasks[task] = automodels
+            automodels_to_tasks[automodels] = task
         else:
             automodels_to_tasks.update({automodel_name: task for automodel_name in automodels})
 
