@@ -129,7 +129,7 @@ classification head, we could use:
 >>> from transformers import AutoConfig
 
 >>> config = AutoConfig.from_pretrained("bert-base-uncased")
->>> onnx_config_for_seq_clf = BertOnnxConfig(config, task="sequence-classification")
+>>> onnx_config_for_seq_clf = BertOnnxConfig(config, task="text-classification")
 >>> print(onnx_config_for_seq_clf.outputs)
 OrderedDict([('logits', {0: 'batch_size'})])
 ```
@@ -157,9 +157,9 @@ For BERT, it looks as follows:
 ```python
     "bert": supported_tasks_mapping(
         "default",
-        "masked-lm",
-        "causal-lm",
-        "sequence-classification",
+        "fill-mask",
+        "text-generation",
+        "text-classification",
         "multiple-choice",
         "token-classification",
         "question-answering",

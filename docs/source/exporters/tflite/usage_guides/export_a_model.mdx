@@ -56,9 +56,9 @@ Required arguments:
 
 Optional arguments:
   --task TASK           The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend on
-                        the model, but are among: ['default', 'masked-lm', 'causal-lm', 'seq2seq-lm', 'sequence-classification', 'token-classification',
+                        the model, but are among: ['default', 'fill-mask', 'text-generation', 'text2text-generation', 'text-classification', 'token-classification',
                         'multiple-choice', 'object-detection', 'question-answering', 'image-classification', 'image-segmentation', 'masked-im', 'semantic-
-                        segmentation', 'speech2seq-lm', 'audio-classification', 'audio-frame-classification', 'audio-ctc', 'audio-xvector', 'vision2seq-
+                        segmentation', 'automatic-speech-recognition', 'audio-classification', 'audio-frame-classification', 'automatic-speech-recognition', 'audio-xvector', 'vision2seq-
                         lm', 'stable-diffusion', 'zero-shot-object-detection']. For decoder models, use `xxx-with-past` to export the model using past key
                         values in the decoder.
   --atol ATOL           If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.

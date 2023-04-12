@@ -1271,7 +1271,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForMaskedLM
-    TASK = "masked-lm"
+    TASK = "fill-mask"
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
@@ -1433,7 +1433,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForSequenceClassification
-    TASK = "sequence-classification"
+    TASK = "text-classification"
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
@@ -1735,7 +1735,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForFeatureExtraction
-    TASK = "default"
+    TASK = "feature-extraction"
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -1979,7 +1979,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     }
 
     ORTMODEL_CLASS = ORTModelForCausalLM
-    TASK = "causal-lm"
+    TASK = "text-generation"
 
     GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
@@ -2040,7 +2040,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
-        if "causal-lm-with-past" not in TasksManager.get_supported_tasks_for_model_type(
+        if "text-generation-with-past" not in TasksManager.get_supported_tasks_for_model_type(
             model_arch.replace("_", "-"), exporter="onnx"
         ):
             self.skipTest("Unsupported -with-past export case")
@@ -2059,7 +2059,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
-        task = "causal-lm-with-past"
+        task = "text-generation-with-past"
 
         if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
             self.skipTest("Unsupported export case")
@@ -3066,7 +3066,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     }
 
     ORTMODEL_CLASS = ORTModelForSeq2SeqLM
-    TASK = "seq2seq-lm"
+    TASK = "text2text-generation"
 
     GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
@@ -3111,7 +3111,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
-        if "seq2seq-lm-with-past" not in TasksManager.get_supported_tasks_for_model_type(
+        if "text2text-generation-with-past" not in TasksManager.get_supported_tasks_for_model_type(
             model_arch.replace("_", "-"), exporter="onnx"
         ):
             self.skipTest("Unsupported -with-past export case")
@@ -3131,7 +3131,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
-        task = "seq2seq-lm-with-past"
+        task = "text2text-generation-with-past"
 
         if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
             self.skipTest("Unsupported export case")
@@ -3523,7 +3523,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     }
 
     ORTMODEL_CLASS = ORTModelForSpeechSeq2Seq
-    TASK = "speech2seq-lm"
+    TASK = "automatic-speech-recognition"
 
     GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
@@ -3538,7 +3538,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
-        if "speech2seq-lm-with-past" not in TasksManager.get_supported_tasks_for_model_type(
+        if "automatic-speech-recognition-with-past" not in TasksManager.get_supported_tasks_for_model_type(
             model_arch.replace("_", "-"), exporter="onnx"
         ):
             self.skipTest("Unsupported -with-past export case")
@@ -3558,7 +3558,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
-        task = "speech2seq-lm-with-past"
+        task = "automatic-speech-recognition-with-past"
 
         if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
             self.skipTest("Unsupported export case")
@@ -3924,7 +3924,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
     ORTMODEL_CLASS = ORTModelForVision2Seq
 
-    TASK = "vision2seq-lm"
+    TASK = "image-to-text"
 
     GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
@@ -4232,17 +4232,17 @@ class TestBothExportersORTModel(unittest.TestCase):
     @parameterized.expand(
         [
             ["question-answering", ORTModelForQuestionAnsweringIntegrationTest],
-            ["sequence-classification", ORTModelForSequenceClassificationIntegrationTest],
+            ["text-classification", ORTModelForSequenceClassificationIntegrationTest],
             ["token-classification", ORTModelForTokenClassificationIntegrationTest],
-            ["default", ORTModelForFeatureExtractionIntegrationTest],
+            ["feature-extraction", ORTModelForFeatureExtractionIntegrationTest],
             ["multiple-choice", ORTModelForMultipleChoiceIntegrationTest],
-            ["causal-lm", ORTModelForCausalLMIntegrationTest],
+            ["text-generation", ORTModelForCausalLMIntegrationTest],
             ["image-classification", ORTModelForImageClassificationIntegrationTest],
             ["semantic-segmentation", ORTModelForSemanticSegmentationIntegrationTest],
-            ["seq2seq-lm", ORTModelForSeq2SeqLMIntegrationTest],
-            ["speech2seq-lm", ORTModelForSpeechSeq2SeqIntegrationTest],
+            ["text2text-generation", ORTModelForSeq2SeqLMIntegrationTest],
+            ["automatic-speech-recognition", ORTModelForSpeechSeq2SeqIntegrationTest],
             ["audio-classification", ORTModelForAudioClassificationIntegrationTest],
-            ["audio-ctc", ORTModelForCTCIntegrationTest],
+            ["automatic-speech-recognition", ORTModelForCTCIntegrationTest],
             ["audio-xvector", ORTModelForAudioXVectorIntegrationTest],
             ["audio-frame-classification", ORTModelForAudioFrameClassificationIntegrationTest],
         ]

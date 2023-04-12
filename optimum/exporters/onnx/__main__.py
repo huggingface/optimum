@@ -146,14 +146,7 @@ def main_export(
         )
 
     original_task = task
-    # Infer the task
-    if task == "auto":
-        try:
-            task = TasksManager.infer_task_from_model(model_name_or_path)
-        except KeyError as e:
-            raise KeyError(
-                f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
-            )
+    task = TasksManager.map_from_synonym(task)
 
     framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
 
@@ -187,6 +180,14 @@ def main_export(
         torch_dtype=torch_dtype,
     )
 
+    if task == "auto":
+        try:
+            task = TasksManager.infer_task_from_model(model_name_or_path)
+        except KeyError as e:
+            raise KeyError(
+                f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
+            )
+
     if task != "stable-diffusion" and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
         model.config.model_type.replace("_", "-"), "onnx"
     ):
@@ -215,7 +216,7 @@ def main_export(
         needs_pad_token_id = (
             isinstance(onnx_config, OnnxConfigWithPast)
             and getattr(model.config, "pad_token_id", None) is None
-            and task in ["sequence_classification"]
+            and task in ["text-classification"]
         )
         if needs_pad_token_id:
             if pad_token_id is not None:
@@ -265,7 +266,7 @@ def main_export(
             model.feature_extractor.save_pretrained(output.joinpath("feature_extractor"))
         model.save_config(output)
     else:
-        if model.config.is_encoder_decoder and task.startswith("causal-lm"):
+        if model.config.is_encoder_decoder and task.startswith("text-generation"):
             raise ValueError(
                 f"model.config.is_encoder_decoder is True and task is `{task}`, which are incompatible. If the task was auto-inferred, please fill a bug report"
                 f"at https://github.com/huggingface/optimum, if --task was explicitely passed, make sure you selected the right task for the model,"
@@ -275,11 +276,18 @@ def main_export(
         onnx_files_subpaths = None
         if (
             model.config.is_encoder_decoder
-            and task.startswith(("seq2seq-lm", "speech2seq-lm", "vision2seq-lm", "default-with-past"))
+            and task.startswith(
+                (
+                    "text2text-generation",
+                    "automatic-speech-recognition",
+                    "image-to-text",
+                    "feature-extraction-with-past",
+                )
+            )
             and not monolith
         ):
             models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
-        elif task.startswith("causal-lm") and not monolith:
+        elif task.startswith("text-generation") and not monolith:
             models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
         else:
             models_and_onnx_configs = {"model": (model, onnx_config)}

@@ -83,10 +83,10 @@ class TFLiteQuantizationConfig:
             smallest split will be used.
         primary_key (`Optional[str]`, defaults `None`):
             The name of the column in the dataset containing the main data to preprocess. Only for
-            sequence-classification and token-classification.
+            text-classification and token-classification.
         secondary_key (`Optional[str]`, defaults `None`):
             The name of the second column in the dataset containing the main data to preprocess, not always needed.
-            Only for sequence-classification and token-classification.
+            Only for text-classification and token-classification.
         question_key (`Optional[str]`, defaults `None`):
             The name of the column containing the question in the dataset. Only for question-answering.
         context_key (`Optional[str]`, defaults `None`):
@@ -141,7 +141,7 @@ class TFLiteConfig(ExportConfig, ABC):
     Args:
         config (`transformers.PretrainedConfig`):
             The model configuration.
-        task (`str`, defaults to `"default"`):
+        task (`str`, defaults to `"feature-extraction"`):
             The task the model should be exported for.
 
         The rest of the arguments are used to specify the shape of the inputs the model can take.
@@ -157,23 +157,22 @@ class TFLiteConfig(ExportConfig, ABC):
     ] = tuple(approach for approach in QuantizationApproach)
 
     _TASK_TO_COMMON_OUTPUTS = {
-        "causal-lm": ["logits"],
-        "default": ["last_hidden_state"],
+        "text-generation": ["logits"],
+        "feature-extraction": ["last_hidden_state"],
         "image-classification": ["logits"],
         "image-segmentation": ["logits", "pred_boxes", "pred_masks"],
         "masked-im": ["logits"],
-        "masked-lm": ["logits"],
+        "fill-mask": ["logits"],
         "multiple-choice": ["logits"],
         "object-detection": ["logits", "pred_boxes"],
         "question-answering": ["start_logits", "end_logits"],
         "semantic-segmentation": ["logits"],
-        "seq2seq-lm": ["logits", "encoder_last_hidden_state"],
-        "sequence-classification": ["logits"],
+        "text2text-generation": ["logits", "encoder_last_hidden_state"],
+        "text-classification": ["logits"],
         "token-classification": ["logits"],
-        "speech2seq-lm": ["logits"],
+        "automatic-speech-recognition": ["logits"],
         "audio-classification": ["logits"],
         "audio-frame-classification": ["logits"],
-        "audio-ctc": ["logits"],
         "audio-xvector": ["logits"],
     }
 

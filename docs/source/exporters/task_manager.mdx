@@ -35,7 +35,7 @@ It is possible to know which tasks are supported for a model for a given backend
 >>> distilbert_tasks = list(TasksManager.get_supported_tasks_for_model_type(model_type, backend).keys())
 
 >>> print(distilbert_tasks)
-['default', 'masked-lm', 'sequence-classification', 'multiple-choice', 'token-classification', 'question-answering']
+['default', 'fill-mask', 'text-classification', 'multiple-choice', 'token-classification', 'question-answering']
 ```
 
 </Tip>
@@ -44,12 +44,12 @@ It is possible to know which tasks are supported for a model for a given backend
 
 | Task                                 | Auto Class                           |
 |--------------------------------------|--------------------------------------|
-| `causal-lm`, `causal-lm-with-past`   | `AutoModelForCausalLM`               |
-| `default`, `default-with-past`       | `AutoModel`                          |
-| `masked-lm`                          | `AutoModelForMaskedLM`               |
+| `text-generation`, `text-generation-with-past`   | `AutoModelForCausalLM`               |
+| `feature-extraction`, `feature-extraction-with-past`       | `AutoModel`                          |
+| `fill-mask`                          | `AutoModelForMaskedLM`               |
 | `question-answering`                 | `AutoModelForQuestionAnswering`      |
-| `seq2seq-lm`, `seq2seq-lm-with-past` | `AutoModelForSeq2SeqLM`              |
-| `sequence-classification`            | `AutoModelForSequenceClassification` |
+| `text2text-generation`, `text2text-generation-with-past` | `AutoModelForSeq2SeqLM`              |
+| `text-classification`            | `AutoModelForSequenceClassification` |
 | `token-classification`               | `AutoModelForTokenClassification`    |
 | `multiple-choice`                    | `AutoModelForMultipleChoice`         |
 | `image-classification`               | `AutoModelForImageClassification`    |
@@ -57,18 +57,18 @@ It is possible to know which tasks are supported for a model for a given backend
 | `image-segmentation`                 | `AutoModelForImageSegmentation`      |
 | `masked-im`                          | `AutoModelForMaskedImageModeling`    |
 | `semantic-segmentation`              | `AutoModelForSemanticSegmentation`   |
-| `speech2seq-lm`                      | `AutoModelForSpeechSeq2Seq`          |
+| `automatic-speech-recognition`                      | `AutoModelForSpeechSeq2Seq`          |
 
 ### TensorFlow
 
 | Task                                 | Auto Class                             |
 |--------------------------------------|----------------------------------------|
-| `causal-lm`, `causal-lm-with-past`   | `TFAutoModelForCausalLM`               |
+| `text-generation`, `text-generation-with-past`   | `TFAutoModelForCausalLM`               |
 | `default`, `default-with-past`       | `TFAutoModel`                          |
-| `masked-lm`                          | `TFAutoModelForMaskedLM`               |
+| `fill-mask`                          | `TFAutoModelForMaskedLM`               |
 | `question-answering`                 | `TFAutoModelForQuestionAnswering`      |
-| `seq2seq-lm`, `seq2seq-lm-with-past` | `TFAutoModelForSeq2SeqLM`              |
-| `sequence-classification`            | `TFAutoModelForSequenceClassification` |
+| `text2text-generation`, `text2text-generation-with-past` | `TFAutoModelForSeq2SeqLM`              |
+| `text-classification`            | `TFAutoModelForSequenceClassification` |
 | `token-classification`               | `TFAutoModelForTokenClassification`    |
 | `multiple-choice`                    | `TFAutoModelForMultipleChoice`         |
 | `semantic-segmentation`              | `TFAutoModelForSemanticSegmentation`   |
