@@ -1054,6 +1054,12 @@ class TasksManager:
                                 ):
                                     model_class_name = autoclass_name
                                     break
+
+                            if model_class_name is None:
+                                raise ValueError(
+                                    f"Unrecognized configuration classes {tasks_to_automodel[task]} do not match"
+                                    f" with the model type {model_type} and task {task}."
+                                )
                     else:
                         raise NotImplementedError(
                             "For library other than transformers, the _TASKS_TO_AUTOMODELS mapping should be one to one."
