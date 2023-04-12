@@ -85,6 +85,7 @@ class BetterTransformerManager:
         "roberta": {"RobertaLayer": BertLayerBetterTransformer},
         "roc_bert": {"RoCBertLayer": BertLayerBetterTransformer},
         "roformer": {"RoFormerLayer": BertLayerBetterTransformer},
+        "speech2text": {"Speech2TextEncoderLayer": MBartEncoderLayerBetterTransformer},
         "splinter": {"SplinterLayer": BertLayerBetterTransformer},
         "tapas": {"TapasLayer": BertLayerBetterTransformer},
         "t5": {"T5Attention": T5AttentionLayerBetterTransformer},
