@@ -51,9 +51,10 @@ DEFAULT_DUMMY_SHAPES = {
     "sequence_length": 16,
     "num_choices": 4,
     # image
-    "width": 64,
-    "height": 64,
+    "width": 256,
+    "height": 256,
     "num_channels": 3,
+    "num_channels_latent": 4,
     # audio
     "feature_size": 80,
     "nb_max_frames": 3000,
@@ -524,6 +525,7 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         "pixel_mask",
         "sample",
         "latent_sample",
+        "controlnet_cond",
     )
 
     def __init__(
@@ -532,11 +534,13 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         normalized_config: NormalizedVisionConfig,
         batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
         num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
+        num_channels_latent: int = DEFAULT_DUMMY_SHAPES["num_channels_latent"],
         width: int = DEFAULT_DUMMY_SHAPES["width"],
         height: int = DEFAULT_DUMMY_SHAPES["height"],
         **kwargs,
     ):
         self.task = task
+        self.normalized_config = normalized_config
         # Some vision models can take any input sizes, in this case we use the values provided as parameters.
         if normalized_config.has_attribute("image_size"):
             self.image_size = normalized_config.image_size
@@ -546,6 +550,10 @@ class DummyVisionInputGenerator(DummyInputGenerator):
             self.num_channels = normalized_config.num_channels
         else:
             self.num_channels = num_channels
+        if normalized_config.has_attribute("num_channels_latent"):
+            self.num_channels_latent = normalized_config.num_channels_latent
+        else:
+            self.num_channels_latent = num_channels_latent
 
         if not isinstance(self.image_size, (tuple, list)):
             self.image_size = (self.image_size, self.image_size)
@@ -556,6 +564,17 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         if input_name == "pixel_mask":
             return self.random_int_tensor(
                 shape=[self.batch_size, self.height, self.width], max_value=1, framework=framework
+            )
+        elif input_name == "sample" and self.normalized_config.has_attribute("num_channels_latent"):
+            # Divide height, width by the VAE scale factor here
+            return self.random_float_tensor(
+                shape=[
+                    self.batch_size,
+                    self.num_channels_latent,
+                    self.height // 2 ** (len(self.normalized_config.config.block_out_channels) - 1),
+                    self.width // 2 ** (len(self.normalized_config.config.block_out_channels) - 1),
+                ],
+                framework=framework,
             )
         else:
             return self.random_float_tensor(
@@ -614,7 +633,6 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
         **kwargs,
     ):
         self.task = task
-        self.vocab_size = normalized_config.vocab_size
 
         if random_batch_size_range:
             low, high = random_batch_size_range
@@ -624,7 +642,32 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt"):
         shape = [self.batch_size]
-        return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)
+        return self.random_int_tensor(shape, max_value=10, framework=framework)
+
+
+class DummyUnetEncoderHiddenStatesInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("encoder_hidden_states",)
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        **kwargs,
+    ):
+        self.batch_size = batch_size
+        self.sequence_length = sequence_length
+
+        self.hidden_size = normalized_config.hidden_size
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        return self.random_float_tensor(
+            shape=[self.batch_size, self.sequence_length, self.hidden_size],
+            min_value=0,
+            max_value=1,
+            framework=framework,
+        )
 
 
 class DummyLabelsGenerator(DummyInputGenerator):

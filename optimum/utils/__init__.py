@@ -48,6 +48,7 @@ from .input_generators import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
+    DummyUnetEncoderHiddenStatesInputGenerator,
     DummyVisionInputGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr

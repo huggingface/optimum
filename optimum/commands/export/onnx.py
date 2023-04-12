@@ -198,7 +198,8 @@ class ONNXExportCommand(BaseOptimumCLICommand):
         # Get the shapes to be used to generate dummy inputs
         input_shapes = {}
         for input_name in DEFAULT_DUMMY_SHAPES.keys():
-            input_shapes[input_name] = getattr(self.args, input_name)
+            if hasattr(self.args, input_name):
+                input_shapes[input_name] = getattr(self.args, input_name)
 
         main_export(
             model_name_or_path=self.args.model,

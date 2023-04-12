@@ -151,6 +151,7 @@ class OnnxConfig(ExportConfig, ABC):
             }
         ),
         "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
+        "stable-diffusion-control": OrderedDict(),
         "text2text-generation": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
         "text-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),

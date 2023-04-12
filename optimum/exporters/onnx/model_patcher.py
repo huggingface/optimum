@@ -17,7 +17,11 @@ import functools
 import inspect
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
-from ...utils import logging
+from ...utils import is_diffusers_available, logging
+
+
+if is_diffusers_available():
+    from diffusers.models.cross_attention import CrossAttnProcessor
 
 
 if TYPE_CHECKING:
@@ -175,5 +179,27 @@ class WavLMModelPatcher(ModelPatcher):
                 ):
                     filterd_outputs[k] = v
             return filterd_outputs
+
+        self.patched_forward = patched_forward
+
+
+class ControlNetModelPatcher(ModelPatcher):
+    def __init__(self, config: "OnnxConfig", model: Union["PreTrainedModel", "TFPreTrainedModel"]):
+        model.set_attn_processor(CrossAttnProcessor())
+        super().__init__(config, model)
+
+        (hasattr(self.real_config, "use_present_in_outputs") and self.real_config.use_present_in_outputs)
+
+        @functools.wraps(self.orig_forward)
+        def patched_forward(*args, **kwargs):
+            args = list(args)
+
+            signature = inspect.signature(self.orig_forward)
+            return_dict_index = list(signature.parameters.keys()).index("return_dict")
+
+            args[return_dict_index] = False
+            outputs = self.orig_forward(*args, **kwargs)
+
+            return outputs
 
         self.patched_forward = patched_forward
