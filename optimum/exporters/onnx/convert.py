@@ -268,7 +268,7 @@ def _run_validation(
     if input_shapes is None:
         input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
     reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
-    reference_model_inputs = config.patch_inputs_for_export(reference_model_inputs)
+    reference_model_inputs = config.rename_ambiguous_inputs(reference_model_inputs)
 
     # Create ONNX Runtime session
     session_options = SessionOptions()

@@ -653,7 +653,7 @@ class DonutSwinOnnxConfig(ViTOnnxConfig):
 class TimmResNextOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
 
-    def patch_inputs_for_export(self, inputs):
+    def rename_ambiguous_inputs(self, inputs):
         #  The input name in the model signature is `x, hence the export input name is updated.
         model_inputs = {}
         model_inputs["x"] = inputs["pixel_values"]

@@ -1433,7 +1433,7 @@ class TasksManager:
     @classmethod
     def infer_library_from_model(
         cls,
-        model: str,
+        model_name_or_path: str,
         subfolder: str = "",
         revision: Optional[str] = None,
     ):
@@ -1441,43 +1441,44 @@ class TasksManager:
         Infers the library from the model repo.
 
         Args:
-            model (`str`):
+            model_name_or_path (`str`):
                 The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
                 instance of a model, or a model class.
             subfolder (`str`, *optional*, defaults to `""`):
                 In case the model files are located inside a subfolder of the model directory / repo on the Hugging
                 Face Hub, you can specify the subfolder name here.
-            revision (`Optional[str]`, *optional*):
+            revision (`Optional[str]`, *optional*, defaults to `None`):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
 
         Returns:
             `str`: The library name automatically detected from the model repo.
         """
-        full_model_path = Path(model) / subfolder
+        library_name = None
+
+        full_model_path = Path(model_name_or_path) / subfolder
         if full_model_path.is_dir():
-            all_files = [
-                os.path.relpath(os.path.join(dirpath, file), full_model_path)
-                for dirpath, _, filenames in os.walk(full_model_path)
-                for file in filenames
-            ]
+            all_files = list(full_model_path.glob("**/*"))
             if "model_index.json" in all_files:
-                return "diffusers"
+                library_name = "diffusers"
             if "config.json" in all_files:
                 with open("config.json") as fp:
                     cfg = json.load(fp)
-                if "pretrained_cfg" in cfg:
-                    return "timm"
-                elif "_diffusers_version" in cfg:
-                    return "diffusers"
 
-            return "transformers"
+                if "pretrained_cfg" in cfg:
+                    library_name = "timm"
+                elif "_diffusers_version" in cfg:
+                    library_name = "diffusers"
+                else:
+                    library_name = "transformers"
         else:
-            return huggingface_hub.model_info(model, revision=revision).library_name
+            library_name = huggingface_hub.model_info(model_name_or_path, revision=revision).library_name
+
+        return library_name
 
     @classmethod
     def patch_model_for_export(
         cls,
-        model_name_or_path: str,
+        model_name_or_path: Union[str, Path],
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
         subfolder: str = "",
         revision: Optional[str] = None,
@@ -1495,7 +1496,7 @@ class TasksManager:
             subfolder (`str`, *optional*, defaults to `""`):
                 In case the model files are located inside a subfolder of the model directory / repo on the Hugging
                 Face Hub, you can specify the subfolder name here.
-            revision (`Optional[str]`, *optional*):
+            revision (`Optional[str]`, *optional*, defaults to `None`):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
         """
         library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
@@ -1504,21 +1505,20 @@ class TasksManager:
         is_local = full_model_path.is_dir()
 
         if library_name == "timm":
-            # retrieve model config
-            config_path = (
-                full_model_path / "config.json"
-                if is_local
-                else huggingface_hub.hf_hub_download(
+            # Retrieve model config
+            config_path = full_model_path / "config.json"
+
+            if not is_local:
+                config_path = huggingface_hub.hf_hub_download(
                     model_name_or_path, "config.json", subfolder=subfolder, revision=revision
                 )
-            )
 
             model_config = PretrainedConfig.from_json_file(config_path)
 
-            # set config as in transformers
+            # Set config as in transformers
             setattr(model, "config", model_config)
 
-            # update model_type for model
+            # Update model_type for model
             with open(config_path) as fp:
                 model_type = json.load(fp)["architecture"]
             setattr(model.config, "model_type", model_type)

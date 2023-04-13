@@ -112,6 +112,12 @@ class ModelPatcher:
 
             outputs = self.orig_forward(*args, **kwargs)
 
+            # This code block handles different cases of the filterd_outputs input to align it with the expected
+            # format of outputs. It is common for the output type of a model to vary, such as tensor, list,
+            # tuple, etc. For Transformers models, the output is encapsulated in a ModelOutput object that
+            # contains the output names of the model. In the case of Timm classification models, the output
+            # is of type tensor. By default, it is assumed that the output names mentioned in the ONNX config
+            # match the outputs in order.
             filterd_outputs = {}
             for name, value in outputs.items():
                 onnx_output_name = config.torch_to_onnx_output_map.get(name, name)

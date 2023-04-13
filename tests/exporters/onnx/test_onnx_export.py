@@ -219,7 +219,7 @@ class OnnxExportTestCase(TestCase):
         library_name = TasksManager.infer_library_from_model(model_name)
         if library_name == "timm":
             model_class = TasksManager.get_model_class_for_task("timm-" + task)
-            model = model_class(f"hf_hub:{model_name}", pretrained=True)
+            model = model_class(f"hf_hub:{model_name}", pretrained=True, exportable=True)
             TasksManager.patch_model_for_export(model_name, model)
         else:
             config = AutoConfig.from_pretrained(model_name)
