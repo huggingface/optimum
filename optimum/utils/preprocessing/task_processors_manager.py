@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 class TaskProcessorsManager:
     _TASK_TO_DATASET_PROCESSING_CLASS = {
-        "sequence-classification": TextClassificationProcessing,
+        "text-classification": TextClassificationProcessing,
         "token-classification": TokenClassificationProcessing,
         "question-answering": QuestionAnsweringProcessing,
         "image-classification": ImageClassificationProcessing,

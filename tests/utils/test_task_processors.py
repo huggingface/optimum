@@ -37,7 +37,7 @@ IMAGE_MODEL_NAME = "google/vit-base-patch16-224"
 IMAGE_PROCESSOR = AutoFeatureExtractor.from_pretrained(IMAGE_MODEL_NAME)
 
 TASK_TO_NON_DEFAULT_DATASET = {
-    "sequence-classification": {
+    "text-classification": {
         "dataset_args": {"path": "glue", "name": "mnli"},
         "dataset_data_keys": {"primary": "premise", "secondary": "hypothesis"},
     },
@@ -189,7 +189,7 @@ class TaskProcessorTestBase:
 
 
 class TextClassificationProcessorTest(TestCase, TaskProcessorTestBase):
-    TASK_NAME = "sequence-classification"
+    TASK_NAME = "text-classification"
     CONFIG = CONFIG
     PREPROCESSOR = TOKENIZER
     WRONG_PREPROCESSOR = IMAGE_PROCESSOR

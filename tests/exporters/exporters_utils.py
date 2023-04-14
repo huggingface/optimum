@@ -79,7 +79,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     # "owlvit": "google/owlvit-base-patch32",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
-        "hf-internal-testing/tiny-random-language_perceiver": ["masked-lm", "sequence-classification"],
+        "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
     # "rembert": "google/rembert",
@@ -100,7 +100,11 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
     "wavlm": {
-        "hf-internal-testing/tiny-random-wavlm": ["default", "audio-ctc", "audio-classification"],
+        "hf-internal-testing/tiny-random-wavlm": [
+            "feature-extraction",
+            "automatic-speech-recognition",
+            "audio-classification",
+        ],
         "hf-internal-testing/tiny-random-WavLMForCTC": ["audio-frame-classification"],
         "hf-internal-testing/tiny-random-WavLMForXVector": ["audio-xvector"],
     },
@@ -108,7 +112,11 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "sew-d": "hf-internal-testing/tiny-random-SEWDModel",
     "unispeech": "hf-internal-testing/tiny-random-unispeech",
     "unispeech-sat": {
-        "hf-internal-testing/tiny-random-unispeech-sat": ["default", "audio-ctc", "audio-classification"],
+        "hf-internal-testing/tiny-random-unispeech-sat": [
+            "feature-extraction",
+            "automatic-speech-recognition",
+            "audio-classification",
+        ],
         "hf-internal-testing/tiny-random-UniSpeechSatForPreTraining": ["audio-frame-classification"],
         "hf-internal-testing/tiny-random-UniSpeechSatForXVector": ["audio-xvector"],
     },
@@ -120,10 +128,10 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
     "vision-encoder-decoder": {
         "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
-            "vision2seq-lm",
-            "vision2seq-lm-with-past",
+            "image-to-text",
+            "image-to-text-with-past",
         ],
-        "microsoft/trocr-small-handwritten": ["vision2seq-lm"],
+        "microsoft/trocr-small-handwritten": ["image-to-text"],
     },
 }
 

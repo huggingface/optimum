@@ -109,7 +109,7 @@ class OnnxConfig(ExportConfig, ABC):
     Args:
         config (`transformers.PretrainedConfig`):
             The model configuration.
-        task (`str`, defaults to `"default"`):
+        task (`str`, defaults to `"feature-extraction"`):
             The task the model should be exported for.
     """
 
@@ -122,10 +122,10 @@ class OnnxConfig(ExportConfig, ABC):
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "audio-ctc": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "automatic-speech-recognition": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
-        "causal-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "default": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
+        "text-generation": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "feature-extraction": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
         # TODO: Is this the same thing as semantic-segmentation?
         "image-segmentation": OrderedDict(
@@ -136,7 +136,7 @@ class OnnxConfig(ExportConfig, ABC):
             }
         ),
         "masked-im": OrderedDict({"logits": {0: "batch_size"}}),
-        "masked-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "multiple-choice": OrderedDict({"logits": {0: "batch_size", 1: "num_choices"}}),
         "object-detection": OrderedDict(
             {
@@ -151,11 +151,10 @@ class OnnxConfig(ExportConfig, ABC):
             }
         ),
         "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
-        "seq2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
-        "sequence-classification": OrderedDict({"logits": {0: "batch_size"}}),
-        "speech2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "text2text-generation": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
+        "text-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "vision2seq-lm": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "zero-shot-image-classification": OrderedDict(
             {
                 "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
@@ -171,7 +170,7 @@ class OnnxConfig(ExportConfig, ABC):
         # }),
     }
 
-    def __init__(self, config: "PretrainedConfig", task: str = "default"):
+    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
         if task not in self._TASK_TO_COMMON_OUTPUTS:
             raise ValueError(
                 f"{task} is not a supported task, supported tasks: {', '.join(self._TASK_TO_COMMON_OUTPUTS.keys())}"
@@ -460,7 +459,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     def __init__(
         self,
         config: "PretrainedConfig",
-        task: str = "default",
+        task: str = "feature-extraction",
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -489,14 +488,14 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         super().__init__(config, task=task)
 
     @classmethod
-    def with_past(cls, config: "PretrainedConfig", task: str = "default") -> "OnnxConfigWithPast":
+    def with_past(cls, config: "PretrainedConfig", task: str = "feature-extraction") -> "OnnxConfigWithPast":
         """
         Instantiates a [`~optimum.exporters.onnx.OnnxConfig`] with `use_past` attribute set to `True`.
 
         Args:
             config (`transformers.PretrainedConfig`):
                 The underlying model's config to use when exporting to ONNX.
-            task (`str`, defaults to `"default"`):
+            task (`str`, defaults to `"feature-extraction"`):
                 The task the model should be exported for.
 
         Returns:
@@ -509,7 +508,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         if self.use_past is False:
             common_outputs = super().outputs
         # In the other cases, the sequence_length axis is not dynamic, always of length 1
-        elif self.task == "default":
+        elif self.task == "feature-extraction":
             common_outputs = OrderedDict({"last_hidden_state": {0: "batch_size"}})
         else:
             common_outputs = OrderedDict({"logits": {0: "batch_size"}})
@@ -656,7 +655,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def __init__(
         self,
         config: "PretrainedConfig",
-        task: str = "default",
+        task: str = "feature-extraction",
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -675,7 +674,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def override_attributes_for_behavior(self):
         """Override this to specify custom attribute change for a given behavior."""
         if self._behavior is ConfigBehavior.ENCODER:
-            self.task = "default"
+            self.task = "feature-extraction"
             self.use_past_in_inputs = False
             self.use_present_in_outputs = False
         if self._behavior is ConfigBehavior.DECODER:
@@ -842,13 +841,13 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     """
 
     _tasks_to_extra_inputs = {
-        "default": {"labels": {0: "batch_size"}},
-        "masked-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
-        "causal-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
-        "causal-lm-with-past": {"labels": {0: "batch_size"}},
-        "seq2seq-lm": {"labels": {0: "batch_size", 1: "sequence_length"}},
-        "seq2seq-lm-with-past": {"labels": {0: "batch_size"}},
-        "sequence-classification": {"labels": {0: "batch_size"}},
+        "feature-extraction": {"labels": {0: "batch_size"}},
+        "fill-mask": {"labels": {0: "batch_size", 1: "sequence_length"}},
+        "text-generation": {"labels": {0: "batch_size", 1: "sequence_length"}},
+        "text-generation-with-past": {"labels": {0: "batch_size"}},
+        "text2text-generation": {"labels": {0: "batch_size", 1: "sequence_length"}},
+        "text2text-generation-with-past": {"labels": {0: "batch_size"}},
+        "text-classification": {"labels": {0: "batch_size"}},
         "token-classification": {"labels": {0: "batch_size", 1: "sequence_length"}},
         "multiple-choice": {"labels": {0: "batch_size"}},
         "question-answering": {
@@ -858,7 +857,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         "image-classification": {"labels": {0: "batch_size"}},
     }
     _tasks_to_extra_outputs = {
-        "default": OrderedDict({"loss": {}}),
+        "feature-extraction": OrderedDict({"loss": {}}),
     }
 
     DUMMY_EXTRA_INPUT_GENERATOR_CLASSES = (DummyLabelsGenerator,)
@@ -882,7 +881,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = self._onnx_config.outputs
-        extra_outputs = self._tasks_to_extra_outputs["default"]
+        extra_outputs = self._tasks_to_extra_outputs["feature-extraction"]
         common_outputs.update(extra_outputs)
         for key in reversed(extra_outputs.keys()):
             common_outputs.move_to_end(key, last=False)
@@ -938,10 +937,10 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         flattened_output = {}
         if name in ["present", "past_key_values"]:
-            if "causal-lm" in self.task:
+            if "text-generation" in self.task:
                 for idx, t in enumerate(field):
                     self.flatten_decoder_past_key_values(flattened_output, name, idx, t)
-            elif "seq2seq-lm" in self.task:
+            elif "text2text-generation" in self.task:
                 for idx, t in enumerate(field):
                     self.flatten_seq2seq_past_key_values(flattened_output, name, idx, t)
         else:
