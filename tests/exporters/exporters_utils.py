@@ -63,7 +63,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "levit": "hf-internal-testing/tiny-random-LevitModel",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
-    "llama": "trl-internal-testing/tiny-random-LlamaForCausalLM",
+    "llama": "fxmarty/tiny-llama-fast-tokenizer",
     "longt5": "fxmarty/tiny-random-working-LongT5Model",
     # "longformer": "allenai/longformer-base-4096",
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",

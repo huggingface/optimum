@@ -49,7 +49,7 @@ MODEL_NAMES = {
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
     "longt5": "hf-internal-testing/tiny-random-LongT5Model",
-    "llama": "trl-internal-testing/tiny-random-LlamaForCausalLM",
+    "llama": "fxmarty/tiny-llama-fast-tokenizer",
     "m2m_100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
     "mbart": "hf-internal-testing/tiny-random-mbart",
