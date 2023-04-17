@@ -145,6 +145,7 @@ class TasksManager:
         # In case the same task (pipeline tag) may map to several loading classes, we use a tuple and the
         # auto-class _model_mapping to determine the right one.
         _TASKS_TO_AUTOMODELS = {
+            "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
             "text-generation": "AutoModelForCausalLM",
@@ -169,6 +170,7 @@ class TasksManager:
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
+            "conversational": ("TFAutoModelForCausalLM", "TFAutoModelForSeq2SeqLM"),
             "feature-extraction": "TFAutoModel",
             "fill-mask": "TFAutoModelForMaskedLM",
             "text-generation": "TFAutoModelForCausalLM",
@@ -204,6 +206,9 @@ class TasksManager:
         "default": "feature-extraction",
         "default-with-past": "feature-extraction-with-past",
         "audio-ctc": "automatic-speech-recognition",
+        "translation": "text2text-generation",
+        "summarization": "text2text-generation",
+        "zero-shot-classification": "text-classification",
     }
 
     # Reverse dictionaries str -> str, where several automodels may map to the same task
@@ -216,12 +221,14 @@ class TasksManager:
     }
 
     _TASKS_TO_LIBRARY = {
+        "conversational": "transformers",
         "feature-extraction": "transformers",
         "fill-mask": "transformers",
         "text-generation": "transformers",
         "text2text-generation": "transformers",
         "text-classification": "transformers",
         "token-classification": "transformers",
+        "translation": "transformers",
         "multiple-choice": "transformers",
         "object-detection": "transformers",
         "question-answering": "transformers",
@@ -235,6 +242,8 @@ class TasksManager:
         "audio-xvector": "transformers",
         "image-to-text": "transformers",
         "stable-diffusion": "diffusers",
+        "summarization": "transformers",
+        "zero-shot-classification": "transformers",
         "zero-shot-image-classification": "transformers",
         "zero-shot-object-detection": "transformers",
     }
@@ -1030,16 +1039,16 @@ class TasksManager:
             else:
                 tasks_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
 
-            if task not in tasks_to_automodel:
-                raise KeyError(
-                    f"Unknown task: {task}. Possible values are: "
-                    + ", ".join([f"`{key}` for {tasks_to_automodel[key]}" for key in tasks_to_automodel])
-                )
-
             library = TasksManager._TASKS_TO_LIBRARY[task]
             loaded_library = importlib.import_module(library)
 
             if model_class_name is None:
+                if task not in tasks_to_automodel:
+                    raise KeyError(
+                        f"Unknown task: {task}. Possible values are: "
+                        + ", ".join([f"`{key}` for {tasks_to_automodel[key]}" for key in tasks_to_automodel])
+                    )
+
                 if isinstance(tasks_to_automodel[task], str):
                     model_class_name = tasks_to_automodel[task]
                 else:
@@ -1223,7 +1232,10 @@ class TasksManager:
                 if "stable-diffusion" in model_info.tags:
                     inferred_task_name = "stable-diffusion"
             else:
-                if getattr(model_info, "pipeline_tag", None) is not None:
+                pipeline_tag = getattr(model_info, "pipeline_tag", None)
+                # conversational is not a supported task per se, just an alias that may map to
+                # text-generaton or text2text-generation
+                if pipeline_tag is not None and pipeline_tag != "conversational":
                     inferred_task_name = model_info.pipeline_tag
                 else:
                     transformers_info = model_info.transformersInfo
