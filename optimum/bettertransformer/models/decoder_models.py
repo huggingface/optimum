@@ -65,6 +65,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPT2Attent
 
         self.supports_training = True
         self.downcast_qk = False
+        self.dropout_prob_attn = config.attn_pdrop
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -91,19 +92,19 @@ class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttent
             "scale_attn",
             "masked_bias",
         ]
+        # Attribute only for transformers>=4.28
+        if hasattr(layer, "embed_positions"):
+            submodules.append("embed_positions")
+
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
         self.module_mapping = None
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
-        # this attributes does not exist in transformers<=4.27.4
-        if hasattr(self, "embed_positions"):
-            self.original_layers_mapping["embed_positions"] = "embed_positions"
-            setattr(self, "embed_positions", getattr(layer, "embed_positions"))
-
         self.downcast_qk = True
         self.supports_training = True
+        self.dropout_prob_attn = config.attn_pdrop
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -127,6 +128,7 @@ class GPTNeoXAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoX
 
         self.downcast_qk = True
         self.supports_training = True
+        self.dropout_prob_attn = 0.0  # no dropout for gpt-neox
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -156,6 +158,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
 
         self.scale = torch.sqrt(torch.tensor(layer.head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
         self.supports_training = True
+        self.dropout_prob_attn = float(config.attention_dropout)
 
     def forward(self, *args, **kwargs):
         super().forward_checker()
@@ -173,12 +176,18 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGen
 
         self.module_mapping = None
         submodules = ["attn_dropout", "resid_dropout", "qkv_proj", "out_proj", "causal_mask", "scale_attn"]
+
+        # Attribute only for transformers>=4.28
+        if hasattr(layer, "embed_positions"):
+            submodules.append("embed_positions")
+
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
         self.supports_training = True
+        self.dropout_prob_attn = config.attn_pdrop
 
     def forward(self, *args, **kwargs):
         super().forward_checker()

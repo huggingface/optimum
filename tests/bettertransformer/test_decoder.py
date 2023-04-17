@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import gc
 import unittest
 
 import pytest
@@ -22,7 +23,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils import DummyPastKeyValuesGenerator, NormalizedConfigManager
-from optimum.utils.testing_utils import grid_parameters, require_torch_20, require_torch_gpu
+from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_20, require_torch_gpu
 
 
 class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
@@ -193,3 +194,40 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         self._test_invert_model_logits(
             model_id=model_id, model_type=model_type, keep_original_model=keep_original_model
         )
+
+    @parameterized.expand(
+        grid_parameters(
+            {"keep_original_model": [True], "max_memory": [{0: "300MB", "cpu": "3GB"}, {0: "2GB"}]},
+            add_test_name=False,
+        )
+    )
+    @require_torch_gpu
+    @require_accelerate
+    def test_accelerate_compatibility_cpu_gpu(self, keep_original_model=True, max_memory=None):
+        hf_model = AutoModelForCausalLM.from_pretrained("gpt2", device_map="auto", max_memory=max_memory).eval()
+        bt_model = BetterTransformer.transform(
+            hf_model, keep_original_model=keep_original_model, max_memory=max_memory
+        )
+
+        inputs_ids = torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]])
+        attention_mask = torch.Tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]])
+
+        # Check that the model has been dispatched on CPU and GPU
+        self.assertSetEqual(set(hf_model.hf_device_map.values()), set(max_memory))
+        self.assertSetEqual(set(bt_model.hf_device_map.values()), set(max_memory))
+
+        # Check that the model has weights on GPU and CPU
+        self.assertEqual(bt_model.transformer.h[0].mlp.c_fc.weight.device, torch.device("cuda:0"))
+
+        # Weights that are offloaded on the CPU are offloaded on the `meta` device
+        if "cpu" in set(max_memory):
+            self.assertEqual(bt_model.transformer.h[-1].mlp.c_fc.weight.device, torch.device("meta"))
+
+        with torch.inference_mode():
+            output_bt = bt_model(inputs_ids, attention_mask=attention_mask)
+            output_hf = hf_model(inputs_ids, attention_mask=attention_mask)
+
+        self.assertEqual(output_bt[0].device, torch.device("cpu"))
+        self.assertTrue(torch.allclose(output_bt[0], output_hf[0], atol=1e-3))
+
+        gc.collect()
