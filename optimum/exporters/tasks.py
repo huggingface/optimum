@@ -1236,7 +1236,7 @@ class TasksManager:
                 # conversational is not a supported task per se, just an alias that may map to
                 # text-generaton or text2text-generation
                 if pipeline_tag is not None and pipeline_tag != "conversational":
-                    inferred_task_name = model_info.pipeline_tag
+                    inferred_task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
                 else:
                     transformers_info = model_info.transformersInfo
 
@@ -1249,6 +1249,7 @@ class TasksManager:
                         if class_name_for_task == auto_model_class_name:
                             inferred_task_name = task_name
                             break
+
         if inferred_task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
         return inferred_task_name

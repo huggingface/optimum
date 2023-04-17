@@ -15,6 +15,7 @@
 import os
 import subprocess
 import unittest
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 
@@ -316,10 +317,12 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         # conversational (text2text-generation)
         with TemporaryDirectory() as tmpdir:
             main_export(model_name_or_path="facebook/blenderbot-400M-distill", output=tmpdir)
+            self.assertTrue(Path(tmpdir, "decoder_with_past_model.onnx").is_file())
 
         # conversational (text-generation)
         with TemporaryDirectory() as tmpdir:
             main_export(model_name_or_path="microsoft/DialoGPT-small", output=tmpdir)
+            self.assertTrue(Path(tmpdir, "decoder_with_past_model.onnx").is_file())
 
         # summarization
         with TemporaryDirectory() as tmpdir:
@@ -332,6 +335,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         # translation
         with TemporaryDirectory() as tmpdir:
             main_export(model_name_or_path="t5-small", output=tmpdir)
+            self.assertTrue(Path(tmpdir, "decoder_with_past_model.onnx").is_file())
 
         # from local
         with TemporaryDirectory() as tmpdir_in, TemporaryDirectory() as tmpdir_out:
