@@ -313,9 +313,13 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
     @slow
     def test_complex_synonyms(self):
-        # conversational
+        # conversational (text2text-generation)
         with TemporaryDirectory() as tmpdir:
             main_export(model_name_or_path="facebook/blenderbot-400M-distill", output=tmpdir)
+
+        # conversational (text-generation)
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path="microsoft/DialoGPT-small", output=tmpdir)
 
         # summarization
         with TemporaryDirectory() as tmpdir:
