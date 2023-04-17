@@ -259,6 +259,8 @@ class BetterTransformer(object):
                 all_model_tensors = [name for name in all_model_tensors if not name.startswith(module_name)]
 
             if len(all_model_tensors) > 0:
+                # This is the case where a transformed submodule is broken into several devices:
+                # as the submodules map may differ, we need to reinfer the device map
                 bt_device_map = infer_auto_device_map(model_fast, max_memory=max_memory)
             else:
                 bt_device_map = hf_device_map
