@@ -310,3 +310,21 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         else:
             with TemporaryDirectory() as tmpdir:
                 main_export(model_name_or_path=model_name, output=tmpdir, task=task)
+
+    @slow
+    def test_complex_synonyms(self):
+        # conversational
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path="facebook/blenderbot-400M-distill", output=tmpdir)
+
+        # summarization
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path="facebook/bart-large-cnn", output=tmpdir)
+
+        # zero-shot-classification
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path="facebook/bart-large-mnli", output=tmpdir)
+
+        # translation
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path="t5-small", output=tmpdir)
