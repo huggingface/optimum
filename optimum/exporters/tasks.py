@@ -659,6 +659,14 @@ class TasksManager:
             "text-classification",
             onnx="OPTOnnxConfig",
         ),
+        "llama": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            onnx="LlamaOnnxConfig",
+        ),
         "pegasus": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
