@@ -20,7 +20,7 @@ from typing import Dict, Optional
 
 import pytest
 from parameterized import parameterized
-from transformers import is_torch_available
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, is_torch_available
 from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
 
 from optimum.exporters.onnx.__main__ import main_export
@@ -332,3 +332,13 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         # translation
         with TemporaryDirectory() as tmpdir:
             main_export(model_name_or_path="t5-small", output=tmpdir)
+
+        # from local
+        with TemporaryDirectory() as tmpdir_in, TemporaryDirectory() as tmpdir_out:
+            tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large-mnli")
+            model = AutoModelForSequenceClassification.from_pretrained("facebook/bart-large-mnli")
+
+            tokenizer.save_pretrained(tmpdir_in)
+            model.save_pretrained(tmpdir_in)
+
+            main_export(model_name_or_path=tmpdir_in, output=tmpdir_out, task="text-classification")
