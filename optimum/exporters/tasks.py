@@ -660,11 +660,11 @@ class TasksManager:
             onnx="OPTOnnxConfig",
         ),
         "llama": supported_tasks_mapping(
-            "default",
-            "default-with-past",
-            "causal-lm",
-            "causal-lm-with-past",
-            "sequence-classification",
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
             onnx="LlamaOnnxConfig",
         ),
         "pegasus": supported_tasks_mapping(
