@@ -49,14 +49,15 @@ def gpt2_wrapped_scaled_dot_product(
     if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
         raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
+    dropout_p = self.dropout_prob_attn if self.training else 0.0
     if batch_size == 1 or self.training:
         if query.shape[2] > 1:
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
-                query, key, value, attn_mask=None, dropout_p=0.0, is_causal=True
+                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=True
             )
         else:
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
-                query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False
+                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=False
             )
     else:
         query_length, key_length = query.size(-2), key.size(-2)
@@ -73,7 +74,7 @@ def gpt2_wrapped_scaled_dot_product(
             attention_mask = causal_mask + attention_mask
 
         sdpa_result = torch.nn.functional.scaled_dot_product_attention(
-            query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
+            query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=False
         )
 
     # in gpt-neo-x and gpt-j the query and keys are always in fp32
@@ -103,14 +104,15 @@ def gpt_neo_wrapped_scaled_dot_product(
     if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
         raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
+    dropout_p = self.dropout_prob_attn if self.training else 0.0
     if (batch_size == 1 or self.training) and self.attention_type == "global":
         if query.shape[2] > 1:
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
-                query, key, value, attn_mask=None, dropout_p=0.0, is_causal=True
+                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=True
             )
         else:
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
-                query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False
+                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=False
             )
     else:
         query_length, key_length = query.size(-2), key.size(-2)
@@ -125,7 +127,7 @@ def gpt_neo_wrapped_scaled_dot_product(
         attention_mask = causal_mask + attention_mask
 
         sdpa_result = torch.nn.functional.scaled_dot_product_attention(
-            query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
+            query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=False
         )
 
     return sdpa_result, None
@@ -153,18 +155,19 @@ def codegen_wrapped_scaled_dot_product(
     query = query.to(value.dtype)
     key = key.to(value.dtype)
 
+    dropout_p = self.dropout_prob_attn if self.training else 0.0
     if batch_size == 1 or self.training:
         if query.shape[2] > 1:
             # first step of the decoding
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
-                query, key, value, attn_mask=None, dropout_p=0.0, is_causal=True
+                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=True
             )
         else:
             # in this case, which is the later decoding steps, the `causal_mask`` in
             # https://github.com/huggingface/transformers/blob/ae54e3c3b18bac0832ad62ea9b896dfd52a09850/src/transformers/models/gpt2/modeling_gpt2.py#L195
             # is [True, ..., True] so actually not causal
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
-                query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False
+                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=False
             )
     else:
         query_length, key_length = query.size(-2), key.size(-2)
@@ -183,7 +186,7 @@ def codegen_wrapped_scaled_dot_product(
             attention_mask = torch.min(causal_mask, attention_mask)
 
         sdpa_result = torch.nn.functional.scaled_dot_product_attention(
-            query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
+            query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=False
         )
 
     return sdpa_result, None
@@ -247,18 +250,20 @@ def opt_forward(
     query_states = self._shape(query_states, tgt_len, batch_size)
 
     query_states = query_states * self.scale
+
+    dropout_p = self.dropout if self.training else 0.0
     if batch_size == 1 or self.training:
         if query_states.shape[2] > 1:
             attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=True
+                query_states, key_states, value_states, attn_mask=None, dropout_p=dropout_p, is_causal=True
             )
         else:
             attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=False
+                query_states, key_states, value_states, attn_mask=None, dropout_p=dropout_p, is_causal=False
             )
     else:
         attn_output = torch.nn.functional.scaled_dot_product_attention(
-            query_states, key_states, value_states, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
+            query_states, key_states, value_states, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=False
         )
 
     if attn_output.size() != (batch_size, self.num_heads, tgt_len, self.head_dim):
@@ -361,15 +366,16 @@ def t5_forward(
         past_key_value[1] if past_key_value is not None else None,
     )
 
+    dropout_p = self.dropout if self.training else 0.0
     query_states = self.scale * query_states
     if position_bias is None and not self.has_relative_attention_bias:
         if mask is None:
             attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=False
+                query_states, key_states, value_states, attn_mask=None, dropout_p=dropout_p, is_causal=False
             )
         elif mask is not None:
             attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states, key_states, value_states, attn_mask=mask, dropout_p=0.0, is_causal=False
+                query_states, key_states, value_states, attn_mask=mask, dropout_p=dropout_p, is_causal=False
             )
 
     if position_bias is None:
@@ -394,11 +400,11 @@ def t5_forward(
 
         if self.has_relative_attention_bias:
             attn_output = torch.nn.functional.scaled_dot_product_attention(
-                query_states, key_states, value_states, attn_mask=position_bias, dropout_p=0.0, is_causal=False
+                query_states, key_states, value_states, attn_mask=position_bias, dropout_p=dropout_p, is_causal=False
             )
     else:
         attn_output = torch.nn.functional.scaled_dot_product_attention(
-            query_states, key_states, value_states, attn_mask=position_bias, dropout_p=0.0, is_causal=False
+            query_states, key_states, value_states, attn_mask=position_bias, dropout_p=dropout_p, is_causal=False
         )
 
     attn_output = unshape(attn_output)  # (batch_size, seq_length, dim)
@@ -471,7 +477,12 @@ def bart_forward(
     value_states = value_states
 
     attn_output = torch.nn.functional.scaled_dot_product_attention(
-        query_states, key_states, value_states, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
+        query_states,
+        key_states,
+        value_states,
+        attn_mask=attention_mask,
+        dropout_p=self.dropout if self.training else 0.0,
+        is_causal=False,
     )
 
     if attn_output.size() != (bsz, self.num_heads, tgt_len, self.head_dim):

@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 if is_accelerate_available():
-    from accelerate import dispatch_model
+    from accelerate import dispatch_model, infer_auto_device_map
     from accelerate.hooks import remove_hook_from_module
 
 ERROR_MESSAGE = r"The Better Transformers implementation for the model {model_name} has not been implemented yet. Please open an issue requesting the addition of this model with its `BetterTransformer` implementation."
@@ -254,7 +254,18 @@ class BetterTransformer(object):
         setattr(model_fast, "use_bettertransformer", True)
 
         if load_accelerate:
-            model_fast = dispatch_model(model_fast, hf_device_map)
+            all_model_tensors = [name for name, _ in model_fast.state_dict().items()]
+            for module_name in hf_device_map.keys():
+                all_model_tensors = [name for name in all_model_tensors if not name.startswith(module_name)]
+
+            if len(all_model_tensors) > 0:
+                # This is the case where a transformed submodule is broken into several devices:
+                # as the submodules map may differ, we need to reinfer the device map
+                bt_device_map = infer_auto_device_map(model_fast, max_memory=max_memory)
+            else:
+                bt_device_map = hf_device_map
+
+            model_fast = dispatch_model(model_fast, bt_device_map)
 
             # It is not recommended to have `keep_original_model=True` with a model
             # that is loaded with accelerate but just in case
