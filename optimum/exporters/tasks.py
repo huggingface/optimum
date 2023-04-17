@@ -204,6 +204,8 @@ class TasksManager:
         "default": "feature-extraction",
         "default-with-past": "feature-extraction-with-past",
         "audio-ctc": "automatic-speech-recognition",
+        "translation": "text2text-generation",
+        "summarization": "text2text-generation",
     }
 
     # Reverse dictionaries str -> str, where several automodels may map to the same task
@@ -222,6 +224,7 @@ class TasksManager:
         "text2text-generation": "transformers",
         "text-classification": "transformers",
         "token-classification": "transformers",
+        "translation": "transformers",
         "multiple-choice": "transformers",
         "object-detection": "transformers",
         "question-answering": "transformers",
@@ -235,6 +238,7 @@ class TasksManager:
         "audio-xvector": "transformers",
         "image-to-text": "transformers",
         "stable-diffusion": "diffusers",
+        "summarization": "transformers",
         "zero-shot-image-classification": "transformers",
         "zero-shot-object-detection": "transformers",
     }
