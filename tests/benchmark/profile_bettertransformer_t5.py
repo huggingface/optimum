@@ -157,9 +157,9 @@ if __name__ == "__main__":
 
     task = TasksManager.infer_task_from_model(args.model_name)
 
-    if task == "causal-lm":
+    if task == "text-generation":
         autoclass = AutoModelForCausalLM
-    elif task == "seq2seq-lm":
+    elif task == "text2text-generation":
         autoclass = AutoModelForSeq2SeqLM
     else:
         autoclass = AutoModel

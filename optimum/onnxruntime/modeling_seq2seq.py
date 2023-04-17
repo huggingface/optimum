@@ -479,6 +479,12 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
         ABC.__init__(self)
 
+        if use_io_binding is None:
+            if decoder_session.get_providers()[0] == "CUDAExecutionProvider":
+                use_io_binding = True
+            else:
+                use_io_binding = False
+
         self.shared_attributes_init(
             encoder_session,
             use_io_binding=use_io_binding,
@@ -514,6 +520,13 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     "The parameter decoder_with_past_session was passed, although use_cache is False."
                     "Please pass use_cache=True for decoder_with_past_session to be used."
                 )
+
+        if use_cache is False and use_io_binding is True:
+            raise ValueError(
+                "When using CUDAExecutionProvider, the parameters combination use_cache=False, use_io_binding=True"
+                " is not supported. Please either pass use_cache=True, use_io_binding=True (default),"
+                " or use_cache=False, use_io_binding=False."
+            )
 
         self.use_merged = use_merged
 
@@ -632,6 +645,15 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         **kwargs,
     ):
         model_path = Path(model_id)
+
+        # We do not implement the logic for use_cache=False, use_merged=True
+        if use_cache is False:
+            if use_merged is True:
+                raise ValueError(
+                    "The parameters combination use_cache=False, use_merged=True is not supported."
+                    " To use a merged decoder, past key values must be used."
+                )
+            use_merged = False
 
         decoder_merged_path = None
         # We use `is not False` here to include two cases: use_merged = None (in which case we auto-detect it),

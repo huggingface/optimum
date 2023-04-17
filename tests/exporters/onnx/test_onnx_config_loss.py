@@ -55,7 +55,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             with self.subTest(model=model):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                        model=model, exporter="onnx", task="sequence-classification"
+                        model=model, exporter="onnx", task="text-classification"
                     )
                     onnx_config = onnx_config_constructor(model.config)
 
@@ -84,7 +84,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                     framework = "pt" if isinstance(model, PreTrainedModel) else "tf"
                     normalized_config = NormalizedConfigManager.get_normalized_config_class("bert")(model.config)
                     input_generator = DummyTextInputGenerator(
-                        "sequence-classification", normalized_config, batch_size=2, sequence_length=16
+                        "text-classification", normalized_config, batch_size=2, sequence_length=16
                     )
 
                     inputs = {
@@ -130,7 +130,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
 
             # Wrap OnnxConfig
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                model=model, exporter="onnx", task="sequence-classification"
+                model=model, exporter="onnx", task="text-classification"
             )
             onnx_config = onnx_config_constructor(model.config)
             wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
@@ -181,7 +181,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
 
             # Wrap OnnxConfig(decoders)
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                model=model, exporter="onnx", task="seq2seq-lm"
+                model=model, exporter="onnx", task="text2text-generation"
             )
             onnx_config = onnx_config_constructor(model.config)
 

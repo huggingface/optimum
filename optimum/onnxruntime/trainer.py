@@ -172,19 +172,19 @@ class ModuleWithLoss(nn.Module):
 
 class ORTFeaturesManager:
     _TASKS_TO_ORTMODELS = {
-        "default": ORTModelForFeatureExtraction,
-        "masked-lm": ORTModelForMaskedLM,
-        "causal-lm": ORTModelForCausalLM,
-        "causal-lm-with-past": ORTModelForCausalLM,
-        "seq2seq-lm": ORTModelForSeq2SeqLM,
-        "seq2seq-lm-with-past": ORTModelForSeq2SeqLM,
-        "sequence-classification": ORTModelForSequenceClassification,
+        "feature-extraction": ORTModelForFeatureExtraction,
+        "fill-mask": ORTModelForMaskedLM,
+        "text-generation": ORTModelForCausalLM,
+        "text-generation-with-past": ORTModelForCausalLM,
+        "text2text-generation": ORTModelForSeq2SeqLM,
+        "text2text-generation-with-past": ORTModelForSeq2SeqLM,
+        "text-classification": ORTModelForSequenceClassification,
         "token-classification": ORTModelForTokenClassification,
         "multiple-choice": ORTModelForMultipleChoice,
         "question-answering": ORTModelForQuestionAnswering,
         "image-classification": ORTModelForImageClassification,
         "semantic-segmentation": ORTModelForSemanticSegmentation,
-        "speech2seq-lm": ORTModelForSpeechSeq2Seq,
+        "automatic-speech-recognition": ORTModelForSpeechSeq2Seq,
     }
 
     SUPPORTED_FEATURES = _TASKS_TO_ORTMODELS.keys()
@@ -289,7 +289,7 @@ class ORTTrainer(Trainer):
         self,
         model: Union[PreTrainedModel, nn.Module] = None,
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
-        feature: str = "default",
+        feature: str = "feature-extraction",
         args: ORTTrainingArguments = None,
         data_collator: Optional[DataCollator] = None,
         train_dataset: Optional[Dataset] = None,
@@ -1087,10 +1087,10 @@ class ORTTrainer(Trainer):
 
         # Load ORT model
         support_loss_in_modeling = self.feature in [
-            "causal-lm",
-            "causal-lm-with-past",
-            "seq2seq-lm",
-            "seq2seq-lm-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text2text-generation",
+            "text2text-generation-with-past",
         ]
         support_feature = self.feature in ORTFeaturesManager.SUPPORTED_FEATURES
         if support_loss_in_modeling or (not self.exported_with_loss and support_feature):
@@ -1318,10 +1318,10 @@ class ORTTrainer(Trainer):
 
         # Load ORT model
         support_loss_in_modeling = self.feature in [
-            "causal-lm",
-            "causal-lm-with-past",
-            "seq2seq-lm",
-            "seq2seq-lm-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text2text-generation",
+            "text2text-generation-with-past",
         ]
         support_feature = self.feature in ORTFeaturesManager.SUPPORTED_FEATURES
         if support_loss_in_modeling or (not self.exported_with_loss and support_feature):
@@ -1547,7 +1547,7 @@ class ORTTrainer(Trainer):
             self._past = outputs[self.args.past_index]
 
         if labels is not None:
-            if "causal-lm" in self.feature:
+            if "text-generation" in self.feature:
                 loss = self.label_smoother(outputs, labels, shift_labels=True)
             else:
                 loss = self.label_smoother(outputs, labels)

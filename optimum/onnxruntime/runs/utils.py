@@ -9,7 +9,7 @@ from ..modeling_ort import (
 
 
 task_ortmodel_map = {
-    "causal-lm": ORTModelForCausalLM,
+    "text-generation": ORTModelForCausalLM,
     "feature-extraction": ORTModelForFeatureExtraction,
     "image-classification": ORTModelForImageClassification,
     "question-answering": ORTModelForQuestionAnswering,

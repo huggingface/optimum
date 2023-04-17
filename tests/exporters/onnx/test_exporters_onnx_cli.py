@@ -59,7 +59,12 @@ def _get_models_to_test(export_models_dict: Dict):
                     # -with-past and monolith cases are absurd, so we don't test them as not supported
                     if any(
                         task == ort_special_task
-                        for ort_special_task in ["causal-lm", "seq2seq-lm", "speech2seq-lm", "vision2seq-lm"]
+                        for ort_special_task in [
+                            "text-generation",
+                            "text2text-generation",
+                            "automatic-speech-recognition",
+                            "image-to-text",
+                        ]
                     ):
                         models_to_test.append(
                             (f"{model_type}_{task}_monolith", model_type, model_name, task, True, False)
@@ -67,18 +72,18 @@ def _get_models_to_test(export_models_dict: Dict):
 
                     # For other tasks, we don't test --no-post-process as there is none anyway
                     if task in [
-                        "default-with-past",
-                        "causal-lm-with-past",
-                        "speech2seq-lm-with-past",
-                        "vision2seq-lm-with-past",
-                        "seq2seq-lm-with-past",
+                        "feature-extraction-with-past",
+                        "text-generation-with-past",
+                        "automatic-speech-recognition-with-past",
+                        "image-to-text-with-past",
+                        "text2text-generation-with-past",
                     ]:
                         models_to_test.append(
                             (f"{model_type}_{task}_no_postprocess", model_type, model_name, task, False, True)
                         )
 
             # TODO: segformer task can not be automatically inferred
-            # TODO: xlm-roberta model auto-infers causal-lm, but we don't support it
+            # TODO: xlm-roberta model auto-infers text-generation, but we don't support it
             # TODO: perceiver auto-infers default, but we don't support it (why?)
             if model_type not in ["segformer", "xlm-roberta", "perceiver", "vision-encoder-decoder"]:
                 models_to_test.append((f"{model_type}_no_task", model_type, model_name, "auto", False, False))
@@ -192,7 +197,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
 
         with TemporaryDirectory() as tmpdirname:
-            task = "seq2seq-lm"
+            task = "text2text-generation"
             if use_cache:
                 task += "-with-past"
 
@@ -218,7 +223,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_trust_remote_code(self):
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model fxmarty/tiny-testing-gpt2-remote-code --task causal-lm {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --model fxmarty/tiny-testing-gpt2-remote-code --task text-generation {tmpdirname}",
                 shell=True,
                 capture_output=True,
             )
@@ -227,7 +232,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(
-                f"python3 -m optimum.exporters.onnx --trust-remote-code --model fxmarty/tiny-testing-gpt2-remote-code --task causal-lm {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --trust-remote-code --model fxmarty/tiny-testing-gpt2-remote-code --task text-generation {tmpdirname}",
                 shell=True,
                 check=True,
             )
@@ -270,3 +275,32 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             self.skipTest("ibert can not be supported in fp16")
 
         self._onnx_export(model_name, task, monolith, no_post_process, fp16=True)
+
+    @parameterized.expand(
+        [
+            ["causal-lm", "gpt2"],
+            ["causal-lm-with-past", "gpt2"],
+            ["seq2seq-lm", "t5"],
+            ["seq2seq-lm-with-past", "t5"],
+            ["speech2seq-lm", "whisper"],
+            ["speech2seq-lm-with-past", "whisper"],
+            ["vision2seq-lm", "vision-encoder-decoder"],
+            ["sequence-classification", "bert"],
+            ["masked-lm", "bert"],
+            ["default", "blenderbot"],
+            ["default-with-past", "blenderbot"],
+            ["audio-ctc", "wav2vec2-conformer"],
+        ]
+    )
+    @slow
+    @pytest.mark.run_slow
+    def test_synonym_tasks_backward_compatibility(self, task: str, model_type: str):
+        model_name = PYTORCH_EXPORT_MODELS_TINY[model_type]
+
+        if isinstance(model_name, dict):
+            for _model_name in model_name.keys():
+                with TemporaryDirectory() as tmpdir:
+                    main_export(model_name_or_path=_model_name, output=tmpdir, task=task)
+        else:
+            with TemporaryDirectory() as tmpdir:
+                main_export(model_name_or_path=model_name, output=tmpdir, task=task)

@@ -249,7 +249,7 @@ def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None
     """
     Whether to use IOBinding or not.
     """
-    if providers[0] == "CUDAExecutionProvider" and use_io_binding is None:
+    if use_io_binding is None and providers[0] == "CUDAExecutionProvider":
         use_io_binding = True
     elif providers[0] != "CUDAExecutionProvider":
         if use_io_binding is True:

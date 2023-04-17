@@ -73,7 +73,7 @@ _SEQ2SEQ_MODELS_TO_TEST = {
 }
 
 _ENCODER_TASKS_DATASETS_CONFIGS = {
-    "sequence-classification": {
+    "text-classification": {
         "dataset": ["glue", "sst2"],
         "metric": ["glue", "sst2"],
         "data_collator": default_data_collator,
@@ -87,12 +87,12 @@ _ENCODER_TASKS_DATASETS_CONFIGS = {
 }
 
 _DECODER_TASKS_DATASETS_CONFIGS = {
-    "causal-lm": {
+    "text-generation": {
         "dataset": ["wikitext", "wikitext-2-raw-v1"],
         "metric": ["accuracy"],
         "data_collator": default_data_collator,
     },
-    "causal-lm-with-past": {
+    "text-generation-with-past": {
         "dataset": ["wikitext", "wikitext-2-raw-v1"],
         "metric": ["accuracy"],
         "data_collator": default_data_collator,
@@ -100,12 +100,12 @@ _DECODER_TASKS_DATASETS_CONFIGS = {
 }
 
 _SEQ2SEQ_TASKS_DATASETS_CONFIGS = {
-    "seq2seq-lm": {
+    "text2text-generation": {
         "dataset": ["xsum"],
         "metric": ["rouge"],
         "data_collator_class": DataCollatorForSeq2Seq,
     },
-    "seq2seq-lm-with-past": {
+    "text2text-generation-with-past": {
         "dataset": ["xsum"],
         "metric": ["rouge"],
         "data_collator_class": DataCollatorForSeq2Seq,
@@ -201,12 +201,12 @@ def get_ort_trainer(
 
 def load_and_prepare(feature):
     preprocess_mapping = {
-        "sequence-classification": load_and_prepare_glue,
+        "text-classification": load_and_prepare_glue,
         "token-classification": load_and_prepare_ner,
-        "causal-lm": load_and_prepare_clm,
-        "causal-lm-with-past": load_and_prepare_clm,
-        "seq2seq-lm": load_and_prepare_xsum,
-        "seq2seq-lm-with-past": load_and_prepare_xsum,
+        "text-generation": load_and_prepare_clm,
+        "text-generation-with-past": load_and_prepare_clm,
+        "text2text-generation": load_and_prepare_xsum,
+        "text2text-generation-with-past": load_and_prepare_xsum,
     }
     return preprocess_mapping[feature]
 
@@ -653,9 +653,9 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
     @parameterized.expand(
         _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
         # Exclude "with-past" tests as they fail for ORT inference after the mixed-precision training
-        # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS, excluded=["causal-lm-with-past"])  # Skip test for OOM bug
+        # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS, excluded=["text-generation-with-past"])  # Skip test for OOM bug
         + _get_models_to_test(
-            _SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS, excluded=["seq2seq-lm-with-past"]
+            _SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS, excluded=["text2text-generation-with-past"]
         ),
         skip_on_empty=True,
     )
@@ -894,7 +894,7 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
         self.weight_decay = 0.01
 
         self.model_name = "bert-base-cased"
-        self.feature = "sequence-classification"
+        self.feature = "text-classification"
 
     def check_optim_and_kwargs(self, optim: OptimizerNames, mandatory_kwargs, expected_cls):
         args = ORTTrainingArguments(optim=optim, output_dir="None")

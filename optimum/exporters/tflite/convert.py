@@ -185,7 +185,7 @@ def prepare_converter_for_quantization(
 
         # Handling the calibration dataset:
         # - Either loading the default dataset if no calibration dataset was provided or the required dataset,
-        # - Splitting the dataset with the provided a dataset split or with the first split if none is provided.
+        # - Splitting the dataset with the provided dataset split or with the first split if none is provided.
         # - Shuffling the split.
         # - Selecting num_calibration_samples in the dataset split.
         # - Batching the dataset.
