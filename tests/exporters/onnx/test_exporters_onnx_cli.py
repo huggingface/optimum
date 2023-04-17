@@ -135,6 +135,12 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_pytorch_cpu(
         self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
+        # TODO: re-enable those tests
+        # Failing due to https://github.com/huggingface/transformers/pull/22212
+        # It is not as simple as changing "logits" by "reconstruction" as not all
+        # masked-im models use MaskedImageModelingOutput
+        if model_type in ["vit", "deit"] and task == "masked-im":
+            self.skipTest("Temporarily disabled upon transformers 4.28 release")
         self._onnx_export(model_name, task, monolith, no_post_process)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
