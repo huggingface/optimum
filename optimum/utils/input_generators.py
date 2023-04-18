@@ -270,6 +270,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         "input_ids",
         "attention_mask",
         "token_type_ids",
+        "position_ids"
     )
 
     def __init__(

@@ -539,7 +539,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                     if (
                         self.use_past is True
                         and self.use_cache_branch is not False
-                        and input_name in ["decoder_input_ids", "input_ids"]
+                        and input_name in ["decoder_input_ids", "input_ids", "position_ids"]
                     ):
                         sequence_length = dummy_input_gen.sequence_length
                         if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
