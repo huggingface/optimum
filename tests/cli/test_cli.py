@@ -64,7 +64,7 @@ class TestCLI(unittest.TestCase):
                 f"sequence-classification {tempdir}"
             )
             try:
-            out = subprocess.run(command, shell=True, check=True, capture_output=True)
+                out = subprocess.run(command, shell=True, check=True, capture_output=True)
             except Exception as e:
                 print(e)
 
