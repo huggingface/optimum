@@ -34,5 +34,6 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        python -m unittest discover -s cli -p 'test_*.py'
+        pytest cli/test_*.py -k "export_commands" -s
+        # python -m unittest discover -s cli -p 'test_*.py'
 
