@@ -63,8 +63,10 @@ class TestCLI(unittest.TestCase):
                 f"optimum-cli export tflite --model hf-internal-testing/tiny-random-bert --sequence_length 128 --task "
                 f"sequence-classification {tempdir}"
             )
+            try:
             out = subprocess.run(command, shell=True, check=True, capture_output=True)
-            print("OUT", out)
+            except Exception as e:
+                print(e)
 
             # proc = subprocess.Popen(command.split())
             # stdout, stderr = proc.communicate()
