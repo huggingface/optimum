@@ -66,7 +66,9 @@ class TestCLI(unittest.TestCase):
             try:
                 out = subprocess.run(command, shell=True, check=True, capture_output=True)
             except Exception as e:
-                print(e)
+                from optimum.utils import logging 
+                logger = logging.get_logger()
+                logger.debug(e)
 
             # proc = subprocess.Popen(command.split())
             # stdout, stderr = proc.communicate()
