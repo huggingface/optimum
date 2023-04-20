@@ -35,7 +35,7 @@ TESTS_REQUIRE = [
     "torchaudio",
 ]
 
-QUALITY_REQUIRE = ["black~=23.1", "ruff>=0.0.241"]
+QUALITY_REQUIRE = ["black~=23.1", "ruff>=0.0.241,<=0.0.259"]
 
 BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision", "evaluate>=0.2.0"]
 
