@@ -3168,7 +3168,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         if model_arch == "encoder-decoder" and use_cache is True:
-            return
+            self.skipTest("encoder-decoder model type with use_cache=True is not supported")
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
 
