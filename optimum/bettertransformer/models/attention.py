@@ -500,3 +500,56 @@ def bart_forward(
     attn_output = self.out_proj(attn_output)
 
     return attn_output, None, past_key_value
+
+
+# Adapted from transformers.models.sam.modeling_sam.SamAttention.forward
+def sam_attention_forward(self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor) -> torch.Tensor:
+    # Input projections
+    query = self.q_proj(query)
+    key = self.k_proj(key)
+    value = self.v_proj(value)
+
+    point_batch_size = query.shape[1]
+    # Separate into heads
+    query = self._separate_heads(query, self.num_attention_heads)
+    key = self._separate_heads(key, self.num_attention_heads)
+    value = self._separate_heads(value, self.num_attention_heads)
+
+    # SamAttention
+    out = torch.nn.functional.scaled_dot_product_attention(
+        query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False
+    )
+
+    out = self._recombine_heads(out, point_batch_size)
+    return self.out_proj(out)
+
+
+# Adapted from transformers.models.sam.modeling_sam.SamVisionAttention.forward
+def sam_vision_attention_forward(self, hidden_states: torch.Tensor, output_attentions=False) -> torch.Tensor:
+    if output_attentions is True:
+        raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
+    batch_size, height, width, _ = hidden_states.shape
+    # qkv with shape (3, batch_size, nHead, height * width, channel)
+    qkv = (
+        self.qkv(hidden_states)
+        .reshape(batch_size, height * width, 3, self.num_attention_heads, -1)
+        .permute(2, 0, 3, 1, 4)
+    )
+    # q, k, v with shape (batch_size * nHead, height * width, channel)
+    query, key, value = qkv.reshape(3, batch_size * self.num_attention_heads, height * width, -1).unbind(0)
+
+    if self.use_rel_pos:
+        mask = self.get_mask(query, self.rel_pos_h, self.rel_pos_w, (height, width), (height, width))
+    else:
+        mask = None
+
+    attn_output = torch.nn.functional.scaled_dot_product_attention(
+        query, key, value, attn_mask=mask, dropout_p=self.training if self.training else 0.0, is_causal=False
+    )
+
+    # This is really ugly
+    attn_output = attn_output.reshape(batch_size, self.num_attention_heads, height, width, -1)
+    attn_output = attn_output.permute(0, 2, 3, 1, 4).reshape(batch_size, height, width, -1)
+
+    return (self.proj(attn_output), None)

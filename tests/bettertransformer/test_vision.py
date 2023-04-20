@@ -27,7 +27,7 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
     r"""
     Testing suite for Vision Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
-    SUPPORTED_ARCH = ["clip", "clip_text_model", "deit", "vilt", "vit", "vit_mae", "vit_msn", "yolos"]
+    SUPPORTED_ARCH = ["clip", "clip_text_model", "deit", "sam", "vilt", "vit", "vit_mae", "vit_msn", "yolos"]
 
     def prepare_inputs_for_class(self, model_id, model_type, batch_size=3, **preprocessor_kwargs):
         if model_type == "vilt":
@@ -51,6 +51,14 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
             # Model takes image and text as input
             processor = AutoProcessor.from_pretrained(model_id)
             inputs = processor(images=image, text=text, padding=padding, return_tensors="pt", **preprocessor_kwargs)
+        elif model_type == "sam":
+            processor = AutoProcessor.from_pretrained(model_id)
+
+            img_url = "https://huggingface.co/ybelkada/segment-anything/resolve/main/assets/car.png"
+            raw_image = Image.open(requests.get(img_url, stream=True).raw).convert("RGB")
+            input_points = [[[450, 600]]]  # 2D location of a window in the image
+
+            inputs = processor(raw_image, input_points=input_points, return_tensors="pt")
         else:
             url = "http://images.cocodataset.org/val2017/000000039769.jpg"
             image = Image.open(requests.get(url, stream=True).raw)

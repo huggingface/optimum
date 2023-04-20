@@ -82,8 +82,18 @@ def replace_to_bettertransformer(model, config):
         for target_class in target_classes:
             should_replace_module = module.__class__.__name__ == target_class
             if should_replace_module:
+                # Some submodules may require attributes from the parent `model` to be properly initialized,
+                # for example SamVisionAttention
+                required_parent_attrs = {}
+                if (
+                    config.model_type in BetterTransformerManager.REQUIRED_PARENT_ATTRS
+                    and target_class in BetterTransformerManager.REQUIRED_PARENT_ATTRS[config.model_type]
+                ):
+                    for attr_name in BetterTransformerManager.REQUIRED_PARENT_ATTRS[config.model_type][target_class]:
+                        required_parent_attrs[attr_name] = getattr(model, attr_name)
+
                 bettertransformer_module = BetterTransformerManager.MODEL_MAPPING[config.model_type][target_class](
-                    module, config
+                    module, config, required_parent_attrs
                 )
                 model._modules[name] = bettertransformer_module
                 break
@@ -275,7 +285,7 @@ class BetterTransformer(object):
         # See: https://github.com/pytorch/pytorch/issues/96099
         if BetterTransformerManager.requires_torch_20(model_fast.config.model_type):
             logging.warning(
-                f"For training, the BetterTransformer implementation for {model_fast.config.model_type} "
+                f"For training, the BetterTransformer implementation for {model_fast.config.model_type}"
                 " architecture currently does not support padding as fused kernels do not support custom"
                 " attention masks. Beware that passing padded batched training data may result in unexpected outputs."
             )
