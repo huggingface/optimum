@@ -805,7 +805,7 @@ class TasksManager:
         ),
         "resnext26ts": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
         "resnext50-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
-        "resnext50d-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "resnext50d-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNext50d_32x4dOnnxConfig"),
         "resnext101-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
         "resnext101-32x8d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
         "resnext101-64x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),

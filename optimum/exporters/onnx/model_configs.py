@@ -661,6 +661,14 @@ class TimmResNextOnnxConfig(ViTOnnxConfig):
         return model_inputs
 
 
+class TimmResNext50d_32x4dOnnxConfig(TimmResNextOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-3
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"pixel_values": {0: "batch_size"}}
+
+
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     TEXT_CONFIG = "text_config"
     VISION_CONFIG = "vision_config"
