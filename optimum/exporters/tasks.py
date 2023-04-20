@@ -144,11 +144,11 @@ class TasksManager:
     _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {}
     _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {}
     _TIMM_TASKS_TO_MODEL_LOADERS = {}
-    _LIBRARY_TO_MODEL_LOADER_MAP = {}
+    _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {}
 
     # TF model loaders
     _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {}
-    _LIBRARY_TO_TF_MODEL_LOADER_MAP = {}
+    _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {}
     if is_torch_available():
         # Refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
         # In case the same task (pipeline tag) may map to several loading classes, we use a tuple and the
@@ -192,7 +192,7 @@ class TasksManager:
             "image-classification": "create_model",
         }
 
-        _LIBRARY_TO_MODEL_LOADER_MAP = {
+        _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {
             "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
             "diffusers": _DIFFUSERS_TASKS_TO_MODEL_LOADERS,
             "timm": _TIMM_TASKS_TO_MODEL_LOADERS,
@@ -224,7 +224,7 @@ class TasksManager:
             "zero-shot-object-detection": "TFAutoModelForZeroShotObjectDetection",
         }
 
-        _LIBRARY_TO_TF_MODEL_LOADER_MAP = {
+        _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {
             "transformers": _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS,
         }
 
@@ -249,12 +249,12 @@ class TasksManager:
     }
 
     # Reverse dictionaries str -> str, where several model loaders may map to the same task
-    _MODEL_LOADERS_TO_TASKS_MAP = {
+    _LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP = {
         "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
         "diffusers": get_model_loaders_to_tasks(_DIFFUSERS_TASKS_TO_MODEL_LOADERS),
         "timm": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
     }
-    _TF_MODEL_LOADERS_TO_TASKS_MAP = {
+    _LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP = {
         "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS),
     }
     _CUSTOM_CLASSES = {
@@ -1170,9 +1170,9 @@ class TasksManager:
             return getattr(loaded_library, class_name)
         else:
             if framework == "pt":
-                tasks_to_model_loader = TasksManager._LIBRARY_TO_MODEL_LOADER_MAP[library]
+                tasks_to_model_loader = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP[library]
             else:
-                tasks_to_model_loader = TasksManager._LIBRARY_TO_TF_MODEL_LOADER_MAP[library]
+                tasks_to_model_loader = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP[library]
 
             loaded_library = importlib.import_module(library)
 
@@ -1343,12 +1343,13 @@ class TasksManager:
             raise ValueError("Either a model or a model class must be provided, but none were given here.")
         target_name = model.__class__.__name__ if model is not None else model_class.__name__
         task_name = None
-        if library_name in cls._LIBRARY_TO_MODEL_LOADER_MAP:
-            iterable = (cls._LIBRARY_TO_MODEL_LOADER_MAP[library_name].items(),)
-        if library_name in cls._LIBRARY_TO_TF_MODEL_LOADER_MAP:
-            iterable += (cls._LIBRARY_TO_TF_MODEL_LOADER_MAP[library_name].items(),)
+        if library_name in cls._LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP:
+            iterable = (cls._LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP[library_name].items(),)
+        if library_name in cls._LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP:
+            iterable += (cls._LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP[library_name].items(),)
         pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
         tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
+
         for auto_cls_name, task in itertools.chain.from_iterable(iterable):
             if any(
                 (
@@ -1581,9 +1582,9 @@ class TasksManager:
         """
         tasks = []
         if is_torch_available():
-            mapping = TasksManager._LIBRARY_TO_MODEL_LOADER_MAP
+            mapping = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP
         else:
-            mapping = TasksManager._LIBRARY_TO_TF_MODEL_LOADER_MAP
+            mapping = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP
 
         tasks = []
         for d in mapping.values():
