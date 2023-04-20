@@ -47,7 +47,7 @@ from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqCon
 from .config import (
     AudioOnnxConfig,
     AudioToTextOnnxConfig,
-    DummyEncoderDecoderOnnxConfig,
+    EncoderDecoderBaseOnnxConfig,
     TextAndVisionOnnxConfig,
     TextDecoderOnnxConfig,
     TextEncoderOnnxConfig,
@@ -1168,7 +1168,7 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
     )
 
 
-class VisionEncoderDecoderOnnxConfig(DummyEncoderDecoderOnnxConfig):
+class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     ATOL_FOR_VALIDATION = 1e-3
 
@@ -1439,5 +1439,6 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
             dummy_input = dummy_input_gen.generate(input_name, framework=framework)
 
         return dummy_input
-class EncoderDecoderOnnxConfig(DummyEncoderDecoderOnnxConfig):
+
+class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig

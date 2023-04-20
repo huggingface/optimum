@@ -267,7 +267,7 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return {}
 
 
-class DummyEncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
+class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
 
     def __init__(
