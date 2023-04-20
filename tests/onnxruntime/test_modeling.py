@@ -3370,7 +3370,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     @pytest.mark.gpu_test  # mark as GPU test as well to run the without/with cache timing test on the slow tests
     def test_compare_with_and_without_past_key_values(self, model_arch: str):
         if model_arch == "m2m_100" or model_arch == "encoder-decoder":
-            return  # TODO: this test is failing for m2m_100
+            self.skipTest("m2m_100 and encoder-decoder comparison with/without pkv fail or is not supported")
         model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
         self._setup(model_args)
         model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
