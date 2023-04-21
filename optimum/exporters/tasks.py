@@ -144,6 +144,10 @@ class TasksManager:
         # Refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
         # In case the same task (pipeline tag) may map to several loading classes, we use a tuple and the
         # auto-class _model_mapping to determine the right one.
+
+        # TODO: having several tasks pointing to the same auto-model class is bug prone to auto-detect the
+        # task in a Hub repo that has no pipeline_tag, and no transformersInfo.pipeline_tag, as we then rely on
+        # on transformersInfo["auto_model"] and this dictionary.
         _TASKS_TO_AUTOMODELS = {
             "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
             "feature-extraction": "AutoModel",
