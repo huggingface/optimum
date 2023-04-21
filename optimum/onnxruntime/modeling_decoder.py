@@ -682,7 +682,6 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
             "use_cache": use_cache,
             "position_ids": None,
             "attention_mask": attention_mask,
-            "token_type_ids": None,
         }
 
     # Copied from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel._reorder_cache

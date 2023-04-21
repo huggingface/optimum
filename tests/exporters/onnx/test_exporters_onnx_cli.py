@@ -15,12 +15,13 @@
 import os
 import subprocess
 import unittest
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 
 import pytest
 from parameterized import parameterized
-from transformers import is_torch_available
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, is_torch_available
 from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
 
 from optimum.exporters.onnx.__main__ import main_export
@@ -135,6 +136,12 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_pytorch_cpu(
         self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
     ):
+        # TODO: re-enable those tests
+        # Failing due to https://github.com/huggingface/transformers/pull/22212
+        # It is not as simple as changing "logits" by "reconstruction" as not all
+        # masked-im models use MaskedImageModelingOutput
+        if model_type in ["vit", "deit"] and task == "masked-im":
+            self.skipTest("Temporarily disabled upon transformers 4.28 release")
         self._onnx_export(model_name, task, monolith, no_post_process)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
@@ -304,3 +311,42 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         else:
             with TemporaryDirectory() as tmpdir:
                 main_export(model_name_or_path=model_name, output=tmpdir, task=task)
+
+    @slow
+    def test_complex_synonyms(self):
+        # conversational (text2text-generation)
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path="facebook/blenderbot-400M-distill", output=tmpdir)
+            self.assertTrue(Path(tmpdir, "decoder_with_past_model.onnx").is_file())
+
+        # conversational (text-generation)
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path="microsoft/DialoGPT-small", output=tmpdir)
+            self.assertTrue(Path(tmpdir, "decoder_with_past_model.onnx").is_file())
+
+        # summarization
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path="facebook/bart-large-cnn", output=tmpdir)
+
+        # zero-shot-classification
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path="facebook/bart-large-mnli", output=tmpdir)
+
+        # translation
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path="t5-small", output=tmpdir)
+            self.assertTrue(Path(tmpdir, "decoder_with_past_model.onnx").is_file())
+
+        # sentence-similarity
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path="sentence-transformers/paraphrase-TinyBERT-L6-v2", output=tmpdir)
+
+        # from local
+        with TemporaryDirectory() as tmpdir_in, TemporaryDirectory() as tmpdir_out:
+            tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large-mnli")
+            model = AutoModelForSequenceClassification.from_pretrained("facebook/bart-large-mnli")
+
+            tokenizer.save_pretrained(tmpdir_in)
+            model.save_pretrained(tmpdir_in)
+
+            main_export(model_name_or_path=tmpdir_in, output=tmpdir_out, task="text-classification")

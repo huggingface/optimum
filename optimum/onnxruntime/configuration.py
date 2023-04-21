@@ -668,8 +668,7 @@ class OptimizationConfig:
         use_multi_head_attention (`bool`, defaults to `False`):
             Experimental argument. Use MultiHeadAttention instead of Attention operator, which has merged weights for Q/K/V projection,
             which might be faster in some cases since 3 MatMul is merged into one."
-            "Note that MultiHeadAttention might be slower than Attention since MatMul of input projection is excluded. "
-            "MultiHeadAttention has only CUDA implementation so the model can only run with CUDAExecutionProvider.
+            "Note that MultiHeadAttention might be slower than Attention when qkv are not packed. "
         enable_gemm_fast_gelu (`bool`, defaults to `True`):
             Enable GemmfastGelu fusion.
         use_raw_attention_mask (`bool`, defaults to `False`):

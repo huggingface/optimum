@@ -1970,6 +1970,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "gpt_neo",
         "gpt_neox",
         "gptj",
+        "llama",
     ]
 
     FULL_GRID = {
@@ -2021,7 +2022,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name])
         tokenizer = get_preprocessor(model_id)
         text = "This is a sample output"
-        tokens = tokenizer(text, return_tensors="pt")
+        tokens = tokenizer(text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None)
 
         # General case
         outputs = model.generate(**tokens)
@@ -2030,7 +2031,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertTrue(len(res[0]) > len(text))
 
         # With input ids
-        tokens = tokenizer(text, return_tensors="pt")
+        tokens = tokenizer(text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None)
         outputs = model.generate(input_ids=tokens["input_ids"])
         res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         self.assertIsInstance(res[0], str)
@@ -2118,7 +2119,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForCausalLM.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer(
+            "This is a sample output",
+            return_tensors="pt",
+            return_token_type_ids=False if model_arch == "llama" else None,
+        )
         onnx_outputs = onnx_model(**tokens)
 
         self.assertTrue("logits" in onnx_outputs)
@@ -2217,12 +2222,16 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
             # build engine for a short sequence
             text = ["short"]
-            encoded_input = tokenizer(text, return_tensors="pt").to("cuda")
+            encoded_input = tokenizer(
+                text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None
+            ).to("cuda")
             _ = onnx_model(**encoded_input)
 
             # build engine for a long sequence
             text = [" a very long input just for demo purpose, this is very long" * 10]
-            encoded_input = tokenizer(text, return_tensors="pt").to("cuda")
+            encoded_input = tokenizer(
+                text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None
+            ).to("cuda")
             _ = onnx_model(**encoded_input)
 
             pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer, device=0)
@@ -2235,7 +2244,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertTrue(isinstance(outputs[0]["generated_text"], str))
             self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
 
-            encoded_input = tokenizer(["Replace me by any text you'd like."], return_tensors="pt").to("cuda")
+            encoded_input = tokenizer(
+                ["Replace me by any text you'd like."],
+                return_tensors="pt",
+                return_token_type_ids=False if model_arch == "llama" else None,
+            ).to("cuda")
             _ = onnx_model.generate(**encoded_input)
 
             gc.collect()
@@ -2251,7 +2264,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         tokenizer = get_preprocessor(model_id)
         text = "My Name is Philipp and i live"
-        tokens = tokenizer(text, return_tensors="pt")
+        tokens = tokenizer(text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None)
 
         model_with_pkv = ORTModelForCausalLM.from_pretrained(
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True
@@ -2302,7 +2315,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         tokenizer = get_preprocessor(model_id)
         text = "My Name is Philipp and i live"
-        tokens = tokenizer(text, return_tensors="pt")
+        tokens = tokenizer(text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None)
 
         model_not_merged_dir = self.onnx_model_dirs[test_name + "_False"]
         model_merged_dir = self.onnx_model_dirs[test_name + "_True"]
@@ -2372,7 +2385,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         io_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to("cuda")
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt").to("cuda")
+        tokens = tokenizer(
+            "This is a sample output",
+            return_tensors="pt",
+            return_token_type_ids=False if model_arch == "llama" else None,
+        ).to("cuda")
         onnx_outputs = onnx_model.generate(**tokens)
         io_outputs = io_model.generate(**tokens)
 

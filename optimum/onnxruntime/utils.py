@@ -114,6 +114,7 @@ class ORTConfigManager:
         "gptj": "gpt2",
         # longt5 with O4 results in segmentation fault
         "longt5": "bert",
+        "llama": "gpt2",
         "marian": "bart",
         "mbart": "bart",
         "mt5": "bart",
@@ -122,6 +123,7 @@ class ORTConfigManager:
         "pegasus": "bert",
         "roberta": "bert",
         "t5": "bert",
+        "whisper": "bart",
         "xlm-roberta": "bert",
     }
 

@@ -209,8 +209,8 @@ class OnnxExportTestCase(TestCase):
         monolith: bool,
         device="cpu",
     ):
-        model_class = TasksManager.get_model_class_for_task(task)
         config = AutoConfig.from_pretrained(model_name)
+        model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
         model = model_class.from_config(config)
 
         # Dynamic axes aren't supported for YOLO-like models. This means they cannot be exported to ONNX on CUDA devices.

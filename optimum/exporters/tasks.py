@@ -144,7 +144,12 @@ class TasksManager:
         # Refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
         # In case the same task (pipeline tag) may map to several loading classes, we use a tuple and the
         # auto-class _model_mapping to determine the right one.
+
+        # TODO: having several tasks pointing to the same auto-model class is bug prone to auto-detect the
+        # task in a Hub repo that has no pipeline_tag, and no transformersInfo.pipeline_tag, as we then rely on
+        # on transformersInfo["auto_model"] and this dictionary.
         _TASKS_TO_AUTOMODELS = {
+            "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
             "text-generation": "AutoModelForCausalLM",
@@ -169,6 +174,7 @@ class TasksManager:
         }
     if is_tf_available():
         _TASKS_TO_TF_AUTOMODELS = {
+            "conversational": ("TFAutoModelForCausalLM", "TFAutoModelForSeq2SeqLM"),
             "feature-extraction": "TFAutoModel",
             "fill-mask": "TFAutoModelForMaskedLM",
             "text-generation": "TFAutoModelForCausalLM",
@@ -204,6 +210,10 @@ class TasksManager:
         "default": "feature-extraction",
         "default-with-past": "feature-extraction-with-past",
         "audio-ctc": "automatic-speech-recognition",
+        "translation": "text2text-generation",
+        "sentence-similarity": "feature-extraction",
+        "summarization": "text2text-generation",
+        "zero-shot-classification": "text-classification",
     }
 
     # Reverse dictionaries str -> str, where several automodels may map to the same task
@@ -216,12 +226,14 @@ class TasksManager:
     }
 
     _TASKS_TO_LIBRARY = {
+        "conversational": "transformers",
         "feature-extraction": "transformers",
         "fill-mask": "transformers",
         "text-generation": "transformers",
         "text2text-generation": "transformers",
         "text-classification": "transformers",
         "token-classification": "transformers",
+        "translation": "transformers",
         "multiple-choice": "transformers",
         "object-detection": "transformers",
         "question-answering": "transformers",
@@ -234,7 +246,10 @@ class TasksManager:
         "audio-frame-classification": "transformers",
         "audio-xvector": "transformers",
         "image-to-text": "transformers",
+        "sentence-similarity": "transformers",
         "stable-diffusion": "diffusers",
+        "summarization": "transformers",
+        "zero-shot-classification": "transformers",
         "zero-shot-image-classification": "transformers",
         "zero-shot-object-detection": "transformers",
     }
@@ -659,6 +674,14 @@ class TasksManager:
             "text-classification",
             onnx="OPTOnnxConfig",
         ),
+        "llama": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            onnx="LlamaOnnxConfig",
+        ),
         "pegasus": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -1022,16 +1045,16 @@ class TasksManager:
             else:
                 tasks_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
 
-            if task not in tasks_to_automodel:
-                raise KeyError(
-                    f"Unknown task: {task}. Possible values are: "
-                    + ", ".join([f"`{key}` for {tasks_to_automodel[key]}" for key in tasks_to_automodel])
-                )
-
             library = TasksManager._TASKS_TO_LIBRARY[task]
             loaded_library = importlib.import_module(library)
 
             if model_class_name is None:
+                if task not in tasks_to_automodel:
+                    raise KeyError(
+                        f"Unknown task: {task}. Possible values are: "
+                        + ", ".join([f"`{key}` for {tasks_to_automodel[key]}" for key in tasks_to_automodel])
+                    )
+
                 if isinstance(tasks_to_automodel[task], str):
                     model_class_name = tasks_to_automodel[task]
                 else:
@@ -1190,14 +1213,6 @@ class TasksManager:
     def _infer_task_from_model_name_or_path(
         cls, model_name_or_path: str, subfolder: str = "", revision: Optional[str] = None
     ) -> str:
-        tasks_to_automodels = {}
-        class_name_prefix = ""
-        if is_torch_available():
-            tasks_to_automodels = TasksManager._TASKS_TO_AUTOMODELS
-        else:
-            tasks_to_automodels = TasksManager._TASKS_TO_TF_AUTOMODELS
-            class_name_prefix = "TF"
-
         inferred_task_name = None
         is_local = os.path.isdir(os.path.join(model_name_or_path, subfolder))
 
@@ -1215,20 +1230,32 @@ class TasksManager:
                 if "stable-diffusion" in model_info.tags:
                     inferred_task_name = "stable-diffusion"
             else:
-                if getattr(model_info, "pipeline_tag", None) is not None:
-                    inferred_task_name = model_info.pipeline_tag
+                pipeline_tag = getattr(model_info, "pipeline_tag", None)
+                # conversational is not a supported task per se, just an alias that may map to
+                # text-generaton or text2text-generation
+                if pipeline_tag is not None and pipeline_tag != "conversational":
+                    inferred_task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
                 else:
                     transformers_info = model_info.transformersInfo
+                    if transformers_info is not None and transformers_info.get("pipeline_tag") is not None:
+                        inferred_task_name = TasksManager.map_from_synonym(transformers_info["pipeline_tag"])
+                    else:
+                        # transformersInfo does not always have a pipeline_tag attribute
+                        class_name_prefix = ""
+                        if is_torch_available():
+                            tasks_to_automodels = TasksManager._TASKS_TO_AUTOMODELS
+                        else:
+                            tasks_to_automodels = TasksManager._TASKS_TO_TF_AUTOMODELS
+                            class_name_prefix = "TF"
 
-                    if transformers_info is None or transformers_info.get("auto_model") is None:
-                        raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
-                    auto_model_class_name = transformers_info["auto_model"]
-                    if not auto_model_class_name.startswith("TF"):
-                        auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
-                    for task_name, class_name_for_task in tasks_to_automodels.items():
-                        if class_name_for_task == auto_model_class_name:
-                            inferred_task_name = task_name
-                            break
+                        auto_model_class_name = transformers_info["auto_model"]
+                        if not auto_model_class_name.startswith("TF"):
+                            auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
+                        for task_name, class_name_for_task in tasks_to_automodels.items():
+                            if class_name_for_task == auto_model_class_name:
+                                inferred_task_name = task_name
+                                break
+
         if inferred_task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
         return inferred_task_name

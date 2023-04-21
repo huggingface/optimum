@@ -36,9 +36,6 @@ from .transformations_utils import (
 logger = logging.get_logger()
 
 
-ONNX_BYTE_SIZE_LIMIT = 2147483648
-
-
 def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelProto:
     """
     Finds and removes duplicate weights in a model by keeping only unique weights, and make the duplicate values point
@@ -214,7 +211,7 @@ def merge_decoders(
 
     # for large models, a path must be provided instead of a ModelProto:
     # https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#checking-a-large-onnx-model-2gb
-    if merged_model.ByteSize() < ONNX_BYTE_SIZE_LIMIT:
+    if merged_model.ByteSize() < onnx.checker.MAXIMUM_PROTOBUF:
         # For the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
         try:
             onnx.checker.check_model(merged_model)
