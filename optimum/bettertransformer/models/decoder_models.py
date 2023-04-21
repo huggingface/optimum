@@ -34,6 +34,7 @@ from .attention import (
     codegen_wrapped_scaled_dot_product,
     gpt2_wrapped_scaled_dot_product,
     gpt_neo_wrapped_scaled_dot_product,
+    llama_forward,
     opt_forward,
     t5_forward,
 )
@@ -327,13 +328,7 @@ class PegasusAttentionLayerBetterTransformer(BetterTransformerBaseLayer, Pegasus
 class LlamaAttentionLayerBetterTransformer(BetterTransformerBaseLayer, LlamaAttention, nn.Module):
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
         with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(
-                layer.embed_dim,
-                layer.num_heads,
-                layer.dropout,
-                layer.is_decoder,
-                layer.k_proj.bias is not None,
-            )
+            super(BetterTransformerBaseLayer, self).__init__(config)
 
         self.module_mapping = None
         submodules = ["k_proj", "v_proj", "q_proj", "o_proj", "rotary_emb"]
