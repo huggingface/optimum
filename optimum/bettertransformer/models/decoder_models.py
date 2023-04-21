@@ -22,6 +22,7 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
 from transformers.models.gpt_neo.modeling_gpt_neo import GPTNeoSelfAttention
 from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXAttention
 from transformers.models.gptj.modeling_gptj import GPTJAttention
+from transformers.models.llama.modeling_llama import LlamaAttention
 from transformers.models.m2m_100.modeling_m2m_100 import M2M100Attention
 from transformers.models.marian.modeling_marian import MarianAttention
 from transformers.models.opt.modeling_opt import OPTAttention
@@ -321,3 +322,28 @@ class PegasusAttentionLayerBetterTransformer(BetterTransformerBaseLayer, Pegasus
     def forward(self, *args, **kwargs):
         super().forward_checker()
         return bart_forward(self, *args, **kwargs)
+
+
+class LlamaAttentionLayerBetterTransformer(BetterTransformerBaseLayer, LlamaAttention, nn.Module):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+        with torch.device("meta"):
+            super(BetterTransformerBaseLayer, self).__init__(
+                layer.embed_dim,
+                layer.num_heads,
+                layer.dropout,
+                layer.is_decoder,
+                layer.k_proj.bias is not None,
+            )
+
+        self.module_mapping = None
+        submodules = ["k_proj", "v_proj", "q_proj", "o_proj", "rotary_emb"]
+        for attr in submodules:
+            setattr(self, attr, getattr(layer, attr))
+
+        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
+
+        self.supports_training = True
+
+    def forward(self, *args, **kwargs):
+        super().forward_checker()
+        return llama_forward(self, *args, **kwargs)
