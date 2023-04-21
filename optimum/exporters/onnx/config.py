@@ -194,7 +194,6 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         dummy_seq2seq_past_key_values_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[2](
             self.task,
             self._normalized_config,
-            encoder_sequence_length=dummy_text_input_generator.sequence_length,
             **kwargs,
         )
         dummy_inputs_generators = [
