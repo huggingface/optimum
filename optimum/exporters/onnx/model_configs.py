@@ -197,6 +197,18 @@ class GPT2OnnxConfig(TextDecoderOnnxConfig):
 
 
 class GPTJOnnxConfig(GPT2OnnxConfig):
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        if self.use_past_in_inputs:
+            common_inputs = {"input_ids": {0: "batch_size"}}
+            self.add_past_key_values(common_inputs, direction="inputs")
+            common_inputs["attention_mask"] = {0: "batch_size", 1: "past_sequence_length + 1"}
+        else:
+            common_inputs = {
+                "input_ids": {0: "batch_size", 1: "sequence_length"},
+                "attention_mask": {0: "batch_size", 1: "sequence_length"},
+            }
+        return common_inputs
     pass
 
 
