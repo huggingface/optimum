@@ -44,6 +44,7 @@ from .input_generators import (
     DummyInputGenerator,
     DummyLabelsGenerator,
     DummyPastKeyValuesGenerator,
+    DummyPointsGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,

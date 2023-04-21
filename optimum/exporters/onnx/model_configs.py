@@ -24,6 +24,7 @@ from ...utils import (
     DummyAudioInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
+    DummyPointsGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
@@ -1085,3 +1086,31 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
+
+
+class SamOnnxConfig(OnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyPointsGenerator)
+    DEFAULT_ONNX_OPSET = 12  # einsum op not supported with opset 11
+
+    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
+        super().__init__(config, task)
+        self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig(self._config.vision_config)
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        inputs = {
+            "pixel_values": {0: "batch_size"},
+            "input_points": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
+        }
+
+        return inputs
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        outputs = {
+            "iou_scores": {0: "batch_size", 1: "point_batch_size"},
+            "pred_masks": {0: "batch_size", 1: "point_batch_size"},
+        }
+
+        return outputs

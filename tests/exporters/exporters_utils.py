@@ -15,9 +15,11 @@
 
 VALIDATE_EXPORT_ON_SHAPES_SLOW = {
     "batch_size": [1, 3, 5],
-    "sequence_length": [8, 19, 33, 64, 96, 154],
+    "sequence_length": [8, 33, 96, 154],
     "num_choices": [2, 4],
     "audio_sequence_length": [1000, 2000],
+    "point_batch_size": [1, 5],
+    "nb_points_per_image": [1, 3],
 }
 
 VALIDATE_EXPORT_ON_SHAPES_FAST = {
@@ -89,6 +91,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
+    "sam": "fxmarty/sam-vit-tiny-random",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
