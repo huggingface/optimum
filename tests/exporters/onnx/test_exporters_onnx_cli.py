@@ -337,6 +337,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             main_export(model_name_or_path="t5-small", output=tmpdir)
             self.assertTrue(Path(tmpdir, "decoder_with_past_model.onnx").is_file())
 
+        # sentence-similarity
+        with TemporaryDirectory() as tmpdir:
+            main_export(model_name_or_path="sentence-transformers/paraphrase-TinyBERT-L6-v2", output=tmpdir)
+
         # from local
         with TemporaryDirectory() as tmpdir_in, TemporaryDirectory() as tmpdir_out:
             tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large-mnli")
