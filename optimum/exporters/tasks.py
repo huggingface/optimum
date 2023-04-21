@@ -207,6 +207,7 @@ class TasksManager:
         "default-with-past": "feature-extraction-with-past",
         "audio-ctc": "automatic-speech-recognition",
         "translation": "text2text-generation",
+        "sentence-similarity": "feature-extraction",
         "summarization": "text2text-generation",
         "zero-shot-classification": "text-classification",
     }
@@ -241,6 +242,7 @@ class TasksManager:
         "audio-frame-classification": "transformers",
         "audio-xvector": "transformers",
         "image-to-text": "transformers",
+        "sentence-similarity": "transformers",
         "stable-diffusion": "diffusers",
         "summarization": "transformers",
         "zero-shot-classification": "transformers",
