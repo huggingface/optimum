@@ -1207,14 +1207,6 @@ class TasksManager:
     def _infer_task_from_model_name_or_path(
         cls, model_name_or_path: str, subfolder: str = "", revision: Optional[str] = None
     ) -> str:
-        tasks_to_automodels = {}
-        class_name_prefix = ""
-        if is_torch_available():
-            tasks_to_automodels = TasksManager._TASKS_TO_AUTOMODELS
-        else:
-            tasks_to_automodels = TasksManager._TASKS_TO_TF_AUTOMODELS
-            class_name_prefix = "TF"
-
         inferred_task_name = None
         is_local = os.path.isdir(os.path.join(model_name_or_path, subfolder))
 
@@ -1239,19 +1231,11 @@ class TasksManager:
                     inferred_task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
                 else:
                     transformers_info = model_info.transformersInfo
-
-                    if transformers_info is None or transformers_info.get("auto_model") is None:
+                    if transformers_info is None or transformers_info.get("pipeline_tag") is None:
                         raise RuntimeError(f"Could not infer the task from the model repo {model_name_or_path}")
-                    auto_model_class_name = transformers_info["auto_model"]
-                    if not auto_model_class_name.startswith("TF"):
-                        auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
-                    for task_name, class_name_for_task in tasks_to_automodels.items():
-                        if class_name_for_task == auto_model_class_name:
-                            inferred_task_name = task_name
-                            break
 
-        if inferred_task_name is None:
-            raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
+                    inferred_task_name = TasksManager.map_from_synonym(transformers_info["pipeline_tag"])
+
         return inferred_task_name
 
     @classmethod
