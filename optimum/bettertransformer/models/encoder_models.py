@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 import torch
 import torch.nn as nn
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 
 class AlbertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
-    def __init__(self, albert_layer, config):
+    def __init__(self, albert_layer, config, parent_attrs: Dict):
         r"""
         A simple conversion of the ALBERT layer to its `BetterTransformer` implementation.
 
@@ -147,7 +147,7 @@ class AlbertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
 
 class BertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
-    def __init__(self, bert_layer, config):
+    def __init__(self, bert_layer, config, parent_attrs: Dict):
         r"""
         A simple conversion of the BERT layer to its `BetterTransformer` implementation.
 
@@ -274,7 +274,7 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
 
 class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
-    def __init__(self, bart_layer, config):
+    def __init__(self, bart_layer, config, parent_attrs: Dict):
         r"""
         A simple conversion of the `BartEncoderLayer` to its `BetterTransformer` implementation.
 
@@ -408,7 +408,7 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
 
 class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
-    def __init__(self, mbart_layer, config):
+    def __init__(self, mbart_layer, config, parent_attrs: Dict):
         r"""
         A simple conversion of the `MBartEncoderLayer` to its `BetterTransformer` implementation.
         Args:
@@ -546,7 +546,7 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
 
 class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
-    def __init__(self, bert_layer, config):
+    def __init__(self, bert_layer, config, parent_attrs: Dict):
         r"""
         A simple conversion of the Distill-BERTLayer to its `BetterTransformer` implementation.
 
@@ -670,7 +670,7 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
 
 class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
-    def __init__(self, whisper_layer, config):
+    def __init__(self, whisper_layer, config, parent_attrs: Dict):
         r"""
         A simple conversion of the WhisperEncoderLayer to its `BetterTransformer` implementation.
 
@@ -783,7 +783,7 @@ class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module
 
 
 class ViTLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
-    def __init__(self, vit_layer, config):
+    def __init__(self, vit_layer, config, parent_attrs: Dict):
         r"""
         A simple conversion of the ViTLayer to its `BetterTransformer` implementation.
 
@@ -903,7 +903,7 @@ class ViTLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
 
 class ViltLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
-    def __init__(self, vilt_layer, config):
+    def __init__(self, vilt_layer, config, parent_attrs: Dict):
         r"""
         A simple conversion of the VilTLayer to its `BetterTransformer` implementation.
 
@@ -1023,7 +1023,7 @@ class ViltLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
 
 class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
-    def __init__(self, wav2vec2_layer, config):
+    def __init__(self, wav2vec2_layer, config, parent_attrs: Dict):
         r"""
         A simple conversion of the Wav2Vec2EncoderLayer to its `BetterTransformer` implementation.
 
@@ -1150,7 +1150,7 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Modul
 
 
 class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
-    def __init__(self, fsmt_layer, config):
+    def __init__(self, fsmt_layer, config, parent_attrs: Dict):
         r"""
         A simple conversion of the FSMT Encoder layer to its `BetterTransformer` implementation.
 
@@ -1286,7 +1286,7 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
 
 class ProphetNetEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
-    def __init__(self, prophetnet_layer, config):
+    def __init__(self, prophetnet_layer, config, parent_attrs: Dict):
         r"""
         A simple conversion of the ProphetNet Encoder layer to its `BetterTransformer` implementation.
 
@@ -1420,7 +1420,7 @@ class ProphetNetEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Mod
 
 
 class CLIPLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
-    def __init__(self, layer, config):
+    def __init__(self, layer, config, parent_attrs: Dict):
         r"""
         A simple conversion of the CLIPEncoderLayer to its `BetterTransformer` implementation.
 

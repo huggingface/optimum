@@ -41,6 +41,7 @@ from .encoder_models import (
     Wav2Vec2EncoderLayerBetterTransformer,
     WhisperEncoderLayerBetterTransformer,
 )
+from .sam import SamAttentionLayerBetterTransformer, SamVisionAttentionLayerBetterTransformer
 
 
 class BetterTransformerManager:
@@ -85,6 +86,10 @@ class BetterTransformerManager:
         "roberta": {"RobertaLayer": BertLayerBetterTransformer},
         "roc_bert": {"RoCBertLayer": BertLayerBetterTransformer},
         "roformer": {"RoFormerLayer": BertLayerBetterTransformer},
+        "sam": {
+            "SamAttention": SamAttentionLayerBetterTransformer,
+            "SamVisionAttention": SamVisionAttentionLayerBetterTransformer,
+        },
         "splinter": {"SplinterLayer": BertLayerBetterTransformer},
         "tapas": {"TapasLayer": BertLayerBetterTransformer},
         "t5": {"T5Attention": T5AttentionLayerBetterTransformer},
@@ -100,6 +105,8 @@ class BetterTransformerManager:
         "xlm-roberta": {"XLMRobertaLayer": BertLayerBetterTransformer},
         "yolos": {"YolosLayer": ViTLayerBetterTransformer},
     }
+
+    REQUIRED_PARENT_ATTRS = {"sam": {"SamVisionAttention": ["window_size"]}}
 
     EXCLUDE_FROM_TRANSFORM = {
         # clip's text model uses causal attention, that is most likely not supported in BetterTransformer
@@ -142,7 +149,18 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["blenderbot", "codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "pegasus", "t5"]:
+        if model_type in [
+            "blenderbot",
+            "codegen",
+            "gpt2",
+            "gptj",
+            "gpt_neo",
+            "gpt_neox",
+            "opt",
+            "pegasus",
+            "sam",
+            "t5",
+        ]:
             return False
         else:
             return True
@@ -156,7 +174,18 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["blenderbot", "codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "pegasus", "t5"]:
+        if model_type in [
+            "blenderbot",
+            "codegen",
+            "gpt2",
+            "gptj",
+            "gpt_neo",
+            "gpt_neox",
+            "opt",
+            "pegasus",
+            "sam",
+            "t5",
+        ]:
             return False
         else:
             return True
@@ -183,6 +212,7 @@ class BetterTransformerManager:
             "mbart",
             "opt",
             "pegasus",
+            "sam",
             "t5",
         ]:
             return True

@@ -59,6 +59,7 @@ MODELS_DICT = {
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "rocbert": "hf-internal-testing/tiny-random-RoCBertModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
+    "sam": "fxmarty/sam-vit-tiny-random",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "tapas": "hf-internal-testing/tiny-random-TapasModel",
     "t5": "hf-internal-testing/tiny-random-t5",

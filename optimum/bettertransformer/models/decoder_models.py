@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 import torch
 import torch.nn as nn
@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPT2Attention):
     _attn = gpt2_wrapped_scaled_dot_product
 
-    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", parent_attrs: Dict):
         super().__init__(config)
 
         with torch.device("meta"):
@@ -76,7 +76,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPT2Attent
 class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttention, nn.Module):
     _attn = gpt2_wrapped_scaled_dot_product
 
-    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", parent_attrs: Dict):
         super().__init__(config)
         with torch.device("meta"):
             super(BetterTransformerBaseLayer, self).__init__(config)
@@ -114,7 +114,7 @@ class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttent
 class GPTNeoXAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoXAttention, nn.Module):
     _attn = gpt2_wrapped_scaled_dot_product
 
-    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", parent_attrs: Dict):
         super().__init__(config)
         with torch.device("meta"):
             super(BetterTransformerBaseLayer, self).__init__(config)
@@ -138,7 +138,7 @@ class GPTNeoXAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoX
 class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSelfAttention, nn.Module):
     _attn = gpt_neo_wrapped_scaled_dot_product
 
-    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", parent_attrs: Dict):
         super().__init__(config)
 
         if layer.bias[0][0][-1][0] == 1:
@@ -168,7 +168,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
 class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGenAttention, nn.Module):
     _attn = codegen_wrapped_scaled_dot_product
 
-    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", parent_attrs: Dict):
         super().__init__(config)
 
         with torch.device("meta"):
@@ -195,7 +195,7 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGen
 
 
 class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer, OPTAttention, nn.Module):
-    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", parent_attrs: Dict):
         super().__init__(config)
 
         with torch.device("meta"):
@@ -224,7 +224,7 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer, OPTAttentio
 
 
 class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer, T5Attention, torch.nn.Module):
-    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", parent_attrs: Dict):
         super().__init__(config)
 
         with torch.device("meta"):
@@ -275,7 +275,7 @@ def bart_bettertransformer_init(self, layer: "nn.Module", config: "PretrainedCon
 
 
 class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BartAttention, nn.Module):
-    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", parent_attrs: Dict):
         super().__init__(config)
         bart_bettertransformer_init(self, layer, config)
 
@@ -285,7 +285,7 @@ class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BartAttent
 
 
 class BlenderbotAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BlenderbotAttention, nn.Module):
-    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", parent_attrs: Dict):
         super().__init__(config)
         bart_bettertransformer_init(self, layer, config)
 
@@ -295,7 +295,7 @@ class BlenderbotAttentionLayerBetterTransformer(BetterTransformerBaseLayer, Blen
 
 
 class M2M100AttentionLayerBetterTransformer(BetterTransformerBaseLayer, M2M100Attention, nn.Module):
-    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", parent_attrs: Dict):
         super().__init__(config)
         bart_bettertransformer_init(self, layer, config)
 
@@ -305,7 +305,7 @@ class M2M100AttentionLayerBetterTransformer(BetterTransformerBaseLayer, M2M100At
 
 
 class MarianAttentionLayerBetterTransformer(BetterTransformerBaseLayer, MarianAttention, nn.Module):
-    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", parent_attrs: Dict):
         super().__init__(config)
         bart_bettertransformer_init(self, layer, config)
 
@@ -315,7 +315,7 @@ class MarianAttentionLayerBetterTransformer(BetterTransformerBaseLayer, MarianAt
 
 
 class PegasusAttentionLayerBetterTransformer(BetterTransformerBaseLayer, PegasusAttention, nn.Module):
-    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", parent_attrs: Dict):
         bart_bettertransformer_init(self, layer, config)
 
     def forward(self, *args, **kwargs):
