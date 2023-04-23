@@ -23,10 +23,16 @@ from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from parameterized import parameterized
 from transformers import AutoTokenizer
 
-from optimum.onnxruntime import ORTQuantizer
-from optimum.onnxruntime.configuration import AutoCalibrationConfig, ORTConfig, QuantizationConfig
-from optimum.onnxruntime.modeling_ort import ORTModelForSequenceClassification
-from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
+from optimum.onnxruntime import (
+    AutoCalibrationConfig,
+    AutoQuantizationConfig,
+    ORTConfig,
+    ORTModelForCausalLM,
+    ORTModelForSeq2SeqLM,
+    ORTModelForSequenceClassification,
+    ORTQuantizer,
+    QuantizationConfig,
+)
 
 
 class ORTQuantizerTest(unittest.TestCase):
@@ -105,6 +111,38 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
                     num_quantized_matmul += 1
             self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
             gc.collect()
+
+    def test_dynamic_quantization_subgraphs(self):
+        qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=True)
+        # with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_dir = tempfile.mkdtemp()
+        output_dir = Path(tmp_dir)
+        model = ORTModelForCausalLM.from_pretrained(
+            "hf-internal-testing/tiny-random-gpt2", from_transformers=True, use_merged=True
+        )
+
+        self.assertTrue(model.use_merged)
+        model.save_pretrained(tmp_dir)
+
+        quantizer = ORTQuantizer.from_pretrained(model)
+        quantizer.quantize(
+            save_dir=output_dir,
+            quantization_config=qconfig,
+        )
+
+        expected_ort_config = ORTConfig(quantization=qconfig)
+        ort_config = ORTConfig.from_pretrained(tmp_dir)
+        # Verify the ORTConfig was correctly created and saved
+        self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
+
+        quantized_model = onnx_load(output_dir.joinpath("decoder_model_merged_quantized.onnx"))
+        num_quantized_matmul = 0
+        for initializer in quantized_model.graph.initializer:
+            if "MatMul" in initializer.name and "quantized" in initializer.name:
+                num_quantized_matmul += 1
+
+        self.assertTrue(num_quantized_matmul > 0)
+        gc.collect()
 
 
 class ORTStaticQuantizationTest(unittest.TestCase):
