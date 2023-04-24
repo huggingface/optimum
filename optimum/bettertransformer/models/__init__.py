@@ -13,6 +13,7 @@
 # limitations under the License.
 import warnings
 
+from .attention import _llama_prepare_decoder_attention_mask
 from .decoder_models import (
     BartAttentionLayerBetterTransformer,
     BlenderbotAttentionLayerBetterTransformer,
@@ -21,6 +22,7 @@ from .decoder_models import (
     GPTJAttentionLayerBetterTransformer,
     GPTNeoAttentionLayerBetterTransformer,
     GPTNeoXAttentionLayerBetterTransformer,
+    LlamaAttentionLayerBetterTransformer,
     M2M100AttentionLayerBetterTransformer,
     MarianAttentionLayerBetterTransformer,
     OPTAttentionLayerBetterTransformer,
@@ -68,6 +70,7 @@ class BetterTransformerManager:
         "gpt_neox": {"GPTNeoXAttention": GPTNeoXAttentionLayerBetterTransformer},
         "hubert": {"HubertEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer},
         "layoutlm": {"LayoutLMLayer": BertLayerBetterTransformer},
+        "llama": {"LlamaAttention": LlamaAttentionLayerBetterTransformer},
         "m2m_100": {
             "M2M100EncoderLayer": MBartEncoderLayerBetterTransformer,
             "M2M100Attention": M2M100AttentionLayerBetterTransformer,
@@ -99,6 +102,10 @@ class BetterTransformerManager:
         "whisper": {"WhisperEncoderLayer": WhisperEncoderLayerBetterTransformer},
         "xlm-roberta": {"XLMRobertaLayer": BertLayerBetterTransformer},
         "yolos": {"YolosLayer": ViTLayerBetterTransformer},
+    }
+
+    OVERWRITE_METHODS = {
+        "llama": {"LlamaModel": ("_prepare_decoder_attention_mask", _llama_prepare_decoder_attention_mask)}
     }
 
     EXCLUDE_FROM_TRANSFORM = {
@@ -133,6 +140,7 @@ class BetterTransformerManager:
         """
         return model_type in BetterTransformerManager.MODEL_MAPPING
 
+    # TODO: the following methods are almost duplicate, it is frankly quite ugly
     @staticmethod
     def requires_nested_tensor(model_type: str) -> bool:
         """
@@ -142,7 +150,18 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["blenderbot", "codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "pegasus", "t5"]:
+        if model_type in [
+            "blenderbot",
+            "codegen",
+            "gpt2",
+            "gptj",
+            "gpt_neo",
+            "gpt_neox",
+            "llama",
+            "opt",
+            "pegasus",
+            "t5",
+        ]:
             return False
         else:
             return True
@@ -156,7 +175,18 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in ["blenderbot", "codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt", "pegasus", "t5"]:
+        if model_type in [
+            "blenderbot",
+            "codegen",
+            "gpt2",
+            "gptj",
+            "gpt_neo",
+            "gpt_neox",
+            "llama",
+            "opt",
+            "pegasus",
+            "t5",
+        ]:
             return False
         else:
             return True
@@ -178,6 +208,7 @@ class BetterTransformerManager:
             "gptj",
             "gpt_neo",
             "gpt_neox",
+            "llama",
             "m2m_100",
             "marian",
             "mbart",

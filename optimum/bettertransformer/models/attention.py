@@ -15,6 +15,9 @@
 from typing import Optional, Tuple
 
 import torch
+from transformers.models.llama.modeling_llama import _expand_mask as _llama_expand_mask
+from transformers.models.llama.modeling_llama import _make_causal_mask as _llama_make_causal_mask
+from transformers.models.llama.modeling_llama import apply_rotary_pos_emb
 
 
 def raise_on_head_mask(head_mask: Optional[torch.Tensor]):
@@ -500,3 +503,103 @@ def bart_forward(
     attn_output = self.out_proj(attn_output)
 
     return attn_output, None, past_key_value
+
+
+# Adapted from transformers.models.bart.modeling_bart.BartDecoder._prepare_decoder_attention_mask
+def _llama_prepare_decoder_attention_mask(self, attention_mask, input_shape, inputs_embeds, past_key_values_length):
+    # create causal mask
+    # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+    combined_attention_mask = None
+
+    # We do not care about the attention mask in the batch size = 1 case
+    if attention_mask.size(0) > 1:
+        if input_shape[-1] > 1:
+            combined_attention_mask = _llama_make_causal_mask(
+                input_shape,
+                inputs_embeds.dtype,
+                device=inputs_embeds.device,
+                past_key_values_length=past_key_values_length,
+            )
+
+        if attention_mask is not None:
+            # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+            expanded_attn_mask = _llama_expand_mask(attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1]).to(
+                inputs_embeds.device
+            )
+
+            combined_attention_mask = (
+                expanded_attn_mask if combined_attention_mask is None else expanded_attn_mask + combined_attention_mask
+            )
+    else:
+        if input_shape[-1] > 1 and attention_mask is not None and attention_mask[0][0] == 0:
+            raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
+
+    return combined_attention_mask
+
+
+def llama_forward(
+    self,
+    hidden_states: torch.Tensor,
+    attention_mask: Optional[torch.Tensor] = None,
+    position_ids: Optional[torch.LongTensor] = None,
+    past_key_value: Optional[Tuple[torch.Tensor]] = None,
+    output_attentions: bool = False,
+    use_cache: bool = False,
+) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+    if output_attentions is True:
+        raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
+    bsz, q_len, _ = hidden_states.size()
+
+    query_states = self.q_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+    key_states = self.k_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+    value_states = self.v_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+    kv_seq_len = key_states.shape[-2]
+    if past_key_value is not None:
+        kv_seq_len += past_key_value[0].shape[-2]
+    cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+    query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+    # [bsz, nh, t, hd]
+
+    if past_key_value is not None:
+        # reuse k, v, self_attention
+        key_states = torch.cat([past_key_value[0], key_states], dim=2)
+        value_states = torch.cat([past_key_value[1], value_states], dim=2)
+
+    past_key_value = (key_states, value_states) if use_cache else None
+
+    if bsz == 1 or self.training:
+        # BEWARE: at this stage, attention_mask is not the same as in transformers llama
+        if query_states.shape[2] > 1:
+            attn_output = torch.nn.functional.scaled_dot_product_attention(
+                query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=True
+            )
+        else:
+            attn_output = torch.nn.functional.scaled_dot_product_attention(
+                query_states, key_states, value_states, attn_mask=None, dropout_p=0.0, is_causal=False
+            )
+    else:
+        # At this stage, **attention_mask is the same** as in transformers llama
+        if attention_mask is not None:
+            if attention_mask.size() != (bsz, 1, q_len, kv_seq_len):
+                raise ValueError(
+                    f"Attention mask should be of size {(bsz, 1, q_len, kv_seq_len)}, but is {attention_mask.size()}"
+                )
+
+        # This line is necessary for numerical equivalence, although I'm not sure it is useful in any way.
+        attention_mask = torch.max(attention_mask, torch.tensor(torch.finfo(attention_mask.dtype).min))
+
+        attn_output = torch.nn.functional.scaled_dot_product_attention(
+            query_states, key_states, value_states, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
+        )
+
+    attn_output = attn_output.transpose(1, 2)
+    attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
+
+    attn_output = self.o_proj(attn_output)
+
+    if not output_attentions:
+        attn_weights = None
+
+    return attn_output, attn_weights, past_key_value
