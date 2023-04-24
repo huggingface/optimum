@@ -56,65 +56,7 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 | Pruning                            | N/A                | :heavy_check_mark: | :heavy_check_mark: | N/A                |
 | Knowledge Distillation             | N/A                | :heavy_check_mark: | :heavy_check_mark: | N/A                |
 
-### ONNX + ONNX Runtime
 
-It is possible to export 🤗 Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
-
-```plain
-optimum-cli export onnx -m deepset/roberta-base-squad2 --optimize O2 roberta_base_qa_onnx
-```
-
-The model can then be quantized using `onnxruntime`:
-
-```bash
-optimum-cli onnxruntime quantize \
-  --avx512 \
-  --onnx_model roberta_base_qa_onnx \
-  -o quantized_roberta_base_qa_onnx
-```
-
-These commands will export `deepset/roberta-base-squad2` and perform [O2 graph optimization](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization#optimization-configuration) on the exported model, and finally quantize it with the [avx512 configuration](https://huggingface.co/docs/optimum/main/en/onnxruntime/package_reference/configuration#optimum.onnxruntime.AutoQuantizationConfig.avx512).
-
-For more information on the ONNX export, please check the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model).
-
-#### Run the exported model using ONNX Runtime
-
-Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seemless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend:
-
-```python
-from transformers import AutoTokenizer
-from optimum.onnxruntime import ORTModelForQuestionAnswering
-
-model_name = "roberta_base_qa_onnx"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-ort_model = ORTModelForQuestionAnswering.from_pretrained(model_name)
-
-question = "What's Optimum?"
-text = "Optimum is an awesome library everyone should use!"
-inputs = tokenizer(question, text, return_tensors="pt") 
-
-# Run with ONNX Runtime.
-outputs = ort_model(**inputs)
-
-answer_start_index = outputs.start_logits.argmax()
-answer_end_index = outputs.end_logits.argmax()
-
-predict_answer_tokens = inputs.input_ids[0, answer_start_index : answer_end_index + 1]
-answer = tokenizer.decode(predict_answer_tokens, skip_special_tokens=True)
-```
-
-More details on how to run ONNX models with `ORTModelForXXX` classes [here](https://huggingface.co/docs/optimum/main/en/onnxruntime/usage_guides/models).
-
-### TensorFlow Lite
-
-Just as for ONNX, it is possible to export models to [TensorFlow Lite](https://www.tensorflow.org/lite) and quantize them:
-
-```plain
-optimum-cli export tflite \
-  -m deepset/roberta-base-squad2 \
-  --sequence_length 384  \
-  --quantize int8-dynamic roberta_tflite_model
-```
 ### OpenVINO
 
 *This requires to install the Optimum OpenVINO extra by doing `pip install optimum[openvino,nncf]`.*
@@ -158,6 +100,59 @@ model = INCModelForSequenceClassification.from_pretrained(model_id)
 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/optimization_inc) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/neural_compressor).
 
+### ONNX + ONNX Runtime
+
+It is possible to export 🤗 Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
+
+```plain
+optimum-cli export onnx -m deepset/roberta-base-squad2 --optimize O2 roberta_base_qa_onnx
+```
+
+The model can then be quantized using `onnxruntime`:
+
+```bash
+optimum-cli onnxruntime quantize \
+  --avx512 \
+  --onnx_model roberta_base_qa_onnx \
+  -o quantized_roberta_base_qa_onnx
+```
+
+These commands will export `deepset/roberta-base-squad2` and perform [O2 graph optimization](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization#optimization-configuration) on the exported model, and finally quantize it with the [avx512 configuration](https://huggingface.co/docs/optimum/main/en/onnxruntime/package_reference/configuration#optimum.onnxruntime.AutoQuantizationConfig.avx512).
+
+For more information on the ONNX export, please check the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model).
+
+#### Run the exported model using ONNX Runtime
+
+Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seemless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend:
+
+```diff
+- from transformers import AutoModelForQuestionAnswering
++ from optimum.onnxruntime import ORTModelForQuestionAnswering
+  from transformers import AutoTokenizer, pipeline
+
+  model_id = "deepset/roberta-base-squad2"
+  tokenizer = AutoTokenizer.from_pretrained(model_id)
+- model = AutoModelForQuestionAnswering.from_pretrained(model_id)
++ model = ORTModelForQuestionAnswering.from_pretrained("roberta_base_qa_onnx")
+  qa_pipe = pipeline("question-answering", model=model, tokenizer=tokenizer)
+  question = "What's Optimum?"
+  context = "Optimum is an awesome library everyone should use!"
+  results = qa_pipe(question=question, context=context)
+```
+
+More details on how to run ONNX models with `ORTModelForXXX` classes [here](https://huggingface.co/docs/optimum/main/en/onnxruntime/usage_guides/models).
+
+### TensorFlow Lite
+
+Just as for ONNX, it is possible to export models to [TensorFlow Lite](https://www.tensorflow.org/lite) and quantize them:
+
+```plain
+optimum-cli export tflite \
+  -m deepset/roberta-base-squad2 \
+  --sequence_length 384  \
+  --quantize int8-dynamic roberta_tflite_model
+```
+
 ## Accelerated training
 
 🤗 Optimum provides wrappers around the original 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer) to enable training on powerful hardware easily.
@@ -167,6 +162,8 @@ We support many providers:
 - ONNX Runtime (optimized for GPUs)
 
 ### Habana
+
+*This requires to install the Optimum Habana extra by doing `pip install optimum[habana]`.*
 
 ```diff
 - from transformers import Trainer, TrainingArguments
