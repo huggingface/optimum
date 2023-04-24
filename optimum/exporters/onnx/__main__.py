@@ -162,7 +162,7 @@ def main_export(
     input_shapes = {}
     for input_name in DEFAULT_DUMMY_SHAPES.keys():
         input_shapes[input_name] = (
-            kwargs_shapes[input_name] if input_name in input_shapes else DEFAULT_DUMMY_SHAPES[input_name]
+            kwargs_shapes[input_name] if input_name in kwargs_shapes else DEFAULT_DUMMY_SHAPES[input_name]
         )
 
     torch_dtype = None if fp16 is False else torch.float16

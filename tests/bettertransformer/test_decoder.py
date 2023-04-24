@@ -27,17 +27,20 @@ from optimum.utils.testing_utils import grid_parameters, require_accelerate, req
 
 
 class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
-    SUPPORTED_ARCH = ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "opt"]
+    SUPPORTED_ARCH = ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "llama", "opt"]
 
     FULL_GRID = {
         "model_type": SUPPORTED_ARCH,
         "keep_original_model": [True, False],
     }
 
-    def prepare_inputs_for_class(self, model_id, model_type, batch_size=2, **preprocessor_kwargs):
+    def prepare_inputs_for_class(self, model_id: str, model_type: str, batch_size: int = 2, **preprocessor_kwargs):
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         if not hasattr(tokenizer, "pad_token") or tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
+            if tokenizer.eos_token != "":
+                tokenizer.pad_token = tokenizer.eos_token
+            else:
+                tokenizer.pad_token = "w"
 
         padding = preprocessor_kwargs.pop("padding", True)
         if batch_size == 1:
@@ -45,6 +48,10 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         else:
             texts = ["a dummy input yeah!"] + ["and two"] * (batch_size - 1)
         inputs = tokenizer(texts, return_tensors="pt", padding=padding, max_length=20, **preprocessor_kwargs)
+
+        if model_type == "llama":
+            del inputs["token_type_ids"]
+
         return inputs
 
     @parameterized.expand(
@@ -141,12 +148,18 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         model = AutoModelForCausalLM.from_pretrained(model_id)
 
         if not hasattr(tokenizer, "pad_token") or tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
+            if tokenizer.eos_token != "":
+                tokenizer.pad_token = tokenizer.eos_token
+            else:
+                tokenizer.pad_token = "w"
 
         text = ["This is me and me"]
         if batch_size > 1:
             text.append("Please continue this my dear me")
         inp = tokenizer(text, return_tensors="pt", padding=padding, max_length=30)
+
+        if model_type == "llama":
+            del inp["token_type_ids"]
 
         length = 50
         result_vanilla = model.generate(**inp, num_beams=1, min_length=length, max_length=length)
