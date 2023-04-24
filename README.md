@@ -59,7 +59,7 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 
 ### OpenVINO
 
-This requires to install the OpenVINO extra by doing `pip install optimum[openvino,nncf]`.
+This requires to install the OpenVINO extra by doing `pip install optimum[openvino,nncf]`
 
 To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class. To load a PyTorch checkpoint and convert it to the OpenVINO format on-the-fly, you can set `export=True` when loading your model.
 
@@ -82,7 +82,7 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 ### Neural Compressor
 
-This requires to install the Neural Compressor extra by doing `pip install optimum[neural-compressor]`.
+This requires to install the Neural Compressor extra by doing `pip install optimum[neural-compressor]`
 
 Dynamic quantization can be applied on your model:
 
@@ -102,7 +102,7 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 ### ONNX + ONNX Runtime
 
-This requires to install the ONNX Runtime extra by doing `pip install optimum[exporters,onnxruntime]`.
+This requires to install the ONNX Runtime extra by doing `pip install optimum[exporters,onnxruntime]`
 
 It is possible to export 🤗 Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
 
@@ -146,7 +146,7 @@ More details on how to run ONNX models with `ORTModelForXXX` classes [here](http
 
 ### TensorFlow Lite
 
-This requires to install the Exporters extra by doing `pip install optimum[exporters-tf]`.
+This requires to install the Exporters extra by doing `pip install optimum[exporters-tf]`
 
 Just as for ONNX, it is possible to export models to [TensorFlow Lite](https://www.tensorflow.org/lite) and quantize them:
 
@@ -167,7 +167,7 @@ We support many providers:
 
 ### Habana
 
-This requires to install the Habana extra by doing `pip install optimum[habana]`.
+This requires to install the Habana extra by doing `pip install optimum[habana]`
 
 ```diff
 - from transformers import Trainer, TrainingArguments
