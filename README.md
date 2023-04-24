@@ -119,7 +119,7 @@ optimum-cli export tflite \
 
 *This requires to install the Optimum OpenVINO extra by doing `pip install optimum[openvino,nncf]`.*
 
-To load a model and run inference with [OpenVINO Runtime](https://docs.openvino.ai/latest/home.html), you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class. To load a PyTorch checkpoint and convert it to the OpenVINO format on-the-fly, you can set `export=True` when loading your model.
+To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class. To load a PyTorch checkpoint and convert it to the OpenVINO format on-the-fly, you can set `export=True` when loading your model.
 
 ```diff
 - from transformers import AutoModelForSequenceClassification
@@ -138,6 +138,25 @@ To load a model and run inference with [OpenVINO Runtime](https://docs.openvino.
 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
 
+### Neural Compressor
+
+*This requires to install the Optimum Neural Compressor extra by doing `pip install optimum[neural-compressor]`.*
+
+Dynamic quantization can be applied on your model:
+
+```bash
+optimum-cli inc quantize --model distilbert-base-cased-distilled-squad --output ./quantized_distilbert
+```
+
+To load a model quantized with Intel Neural Compressor, hosted locally or on the 🤗 hub, you can do as follows :
+```python
+from optimum.intel import INCModelForSequenceClassification
+
+model_id = "Intel/distilbert-base-uncased-finetuned-sst-2-english-int8-dynamic"
+model = INCModelForSequenceClassification.from_pretrained(model_id)
+```
+
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/optimization_inc) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/neural_compressor).
 
 ## Accelerated training
 
