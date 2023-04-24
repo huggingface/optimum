@@ -46,7 +46,7 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 
 ### Features summary
 
-| Features                           | [ONNX Runtime](https://github.com/huggingface/optimum/tree/update-readme#onnx--onnx-runtime)| [Neural Compressor](https://github.com/huggingface/optimum#neural-compressor)| [OpenVINO](https://github.com/huggingface/optimum#openvino)| [TensorFlow Lite](https://github.com/huggingface/optimum#tensorflow-lite)|
+| Features                           | [ONNX Runtime](https://huggingface.co/docs/optimum/main/en/onnxruntime/overview)| [Neural Compressor](https://huggingface.co/docs/optimum/main/en/intel/optimization_inc)| [OpenVINO](https://huggingface.co/docs/optimum/main/en/intel/inference)| [TensorFlow Lite](https://huggingface.co/docs/optimum/main/en/exporters/tflite/overview)|
 |:----------------------------------:|:------------------:|:------------------:|:------------------:|:------------------:|
 | Graph optimization                 | :heavy_check_mark: | N/A                | :heavy_check_mark: | N/A                |
 | Post-training dynamic quantization | :heavy_check_mark: | :heavy_check_mark: | N/A                | :heavy_check_mark: |
