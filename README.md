@@ -102,6 +102,8 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 ### ONNX + ONNX Runtime
 
+*This requires to install the ONNX Runtime extra by doing `pip install optimum[exporters,onnxruntime]`.*
+
 It is possible to export 🤗 Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
 
 ```plain
@@ -143,6 +145,8 @@ Once the model is exported to the ONNX format, we provide Python classes enablin
 More details on how to run ONNX models with `ORTModelForXXX` classes [here](https://huggingface.co/docs/optimum/main/en/onnxruntime/usage_guides/models).
 
 ### TensorFlow Lite
+
+*This requires to install the ONNX Runtime extra by doing `pip install optimum[exporters-tf]`.*
 
 Just as for ONNX, it is possible to export models to [TensorFlow Lite](https://www.tensorflow.org/lite) and quantize them:
 
