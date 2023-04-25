@@ -545,6 +545,132 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
         return (hidden_states,)
 
 
+class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
+    def __init__(self,detr_layer, config):
+        r"""
+        A simple conversion of the FlavaLayer to its `BetterTransformer` implementation.
+        Args:
+            flava_layer (`torch.nn.Module`):
+                The original `FlavaLayer` where the weights needs to be retrieved.
+        """
+        super().__init__(config)
+        # In_proj layer
+        self.in_proj_weight = nn.Parameter(
+            torch.cat(
+                [
+                    detr_layer.attention.attention.query.weight,
+                    detr_layer.attention.attention.key.weight,
+                    detr_layer.attention.attention.value.weight,
+                ]
+            )
+        )
+        self.in_proj_bias = nn.Parameter(
+            torch.cat(
+                [
+                    detr_layer.attention.attention.query.bias,
+                    detr_layer.attention.attention.key.bias,
+                    detr_layer.attention.attention.value.bias,
+                ]
+            )
+        )
+
+
+
+        # Out proj layer
+        self.out_proj_weight = detr_layer.attention.output.dense.weight
+        self.out_proj_bias = detr_layer.attention.output.dense.bias
+
+        # Linear layer 1
+        self.linear1_weight = detr_layer.intermediate.dense.weight
+        self.linear1_bias = detr_layer.intermediate.dense.bias
+
+
+        # Linear layer 2
+        self.linear2_weight = detr_layer.output.dense.weight
+        self.linear2_bias = detr_layer.output.dense.bias
+
+        # Layer norm 1
+        self.norm1_eps = detr_layer.layernorm_before.eps
+        self.norm1_weight = detr_layer.layernorm_before.weight
+        self.norm1_bias = detr_layer.layernorm_before.bias
+
+        # Layer norm 2
+        self.norm2_eps = detr_layer.layernorm_after.eps
+        self.norm2_weight = detr_layer.layernorm_after.weight
+        self.norm2_bias = detr_layer.layernorm_after.bias
+
+        # Model hyper parameters
+        self.num_heads = detr_layer.attention.attention.num_attention_heads
+        self.embed_dim = int(detr_layer.attention.attention.attention_head_size * self.num_heads)
+
+
+        # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
+        self.is_last_layer = False
+        self.norm_first = True
+
+        self.original_layers_mapping = {
+            "in_proj_weight": [
+                "attention.attention.query.weight",
+                "attention.attention.key.weight",
+                "attention.attention.value.weight",
+            ],
+            "in_proj_bias": [
+                "attention.attention.query.bias",
+                "attention.attention.key.bias",
+                "attention.attention.value.bias",
+            ],
+            "out_proj_weight": "attention.output.dense.weight",
+            "out_proj_bias": "attention.output.dense.bias",
+            "linear1_weight": "intermediate.dense.weight",
+            "linear1_bias": "intermediate.dense.bias",
+            "linear2_weight": "output.dense.weight",
+            "linear2_bias": "output.dense.bias",
+            "norm1_eps": "layernorm_before.eps",
+            "norm1_weight": "layernorm_before.weight",
+            "norm1_bias": "layernorm_before.bias",
+            "norm2_eps": "layernorm_after.eps",
+            "norm2_weight": "layernorm_after.weight",
+            "norm2_bias": "layernorm_after.bias",
+        }
+
+        self.validate_bettertransformer()
+
+
+    def forward(self, hidden_states, *_, **__):
+        r"""
+        This is just a wrapper around the forward function proposed in:
+        https://github.com/huggingface/transformers/pull/19553
+        """
+        super().forward_checker()
+        attention_mask = None
+
+        hidden_states = torch._transformer_encoder_layer_fwd(
+            hidden_states,
+            self.embed_dim,
+            self.num_heads,
+            self.in_proj_weight,
+            self.in_proj_bias,
+            self.out_proj_weight,
+            self.out_proj_bias,
+            self.use_gelu,
+            self.norm_first,
+            self.norm1_eps,
+            self.norm1_weight,
+            self.norm1_bias,
+            self.norm2_weight,
+            self.norm2_bias,
+            self.linear1_weight,
+            self.linear1_bias,
+            self.linear2_weight,
+            self.linear2_bias,
+            attention_mask,
+        )
+        if hidden_states.is_nested and self.is_last_layer:
+            hidden_states = hidden_states.to_padded_tensor(0.0)
+        return (hidden_states,)
+
+
+
 class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
     def __init__(self, bert_layer, config):
         r"""
