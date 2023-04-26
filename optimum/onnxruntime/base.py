@@ -293,6 +293,7 @@ class ORTDecoder(ORTModelPart):
         input_ids: torch.LongTensor,
         attention_mask: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        position_ids: Optional[torch.LongTensor] = None,
         labels: Optional[torch.LongTensor] = None,
         use_cache_branch: None = None,
     ) -> CausalLMOutputWithCrossAttentions:
@@ -325,6 +326,9 @@ class ORTDecoder(ORTModelPart):
 
             if past_key_values is not None:
                 model_inputs += past_key_values
+
+            if "position_ids" in self.input_names:
+                model_inputs.append(position_ids)
 
             if use_cache_branch_tensor is not None:
                 model_inputs.append(use_cache_branch_tensor)
@@ -373,6 +377,9 @@ class ORTDecoder(ORTModelPart):
                     for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                         onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
 
+                if "position_ids" in self.input_names:
+                    onnx_inputs["position_ids"] = position_ids.cpu().detach().numpy()
+
                 if "labels" in self.input_names:
                     onnx_inputs["labels"] = labels.cpu().detach().numpy()
             else:
@@ -388,6 +395,9 @@ class ORTDecoder(ORTModelPart):
                     # Add the past_key_values to the decoder inputs
                     for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                         onnx_inputs[input_name] = past_key_value
+
+                if "position_ids" in self.input_names:
+                    onnx_inputs["position_ids"] = position_ids
 
                 if "labels" in self.input_names:
                     onnx_inputs["labels"] = labels
