@@ -209,6 +209,7 @@ class GPTJOnnxConfig(GPT2OnnxConfig):
                 "attention_mask": {0: "batch_size", 1: "sequence_length"},
             }
         return common_inputs
+
     pass
 
 

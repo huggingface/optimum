@@ -266,12 +266,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
     Generates dummy encoder text inputs.
     """
 
-    SUPPORTED_INPUT_NAMES = (
-        "input_ids",
-        "attention_mask",
-        "token_type_ids",
-        "position_ids"
-    )
+    SUPPORTED_INPUT_NAMES = ("input_ids", "attention_mask", "token_type_ids", "position_ids")
 
     def __init__(
         self,

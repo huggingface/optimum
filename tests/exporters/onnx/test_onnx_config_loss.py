@@ -155,6 +155,7 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             inputs = {
                 "input_ids": torch.ones((batch, seq_length), dtype=torch.long),
                 "attention_mask": torch.ones((batch, seq_length), dtype=torch.long),
+                "position_ids": torch.ones((batch, seq_length), dtype=torch.long),
                 "labels": torch.zeros(batch, dtype=torch.long),
             }
             input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
