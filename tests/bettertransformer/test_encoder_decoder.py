@@ -38,6 +38,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     SUPPORTED_ARCH = [
         "bart",
         "blenderbot",
+        "DETR"
         "fsmt",
         "m2m_100",
         "marian",
