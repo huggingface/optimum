@@ -63,6 +63,8 @@ EXTRAS_REQUIRE = {
     "neural-compressor": "optimum-intel[neural-compressor]",
     "graphcore": "optimum-graphcore",
     "habana": "optimum-habana",
+    "neuron": "optimum-neuron[neuron]",
+    "neuronx": "optimum-neuron[neuronx]",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
