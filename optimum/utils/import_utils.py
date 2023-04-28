@@ -32,7 +32,7 @@ else:
 
 
 TORCH_MINIMUM_VERSION = packaging.version.parse("1.11.0")
-DIFFUSERS_MINIMUM_VERSION = packaging.version.parse("0.12.0")
+DIFFUSERS_MINIMUM_VERSION = packaging.version.parse("0.16.1")
 
 
 # This is the minimal required version to support some ONNX Runtime features
