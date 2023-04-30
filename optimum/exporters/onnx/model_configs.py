@@ -874,6 +874,10 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         return dummy_inputs
 
 
+class Pix2StructOnnxConfig(ViTOnnxConfig):
+    pass
+
+
 class HubertOnnxConfig(AudioOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfig
 

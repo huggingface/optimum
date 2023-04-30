@@ -697,6 +697,10 @@ class TasksManager:
             "text-classification",
             onnx="PerceiverOnnxConfig",
         ),
+        "pix2struct": supported_tasks_mapping(
+            "default",
+            onnx="Pix2StructOnnxConfig",
+        ),
         "poolformer": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
