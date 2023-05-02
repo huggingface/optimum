@@ -21,8 +21,9 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
-import onnx
 from transformers.utils import is_tf_available, is_torch_available
+
+import onnx
 
 from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import (
@@ -512,8 +513,9 @@ def export_tensorflow(
 
     sys_path_backup = sys.path
     sys.path.pop(0)
-    import onnx
     import tf2onnx
+
+    import onnx
 
     sys.path = sys_path_backup
 
@@ -674,11 +676,19 @@ def export(
     if "diffusers" in str(model.__class__) and not is_diffusers_available():
         raise ImportError("The pip package `diffusers` is required to export stable diffusion models to ONNX.")
 
+    if not config.is_transformers_support_available:
+        import transformers
+
+        raise RuntimeError(
+            f"The current version of Transformers does not allow for the export of the model. Minimum required is "
+            f"{config.MIN_TRANSFORMERS_VERSION}, got: {transformers.__version__}"
+        )
+
     if is_torch_available() and isinstance(model, nn.Module):
         from ...utils import torch_version
 
         if not is_torch_onnx_support_available():
-            raise AssertionError(
+            raise RuntimeError(
                 f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {torch_version}"
             )
 

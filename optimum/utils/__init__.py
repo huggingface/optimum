@@ -24,6 +24,7 @@ from .import_utils import (
     DIFFUSERS_MINIMUM_VERSION,
     ORT_QUANTIZE_MINIMUM_VERSION,
     TORCH_MINIMUM_VERSION,
+    TRANSFORMERS_MINIMUM_VERSION,
     check_if_diffusers_greater,
     check_if_pytorch_greater,
     check_if_transformers_greater,

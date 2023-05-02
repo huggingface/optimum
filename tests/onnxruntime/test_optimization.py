@@ -20,7 +20,6 @@ import unittest
 from pathlib import Path
 from typing import Dict, Optional
 
-import onnx
 import pytest
 import torch
 from parameterized import parameterized
@@ -28,6 +27,7 @@ from transformers import AutoTokenizer
 from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES
 
+import onnx
 from optimum.exporters import TasksManager
 from optimum.onnxruntime import AutoOptimizationConfig, ORTConfig, ORTModelForSequenceClassification, ORTOptimizer
 from optimum.onnxruntime.configuration import OptimizationConfig

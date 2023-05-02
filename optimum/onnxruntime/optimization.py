@@ -18,10 +18,10 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
-import onnx
-from onnx import load_model
 from transformers.models.auto.configuration_auto import AutoConfig
 
+import onnx
+from onnx import load_model
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import optimize_model
 

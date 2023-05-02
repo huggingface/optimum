@@ -21,13 +21,13 @@ from unittest import TestCase
 
 import huggingface_hub
 import numpy as np
-import onnx
 import torch
-from onnx import load as onnx_load
 from onnxruntime import InferenceSession
 from parameterized import parameterized
 from transformers import AutoModel, AutoTokenizer
 
+import onnx
+from onnx import load as onnx_load
 from optimum.exporters.onnx import main_export
 from optimum.onnx.graph_transformations import (
     cast_slice_nodes_inputs_to_int32,

@@ -38,8 +38,9 @@ from ...utils import (
     logging,
 )
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
+from ...utils import TRANSFORMERS_MINIMUM_VERSION as GLOBAL_MIN_TRANSFORMERS_VERSION
 from ...utils.doc import add_dynamic_docstring
-from ...utils.import_utils import is_onnx_available, is_onnxruntime_available
+from ...utils.import_utils import check_if_transformers_greater, is_onnx_available, is_onnxruntime_available
 from ..base import ExportConfig
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 from .model_patcher import ModelPatcher, Seq2SeqModelPatcher
@@ -102,6 +103,9 @@ class OnnxConfig(ExportConfig, ABC):
     - DEFAULT_ONNX_OPSET (`int`, defaults to 11) -- The default ONNX opset to use for the ONNX export.
     - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.TORCH_MINIMUM_VERSION`]) -- The
     minimum torch version supporting the export of the model to ONNX.
+    - MIN_TRANSFORMERS_VERSION (`packaging.version.Version`, defaults to
+    [`~optimum.exporters.onnx.utils.TRANSFORMERS_MINIMUM_VERSION`] -- The minimum transformers version supporting the
+    export of the model to ONNX. Not always up-to-date or accurate. This is more for internal use.
     - PATCHING_SPECS (`Optional[List[PatchingSpec]]`, defaults to `None`) -- Specify which operators / modules should be
     patched before performing the export, and how. This is useful when some operator is not supported in ONNX for
     instance.
@@ -118,6 +122,7 @@ class OnnxConfig(ExportConfig, ABC):
     DEFAULT_ONNX_OPSET = 11
     ATOL_FOR_VALIDATION: Union[float, Dict[str, float]] = 1e-5
     MIN_TORCH_VERSION = GLOBAL_MIN_TORCH_VERSION
+    MIN_TRANSFORMERS_VERSION = GLOBAL_MIN_TRANSFORMERS_VERSION
     PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
@@ -222,14 +227,14 @@ class OnnxConfig(ExportConfig, ABC):
         self, model_path: "Path", device: str = "cpu", dtype: Optional[str] = None, input_shapes: Optional[Dict] = None
     ):
         """
-        Fixes potential issues with dynamic axes.
+                Fixes potential issues with dynamic axes.
+        sam_onnx
+                During the export, ONNX will infer some axes to be dynamic which are actually static. This method is called
+                right after the export to fix such issues.
 
-        During the export, ONNX will infer some axes to be dynamic which are actually static. This method is called
-        right after the export to fix such issues.
-
-        Args:
-            model_path (`Path`):
-                The path of the freshly exported ONNX model.
+                Args:
+                    model_path (`Path`):
+                        The path of the freshly exported ONNX model.
         """
         if not (is_onnx_available() and is_onnxruntime_available()):
             raise RuntimeError(
@@ -237,8 +242,9 @@ class OnnxConfig(ExportConfig, ABC):
                 "You can install them by doing: pip install onnx onnxruntime"
             )
 
-        import onnx
         from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
+
+        import onnx
 
         allowed_dynamic_axes = set()
         for input_ in self.inputs.values():
@@ -308,9 +314,20 @@ class OnnxConfig(ExportConfig, ABC):
         return None
 
     @property
+    def is_transformers_support_available(self) -> bool:
+        """
+        Whether the installed version of Transformers allows for the ONNX export.
+
+        Returns:
+            `bool`: Whether the install version of Transformers is compatible with the model.
+
+        """
+        return check_if_transformers_greater(self.MIN_TRANSFORMERS_VERSION)
+
+    @property
     def is_torch_support_available(self) -> bool:
         """
-        The minimum PyTorch version required to export the model.
+        Whether the installed version of PyTorch allows for the ONNX export.
 
         Returns:
             `bool`: Whether the installed version of PyTorch is compatible with the model.
