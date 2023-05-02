@@ -33,7 +33,7 @@ from ...utils import (
     logging,
     require_numpy_strictly_lower,
 )
-from ..error_utils import AtolError, OutputMatchError, ShapeError
+from ..error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
 from .base import OnnxConfig
 from .utils import recursive_to_device, recursive_to_dtype
 
@@ -679,7 +679,7 @@ def export(
     if not config.is_transformers_support_available:
         import transformers
 
-        raise RuntimeError(
+        raise MinimumVersionError(
             f"The current version of Transformers does not allow for the export of the model. Minimum required is "
             f"{config.MIN_TRANSFORMERS_VERSION}, got: {transformers.__version__}"
         )
@@ -688,7 +688,7 @@ def export(
         from ...utils import torch_version
 
         if not is_torch_onnx_support_available():
-            raise RuntimeError(
+            raise MinimumVersionError(
                 f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {torch_version}"
             )
 

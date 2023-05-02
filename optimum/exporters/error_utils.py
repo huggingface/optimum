@@ -33,3 +33,7 @@ class NumberOfInputsMatchError(ValueError):
 
 class NumberOfOutputsMatchError(ValueError):
     pass
+
+
+class MinimumVersionError(ValueError):
+    pass
