@@ -186,6 +186,8 @@ def get_stable_diffusion_models_for_export(
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
     vae_encoder = copy.deepcopy(pipeline.vae)
+    if hasattr(vae_encoder.encoder.mid_block.attentions[0], "_use_2_0_attn"):
+        vae_encoder.encoder.mid_block.attentions[0]._use_2_0_attn = False
     vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample)["latent_dist"].sample()}
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_encoder, exporter="onnx", task="semantic-segmentation", model_type="vae-encoder"
@@ -195,6 +197,8 @@ def get_stable_diffusion_models_for_export(
 
     # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
     vae_decoder = copy.deepcopy(pipeline.vae)
+    if hasattr(vae_decoder.decoder.mid_block.attentions[0], "_use_2_0_attn"):
+        vae_decoder.decoder.mid_block.attentions[0]._use_2_0_attn = False
     vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_decoder, exporter="onnx", task="semantic-segmentation", model_type="vae-decoder"

@@ -142,12 +142,7 @@ class ORTQuantizer(OptimumQuantizer):
             elif model_or_path.use_cache is True and model_or_path.use_merged is False:
                 raise NotImplementedError(ort_quantizer_error_message)
             else:
-                raise NotImplementedError(
-                    "ORTQuantizer does not support ORTModelForCausalLM models that use a single ONNX for both the without/with past cases."
-                    " Please pass an ORTModelForCausalLM that uses a separate ONNX for each without/with past cases. This can be done"
-                    " by using `ORTModelForCausalLM.from_pretrained(..., from_transformers=True, use_merged=False)`, or by"
-                    " using the option `--no-post-process` in the optimum-cli ONNX export tool."
-                )
+                path = Path(model_or_path.decoder_model_path)
         elif isinstance(model_or_path, Path) and file_name is None:
             onnx_files = list(model_or_path.glob("*.onnx"))
             if len(onnx_files) == 0:
@@ -346,7 +341,16 @@ class ORTQuantizer(OptimumQuantizer):
             quantization_config.nodes_to_quantize = list(nodes_to_quantize)
             quantization_config.nodes_to_exclude = list(nodes_to_exclude)
 
+        has_subgraphs = False
         onnx_model = onnx.load(Path(self.onnx_model_path).as_posix())
+        for node in onnx_model.graph.node:
+            if node.op_type in ["If", "Loop", "Scan", "SequenceMap"]:
+                has_subgraphs = True
+                break
+
+        if quantization_config.is_static and has_subgraphs:
+            raise NotImplementedError("Static quantization is currently not supported for models with" " subgraphs.")
+
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
 
         if parse(ort_version) >= Version("1.13.0"):
@@ -369,7 +373,7 @@ class ORTQuantizer(OptimumQuantizer):
                 extra_options={
                     "WeightSymmetric": quantization_config.weights_symmetric,
                     "ActivationSymmetric": quantization_config.activations_symmetric,
-                    "EnableSubgraph": False,
+                    "EnableSubgraph": has_subgraphs,
                     "ForceSymmetric": quantization_config.activations_symmetric
                     and quantization_config.weights_symmetric,
                     "AddQDQPairToWeight": quantization_config.qdq_add_pair_to_weight,
