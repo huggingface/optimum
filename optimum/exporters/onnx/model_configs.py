@@ -1090,7 +1090,7 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
 
 
 class SamOnnxConfig(OnnxConfig):
-    MIN_TRANSFORMERS_VERSION = version.parse("4.29.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.29.0.dev0")
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyPointsGenerator)
     DEFAULT_ONNX_OPSET = 12  # einsum op not supported with opset 11
