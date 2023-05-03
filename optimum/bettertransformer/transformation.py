@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import os
+import types
 from copy import deepcopy
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional, Union
 
 import torch
 from packaging.version import parse
@@ -77,6 +79,17 @@ def replace_to_bettertransformer(model, config):
 
         # replace the module if it is a transformer layer compatible with bettertransformer
         target_classes = list(BetterTransformerManager.MODEL_MAPPING[config.model_type].keys())
+
+        # We may want to override methods without having to override whole modules.
+        # For example, some methods handle the mask generation, which we do not need when using PyTorch SDPA.
+        if config.model_type in BetterTransformerManager.OVERWRITE_METHODS:
+            for class_name, method_name_and_replacement in BetterTransformerManager.OVERWRITE_METHODS[
+                config.model_type
+            ].items():
+                if module.__class__.__name__ == class_name:
+                    method_name = method_name_and_replacement[0]
+                    new_method = method_name_and_replacement[1]
+                    setattr(module, method_name, types.MethodType(new_method, module))
 
         should_replace_module = False
         for target_class in target_classes:
@@ -171,7 +184,11 @@ class BetterTransformer(object):
         "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
     )
     def transform(
-        model: torch.nn.Module, keep_original_model: bool = False, max_memory: Optional[Dict] = None, **kwargs
+        model: torch.nn.Module,
+        keep_original_model: bool = False,
+        max_memory: Optional[Dict] = None,
+        offload_dir: Optional[Union[str, os.PathLike]] = None,
+        **kwargs,
     ) -> torch.nn.Module:
         r"""
         Conversion script from `transformers` model to its BetterTransformers version
@@ -265,12 +282,12 @@ class BetterTransformer(object):
             else:
                 bt_device_map = hf_device_map
 
-            model_fast = dispatch_model(model_fast, bt_device_map)
+            model_fast = dispatch_model(model_fast, bt_device_map, offload_dir=offload_dir)
 
             # It is not recommended to have `keep_original_model=True` with a model
             # that is loaded with accelerate but just in case
             if keep_original_model:
-                model = dispatch_model(model, hf_device_map)
+                model = dispatch_model(model, hf_device_map, offload_dir=offload_dir)
 
         # See: https://github.com/pytorch/pytorch/issues/96099
         if BetterTransformerManager.requires_torch_20(model_fast.config.model_type):

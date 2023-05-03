@@ -150,6 +150,12 @@ class ORTDecoder(ORTModelPart):
         else:
             self.use_past = False
 
+        self.use_fp16 = False
+        for inp in session.get_inputs():
+            if inp.name == "past_key_values" and inp.type == "tensor(float16)":
+                self.use_fp16 = True
+                break
+
         if len(self.key_value_output_names) != 0:
             # Attributes useful when computing the past key/values output shapes.
             self.expected_key_symbolic_shape = None
@@ -184,12 +190,12 @@ class ORTDecoder(ORTModelPart):
 
     def prepare_inputs_for_merged(
         self,
-        input_ids: Union[None, torch.LongTensor, np.ndarray] = None,
-        past_key_values: Union[None, Tuple[torch.FloatTensor], Tuple[np.ndarray]] = None,
-        use_torch: bool = False,
+        input_ids: Union[None, torch.LongTensor, np.ndarray],
+        past_key_values: Union[None, Tuple[torch.FloatTensor], Tuple[np.ndarray]],
+        use_torch: bool,
     ):
-        constructor = torch if use_torch is True else np
         if self.parent_model.use_merged:
+            constructor = torch if use_torch is True else np
             # Uses without/with branch of a merged decoder depending on whether real past key values are passed
             use_cache_branch = constructor.full((1,), past_key_values is not None)
         else:
@@ -205,13 +211,14 @@ class ORTDecoder(ORTModelPart):
             num_attention_heads = self.normalized_config.num_attention_heads
             embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
 
+            dtype = constructor.float16 if self.use_fp16 else constructor.float32
             # TODO: find a way to better handle this controlflow, this is EXTREMELY ugly
             # "1" is the dummy sequence length
             if self.parent_model.config.model_type == "bloom":
                 shape_value = (batch_size * num_attention_heads, 1, embed_size_per_head)
                 shape_key = (batch_size * num_attention_heads, embed_size_per_head, 1)
-                key = constructor.zeros(shape_key, dtype=constructor.float32)
-                value = constructor.zeros(shape_value, dtype=constructor.float32)
+                key = constructor.zeros(shape_key, dtype=dtype)
+                value = constructor.zeros(shape_value, dtype=dtype)
 
                 if use_torch is True:
                     key = key.to(self.device)
@@ -222,7 +229,7 @@ class ORTDecoder(ORTModelPart):
                 )
             else:
                 shape = (batch_size, num_attention_heads, 1, embed_size_per_head)
-                key_or_value = constructor.zeros(shape, dtype=constructor.float32)
+                key_or_value = constructor.zeros(shape, dtype=dtype)
 
                 if use_torch is True:
                     key_or_value = key_or_value.to(self.device)
