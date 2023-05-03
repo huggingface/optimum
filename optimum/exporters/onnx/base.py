@@ -227,14 +227,13 @@ class OnnxConfig(ExportConfig, ABC):
         self, model_path: "Path", device: str = "cpu", dtype: Optional[str] = None, input_shapes: Optional[Dict] = None
     ):
         """
-                Fixes potential issues with dynamic axes.
-        sam_onnx
-                During the export, ONNX will infer some axes to be dynamic which are actually static. This method is called
-                right after the export to fix such issues.
+        Fixes potential issues with dynamic axes.
+        During the export, ONNX will infer some axes to be dynamic which are actually static. This method is called
+        right after the export to fix such issues.
 
-                Args:
-                    model_path (`Path`):
-                        The path of the freshly exported ONNX model.
+        Args:
+            model_path (`Path`):
+                The path of the freshly exported ONNX model.
         """
         if not (is_onnx_available() and is_onnxruntime_available()):
             raise RuntimeError(

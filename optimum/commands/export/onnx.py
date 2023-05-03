@@ -182,6 +182,21 @@ def parse_args_onnx(parser):
         default=DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
         help=f"Audio tasks only. Audio sequence length {doc_input}",
     )
+    input_group.add_argument(
+        "--point_batch_size",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["point_batch_size"],
+        help=(
+            "For Segment Anything. It corresponds to how many segmentation masks we want the model to predict per "
+            "input point."
+        ),
+    )
+    input_group.add_argument(
+        "--nb_points_per_image",
+        type=int,
+        default=DEFAULT_DUMMY_SHAPES["nb_points_per_image"],
+        help="For Segment Anything. It corresponds to the number of points per segmentation masks.",
+    )
 
     # deprecated argument
     parser.add_argument("--for-ort", action="store_true", help=argparse.SUPPRESS)

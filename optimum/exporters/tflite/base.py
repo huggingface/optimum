@@ -189,6 +189,8 @@ class TFLiteConfig(ExportConfig, ABC):
         feature_size: Optional[int] = None,
         nb_max_frames: Optional[int] = None,
         audio_sequence_length: Optional[int] = None,
+        point_batch_size: Optional[int] = None,
+        nb_points_per_image: Optional[int] = None,
     ):
         self._config = config
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
@@ -207,6 +209,8 @@ class TFLiteConfig(ExportConfig, ABC):
             "feature_size": feature_size,
             "nb_max_frames": nb_max_frames,
             "audio_sequence_length": audio_sequence_length,
+            "point_batch_size": point_batch_size,
+            "nb_points_per_image": nb_points_per_image,
         }
         for name, value in axes_values.items():
             setattr(self, name, value)
