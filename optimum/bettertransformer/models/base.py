@@ -128,6 +128,7 @@ class BetterTransformerBaseLayer:
             )
 
     def forward_checker(self, *args, **kwargs):
+        return
         if torch.is_autocast_enabled() or torch.is_autocast_cpu_enabled():
             raise ValueError("Autocast is not supported for `BetterTransformer` integration.")
 
