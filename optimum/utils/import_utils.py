@@ -130,7 +130,7 @@ def check_if_transformers_greater(target_version: Union[str, packaging.version.V
     import transformers
 
     if isinstance(target_version, str):
-        target_version = packaging.verison.parse(target_version)
+        target_version = packaging.version.parse(target_version)
 
     return packaging.version.parse(transformers.__version__) >= target_version
 
