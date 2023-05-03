@@ -49,8 +49,8 @@ def gpt2_wrapped_scaled_dot_product(
         query = query.to(value.dtype)
         key = key.to(value.dtype)
 
-    if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
-        raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
+    # if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, 0, -1] < -1:
+    #    raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
     dropout_p = self.dropout_prob_attn if self.training else 0.0
     if batch_size == 1 or self.training:
