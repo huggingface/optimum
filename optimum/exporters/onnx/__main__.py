@@ -207,7 +207,13 @@ def main_export(
         )
 
     if original_task == "auto":
-        logger.info(f"Automatic task detection to {task}.")
+        synonyms_for_task = TasksManager.synonyms_for_task(task)
+        if synonyms_for_task:
+            synonyms_for_task = ", ".join(synonyms_for_task)
+            possible_synonyms = f" (possible synonyms are: {synonyms_for_task})"
+        else:
+            possible_synonyms = ""
+        logger.info(f"Automatic task detection to {task}{possible_synonyms}.")
 
     if task != "stable-diffusion":
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
