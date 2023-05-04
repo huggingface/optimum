@@ -14,6 +14,7 @@
 from typing import Set, Tuple
 
 from onnx import ModelProto
+
 from onnxruntime.transformers.onnx_model import OnnxModel
 
 from .. import PreprocessorPass

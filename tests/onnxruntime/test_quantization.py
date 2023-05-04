@@ -18,11 +18,11 @@ import unittest
 from functools import partial
 from pathlib import Path
 
+from onnx import load as onnx_load
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
 from parameterized import parameterized
 from transformers import AutoTokenizer
 
-from onnx import load as onnx_load
 from optimum.onnxruntime import (
     AutoCalibrationConfig,
     AutoQuantizationConfig,

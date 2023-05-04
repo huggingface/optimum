@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Dict
 
 import numpy as np
+import onnx
 import onnxruntime
 import pytest
 import requests
@@ -60,7 +61,6 @@ from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED
 
-import onnx
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import main_export
 from optimum.onnx.utils import has_onnx_input
