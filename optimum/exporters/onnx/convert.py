@@ -14,11 +14,11 @@
 # limitations under the License.
 """ONNX model check and export functions."""
 
-import os # noqa: I001
 from inspect import signature
 from itertools import chain
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple, Union
+import os
 
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
@@ -508,7 +508,7 @@ def export_tensorflow(
     """
     # This is needed to import onnx and tf2onnx because onnx is also the name of the current directory.
     import onnx
-    import sys # noqa: I001
+    import sys
     import tensorflow as tf
     import tf2onnx
 
