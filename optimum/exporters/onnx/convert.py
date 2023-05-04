@@ -507,15 +507,14 @@ def export_tensorflow(
         the ONNX configuration.
     """
     # This is needed to import onnx and tf2onnx because onnx is also the name of the current directory.
-    import sys
-
+    import onnx
     import tensorflow as tf
-
-    sys_path_backup = sys.path
-    sys.path.pop(0)
     import tf2onnx
 
-    import onnx
+    import sys
+    sys_path_backup = sys.path
+    sys.path.pop(0)
+
 
     sys.path = sys_path_backup
 

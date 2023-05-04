@@ -241,9 +241,8 @@ class OnnxConfig(ExportConfig, ABC):
                 "You can install them by doing: pip install onnx onnxruntime"
             )
 
-        from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
-
         import onnx
+        from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
 
         allowed_dynamic_axes = set()
         for input_ in self.inputs.values():
