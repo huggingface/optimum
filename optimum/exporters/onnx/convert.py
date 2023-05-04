@@ -14,7 +14,7 @@
 # limitations under the License.
 """ONNX model check and export functions."""
 
-import os
+import os # noqa: I001
 from inspect import signature
 from itertools import chain
 from pathlib import Path
@@ -507,7 +507,7 @@ def export_tensorflow(
         the ONNX configuration.
     """
     # This is needed to import onnx and tf2onnx because onnx is also the name of the current directory.
-    import sys
+    import sys # noqa: I001
 
     import tensorflow as tf
     import tf2onnx
