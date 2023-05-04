@@ -506,9 +506,8 @@ def bart_forward(
 
 
 # Adapted from transformers.models.bart.modeling_bart.BartDecoder._prepare_decoder_attention_mask
-def _llama_prepare_decoder_attention_mask(self, attention_mask, batch_size, seq_len, inputs_embeds, past_key_values_length):
+def _llama_prepare_decoder_attention_mask(self, attention_mask, input_shape, inputs_embeds, past_key_values_length):
     # create causal mask
-    input_shape = (batch_size, seq_len)
     # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
     combined_attention_mask = None
 
