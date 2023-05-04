@@ -20,10 +20,9 @@ import itertools
 import os
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union, Set
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 import huggingface_hub
-from torch import sym_float
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
@@ -1002,7 +1001,7 @@ class TasksManager:
         synonyms = set(synonyms)
         try:
             synonyms.remove(task)
-        except KeyError: 
+        except KeyError:
             pass
         return synonyms
 
