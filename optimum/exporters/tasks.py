@@ -1457,6 +1457,7 @@ class TasksManager:
             for synonym in synonyms:
                 if synonym in model_tasks:
                     task = synonym
+                    break
             if task not in model_tasks:
                 raise ValueError(
                     f"{model_type} doesn't support task {task} for the {exporter} backend."
