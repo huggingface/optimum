@@ -506,8 +506,9 @@ def bart_forward(
 
 
 # Adapted from transformers.models.bart.modeling_bart.BartDecoder._prepare_decoder_attention_mask
-def _llama_prepare_decoder_attention_mask(self, attention_mask, input_shape, inputs_embeds, past_key_values_length):
+def _llama_prepare_decoder_attention_mask(self, attention_mask, batch_size, seq_len, inputs_embeds, past_key_values_length):
     # create causal mask
+    input_shape = (batch_size, seq_len)
     # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
     combined_attention_mask = None
 
@@ -530,9 +531,9 @@ def _llama_prepare_decoder_attention_mask(self, attention_mask, input_shape, inp
             combined_attention_mask = (
                 expanded_attn_mask if combined_attention_mask is None else expanded_attn_mask + combined_attention_mask
             )
-    else:
-        if input_shape[-1] > 1 and attention_mask is not None and attention_mask[0][0] == 0:
-            raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
+    # else:
+    #    if input_shape[-1] > 1 and attention_mask is not None and attention_mask[0][0] == 0:
+    #        raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
 
     return combined_attention_mask
 
