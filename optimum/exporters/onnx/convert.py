@@ -512,9 +512,9 @@ def export_tensorflow(
     import tf2onnx
 
     import sys
+
     sys_path_backup = sys.path
     sys.path.pop(0)
-
 
     sys.path = sys_path_backup
 
