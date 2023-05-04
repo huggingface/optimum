@@ -54,6 +54,8 @@ DEFAULT_DUMMY_SHAPES = {
     "width": 64,
     "height": 64,
     "num_channels": 3,
+    "point_batch_size": 3,
+    "nb_points_per_image": 2,
     # audio
     "feature_size": 80,
     "nb_max_frames": 3000,
@@ -661,3 +663,30 @@ class DummyLabelsGenerator(DummyInputGenerator):
             shape = [self.batch_size, self.sequence_length]
 
         return self.random_int_tensor(shape, max_value=max_value, framework=framework)
+
+
+class DummyPointsGenerator(DummyInputGenerator):
+    """
+    Generates dummy time step inputs.
+    """
+
+    SUPPORTED_INPUT_NAMES = ("input_points",)
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        point_batch_size: int = DEFAULT_DUMMY_SHAPES["point_batch_size"],
+        nb_points_per_image: int = DEFAULT_DUMMY_SHAPES["nb_points_per_image"],
+        **kwargs,
+    ):
+        self.task = task
+
+        self.batch_size = batch_size
+        self.point_batch_size = point_batch_size
+        self.nb_points_per_image = nb_points_per_image
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        shape = [self.batch_size, self.point_batch_size, self.nb_points_per_image, 2]
+        return self.random_int_tensor(shape, max_value=50, framework=framework)

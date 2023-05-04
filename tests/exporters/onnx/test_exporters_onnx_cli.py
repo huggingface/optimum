@@ -24,6 +24,7 @@ from parameterized import parameterized
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, is_torch_available
 from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
 
+from optimum.exporters.error_utils import MinimumVersionError
 from optimum.exporters.onnx.__main__ import main_export
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
@@ -113,21 +114,32 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         fp16: bool = False,
     ):
         with TemporaryDirectory() as tmpdir:
-            main_export(
-                model_name_or_path=model_name,
-                output=tmpdir,
-                task=task,
-                device=device,
-                fp16=fp16,
-                optimize=optimization_level,
-                monolith=monolith,
-                no_post_process=no_post_process,
-            )
+            try:
+                main_export(
+                    model_name_or_path=model_name,
+                    output=tmpdir,
+                    task=task,
+                    device=device,
+                    fp16=fp16,
+                    optimize=optimization_level,
+                    monolith=monolith,
+                    no_post_process=no_post_process,
+                )
+            except MinimumVersionError as e:
+                pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
 
     def test_all_models_tested(self):
         # make sure we test all models
         missing_models_set = TasksManager._SUPPORTED_CLI_MODEL_TYPE - set(PYTORCH_EXPORT_MODELS_TINY.keys())
         if len(missing_models_set) > 0:
+            # TODO: remove that once transformers 4.29.0 is released.
+            import packaging
+            import transformers
+
+            if packaging.version.parse(transformers.__version__) < packaging.version.parse(
+                "4.29.0"
+            ) and missing_models_set == {"sam"}:
+                return
             self.fail(f"Not testing all models. Missing models: {missing_models_set}")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))

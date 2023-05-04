@@ -38,8 +38,9 @@ from ...utils import (
     logging,
 )
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
+from ...utils import TRANSFORMERS_MINIMUM_VERSION as GLOBAL_MIN_TRANSFORMERS_VERSION
 from ...utils.doc import add_dynamic_docstring
-from ...utils.import_utils import is_onnx_available, is_onnxruntime_available
+from ...utils.import_utils import check_if_transformers_greater, is_onnx_available, is_onnxruntime_available
 from ..base import ExportConfig
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 from .model_patcher import ModelPatcher, Seq2SeqModelPatcher
@@ -102,6 +103,9 @@ class OnnxConfig(ExportConfig, ABC):
     - DEFAULT_ONNX_OPSET (`int`, defaults to 11) -- The default ONNX opset to use for the ONNX export.
     - MIN_TORCH_VERSION (`packaging.version.Version`, defaults to [`~optimum.exporters.onnx.utils.TORCH_MINIMUM_VERSION`]) -- The
     minimum torch version supporting the export of the model to ONNX.
+    - MIN_TRANSFORMERS_VERSION (`packaging.version.Version`, defaults to
+    [`~optimum.exporters.onnx.utils.TRANSFORMERS_MINIMUM_VERSION`] -- The minimum transformers version supporting the
+    export of the model to ONNX. Not always up-to-date or accurate. This is more for internal use.
     - PATCHING_SPECS (`Optional[List[PatchingSpec]]`, defaults to `None`) -- Specify which operators / modules should be
     patched before performing the export, and how. This is useful when some operator is not supported in ONNX for
     instance.
@@ -118,14 +122,15 @@ class OnnxConfig(ExportConfig, ABC):
     DEFAULT_ONNX_OPSET = 11
     ATOL_FOR_VALIDATION: Union[float, Dict[str, float]] = 1e-5
     MIN_TORCH_VERSION = GLOBAL_MIN_TORCH_VERSION
+    MIN_TRANSFORMERS_VERSION = GLOBAL_MIN_TRANSFORMERS_VERSION
     PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "automatic-speech-recognition": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
-        "text-generation": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "feature-extraction": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
+        "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
         # TODO: Is this the same thing as semantic-segmentation?
         "image-segmentation": OrderedDict(
@@ -135,8 +140,9 @@ class OnnxConfig(ExportConfig, ABC):
                 "pred_masks": {0: "batch_size", 1: "num_queries"},
             }
         ),
+        "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "mask-generation": OrderedDict({"logits": {0: "batch_size"}}),
         "masked-im": OrderedDict({"logits": {0: "batch_size"}}),
-        "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "multiple-choice": OrderedDict({"logits": {0: "batch_size", 1: "num_choices"}}),
         "object-detection": OrderedDict(
             {
@@ -153,8 +159,8 @@ class OnnxConfig(ExportConfig, ABC):
         "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
         "text2text-generation": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
         "text-classification": OrderedDict({"logits": {0: "batch_size"}}),
+        "text-generation": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
-        "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "zero-shot-image-classification": OrderedDict(
             {
                 "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
@@ -222,7 +228,6 @@ class OnnxConfig(ExportConfig, ABC):
     ):
         """
         Fixes potential issues with dynamic axes.
-
         During the export, ONNX will infer some axes to be dynamic which are actually static. This method is called
         right after the export to fix such issues.
 
@@ -273,6 +278,7 @@ class OnnxConfig(ExportConfig, ABC):
                     onnx_inputs.update(dict(value.items()))
                 else:
                     onnx_inputs[name] = value
+
             for name, value in onnx_inputs.items():
                 if value.dtype == np.float32 and dtype == "fp16":
                     onnx_inputs[name] = onnx_inputs[name].astype(np.float16)
@@ -306,9 +312,20 @@ class OnnxConfig(ExportConfig, ABC):
         return None
 
     @property
+    def is_transformers_support_available(self) -> bool:
+        """
+        Whether the installed version of Transformers allows for the ONNX export.
+
+        Returns:
+            `bool`: Whether the install version of Transformers is compatible with the model.
+
+        """
+        return check_if_transformers_greater(self.MIN_TRANSFORMERS_VERSION)
+
+    @property
     def is_torch_support_available(self) -> bool:
         """
-        The minimum PyTorch version required to export the model.
+        Whether the installed version of PyTorch allows for the ONNX export.
 
         Returns:
             `bool`: Whether the installed version of PyTorch is compatible with the model.

@@ -18,6 +18,7 @@ import inspect
 import sys
 from collections import OrderedDict
 from contextlib import contextmanager
+from typing import Union
 
 import numpy as np
 import packaging
@@ -32,6 +33,7 @@ else:
 
 
 TORCH_MINIMUM_VERSION = packaging.version.parse("1.11.0")
+TRANSFORMERS_MINIMUM_VERSION = packaging.version.parse("4.25.0")
 DIFFUSERS_MINIMUM_VERSION = packaging.version.parse("0.16.1")
 
 
@@ -115,19 +117,22 @@ def check_if_pytorch_greater(target_version: str, message: str):
         pass
 
 
-def check_if_transformers_greater(target_version: str) -> bool:
+def check_if_transformers_greater(target_version: Union[str, packaging.version.Version]) -> bool:
     """
     Checks whether the current install of transformers is greater than or equal to the target version.
 
     Args:
-        target_version (str): version used as the reference for comparison.
+        target_version (`Union[str, packaging.version.Version]`): version used as the reference for comparison.
 
     Returns:
         bool: whether the check is True or not.
     """
     import transformers
 
-    return packaging.version.parse(transformers.__version__) >= packaging.version.parse(target_version)
+    if isinstance(target_version, str):
+        target_version = packaging.version.parse(target_version)
+
+    return packaging.version.parse(transformers.__version__) >= target_version
 
 
 def check_if_diffusers_greater(target_version: str) -> bool:
