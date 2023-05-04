@@ -207,7 +207,7 @@ def main_export(
         )
 
     if original_task == "auto":
-        synonyms_for_task = TasksManager.synonyms_for_task(task)
+        synonyms_for_task = sorted(TasksManager.synonyms_for_task(task))
         if synonyms_for_task:
             synonyms_for_task = ", ".join(synonyms_for_task)
             possible_synonyms = f" (possible synonyms are: {synonyms_for_task})"
