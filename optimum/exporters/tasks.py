@@ -1358,7 +1358,6 @@ class TasksManager:
         if task == "auto":
             task = TasksManager.infer_task_from_model(model_name_or_path, subfolder=subfolder, revision=revision)
 
-
         model_type = None
         model_class_name = None
         if TasksManager._TASKS_TO_LIBRARY[task.replace("-with-past", "")] == "transformers":
