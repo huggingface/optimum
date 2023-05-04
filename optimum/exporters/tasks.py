@@ -207,6 +207,7 @@ class TasksManager:
         "speech2seq-lm": "automatic-speech-recognition",
         "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
         "masked-lm": "fill-mask",
+        "mask-generation": "feature-extraction",
         "vision2seq-lm": "image-to-text",
         "default": "feature-extraction",
         "default-with-past": "feature-extraction-with-past",
@@ -1213,6 +1214,7 @@ class TasksManager:
                 break
         if task_name is None:
             raise ValueError(f"Could not infer the task name for {target_name}.")
+
         return task_name
 
     @classmethod
@@ -1439,12 +1441,15 @@ class TasksManager:
 
         model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
 
-        task = TasksManager.map_from_synonym(task)
+        task_synonym = TasksManager.map_from_synonym(task)
         if task not in model_tasks:
-            raise ValueError(
-                f"{model_type} doesn't support task {task} for the {exporter} backend."
-                f" Supported tasks are: {', '.join(model_tasks.keys())}."
-            )
+            if task_synonym in model_tasks:
+                task = task_synonym
+            else:
+                raise ValueError(
+                    f"{model_type} doesn't support task {task} for the {exporter} backend."
+                    f" Supported tasks are: {', '.join(model_tasks.keys())}."
+                )
 
         exporter_config_constructor = TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
         if exporter_config_kwargs is not None:
