@@ -715,11 +715,11 @@ class OptimizationConfig:
     disable_shape_inference: bool = False
 
     # ONNX Runtime 1.14.0 arguments
-    use_multi_head_attention : bool = False
-    enable_gemm_fast_gelu_fusion : bool = False
-    use_raw_attention_mask : bool = False
-    disable_group_norm_fusion : bool = False
-    disable_packed_kv : bool = False
+    use_multi_head_attention: bool = False
+    enable_gemm_fast_gelu_fusion: bool = False
+    use_raw_attention_mask: bool = False
+    disable_group_norm_fusion: bool = False
+    disable_packed_kv: bool = False
 
     def __post_init__(self):
         def deprecate_renamed_attribute(old_name, new_name, mapping_func=None):
