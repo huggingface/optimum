@@ -669,11 +669,11 @@ class OptimizationConfig:
             Experimental argument. Use MultiHeadAttention instead of Attention operator, which has merged weights for Q/K/V projection,
             which might be faster in some cases since 3 MatMul is merged into one."
             "Note that MultiHeadAttention might be slower than Attention when qkv are not packed. "
-        enable_gemm_fast_gelu (`bool`, defaults to `True`):
+        enable_gemm_fast_gelu_fusion (`bool`, defaults to `False`):
             Enable GemmfastGelu fusion.
         use_raw_attention_mask (`bool`, defaults to `False`):
             Use raw attention mask. Use this option if your input is not right-side padding. This might deactivate fused attention and get worse performance.
-        disable_group_norm (`bool`, defaults to `False`):
+        disable_group_norm_fusion (`bool`, defaults to `False`):
             Do not fuse GroupNorm. Only works for model_type=unet.
         disable_packed_kv (`bool`, defaults to `False`):
             Do not use packed kv in cross attention. Only works for model_type=unet.
