@@ -669,7 +669,7 @@ class OptimizationConfig:
             Experimental argument. Use MultiHeadAttention instead of Attention operator, which has merged weights for Q/K/V projection,
             which might be faster in some cases since 3 MatMul is merged into one."
             "Note that MultiHeadAttention might be slower than Attention when qkv are not packed. "
-        enable_gemm_fast_gelu_fusion (`bool`, defaults to `True`):
+        enable_gemm_fast_gelu_fusion (`bool`, defaults to `False`):
             Enable GemmfastGelu fusion.
         use_raw_attention_mask (`bool`, defaults to `False`):
             Use raw attention mask. Use this option if your input is not right-side padding. This might deactivate fused attention and get worse performance.
@@ -716,7 +716,7 @@ class OptimizationConfig:
 
     # ONNX Runtime 1.14.0 arguments
     use_multi_head_attention : bool = False
-    enable_gemm_fast_gelu_fusion : bool = True
+    enable_gemm_fast_gelu_fusion : bool = False
     use_raw_attention_mask : bool = False
     disable_group_norm_fusion : bool = False
     disable_packed_kv : bool = False
