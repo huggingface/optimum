@@ -669,7 +669,7 @@ class OptimizationConfig:
             Experimental argument. Use MultiHeadAttention instead of Attention operator, which has merged weights for Q/K/V projection,
             which might be faster in some cases since 3 MatMul is merged into one."
             "Note that MultiHeadAttention might be slower than Attention when qkv are not packed. "
-        enable_gemm_fast_gelu_fusion (`bool`, defaults to `False`):
+        enable_gemm_fast_gelu_fusion (`bool`, defaults to `True`):
             Enable GemmfastGelu fusion.
         use_raw_attention_mask (`bool`, defaults to `False`):
             Use raw attention mask. Use this option if your input is not right-side padding. This might deactivate fused attention and get worse performance.
