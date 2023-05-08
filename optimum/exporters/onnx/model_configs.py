@@ -605,6 +605,10 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
     pass
 
 
+class Pix2StructOnnxConfig(ViTOnnxConfig):
+    pass
+
+
 class DonutSwinOnnxConfig(ViTOnnxConfig):
     pass
 
@@ -872,10 +876,6 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         self.is_generating_dummy_inputs = True
         dummy_inputs[self.inputs_name] = dummy_inputs.pop(specialized_inputs_name)
         return dummy_inputs
-
-
-class Pix2StructOnnxConfig(ViTOnnxConfig):
-    pass
 
 
 class HubertOnnxConfig(AudioOnnxConfig):
