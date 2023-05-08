@@ -673,9 +673,9 @@ class OptimizationConfig:
             Enable GemmfastGelu fusion.
         use_raw_attention_mask (`bool`, defaults to `False`):
             Use raw attention mask. Use this option if your input is not right-side padding. This might deactivate fused attention and get worse performance.
-        disable_group_norm_fusion (`bool`, defaults to `False`):
+        disable_group_norm_fusion (`bool`, defaults to `True`):
             Do not fuse GroupNorm. Only works for model_type=unet.
-        disable_packed_kv (`bool`, defaults to `False`):
+        disable_packed_kv (`bool`, defaults to `True`):
             Do not use packed kv in cross attention. Only works for model_type=unet.
     """
 
@@ -718,8 +718,8 @@ class OptimizationConfig:
     use_multi_head_attention: bool = False
     enable_gemm_fast_gelu_fusion: bool = False
     use_raw_attention_mask: bool = False
-    disable_group_norm_fusion: bool = False
-    disable_packed_kv: bool = False
+    disable_group_norm_fusion: bool = True
+    disable_packed_kv: bool = True
 
     def __post_init__(self):
         def deprecate_renamed_attribute(old_name, new_name, mapping_func=None):
