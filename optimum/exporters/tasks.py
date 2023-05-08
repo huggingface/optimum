@@ -20,7 +20,7 @@ import itertools
 import os
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 import huggingface_hub
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
@@ -995,6 +995,17 @@ class TasksManager:
         ]
 
     @staticmethod
+    def synonyms_for_task(task: str) -> Set[str]:
+        synonyms = [k for k, v in TasksManager._SYNONYM_TASK_MAP.items() if v == task]
+        synonyms += [k for k, v in TasksManager._SYNONYM_TASK_MAP.items() if v == TasksManager.map_from_synonym(task)]
+        synonyms = set(synonyms)
+        try:
+            synonyms.remove(task)
+        except KeyError:
+            pass
+        return synonyms
+
+    @staticmethod
     def map_from_synonym(task: str) -> str:
         if task in TasksManager._SYNONYM_TASK_MAP:
             task = TasksManager._SYNONYM_TASK_MAP[task]
@@ -1442,11 +1453,13 @@ class TasksManager:
 
         model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
 
-        task_synonym = TasksManager.map_from_synonym(task)
         if task not in model_tasks:
-            if task_synonym in model_tasks:
-                task = task_synonym
-            else:
+            synonyms = TasksManager.synonyms_for_task(task)
+            for synonym in synonyms:
+                if synonym in model_tasks:
+                    task = synonym
+                    break
+            if task not in model_tasks:
                 raise ValueError(
                     f"{model_type} doesn't support task {task} for the {exporter} backend."
                     f" Supported tasks are: {', '.join(model_tasks.keys())}."
