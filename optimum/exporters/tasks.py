@@ -492,6 +492,15 @@ class TasksManager:
             "token-classification",
             onnx="GPT2OnnxConfig",
         ),
+        "gpt-bigcode": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            "token-classification",
+            onnx="GPTBigCodeOnnxConfig",
+        ),
         "gptj": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",

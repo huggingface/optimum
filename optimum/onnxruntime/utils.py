@@ -109,6 +109,7 @@ class ORTConfigManager:
         "distilbert": "bert",
         "electra": "bert",
         "gpt2": "gpt2",
+        "gpt-bigcode": "gpt2",
         "gpt_neo": "gpt2",
         "gpt_neox": "gpt2",
         "gptj": "gpt2",
