@@ -124,7 +124,7 @@ The section above described how quantization from `float32` to `int8` works, but
 remains: how is the `[a, b]` range of `float32` values determined? That is where calibration comes in to play.
 
 Calibration is the step during quantization where the `float32` ranges are computed. For weights it is quite easy since
-the actual range is know at *quantization-time*. But it is less clear for activations, and different approaches exist:
+the actual range is known at *quantization-time*. But it is less clear for activations, and different approaches exist:
 
 1. Post training **dynamic quantization**: the range for each activation is computed on the fly at *runtime*. While this
 gives great results without too much work, it can be a bit slower than static quantization because of the overhead
