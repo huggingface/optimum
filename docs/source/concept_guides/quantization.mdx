@@ -124,17 +124,17 @@ The section above described how quantization from `float32` to `int8` works, but
 remains: how is the `[a, b]` range of `float32` values determined? That is where calibration comes in to play.
 
 Calibration is the step during quantization where the `float32` ranges are computed. For weights it is quite easy since
-the actual range is know at *quantization-time*. But it is less clear for activations, and different approaches exist:
+the actual range is known at *quantization-time*. But it is less clear for activations, and different approaches exist:
 
 1. Post training **dynamic quantization**: the range for each activation is computed on the fly at *runtime*. While this
 gives great results without too much work, it can be a bit slower than static quantization because of the overhead
 introduced by computing the range each time.
 It is also not an option on certain hardware.
-2. Post training **static quantization**: the range for each activation is computed at in advance at *quantization-time*,
+2. Post training **static quantization**: the range for each activation is computed in advance at *quantization-time*,
 typically by passing representative data through the model and recording the activation values. In practice, the steps are:
-  1. Observers are put on activations to record their values.
-  2. A certain number of forward passes on a calibration dataset is done (around `200` examples is enough).
-  3. The ranges for each computation are computed according to some *calibration technique*.
+    1. Observers are put on activations to record their values.
+    2. A certain number of forward passes on a calibration dataset is done (around `200` examples is enough).
+    3. The ranges for each computation are computed according to some *calibration technique*.
 3. **Quantization aware training**: the range for each activation is computed at *training-time*, following the same idea
 than post training static quantization. But "fake quantize" operators are used instead of observers: they record
 values just as observers do, but they also simulate the error induced by quantization to let the model adapt to it.
@@ -145,8 +145,8 @@ techniques, the most common are:
 
 - Min-max: the computed range is `[min observed value, max observed value]`, this works well with weights.
 - Moving average min-max: the computed range is `[moving average min observed value, moving average max observed value]`,
-thiw works well with activations.
-- Histogram: records a histogram of values along with min and max values, then chooses according to some criterion.
+this works well with activations.
+- Histogram: records a histogram of values along with min and max values, then chooses according to some criterion:
   - Entropy: the range is computed as the one minimizing the error between the full-precision and the quantized data.
   - Mean Square Error: the range is computed as the one minimizing the mean square error between the full-precision and
   the quantized data.
@@ -166,8 +166,7 @@ for instance linear projections and matrix multiplications.
 2. Try post-training dynamic quantization, if it is fast enough stop here, otherwise continue to step 3.
 3. Try post-training static quantization which can be faster than dynamic quantization but often with a drop in terms of
 accuracy. Apply observers to your models in places where you want to quantize.
-implies defining which quantization scheme to use.
-4. Perform calibration.
+4. Choose a calibration technique and perform it.
 5. Convert the model to its quantized form: the observers are removed and the `float32` operators are converted to their `int8`
 coutnerparts.
 6. Evaluate the quantized model: is the accuracy good enough? If yes, stop here, otherwise start again at step 3 but
