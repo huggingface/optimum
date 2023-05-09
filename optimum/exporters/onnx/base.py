@@ -583,7 +583,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             and self.use_cache_branch is not False
             and "attention_mask" in dummy_inputs
         ):
-            past_length = dummy_inputs["past_key_values"][0][0].shape[2]
+            past_length = dummy_inputs["past_key_values"][0][0].shape[-2]
+
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],
                 desired_length=past_length + 1,
