@@ -890,7 +890,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         if self.device.type == "cuda" and self.use_io_binding:
             if attention_mask is None:
                 attention_mask = torch.ones_like(input_ids)
-            
+
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_ids,
                 attention_mask,
