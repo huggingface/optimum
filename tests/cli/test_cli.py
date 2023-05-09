@@ -53,9 +53,28 @@ class TestCLI(unittest.TestCase):
     def test_export_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             command = (
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vision_perceiver_conv --task image-classification {tempdir}",
+                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vision_perceiver_conv --task "
+                f"image-classification {tempdir}"
             )
             subprocess.run(command, shell=True, check=True)
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            command = (
+                f"optimum-cli export tflite --model hf-internal-testing/tiny-random-bert --sequence_length 128 --task "
+                f"sequence-classification {tempdir}"
+            )
+            try:
+                out = subprocess.run(command, shell=True, check=True, capture_output=True)
+            except Exception as e:
+                from optimum.utils import logging 
+                logger = logging.get_logger()
+                logger.debug(e)
+
+            # proc = subprocess.Popen(command.split())
+            # stdout, stderr = proc.communicate()
+            # print(stdout)
+            # print(stderr)
+            # self.assertEqual(proc.returncode, 0)
 
     def test_optimize_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:

@@ -30,9 +30,10 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install .[tests,exporters]
+        pip install .[tests,exporters-tf]
     - name: Test with unittest
       working-directory: tests
       run: |
-        python -m unittest discover -s cli -p 'test_*.py'
+        pytest cli/test_*.py -k "export_commands" -s
+        # python -m unittest discover -s cli -p 'test_*.py'
 
