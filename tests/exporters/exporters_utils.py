@@ -91,8 +91,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
-    # TODO: enable that once transformers 4.29.0 is out.
-    # "sam": "fxmarty/sam-vit-tiny-random",
+    "sam": "fxmarty/sam-vit-tiny-random",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
@@ -196,8 +195,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "resnet": "microsoft/resnet-50",
     "roberta": "roberta-base",
     "roformer": "junnyu/roformer_chinese_base",
-    # TODO: enable that once transformers 4.29.0 is out.
-    # "sam": "facebook/sam-vit-base",
+    "sam": "facebook/sam-vit-base",
     "segformer": "nvidia/segformer-b0-finetuned-ade-512-512",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "squeezebert/squeezebert-uncased",
