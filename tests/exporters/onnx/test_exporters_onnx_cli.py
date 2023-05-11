@@ -132,14 +132,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         # make sure we test all models
         missing_models_set = TasksManager._SUPPORTED_CLI_MODEL_TYPE - set(PYTORCH_EXPORT_MODELS_TINY.keys())
         if len(missing_models_set) > 0:
-            # TODO: remove that once transformers 4.29.0 is released.
-            import packaging
-            import transformers
-
-            if packaging.version.parse(transformers.__version__) < packaging.version.parse(
-                "4.29.0"
-            ) and missing_models_set == {"sam"}:
-                return
             self.fail(f"Not testing all models. Missing models: {missing_models_set}")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))

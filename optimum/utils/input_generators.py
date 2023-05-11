@@ -689,4 +689,4 @@ class DummyPointsGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt"):
         shape = [self.batch_size, self.point_batch_size, self.nb_points_per_image, 2]
-        return self.random_int_tensor(shape, max_value=50, framework=framework)
+        return self.random_float_tensor(shape, framework=framework)
