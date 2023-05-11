@@ -142,7 +142,9 @@ class OnnxConfig(ExportConfig, ABC):
         ),
         "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "mask-generation": OrderedDict({"logits": {0: "batch_size"}}),
-        "masked-im": OrderedDict({"logits": {0: "batch_size"}}),
+        "masked-im": OrderedDict(
+            {"reconstruction" if check_if_transformers_greater("4.29.0") else "logits": {0: "batch_size"}}
+        ),
         "multiple-choice": OrderedDict({"logits": {0: "batch_size", 1: "num_choices"}}),
         "object-detection": OrderedDict(
             {
