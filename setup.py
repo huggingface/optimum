@@ -62,7 +62,7 @@ EXTRAS_REQUIRE = {
     "nncf": "optimum-intel[nncf]",
     "neural-compressor": "optimum-intel[neural-compressor]",
     "graphcore": "optimum-graphcore",
-    "habana": "optimum-habana",
+    "habana": ["transformers<4.29.0", "optimum-habana"],
     "neuron": "optimum-neuron[neuron]",
     "neuronx": "optimum-neuron[neuronx]",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
