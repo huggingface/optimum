@@ -1,11 +1,14 @@
 import copy
 import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Dict, List
 
 import onnx
+import onnxruntime as ort
 from furiosa.tools.compiler.api import compile
+from onnx.external_data_helper import load_external_data_for_model
 from onnxsim import model_info, onnx_simplifier
 from optimum.exporters.onnx import main_export
 
@@ -16,13 +19,29 @@ export_onnx = main_export
 
 
 def simplify_onnx(input_model: Path, output_model: Path, overwrite_input_shapes: Dict[str, List[int]]) -> None:
-    model = onnx.load_model(input_model)
     # https://github.com/daquexian/onnx-simplifier/blob/v0.4.28/onnxsim/onnx_simplifier.py#L479-L521
     print("Simplifying...")
+
+    with tempfile.NamedTemporaryFile(suffix=".onnx") as file:
+        opt_onnx_path = file.name
+    sess_options = ort.SessionOptions()
+    # Set graph optimization level
+    sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    # To enable model serialization after graph optimization
+    sess_options.optimized_model_filepath = opt_onnx_path
+    _ = ort.InferenceSession(input_model.as_posix(), sess_options, providers=["CPUExecutionProvider"])
+
+    try:
+        model = onnx.load_model(opt_onnx_path)
+    except FileNotFoundError:
+        model = onnx.load_model(opt_onnx_path, load_external_data=False)
+        load_external_data_for_model(model, input_model.parent)
+
     model_opt, check_ok = onnx_simplifier.simplify(
         model,
         check_n=1,
         overwrite_input_shapes=overwrite_input_shapes,
+        mutable_initializer=True,
     )
 
     try:
@@ -50,7 +69,22 @@ def simplify_onnx(input_model: Path, output_model: Path, overwrite_input_shapes:
 
 
 def compile_onnx(input_model: Path, output_dfg: Path, output_dot: Path, target_ir: str = "dfg") -> None:
-    onnx_model = onnx.load_model(input_model)
-    graph = compile(onnx_model.SerializeToString(), target_ir=target_ir, dot_graph=output_dot, target_npu=TARGET_NPU)
+    model = onnx.load_model(input_model)
+    try:
+        graph = compile(model.SerializeToString(), target_ir=target_ir, dot_graph=output_dot, target_npu=TARGET_NPU)
+    except ValueError:
+        # make every initializer graph_input, for compiler can't understand large(>2GB) onnx model.
+        grpah_inputs = []
+        for init in model.graph.initializer:
+            np_array = onnx.numpy_helper.to_array(init)
+            grpah_inputs.append(
+                onnx.helper.make_tensor_value_info(
+                    init.name, onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[np_array.dtype], [*np_array.shape]
+                )
+            )
+        model.graph.input.extend(grpah_inputs)
+        model.graph.ClearField("initializer")
+        graph = compile(model.SerializeToString(), target_ir=target_ir, dot_graph=output_dot, target_npu=TARGET_NPU)
+
     with open(output_dfg, "wb") as f:
         f.write(bytes(graph))
