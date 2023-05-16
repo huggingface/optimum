@@ -1,3 +1,32 @@
+# (FuriosaAI) How to use optimum.litmus
+## Prerequisites
+- furiosa-libcompiler >= 0.9.0(See for detailed instructions, https://www.notion.so/furiosa/K8s-Pod-SDK-27680e93c9e9484e9b6f49ad11989c82?pvs=4)
+
+## Installation
+```
+$ python3 -m venv env
+$ . env/bin/activate
+$ pip3 install --upgrade pip setuptools wheel
+$ pip3 install -e .
+```
+## Usage
+### GPT-Neo
+https://huggingface.co/docs/transformers/model_doc/gpt_neo
+
+```
+$ python3 -m optimum.litmus.nlp.gpt-neo --help
+usage: FuriosaAI litmus GPT Neo using HF Optimum API. [-h] [--size {125m,1.3b,2.7b}]
+                                                      output_dir
+
+positional arguments:
+  output_dir            path to directory to save outputs
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --size {125m,1.3b,2.7b}, -s {125m,1.3b,2.7b}
+                        availible model sizes
+```
+
 [![ONNX Runtime](https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml)
 
 # Hugging Face Optimum

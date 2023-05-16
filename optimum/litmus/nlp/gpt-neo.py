@@ -6,7 +6,7 @@ from optimum.litmus.nlp import BATCH_SIZE, SEQUENCE_LENGTH, TASKS
 
 
 def main():
-    parser = argparse.ArgumentParser("FuriosaAI litmus using HF Optimum API.")
+    parser = argparse.ArgumentParser("FuriosaAI litmus GPT Neo using HF Optimum API.")
     parser.add_argument("output_dir", help="path to directory to save outputs")
     parser.add_argument("--size", "-s", choices=["125m", "1.3b", "2.7b"], help="availible model sizes")
     args = parser.parse_args()
