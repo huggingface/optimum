@@ -224,12 +224,13 @@ def parse_args_tflite(parser: "ArgumentParser"):
 class TFLiteExportCommand(BaseOptimumCLICommand):
     def __init__(
         self,
-        parser: "_SubParsersAction",
+        subparsers: Optional["_SubParsersAction"],
         args: Optional["Namespace"] = None,
         command: Optional["CommandInfo"] = None,
         from_defaults_factory: bool = False,
+        parser: Optional["ArgumentParser"] = None,
     ):
-        super().__init__(parser, args, command=command, from_defaults_factory=from_defaults_factory)
+        super().__init__(subparsers, args, command=command, from_defaults_factory=from_defaults_factory, parser=parser)
         # TODO: hack until TFLiteExportCommand does not use subprocess anymore.
         self.args_string = " ".join(sys.argv[3:])
 

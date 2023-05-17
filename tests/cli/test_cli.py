@@ -52,10 +52,13 @@ class TestCLI(unittest.TestCase):
 
     def test_export_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
-            command = (
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vision_perceiver_conv --task image-classification {tempdir}",
-            )
-            subprocess.run(command, shell=True, check=True)
+            commands = [
+                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vision_perceiver_conv --task image-classification {tempdir}/onnx",
+                f"optimum-cli export tflite --model hf-internal-testing/tiny-random-bert --task text-classification --sequence_length 128 {tempdir}/tflite",
+            ]
+
+            for command in commands:
+                subprocess.run(command, shell=True, check=True)
 
     def test_optimize_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
