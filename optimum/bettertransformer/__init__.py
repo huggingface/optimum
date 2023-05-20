@@ -18,6 +18,7 @@ from .encoder_models import (
     BartEncoderLayerBetterTransformer,
     BertLayerBetterTransformer,
     CLIPLayerBetterTransformer,
+    DetrEncoderLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
     MBartEncoderLayerBetterTransformer,
@@ -25,7 +26,6 @@ from .encoder_models import (
     ViTLayerBetterTransformer,
     Wav2Vec2EncoderLayerBetterTransformer,
     WhisperEncoderLayerBetterTransformer,
-    DetrEncoderLayerBetterTransformer,
 )
 
 
