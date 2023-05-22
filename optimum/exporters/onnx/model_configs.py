@@ -769,9 +769,27 @@ class GroupViTOnnxConfig(CLIPOnnxConfig):
     pass
 
 
-# TODO: not supported now because of aten:broadcast_to, can be most likely patched.
-# class OwlViTOnnxConfig(CLIPOnnxConfig):
-#     pass
+class OwlViTOnnxConfig(CLIPOnnxConfig):
+
+    # Sets the absolute tolerance to when validating the exported ONNX model against the
+    # reference model.
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {**super().inputs}
+    
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        # TODO what is feature-extraction return value? 
+        # seems like CLIP using the same return valur for both feature-extraction and classification
+        return {
+            "logits": {0: "batch_size", 1: "num_queries"},
+            "pred_boxes": {0: "batch_size", 1: "num_queries"},
+            "text_embeds": {0: "text_batch_size"},
+            "image_embeds": {0: "image_batch_size"},
+        }
+    pass
 
 
 class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
