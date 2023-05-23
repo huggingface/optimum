@@ -17,7 +17,7 @@ import random
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from packaging import version
-from transformers.utils import is_tf_available
+from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
@@ -774,21 +774,21 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     # Sets the absolute tolerance to when validating the exported ONNX model against the
     # reference model.
     ATOL_FOR_VALIDATION = 1e-4
-
-    @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
-        return {**super().inputs}
+    MIN_TORCH_VERSION = version.parse("2.1")
     
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        # TODO what is feature-extraction return value? 
-        # seems like CLIP using the same return valur for both feature-extraction and classification
-        return {
-            "logits": {0: "batch_size", 1: "num_queries"},
-            "pred_boxes": {0: "batch_size", 1: "num_queries"},
-            "text_embeds": {0: "text_batch_size"},
-            "image_embeds": {0: "image_batch_size"},
-        }
+        outputs = {}
+        if self.task == "feature-extraction":
+            outputs["logits_per_image"] = {0: "image_batch_size", 1: "text_batch_size"}
+            outputs["logits_per_text"] = {0: "text_batch_size", 1: "image_batch_size"}
+        elif self.task == "zero-shot-object-detection":
+            outputs ["logits"] = {0: "batch_size", 1: "num_queries"}
+            outputs ["pred_boxes"] = {0: "batch_size", 1: "num_queries"}
+
+        outputs["text_embeds"] = {0: "text_batch_size"}
+        outputs["image_embeds"] = {0: "image_batch_size"}
+        return outputs
     pass
 
 
