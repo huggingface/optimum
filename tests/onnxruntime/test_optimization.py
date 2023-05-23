@@ -418,26 +418,24 @@ class ORTOptimizerForSpeechSeq2SeqIntegrationTest(ORTOptimizerTestMixin):
             {
                 "model_arch": SUPPORTED_ARCHITECTURES,
                 "use_cache": [True],
+                "use_io_binding": [False, True],
                 "optimization_level": ["O1", "O2", "O3", "O4"],
             }
         )
     )
     @require_torch_gpu
     @pytest.mark.gpu_test
-    def test_optimization_levels_gpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
-        for use_io_binding in [False, True]:
-            # TODO: investigate why marian with IO Binding fails
-            if model_arch == "marian" and use_io_binding is True:
-                continue
-
-            self._test_optimization_levels(
-                test_name=test_name,
-                model_arch=model_arch,
-                use_cache=use_cache,
-                optimization_level=optimization_level,
-                provider="CUDAExecutionProvider",
-                use_io_binding=use_io_binding,
-            )
+    def test_optimization_levels_gpu(
+        self, test_name: str, model_arch: str, use_cache: bool, use_io_binding: bool, optimization_level: str
+    ):
+        self._test_optimization_levels(
+            test_name=test_name,
+            model_arch=model_arch,
+            use_cache=use_cache,
+            optimization_level=optimization_level,
+            provider="CUDAExecutionProvider",
+            use_io_binding=use_io_binding,
+        )
 
 
 class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
