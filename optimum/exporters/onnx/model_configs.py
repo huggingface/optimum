@@ -17,7 +17,7 @@ import random
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from packaging import version
-from transformers.utils import is_tf_available, is_torch_available
+from transformers.utils import is_tf_available
 
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
@@ -789,7 +789,6 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
         outputs["text_embeds"] = {0: "text_batch_size"}
         outputs["image_embeds"] = {0: "image_batch_size"}
         return outputs
-    pass
 
 
 class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
