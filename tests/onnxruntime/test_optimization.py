@@ -356,8 +356,10 @@ class ORTOptimizerForSpeechSeq2SeqIntegrationTest(ORTOptimizerTestMixin):
 
         if provider == "CUDAExecutionProvider":
             for_gpu = True
+            device = "cuda"
         else:
             for_gpu = False
+            device = "cpu"
 
         ort_model = ORTModelForSpeechSeq2Seq.from_pretrained(
             self.onnx_model_dirs[export_name], use_cache=use_cache, provider=provider, use_io_binding=use_io_binding
@@ -384,7 +386,7 @@ class ORTOptimizerForSpeechSeq2SeqIntegrationTest(ORTOptimizerTestMixin):
 
             data = self._generate_random_audio_data()
             processor = get_preprocessor(model_id)
-            features = processor.feature_extractor(data, return_tensors="pt")
+            features = processor.feature_extractor(data, return_tensors="pt").to(device)
 
             model_outputs = ort_model.generate(features["input_features"])
 
