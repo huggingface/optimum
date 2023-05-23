@@ -328,9 +328,7 @@ class ORTOptimizerForSpeechSeq2SeqIntegrationTest(ORTOptimizerTestMixin):
     TASK = "automatic-speech-recognition"
     ORTMODEL_CLASS = ORTModelForSpeechSeq2Seq
 
-    SUPPORTED_ARCHITECTURES = [
-        "whisper"
-    ]
+    SUPPORTED_ARCHITECTURES = ["whisper"]
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
