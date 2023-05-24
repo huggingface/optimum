@@ -691,7 +691,7 @@ def export(
             )
 
         if not config.is_torch_support_available:
-            logger.warning(
+            raise MinimumVersionError(
                 f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION},"
                 f" got: {torch.__version__}"
             )
