@@ -770,12 +770,11 @@ class GroupViTOnnxConfig(CLIPOnnxConfig):
 
 
 class OwlViTOnnxConfig(CLIPOnnxConfig):
-
     # Sets the absolute tolerance to when validating the exported ONNX model against the
     # reference model.
     ATOL_FOR_VALIDATION = 1e-4
     MIN_TORCH_VERSION = version.parse("2.1")
-    
+
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         outputs = {}
@@ -783,8 +782,8 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
             outputs["logits_per_image"] = {0: "image_batch_size", 1: "text_batch_size"}
             outputs["logits_per_text"] = {0: "text_batch_size", 1: "image_batch_size"}
         elif self.task == "zero-shot-object-detection":
-            outputs ["logits"] = {0: "batch_size", 1: "num_queries"}
-            outputs ["pred_boxes"] = {0: "batch_size", 1: "num_queries"}
+            outputs["logits"] = {0: "batch_size", 1: "num_queries"}
+            outputs["pred_boxes"] = {0: "batch_size", 1: "num_queries"}
 
         outputs["text_embeds"] = {0: "text_batch_size"}
         outputs["image_embeds"] = {0: "image_batch_size"}
