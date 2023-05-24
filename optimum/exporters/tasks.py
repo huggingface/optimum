@@ -373,6 +373,10 @@ class TasksManager:
             "feature-extraction",
             onnx="CLIPTextOnnxConfig",
         ),
+        "clip-vision-model": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="CLIPVisionOnnxConfig",
+        ),
         "codegen": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -896,7 +900,7 @@ class TasksManager:
             onnx="YolosOnnxConfig",
         ),
     }
-    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae-encoder", "vae-decoder", "clip-text-model", "trocr"}
+    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae-encoder", "vae-decoder", "clip-text-model", "clip-vision-model", "trocr"}
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @classmethod
