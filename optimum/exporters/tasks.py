@@ -662,12 +662,11 @@ class TasksManager:
             "token-classification",
             onnx="NystromformerOnnxConfig",
         ),
-        # TODO: owlvit cannot be exported yet, check model_config.py to know why.
-        # "owlvit": supported_tasks_mapping(
-        #     "feature-extraction",
-        #     "zero-shot-object-detection",
-        #     onnx="OwlViTOnnxConfig",
-        # ),
+        "owlvit": supported_tasks_mapping(
+            "feature-extraction",
+            "zero-shot-object-detection",
+            onnx="OwlViTOnnxConfig",
+        ),
         "opt": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",

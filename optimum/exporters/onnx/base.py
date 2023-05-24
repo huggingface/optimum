@@ -171,11 +171,14 @@ class OnnxConfig(ExportConfig, ABC):
                 "image_embeds": {0: "image_batch_size"},
             }
         ),
-        # TODO: enable that and verify that once OwlViTOnnxConfig can work.
-        # "zero-shot-object-detection": OrderedDict({
-        #     "logits": {0: "batch_size"},
-        #     "pred_boxes": {0: "batch_size"},
-        # }),
+        "zero-shot-object-detection": OrderedDict(
+            {
+                "logits": {0: "batch_size", 1: "num_queries"},
+                "pred_boxes": {0: "batch_size", 1: "num_queries"},
+                "text_embeds": {0: "text_batch_size"},
+                "image_embeds": {0: "image_batch_size"},
+            }
+        ),
     }
 
     def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
