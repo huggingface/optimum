@@ -99,9 +99,7 @@ class ORTOptimizerTest(unittest.TestCase):
             model.save_pretrained(tmp_dir)
             optimizer = ORTOptimizer.from_pretrained(model)
             optimizer.optimize(optimization_config=optimization_config, save_dir=tmp_dir)
-            optimized_model = model_cls.from_pretrained(
-                tmp_dir, file_name="model_optimized.onnx", export=False
-            )
+            optimized_model = model_cls.from_pretrained(tmp_dir, file_name="model_optimized.onnx", export=False)
             expected_ort_config = ORTConfig(optimization=optimization_config)
             ort_config = ORTConfig.from_pretrained(tmp_dir)
 
@@ -141,12 +139,7 @@ class ORTOptimizerTest(unittest.TestCase):
             model.save_pretrained(tmp_dir)
             optimizer = ORTOptimizer.from_pretrained(model)
             optimizer.optimize(optimization_config=optimization_config, save_dir=tmp_dir)
-            optimized_model = model_cls.from_pretrained(
-                tmp_dir,
-                export=False,
-                use_cache=use_cache,
-            )
-
+            optimized_model = model_cls.from_pretrained(tmp_dir, export=False, use_cache=use_cache)
             expected_ort_config = ORTConfig(optimization=optimization_config)
             ort_config = ORTConfig.from_pretrained(tmp_dir)
 

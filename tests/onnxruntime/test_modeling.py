@@ -202,7 +202,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_from_hub_subfolder(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained("fxmarty/tiny-mbart-subfolder", subfolder="my_folder", export=True)
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            "fxmarty/tiny-mbart-subfolder", subfolder="my_folder", export=True
+        )
         self.assertIsInstance(model.encoder, ORTEncoder)
         self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
         self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
@@ -882,9 +884,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_save_load_seq2seq_model_with_external_data(self, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
-            model = ORTModelForSeq2SeqLM.from_pretrained(
-                MODEL_NAMES["t5"], use_cache=use_cache, export=True
-            )
+            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["t5"], use_cache=use_cache, export=True)
             model.save_pretrained(tmpdirname)
 
             # verify external data is exported
