@@ -548,10 +548,10 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
     def __init__(self, detr_layer, config):
         r"""
-        A simple conversion of the ProphetNet Encoder layer to its `BetterTransformer` implementation.
+        A simple conversion of the Detr Encoder layer to its `BetterTransformer` implementation.
         Args:
-            prophet_net_layer (`torch.nn.Module`):
-                The original ProphetNet Layer where the weights needs to be retrieved.
+            detr_layer (`torch.nn.Module`):
+                The original Detr Layer where the weights needs to be retrieved.
         """
         super().__init__(config)
         self.config = config
