@@ -61,7 +61,7 @@ class BetterTransformerManager:
         "codegen": {"CodeGenAttention": CodegenAttentionLayerBetterTransformer},
         "data2vec-text": {"Data2VecTextLayer": BertLayerBetterTransformer},
         "deit": {"DeiTLayer": ViTLayerBetterTransformer},
-        "detr": ("DetrEncoderLayer", DetrEncoderLayerBetterTransformer),
+        "detr": {"DetrEncoderLayer": DetrEncoderLayerBetterTransformer},
         "distilbert": {"TransformerBlock": DistilBertLayerBetterTransformer},
         "electra": {"ElectraLayer": BertLayerBetterTransformer},
         "ernie": {"ErnieLayer": BertLayerBetterTransformer},
