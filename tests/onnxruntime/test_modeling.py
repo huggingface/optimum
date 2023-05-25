@@ -154,7 +154,7 @@ class ORTModelTestMixin(unittest.TestCase):
                 self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
             )
             set_seed(SEED)
-            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, from_transformers=True)
+            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, export=True)
 
             model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{self.TASK}_")
             onnx_model.save_pretrained(model_dir)
@@ -192,7 +192,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_model_from_hub_subfolder(self):
         # does not pass with ORTModel as it does not have export_feature attribute
         model = ORTModelForSequenceClassification.from_pretrained(
-            "fxmarty/tiny-bert-sst2-distilled-subfolder", subfolder="my_subfolder", from_transformers=True
+            "fxmarty/tiny-bert-sst2-distilled-subfolder", subfolder="my_subfolder", export=True
         )
         self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
@@ -202,9 +202,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_from_hub_subfolder(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            "fxmarty/tiny-mbart-subfolder", subfolder="my_folder", from_transformers=True
-        )
+        model = ORTModelForSeq2SeqLM.from_pretrained("fxmarty/tiny-mbart-subfolder", subfolder="my_folder", export=True)
         self.assertIsInstance(model.encoder, ORTEncoder)
         self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
         self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
@@ -844,7 +842,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_save_load_ort_model_with_external_data(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
-            model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+            model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], export=True)
             model.save_pretrained(tmpdirname)
 
             # verify external data is exported
@@ -852,7 +850,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             self.assertIn(ONNX_WEIGHTS_NAME, folder_contents)
             self.assertIn(ONNX_WEIGHTS_NAME + "_data", folder_contents)
             # verify loading from local folder works
-            model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, from_transformers=False)
+            model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, export=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @parameterized.expand([(False,), (True,)])
@@ -862,7 +860,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForCausalLM.from_pretrained(
                 MODEL_NAMES["gpt2"],
                 use_cache=use_cache,
-                from_transformers=True,
+                export=True,
                 use_merged=False,
             )
             model.save_pretrained(tmpdirname)
@@ -877,7 +875,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
 
             # verify loading from local folder works
-            model = ORTModelForCausalLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=False)
+            model = ORTModelForCausalLM.from_pretrained(tmpdirname, use_cache=use_cache, export=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @parameterized.expand([(False,), (True,)])
@@ -885,7 +883,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
             model = ORTModelForSeq2SeqLM.from_pretrained(
-                MODEL_NAMES["t5"], use_cache=use_cache, from_transformers=True
+                MODEL_NAMES["t5"], use_cache=use_cache, export=True
             )
             model.save_pretrained(tmpdirname)
 
@@ -901,7 +899,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
 
             # verify loading from local folder works
-            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=False)
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, export=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     def test_save_load_stable_diffusion_model_with_external_data(self):
@@ -938,7 +936,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # save transformers model to be able to load it with `ORTModel...`
             model.save_pretrained(tmpdirname)
 
-            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, from_transformers=True)
+            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, export=True)
             model.save_pretrained(os.path.join(tmpdirname, "onnx"))
 
             # Verify config and ONNX exported encoder, decoder and decoder with past are present each in their own folder
@@ -973,7 +971,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_push_ort_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
-            model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+            model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], export=True)
             model.save_pretrained(
                 tmpdirname + "/onnx",
                 use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
@@ -985,7 +983,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # verify loading from hub works
             model = ORTModelForSequenceClassification.from_pretrained(
                 MODEL_NAMES["bert"] + "-onnx",
-                from_transformers=False,
+                export=False,
                 use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
@@ -994,7 +992,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_push_decoder_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
-            model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"], from_transformers=True)
+            model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"], export=True)
             model.save_pretrained(
                 tmpdirname + "/onnx",
                 use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
@@ -1006,7 +1004,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # verify loading from hub works
             model = ORTModelForCausalLM.from_pretrained(
                 MODEL_NAMES["gpt2"] + "-onnx",
-                from_transformers=False,
+                export=False,
                 use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
@@ -1015,7 +1013,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_push_seq2seq_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
-            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"], from_transformers=True)
+            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"], export=True)
             model.save_pretrained(
                 tmpdirname + "/onnx",
                 use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
@@ -1027,7 +1025,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # verify loading from hub works
             model = ORTModelForSeq2SeqLM.from_pretrained(
                 MODEL_NAMES["mbart"] + "-onnx",
-                from_transformers=False,
+                export=False,
                 use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
@@ -1055,7 +1053,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_trust_remote_code(self):
         model_id = "fxmarty/tiny-testing-gpt2-remote-code"
-        ort_model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, trust_remote_code=True)
+        ort_model = ORTModelForCausalLM.from_pretrained(model_id, export=True, trust_remote_code=True)
         pt_model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
 
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -1108,7 +1106,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForQuestionAnswering.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+            _ = ORTModelForQuestionAnswering.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -1275,7 +1273,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForMaskedLM.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+            _ = ORTModelForMaskedLM.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -1437,7 +1435,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+            _ = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -1533,7 +1531,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_pipeline_zero_shot_classification(self):
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
-            "typeform/distilbert-base-uncased-mnli", from_transformers=True
+            "typeform/distilbert-base-uncased-mnli", export=True
         )
         tokenizer = get_preprocessor("typeform/distilbert-base-uncased-mnli")
         pipe = pipeline("zero-shot-classification", model=onnx_model, tokenizer=tokenizer)
@@ -1610,7 +1608,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForTokenClassification.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+            _ = ORTModelForTokenClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -2009,7 +2007,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"], from_transformers=True)
+            _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -2047,7 +2045,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.skipTest("Unsupported -with-past export case")
 
         model_id = MODEL_NAMES[model_arch]
-        model = ORTModelForCausalLM.from_pretrained(model_id, from_transformers=True, use_merged=True)
+        model = ORTModelForCausalLM.from_pretrained(model_id, export=True, use_merged=True)
         with tempfile.TemporaryDirectory() as tmpdir:
             model.save_pretrained(tmpdir)
             save_path = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
@@ -2428,7 +2426,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+            _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -2568,7 +2566,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForSemanticSegmentation.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+            _ = ORTModelForSemanticSegmentation.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -2723,7 +2721,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForAudioClassification.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+            _ = ORTModelForAudioClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -2875,7 +2873,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForCTC.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+            _ = ORTModelForCTC.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -2934,7 +2932,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForAudioXVector.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+            _ = ORTModelForAudioXVector.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -3026,7 +3024,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForAudioFrameClassification.from_pretrained(MODEL_NAMES["t5"], from_transformers=True)
+            _ = ORTModelForAudioFrameClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -3099,7 +3097,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+            _ = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["bert"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -3134,7 +3132,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             self.skipTest("Unsupported -with-past export case")
 
         model_id = MODEL_NAMES[model_arch]
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, from_transformers=True, use_merged=True)
+        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, export=True, use_merged=True)
         with tempfile.TemporaryDirectory() as tmpdir:
             model.save_pretrained(tmpdir)
             save_path = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
@@ -3561,7 +3559,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             self.skipTest("Unsupported -with-past export case")
 
         model_id = MODEL_NAMES[model_arch]
-        model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, from_transformers=True, use_merged=True)
+        model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, export=True, use_merged=True)
         with tempfile.TemporaryDirectory() as tmpdir:
             model.save_pretrained(tmpdir)
             save_path = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
@@ -3599,7 +3597,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForSpeechSeq2Seq.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+            _ = ORTModelForSpeechSeq2Seq.from_pretrained(MODEL_NAMES["bert"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
@@ -3969,7 +3967,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForVision2Seq.from_pretrained(MODEL_NAMES["bert"], from_transformers=True)
+            _ = ORTModelForVision2Seq.from_pretrained(MODEL_NAMES["bert"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 

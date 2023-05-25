@@ -336,7 +336,7 @@ def main():
     )
 
     # Export the model
-    model = ORTModelForMultipleChoice.from_pretrained(model_args.model_name_or_path, from_transformers=True)
+    model = ORTModelForMultipleChoice.from_pretrained(model_args.model_name_or_path, export=True)
 
     # Create the quantizer
     quantizer = ORTQuantizer.from_pretrained(model)

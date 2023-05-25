@@ -229,7 +229,7 @@ def load_ort_pipeline(
 
     if model is None:
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
-        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, from_transformers=True)
+        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, export=True)
     elif isinstance(model, str):
         from ..onnxruntime.modeling_seq2seq import ENCODER_ONNX_FILE_PATTERN, ORTModelForConditionalGeneration
 
@@ -249,8 +249,8 @@ def load_ort_pipeline(
             use_auth_token=use_auth_token,
             revision=revision,
         )
-        from_transformers = len(onnx_files) == 0
-        model = ort_model_class.from_pretrained(model, from_transformers=from_transformers, **model_kwargs)
+        export = len(onnx_files) == 0
+        model = ort_model_class.from_pretrained(model, export=export, **model_kwargs)
     elif isinstance(model, ORTModel):
         if tokenizer is None and load_tokenizer:
             for preprocessor in model.preprocessors:
