@@ -65,7 +65,7 @@ class ORTOptimizerTestMixin(unittest.TestCase):
             model_args.pop("model_arch")
 
             model_id = MODEL_NAMES[model_arch]
-            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, from_transformers=True)
+            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, export=True)
 
             model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{self.TASK}_")
             onnx_model.save_pretrained(model_dir)
@@ -95,13 +95,11 @@ class ORTOptimizerTest(unittest.TestCase):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
         with tempfile.TemporaryDirectory() as tmp_dir:
-            model = model_cls.from_pretrained(model_name, from_transformers=True)
+            model = model_cls.from_pretrained(model_name, export=True)
             model.save_pretrained(tmp_dir)
             optimizer = ORTOptimizer.from_pretrained(model)
             optimizer.optimize(optimization_config=optimization_config, save_dir=tmp_dir)
-            optimized_model = model_cls.from_pretrained(
-                tmp_dir, file_name="model_optimized.onnx", from_transformers=False
-            )
+            optimized_model = model_cls.from_pretrained(tmp_dir, file_name="model_optimized.onnx", export=False)
             expected_ort_config = ORTConfig(optimization=optimization_config)
             ort_config = ORTConfig.from_pretrained(tmp_dir)
 
@@ -137,16 +135,11 @@ class ORTOptimizerTest(unittest.TestCase):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
         with tempfile.TemporaryDirectory() as tmp_dir:
-            model = model_cls.from_pretrained(model_name, from_transformers=True, use_cache=use_cache)
+            model = model_cls.from_pretrained(model_name, export=True, use_cache=use_cache)
             model.save_pretrained(tmp_dir)
             optimizer = ORTOptimizer.from_pretrained(model)
             optimizer.optimize(optimization_config=optimization_config, save_dir=tmp_dir)
-            optimized_model = model_cls.from_pretrained(
-                tmp_dir,
-                from_transformers=False,
-                use_cache=use_cache,
-            )
-
+            optimized_model = model_cls.from_pretrained(tmp_dir, export=False, use_cache=use_cache)
             expected_ort_config = ORTConfig(optimization=optimization_config)
             ort_config = ORTConfig.from_pretrained(tmp_dir)
 
@@ -167,7 +160,7 @@ class ORTOptimizerTest(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
-            model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)
+            model = ORTModelForSequenceClassification.from_pretrained(model_name, export=True)
             model.save_pretrained(output_dir)
             optimizer = ORTOptimizer.from_pretrained(model)
             optimizer.optimize(optimization_config=optimization_config, save_dir=output_dir)
@@ -186,7 +179,7 @@ class ORTOptimizerTest(unittest.TestCase):
         optimization_config = OptimizationConfig(optimization_level=0, fp16=True)
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         with tempfile.TemporaryDirectory() as tmp_dir:
-            model = ORTModelForSequenceClassification.from_pretrained(model_name, from_transformers=True)
+            model = ORTModelForSequenceClassification.from_pretrained(model_name, export=True)
             model.save_pretrained(tmp_dir)
             optimizer = ORTOptimizer.from_pretrained(model)
             optimizer.optimize(optimization_config=optimization_config, save_dir=tmp_dir)
@@ -195,7 +188,7 @@ class ORTOptimizerTest(unittest.TestCase):
                 self.assertNotEqual(w.data_type, onnx.onnx_pb.TensorProto.FLOAT)
 
             optimized_model = ORTModelForSequenceClassification.from_pretrained(
-                tmp_dir, file_name="model_optimized.onnx", from_transformers=False
+                tmp_dir, file_name="model_optimized.onnx", export=False
             )
             tokens = tokenizer("This is a sample input", return_tensors="pt")
             model_outputs = model(**tokens)

@@ -248,7 +248,7 @@ IMAGE_TO_TEXT_EXAMPLE = r"""
 
     >>> processor = {processor_class}.from_pretrained("{checkpoint}")
     >>> tokenizer = {tokenizer_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}", from_transformers=True)
+    >>> model = {model_class}.from_pretrained("{checkpoint}", export=True)
 
     >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     >>> image = Image.open(requests.get(url, stream=True).raw)
@@ -270,7 +270,7 @@ IMAGE_TO_TEXT_EXAMPLE = r"""
 
     >>> processor = {processor_class}.from_pretrained("{checkpoint}")
     >>> tokenizer = {tokenizer_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}", from_transformers=True)
+    >>> model = {model_class}.from_pretrained("{checkpoint}", export=True)
 
     >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     >>> image = Image.open(requests.get(url, stream=True).raw)
