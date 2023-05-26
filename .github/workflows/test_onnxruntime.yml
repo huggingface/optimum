@@ -2,6 +2,9 @@
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 name: ONNX Runtime / Python - Test
 
+env:
+  PYTHONIOENCODING: UTF-8
+
 on:
   push:
     branches: [ main ]
