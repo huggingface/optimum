@@ -3,7 +3,7 @@
 name: ONNX Runtime / Python - Test
 
 env:
-  PYTHONIOENCODING: UTF-8
+  PYTHONIOENCODING: "utf-8:surrogateescape"
 
 on:
   push:
