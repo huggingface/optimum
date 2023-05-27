@@ -559,18 +559,18 @@ class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         self.in_proj_weight = nn.Parameter(
             torch.cat(
                 [
-                    detr_layer.self_attn.query_proj.weight,
-                    detr_layer.self_attn.key_proj.weight,
-                    detr_layer.self_attn.value_proj.weight,
+                    detr_layer.self_attn.q_proj.weight,
+                    detr_layer.self_attn.k_proj.weight,
+                    detr_layer.self_attn.v_proj.weight,
                 ]
             )
         )
         self.in_proj_bias = nn.Parameter(
             torch.cat(
                 [
-                    detr_layer.self_attn.query_proj.bias,
-                    detr_layer.self_attn.key_proj.bias,
-                    detr_layer.self_attn.value_proj.bias,
+                    detr_layer.self_attn.q_proj.bias,
+                    detr_layer.self_attn.k_proj.bias,
+                    detr_layer.self_attn.v_proj.bias,
                 ]
             )
         )
@@ -579,57 +579,55 @@ class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         self.out_proj_weight = detr_layer.self_attn.out_proj.weight
         self.out_proj_bias = detr_layer.self_attn.out_proj.bias
 
-        # Linear layer 1
-        self.linear1_weight = detr_layer.feed_forward.intermediate.weight
-        self.linear1_bias = detr_layer.feed_forward.intermediate.bias
-
-        # Linear layer 2
-        self.linear2_weight = detr_layer.feed_forward.output.weight
-        self.linear2_bias = detr_layer.feed_forward.output.bias
-
-        # Layer norm 1
+        # Self Attention Layer Norm
         self.norm1_eps = detr_layer.self_attn_layer_norm.eps
         self.norm1_weight = detr_layer.self_attn_layer_norm.weight
         self.norm1_bias = detr_layer.self_attn_layer_norm.bias
 
-        # Layer norm 2
-        self.norm2_eps = detr_layer.feed_forward_layer_norm.eps
-        self.norm2_weight = detr_layer.feed_forward_layer_norm.weight
-        self.norm2_bias = detr_layer.feed_forward_layer_norm.bias
+        # Linear layer 1
+        self.linear1_weight = detr_layer.fc1.weight
+        self.linear1_bias = detr_layer.fc1.bias
+
+        # Linear layer 2
+        self.linear2_weight = detr_layer.fc2.weight
+        self.linear2_bias = detr_layer.fc2.bias
+
+        # Final Layer Norm
+        self.norm2_eps = detr_layer.final_layer_norm.eps
+        self.norm2_weight = detr_layer.final_layer_norm.weight
+        self.norm2_bias = detr_layer.final_layer_norm.bias
 
         # Model hyper parameters
-        self.num_heads = detr_layer.self_attn.num_attn_heads
-        self.embed_dim = detr_layer.self_attn.head_dim * self.num_heads
+        self.num_heads = detr_layer.self_attn.num_heads
+        self.embed_dim = detr_layer.embed_dim
 
         # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
         self.is_last_layer = False
 
         self.original_layers_mapping = {
             "in_proj_weight": [
-                "self_attn.query_proj.weight",
-                "self_attn.key_proj.weight",
-                "self_attn.value_proj.weight",
+                "self_attn.q_proj.weight",
+                "self_attn.k_proj.weight",
+                "self_attn.v_proj.weight",
             ],
-            "in_proj_bias": ["self_attn.query_proj.bias", "self_attn.key_proj.bias", "self_attn.value_proj.bias"],
+            "in_proj_bias": ["self_attn.q_proj.bias", "self_attn.k_proj.bias", "self_attn.v_proj.bias"],
             "out_proj_weight": "self_attn.out_proj.weight",
             "out_proj_bias": "self_attn.out_proj.bias",
-            "linear1_weight": "feed_forward.intermediate.weight",
-            "linear1_bias": "feed_forward.intermediate.bias",
-            "linear2_weight": "feed_forward.output.weight",
-            "linear2_bias": "feed_forward.output.bias",
+            "linear1_weight": "fc1.weight",
+            "linear1_bias": "fc1.bias",
+            "linear2_weight": "fc2.weight",
+            "linear2_bias": "fc2.bias",
+            "norm1_eps": "self_attn_layer_norm.eps",
             "norm1_weight": "self_attn_layer_norm.weight",
             "norm1_bias": "self_attn_layer_norm.bias",
-            "norm2_weight": "feed_forward_layer_norm.weight",
-            "norm2_bias": "feed_forward_layer_norm.bias",
+            "norm2_eps": "final_layer_norm.eps",
+            "norm2_weight": "final_layer_norm.weight",
+            "norm2_bias": "final_layer_norm.bias",
         }
 
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, attention_mask, *_, **__):
-        r"""
-        This is just a wrapper around the forward function proposed in:
-        https://github.com/huggingface/transformers/pull/19553
-        """
         super().forward_checker()
 
         if not hasattr(hidden_states, "original_shape"):
@@ -657,11 +655,11 @@ class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             self.in_proj_bias,
             self.out_proj_weight,
             self.out_proj_bias,
-            self.use_gelu,
             self.norm_first,
             self.norm1_eps,
             self.norm1_weight,
             self.norm1_bias,
+            self.norm2_eps,
             self.norm2_weight,
             self.norm2_bias,
             self.linear1_weight,
