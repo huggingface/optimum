@@ -163,19 +163,13 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self._behavior is not ConfigBehavior.ENCODER:
-            # TODO: it is likely this pop() is unwanted as we then always hit
-            # https://github.com/huggingface/transformers/blob/v4.26.0/src/transformers/models/t5/modeling_t5.py#L965-L969
-            common_inputs.pop("attention_mask")
-
             if self.use_past_in_inputs:
                 # TODO: validate the axis name for attention_mask
                 # common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
                 common_inputs["decoder_input_ids"] = {0: "batch_size"}
+                self.add_past_key_values(common_inputs, direction="inputs")
             else:
                 common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
-            if self.use_past_in_inputs:
-                self.add_past_key_values(common_inputs, direction="inputs")
 
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
