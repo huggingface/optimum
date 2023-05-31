@@ -323,7 +323,6 @@ def main_export(
 
         optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=optimize)
 
-        optimization_config.disable_shape_inference = True
         optimizer.optimize(save_dir=output, optimization_config=optimization_config, file_suffix="")
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
