@@ -102,7 +102,7 @@ class ORTOptimizer:
                     raise NotImplementedError(
                         "ORTOptimizer does not support ORTModelForCausalLM models that use a single ONNX for both the without/with past cases."
                         " Please pass an ORTModelForCausalLM that uses a separate ONNX for each without/with past cases. This can be done"
-                        " by using `ORTModelForCausalLM.from_pretrained(..., from_transformers=True, use_merged=False)`, or by"
+                        " by using `ORTModelForCausalLM.from_pretrained(..., export=True, use_merged=False)`, or by"
                         " using the option `--no-post-process` in the optimum-cli ONNX export tool."
                     )
                 onnx_model_path.append(model_or_path.decoder_model_path)

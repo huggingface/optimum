@@ -231,6 +231,14 @@ class OnnxExportTestCase(TestCase):
         if is_torch_available():
             from optimum.utils import torch_version
 
+            if not onnx_config.is_transformers_support_available:
+                import transformers
+
+                pytest.skip(
+                    "Skipping due to incompatible Transformers version. Minimum required is"
+                    f" {onnx_config.MIN_TRANSFORMERS_VERSION}, got: {transformers.__version__}"
+                )
+
             if not onnx_config.is_torch_support_available:
                 pytest.skip(
                     "Skipping due to incompatible PyTorch version. Minimum required is"
@@ -300,7 +308,7 @@ class OnnxExportTestCase(TestCase):
 
                 gc.collect()
 
-    def test_all_models_are_tested(self):
+    def test_all_models_tested(self):
         # make sure we test all models
         missing_models_set = TasksManager._SUPPORTED_CLI_MODEL_TYPE - set(PYTORCH_EXPORT_MODELS_TINY.keys())
         if len(missing_models_set) > 0:

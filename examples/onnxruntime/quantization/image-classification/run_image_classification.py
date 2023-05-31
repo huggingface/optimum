@@ -293,7 +293,7 @@ def main():
         return result
 
     # Export the model
-    model = ORTModelForImageClassification.from_pretrained(model_args.model_name_or_path, from_transformers=True)
+    model = ORTModelForImageClassification.from_pretrained(model_args.model_name_or_path, export=True)
 
     # Create the quantizer
     quantizer = ORTQuantizer.from_pretrained(model)

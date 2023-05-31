@@ -20,7 +20,7 @@ import itertools
 import os
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 import huggingface_hub
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
@@ -161,6 +161,7 @@ class TasksManager:
             "question-answering": "AutoModelForQuestionAnswering",
             "image-classification": "AutoModelForImageClassification",
             "image-segmentation": "AutoModelForImageSegmentation",
+            "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
             "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
@@ -206,6 +207,7 @@ class TasksManager:
         "speech2seq-lm": "automatic-speech-recognition",
         "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
         "masked-lm": "fill-mask",
+        "mask-generation": "feature-extraction",
         "vision2seq-lm": "image-to-text",
         "default": "feature-extraction",
         "default-with-past": "feature-extraction-with-past",
@@ -239,6 +241,7 @@ class TasksManager:
         "question-answering": "transformers",
         "image-classification": "transformers",
         "image-segmentation": "transformers",
+        "mask-generation": "transformers",
         "masked-im": "transformers",
         "semantic-segmentation": "transformers",
         "automatic-speech-recognition": "transformers",
@@ -659,12 +662,11 @@ class TasksManager:
             "token-classification",
             onnx="NystromformerOnnxConfig",
         ),
-        # TODO: owlvit cannot be exported yet, check model_config.py to know why.
-        # "owlvit": supported_tasks_mapping(
-        #     "feature-extraction",
-        #     "zero-shot-object-detection",
-        #     onnx="OwlViTOnnxConfig",
-        # ),
+        "owlvit": supported_tasks_mapping(
+            "feature-extraction",
+            "zero-shot-object-detection",
+            onnx="OwlViTOnnxConfig",
+        ),
         "opt": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -738,6 +740,10 @@ class TasksManager:
             "token-classification",
             onnx="RoFormerOnnxConfig",
             tflite="RoFormerTFLiteConfig",
+        ),
+        "sam": supported_tasks_mapping(
+            "mask-generation",
+            onnx="SamOnnxConfig",
         ),
         "segformer": supported_tasks_mapping(
             "feature-extraction",
@@ -992,6 +998,17 @@ class TasksManager:
         ]
 
     @staticmethod
+    def synonyms_for_task(task: str) -> Set[str]:
+        synonyms = [k for k, v in TasksManager._SYNONYM_TASK_MAP.items() if v == task]
+        synonyms += [k for k, v in TasksManager._SYNONYM_TASK_MAP.items() if v == TasksManager.map_from_synonym(task)]
+        synonyms = set(synonyms)
+        try:
+            synonyms.remove(task)
+        except KeyError:
+            pass
+        return synonyms
+
+    @staticmethod
     def map_from_synonym(task: str) -> str:
         if task in TasksManager._SYNONYM_TASK_MAP:
             task = TasksManager._SYNONYM_TASK_MAP[task]
@@ -1211,6 +1228,7 @@ class TasksManager:
                 break
         if task_name is None:
             raise ValueError(f"Could not infer the task name for {target_name}.")
+
         return task_name
 
     @classmethod
@@ -1364,13 +1382,16 @@ class TasksManager:
 
         model_type = None
         model_class_name = None
+        kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
+
         if TasksManager._TASKS_TO_LIBRARY[task.replace("-with-past", "")] == "transformers":
+            config = AutoConfig.from_pretrained(model_name_or_path, **kwargs)
+            model_type = config.model_type.replace("_", "-")
             # TODO: if automatic-speech-recognition is passed as task, it may map to several
             # different auto class (AutoModelForSpeechSeq2Seq or AutoModelForCTC),
             # depending on the model type
-            if original_task in ["auto", "automatic-speech-recognition"]:
-                config = AutoConfig.from_pretrained(model_name_or_path)
-                model_type = config.model_type.replace("_", "-")
+            # if original_task in ["auto", "automatic-speech-recognition"]:
+            if original_task == "automatic-speech-recognition" or task == "automatic-speech-recognition":
                 if original_task == "auto" and config.architectures is not None:
                     model_class_name = config.architectures[0]
 
@@ -1378,7 +1399,6 @@ class TasksManager:
             task, framework, model_type=model_type, model_class_name=model_class_name
         )
 
-        kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
         try:
             if framework == "pt":
                 kwargs["torch_dtype"] = torch_dtype
@@ -1437,12 +1457,17 @@ class TasksManager:
 
         model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
 
-        task = TasksManager.map_from_synonym(task)
         if task not in model_tasks:
-            raise ValueError(
-                f"{model_type} doesn't support task {task} for the {exporter} backend."
-                f" Supported tasks are: {', '.join(model_tasks.keys())}."
-            )
+            synonyms = TasksManager.synonyms_for_task(task)
+            for synonym in synonyms:
+                if synonym in model_tasks:
+                    task = synonym
+                    break
+            if task not in model_tasks:
+                raise ValueError(
+                    f"{model_type} doesn't support task {task} for the {exporter} backend."
+                    f" Supported tasks are: {', '.join(model_tasks.keys())}."
+                )
 
         exporter_config_constructor = TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
         if exporter_config_kwargs is not None:

@@ -288,7 +288,7 @@ def main():
     )
 
     # Export the model
-    model = ORTModelForTokenClassification.from_pretrained(model_args.model_name_or_path, from_transformers=True)
+    model = ORTModelForTokenClassification.from_pretrained(model_args.model_name_or_path, export=True)
 
     # Create the optimizer
     optimizer = ORTOptimizer.from_pretrained(model)

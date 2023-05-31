@@ -32,7 +32,7 @@ from ...utils import (
     logging,
     require_numpy_strictly_lower,
 )
-from ..error_utils import AtolError, OutputMatchError, ShapeError
+from ..error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
 from .base import OnnxConfig
 from .utils import recursive_to_device, recursive_to_dtype
 
@@ -508,12 +508,12 @@ def export_tensorflow(
     # This is needed to import onnx and tf2onnx because onnx is also the name of the current directory.
     import sys
 
+    import onnx
     import tensorflow as tf
+    import tf2onnx
 
     sys_path_backup = sys.path
     sys.path.pop(0)
-    import onnx
-    import tf2onnx
 
     sys.path = sys_path_backup
 
@@ -674,16 +674,24 @@ def export(
     if "diffusers" in str(model.__class__) and not is_diffusers_available():
         raise ImportError("The pip package `diffusers` is required to export stable diffusion models to ONNX.")
 
+    if not config.is_transformers_support_available:
+        import transformers
+
+        raise MinimumVersionError(
+            f"The current version of Transformers does not allow for the export of the model. Minimum required is "
+            f"{config.MIN_TRANSFORMERS_VERSION}, got: {transformers.__version__}"
+        )
+
     if is_torch_available() and isinstance(model, nn.Module):
         from ...utils import torch_version
 
         if not is_torch_onnx_support_available():
-            raise AssertionError(
+            raise MinimumVersionError(
                 f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {torch_version}"
             )
 
         if not config.is_torch_support_available:
-            logger.warning(
+            raise MinimumVersionError(
                 f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION},"
                 f" got: {torch.__version__}"
             )

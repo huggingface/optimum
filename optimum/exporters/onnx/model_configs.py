@@ -24,6 +24,7 @@ from ...utils import (
     DummyAudioInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
+    DummyPointsGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
@@ -772,9 +773,25 @@ class GroupViTOnnxConfig(CLIPOnnxConfig):
     pass
 
 
-# TODO: not supported now because of aten:broadcast_to, can be most likely patched.
-# class OwlViTOnnxConfig(CLIPOnnxConfig):
-#     pass
+class OwlViTOnnxConfig(CLIPOnnxConfig):
+    # Sets the absolute tolerance to when validating the exported ONNX model against the
+    # reference model.
+    ATOL_FOR_VALIDATION = 1e-4
+    MIN_TORCH_VERSION = version.parse("2.1")
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        outputs = {}
+        if self.task == "feature-extraction":
+            outputs["logits_per_image"] = {0: "image_batch_size", 1: "text_batch_size"}
+            outputs["logits_per_text"] = {0: "text_batch_size", 1: "image_batch_size"}
+        elif self.task == "zero-shot-object-detection":
+            outputs["logits"] = {0: "batch_size", 1: "num_queries"}
+            outputs["pred_boxes"] = {0: "batch_size", 1: "num_queries"}
+
+        outputs["text_embeds"] = {0: "text_batch_size"}
+        outputs["image_embeds"] = {0: "image_batch_size"}
+        return outputs
 
 
 class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
@@ -1090,3 +1107,32 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
+
+
+class SamOnnxConfig(OnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.29.0.dev0")
+    NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyPointsGenerator)
+    DEFAULT_ONNX_OPSET = 12  # einsum op not supported with opset 11
+
+    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
+        super().__init__(config, task)
+        self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig(self._config.vision_config)
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        inputs = {
+            "pixel_values": {0: "batch_size"},
+            "input_points": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
+        }
+
+        return inputs
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        outputs = {
+            "iou_scores": {0: "batch_size", 1: "point_batch_size"},
+            "pred_masks": {0: "batch_size", 1: "point_batch_size"},
+        }
+
+        return outputs

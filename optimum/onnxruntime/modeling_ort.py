@@ -637,7 +637,7 @@ class ORTModel(OptimizedModel):
 
         use_merged (`Optional[bool]`, defaults to `None`):
             whether or not to use a single ONNX that handles both the decoding without and with past key values reuse. This option defaults
-            to `True` if loading from a local repository and a merged decoder is found. When exporting with `from_transformers=True`,
+            to `True` if loading from a local repository and a merged decoder is found. When exporting with `export=True`,
             defaults to `False`. This option should be set to `True` to minimize memory usage.
 
         Returns:
@@ -888,6 +888,9 @@ class ORTModelForFeatureExtraction(ORTModel):
         self.raise_on_numpy_input_io_binding(use_torch)
 
         if self.device.type == "cuda" and self.use_io_binding:
+            if attention_mask is None:
+                attention_mask = torch.ones_like(input_ids)
+
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_ids,
                 attention_mask,
@@ -907,7 +910,10 @@ class ORTModelForFeatureExtraction(ORTModel):
         else:
             if use_torch:
                 input_ids = input_ids.cpu().detach().numpy()
-                attention_mask = attention_mask.cpu().detach().numpy()
+                if attention_mask is None:
+                    attention_mask = np.ones_like(input_ids)
+                else:
+                    attention_mask = attention_mask.cpu().detach().numpy()
                 if token_type_ids is not None:
                     token_type_ids = token_type_ids.cpu().detach().numpy()
 
@@ -1385,7 +1391,7 @@ MULTIPLE_CHOICE_EXAMPLE = r"""
     >>> from optimum.onnxruntime import {model_class}
 
     >>> tokenizer = {processor_class}.from_pretrained("{checkpoint}")
-    >>> model = {model_class}.from_pretrained("{checkpoint}", from_transformers=True)
+    >>> model = {model_class}.from_pretrained("{checkpoint}", export=True)
 
     >>> num_choices = 4
     >>> first_sentence = ["Members of the procession walk down the street holding small horn brass instruments."] * num_choices
