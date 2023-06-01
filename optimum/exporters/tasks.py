@@ -224,6 +224,7 @@ class TasksManager:
 
     _CUSTOM_CLASSES = {
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
+        ("pt", "pix2struct", "visual-question-answering"): ("transformers", "Pix2StructForConditionalGeneration"),
         ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
     }
 
@@ -252,6 +253,7 @@ class TasksManager:
         "sentence-similarity": "transformers",
         "stable-diffusion": "diffusers",
         "summarization": "transformers",
+        "visual-question-answering": "transformers",
         "zero-shot-classification": "transformers",
         "zero-shot-image-classification": "transformers",
         "zero-shot-object-detection": "transformers",
@@ -702,6 +704,8 @@ class TasksManager:
         "pix2struct": supported_tasks_mapping(
             "image-to-text",
             "image-to-text-with-past",
+            "visual-question-answering",
+            "visual-question-answering-with-past",
             onnx="Pix2StructOnnxConfig",
         ),
         "poolformer": supported_tasks_mapping(
