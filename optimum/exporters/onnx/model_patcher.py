@@ -119,6 +119,9 @@ class Seq2SeqModelPatcher(ModelPatcher):
             hasattr(self.real_config, "use_present_in_outputs") and self.real_config.use_present_in_outputs
         )
 
+        if model.config.model_type == "pix2struct" and allow_past_in_outputs:
+            model.config.text_config.use_cache = True
+
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
             outputs = self.orig_forward(*args, **kwargs)

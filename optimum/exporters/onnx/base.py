@@ -597,6 +597,15 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 dtype=dummy_inputs["attention_mask"].dtype,
             )
 
+        if self.use_past_in_inputs and self.use_cache_branch is not False and "decoder_attention_mask" in dummy_inputs:
+            past_length = dummy_inputs["past_key_values"][0][0].shape[2]
+            dummy_inputs["decoder_attention_mask"] = DummyInputGenerator.pad_input_on_dim(
+                dummy_inputs["decoder_attention_mask"],
+                desired_length=past_length + 1,
+                dim=1,
+                dtype=dummy_inputs["decoder_attention_mask"].dtype,
+            )
+
         return dummy_inputs
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):

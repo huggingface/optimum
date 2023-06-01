@@ -701,6 +701,7 @@ class TasksManager:
         ),
         "pix2struct": supported_tasks_mapping(
             "image-to-text",
+            "image-to-text-with-past",
             onnx="Pix2StructOnnxConfig",
         ),
         "poolformer": supported_tasks_mapping(
