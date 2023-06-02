@@ -714,7 +714,12 @@ class ORTTrainer(Trainer):
                 rng_to_sync = True
 
             step = -1
+            avg_fwbw = 0.0
+            avg_optm = 0.0
+            avg_total = 0.0
+            avg = 0.0
             for step, inputs in enumerate(train_dataloader):
+                iteration_start = time.time()
                 total_batched_samples += 1
                 if rng_to_sync:
                     self._load_rng_state(resume_from_checkpoint)
@@ -735,6 +740,7 @@ class ORTTrainer(Trainer):
                 if step % args.gradient_accumulation_steps == 0:
                     self.control = self.callback_handler.on_step_begin(args, self.state, self.control)
 
+                start = time.time()
                 if (
                     (total_batched_samples % args.gradient_accumulation_steps != 0)
                     and args.local_rank != -1
@@ -757,8 +763,16 @@ class ORTTrainer(Trainer):
                     tr_loss += tr_loss_step
 
                 self.current_flos += float(self.floating_point_ops(inputs))
+                
+                step_time = (time.time() - start) * 1000
+                #if args.local_rank == 0:
+                #    print(f"FWBW {step}: {step_time:.5f} ms")
+                avg_fwbw += step_time
+                if step >= steps_in_epoch // 2:
+                    avg += step_time
 
                 # Optimizer step for deepspeed must be called on every step regardless of the value of gradient_accumulation_steps
+                start = time.time()
                 if self.deepspeed:
                     self.deepspeed.step()
 
@@ -817,8 +831,25 @@ class ORTTrainer(Trainer):
                 else:
                     self.control = self.callback_handler.on_substep_end(args, self.state, self.control)
 
+                step_time = (time.time() - start) * 1000
+                #if args.local_rank == 0:
+                #    print(f"optimizer {step}: {step_time:.5f} ms")
+                avg_optm += step_time
+
+                step_time = (time.time() - iteration_start) * 1000
+                #if args.local_rank == 0:
+                #    print(f"iteration {step}: {step_time:.5f} ms")
+                avg_total += step_time
+                
                 if self.control.should_epoch_stop or self.control.should_training_stop:
                     break
+                    
+            if args.local_rank == 0:
+                print(f"Avg of 2nd half: {(avg / (steps_in_epoch - steps_in_epoch // 2)):.5f} ms")
+                print(f"Avg of FW+BW: {(avg_fwbw / steps_in_epoch):.5f} ms")
+                print(f"Avg of optimizer: {(avg_optm / steps_in_epoch):.5f} ms")
+                print(f"Avg of iteration: {(avg_total / steps_in_epoch):.5f} ms")
+                
             if step < 0:
                 logger.warning(
                     f"There seems to be not a single sample in your train dataloader, stopping training at step"
