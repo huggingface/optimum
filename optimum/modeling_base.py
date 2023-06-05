@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from huggingface_hub import HfApi, HfFolder
 from transformers import AutoConfig, add_start_docstrings
 
+from .exporters import TasksManager
 from .utils import CONFIG_NAME
 
 
@@ -370,3 +371,10 @@ class OptimizedModel(ABC):
             trust_remote_code=trust_remote_code,
             **kwargs,
         )
+
+    @classmethod
+    def _auto_model_to_task(cls, auto_model_class):
+        """
+        Get the task corresponding to a class (for example AutoModelForXXX in transformers).
+        """
+        return TasksManager.infer_task_from_model(auto_model_class)
