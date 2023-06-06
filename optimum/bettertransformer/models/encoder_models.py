@@ -655,6 +655,7 @@ class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             self.in_proj_bias,
             self.out_proj_weight,
             self.out_proj_bias,
+            self.use_gelu,
             self.norm_first,
             self.norm1_eps,
             self.norm1_weight,
