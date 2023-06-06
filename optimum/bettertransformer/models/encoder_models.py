@@ -601,9 +601,6 @@ class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
         self.num_heads = detr_layer.self_attn.num_heads
         self.embed_dim = detr_layer.embed_dim
 
-        # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
-        self.is_last_layer = False
-
         self.original_layers_mapping = {
             "in_proj_weight": [
                 "self_attn.q_proj.weight",
@@ -625,27 +622,19 @@ class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             "norm2_bias": "final_layer_norm.bias",
         }
 
+        # Last step: set the last layer to `False` -> this will be set to `True` when converting the model
+        self.is_last_layer = False
+        self.norm_first = True
+
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, attention_mask, *_, **__):
+    def forward(self, hidden_states, *_, **__):
+        r"""
+        This is just a wrapper around the forward function proposed in:
+        https://github.com/huggingface/transformers/pull/19553
+        """
         super().forward_checker()
-
-        if not hasattr(hidden_states, "original_shape"):
-            original_shape = hidden_states.shape
-        else:
-            original_shape = hidden_states.original_shape
-
-        if hidden_states.is_nested:
-            attention_mask = None
-
-        if attention_mask is not None:
-            # attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
-            # 0->false->keep this token -inf->true->mask this token
-            attention_mask = attention_mask.squeeze(1)[:, 0]
-            attention_mask = attention_mask.bool()
-            attention_mask = torch.reshape(attention_mask, (attention_mask.shape[0], attention_mask.shape[-1]))
-            hidden_states = torch._nested_tensor_from_mask(hidden_states, ~attention_mask)
-            attention_mask = None
+        attention_mask = None
 
         hidden_states = torch._transformer_encoder_layer_fwd(
             hidden_states,
@@ -660,7 +649,6 @@ class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             self.norm1_eps,
             self.norm1_weight,
             self.norm1_bias,
-            self.norm2_eps,
             self.norm2_weight,
             self.norm2_bias,
             self.linear1_weight,
@@ -669,10 +657,8 @@ class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer):
             self.linear2_bias,
             attention_mask,
         )
-        if not self.is_last_layer:
-            hidden_states.original_shape = original_shape
-        elif hidden_states.is_nested and self.is_last_layer:
-            hidden_states = hidden_states.to_padded_tensor(0.0, original_shape)
+        if hidden_states.is_nested and self.is_last_layer:
+            hidden_states = hidden_states.to_padded_tensor(0.0)
         return (hidden_states,)
 
 
