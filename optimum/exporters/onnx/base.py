@@ -284,7 +284,16 @@ class OnnxConfig(ExportConfig, ABC):
                 else:
                     onnx_inputs[name] = value
 
+            session_inputs = {node.name: node for node in session.get_inputs()}
             for name, value in onnx_inputs.items():
+                assert name in session_inputs, f"input `{name}` exists in ort session but missing in onnx_inputs"
+                # Make input dtype consistent with the exported onnx model.
+                # Currently this only addresses issue #994, for Stable-Diffusion,
+                # where `DummyTextInputGenerator` produces torch.int32 input for onnx exporting,
+                # while np.int64 input is provided here.
+                if value.dtype == np.int64 and session_inputs[name].type == "tensor(int32)":
+                    onnx_inputs[name] = onnx_inputs[name].astype(np.int32)
+
                 if value.dtype == np.float32 and dtype == "fp16":
                     onnx_inputs[name] = onnx_inputs[name].astype(np.float16)
 
