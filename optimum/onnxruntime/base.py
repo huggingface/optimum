@@ -311,7 +311,7 @@ class ORTDecoder(ORTModelPart):
             input_ids, past_key_values, use_torch=use_torch
         )
 
-        if self.device.type == "cuda" and self.parent_model.use_io_binding:
+        if (self.device.type == "cuda" or self.device.type == "cpu") and self.parent_model.use_io_binding:
             known_output_shapes = self.compute_past_key_values_output_shapes(
                 input_ids,
                 use_cache_branch=use_cache_branch_tensor.item() if use_cache_branch_tensor is not None else None,

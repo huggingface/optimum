@@ -755,7 +755,7 @@ class ORTModel(OptimizedModel):
             io_binding.bind_input(
                 name,
                 tensor.device.type,
-                self.device.index,
+                IOBindingHelper.get_device_index(self.device),
                 name_to_np_type[name],
                 tuple(tensor.shape),
                 tensor.data_ptr(),
@@ -793,7 +793,7 @@ class ORTModel(OptimizedModel):
             io_binding.bind_output(
                 output_name,
                 output_buffer.device.type,
-                self.device.index,
+                IOBindingHelper.get_device_index(self.device),
                 name_to_np_type[output_name],
                 output_shape,
                 output_buffer.data_ptr(),
