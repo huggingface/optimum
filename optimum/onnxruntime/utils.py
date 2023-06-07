@@ -252,7 +252,7 @@ def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None
     """
     if use_io_binding is None and providers[0] == "CUDAExecutionProvider":
         use_io_binding = True
-    elif providers[0] != "CUDAExecutionProvider":
+    elif providers[0] != "CPUExecutionProvider" and providers[0] != "CUDAExecutionProvider":
         if use_io_binding is True:
             logger.warning(
                 "No need to enable IO Binding if the provider used is not CUDAExecutionProvider. IO Binding will be turned off."
