@@ -94,7 +94,7 @@ class ONNXRuntimmeQuantizeCommand(BaseOptimumCLICommand):
         elif self.args.tensorrt:
             qconfig = AutoQuantizationConfig.tensorrt(per_channel=self.args.per_channel)
         else:
-            qconfig = ORTConfig.from_pretained(self.args.config).quantization
+            qconfig = ORTConfig.from_pretrained(self.args.config).quantization
 
         for q in quantizers:
             q.quantize(save_dir=save_dir, quantization_config=qconfig)
