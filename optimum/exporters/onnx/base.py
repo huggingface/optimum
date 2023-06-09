@@ -171,11 +171,14 @@ class OnnxConfig(ExportConfig, ABC):
                 "image_embeds": {0: "image_batch_size"},
             }
         ),
-        # TODO: enable that and verify that once OwlViTOnnxConfig can work.
-        # "zero-shot-object-detection": OrderedDict({
-        #     "logits": {0: "batch_size"},
-        #     "pred_boxes": {0: "batch_size"},
-        # }),
+        "zero-shot-object-detection": OrderedDict(
+            {
+                "logits": {0: "batch_size", 1: "num_queries"},
+                "pred_boxes": {0: "batch_size", 1: "num_queries"},
+                "text_embeds": {0: "text_batch_size"},
+                "image_embeds": {0: "image_batch_size"},
+            }
+        ),
     }
 
     def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
@@ -284,6 +287,7 @@ class OnnxConfig(ExportConfig, ABC):
             for name, value in onnx_inputs.items():
                 if value.dtype == np.float32 and dtype == "fp16":
                     onnx_inputs[name] = onnx_inputs[name].astype(np.float16)
+
             outputs = session.run(None, onnx_inputs)
             del session
 
@@ -840,6 +844,9 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         if self._behavior is ConfigBehavior.DECODER:
             if "decoder_input_ids" in reference_model_inputs:
                 reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+
+            if "attention_mask" in reference_model_inputs:
+                reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
 
             if "encoder_outputs" in reference_model_inputs:
                 if self.use_past_in_inputs is False or self.is_merged:

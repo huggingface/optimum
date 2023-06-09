@@ -79,7 +79,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
-    # "owlvit": "google/owlvit-base-patch32",
+    "owlvit": "hf-tiny-model-private/tiny-random-OwlViTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
         "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],

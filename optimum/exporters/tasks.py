@@ -666,12 +666,11 @@ class TasksManager:
             "token-classification",
             onnx="NystromformerOnnxConfig",
         ),
-        # TODO: owlvit cannot be exported yet, check model_config.py to know why.
-        # "owlvit": supported_tasks_mapping(
-        #     "feature-extraction",
-        #     "zero-shot-object-detection",
-        #     onnx="OwlViTOnnxConfig",
-        # ),
+        "owlvit": supported_tasks_mapping(
+            "feature-extraction",
+            "zero-shot-object-detection",
+            onnx="OwlViTOnnxConfig",
+        ),
         "opt": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -1383,14 +1382,16 @@ class TasksManager:
 
         model_type = None
         model_class_name = None
+        kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
+
         if TasksManager._TASKS_TO_LIBRARY[task.replace("-with-past", "")] == "transformers":
+            config = AutoConfig.from_pretrained(model_name_or_path, **kwargs)
+            model_type = config.model_type.replace("_", "-")
             # TODO: if automatic-speech-recognition is passed as task, it may map to several
             # different auto class (AutoModelForSpeechSeq2Seq or AutoModelForCTC),
             # depending on the model type
             # if original_task in ["auto", "automatic-speech-recognition"]:
             if original_task == "automatic-speech-recognition" or task == "automatic-speech-recognition":
-                config = AutoConfig.from_pretrained(model_name_or_path)
-                model_type = config.model_type.replace("_", "-")
                 if original_task == "auto" and config.architectures is not None:
                     model_class_name = config.architectures[0]
 
@@ -1398,7 +1399,6 @@ class TasksManager:
             task, framework, model_type=model_type, model_class_name=model_class_name
         )
 
-        kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
         try:
             if framework == "pt":
                 kwargs["torch_dtype"] = torch_dtype
