@@ -42,8 +42,8 @@ if is_diffusers_available():
             f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
             "Please update diffusers by running `pip install --upgrade diffusers`"
         )
-        TMP_DIFFUSERS_MAX_VERSION = "0.17.0"
-        if not check_if_diffusers_greater(TMP_DIFFUSERS_MAX_VERSION):
+    TMP_DIFFUSERS_MAX_VERSION = "0.17.0"
+    if check_if_diffusers_greater(TMP_DIFFUSERS_MAX_VERSION):
         logger.warning(
             f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be < {TMP_DIFFUSERS_MAX_VERSION}."
         )
