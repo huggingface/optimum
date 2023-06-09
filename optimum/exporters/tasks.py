@@ -561,6 +561,13 @@ class TasksManager:
             "token-classification",
             onnx="LayoutLMv3OnnxConfig",
         ),
+        "lilt": supported_tasks_mapping(
+            "feature-extraction",
+            "question-answering",
+            "text-classification",
+            "token-classification",
+            onnx="LiltOnnxConfig",
+        ),
         "levit": supported_tasks_mapping("feature-extraction", "image-classification", onnx="LevitOnnxConfig"),
         "longt5": supported_tasks_mapping(
             "feature-extraction",
