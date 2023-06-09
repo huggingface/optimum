@@ -48,6 +48,7 @@ jobs:
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
+          pip install git+https://github.com/huggingface/transformers
           pip install .
           pip install black
           cd ..
