@@ -45,7 +45,7 @@ if is_diffusers_available():
     TMP_DIFFUSERS_MAX_VERSION = "0.17.0"
     if check_if_diffusers_greater(TMP_DIFFUSERS_MAX_VERSION):
         logger.warning(
-            f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be < {TMP_DIFFUSERS_MAX_VERSION}."
+            f"We found an newer version of diffusers {_diffusers_version} but we require diffusers to be < {TMP_DIFFUSERS_MAX_VERSION}."
         )
 
     from diffusers.models.cross_attention import CrossAttnProcessor
