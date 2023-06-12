@@ -13,12 +13,13 @@
 #  limitations under the License.
 """Configuration classes for graph optimization and quantization with ONNX Runtime."""
 
+import copy
 import os
 import warnings
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 
 from datasets import Dataset
 from packaging.version import Version, parse
@@ -612,6 +613,40 @@ class AutoQuantizationConfig:
             qdq_dedicated_pair=True,
         )
 
+    @staticmethod
+    def from_config(config: dict) -> QuantizationConfig:
+        """
+        Creates a [`~onnxruntime.QuantizationConfig`] from input config json file (default: ort_config.json)
+        Args:
+            config (`dict`):
+                Input ONNX Runtime config file's (e.g. ort_config.json) `quantization` attribute
+        """
+        format, mode = default_quantization_parameters(is_static=config["is_static"])
+        if config["activations_dtype"].lower() in ["u8", "quint8", "uint8"]:
+            activations_dtype = QuantType.QUInt8
+        else:
+            activations_dtype = QuantType.QInt8
+        if config["weights_dtype"].lower() in ["u8", "quint8", "uint8"]:
+            weights_dtype = QuantType.QUInt8
+        else:
+            weights_dtype = QuantType.QInt8
+        return QuantizationConfig(
+            is_static=config["is_static"],
+            format=format,
+            mode=mode,
+            activations_dtype=activations_dtype,
+            activations_symmetric=config["activations_symmetric"],
+            weights_dtype=weights_dtype,
+            weights_symmetric=config["weights_symmetric"],
+            per_channel=config["per_channel"],
+            reduce_range=config["reduce_range"],
+            nodes_to_quantize=config["nodes_to_quantize"] or [],
+            nodes_to_exclude=config["nodes_to_exclude"] or [],
+            operators_to_quantize=config["operators_to_quantize"] or ["MatMul", "Add"],
+            qdq_add_pair_to_weight=config["qdq_add_pair_to_weight"],
+            qdq_dedicated_pair=config["qdq_dedicated_pair"],
+        )
+
 
 @dataclass
 class OptimizationConfig:
@@ -947,8 +982,8 @@ class ORTConfig(BaseConfig):
         self.opset = opset
         self.use_external_data_format = use_external_data_format
         self.one_external_file = one_external_file
-        self.optimization = self.dataclass_to_dict(optimization)
-        self.quantization = self.dataclass_to_dict(quantization)
+        self.optimization = optimization
+        self.quantization = quantization
         self.optimum_version = kwargs.pop("optimum_version", None)
 
     @staticmethod
@@ -965,3 +1000,9 @@ class ORTConfig(BaseConfig):
                 v = [elem.name if isinstance(elem, Enum) else elem for elem in v]
             new_config[k] = v
         return new_config
+
+    def to_dict(self) -> Dict[str, Any]:
+        clone = copy.deepcopy(self)
+        clone.optimization = self.dataclass_to_dict(clone.optimization)
+        clone.quantization = self.dataclass_to_dict(clone.quantization)
+        return BaseConfig.to_dict(clone)

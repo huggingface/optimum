@@ -83,6 +83,7 @@ class ONNXRuntimmeQuantizeCommand(BaseOptimumCLICommand):
             for model in self.args.onnx_model.glob("*.onnx")
         ]
 
+        use_external_data_format = False
         if self.args.arm64:
             qconfig = AutoQuantizationConfig.arm64(is_static=False, per_channel=self.args.per_channel)
         elif self.args.avx2:
@@ -91,10 +92,12 @@ class ONNXRuntimmeQuantizeCommand(BaseOptimumCLICommand):
             qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=self.args.per_channel)
         elif self.args.avx512_vnni:
             qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=self.args.per_channel)
-        elif self.args.tensorrt:
-            qconfig = AutoQuantizationConfig.tensorrt(per_channel=self.args.per_channel)
         else:
-            qconfig = ORTConfig.from_pretrained(self.args.config).quantization
+            ort_config = ORTConfig.from_pretrained(self.args.config)
+            use_external_data_format = ort_config.use_external_data_format
+            qconfig = AutoQuantizationConfig.from_config(config=ort_config.quantization)
 
         for q in quantizers:
-            q.quantize(save_dir=save_dir, quantization_config=qconfig)
+            q.quantize(
+                save_dir=save_dir, quantization_config=qconfig, use_external_data_format=use_external_data_format
+            )
