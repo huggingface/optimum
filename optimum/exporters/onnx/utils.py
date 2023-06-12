@@ -26,10 +26,14 @@ from ...utils import (
     ORT_QUANTIZE_MINIMUM_VERSION,
     check_if_diffusers_greater,
     is_diffusers_available,
+    logging,
 )
 from ...utils.import_utils import _diffusers_version
 from ..tasks import TasksManager
 from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
+
+
+logger = logging.get_logger()
 
 
 if is_diffusers_available():
@@ -37,6 +41,11 @@ if is_diffusers_available():
         raise ImportError(
             f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
             "Please update diffusers by running `pip install --upgrade diffusers`"
+        )
+    TMP_DIFFUSERS_MAX_VERSION = "0.17.0"
+    if check_if_diffusers_greater(TMP_DIFFUSERS_MAX_VERSION):
+        logger.warning(
+            f"We found an newer version of diffusers {_diffusers_version} but we require diffusers to be < {TMP_DIFFUSERS_MAX_VERSION}."
         )
 
     from diffusers.models.cross_attention import CrossAttnProcessor
