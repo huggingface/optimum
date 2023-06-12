@@ -91,7 +91,7 @@ class ORTQuantizer(OptimumQuantizer):
         Args:
             onnx_model_path (`Path`):
                 Path to the onnx model files you want to quantize.
-            config (`Optional[PretrainedConfig]`):
+            config (`Optional[PretrainedConfig]`, defaults to `None`):
                 The configuration of the model.
         """
         super().__init__()
@@ -122,7 +122,7 @@ class ORTQuantizer(OptimumQuantizer):
                 Can be either:
                     - A path to a saved exported ONNX Intermediate Representation (IR) model, e.g., `./my_model_directory/.
                     - Or an `ORTModelForXX` class, e.g., `ORTModelForQuestionAnswering`.
-            file_name(`Optional[str]`):
+            file_name(`Optional[str]`, defaults to `None`):
                 Overwrites the default model file name from `"model.onnx"` to `file_name`.
                 This allows you to load different model files from the same repository or directory.
         Returns:
@@ -183,7 +183,7 @@ class ORTQuantizer(OptimumQuantizer):
                 The configuration containing the parameters related to the calibration step.
             onnx_augmented_model_name (`Union[str, Path]`, defaults to `"augmented_model.onnx"`):
                 The path used to save the augmented model used to collect the quantization ranges.
-            operators_to_quantize (`Optional[List[NodeType]]`):
+            operators_to_quantize (`Optional[List[NodeType]]`, defaults to `None`):
                 List of the operators types to quantize.
             batch_size (`int`, defaults to 1):
                 The batch size to use when collecting the quantization ranges values.
@@ -237,7 +237,7 @@ class ORTQuantizer(OptimumQuantizer):
                 The configuration containing the parameters related to the calibration step.
             onnx_augmented_model_name (`Union[str, Path]`, defaults to `"augmented_model.onnx"`):
                 The path used to save the augmented model used to collect the quantization ranges.
-            operators_to_quantize (`Optional[List[NodeType]]`):
+            operators_to_quantize (`Optional[List[NodeType]]`, defaults to `None`):
                 List of the operators types to quantize.
             batch_size (`int`, defaults to 1):
                 The batch size to use when collecting the quantization ranges values.
@@ -300,11 +300,11 @@ class ORTQuantizer(OptimumQuantizer):
                 The directory where the quantized model should be saved.
             file_suffix (`Optional[str]`, defaults to `"quantized"`):
                 The file_suffix used to save the quantized model.
-            calibration_tensors_range (`Optional[Dict[NodeName, Tuple[float, float]]]`):
+            calibration_tensors_range (`Optional[Dict[NodeName, Tuple[float, float]]]`, defaults to `None`):
                 The dictionary mapping the nodes name to their quantization ranges, used and required only when applying static quantization.
             use_external_data_format (`bool`, defaults to `False`):
                 Whether to use external data format to store model which size is >= 2Gb.
-            preprocessor (`Optional[QuantizationPreprocessor]`):
+            preprocessor (`Optional[QuantizationPreprocessor]`, defaults to `None`):
                 The preprocessor to use to collect the nodes to include or exclude from quantization.
 
         Returns:
@@ -451,11 +451,11 @@ class ORTQuantizer(OptimumQuantizer):
                 to load to use for the calibration step.
             num_samples (`int`, defaults to 100):
                 The maximum number of samples composing the calibration dataset.
-            dataset_config_name (`Optional[str]`):
+            dataset_config_name (`Optional[str]`, defaults to `None`):
                 The name of the dataset configuration.
-            dataset_split (`Optional[str]`):
+            dataset_split (`Optional[str]`, defaults to `None`):
                 Which split of the dataset to use to perform the calibration step.
-            preprocess_function (`Optional[Callable]`):
+            preprocess_function (`Optional[Callable]`, defaults to `None`):
                 Processing function to apply to each example after loading dataset.
             preprocess_batch (`bool`, defaults to `True`):
                 Whether the `preprocess_function` should be batched.
