@@ -92,6 +92,8 @@ class ONNXRuntimmeQuantizeCommand(BaseOptimumCLICommand):
             qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=self.args.per_channel)
         elif self.args.avx512_vnni:
             qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=self.args.per_channel)
+        elif self.args.tensorrt:
+            qconfig = AutoQuantizationConfig.tensorrt(per_channel=self.args.per_channel)
         else:
             ort_config = ORTConfig.from_pretrained(self.args.config)
             use_external_data_format = ort_config.use_external_data_format
