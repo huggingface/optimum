@@ -97,7 +97,7 @@ class ONNXRuntimmeQuantizeCommand(BaseOptimumCLICommand):
         else:
             ort_config = ORTConfig.from_pretrained(self.args.config)
             use_external_data_format = ort_config.use_external_data_format
-            qconfig = AutoQuantizationConfig.from_config(config=ort_config.quantization)
+            qconfig = ort_config.quantization
 
         for q in quantizers:
             q.quantize(

@@ -613,40 +613,6 @@ class AutoQuantizationConfig:
             qdq_dedicated_pair=True,
         )
 
-    @staticmethod
-    def from_config(config: dict) -> QuantizationConfig:
-        """
-        Creates a [`~onnxruntime.QuantizationConfig`] from input config json file (default: ort_config.json)
-        Args:
-            config (`dict`):
-                Input ONNX Runtime config file's (e.g. ort_config.json) `quantization` attribute
-        """
-        format, mode = default_quantization_parameters(is_static=config["is_static"])
-        if config["activations_dtype"].lower() in ["u8", "quint8", "uint8"]:
-            activations_dtype = QuantType.QUInt8
-        else:
-            activations_dtype = QuantType.QInt8
-        if config["weights_dtype"].lower() in ["u8", "quint8", "uint8"]:
-            weights_dtype = QuantType.QUInt8
-        else:
-            weights_dtype = QuantType.QInt8
-        return QuantizationConfig(
-            is_static=config["is_static"],
-            format=format,
-            mode=mode,
-            activations_dtype=activations_dtype,
-            activations_symmetric=config["activations_symmetric"],
-            weights_dtype=weights_dtype,
-            weights_symmetric=config["weights_symmetric"],
-            per_channel=config["per_channel"],
-            reduce_range=config["reduce_range"],
-            nodes_to_quantize=config["nodes_to_quantize"] or [],
-            nodes_to_exclude=config["nodes_to_exclude"] or [],
-            operators_to_quantize=config["operators_to_quantize"] or ["MatMul", "Add"],
-            qdq_add_pair_to_weight=config["qdq_add_pair_to_weight"],
-            qdq_dedicated_pair=config["qdq_dedicated_pair"],
-        )
-
 
 @dataclass
 class OptimizationConfig:
@@ -978,7 +944,6 @@ class ORTConfig(BaseConfig):
         quantization: Optional[QuantizationConfig] = None,
         **kwargs,
     ):
-        super().__init__()
         self.opset = opset
         self.use_external_data_format = use_external_data_format
         self.one_external_file = one_external_file
@@ -1002,7 +967,64 @@ class ORTConfig(BaseConfig):
         return new_config
 
     def to_dict(self) -> Dict[str, Any]:
-        clone = copy.deepcopy(self)
+        clone: ORTConfig = copy.deepcopy(self)
         clone.optimization = self.dataclass_to_dict(clone.optimization)
         clone.quantization = self.dataclass_to_dict(clone.quantization)
         return BaseConfig.to_dict(clone)
+
+    @classmethod
+    def from_dict(cls, config_dict: Dict[str, Any], **kwargs) -> "PretrainedConfig":
+        """
+        Overrided [`PretrainedConfig`] to make OptimizationConfig and QuantizationConfig
+
+        Args:
+            config_dict (`Dict[str, Any]`):
+                Dictionary that will be used to instantiate the configuration object. Such a dictionary can be
+                retrieved from a pretrained checkpoint by leveraging the [`~PretrainedConfig.get_config_dict`] method.
+            kwargs (`Dict[str, Any]`):
+                Additional parameters from which to initialize the configuration object.
+
+        Returns:
+            [`ORTConfig`]: The configuration object instantiated from those parameters. and `optimization` and `quantization` is each class(OptimizationConfig, QuantizationConfig).
+        """
+        return_unused_kwargs = kwargs.pop("return_unused_kwargs", False)
+        # Those arguments may be passed along for our internal telemetry.
+        # We remove them so they don't appear in `return_unused_kwargs`.
+        kwargs.pop("_from_auto", None)
+        kwargs.pop("_from_pipeline", None)
+        # The commit hash might have been updated in the `config_dict`, we don't want the kwargs to erase that update.
+        if "_commit_hash" in kwargs and "_commit_hash" in config_dict:
+            kwargs["_commit_hash"] = config_dict["_commit_hash"]
+
+        config: ORTConfig = cls(**config_dict)
+
+        if config.optimization:
+            config.optimization: OptimizationConfig = OptimizationConfig(**config.optimization)
+
+        if config.quantization:
+            quant_config: dict = config.quantization
+            quant_config["format"], quant_config["mode"] = default_quantization_parameters(
+                is_static=quant_config["is_static"],
+                format=getattr(QuantFormat, quant_config.get("format", ""), None),
+                mode=getattr(QuantizationMode, quant_config.get("mode", ""), None),
+            )
+            quant_config["activations_dtype"] = getattr(
+                QuantType, quant_config.get("activations_dtype", ""), QuantType.QUInt8
+            )
+            quant_config["weights_dtype"] = getattr(QuantType, quant_config.get("weights_dtype", ""), QuantType.QInt8)
+            config.quantization: QuantizationConfig = QuantizationConfig(**quant_config)
+
+        to_remove = []
+        for key, value in kwargs.items():
+            if hasattr(config, key):
+                setattr(config, key, value)
+                if key != "torch_dtype":
+                    to_remove.append(key)
+        for key in to_remove:
+            kwargs.pop(key, None)
+
+        logger.info(f"ORTConfig: {config.to_dict()}")
+        if return_unused_kwargs:
+            return config, kwargs
+        else:
+            return config
