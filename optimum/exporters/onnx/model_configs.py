@@ -829,6 +829,21 @@ class LayoutLMv3OnnxConfig(TextAndVisionOnnxConfig):
         }
 
 
+class LiltOnnxConfig(TextAndVisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        allow_new=True,
+        MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings",
+    )
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "bbox": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
+        }
+
+
 class Data2VecTextOnnxConfig(DistilBertOnnxConfig):
     pass
 
@@ -1031,7 +1046,7 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["encoder_outputs"] = {
                 0: "batch_size",
-                1: f"encoder_sequence_length / {( 2 * self._config.num_conv_layers)}",
+                1: f"encoder_sequence_length / {(2 * self._config.num_conv_layers)}",
             }
 
         return common_inputs
@@ -1045,7 +1060,7 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
             # used for dummy input generation
             common_outputs["last_hidden_state"][
                 1
-            ] = f"{common_outputs['last_hidden_state'][1]} / {( 2 * self._config.num_conv_layers)}"
+            ] = f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
         return common_outputs
 
 

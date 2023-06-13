@@ -65,6 +65,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "levit": "hf-internal-testing/tiny-random-LevitModel",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
+    "lilt": "hf-internal-testing/tiny-random-LiltModel",
     "llama": "fxmarty/tiny-llama-fast-tokenizer",
     "longt5": "fxmarty/tiny-random-working-LongT5Model",
     # "longformer": "allenai/longformer-base-4096",
@@ -175,6 +176,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "levit": "facebook/levit-128S",
     "layoutlm": "microsoft/layoutlm-base-uncased",
     "layoutlmv3": "microsoft/layoutlmv3-base",
+    "lilt": "SCUT-DLVCLab/lilt-roberta-en-base",
     "llama": "decapoda-research/llama-65b-hf",
     "longt5": "fxmarty/tiny-random-working-LongT5Model",  # Not using google/long-t5-local-base because it takes too much time for testing.
     # "longformer": "allenai/longformer-base-4096",
