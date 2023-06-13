@@ -129,6 +129,10 @@ T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="num_heads",
     hidden_size="d_model",
 )
+MPTNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
+)
+
 WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     hidden_size="d_model",
 )
@@ -226,6 +230,7 @@ class NormalizedConfigManager:
         "vit": NormalizedVisionConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
+        "mpt": MPTNormalizedTextConfig,
     }
 
     @classmethod
