@@ -42,7 +42,6 @@ if is_diffusers_available():
             f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
             "Please update diffusers by running `pip install --upgrade diffusers`"
         )
-    from diffusers.models.cross_attention import CrossAttnProcessor
 
 if TYPE_CHECKING:
     from .base import OnnxConfig
