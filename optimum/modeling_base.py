@@ -68,6 +68,7 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
             the Hub on your local machine.
 """
 
+
 # workaround to enable compatibility between optimum models and transformers pipelines
 class PreTrainedModel(ABC):
     pass
