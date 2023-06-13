@@ -43,6 +43,7 @@ jobs:
         source venv/bin/activate
         pip install --upgrade pip
         pip install .[quality]
+        pip freeze
     - name: Check style with black
       run: |
         source venv/bin/activate
