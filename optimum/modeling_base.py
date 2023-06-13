@@ -70,7 +70,7 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
 
 
 # workaround to enable compatibility between optimum models and transformers pipelines
-class PreTrainedModel(ABC):
+class PreTrainedModel(ABC): # noqa: F811
     pass
 
 
