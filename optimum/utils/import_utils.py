@@ -117,6 +117,24 @@ def check_if_pytorch_greater(target_version: str, message: str):
         pass
 
 
+def check_if_torch_greater(target_version: Union[str, packaging.version.Version]) -> bool:
+    """
+    Checks whether the current install of torch is greater than or equal to the target version.
+
+    Args:
+        target_version (`Union[str, packaging.version.Version]`): version used as the reference for comparison.
+
+    Returns:
+        bool: whether the check is True or not.
+    """
+    import torch
+
+    if isinstance(target_version, str):
+        target_version = packaging.version.parse(target_version)
+
+    return packaging.version.parse(torch.__version__) >= target_version
+
+
 def check_if_transformers_greater(target_version: Union[str, packaging.version.Version]) -> bool:
     """
     Checks whether the current install of transformers is greater than or equal to the target version.
