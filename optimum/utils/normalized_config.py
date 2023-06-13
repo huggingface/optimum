@@ -230,7 +230,7 @@ class NormalizedConfigManager:
         "vit": NormalizedVisionConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
-        "mpt": MptLikeNormalizedTextConfig,
+        "mpt": MPTNormalizedTextConfig,
     }
 
     @classmethod
