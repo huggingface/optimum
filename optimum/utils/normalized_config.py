@@ -129,7 +129,7 @@ T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="num_heads",
     hidden_size="d_model",
 )
-MptLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
+MPTNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
 )
 
