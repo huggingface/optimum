@@ -44,7 +44,11 @@ class NormalizedConfig:
         return functools.partial(cls, allow_new=allow_new, **kwargs)
 
     def __getattr__(self, attr_name):
-        attr_name = super().__getattribute__(attr_name.upper())
+        try:
+            attr_name = super().__getattribute__(attr_name.upper())
+        except AttributeError:  # e.g. in the NormalizedTextAndVisionConfig case
+            pass
+
         attr_name = attr_name.split(".")
         leaf_attr_name = attr_name[-1]
         config = self.config
