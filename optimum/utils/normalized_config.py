@@ -44,13 +44,18 @@ class NormalizedConfig:
         return functools.partial(cls, allow_new=allow_new, **kwargs)
 
     def __getattr__(self, attr_name):
+        try:
+            attr_name = super().__getattribute__(attr_name.upper())
+        except AttributeError:  # e.g. in the NormalizedTextAndVisionConfig case
+            pass
+
         attr_name = attr_name.split(".")
         leaf_attr_name = attr_name[-1]
         config = self.config
         for attr in attr_name[:-1]:
             config = getattr(config, attr)
 
-        attr = getattr(config, super().__getattribute__(leaf_attr_name.upper()), None)
+        attr = getattr(config, leaf_attr_name, None)
 
         # If the attribute was not specified manually, try to fallback on the attribute_map.
         if attr is None:
@@ -217,6 +222,7 @@ class NormalizedConfigManager:
         "nystromformer": NormalizedTextConfig,
         "opt": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
+        "pix2struct": NormalizedVisionConfig,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
