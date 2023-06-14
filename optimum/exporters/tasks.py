@@ -1125,7 +1125,10 @@ class TasksManager:
 
     @staticmethod
     def determine_framework(
-        model_name_or_path: Union[str, Path], subfolder: str = "", framework: Optional[str] = None
+        model_name_or_path: Union[str, Path],
+        subfolder: str = "",
+        framework: Optional[str] = None,
+        cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
     ) -> str:
         """
         Determines the framework to use for the export.
@@ -1133,7 +1136,7 @@ class TasksManager:
         The priority is in the following order:
             1. User input via `framework`.
             2. If local checkpoint is provided, use the same framework as the checkpoint.
-            3. If model repo, try to infer the framework from the Hub.
+            3. If model repo, try to infer the framework from the cache if available, else from the Hub.
             4. If could not infer, use available framework in environment, with priority given to PyTorch.
 
         Args:
@@ -1161,11 +1164,26 @@ class TasksManager:
                 for file in filenames
             ]
         else:
-            if not isinstance(model_name_or_path, str):
-                model_name_or_path = str(model_name_or_path)
-            all_files = huggingface_hub.list_repo_files(model_name_or_path, repo_type="model")
-            if subfolder != "":
-                all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
+            object_id = model_name_or_path.replace("/", "--")
+            full_model_path = Path(cache_dir, f"models--{object_id}")
+            if full_model_path.is_dir():  # explore the cache first
+                # Resolve refs (for instance to convert main to the associated commit sha)
+                revision_file = Path(full_model_path, "refs", "main")
+                if revision_file.is_file():
+                    with open(revision_file) as f:
+                        revision = f.read()
+                cached_path = Path(full_model_path, "snapshots", revision, subfolder)
+                all_files = [
+                    os.path.relpath(os.path.join(dirpath, file), cached_path)
+                    for dirpath, _, filenames in os.walk(cached_path)
+                    for file in filenames
+                ]
+            else:
+                if not isinstance(model_name_or_path, str):
+                    model_name_or_path = str(model_name_or_path)
+                all_files = huggingface_hub.list_repo_files(model_name_or_path, repo_type="model")
+                if subfolder != "":
+                    all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
 
         weight_name = Path(WEIGHTS_NAME).stem
         weight_extension = Path(WEIGHTS_NAME).suffix

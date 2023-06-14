@@ -17,6 +17,7 @@
 import argparse
 from pathlib import Path
 
+from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoTokenizer
 from transformers.utils import is_torch_available
 
@@ -166,6 +167,19 @@ def main_export(
         )
 
     torch_dtype = None if fp16 is False else torch.float16
+
+    if task == "auto":
+        try:
+            task = TasksManager.infer_task_from_model(model_name_or_path)
+        except KeyError as e:
+            raise KeyError(
+                f"The task could not be automatically inferred. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
+            )
+        except RequestsConnectionError as e:
+            raise RequestsConnectionError(
+                f"The task could not be automatically inferred as this is available only for models hosted on the Hugging Face Hub. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
+            )
+
     model = TasksManager.get_model_from_task(
         task,
         model_name_or_path,
@@ -179,14 +193,6 @@ def main_export(
         framework=framework,
         torch_dtype=torch_dtype,
     )
-
-    if task == "auto":
-        try:
-            task = TasksManager.infer_task_from_model(model_name_or_path)
-        except KeyError as e:
-            raise KeyError(
-                f"The task could not be automatically inferred. Please provide the argument --task with the task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
-            )
 
     if task != "stable-diffusion" and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
         model.config.model_type.replace("_", "-"), "onnx"
