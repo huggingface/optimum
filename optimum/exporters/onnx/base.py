@@ -163,6 +163,7 @@ class OnnxConfig(ExportConfig, ABC):
         "text-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "text-generation": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "visual-question-answering": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "zero-shot-image-classification": OrderedDict(
             {
                 "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
@@ -595,6 +596,15 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 desired_length=past_length + 1,
                 dim=1,
                 dtype=dummy_inputs["attention_mask"].dtype,
+            )
+
+        if self.use_past_in_inputs and self.use_cache_branch is not False and "decoder_attention_mask" in dummy_inputs:
+            past_length = dummy_inputs["past_key_values"][0][0].shape[2]
+            dummy_inputs["decoder_attention_mask"] = DummyInputGenerator.pad_input_on_dim(
+                dummy_inputs["decoder_attention_mask"],
+                desired_length=past_length + 1,
+                dim=1,
+                dtype=dummy_inputs["decoder_attention_mask"].dtype,
             )
 
         return dummy_inputs

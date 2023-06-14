@@ -288,6 +288,7 @@ def main_export(
                     "automatic-speech-recognition",
                     "image-to-text",
                     "feature-extraction-with-past",
+                    "visual-question-answering",
                 )
             )
             and not monolith
