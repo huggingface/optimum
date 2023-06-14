@@ -358,21 +358,17 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_dummy_inputs_for_validation(
+        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         if self._behavior is ConfigBehavior.ENCODER:
             return self._encoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
         else:
             if self._behavior is ConfigBehavior.DECODER:
                 reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
 
-            # TODO: may this break e.g. for t5 as decoder?
-            if "encoder_outputs" in reference_model_inputs:
-                if self.use_past_in_inputs is False or self.is_merged:
-                    # ONNX without past uses encoder_hidden_states even when we don't outputing them
-                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-                else:
-                    # ONNX with past does not use encoder_hidden_states when we don't output them
-                    reference_model_inputs.pop("encoder_outputs")
+            if "encoder_outputs" in reference_model_inputs and "encoder_hidden_states" in onnx_input_names:
+                reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
 
             return self._decoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
 
