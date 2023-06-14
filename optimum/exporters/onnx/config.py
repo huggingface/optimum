@@ -367,8 +367,11 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             if self._behavior is ConfigBehavior.DECODER:
                 reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
 
-            if "encoder_outputs" in reference_model_inputs and "encoder_hidden_states" in onnx_input_names:
-                reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+            if "encoder_outputs" in reference_model_inputs:
+                if "encoder_hidden_states" in onnx_input_names:
+                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+                else:
+                    reference_model_inputs.pop("encoder_outputs")
 
             return self._decoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
 

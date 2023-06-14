@@ -871,10 +871,15 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
 
             if onnx_input_names is not None:
-                if "encoder_outputs" in reference_model_inputs and "encoder_hidden_states" in onnx_input_names:
-                    # This is typically the case for the decoder without past, and for **some**
-                    # decoder with past, e.g. t5.
-                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+                if "encoder_outputs" in reference_model_inputs:
+                    if "encoder_hidden_states" in onnx_input_names:
+                        # This is typically the case for the decoder without past, and for **some**
+                        # decoder with past, e.g. t5.
+                        reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop(
+                            "encoder_outputs"
+                        )[0]
+                    else:
+                        reference_model_inputs.pop("encoder_outputs")
             else:
                 # TODO: remove this else in optimum 2.0 and make onnx_input_names a required argument
                 if "encoder_outputs" in reference_model_inputs:
@@ -886,7 +891,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                     else:
                         # ONNX with past does not use encoder_hidden_states when we don't output them
                         reference_model_inputs.pop("encoder_outputs")
-
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 
 
