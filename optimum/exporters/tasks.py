@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tupl
 
 import huggingface_hub
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
-from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
+from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
 from ..utils.import_utils import is_onnx_available
 
@@ -1185,9 +1185,15 @@ class TasksManager:
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
 
-        weight_name = Path(WEIGHTS_NAME).stem
-        weight_extension = Path(WEIGHTS_NAME).suffix
-        is_pt_weight_file = [file.startswith(weight_name) and file.endswith(weight_extension) for file in all_files]
+        pt_weight_name = Path(WEIGHTS_NAME).stem
+        pt_weight_extension = Path(WEIGHTS_NAME).suffix
+        safe_weight_name = Path(SAFE_WEIGHTS_NAME).stem
+        safe_weight_extension = Path(SAFE_WEIGHTS_NAME).suffix
+        is_pt_weight_file = [
+            (file.startswith(pt_weight_name) and file.endswith(pt_weight_extension))
+            or (file.startswith(safe_weight_name) and file.endswith(safe_weight_extension))
+            for file in all_files
+        ]
 
         weight_name = Path(TF2_WEIGHTS_NAME).stem
         weight_extension = Path(TF2_WEIGHTS_NAME).suffix
