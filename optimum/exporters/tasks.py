@@ -23,8 +23,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 import huggingface_hub
+from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
-from transformers.utils import TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
+from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
 from ..utils.import_utils import is_onnx_available
 
@@ -1162,6 +1163,7 @@ class TasksManager:
         if framework is not None:
             return framework
 
+        request_exception = None
         full_model_path = Path(model_name_or_path) / subfolder
         if full_model_path.is_dir():
             all_files = [
@@ -1170,30 +1172,39 @@ class TasksManager:
                 for file in filenames
             ]
         else:
-            object_id = model_name_or_path.replace("/", "--")
-            full_model_path = Path(cache_dir, f"models--{object_id}")
-            if full_model_path.is_dir():  # explore the cache first
-                # Resolve refs (for instance to convert main to the associated commit sha)
-                revision_file = Path(full_model_path, "refs", "main")
-                if revision_file.is_file():
-                    with open(revision_file) as f:
-                        revision = f.read()
-                cached_path = Path(full_model_path, "snapshots", revision, subfolder)
-                all_files = [
-                    os.path.relpath(os.path.join(dirpath, file), cached_path)
-                    for dirpath, _, filenames in os.walk(cached_path)
-                    for file in filenames
-                ]
-            else:
+            try:
                 if not isinstance(model_name_or_path, str):
                     model_name_or_path = str(model_name_or_path)
                 all_files = huggingface_hub.list_repo_files(model_name_or_path, repo_type="model")
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
+            except RequestsConnectionError as e:  # Hub not accessible
+                request_exception = e
+                object_id = model_name_or_path.replace("/", "--")
+                full_model_path = Path(cache_dir, f"models--{object_id}")
+                if full_model_path.is_dir():  # explore the cache first
+                    # Resolve refs (for instance to convert main to the associated commit sha)
+                    revision_file = Path(full_model_path, "refs", "main")
+                    revision = ""
+                    if revision_file.is_file():
+                        with open(revision_file) as f:
+                            revision = f.read()
+                    cached_path = Path(full_model_path, "snapshots", revision, subfolder)
+                    all_files = [
+                        os.path.relpath(os.path.join(dirpath, file), cached_path)
+                        for dirpath, _, filenames in os.walk(cached_path)
+                        for file in filenames
+                    ]
 
-        weight_name = Path(WEIGHTS_NAME).stem
-        weight_extension = Path(WEIGHTS_NAME).suffix
-        is_pt_weight_file = [file.startswith(weight_name) and file.endswith(weight_extension) for file in all_files]
+        pt_weight_name = Path(WEIGHTS_NAME).stem
+        pt_weight_extension = Path(WEIGHTS_NAME).suffix
+        safe_weight_name = Path(SAFE_WEIGHTS_NAME).stem
+        safe_weight_extension = Path(SAFE_WEIGHTS_NAME).suffix
+        is_pt_weight_file = [
+            (file.startswith(pt_weight_name) and file.endswith(pt_weight_extension))
+            or (file.startswith(safe_weight_name) and file.endswith(safe_weight_extension))
+            for file in all_files
+        ]
 
         weight_name = Path(TF2_WEIGHTS_NAME).stem
         weight_extension = Path(TF2_WEIGHTS_NAME).suffix
@@ -1207,11 +1218,16 @@ class TasksManager:
             # stable diffusion case
             framework = "pt"
         else:
-            raise FileNotFoundError(
-                "Cannot determine framework from given checkpoint location."
-                f" There should be a {Path(WEIGHTS_NAME).stem}*{Path(WEIGHTS_NAME).suffix} for PyTorch"
-                f" or {Path(TF2_WEIGHTS_NAME).stem}*{Path(TF2_WEIGHTS_NAME).suffix} for TensorFlow."
-            )
+            if request_exception is not None:
+                raise RequestsConnectionError(
+                    f"The framework could not be automatically inferred. If using the command-line, please provide the argument --framework (pt,tf) Detailed error: {request_exception}"
+                )
+            else:
+                raise FileNotFoundError(
+                    "Cannot determine framework from given checkpoint location."
+                    f" There should be a {Path(WEIGHTS_NAME).stem}*{Path(WEIGHTS_NAME).suffix} for PyTorch"
+                    f" or {Path(TF2_WEIGHTS_NAME).stem}*{Path(TF2_WEIGHTS_NAME).suffix} for TensorFlow."
+                )
 
         if is_torch_available():
             framework = framework or "pt"
