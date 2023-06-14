@@ -316,8 +316,12 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
                     "past key values."
                 )
 
-            _decoder_onnx_config = decoder_onnx_config_constructor(config.decoder, **kwargs)
-            self._decoder_onnx_config = _decoder_onnx_config.with_behavior("decoder", use_past=kwargs["use_past"])
+            self._decoder_onnx_config = decoder_onnx_config_constructor(config.decoder, **kwargs)
+            if issubclass(decoder_onnx_config_constructor.func, OnnxSeq2SeqConfigWithPast):
+                self._decoder_onnx_config = self._decoder_onnx_config.with_behavior(
+                    self._behavior, use_past=kwargs["use_past"]
+                )
+
             self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
 
             if isinstance(self._decoder_onnx_config, OnnxSeq2SeqConfigWithPast):
@@ -361,12 +365,7 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             if self._behavior is ConfigBehavior.DECODER:
                 reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
 
-                """
-                # for encoder-decoder custom models, always pass encoder_hidden_states as input
-                reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-                """
-
-            # TODO: likely breaking e.g. for t5 as decoder
+            # TODO: may this break e.g. for t5 as decoder?
             if "encoder_outputs" in reference_model_inputs:
                 if self.use_past_in_inputs is False or self.is_merged:
                     # ONNX without past uses encoder_hidden_states even when we don't outputing them
