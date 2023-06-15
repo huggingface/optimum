@@ -261,7 +261,11 @@ def validate_model_outputs(
                 value=reference_model_inputs[key], dtype=dtype, start_dtype=torch.float32
             )
 
-    ref_outputs = reference_model(**reference_model_inputs)
+    if is_torch_available() and isinstance(reference_model, nn.Module):
+        with torch.inference_mode():
+            ref_outputs = reference_model(**reference_model_inputs)
+    else:
+        ref_outputs = reference_model(**reference_model_inputs)
     ref_outputs_dict = {}
 
     # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
