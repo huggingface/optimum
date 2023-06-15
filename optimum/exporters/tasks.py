@@ -31,8 +31,6 @@ from ..utils.import_utils import is_onnx_available
 
 
 if TYPE_CHECKING:
-    import torch
-
     from .base import ExportConfig
 
 
@@ -45,6 +43,7 @@ if not is_torch_available() and not is_tf_available():
     )
 
 if is_torch_available():
+    import torch
     from transformers import PreTrainedModel
 
 if is_tf_available():
