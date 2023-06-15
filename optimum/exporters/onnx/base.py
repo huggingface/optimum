@@ -445,7 +445,7 @@ class OnnxConfig(ExportConfig, ABC):
         models which have the encoder and decoder exported as separate ONNX files.
 
         Args:
-            reference_model_inputs (`Dict[str, Tensor`):
+            reference_model_inputs (`Dict[str, Tensor]`):
                 Reference inputs for the model.
             onnx_input_names (`Optional[List[str]]`, defaults to `None`):
                 Names of the actual inputs to the ONNX model. This argument may be required as an unused
