@@ -192,6 +192,7 @@ def main_export(
         trust_remote_code=trust_remote_code,
         framework=framework,
         torch_dtype=torch_dtype,
+        device=device,
     )
 
     if task != "stable-diffusion" and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(

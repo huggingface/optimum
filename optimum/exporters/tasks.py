@@ -31,8 +31,6 @@ from ..utils.import_utils import is_onnx_available
 
 
 if TYPE_CHECKING:
-    import torch
-
     from .base import ExportConfig
 
 
@@ -45,6 +43,7 @@ if not is_torch_available() and not is_tf_available():
     )
 
 if is_torch_available():
+    import torch
     from transformers import PreTrainedModel
 
 if is_tf_available():
@@ -1390,6 +1389,7 @@ class TasksManager:
         framework: Optional[str] = None,
         cache_dir: Optional[str] = None,
         torch_dtype: Optional["torch.dtype"] = None,
+        device: Optional[Union["torch.device", str]] = None,
         **model_kwargs,
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
         """
@@ -1413,6 +1413,8 @@ class TasksManager:
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
             torch_dtype (`Optional[torch.dtype]`, defaults to `None`):
                 Data type to load the model on. PyTorch-only argument.
+            device (`Optional[torch.device]`, defaults to `None`):
+                Device to initialize the model on. PyTorch-only argument.
             model_kwargs (`Dict[str, Any]`, *optional*):
                 Keyword arguments to pass to the model `.from_pretrained()` method.
 
@@ -1448,7 +1450,14 @@ class TasksManager:
         try:
             if framework == "pt":
                 kwargs["torch_dtype"] = torch_dtype
-            model = model_class.from_pretrained(model_name_or_path, **kwargs)
+
+                if device is not None and isinstance(device, str):
+                    device = torch.device(device)
+
+                with device:
+                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
+            else:
+                model = model_class.from_pretrained(model_name_or_path, **kwargs)
         except OSError:
             if framework == "pt":
                 logger.info("Loading TensorFlow model in PyTorch before exporting.")
