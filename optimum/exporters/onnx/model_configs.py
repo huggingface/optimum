@@ -308,10 +308,20 @@ class T5OnnxConfig(TextSeq2SeqOnnxConfig):
         allow_new=True,
     )
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_dummy_inputs_for_validation(
+        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
             reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
 
+        if onnx_input_names is not None:
+            if "encoder_outputs" in reference_model_inputs:
+                if "encoder_hidden_states" in onnx_input_names:
+                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+                else:
+                    reference_model_inputs.pop("encoder_outputs")
+        else:
+            # TODO: remove this else in optimum 2.0 and make onnx_input_names a required argument
             # T5 requires encoder_hidden_states as an input for both the without/with past models,
             # which is different than other architectures that require it only for the without past case
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
@@ -1204,10 +1214,20 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
             }
         return {}
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_dummy_inputs_for_validation(
+        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
             reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
 
+        if onnx_input_names is not None:
+            if "encoder_outputs" in reference_model_inputs:
+                if "encoder_hidden_states" in onnx_input_names:
+                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+                else:
+                    reference_model_inputs.pop("encoder_outputs")
+        else:
+            # TODO: remove this else in optimum 2.0 and make onnx_input_names a required argument
             # Pix2Struct requires encoder_hidden_states as an input for both the without/with past models,
             # which is different than other architectures that require it only for the without past case
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]

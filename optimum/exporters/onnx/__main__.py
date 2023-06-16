@@ -296,6 +296,7 @@ def main_export(
                     "image-to-text",
                     "feature-extraction-with-past",
                     "visual-question-answering",
+                    "document-question-answering",
                 )
             )
             and not monolith

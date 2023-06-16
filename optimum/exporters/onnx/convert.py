@@ -307,9 +307,11 @@ class ValidationProcess(mp.Process):
                 else:
                     ref_outputs_dict[name] = value
 
+            onnx_input_names = [inp.name for inp in session.get_inputs()]
+
             # Possibly edit the input for the onnxruntime.InferenceSession, this is for example the case for merged
             # models where the input `use_cache_branch` is added
-            reference_ort_inputs = self.config.generate_dummy_inputs_for_validation(reference_model_inputs)
+            reference_ort_inputs = self.config.generate_dummy_inputs_for_validation(reference_model_inputs, onnx_input_names=onnx_input_names)
 
             # generate_dummy_inputs_for_validation may add inputs (e.g. past_key_values) that are by
             # default on torch.float32 dtype. Thus, to run validation of fp16 model, these inputs need
