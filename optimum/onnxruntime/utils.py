@@ -143,13 +143,24 @@ class ORTConfigManager:
 
     @classmethod
     def check_optimization_supported_model(cls, model_type: str, optimization_config):
-        # as of 1.14.O: https://github.com/microsoft/onnxruntime/blob/6ccaeddefa65ccac402a47fa4d9cad8229794bb2/onnxruntime/python/tools/transformers/optimizer.py#L39
-        supported_model_types_for_optimization = ["bert", "gpt2", "bart", "unet"]
+        # as of 1.15.O: https://github.com/microsoft/onnxruntime/blob/v1.15.0/onnxruntime/python/tools/transformers/optimizer.py#L42
+        supported_model_types_for_optimization = [
+            "bart",
+            "bert",
+            "gpt2",
+            "tnlr",
+            "t5",
+            "unet",
+            "vae",
+            "clip",
+            "vit",
+            "swin",
+        ]
 
         if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):
             raise NotImplementedError(
                 f"ONNX Runtime doesn't support the graph optimization of {model_type} yet. Only {list(cls._conf.keys())} are supported. "
-                f"If you want to support {model_type} please propose a PR or open up an issue in ONNX Runtime:https://github.com/microsoft/onnxruntime."
+                f"If you want to support {model_type} please propose a PR or open up an issue in ONNX Runtime: https://github.com/microsoft/onnxruntime."
             )
 
 
