@@ -167,6 +167,7 @@ def validate_models_outputs(
         raise exceptions[-1]
 
 
+# Copied from https://github.com/microsoft/onnxruntime/issues/7846#issuecomment-850217402
 class PickableInferenceSession:  # This is a wrapper to make the current InferenceSession class pickable.
     def __init__(self, model_path, sess_options, providers):
         import onnxruntime as ort
