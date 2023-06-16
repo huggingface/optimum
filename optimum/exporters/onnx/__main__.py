@@ -27,6 +27,7 @@ from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
+from .constants import UNPICKABLE_ARCHS
 from .convert import export_models, validate_models_outputs
 from .utils import (
     get_decoder_models_for_export,
@@ -353,22 +354,10 @@ def main_export(
         use_subprocess = (
             False  # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
         )
-    else:
+    elif model.config.model_type in UNPICKABLE_ARCHS:
         # Pickling is bugged for nn.utils.weight_norm: https://github.com/pytorch/pytorch/issues/102983
         # TODO: fix "Cowardly refusing to serialize non-leaf tensor" error for wav2vec2-conformer
-        if model.config.model_type in [
-            "encodec",
-            "hubert",
-            "sew",
-            "sew-d",
-            "speecht5",
-            "unispeech",
-            "unispeech-sat",
-            "wav2vec2",
-            "wav2vec2-conformer",
-            "wavlm",
-        ]:
-            use_subprocess = False
+        use_subprocess = False
 
     if do_validation is True:
         try:
