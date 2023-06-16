@@ -270,6 +270,9 @@ class PickableInferenceSession:  # This is a wrapper to make the current Inferen
     def get_outputs(self):
         return self.sess.get_outputs()
 
+    def get_inputs(self):
+        return self.sess.get_inputs()
+
     def __getstate__(self):
         return {"model_path": self.model_path}
 
