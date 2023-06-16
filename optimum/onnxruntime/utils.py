@@ -123,6 +123,7 @@ class ORTConfigManager:
         "pegasus": "bert",
         "roberta": "bert",
         "t5": "bert",
+        "vit": "vit",
         "whisper": "bart",
         "xlm-roberta": "bert",
     }
