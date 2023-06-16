@@ -36,7 +36,7 @@ from ...utils import (
 )
 from ..error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
 from .base import OnnxConfig
-from .utils import recursive_to_device, recursive_to_dtype
+from .utils import PickableInferenceSession, recursive_to_device, recursive_to_dtype
 
 
 if is_torch_available():
@@ -148,7 +148,7 @@ def validate_models_outputs(
             # Model validation is done in subprocesses, as ONNX Runtime has the bad habit of
             # not release memory once an InferenceSession is initialized.
             # Reference: https://github.com/huggingface/optimum/pull/1115
-            validate_model_outputs_in_subprocess(
+            validate_model_outputs(
                 config=sub_onnx_config,
                 reference_model=submodel,
                 onnx_model=onnx_model_path,
@@ -167,30 +167,52 @@ def validate_models_outputs(
         raise exceptions[-1]
 
 
-# Copied from https://github.com/microsoft/onnxruntime/issues/7846#issuecomment-850217402
-class PickableInferenceSession:  # This is a wrapper to make the current InferenceSession class pickable.
-    def __init__(self, model_path, sess_options, providers):
-        import onnxruntime as ort
+def validate_model_outputs(
+    config: OnnxConfig,
+    reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+    onnx_model: Path,
+    onnx_named_outputs: List[str],
+    atol: Optional[float] = None,
+    input_shapes: Optional[Dict] = None,
+    device: str = "cpu",
+    dtype: Optional["torch.dtype"] = None,
+):
+    """
+    Validates the export by checking that the outputs from both the reference and the exported model match.
+    Args:
+        config ([`~OnnxConfig`]:
+            The configuration used to export the model.
+        reference_model ([`~PreTrainedModel`] or [`~TFPreTrainedModel`]):
+            The model used for the export.
+        onnx_model (`Path`):
+            The path to the exported model.
+        onnx_named_outputs (`List[str]`):
+            The names of the outputs to check.
+        atol (`Optional[float]`, defaults to `None`):
+            The absolute tolerance in terms of outputs difference between the reference and the exported model.
+        input_shapes (`Optional[Dict]`, defaults to `None`):
+            If specified, allows to use specific shapes to validate the ONNX model on.
+        device (`str`, defaults to `"cpu"`):
+            The device on which the ONNX model will be validated. Either `cpu` or `cuda`. Validation on a CUDA device is supported only for PyTorch.
+    Raises:
+        ValueError: If the outputs shapes or values do not match between the reference and the exported model.
+    """
+    io_process = ValidationProcess(
+        config,
+        reference_model,
+        onnx_model,
+        onnx_named_outputs,
+        atol,
+        input_shapes,
+        device,
+        dtype,
+    )
+    io_process.start()
+    io_process.join()
 
-        self.model_path = model_path
-        self.sess_options = sess_options
-        self.providers = providers
-        self.sess = ort.InferenceSession(self.model_path, sess_options=sess_options, providers=providers)
-
-    def run(self, *args):
-        return self.sess.run(*args)
-
-    def get_outputs(self):
-        return self.sess.get_outputs()
-
-    def __getstate__(self):
-        return {"model_path": self.model_path}
-
-    def __setstate__(self, values):
-        import onnxruntime as ort
-
-        self.model_path = values["model_path"]
-        self.sess = ort.InferenceSession(self.model_path, sess_options=self.sess_options, providers=self.providers)
+    if io_process.exception:
+        error, traceback = io_process.exception
+        raise error
 
 
 class ValidationProcess(mp.Process):
@@ -410,34 +432,6 @@ class ValidationProcess(mp.Process):
         if self._pconn.poll():
             self._exception = self._pconn.recv()
         return self._exception
-
-
-def validate_model_outputs_in_subprocess(
-    config: OnnxConfig,
-    reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
-    onnx_model: Path,
-    onnx_named_outputs: List[str],
-    atol: Optional[float] = None,
-    input_shapes: Optional[Dict] = None,
-    device: str = "cpu",
-    dtype: Optional["torch.dtype"] = None,
-):
-    io_process = ValidationProcess(
-        config,
-        reference_model,
-        onnx_model,
-        onnx_named_outputs,
-        atol,
-        input_shapes,
-        device,
-        dtype,
-    )
-    io_process.start()
-    io_process.join()
-
-    if io_process.exception:
-        error, traceback = io_process.exception
-        raise error
 
 
 def export_pytorch(

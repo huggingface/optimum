@@ -252,3 +252,29 @@ def recursive_to_dtype(
             value = value.to(dtype=dtype)
 
     return value
+
+
+# Copied from https://github.com/microsoft/onnxruntime/issues/7846#issuecomment-850217402
+class PickableInferenceSession:  # This is a wrapper to make the current InferenceSession class pickable.
+    def __init__(self, model_path, sess_options, providers):
+        import onnxruntime as ort
+
+        self.model_path = model_path
+        self.sess_options = sess_options
+        self.providers = providers
+        self.sess = ort.InferenceSession(self.model_path, sess_options=sess_options, providers=providers)
+
+    def run(self, *args):
+        return self.sess.run(*args)
+
+    def get_outputs(self):
+        return self.sess.get_outputs()
+
+    def __getstate__(self):
+        return {"model_path": self.model_path}
+
+    def __setstate__(self, values):
+        import onnxruntime as ort
+
+        self.model_path = values["model_path"]
+        self.sess = ort.InferenceSession(self.model_path, sess_options=self.sess_options, providers=self.providers)
