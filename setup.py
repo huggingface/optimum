@@ -32,7 +32,7 @@ TESTS_REQUIRE = [
     "Pillow",
     "sacremoses",
     "torchvision",
-    "diffusers<0.17.0",
+    "diffusers>=0.17.0",
     "torchaudio",
 ]
 
