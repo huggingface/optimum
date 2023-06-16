@@ -14,6 +14,7 @@
 # limitations under the License.
 """ONNX model check and export functions."""
 
+import multiprocessing as mp
 import os
 from inspect import signature
 from itertools import chain
@@ -23,6 +24,11 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 import numpy as np
 import onnx
 from transformers.utils import is_tf_available, is_torch_available
+
+
+mp.set_start_method("spawn", force=True)
+
+import traceback
 
 from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import (
@@ -140,7 +146,7 @@ def validate_models_outputs(
         )
         onnx_paths.append(onnx_model_path)
         try:
-            validate_model_outputs(
+            validate_model_outputs_in_subprocess(
                 config=sub_onnx_config,
                 reference_model=submodel,
                 onnx_model=onnx_model_path,
@@ -159,7 +165,247 @@ def validate_models_outputs(
         raise exceptions[-1]
 
 
-def validate_model_outputs(
+class PickableInferenceSession:  # This is a wrapper to make the current InferenceSession class pickable.
+    def __init__(self, model_path, sess_options, providers):
+        import onnxruntime as ort
+
+        self.model_path = model_path
+        self.sess_options = sess_options
+        self.providers = providers
+        self.sess = ort.InferenceSession(self.model_path, sess_options=sess_options, providers=providers)
+
+    def run(self, *args):
+        return self.sess.run(*args)
+
+    def get_outputs(self):
+        return self.sess.get_outputs()
+
+    def __getstate__(self):
+        return {"model_path": self.model_path}
+
+    def __setstate__(self, values):
+        import onnxruntime as ort
+
+        self.model_path = values["model_path"]
+        self.sess = ort.InferenceSession(self.model_path, sess_options=self.sess_options, providers=self.providers)
+
+
+class ValidationProcess(mp.Process):
+    def __init__(
+        self,
+        config: OnnxConfig,
+        reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+        onnx_model: Path,
+        onnx_named_outputs: List[str],
+        atol: Optional[float] = None,
+        input_shapes: Optional[Dict] = None,
+        device: str = "cpu",
+        dtype: Optional["torch.dtype"] = None,
+    ):
+        super().__init__()
+        self._pconn, self._cconn = mp.Pipe()
+        self._exception = None
+        self.config = config
+        self.reference_model = reference_model
+        self.onnx_model = onnx_model
+        self.onnx_named_outputs = onnx_named_outputs
+        self.atol = atol
+        self.input_shapes = input_shapes
+        self.device = device
+        self.dtype = dtype
+
+    def run(self):
+        try:
+            from onnxruntime import GraphOptimizationLevel, SessionOptions
+
+            logger.info(f"Validating ONNX model {self.onnx_model.as_posix()}...")
+
+            if self.atol is None:
+                self.atol = self.config.ATOL_FOR_VALIDATION
+
+            if "diffusers" in str(self.reference_model.__class__) and not is_diffusers_available():
+                raise ImportError("The pip package `diffusers` is required to validate stable diffusion ONNX models.")
+
+            framework = "pt" if is_torch_available() and isinstance(self.reference_model, nn.Module) else "tf"
+
+            if self.input_shapes is None:
+                self.input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
+            reference_model_inputs = self.config.generate_dummy_inputs(framework=framework, **self.input_shapes)
+
+            # Create ONNX Runtime session
+            session_options = SessionOptions()
+            # We could well set ORT_DISABLE_ALL here, but it makes CUDA export with O4 of gpt_neo fail
+            session_options.graph_optimization_level = GraphOptimizationLevel.ORT_ENABLE_BASIC
+
+            if self.device.startswith("cuda"):
+                provider = "CUDAExecutionProvider"
+            else:
+                provider = "CPUExecutionProvider"
+
+            session = PickableInferenceSession(
+                self.onnx_model.as_posix(), sess_options=session_options, providers=[provider]
+            )
+
+            # Sometimes the exported model can have more outputs than what is specified in the ONNX config because the original
+            # PyTorch model has more outputs that were forgotten in the config, so we check for that.
+            all_onnx_outputs = {output.name for output in session.get_outputs()}
+            config_outputs = set(self.config.outputs)
+            if all_onnx_outputs != config_outputs:
+                if len(all_onnx_outputs) > len(config_outputs):
+                    diff = all_onnx_outputs - config_outputs
+                else:
+                    diff = config_outputs - all_onnx_outputs
+
+                raise OutputMatchError(
+                    "The exported ONNX model does not have the exact same outputs as what is provided in "
+                    f"{self.config.__class__.__name__}. Difference: {', '.join(diff)}"
+                )
+
+            # Sometimes the exported model can have axes that are inferred as dynamic axes but were not specified as such in
+            # the ONNX Config: it was either an error on the config side, or an error on the ONNX side inferring a dynamic axis
+            # that is actually static.
+            # The `OnnxConfig.fix_dynamic_axes` method should fix that at export time, but it is still worth checking here.
+            all_config_dynamic_axes_names = set()
+            for input_ in self.config.inputs.values():
+                all_config_dynamic_axes_names |= set(input_.values())
+            for output in self.config.outputs.values():
+                all_config_dynamic_axes_names |= set(output.values())
+
+            for node in session.get_outputs():
+                for idx, axis in enumerate(node.shape):
+                    if isinstance(axis, str) and axis not in all_config_dynamic_axes_names:
+                        raise DynamicAxisNameError(
+                            f"The axis {idx} of input / output node called {node.name} has an unknown name: {axis}"
+                        )
+
+            # Compute outputs from the reference model
+            if is_torch_available() and isinstance(self.reference_model, nn.Module):
+                self.reference_model.to(self.device)
+
+                for key, value in reference_model_inputs.items():
+                    reference_model_inputs[key] = recursive_to_device(value=value, device=self.device)
+                    reference_model_inputs[key] = recursive_to_dtype(
+                        value=reference_model_inputs[key], dtype=self.dtype, start_dtype=torch.float32
+                    )
+
+            if is_torch_available() and isinstance(self.reference_model, nn.Module):
+                with torch.inference_mode():
+                    ref_outputs = self.reference_model(**reference_model_inputs)
+            else:
+                ref_outputs = self.reference_model(**reference_model_inputs)
+            ref_outputs_dict = {}
+
+            # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
+            for name, value in ref_outputs.items():
+                # Overwriting the output name as "present" since it is the name used for the ONNX outputs
+                # ("past_key_values" being taken for the ONNX inputs)
+                if name == "past_key_values":
+                    name = "present"
+                if isinstance(value, (list, tuple)):
+                    value = self.config.flatten_output_collection_property(name, value)
+                    ref_outputs_dict.update(value)
+                else:
+                    ref_outputs_dict[name] = value
+
+            # Possibly edit the input for the onnxruntime.InferenceSession, this is for example the case for merged
+            # models where the input `use_cache_branch` is added
+            reference_ort_inputs = self.config.generate_dummy_inputs_for_validation(reference_model_inputs)
+
+            # generate_dummy_inputs_for_validation may add inputs (e.g. past_key_values) that are by
+            # default on torch.float32 dtype. Thus, to run validation of fp16 model, these inputs need
+            # to be casted as well.
+            if is_torch_available() and isinstance(self.reference_model, nn.Module):
+                for key, value in reference_ort_inputs.items():
+                    reference_ort_inputs[key] = recursive_to_dtype(
+                        value=reference_ort_inputs[key], dtype=self.dtype, start_dtype=torch.float32
+                    )
+
+            # We flatten potential collection of inputs (i.e. past_keys)
+            onnx_inputs = {}
+            for name, value in reference_ort_inputs.items():
+                if isinstance(value, (list, tuple)):
+                    value = self.config.flatten_output_collection_property(name, value)
+                    onnx_inputs.update(
+                        {tensor_name: pt_tensor.cpu().numpy() for tensor_name, pt_tensor in value.items()}
+                    )
+                else:
+                    onnx_inputs[name] = value.cpu().numpy()
+
+            # Compute outputs from the ONNX model
+            onnx_outputs = session.run(self.onnx_named_outputs, onnx_inputs)
+
+            # Modify the ONNX output names to match the reference model output names
+            onnx_to_torch = {v: k for k, v in self.config.torch_to_onnx_output_map.items()}
+            self.onnx_named_outputs = [onnx_to_torch.get(k, k) for k in self.onnx_named_outputs]
+
+            # Check we have a subset of the keys into onnx_outputs against ref_outputs
+            ref_outputs_set, onnx_outputs_set = set(ref_outputs_dict.keys()), set(self.onnx_named_outputs)
+            if not onnx_outputs_set.issubset(ref_outputs_set):
+                raise OutputMatchError(
+                    "ONNX model output names do not match reference model output names.\n"
+                    f"Reference model output names: {ref_outputs_set}\n"
+                    f"ONNX model output names: {onnx_outputs_set}"
+                    f"Difference: {onnx_outputs_set.difference(ref_outputs_set)}"
+                )
+            else:
+                onnx_output_names = ", ".join(onnx_outputs_set)
+                logger.info(f"\t-[✓] ONNX model output names match reference model ({onnx_output_names})")
+
+            if "diffusers" in str(self.reference_model.__class__) and not is_diffusers_available():
+                raise ImportError("The pip package `diffusers` is required to validate stable diffusion ONNX models.")
+
+            # Check the shape and values match
+            shape_failures = []
+            value_failures = []
+            for name, ort_value in zip(self.onnx_named_outputs, onnx_outputs):
+                if is_torch_available() and isinstance(self.reference_model, nn.Module):
+                    ref_value = ref_outputs_dict[name].detach().cpu().numpy()
+                else:
+                    ref_value = ref_outputs_dict[name].cpu().numpy()
+                logger.info(f'\t- Validating ONNX Model output "{name}":')
+
+                # Shape
+                if not ort_value.shape == ref_value.shape:
+                    logger.error(f"\t\t-[x] shape {ort_value.shape} doesn't match {ref_value.shape}")
+                    shape_failures.append((name, ref_value.shape, ort_value.shape))
+                else:
+                    logger.info(f"\t\t-[✓] {ort_value.shape} matches {ref_value.shape}")
+
+                # Values
+                try:
+                    if not np.allclose(ref_value, ort_value, atol=self.atol):
+                        max_diff = np.amax(np.abs(ref_value - ort_value))
+                        logger.error(f"\t\t-[x] values not close enough, max diff: {max_diff} (atol: {self.atol})")
+                        value_failures.append((name, max_diff))
+                    else:
+                        logger.info(f"\t\t-[✓] all values close (atol: {self.atol})")
+                except Exception:
+                    # If shapes do not match, it is possible that the np.allclose call fails, since we raise the proper issue
+                    # right after, we do not do anything here.
+                    pass
+
+            if shape_failures:
+                msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (ONNX)" for t in shape_failures)
+                raise ShapeError(f"Output shapes do not match between reference model and ONNX exported model:\n{msg}")
+
+            if value_failures:
+                msg = "\n".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
+                raise AtolError(
+                    f"The maximum absolute difference between the output of the reference model and the ONNX exported model is not within the set tolerance {self.atol}:\n{msg}"
+                )
+        except Exception as e:
+            tb = traceback.format_exc()
+            self._cconn.send((e, tb))
+            return
+
+    @property
+    def exception(self):
+        if self._pconn.poll():
+            self._exception = self._pconn.recv()
+        return self._exception
+
+
+def validate_model_outputs_in_subprocess(
     config: OnnxConfig,
     reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
     onnx_model: Path,
@@ -169,192 +415,22 @@ def validate_model_outputs(
     device: str = "cpu",
     dtype: Optional["torch.dtype"] = None,
 ):
-    """
-    Validates the export by checking that the outputs from both the reference and the exported model match.
+    io_process = ValidationProcess(
+        config,
+        reference_model,
+        onnx_model,
+        onnx_named_outputs,
+        atol,
+        input_shapes,
+        device,
+        dtype,
+    )
+    io_process.start()
+    io_process.join()
 
-    Args:
-        config ([`~OnnxConfig`]:
-            The configuration used to export the model.
-        reference_model ([`~PreTrainedModel`] or [`~TFPreTrainedModel`]):
-            The model used for the export.
-        onnx_model (`Path`):
-            The path to the exported model.
-        onnx_named_outputs (`List[str]`):
-            The names of the outputs to check.
-        atol (`Optional[float]`, defaults to `None`):
-            The absolute tolerance in terms of outputs difference between the reference and the exported model.
-        input_shapes (`Optional[Dict]`, defaults to `None`):
-            If specified, allows to use specific shapes to validate the ONNX model on.
-        device (`str`, defaults to `"cpu"`):
-            The device on which the ONNX model will be validated. Either `cpu` or `cuda`. Validation on a CUDA device is supported only for PyTorch.
-
-    Raises:
-        ValueError: If the outputs shapes or values do not match between the reference and the exported model.
-    """
-    from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
-
-    logger.info(f"Validating ONNX model {onnx_model.as_posix()}...")
-
-    if atol is None:
-        atol = config.ATOL_FOR_VALIDATION
-
-    if "diffusers" in str(reference_model.__class__) and not is_diffusers_available():
-        raise ImportError("The pip package `diffusers` is required to validate stable diffusion ONNX models.")
-
-    framework = "pt" if is_torch_available() and isinstance(reference_model, nn.Module) else "tf"
-
-    if input_shapes is None:
-        input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
-    reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
-
-    # Create ONNX Runtime session
-    session_options = SessionOptions()
-    # We could well set ORT_DISABLE_ALL here, but it makes CUDA export with O4 of gpt_neo fail
-    session_options.graph_optimization_level = GraphOptimizationLevel.ORT_ENABLE_BASIC
-
-    if device.startswith("cuda"):
-        provider = "CUDAExecutionProvider"
-    else:
-        provider = "CPUExecutionProvider"
-
-    session = InferenceSession(onnx_model.as_posix(), sess_options=session_options, providers=[provider])
-
-    # Sometimes the exported model can have more outputs than what is specified in the ONNX config because the original
-    # PyTorch model has more outputs that were forgotten in the config, so we check for that.
-    all_onnx_outputs = {output.name for output in session.get_outputs()}
-    config_outputs = set(config.outputs)
-    if all_onnx_outputs != config_outputs:
-        if len(all_onnx_outputs) > len(config_outputs):
-            diff = all_onnx_outputs - config_outputs
-        else:
-            diff = config_outputs - all_onnx_outputs
-
-        raise OutputMatchError(
-            "The exported ONNX model does not have the exact same outputs as what is provided in "
-            f"{config.__class__.__name__}. Difference: {', '.join(diff)}"
-        )
-
-    # Sometimes the exported model can have axes that are inferred as dynamic axes but were not specified as such in
-    # the ONNX Config: it was either an error on the config side, or an error on the ONNX side inferring a dynamic axis
-    # that is actually static.
-    # The `OnnxConfig.fix_dynamic_axes` method should fix that at export time, but it is still worth checking here.
-    all_config_dynamic_axes_names = set()
-    for input_ in config.inputs.values():
-        all_config_dynamic_axes_names |= set(input_.values())
-    for output in config.outputs.values():
-        all_config_dynamic_axes_names |= set(output.values())
-
-    for node in session.get_outputs():
-        for idx, axis in enumerate(node.shape):
-            if isinstance(axis, str) and axis not in all_config_dynamic_axes_names:
-                raise DynamicAxisNameError(
-                    f"The axis {idx} of input / output node called {node.name} has an unknown name: {axis}"
-                )
-
-    # Compute outputs from the reference model
-    if is_torch_available() and isinstance(reference_model, nn.Module):
-        reference_model.to(device)
-
-        for key, value in reference_model_inputs.items():
-            reference_model_inputs[key] = recursive_to_device(value=value, device=device)
-            reference_model_inputs[key] = recursive_to_dtype(
-                value=reference_model_inputs[key], dtype=dtype, start_dtype=torch.float32
-            )
-
-    if is_torch_available() and isinstance(reference_model, nn.Module):
-        with torch.inference_mode():
-            ref_outputs = reference_model(**reference_model_inputs)
-    else:
-        ref_outputs = reference_model(**reference_model_inputs)
-    ref_outputs_dict = {}
-
-    # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
-    for name, value in ref_outputs.items():
-        # Overwriting the output name as "present" since it is the name used for the ONNX outputs
-        # ("past_key_values" being taken for the ONNX inputs)
-        if name == "past_key_values":
-            name = "present"
-        if isinstance(value, (list, tuple)):
-            value = config.flatten_output_collection_property(name, value)
-            ref_outputs_dict.update(value)
-        else:
-            ref_outputs_dict[name] = value
-
-    # Possibly edit the input for the onnxruntime.InferenceSession, this is for example the case for merged
-    # models where the input `use_cache_branch` is added
-    reference_ort_inputs = config.generate_dummy_inputs_for_validation(reference_model_inputs)
-
-    # We flatten potential collection of inputs (i.e. past_keys)
-    onnx_inputs = {}
-    for name, value in reference_ort_inputs.items():
-        if isinstance(value, (list, tuple)):
-            value = config.flatten_output_collection_property(name, value)
-            onnx_inputs.update({tensor_name: pt_tensor.cpu().numpy() for tensor_name, pt_tensor in value.items()})
-        else:
-            onnx_inputs[name] = value.cpu().numpy()
-
-    # Compute outputs from the ONNX model
-    onnx_outputs = session.run(onnx_named_outputs, onnx_inputs)
-
-    # Modify the ONNX output names to match the reference model output names
-    onnx_to_torch = {v: k for k, v in config.torch_to_onnx_output_map.items()}
-    onnx_named_outputs = [onnx_to_torch.get(k, k) for k in onnx_named_outputs]
-
-    # Check we have a subset of the keys into onnx_outputs against ref_outputs
-    ref_outputs_set, onnx_outputs_set = set(ref_outputs_dict.keys()), set(onnx_named_outputs)
-    if not onnx_outputs_set.issubset(ref_outputs_set):
-        raise OutputMatchError(
-            "ONNX model output names do not match reference model output names.\n"
-            f"Reference model output names: {ref_outputs_set}\n"
-            f"ONNX model output names: {onnx_outputs_set}"
-            f"Difference: {onnx_outputs_set.difference(ref_outputs_set)}"
-        )
-    else:
-        onnx_output_names = ", ".join(onnx_outputs_set)
-        logger.info(f"\t-[✓] ONNX model output names match reference model ({onnx_output_names})")
-
-    if "diffusers" in str(reference_model.__class__) and not is_diffusers_available():
-        raise ImportError("The pip package `diffusers` is required to validate stable diffusion ONNX models.")
-
-    # Check the shape and values match
-    shape_failures = []
-    value_failures = []
-    for name, ort_value in zip(onnx_named_outputs, onnx_outputs):
-        if is_torch_available() and isinstance(reference_model, nn.Module):
-            ref_value = ref_outputs_dict[name].detach().cpu().numpy()
-        else:
-            ref_value = ref_outputs_dict[name].cpu().numpy()
-        logger.info(f'\t- Validating ONNX Model output "{name}":')
-
-        # Shape
-        if not ort_value.shape == ref_value.shape:
-            logger.error(f"\t\t-[x] shape {ort_value.shape} doesn't match {ref_value.shape}")
-            shape_failures.append((name, ref_value.shape, ort_value.shape))
-        else:
-            logger.info(f"\t\t-[✓] {ort_value.shape} matches {ref_value.shape}")
-
-        # Values
-        try:
-            if not np.allclose(ref_value, ort_value, atol=atol):
-                max_diff = np.amax(np.abs(ref_value - ort_value))
-                logger.error(f"\t\t-[x] values not close enough, max diff: {max_diff} (atol: {atol})")
-                value_failures.append((name, max_diff))
-            else:
-                logger.info(f"\t\t-[✓] all values close (atol: {atol})")
-        except Exception:
-            # If shapes do not match, it is possible that the np.allclose call fails, since we raise the proper issue
-            # right after, we do not do anything here.
-            pass
-
-    if shape_failures:
-        msg = "\n".join(f"- {t[0]}: got {t[1]} (reference) and {t[2]} (ONNX)" for t in shape_failures)
-        raise ShapeError(f"Output shapes do not match between reference model and ONNX exported model:\n{msg}")
-
-    if value_failures:
-        msg = "\n".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
-        raise AtolError(
-            f"The maximum absolute difference between the output of the reference model and the ONNX exported model is not within the set tolerance {atol}:\n{msg}"
-        )
+    if io_process.exception:
+        error, traceback = io_process.exception
+        raise error
 
 
 def export_pytorch(

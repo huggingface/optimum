@@ -44,23 +44,6 @@ from typing import Optional, Union
 logger = logging.get_logger()
 logger.setLevel(logging.INFO)
 
-import subprocess
-
-import psutil
-
-
-def print_memory(prefix):
-    cpu_ram_mb = (psutil.virtual_memory().total - psutil.virtual_memory().available) / 1000**2
-
-    command = "nvidia-smi --query-gpu=memory.used --format=csv --id=0"
-    gpu_mem_info = subprocess.check_output(command.split()).decode("ascii").split("\n")[:-1][1:]
-
-    gpu_mem_mb = [int(x.split()[0]) for i, x in enumerate(gpu_mem_info)][0] * 1.048576
-
-    print("-----------------", prefix)
-    print(f"RAM: {cpu_ram_mb:.2f} MB")
-    print(f"GPU mem: {gpu_mem_mb:.2f} MB")
-
 
 def main_export(
     model_name_or_path: str,
@@ -323,7 +306,6 @@ def main_export(
         else:
             models_and_onnx_configs = {"model": (model, onnx_config)}
 
-    print_memory("After loading models_and_onnx_configs, before export")
     _, onnx_outputs = export_models(
         models_and_onnx_configs=models_and_onnx_configs,
         opset=opset,
@@ -333,8 +315,6 @@ def main_export(
         device=device,
         dtype="fp16" if fp16 is True else None,
     )
-
-    print_memory("After export, before post-process")
 
     if optimize == "O4" and device != "cuda":
         raise ValueError(
@@ -367,8 +347,6 @@ def main_export(
                 f"The post-processing of the ONNX export failed. The export can still be performed by passing the option --no-post-process. Detailed error: {e}"
             )
 
-    print_memory("After post-process")
-
     if do_validation is True:
         try:
             validate_models_outputs(
@@ -396,8 +374,6 @@ def main_export(
             raise Exception(
                 f"An error occured during validation, but the model was saved nonetheless at {output.as_posix()}. Detailed error: {e}."
             )
-
-    print_memory("After validation")
 
 
 def main():
