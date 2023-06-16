@@ -16,6 +16,7 @@
 
 import multiprocessing as mp
 import os
+import traceback
 from inspect import signature
 from itertools import chain
 from pathlib import Path
@@ -24,11 +25,6 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 import numpy as np
 import onnx
 from transformers.utils import is_tf_available, is_torch_available
-
-
-mp.set_start_method("spawn", force=True)
-
-import traceback
 
 from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import (
@@ -54,6 +50,9 @@ if is_diffusers_available():
 
 if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
+
+
+mp.set_start_method("spawn", force=True)
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -146,6 +145,9 @@ def validate_models_outputs(
         )
         onnx_paths.append(onnx_model_path)
         try:
+            # Model validation is done in subprocesses, as ONNX Runtime has the bad habit of
+            # not release memory once an InferenceSession is initialized.
+            # Reference: https://github.com/huggingface/optimum/pull/1115
             validate_model_outputs_in_subprocess(
                 config=sub_onnx_config,
                 reference_model=submodel,
@@ -311,7 +313,9 @@ class ValidationProcess(mp.Process):
 
             # Possibly edit the input for the onnxruntime.InferenceSession, this is for example the case for merged
             # models where the input `use_cache_branch` is added
-            reference_ort_inputs = self.config.generate_dummy_inputs_for_validation(reference_model_inputs, onnx_input_names=onnx_input_names)
+            reference_ort_inputs = self.config.generate_dummy_inputs_for_validation(
+                reference_model_inputs, onnx_input_names=onnx_input_names
+            )
 
             # generate_dummy_inputs_for_validation may add inputs (e.g. past_key_values) that are by
             # default on torch.float32 dtype. Thus, to run validation of fp16 model, these inputs need
