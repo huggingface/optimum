@@ -44,6 +44,9 @@ class NormalizedConfig:
         return functools.partial(cls, allow_new=allow_new, **kwargs)
 
     def __getattr__(self, attr_name):
+        if attr_name == "config":
+            return super().__getattr__(attr_name)
+
         try:
             attr_name = super().__getattribute__(attr_name.upper())
         except AttributeError:  # e.g. in the NormalizedTextAndVisionConfig case
