@@ -344,6 +344,13 @@ def ensure_valid_data_type_or_raise(
             "activations_dtype = QuantType.QInt8 with weights_dtype = QuantType.QUInt8."
         )
 
+def set_quantization_parameters(is_static, format, mode, activations_dtype, weights_dtype):
+    format = getattr(QuantFormat, str(format or ""), None),
+    mode = getattr(QuantizationMode, str(mode or ""), None)
+    format, mode = default_quantization_parameters(is_static, format, mode)
+    activations_dtype = getattr(QuantType, str(activations_dtype or ""), QuantType.QUInt8)
+    weights_dtype = getattr(QuantType, str(weights_dtype or ""), QuantType.QInt8)
+    return format, mode, activations_dtype, weights_dtype
 
 def default_quantization_parameters(
     is_static: bool, format: Optional[QuantFormat] = None, mode: Optional[QuantizationMode] = None
@@ -973,58 +980,26 @@ class ORTConfig(BaseConfig):
         return BaseConfig.to_dict(clone)
 
     @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any], **kwargs) -> "PretrainedConfig":
-        """
-        Overrided [`PretrainedConfig`] to make OptimizationConfig and QuantizationConfig
-
-        Args:
-            config_dict (`Dict[str, Any]`):
-                Dictionary that will be used to instantiate the configuration object. Such a dictionary can be
-                retrieved from a pretrained checkpoint by leveraging the [`~PretrainedConfig.get_config_dict`] method.
-            kwargs (`Dict[str, Any]`):
-                Additional parameters from which to initialize the configuration object.
-
-        Returns:
-            [`ORTConfig`]: The configuration object instantiated from those parameters. and `optimization` and `quantization` is each class(OptimizationConfig, QuantizationConfig).
-        """
-        return_unused_kwargs = kwargs.pop("return_unused_kwargs", False)
-        # Those arguments may be passed along for our internal telemetry.
-        # We remove them so they don't appear in `return_unused_kwargs`.
-        kwargs.pop("_from_auto", None)
-        kwargs.pop("_from_pipeline", None)
-        # The commit hash might have been updated in the `config_dict`, we don't want the kwargs to erase that update.
-        if "_commit_hash" in kwargs and "_commit_hash" in config_dict:
-            kwargs["_commit_hash"] = config_dict["_commit_hash"]
-
-        config: ORTConfig = cls(**config_dict)
+    def from_dict(cls, config_dict: Dict[str, Any], **kwargs) -> "ORTConfig":
+        config = super().from_dict(config_dict, **kwargs)
 
         if config.optimization:
             config.optimization: OptimizationConfig = OptimizationConfig(**config.optimization)
 
         if config.quantization:
             quant_config: dict = config.quantization
-            quant_config["format"], quant_config["mode"] = default_quantization_parameters(
-                is_static=quant_config["is_static"],
-                format=getattr(QuantFormat, quant_config.get("format", ""), None),
-                mode=getattr(QuantizationMode, quant_config.get("mode", ""), None),
+            (
+                quant_config["format"],
+                quant_config["mode"],
+                quant_config["activations_dtype"],
+                quant_config["weights_dtype"],
+            ) = set_quantization_parameters(
+                quant_config["is_static"],
+                quant_config.get("format", ""),
+                quant_config.get("mode", ""),
+                quant_config.get("activations_dtype", ""),
+                quant_config.get("weights_dtype", ""),
             )
-            quant_config["activations_dtype"] = getattr(
-                QuantType, quant_config.get("activations_dtype", ""), QuantType.QUInt8
-            )
-            quant_config["weights_dtype"] = getattr(QuantType, quant_config.get("weights_dtype", ""), QuantType.QInt8)
             config.quantization: QuantizationConfig = QuantizationConfig(**quant_config)
 
-        to_remove = []
-        for key, value in kwargs.items():
-            if hasattr(config, key):
-                setattr(config, key, value)
-                if key != "torch_dtype":
-                    to_remove.append(key)
-        for key in to_remove:
-            kwargs.pop(key, None)
-
-        logger.info(f"ORTConfig: {config.to_dict()}")
-        if return_unused_kwargs:
-            return config, kwargs
-        else:
-            return config
+        return config
