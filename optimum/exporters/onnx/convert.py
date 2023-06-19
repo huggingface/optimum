@@ -151,7 +151,7 @@ def validate_models_outputs(
         onnx_paths.append(onnx_model_path)
         try:
             # Model validation is done in subprocesses, as ONNX Runtime has the bad habit of
-            # not release memory once an InferenceSession is initialized.
+            # not releasing memory once an InferenceSession is initialized.
             # Reference: https://github.com/huggingface/optimum/pull/1115
             validate_model_outputs(
                 config=sub_onnx_config,
