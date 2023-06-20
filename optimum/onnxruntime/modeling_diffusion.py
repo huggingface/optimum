@@ -129,11 +129,11 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER: self.vae_encoder,
         }
 
+        # Modify config to keep the resulting model compatible with diffusers pipelines
         for name in sub_models.keys():
             self._internal_dict[name] = (
-                ("optimum", sub_models[name].__class__.__name__) if sub_models[name] is not None else (None, None)
+                ("diffusers", "OnnxRuntimeModel") if sub_models[name] is not None else (None, None)
             )
-
         self._internal_dict.pop("vae", None)
 
     @staticmethod
