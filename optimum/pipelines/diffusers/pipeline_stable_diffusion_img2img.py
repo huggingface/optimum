@@ -21,7 +21,7 @@ import numpy as np
 import PIL
 import torch
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-from diffusers.utils import PIL_INTERPOLATION
+from diffusers.utils import PIL_INTERPOLATION, deprecate
 
 from .pipeline_utils import DiffusionPipelineMixin
 
