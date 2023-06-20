@@ -22,13 +22,14 @@ from tempfile import TemporaryDirectory
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
-import onnxruntime as ort
 import torch
 from diffusers import DDIMScheduler, LMSDiscreteScheduler, PNDMScheduler, StableDiffusionPipeline
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils import CONFIG_NAME
 from huggingface_hub import snapshot_download
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
+
+import onnxruntime as ort
 
 from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
