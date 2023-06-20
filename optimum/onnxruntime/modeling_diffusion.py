@@ -456,7 +456,6 @@ class ORTModelVaeEncoder(_ORTDiffusionModelPart):
         onnx_inputs = {
             "sample": sample,
         }
-        # import pdb;pdb.set_trace()
         outputs = self.session.run(None, onnx_inputs)
         return outputs
 
