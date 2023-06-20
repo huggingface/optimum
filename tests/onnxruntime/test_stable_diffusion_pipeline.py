@@ -27,7 +27,6 @@ import torch
 from huggingface_hub.constants import default_cache_path
 from parameterized import parameterized
 from transformers import set_seed
-
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED
 
