@@ -12,46 +12,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 import random
-import shutil
-import tempfile
-import time
 import unittest
 from typing import Dict
 
 import numpy as np
-import onnxruntime
 import pytest
 import torch
-from huggingface_hub.constants import default_cache_path
+from diffusers import OnnxStableDiffusionImg2ImgPipeline, StableDiffusionPipeline
 from parameterized import parameterized
-from transformers import set_seed
-from transformers.testing_utils import get_gpu_count, require_torch_gpu
+from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
-from optimum.exporters import TasksManager
-from optimum.onnxruntime import (
-    ONNX_WEIGHTS_NAME,
-    ORTStableDiffusionPipeline,
-)
-from optimum.onnxruntime.modeling_diffusion import ORTStableDiffusionImg2ImgPipeline
-
+from optimum.onnxruntime import ORTStableDiffusionPipeline
 from optimum.onnxruntime.modeling_diffusion import (
     ORTModelTextEncoder,
     ORTModelUnet,
     ORTModelVaeDecoder,
     ORTModelVaeEncoder,
+    ORTStableDiffusionImg2ImgPipeline,
 )
-from optimum.utils import (
-    DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
-    DIFFUSION_MODEL_UNET_SUBFOLDER,
-    DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
-    logging,
-)
+from optimum.utils import logging
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
-from diffusers import OnnxStableDiffusionImg2ImgPipeline, OnnxStableDiffusionPipeline, StableDiffusionPipeline
-
 
 
 logger = logging.get_logger()
@@ -60,7 +42,6 @@ logger = logging.get_logger()
 def _generate_random_inputs(generate_image=False):
     from diffusers.utils import floats_tensor
 
-    generator = np.random.RandomState(SEED)
     inputs = {
         "prompt": "sailing ship in storm by Leonardo da Vinci",
         "num_inference_steps": 3,
@@ -134,10 +115,9 @@ class ORTStableDiffusionImg2ImgPipelineTest(ORTStableDiffusionPipelineBase):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
-    def test_stable_diffusion_pndm(self, model_arch: str):
+    def test_compare_diffusers_pipeline(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
-        model_id = MODEL_NAMES[model_arch]
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         inputs = _generate_random_inputs(generate_image=isinstance(pipeline, ORTStableDiffusionImg2ImgPipeline))
         inputs["prompt"] = "A painting of a squirrel eating a burger"
@@ -161,7 +141,6 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_compare_to_diffusers(self, model_arch: str):
-        model_args = {"test_name": model_arch, "model_arch": model_arch}
         ort_pipeline = ORTStableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch], export=True)
         self.assertIsInstance(ort_pipeline.text_encoder, ORTModelTextEncoder)
         self.assertIsInstance(ort_pipeline.vae_decoder, ORTModelVaeDecoder)
