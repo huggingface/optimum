@@ -436,9 +436,9 @@ class ORTStableDiffusionPipelineIntegrationTest(ORTModelTestMixin):
 
         generator = np.random.RandomState(SEED)
         inputs = {
-            "prompt": "A painting of a squirrel eating a burger",
+            "prompt": "sailing ship in storm by Leonardo da Vinci",
             "generator": generator,
-            "num_inference_steps": 3,
+            "num_inference_steps": 2,
             "guidance_scale": 7.5,
             "output_type": "numpy",
         }
