@@ -36,7 +36,12 @@ from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
     ORTStableDiffusionPipeline,
 )
-from optimum.onnxruntime.modeling_diffusion import ORTModelTextEncoder, ORTModelUnet, ORTModelVaeDecoder
+from optimum.onnxruntime.modeling_diffusion import (
+    ORTModelTextEncoder,
+    ORTModelUnet,
+    ORTModelVaeDecoder,
+    ORTModelVaeEncoder,
+)
 from optimum.utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
     DIFFUSION_MODEL_UNET_SUBFOLDER,
@@ -123,6 +128,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         self.assertIsInstance(model.text_encoder, ORTModelTextEncoder)
         self.assertIsInstance(model.vae_decoder, ORTModelVaeDecoder)
+        self.assertIsInstance(model.vae_encoder, ORTModelVaeEncoder)
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
 
@@ -142,6 +148,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)
         self.assertIsInstance(model.text_encoder, ORTModelTextEncoder)
         self.assertIsInstance(model.vae_decoder, ORTModelVaeDecoder)
+        self.assertIsInstance(model.vae_encoder, ORTModelVaeEncoder)
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
 
@@ -334,6 +341,7 @@ class ORTStableDiffusionPipelineIntegrationTest(ORTModelTestMixin):
 
         self.assertIsInstance(ort_pipeline.text_encoder, ORTModelTextEncoder)
         self.assertIsInstance(ort_pipeline.vae_decoder, ORTModelVaeDecoder)
+        self.assertIsInstance(ort_pipeline.vae_encoder, ORTModelVaeEncoder)
         self.assertIsInstance(ort_pipeline.unet, ORTModelUnet)
         self.assertIsInstance(ort_pipeline.config, Dict)
 
