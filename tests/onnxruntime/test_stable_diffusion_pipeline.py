@@ -50,6 +50,8 @@ from optimum.utils import (
     logging,
 )
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
+from diffusers import OnnxStableDiffusionImg2ImgPipeline, OnnxStableDiffusionPipeline, StableDiffusionPipeline
+
 
 
 logger = logging.get_logger()
@@ -145,6 +147,11 @@ class ORTStableDiffusionImg2ImgPipelineTest(ORTStableDiffusionPipelineBase):
         expected_slice = np.array([0.69643, 0.58484, 0.50314, 0.58760, 0.55368, 0.59643, 0.51529, 0.41217, 0.49087])
         self.assertTrue(np.abs(expected_slice - output.flatten()).max() < 1e-1)
 
+        # Verify it can be loaded with ORT diffusers pipeline
+        diffusers_pipeline = OnnxStableDiffusionImg2ImgPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusers_output = diffusers_pipeline(**inputs, generator=np.random.RandomState(0)).images[0, -3:, -3:, -1]
+        self.assertTrue(np.allclose(output, diffusers_output, atol=1e-4))
+
 
 class ORTStableDiffusionPipelineTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = [
@@ -162,9 +169,7 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
         self.assertIsInstance(ort_pipeline.unet, ORTModelUnet)
         self.assertIsInstance(ort_pipeline.config, Dict)
 
-        from diffusers import StableDiffusionPipeline
-
-        diffusers_pipeline = StableDiffusionPipeline.from_pretrained(model_id)
+        diffusers_pipeline = StableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
         diffusers_pipeline.safety_checker = None
         num_images_per_prompt, height, width, scale_factor = 1, 512, 512, 8
         latents_shape = (
@@ -195,7 +200,7 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_image_reproducibility(self, model_arch: str):
-        pipeline = ORTStableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
+        pipeline = ORTStableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch], export=True)
         inputs = _generate_random_inputs()
         np.random.seed(0)
         ort_outputs_1 = pipeline(**inputs)
