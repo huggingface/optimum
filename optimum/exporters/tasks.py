@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 import huggingface_hub
+from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
@@ -1420,7 +1421,7 @@ class TasksManager:
             torch_dtype (`Optional[torch.dtype]`, defaults to `None`):
                 Data type to load the model on. PyTorch-only argument.
             device (`Optional[torch.device]`, defaults to `None`):
-                Device to initialize the model on. PyTorch-only argument.
+                Device to initialize the model on. PyTorch-only argument. For PyTorch, defaults to "cpu".
             model_kwargs (`Dict[str, Any]`, *optional*):
                 Keyword arguments to pass to the model `.from_pretrained()` method.
 
@@ -1457,11 +1458,18 @@ class TasksManager:
             if framework == "pt":
                 kwargs["torch_dtype"] = torch_dtype
 
-                if device is not None and isinstance(device, str):
+                if isinstance(device, str):
                     device = torch.device(device)
+                elif device is None:
+                    device = torch.device("cpu")
 
-                with device:
-                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
+                if version.parse(torch.__version__) >= version.parse("2.0"):
+                    with device:
+                        # Initialize directly in the requested device, to save allocation time. Especially useful for large
+                        # models to initialize on cuda device.
+                        model = model_class.from_pretrained(model_name_or_path, **kwargs)
+                else:
+                    model = model_class.from_pretrained(model_name_or_path, **kwargs).to(device)
             else:
                 model = model_class.from_pretrained(model_name_or_path, **kwargs)
         except OSError:
