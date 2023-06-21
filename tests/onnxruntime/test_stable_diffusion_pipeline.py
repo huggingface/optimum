@@ -31,17 +31,16 @@ from optimum.onnxruntime.modeling_diffusion import (
     ORTModelVaeDecoder,
     ORTModelVaeEncoder,
     ORTStableDiffusionImg2ImgPipeline,
+    ORTStableDiffusionInpaintPipeline,
 )
 from optimum.utils import logging
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
-
+from diffusers.utils import load_image, floats_tensor
 
 logger = logging.get_logger()
 
 
 def _generate_random_inputs(generate_image=False):
-    from diffusers.utils import floats_tensor
-
     inputs = {
         "prompt": "sailing ship in storm by Leonardo da Vinci",
         "num_inference_steps": 3,
@@ -119,7 +118,7 @@ class ORTStableDiffusionImg2ImgPipelineTest(ORTStableDiffusionPipelineBase):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        inputs = _generate_random_inputs(generate_image=isinstance(pipeline, ORTStableDiffusionImg2ImgPipeline))
+        inputs = _generate_random_inputs(generate_image=True)
         inputs["prompt"] = "A painting of a squirrel eating a burger"
 
         output = pipeline(**inputs, generator=np.random.RandomState(0)).images[0, -3:, -3:, -1]
@@ -189,3 +188,40 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
         # Compare model outputs
         self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
         self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
+
+
+class ORTStableDiffusionInpaintPipelineTest(unittest.TestCase):
+    SUPPORTED_ARCHITECTURES = [
+        "stable-diffusion-inpaint",
+    ]
+    ORTMODEL_CLASS = ORTStableDiffusionInpaintPipeline
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_compare_diffusers_pipeline(self, model_arch: str):
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], revision="onnx")
+        image = load_image(
+            "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
+            "/in_paint/overture-creations-5sI6fQgYIuo.png"
+        ) #.resize((64, 64))
+        mask_image = load_image(
+            "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
+            "/in_paint/overture-creations-5sI6fQgYIuo_mask.png"
+        ) #.resize((64, 64))
+
+        inputs = {
+            "prompt": "A red cat sitting on a park bench",
+            "num_inference_steps": 10,
+            "guidance_scale": 7.5,
+            "output_type": "numpy",
+            # "height": 64,
+            # "width": 64,
+            "image": image,
+            "mask_image": mask_image,
+        }
+
+        output = pipeline(**inputs, generator=np.random.RandomState(0)).images[0, 255:258, 255:258, -1]
+
+        # https://github.com/huggingface/diffusers/blob/v0.17.1/tests/pipelines/stable_diffusion/test_onnx_stable_diffusion_inpaint.py#L96
+        expected_slice = np.array([0.2514, 0.3007, 0.3517, 0.1790, 0.2382, 0.3167, 0.1944, 0.2273, 0.2464])
+        self.assertTrue(np.abs(expected_slice - output.flatten()).max() < 1e-1)
