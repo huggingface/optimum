@@ -35,6 +35,8 @@ from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
 from ..pipelines.diffusers.pipeline_stable_diffusion import StableDiffusionPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_img2img import StableDiffusionImg2ImgPipelineMixin
+from ..pipelines.diffusers.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipelineMixin
+
 from ..utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
     DIFFUSION_MODEL_UNET_SUBFOLDER,
@@ -468,3 +470,8 @@ class ORTStableDiffusionPipeline(ORTStableDiffusionPipelineBase, StableDiffusion
 class ORTStableDiffusionImg2ImgPipeline(ORTStableDiffusionPipelineBase, StableDiffusionImg2ImgPipelineMixin):
     def __call__(self, *args, **kwargs):
         return StableDiffusionImg2ImgPipelineMixin.__call__(self, *args, **kwargs)
+
+
+class ORTStableDiffusionInpaintPipeline(ORTStableDiffusionPipelineBase, StableDiffusionInpaintPipelineMixin):
+    def __call__(self, *args, **kwargs):
+        return StableDiffusionInpaintPipelineMixin.__call__(self, *args, **kwargs)
