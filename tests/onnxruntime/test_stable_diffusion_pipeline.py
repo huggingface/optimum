@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 import torch
 from diffusers import OnnxStableDiffusionImg2ImgPipeline, StableDiffusionPipeline
+from diffusers.utils import floats_tensor, load_image
 from parameterized import parameterized
 from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
@@ -35,7 +36,7 @@ from optimum.onnxruntime.modeling_diffusion import (
 )
 from optimum.utils import logging
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
-from diffusers.utils import load_image, floats_tensor
+
 
 logger = logging.get_logger()
 
@@ -203,19 +204,17 @@ class ORTStableDiffusionInpaintPipelineTest(unittest.TestCase):
         image = load_image(
             "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
             "/in_paint/overture-creations-5sI6fQgYIuo.png"
-        ) #.resize((64, 64))
+        )
         mask_image = load_image(
             "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
             "/in_paint/overture-creations-5sI6fQgYIuo_mask.png"
-        ) #.resize((64, 64))
+        )
 
         inputs = {
             "prompt": "A red cat sitting on a park bench",
             "num_inference_steps": 10,
             "guidance_scale": 7.5,
             "output_type": "numpy",
-            # "height": 64,
-            # "width": 64,
             "image": image,
             "mask_image": mask_image,
         }
