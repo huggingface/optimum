@@ -26,7 +26,6 @@ class ORTStableDiffusionPipeline(metaclass=DummyObject):
         requires_backends(cls, ["diffusers"])
 
 
-
 class ORTStableDiffusionImg2ImgPipeline(metaclass=DummyObject):
     _backends = ["diffusers"]
 
@@ -38,7 +37,6 @@ class ORTStableDiffusionImg2ImgPipeline(metaclass=DummyObject):
         requires_backends(cls, ["diffusers"])
 
 
-
 class ORTStableDiffusionInpaintPipeline(metaclass=DummyObject):
     _backends = ["diffusers"]
 
@@ -48,4 +46,3 @@ class ORTStableDiffusionInpaintPipeline(metaclass=DummyObject):
     @classmethod
     def from_pretrained(cls, *args, **kwargs):
         requires_backends(cls, ["diffusers"])
-

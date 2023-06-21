@@ -67,9 +67,17 @@ try:
     if not is_diffusers_available():
         raise OptionalDependencyNotAvailable()
 except OptionalDependencyNotAvailable:
-    _import_structure[".utils.dummy_diffusers_objects"] = ["ORTStableDiffusionPipeline", "ORTStableDiffusionImg2ImgPipeline", "ORTStableDiffusionInpaintPipeline"]
+    _import_structure[".utils.dummy_diffusers_objects"] = [
+        "ORTStableDiffusionPipeline",
+        "ORTStableDiffusionImg2ImgPipeline",
+        "ORTStableDiffusionInpaintPipeline",
+    ]
 else:
-    _import_structure["modeling_diffusion"] = ["ORTStableDiffusionPipeline", "ORTStableDiffusionImg2ImgPipeline", "ORTStableDiffusionInpaintPipeline"]
+    _import_structure["modeling_diffusion"] = [
+        "ORTStableDiffusionPipeline",
+        "ORTStableDiffusionImg2ImgPipeline",
+        "ORTStableDiffusionInpaintPipeline",
+    ]
 
 
 # Direct imports for type-checking
@@ -112,9 +120,17 @@ if TYPE_CHECKING:
         if not is_diffusers_available():
             raise OptionalDependencyNotAvailable()
     except OptionalDependencyNotAvailable:
-        from ..utils.dummy_diffusers_objects import ORTStableDiffusionPipeline, ORTStableDiffusionImg2ImgPipeline, ORTStableDiffusionInpaintPipeline
+        from ..utils.dummy_diffusers_objects import (
+            ORTStableDiffusionPipeline,
+            ORTStableDiffusionImg2ImgPipeline,
+            ORTStableDiffusionInpaintPipeline,
+        )
     else:
-        from .modeling_diffusion import ORTStableDiffusionPipeline, ORTStableDiffusionImg2ImgPipeline, ORTStableDiffusionInpaintPipeline
+        from .modeling_diffusion import (
+            ORTStableDiffusionPipeline,
+            ORTStableDiffusionImg2ImgPipeline,
+            ORTStableDiffusionInpaintPipeline,
+        )
 else:
     import sys
 
