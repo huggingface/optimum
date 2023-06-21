@@ -1469,7 +1469,7 @@ class TasksManager:
                         # models to initialize on cuda device.
                         model = model_class.from_pretrained(model_name_or_path, **kwargs)
                 else:
-                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
+                    model = model_class.from_pretrained(model_name_or_path, **kwargs).to(device)
             else:
                 model = model_class.from_pretrained(model_name_or_path, **kwargs)
         except OSError:
