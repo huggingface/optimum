@@ -14,14 +14,13 @@
 
 import inspect
 import logging
-import warnings
 from typing import Callable, List, Optional, Union
 
 import numpy as np
 import PIL
 import torch
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-from diffusers.utils import PIL_INTERPOLATION, deprecate
+from diffusers.utils import PIL_INTERPOLATION
 
 from .pipeline_utils import DiffusionPipelineMixin
 

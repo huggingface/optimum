@@ -121,15 +121,15 @@ if TYPE_CHECKING:
             raise OptionalDependencyNotAvailable()
     except OptionalDependencyNotAvailable:
         from ..utils.dummy_diffusers_objects import (
-            ORTStableDiffusionPipeline,
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
+            ORTStableDiffusionPipeline,
         )
     else:
         from .modeling_diffusion import (
-            ORTStableDiffusionPipeline,
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
+            ORTStableDiffusionPipeline,
         )
 else:
     import sys
