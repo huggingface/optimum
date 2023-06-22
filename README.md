@@ -15,8 +15,7 @@ https://huggingface.co/docs/transformers/model_doc/gpt_neo
 
 ```
 $ python3 -m optimum.litmus.nlp.gpt-neo --help
-usage: FuriosaAI litmus GPT Neo using HF Optimum API. [-h] [--size {125m,1.3b,2.7b}]
-                                                      output_dir
+usage: FuriosaAI litmus GPT Neo using HF Optimum API. [-h] [--size {125m,1.3b,2.7b}] output_dir
 
 positional arguments:
   output_dir            path to directory to save outputs
@@ -24,7 +23,53 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   --size {125m,1.3b,2.7b}, -s {125m,1.3b,2.7b}
-                        availible model sizes
+                        available model sizes
+```
+
+### GPT2
+https://huggingface.co/docs/transformers/model_doc/gpt2
+
+```
+$ python3 -m optimum.litmus.nlp.gpt2 --help
+usage: FuriosaAI litmus GPT2 using HF Optimum API. [-h] [--size {s,m,l,xl}] output_dir
+
+positional arguments:
+  output_dir            path to directory to save outputs
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --size {s,m,l,xl}, -s {s,m,l,xl}
+                        available model sizes
+```
+
+### OPT
+https://huggingface.co/docs/transformers/model_doc/opt
+```
+$ python3 -m optimum.litmus.nlp.opt --help
+usage: FuriosaAI litmus OPT using HF Optimum API. [-h] [--size {125m,350m,1.3b,2.7b,6.7b,30b,66b}] output_dir
+
+positional arguments:
+  output_dir            path to directory to save outputs
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --size {125m,350m,1.3b,2.7b,6.7b,30b,66b}, -s {125m,350m,1.3b,2.7b,6.7b,30b,66b}
+                        available model sizes
+```
+
+### LLaMA
+https://huggingface.co/docs/transformers/model_doc/llama
+```
+$ python3 -m optimum.litmus.nlp.llama --help
+usage: FuriosaAI litmus LLaMA using HF Optimum API. [-h] [--size {7b,13b,30b,65b}] output_dir
+
+positional arguments:
+  output_dir            path to directory to save outputs
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --size {7b,13b,30b,65b}, -s {7b,13b,30b,65b}
+                        available model sizes
 ```
 
 [![ONNX Runtime](https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml)

@@ -6,13 +6,20 @@ from optimum.litmus.nlp import BATCH_SIZE, SEQUENCE_LENGTH, TASKS
 
 
 def main():
-    parser = argparse.ArgumentParser("FuriosaAI litmus GPT Neo using HF Optimum API.")
+    parser = argparse.ArgumentParser("FuriosaAI litmus GPT2 using HF Optimum API.")
     parser.add_argument("output_dir", help="path to directory to save outputs")
-    parser.add_argument("--size", "-s", choices=["125m", "1.3b", "2.7b"], help="available model sizes")
+    parser.add_argument("--size", "-s", choices=["s", "m", "l", "xl"], help="available model sizes")
     args = parser.parse_args()
 
-    model_name = f"gpt-neo-{args.size}"
-    model_tag = f"EleutherAI/{model_name}"
+    if args.size == "s":
+        model_name = "gpt2"
+    if args.size == "m":
+        model_name = "gpt2-medium"
+    if args.size == "l":
+        model_name = "gpt2-large"
+    if args.size == "xl":
+        model_name = "gpt2-xl"
+    model_tag = model_name
     task = "text-generation-with-past"
     assert task in TASKS
     output = Path(args.output_dir)
@@ -33,4 +40,7 @@ def main():
 
 
 if __name__ == "__main__":
+    import os
+
+    os.environ["ONNXSIM_FIXED_POINT_ITERS"] = "200"
     main()
