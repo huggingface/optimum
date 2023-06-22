@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model specific ONNX configurations."""
+import copy
 import random
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
@@ -572,7 +573,7 @@ class MobileViTOnnxConfig(ViTOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         if self.task == "image-segmentation":
-            return {"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}
+            return copy.deepcopy(self._TASK_TO_COMMON_OUTPUTS["semantic-segmentation"])
         else:
             return super().outputs
 
