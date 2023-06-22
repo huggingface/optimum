@@ -90,7 +90,12 @@ from optimum.onnxruntime import (
     ORTStableDiffusionPipeline,
 )
 from optimum.onnxruntime.base import ORTDecoder, ORTDecoderForSeq2Seq, ORTEncoder
-from optimum.onnxruntime.modeling_diffusion import ORTModelTextEncoder, ORTModelUnet, ORTModelVaeDecoder, ORTModelVaeEncoder
+from optimum.onnxruntime.modeling_diffusion import (
+    ORTModelTextEncoder,
+    ORTModelUnet,
+    ORTModelVaeDecoder,
+    ORTModelVaeEncoder,
+)
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.pipelines import pipeline
 from optimum.utils import (

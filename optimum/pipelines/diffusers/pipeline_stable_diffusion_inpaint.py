@@ -25,7 +25,6 @@ from diffusers.utils import PIL_INTERPOLATION
 from .pipeline_stable_diffusion import StableDiffusionPipelineMixin
 
 
-
 logger = logging.getLogger(__name__)
 
 
