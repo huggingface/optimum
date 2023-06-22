@@ -82,10 +82,14 @@ class BetterTransformerBaseLayer:
                 self.num_layers = getattr(config, attr)
                 break
 
-    def validate_bettertransformer(self):
+    def validate_bettertransformer(self, validate_norm=True):
         r"""
         A wrapper function to validate the `BetterTransformer` implementation. Implements most relevant checks
         that are present in: https://github.com/pytorch/pytorch/blob/0fc7de398636f4b53e6c3fde38b4e48a5ff5b37d/torch/nn/modules/transformer.py#L457-L475
+
+        Args:
+            validate_norm (`bool`, *optional*, defaults to True):
+                Whether to validate the norm layers of the `BetterTransformer` module.
         """
         # Sanity checks
         if self.num_heads is None:
@@ -94,7 +98,7 @@ class BetterTransformerBaseLayer:
         if self.embed_dim is None:
             raise ValueError("Embedding dimension not set for `BetterTransformer` integration.")
 
-        if self.norm2_eps is None or self.norm1_eps is None:
+        if validate_norm and (self.norm2_eps is None or self.norm1_eps is None):
             raise ValueError("`norm2_eps` and `norm1_eps` not set for `BetterTransformer` integration.")
 
         # Check positional embedding
@@ -104,7 +108,7 @@ class BetterTransformerBaseLayer:
             )
 
         # Check norm1 epsilon and norm2 epsilon equality
-        if self.norm1_eps != self.norm2_eps:
+        if validate_norm and self.norm1_eps != self.norm2_eps:
             raise ValueError("norm1_eps and norm2_eps must be equal for `BetterTransformer` integration.")
 
         # Check activation function
