@@ -20,6 +20,7 @@ from pathlib import Path
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoTokenizer
 from transformers.utils import is_torch_available
+import os
 
 from ...commands.export.onnx import parse_args_onnx
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
@@ -34,6 +35,13 @@ from .utils import (
     get_stable_diffusion_models_for_export,
 )
 
+from ...utils import (
+    DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
+    DIFFUSION_MODEL_UNET_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
+    ONNX_WEIGHTS_NAME,
+)
 
 if is_torch_available():
     import torch
@@ -265,13 +273,26 @@ def main_export(
         maybe_save_preprocessors(model_name_or_path, output)
 
     if task == "stable-diffusion":
+
         onnx_files_subpaths = [
-            "text_encoder/model.onnx",
-            "unet/model.onnx",
-            "vae_encoder/model.onnx",
-            "vae_decoder/model.onnx",
+            DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
+            DIFFUSION_MODEL_UNET_SUBFOLDER,
+            DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
+            DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
         ]
+
         models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
+
+        # save the subcomponent configuration
+        for model_name, name_dir in zip(models_and_onnx_configs, onnx_files_subpaths):
+            subcomponent = models_and_onnx_configs[model_name][0]
+            if hasattr(subcomponent, "save_config"):
+                subcomponent.save_config(output.joinpath(name_dir))
+            elif hasattr(subcomponent, "config") and hasattr(subcomponent.config, "save_pretrained"):
+                subcomponent.config.save_pretrained(output.joinpath(name_dir))
+
+        onnx_files_subpaths = [os.path.join(path, ONNX_WEIGHTS_NAME) for path in onnx_files_subpaths]
+
         # Saving the additional components needed to perform inference.
         model.tokenizer.save_pretrained(output.joinpath("tokenizer"))
         model.scheduler.save_pretrained(output.joinpath("scheduler"))
