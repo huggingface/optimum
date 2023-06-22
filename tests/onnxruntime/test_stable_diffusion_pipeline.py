@@ -22,9 +22,6 @@ import torch
 from diffusers import (
     OnnxStableDiffusionImg2ImgPipeline,
     StableDiffusionPipeline,
-    StableDiffusionInpaintPipeline,
-    StableDiffusionImg2ImgPipeline,
-    OnnxStableDiffusionInpaintPipeline,
 )
 from diffusers.utils import floats_tensor, load_image
 from parameterized import parameterized
