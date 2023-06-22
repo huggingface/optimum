@@ -23,7 +23,14 @@ from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import torch
-from diffusers import DDIMScheduler, LMSDiscreteScheduler, PNDMScheduler, StableDiffusionPipeline
+from diffusers import (
+    DDIMScheduler,
+    LMSDiscreteScheduler,
+    PNDMScheduler,
+    StableDiffusionPipeline,
+    StableDiffusionImg2ImgPipeline,
+    StableDiffusionInpaintPipeline,
+)
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils import CONFIG_NAME
 from huggingface_hub import snapshot_download
@@ -136,6 +143,9 @@ class ORTStableDiffusionPipelineBase(ORTModel):
                 ("diffusers", "OnnxRuntimeModel") if sub_models[name] is not None else (None, None)
             )
         self._internal_dict.pop("vae", None)
+        # TODO : add loading from config
+        self._vae_scale_factor = 8
+        self._num_channels_latents = 9
 
     @staticmethod
     def load_model(

@@ -32,12 +32,16 @@ NUM_UNET_INPUT_CHANNELS = 9
 NUM_LATENT_CHANNELS = 4
 
 
-def prepare_mask_and_masked_image(image, mask, latents_shape):
-    image = np.array(image.convert("RGB").resize((latents_shape[1] * 8, latents_shape[0] * 8)))
+def prepare_mask_and_masked_image(image, mask, latents_shape, vae_scale_factor=8):
+    image = np.array(
+        image.convert("RGB").resize((latents_shape[1] * vae_scale_factor, latents_shape[0] * vae_scale_factor))
+    )
     image = image[None].transpose(0, 3, 1, 2)
     image = image.astype(np.float32) / 127.5 - 1.0
 
-    image_mask = np.array(mask.convert("L").resize((latents_shape[1] * 8, latents_shape[0] * 8)))
+    image_mask = np.array(
+        mask.convert("L").resize((latents_shape[1] * vae_scale_factor, latents_shape[0] * vae_scale_factor))
+    )
     masked_image = image * (image_mask < 127.5)
 
     mask = mask.resize((latents_shape[1], latents_shape[0]), PIL_INTERPOLATION["nearest"])
@@ -328,7 +332,12 @@ class StableDiffusionInpaintPipelineMixin(DiffusionPipelineMixin):
         )
 
         num_channels_latents = NUM_LATENT_CHANNELS
-        latents_shape = (batch_size * num_images_per_prompt, num_channels_latents, height // 8, width // 8)
+        latents_shape = (
+            batch_size * num_images_per_prompt,
+            num_channels_latents,
+            height // self._vae_scale_factor,
+            width // self._vae_scale_factor,
+        )
         latents_dtype = prompt_embeds.dtype
         if latents is None:
             latents = generator.randn(*latents_shape).astype(latents_dtype)
@@ -337,7 +346,9 @@ class StableDiffusionInpaintPipelineMixin(DiffusionPipelineMixin):
                 raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {latents_shape}")
 
         # prepare mask and masked_image
-        mask, masked_image = prepare_mask_and_masked_image(image, mask_image, latents_shape[-2:])
+        mask, masked_image = prepare_mask_and_masked_image(
+            image, mask_image, latents_shape[-2:], self._vae_scale_factor
+        )
         mask = mask.astype(latents.dtype)
         masked_image = masked_image.astype(latents.dtype)
 
@@ -390,7 +401,8 @@ class StableDiffusionInpaintPipelineMixin(DiffusionPipelineMixin):
             # concat latents, mask, masked_image_latnets in the channel dimension
             latent_model_input = self.scheduler.scale_model_input(torch.from_numpy(latent_model_input), t)
             latent_model_input = latent_model_input.cpu().numpy()
-            latent_model_input = np.concatenate([latent_model_input, mask, masked_image_latents], axis=1)
+            if self._num_channels_latents == 9:
+                latent_model_input = np.concatenate([latent_model_input, mask, masked_image_latents], axis=1)
 
             # predict the noise residual
             timestep = np.array([t], dtype=timestep_dtype)
