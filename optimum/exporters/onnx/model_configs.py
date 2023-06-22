@@ -567,7 +567,14 @@ class ConvNextOnnxConfig(ViTOnnxConfig):
 
 
 class MobileViTOnnxConfig(ViTOnnxConfig):
-    pass
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "image-segmentation":
+            return {"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}
+        else:
+            return super().outputs
 
 
 class RegNetOnnxConfig(ViTOnnxConfig):
