@@ -56,9 +56,7 @@ class BetterTransformerManager:
         "bert-generation": {"BertGenerationLayer": BertLayerBetterTransformer},
         "blenderbot": {"BlenderbotAttention": BlenderbotAttentionLayerBetterTransformer},
         "camembert": {"CamembertLayer": BertLayerBetterTransformer},
-        "blip-2": {
-            "T5Attention": T5AttentionLayerBetterTransformer,
-        },
+        "blip-2": {"T5Attention": T5AttentionLayerBetterTransformer},
         "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
         "codegen": {"CodeGenAttention": CodegenAttentionLayerBetterTransformer},
         "data2vec-text": {"Data2VecTextLayer": BertLayerBetterTransformer},
