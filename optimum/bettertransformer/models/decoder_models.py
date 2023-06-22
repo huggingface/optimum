@@ -252,11 +252,6 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer, T5Attention,
         self.supports_training = True
         self.is_decoder = layer.is_decoder
 
-        self.num_heads = layer.n_heads
-        self.embed_dim = layer.inner_dim
-
-        self.validate_bettertransformer(validate_norm=False)
-
     def forward(self, *args, **kwargs):
         super().forward_checker()
         return t5_forward(self, *args, **kwargs)
