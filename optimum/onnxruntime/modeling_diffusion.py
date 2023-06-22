@@ -113,16 +113,18 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         self._internal_dict = config
         self.vae_decoder = ORTModelVaeDecoder(vae_decoder_session, self)
         self.vae_decoder_model_path = Path(vae_decoder_session._model_path)
-
-        self.vae_encoder_model_path = (
-            Path(vae_encoder_session._model_path) if vae_encoder_session is not None else None
-        )
-        self.vae_encoder = ORTModelVaeEncoder(vae_encoder_session, self) if vae_encoder_session is not None else None
-
         self.text_encoder = ORTModelTextEncoder(text_encoder_session, self)
         self.text_encoder_model_path = Path(text_encoder_session._model_path)
         self.unet = ORTModelUnet(unet_session, self)
         self.unet_model_path = Path(unet_session._model_path)
+
+        if vae_encoder_session is not None:
+            self.vae_encoder_model_path = Path(vae_encoder_session._model_path)
+            self.vae_encoder = ORTModelVaeEncoder(vae_encoder_session, self)
+        else:
+            self.vae_encoder_model_path = None
+            self.vae_encoder = None
+
         self.tokenizer = tokenizer
         self.scheduler = scheduler
         self.feature_extractor = feature_extractor

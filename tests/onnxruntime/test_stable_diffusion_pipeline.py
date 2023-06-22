@@ -21,6 +21,7 @@ import pytest
 import torch
 from diffusers import (
     OnnxStableDiffusionImg2ImgPipeline,
+    OnnxStableDiffusionInpaintPipeline,
     StableDiffusionPipeline,
 )
 from diffusers.utils import floats_tensor, load_image
@@ -62,7 +63,7 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
     TASK = "stable-diffusion"
 
     @require_diffusers
-    def _test_load_vanilla_model_which_is_not_supported(self):
+    def test_load_vanilla_model_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["bert"], export=True)
 
@@ -72,7 +73,7 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
-    def _test_num_images_per_prompt(self, model_arch: str):
+    def test_num_images_per_prompt(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
         num_images_per_prompt = 4
@@ -94,7 +95,7 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.gpu_test
     @require_diffusers
-    def _test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         model_args = {"test_name": test_name, "model_arch": model_arch}
         self._setup(model_args)
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
@@ -223,6 +224,11 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
         output = pipeline_ort(**inputs, latents=latents).images[0, -3:, -3:, -1]
         expected_slice = np.array([0.5442, 0.3002, 0.5665, 0.6485, 0.4421, 0.6441, 0.5778, 0.5076, 0.5612])
         self.assertTrue(np.allclose(output.flatten(), expected_slice, atol=1e-4))
+
+        # Verify it can be loaded with ORT diffusers pipeline
+        diffusers_pipeline = OnnxStableDiffusionInpaintPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusers_output = diffusers_pipeline(**inputs, latents=latents).images[0, -3:, -3:, -1]
+        self.assertTrue(np.allclose(output, diffusers_output, atol=1e-4))
 
     def generate_random_inputs(self, height=128, width=128):
         inputs = super(ORTStableDiffusionInpaintPipelineTest, self).generate_random_inputs()

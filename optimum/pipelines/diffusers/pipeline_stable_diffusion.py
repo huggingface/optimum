@@ -31,7 +31,7 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
     def _encode_prompt(
         self,
         prompt: Union[str, List[str]],
-        num_images_per_prompt: Optional[int],
+        num_images_per_prompt: int,
         do_classifier_free_guidance: bool,
         negative_prompt: Optional[str],
         prompt_embeds: Optional[np.ndarray] = None,

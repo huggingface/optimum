@@ -90,7 +90,7 @@ from optimum.onnxruntime import (
     ORTStableDiffusionPipeline,
 )
 from optimum.onnxruntime.base import ORTDecoder, ORTDecoderForSeq2Seq, ORTEncoder
-from optimum.onnxruntime.modeling_diffusion import ORTModelTextEncoder, ORTModelUnet, ORTModelVaeDecoder
+from optimum.onnxruntime.modeling_diffusion import ORTModelTextEncoder, ORTModelUnet, ORTModelVaeDecoder, ORTModelVaeEncoder
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.pipelines import pipeline
 from optimum.utils import (
@@ -98,6 +98,7 @@ from optimum.utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
     DIFFUSION_MODEL_UNET_SUBFOLDER,
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
     logging,
 )
 from optimum.utils.testing_utils import grid_parameters, require_hf_token
@@ -259,6 +260,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         self.assertIsInstance(model.text_encoder, ORTModelTextEncoder)
         self.assertIsInstance(model.vae_decoder, ORTModelVaeDecoder)
+        self.assertIsInstance(model.vae_encoder, ORTModelVaeEncoder)
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
 
@@ -330,6 +332,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)
         self.assertIsInstance(model.text_encoder, ORTModelTextEncoder)
         self.assertIsInstance(model.vae_decoder, ORTModelVaeDecoder)
+        self.assertIsInstance(model.vae_encoder, ORTModelVaeEncoder)
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
 
@@ -343,6 +346,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.unet.session.get_providers(), model.providers)
         self.assertListEqual(model.text_encoder.session.get_providers(), model.providers)
         self.assertListEqual(model.vae_decoder.session.get_providers(), model.providers)
+        self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cuda:0"))
 
     def test_load_stable_diffusion_model_cpu_provider(self):
@@ -353,6 +357,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.unet.session.get_providers(), model.providers)
         self.assertListEqual(model.text_encoder.session.get_providers(), model.providers)
         self.assertListEqual(model.vae_decoder.session.get_providers(), model.providers)
+        self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cpu"))
 
     def test_load_stable_diffusion_model_unknown_provider(self):
@@ -480,6 +485,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.unet.session.get_session_options().intra_op_num_threads, 3)
         self.assertEqual(model.text_encoder.session.get_session_options().intra_op_num_threads, 3)
         self.assertEqual(model.vae_decoder.session.get_session_options().intra_op_num_threads, 3)
+        self.assertEqual(model.vae_encoder.session.get_session_options().intra_op_num_threads, 3)
 
     @require_torch_gpu
     @pytest.mark.gpu_test
@@ -696,7 +702,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(
             model.vae_decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1"
         )
-
+        self.assertEqual(
+            model.vae_encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1"
+        )
         model = ORTStableDiffusionPipeline.from_pretrained(
             self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID,
             provider="CUDAExecutionProvider",
@@ -712,6 +720,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(
             model.vae_decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
         )
+        self.assertEqual(
+            model.vae_encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
+        )
 
     def test_stable_diffusion_model_on_cpu(self):
         model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)
@@ -721,9 +732,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.unet.device, cpu)
         self.assertEqual(model.text_encoder.device, cpu)
         self.assertEqual(model.vae_decoder.device, cpu)
+        self.assertEqual(model.vae_encoder.device, cpu)
         self.assertEqual(model.unet.session.get_providers()[0], "CPUExecutionProvider")
         self.assertEqual(model.text_encoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertEqual(model.vae_decoder.session.get_providers()[0], "CPUExecutionProvider")
+        self.assertEqual(model.vae_encoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertListEqual(model.providers, ["CPUExecutionProvider"])
 
     # test string device input for to()
@@ -735,9 +748,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.unet.device, cpu)
         self.assertEqual(model.text_encoder.device, cpu)
         self.assertEqual(model.vae_decoder.device, cpu)
+        self.assertEqual(model.vae_encoder.device, cpu)
         self.assertEqual(model.unet.session.get_providers()[0], "CPUExecutionProvider")
         self.assertEqual(model.text_encoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertEqual(model.vae_decoder.session.get_providers()[0], "CPUExecutionProvider")
+        self.assertEqual(model.vae_encoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertListEqual(model.providers, ["CPUExecutionProvider"])
 
     @require_torch_gpu
@@ -750,9 +765,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.unet.device, torch.device("cuda:0"))
         self.assertEqual(model.text_encoder.device, torch.device("cuda:0"))
         self.assertEqual(model.vae_decoder.device, torch.device("cuda:0"))
+        self.assertEqual(model.vae_encoder.device, torch.device("cuda:0"))
         self.assertEqual(model.unet.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.text_encoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.vae_decoder.session.get_providers()[0], "CUDAExecutionProvider")
+        self.assertEqual(model.vae_encoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
 
     @unittest.skipIf(get_gpu_count() <= 1, "this test requires multi-gpu")
@@ -762,18 +779,21 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.unet.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
         self.assertEqual(model.text_encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
         self.assertEqual(model.vae_decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
+        self.assertEqual(model.vae_encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
 
         model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)
         model.to(1)
         self.assertEqual(model.unet.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
         self.assertEqual(model.text_encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
         self.assertEqual(model.vae_decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
+        self.assertEqual(model.vae_encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
 
         model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)
         model.to("cuda:1")
         self.assertEqual(model.unet.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
         self.assertEqual(model.text_encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
         self.assertEqual(model.vae_decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
+        self.assertEqual(model.vae_encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
 
     # test string device input for to()
     @require_torch_gpu
@@ -785,9 +805,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.unet.device, torch.device("cuda:0"))
         self.assertEqual(model.text_encoder.device, torch.device("cuda:0"))
         self.assertEqual(model.vae_decoder.device, torch.device("cuda:0"))
+        self.assertEqual(model.vae_encoder.device, torch.device("cuda:0"))
         self.assertEqual(model.unet.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.text_encoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.vae_decoder.session.get_providers()[0], "CUDAExecutionProvider")
+        self.assertEqual(model.vae_encoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
 
     @require_hf_token
@@ -837,6 +859,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 DIFFUSION_MODEL_UNET_SUBFOLDER,
                 DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
                 DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
+                DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
             }:
                 folder_contents = os.listdir(os.path.join(tmpdirname, subfoler))
                 self.assertIn(ONNX_WEIGHTS_NAME, folder_contents)
@@ -913,6 +936,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 DIFFUSION_MODEL_UNET_SUBFOLDER,
                 DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
                 DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
+                DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
             }:
                 folder_contents = os.listdir(os.path.join(tmpdirname, subfoler))
                 self.assertIn(ONNX_WEIGHTS_NAME, folder_contents)
