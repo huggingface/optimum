@@ -528,7 +528,8 @@ class ORTTrainer(Trainer):
         model = ORTModule(self.model)
         self.model_wrapped = model
 
-        if args.deepspeed:
+        # Note transformers/trainer.py renamed this arg to is_deepspeed_enabled
+        if args.deepspeed: 
             if is_deepspeed_zero3_enabled():
                 raise NotImplementedError(
                     "`ORTTrainer` does not support ZeRO stage 3 for the moment. Please use DeepSpeed stage 1 or 2 instead."
@@ -542,12 +543,19 @@ class ORTTrainer(Trainer):
                 )
 
             self.model = model
-            deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
-                self, num_training_steps=max_steps, resume_from_checkpoint=resume_from_checkpoint
+            optimizer, lr_scheduler = deepspeed_init(
+                self, num_training_steps=max_steps
             )
-            self.model = unwrap_model(deepspeed_engine)
-            self.model_wrapped = deepspeed_engine
-            self.deepspeed = deepspeed_engine
+            model, optimizer, lr_scheduler = self.accelerator.prepare(
+                    self.model, optimizer, lr_scheduler
+                )
+            
+            # for the rest of this function `model` is the outside model, whether it was wrapped or not
+            if model is not self.model:
+                self.model_wrapped = model
+            # backward compatibility
+            self.deepspeed = self.model_wrapped
+
             if args.fp16:
                 from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
 
@@ -555,7 +563,8 @@ class ORTTrainer(Trainer):
             else:
                 self.optimizer = optimizer
             self.lr_scheduler = lr_scheduler
-        elif not delay_optimizer_creation:
+            
+        if not delay_optimizer_creation:
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
         self.state = TrainerState()
@@ -735,15 +744,7 @@ class ORTTrainer(Trainer):
                 if step % args.gradient_accumulation_steps == 0:
                     self.control = self.callback_handler.on_step_begin(args, self.state, self.control)
 
-                if (
-                    (total_batched_samples % args.gradient_accumulation_steps != 0)
-                    and args.local_rank != -1
-                    and args._no_sync_in_gradient_accumulation
-                ):
-                    # Avoid unnecessary DDP synchronization since there will be no backward pass on this example.
-                    with model.no_sync():
-                        tr_loss_step = self.training_step(model, inputs)
-                else:
+                with self.accelerator.accumulate(model):
                     tr_loss_step = self.training_step(model, inputs)
 
                 if (
@@ -758,17 +759,13 @@ class ORTTrainer(Trainer):
 
                 self.current_flos += float(self.floating_point_ops(inputs))
 
-                # Optimizer step for deepspeed must be called on every step regardless of the value of gradient_accumulation_steps
-                if self.deepspeed:
-                    self.deepspeed.step()
-
                 if total_batched_samples % args.gradient_accumulation_steps == 0 or (
                     # last step in epoch but step is always smaller than gradient_accumulation_steps
                     steps_in_epoch <= args.gradient_accumulation_steps
                     and (step + 1) == steps_in_epoch
                 ):
                     # Gradient clipping
-                    if args.max_grad_norm is not None and args.max_grad_norm > 0 and not self.deepspeed:
+                    if args.max_grad_norm is not None and args.max_grad_norm > 0:
                         # deepspeed does its own clipping
 
                         if self.do_grad_scaling:
@@ -792,9 +789,7 @@ class ORTTrainer(Trainer):
 
                     # Optimizer step
                     optimizer_was_run = True
-                    if self.deepspeed:
-                        pass  # called outside the loop
-                    elif is_torch_tpu_available():
+                    if is_torch_tpu_available():
                         raise NotImplementedError("`ORTTrainer` is not supported by TPU!")
                     elif self.do_grad_scaling:
                         scale_before = self.scaler.get_scale()
@@ -805,7 +800,7 @@ class ORTTrainer(Trainer):
                     else:
                         self.optimizer.step()
 
-                    if optimizer_was_run and not self.deepspeed:
+                    if optimizer_was_run:
                         self.lr_scheduler.step()
 
                     model.zero_grad()
