@@ -59,7 +59,6 @@ from transformers import (
 from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
-from utils_onnxruntime_tests import MODEL_NAMES, SEED
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
 from optimum.exporters import TasksManager
