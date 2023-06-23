@@ -79,8 +79,8 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
         num_images_per_prompt = 4
         batch_size = 6
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        pipeline._vae_scale_factor = 2
-        pipeline._num_channels_latents = 4
+        self.assertEqual(pipeline.vae_scale_factor, 2)
+        self.assertEqual(pipeline._num_channels_latents, 4)
         inputs = self.generate_random_inputs()
         outputs = pipeline(**inputs).images
         self.assertEqual(outputs.shape, (1, 128, 128, 3))
@@ -99,8 +99,6 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
         model_args = {"test_name": test_name, "model_arch": model_arch}
         self._setup(model_args)
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
-        pipeline._vae_scale_factor = 2
-        pipeline._num_channels_latents = 4
         inputs = self.generate_random_inputs()
         outputs = pipeline(**inputs).images
         # Verify model devices
@@ -215,10 +213,16 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
         pipeline_ort = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        num_images_per_prompt, height, width, scale_factor, in_channels = 1, 64, 64, 2, 4
-        pipeline_ort._vae_scale_factor = scale_factor
-        pipeline_ort._num_channels_latents = in_channels
-        latents_shape = (num_images_per_prompt, in_channels, height // scale_factor, width // scale_factor)
+        (
+            height,
+            width,
+        ) = (
+            64,
+            64,
+        )
+        scale_factor = pipeline_ort.vae_scale_factor
+        in_channels = pipeline_ort._num_channels_latents
+        latents_shape = (1, in_channels, height // scale_factor, width // scale_factor)
         latents = np.random.randn(*latents_shape).astype(np.float32)
         inputs = self.generate_random_inputs(height=height, width=width)
         output = pipeline_ort(**inputs, latents=latents).images[0, -3:, -3:, -1]

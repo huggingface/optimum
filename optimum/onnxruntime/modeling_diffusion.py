@@ -65,6 +65,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
     main_input_name = "input_ids"
     base_model_prefix = "onnx_model"
     config_name = "model_index.json"
+    sub_component_config_name = "config.json"
 
     def __init__(
         self,
@@ -143,9 +144,13 @@ class ORTStableDiffusionPipelineBase(ORTModel):
                 ("diffusers", "OnnxRuntimeModel") if sub_models[name] is not None else (None, None)
             )
         self._internal_dict.pop("vae", None)
-        # TODO : add loading from config
-        self._vae_scale_factor = 8
-        self._num_channels_latents = 9
+
+        if "block_out_channels" in self.vae_decoder.config:
+            self.vae_scale_factor = 2 ** (len(self.vae_decoder.config["block_out_channels"]) - 1)
+        else:
+            self.vae_scale_factor = 8
+
+        self._num_channels_latents = self.unet.config.get("in_channels", 9)
 
     @staticmethod
     def load_model(
@@ -212,6 +217,9 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         for src_path, dst_path in zip(src_paths, dst_paths):
             dst_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src_path, dst_path)
+            config_path = src_path.parent.joinpath(self.sub_component_config_name)
+            if config_path.is_file():
+                shutil.copyfile(config_path, dst_path.parent.joinpath(self.sub_component_config_name))
 
         self.tokenizer.save_pretrained(save_directory.joinpath("tokenizer"))
         self.scheduler.save_pretrained(save_directory.joinpath("scheduler"))
@@ -411,11 +419,15 @@ class _ORTDiffusionModelPart:
     It has its own `onnxruntime.InferenceSession`, and can perform a forward pass.
     """
 
+    CONFIG_NAME = "config.json"
+
     def __init__(self, session: ort.InferenceSession, parent_model: ORTModel):
         self.session = session
         self.parent_model = parent_model
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+        config_path = Path(session._model_path).parent.joinpath(self.CONFIG_NAME)
+        self.config = self.parent_model._dict_from_json_file(config_path) if config_path.is_file() else {}
 
     @property
     def device(self):

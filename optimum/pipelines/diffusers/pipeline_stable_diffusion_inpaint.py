@@ -32,7 +32,7 @@ NUM_UNET_INPUT_CHANNELS = 9
 NUM_LATENT_CHANNELS = 4
 
 
-def prepare_mask_and_masked_image(image, mask, latents_shape, vae_scale_factor=8):
+def prepare_mask_and_masked_image(image, mask, latents_shape, vae_scale_factor):
     image = np.array(
         image.convert("RGB").resize((latents_shape[1] * vae_scale_factor, latents_shape[0] * vae_scale_factor))
     )
@@ -231,8 +231,8 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
         latents_shape = (
             batch_size * num_images_per_prompt,
             num_channels_latents,
-            height // self._vae_scale_factor,
-            width // self._vae_scale_factor,
+            height // self.vae_scale_factor,
+            width // self.vae_scale_factor,
         )
         latents_dtype = prompt_embeds.dtype
         if latents is None:
@@ -243,7 +243,7 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
 
         # prepare mask and masked_image
         mask, masked_image = prepare_mask_and_masked_image(
-            image, mask_image, latents_shape[-2:], self._vae_scale_factor
+            image, mask_image, latents_shape[-2:], self.vae_scale_factor
         )
         mask = mask.astype(latents.dtype)
         masked_image = masked_image.astype(latents.dtype)
