@@ -160,12 +160,13 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
 
         diffusers_pipeline = StableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
         diffusers_pipeline.safety_checker = None
-        num_images_per_prompt, height, width, scale_factor = 1, 512, 512, 8
+        num_images_per_prompt, height, width = 1, 64, 64
+
         latents_shape = (
             num_images_per_prompt,
-            diffusers_pipeline.unet.in_channels,
-            height // scale_factor,
-            width // scale_factor,
+            ort_pipeline._num_channels_latents,
+            height // ort_pipeline.vae_scale_factor,
+            width // ort_pipeline.vae_scale_factor,
         )
         latents = np.random.randn(*latents_shape).astype(np.float32)
         kwargs = {
@@ -191,11 +192,13 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
     def test_image_reproducibility(self, model_arch: str):
         pipeline = ORTStableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch], export=True)
         inputs = _generate_random_inputs()
+        height = 64
+        width = 64
         np.random.seed(0)
-        ort_outputs_1 = pipeline(**inputs)
+        ort_outputs_1 = pipeline(**inputs, height=height, width=width)
         np.random.seed(0)
-        ort_outputs_2 = pipeline(**inputs)
-        ort_outputs_3 = pipeline(**inputs)
+        ort_outputs_2 = pipeline(**inputs, height=height, width=width)
+        ort_outputs_3 = pipeline(**inputs, height=height, width=width)
         # Compare model outputs
         self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
         self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
@@ -212,20 +215,18 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
     def test_compare_diffusers_pipeline(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
-        pipeline_ort = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        (
-            height,
-            width,
-        ) = (
-            64,
-            64,
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        height = 64
+        width = 64
+        latents_shape = (
+            1,
+            ort_pipeline._num_channels_latents,
+            height // ort_pipeline.vae_scale_factor,
+            width // ort_pipeline.vae_scale_factor,
         )
-        scale_factor = pipeline_ort.vae_scale_factor
-        in_channels = pipeline_ort._num_channels_latents
-        latents_shape = (1, in_channels, height // scale_factor, width // scale_factor)
         latents = np.random.randn(*latents_shape).astype(np.float32)
         inputs = self.generate_random_inputs(height=height, width=width)
-        output = pipeline_ort(**inputs, latents=latents).images[0, -3:, -3:, -1]
+        output = ort_pipeline(**inputs, latents=latents).images[0, -3:, -3:, -1]
         expected_slice = np.array([0.5442, 0.3002, 0.5665, 0.6485, 0.4421, 0.6441, 0.5778, 0.5076, 0.5612])
         self.assertTrue(np.allclose(output.flatten(), expected_slice, atol=1e-4))
 

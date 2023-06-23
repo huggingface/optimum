@@ -292,7 +292,12 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
 
         # get the initial random noise unless the user supplied it
         latents_dtype = prompt_embeds.dtype
-        latents_shape = (batch_size * num_images_per_prompt, 4, height // 8, width // 8)
+        latents_shape = (
+            batch_size * num_images_per_prompt,
+            self._num_channels_latents,
+            height // self.vae_scale_factor,
+            width // self.vae_scale_factor,
+        )
         if latents is None:
             latents = generator.randn(*latents_shape).astype(latents_dtype)
         elif latents.shape != latents_shape:

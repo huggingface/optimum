@@ -150,7 +150,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         else:
             self.vae_scale_factor = 8
 
-        self._num_channels_latents = self.unet.config.get("in_channels", 9)
+        self._num_channels_latents = self.unet.config.get("in_channels", 4)
 
     @staticmethod
     def load_model(
