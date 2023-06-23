@@ -57,6 +57,7 @@ class BetterTransformerManager:
         "blenderbot": {"BlenderbotAttention": BlenderbotAttentionLayerBetterTransformer},
         "camembert": {"CamembertLayer": BertLayerBetterTransformer},
         "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
+        "clip_text_model": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
         "codegen": {"CodeGenAttention": CodegenAttentionLayerBetterTransformer},
         "data2vec-text": {"Data2VecTextLayer": BertLayerBetterTransformer},
         "deit": {"DeiTLayer": ViTLayerBetterTransformer},
