@@ -181,6 +181,7 @@ class BetterTransformerManager:
         if model_type in [
             "blenderbot",
             "codegen",
+            "clip-2",
             "gpt2",
             "gptj",
             "gpt_neo",
