@@ -402,6 +402,9 @@ class TasksManager:
             "image-classification",
             onnx="ConvNextOnnxConfig",
         ),
+        "cvt": supported_tasks_mapping(
+            "feature-extraction", "image-classification", "masked-im", onnx="CvTOnnxConfig"
+        ),
         "data2vec-text": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",

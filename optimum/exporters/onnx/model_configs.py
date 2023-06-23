@@ -550,6 +550,11 @@ class ViTOnnxConfig(VisionOnnxConfig):
         return {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
 
 
+class CvTOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 13
+    ATOL_FOR_VALIDATION = 1e-2
+
+
 class LevitOnnxConfig(ViTOnnxConfig):
     pass
 
