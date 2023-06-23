@@ -60,6 +60,7 @@ from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED
+from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import main_export
@@ -119,57 +120,6 @@ class Timer(object):
 
     def __exit__(self, type, value, traceback):
         self.elapsed = (time.perf_counter() - self.elapsed) * 1e3
-
-
-class ORTModelTestMixin(unittest.TestCase):
-    ARCH_MODEL_MAP = {}
-
-    TENSOR_ALIAS_TO_TYPE = {
-        "pt": torch.Tensor,
-        "np": np.ndarray,
-    }
-
-    @classmethod
-    def setUpClass(cls):
-        cls.onnx_model_dirs = {}
-
-    def _setup(self, model_args: Dict):
-        """
-        Exports the PyTorch models to ONNX ahead of time to avoid multiple exports during the tests.
-        We don't use unittest setUpClass, in order to still be able to run individual tests.
-        """
-        model_arch = model_args["model_arch"]
-        model_arch_and_params = model_args["test_name"]
-
-        # TODO: this should actually be checked in ORTModel!
-        task = self.TASK
-        if "use_cache" in model_args and model_args["use_cache"] is True:
-            task = task + "-with-past"
-
-        if "use_cache" in model_args and task not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx"
-        ):
-            self.skipTest("Unsupported export case")
-
-        if model_arch_and_params not in self.onnx_model_dirs:
-            # model_args will contain kwargs to pass to ORTModel.from_pretrained()
-            model_args.pop("test_name")
-            model_args.pop("model_arch")
-
-            model_id = (
-                self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
-            )
-            set_seed(SEED)
-            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, export=True)
-
-            model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{self.TASK}_")
-            onnx_model.save_pretrained(model_dir)
-            self.onnx_model_dirs[model_arch_and_params] = model_dir
-
-    @classmethod
-    def tearDownClass(cls):
-        for _, dir_path in cls.onnx_model_dirs.items():
-            shutil.rmtree(dir_path)
 
 
 class ORTModelIntegrationTest(unittest.TestCase):
