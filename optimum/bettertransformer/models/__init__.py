@@ -119,16 +119,16 @@ class BetterTransformerManager:
     }
 
     REQUIRES_NESTED_TENSOR = {
-            "blenderbot",
-            "codegen",
-            "gpt2",
-            "gptj",
-            "gpt_neo",
-            "gpt_neox",
-            "llama",
-            "opt",
-            "pegasus",
-            "t5",
+        "blenderbot",
+        "codegen",
+        "gpt2",
+        "gptj",
+        "gpt_neo",
+        "gpt_neox",
+        "llama",
+        "opt",
+        "pegasus",
+        "t5",
     }
 
     REQUIRES_STRICT_VALIDATION = {
