@@ -118,7 +118,7 @@ class BetterTransformerManager:
         "glpn": "GLPN has a convolutional layer present in the FFN network, which is not supported in PyTorch's BetterTransformer.",
     }
 
-    REQUIRES_NESTED_TENSOR = {
+    NOT_REQUIRES_NESTED_TENSOR = {
         "blenderbot",
         "codegen",
         "gpt2",
@@ -131,7 +131,7 @@ class BetterTransformerManager:
         "t5",
     }
 
-    REQUIRES_STRICT_VALIDATION = {
+    NOT_REQUIRES_STRICT_VALIDATION = {
         "blenderbot",
         "codegen",
         "gpt2",
@@ -192,7 +192,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        return model_type not in BetterTransformerManager.REQUIRES_NESTED_TENSOR
+        return model_type not in BetterTransformerManager.NOT_REQUIRES_NESTED_TENSOR
 
     @staticmethod
     def requires_strict_validation(model_type: str) -> bool:
@@ -203,7 +203,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        return model_type not in BetterTransformerManager.REQUIRES_STRICT_VALIDATION
+        return model_type not in BetterTransformerManager.NOT_REQUIRES_STRICT_VALIDATION
 
     @staticmethod
     def requires_torch_20(model_type: str) -> bool:
