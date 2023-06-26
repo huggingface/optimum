@@ -69,7 +69,12 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
 """
 
 
-class OptimizedModel(ABC):
+# workaround to enable compatibility between optimum models and transformers pipelines
+class PreTrainedModel(ABC):  # noqa: F811
+    pass
+
+
+class OptimizedModel(PreTrainedModel):
     config_class = AutoConfig
     load_tf_weights = None
     base_model_prefix = "optimized_model"

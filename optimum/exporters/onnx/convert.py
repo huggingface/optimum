@@ -261,7 +261,11 @@ def validate_model_outputs(
                 value=reference_model_inputs[key], dtype=dtype, start_dtype=torch.float32
             )
 
-    ref_outputs = reference_model(**reference_model_inputs)
+    if is_torch_available() and isinstance(reference_model, nn.Module):
+        with torch.inference_mode():
+            ref_outputs = reference_model(**reference_model_inputs)
+    else:
+        ref_outputs = reference_model(**reference_model_inputs)
     ref_outputs_dict = {}
 
     # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
@@ -276,9 +280,13 @@ def validate_model_outputs(
         else:
             ref_outputs_dict[name] = value
 
+    onnx_input_names = [inp.name for inp in session.get_inputs()]
+
     # Possibly edit the input for the onnxruntime.InferenceSession, this is for example the case for merged
     # models where the input `use_cache_branch` is added
-    reference_ort_inputs = config.generate_dummy_inputs_for_validation(reference_model_inputs)
+    reference_ort_inputs = config.generate_dummy_inputs_for_validation(
+        reference_model_inputs, onnx_input_names=onnx_input_names
+    )
 
     # We flatten potential collection of inputs (i.e. past_keys)
     onnx_inputs = {}

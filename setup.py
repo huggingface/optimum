@@ -31,7 +31,7 @@ TESTS_REQUIRE = [
     "Pillow",
     "sacremoses",
     "torchvision",
-    "diffusers",
+    "diffusers>=0.17.0",
     "torchaudio",
 ]
 

@@ -92,7 +92,9 @@ class ONNXRuntimmeQuantizeCommand(BaseOptimumCLICommand):
         elif self.args.avx512_vnni:
             qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=self.args.per_channel)
         elif self.args.tensorrt:
-            qconfig = AutoQuantizationConfig.tensorrt(per_channel=self.args.per_channel)
+            raise ValueError(
+                "TensorRT quantization relies on static quantization that requires calibration, which is currently not supported through optimum-cli. Please adapt Optimum static quantization examples to run static quantization for TensorRT: https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/quantization"
+            )
         else:
             qconfig = ORTConfig.from_pretained(self.args.config).quantization
 
