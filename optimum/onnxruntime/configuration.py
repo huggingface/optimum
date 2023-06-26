@@ -345,12 +345,11 @@ def ensure_valid_data_type_or_raise(
         )
 
 
-def set_quantization_parameters(
-    is_static: bool, format: str = "", mode: str = "", activations_dtype: str = "", weights_dtype: str = ""
-):
+def set_quantization_parameters(quantization: dict):
     """
     Converts `QuantFormat`, `QuantizationMode`, `QuantType` to string for serialization.
     So, each onnx runtime config parameters is had to name each classes's class attribute names
+    And, It is inplace function (not return)
 
     Example: onnxruntime/onnxruntime/python/tools/quantization/quant_utils.py
         - QuantFormat.QOperator         = "QOperator"
@@ -359,26 +358,18 @@ def set_quantization_parameters(
         - QuantizationMode.QLinearOps   = "QLinearOps"
         - QuantType.QInt8               = "QInt8"
         - QuantType.QUInt8              = "QUInt8"
-        
+
     Args:
-        is_static (bool): Is static quantize, True. dynamic quantize, False.
-        format (str, optional): ORTConfig["quantization"]["format"] string value. Defaults to "". ["QOperator" or "QDQ"]
-        mode (str, optional): ORTConfig["quantization"]["mode"] string value. Defaults to "". ["IntegerOps" or "QLinearOps"]
-        activations_dtype (str, optional): ORTConfig["quantization"]["activation_dtype"] string value. Defaults to "". ["QInt8" or "QUInt8"]
-        weights_dtype (str, optional): ORTConfig["quantization"]["weights_dtype"] string value. Defaults to "". ["QInt8" or "QUInt8"]
+        quant_config (dict): string base quantization config dict.
 
     Returns:
-        format : QuantFormat class's attribute value
-        mode : QuantizationMode class's attribute value)
-        activations_dtype : QuantType class's attribute value
-        weights_dtype : QuantType class's attribute value
+        quant_config : QuantizationConfig typehint set dict.
     """
-    format = getattr(QuantFormat, format, None)
-    mode = getattr(QuantizationMode, mode, None)
-    format, mode = default_quantization_parameters(is_static, format, mode)
-    activations_dtype = getattr(QuantType, activations_dtype, QuantType.QUInt8)
-    weights_dtype = getattr(QuantType, weights_dtype, QuantType.QInt8)
-    return format, mode, activations_dtype, weights_dtype
+    quantization["format"] = getattr(QuantFormat, quantization.get("format", ""), None)
+    quantization["mode"] = getattr(QuantizationMode, quantization.get("mode", ""), None)
+    format, mode = default_quantization_parameters(quantization.get("is_static", False), format, mode)
+    quantization["activations_dtype"] = getattr(QuantType, quantization.get("activations_dtype", "QUInt8"))
+    quantization["weights_dtype"] = getattr(QuantType, quantization.get("weights_dtype", "QInt8"))
 
 
 def default_quantization_parameters(
@@ -1016,19 +1007,7 @@ class ORTConfig(BaseConfig):
             config.optimization: OptimizationConfig = OptimizationConfig(**config.optimization)
 
         if config.quantization:
-            quant_config: dict = config.quantization
-            (
-                quant_config["format"],
-                quant_config["mode"],
-                quant_config["activations_dtype"],
-                quant_config["weights_dtype"],
-            ) = set_quantization_parameters(
-                quant_config["is_static"],
-                quant_config.get("format", ""),
-                quant_config.get("mode", ""),
-                quant_config.get("activations_dtype", ""),
-                quant_config.get("weights_dtype", ""),
-            )
-            config.quantization: QuantizationConfig = QuantizationConfig(**quant_config)
+            set_quantization_parameters(config.quantization)
+            config.quantization: QuantizationConfig = QuantizationConfig(**config.quantization)
 
         return config
