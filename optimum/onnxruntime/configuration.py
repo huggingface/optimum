@@ -349,7 +349,7 @@ def set_quantization_parameters(
     is_static: bool, format: str = "", mode: str = "", activations_dtype: str = "", weights_dtype: str = ""
 ):
     """
-    Get each QuantFormat, QuantizationMode, QuantType to str in ort_config.json
+    Converts `QuantFormat`, `QuantizationMode`, `QuantType` to string for serialization.
     So, each onnx runtime config parameters is had to name each classes's class attribute names
 
     Example) onnxruntime/onnxruntime/python/tools/quantization/quant_utils.py
