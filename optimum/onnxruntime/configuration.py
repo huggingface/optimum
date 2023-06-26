@@ -359,6 +359,7 @@ def set_quantization_parameters(
         - QuantizationMode.QLinearOps   = "QLinearOps"
         - QuantType.QInt8               = "QInt8"
         - QuantType.QUInt8              = "QUInt8"
+        
     Args:
         is_static (bool): Is static quantize, True. dynamic quantize, False.
         format (str, optional): ORTConfig["quantization"]["format"] string value. Defaults to "". ["QOperator" or "QDQ"]
