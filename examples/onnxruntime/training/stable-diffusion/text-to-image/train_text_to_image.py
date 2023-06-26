@@ -22,6 +22,7 @@ from pathlib import Path
 
 import accelerate
 import datasets
+import diffusers
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -32,19 +33,17 @@ from accelerate.logging import get_logger
 from accelerate.state import AcceleratorState
 from accelerate.utils import ProjectConfiguration, set_seed
 from datasets import load_dataset
+from diffusers import AutoencoderKL, DDPMScheduler, StableDiffusionPipeline, UNet2DConditionModel
+from diffusers.optimization import get_scheduler
+from diffusers.training_utils import EMAModel
+from diffusers.utils import check_min_version, deprecate, is_wandb_available
+from diffusers.utils.import_utils import is_xformers_available
 from huggingface_hub import create_repo, upload_folder
 from packaging import version
 from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer
 from transformers.utils import ContextManagers
-
-import diffusers
-from diffusers import AutoencoderKL, DDPMScheduler, StableDiffusionPipeline, UNet2DConditionModel
-from diffusers.optimization import get_scheduler
-from diffusers.training_utils import EMAModel
-from diffusers.utils import check_min_version, deprecate, is_wandb_available
-from diffusers.utils.import_utils import is_xformers_available
 
 
 if is_wandb_available():
@@ -400,9 +399,7 @@ def parse_args():
         "--ort",
         action="store_true",
         default=False,
-        help=(
-            "Leverages ONNX Runtime Training to accelerate fine-tuning"
-        ),
+        help=("Leverages ONNX Runtime Training to accelerate fine-tuning"),
     )
 
     args = parser.parse_args()
@@ -631,6 +628,7 @@ def main():
 
     if args.ort:
         from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer as ORT_FP16_Optimizer
+
         optimizer = ORT_FP16_Optimizer(optimizer)
 
     # Get the datasets: you can either provide your own training and evaluation files (see below)
@@ -761,6 +759,7 @@ def main():
 
     if args.ort:
         from onnxruntime.training.ortmodule import ORTModule
+
         vae = ORTModule(vae)
         text_encoder = ORTModule(text_encoder)
         unet = ORTModule(unet)
@@ -971,9 +970,7 @@ def main():
             # this is required since ORTModule object cannot be passed into StableDiffusionPipeline
             root_dir = Path(__file__).resolve().parent
             checkpoint_dir = root_dir / args.output_dir / checkpoint_dir
-            unet = UNet2DConditionModel.from_pretrained(
-                str(checkpoint_dir), subfolder="unet"
-            )
+            unet = UNet2DConditionModel.from_pretrained(str(checkpoint_dir), subfolder="unet")
 
             # reload pre-trained text_encoder and vae
             text_encoder = CLIPTextModel.from_pretrained(
