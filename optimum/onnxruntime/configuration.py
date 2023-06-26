@@ -352,7 +352,7 @@ def set_quantization_parameters(
     Converts `QuantFormat`, `QuantizationMode`, `QuantType` to string for serialization.
     So, each onnx runtime config parameters is had to name each classes's class attribute names
 
-    Example) onnxruntime/onnxruntime/python/tools/quantization/quant_utils.py
+    Example: onnxruntime/onnxruntime/python/tools/quantization/quant_utils.py
         - QuantFormat.QOperator         = "QOperator"
         - QuantFormat.QDQ               = "QDQ"
         - QuantizationMode.IntegerOps   = "IntegerOps"
