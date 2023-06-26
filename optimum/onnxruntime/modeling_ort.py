@@ -614,6 +614,7 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
+        use_io_binding: Optional[bool] = None,
         **kwargs,
     ):
         """
@@ -625,6 +626,10 @@ class ORTModel(OptimizedModel):
         provider_options (`Optional[Dict[str, Any]]`, defaults to `None`):
             Provider option dictionaries corresponding to the provider used. See available options
             for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
+        use_io_binding (`Optional[bool]`, defaults to `None`):
+            Whether to use IOBinding during inference to avoid memory copy between the host and device, or between numpy/torch tensors and ONNX Runtime ORTValue. Defaults to
+            `True` if the execution provider is CUDAExecutionProvider. For [~onnxruntime.ORTModelForCausalLM], defaults to `True` on CPUExecutionProvider,
+            in all other cases defaults to `False`.
         kwargs (`Dict[str, Any]`):
             Will be passed to the underlying model loading methods.
 
@@ -745,13 +750,13 @@ class ORTModel(OptimizedModel):
 
         name_to_np_type = TypeHelper.get_io_numpy_type_map(model)
 
-        input_name_to_tensor = {}
+        input_name_to_shape = {}
         for idx, tensor in enumerate(model_inputs):
             if tensor is None:
                 continue
             name = ordered_input_names[idx]
-            input_name_to_tensor[name] = tensor
             tensor = tensor.contiguous()
+            input_name_to_shape[name] = tensor.shape
             io_binding.bind_input(
                 name,
                 tensor.device.type,
@@ -765,7 +770,7 @@ class ORTModel(OptimizedModel):
             shape = input_.shape
             for idx, axis in enumerate(shape):
                 if isinstance(axis, str):
-                    dimensions[axis] = input_name_to_tensor[input_.name].shape[idx]
+                    dimensions[axis] = input_name_to_shape[input_.name][idx]
 
         output_shapes = {}
         output_buffers = {}
