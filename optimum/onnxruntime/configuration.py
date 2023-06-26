@@ -19,7 +19,7 @@ import warnings
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from datasets import Dataset
 from packaging.version import Version, parse
@@ -344,13 +344,41 @@ def ensure_valid_data_type_or_raise(
             "activations_dtype = QuantType.QInt8 with weights_dtype = QuantType.QUInt8."
         )
 
-def set_quantization_parameters(is_static, format, mode, activations_dtype, weights_dtype):
-    format = getattr(QuantFormat, str(format or ""), None),
-    mode = getattr(QuantizationMode, str(mode or ""), None)
+
+def set_quantization_parameters(
+    is_static: bool, format: str = "", mode: str = "", activations_dtype: str = "", weights_dtype: str = ""
+):
+    """
+    Get each QuantFormat, QuantizationMode, QuantType to str in ort_config.json
+    So, each onnx runtime config parameters is had to name each classes's class attribute names
+
+    Example) onnxruntime/onnxruntime/python/tools/quantization/quant_utils.py
+        - QuantFormat.QOperator         = "QOperator"
+        - QuantFormat.QDQ               = "QDQ"
+        - QuantizationMode.IntegerOps   = "IntegerOps"
+        - QuantizationMode.QLinearOps   = "QLinearOps"
+        - QuantType.QInt8               = "QInt8"
+        - QuantType.QUInt8              = "QUInt8"
+    Args:
+        is_static (bool): Is static quantize, True. dynamic quantize, False.
+        format (str, optional): ORTConfig["quantization"]["format"] string value. Defaults to "". ["QOperator" or "QDQ"]
+        mode (str, optional): ORTConfig["quantization"]["mode"] string value. Defaults to "". ["IntegerOps" or "QLinearOps"]
+        activations_dtype (str, optional): ORTConfig["quantization"]["activation_dtype"] string value. Defaults to "". ["QInt8" or "QUInt8"]
+        weights_dtype (str, optional): ORTConfig["quantization"]["weights_dtype"] string value. Defaults to "". ["QInt8" or "QUInt8"]
+
+    Returns:
+        format : QuantFormat class's attribute value
+        mode : QuantizationMode class's attribute value)
+        activations_dtype : QuantType class's attribute value
+        weights_dtype : QuantType class's attribute value
+    """
+    format = getattr(QuantFormat, format, None)
+    mode = getattr(QuantizationMode, mode, None)
     format, mode = default_quantization_parameters(is_static, format, mode)
-    activations_dtype = getattr(QuantType, str(activations_dtype or ""), QuantType.QUInt8)
-    weights_dtype = getattr(QuantType, str(weights_dtype or ""), QuantType.QInt8)
+    activations_dtype = getattr(QuantType, activations_dtype, QuantType.QUInt8)
+    weights_dtype = getattr(QuantType, weights_dtype, QuantType.QInt8)
     return format, mode, activations_dtype, weights_dtype
+
 
 def default_quantization_parameters(
     is_static: bool, format: Optional[QuantFormat] = None, mode: Optional[QuantizationMode] = None
