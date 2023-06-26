@@ -462,6 +462,9 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
 
+        if use_cache is False:
+            use_io_binding = False
+
         export_name = test_name[:-3]  # remove `_OX` that is irrelevant as the export
         model_args = {
             "test_name": export_name,

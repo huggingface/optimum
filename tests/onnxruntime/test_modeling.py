@@ -864,6 +864,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 use_cache=use_cache,
                 export=True,
                 use_merged=False,
+                use_io_binding=False,
             )
             model.save_pretrained(tmpdirname)
 
@@ -2084,6 +2085,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
 
+        use_io_binding = None
+        if use_cache is False:
+            use_io_binding = False
+
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -2096,6 +2101,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForCausalLM.from_pretrained(
             self.onnx_model_dirs[test_name],
             use_cache=use_cache,
+            use_io_binding=use_io_binding,
         )
         if use_merged is False:
             model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_NAME)
@@ -2140,6 +2146,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
 
+        use_io_binding = None
+        if use_cache is False:
+            use_io_binding = False
+
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -2152,6 +2162,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForCausalLM.from_pretrained(
             self.onnx_model_dirs[test_name],
             use_cache=use_cache,
+            use_io_binding=use_io_binding,
         )
 
         tokenizer = get_preprocessor(model_id)
@@ -2265,7 +2276,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokens = tokenizer(text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None)
 
         model_with_pkv = ORTModelForCausalLM.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_True"], use_cache=True
+            self.onnx_model_dirs[model_arch + "_True"], use_cache=True, use_io_binding=False
         )
         _ = model_with_pkv.generate(**tokens)  # warmup
         with Timer() as with_pkv_timer:
@@ -2274,7 +2285,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             )
 
         model_without_pkv = ORTModelForCausalLM.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_False"], use_cache=False
+            self.onnx_model_dirs[model_arch + "_False"], use_cache=False, use_io_binding=False
         )
         _ = model_without_pkv.generate(**tokens)  # warmup
         with Timer() as without_pkv_timer:
