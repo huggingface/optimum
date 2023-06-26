@@ -344,10 +344,11 @@ class ORTDecoder(ORTModelPart):
                 ordered_input_names=self._ordered_input_names,
             )
 
-            if self.device.type != "cpu":
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(io_binding)
+            else:
                 io_binding.synchronize_inputs()
-            self.session.run_with_iobinding(io_binding)
-            if self.device.type != "cpu":
+                self.session.run_with_iobinding(io_binding)
                 io_binding.synchronize_outputs()
 
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer(2)
