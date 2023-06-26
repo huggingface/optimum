@@ -15,7 +15,7 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.26.0",
+    "transformers[sentencepiece]>=4.26.0,<4.30.0",
     "torch>=1.9",
     "packaging",
     "numpy",
@@ -31,7 +31,7 @@ TESTS_REQUIRE = [
     "Pillow",
     "sacremoses",
     "torchvision",
-    "diffusers",
+    "diffusers<0.17.0",
     "torchaudio",
 ]
 
