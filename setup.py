@@ -33,6 +33,7 @@ TESTS_REQUIRE = [
     "torchvision",
     "diffusers>=0.17.0",
     "torchaudio",
+    "timm"
 ]
 
 QUALITY_REQUIRE = ["black~=23.1", "ruff>=0.0.241,<=0.0.259"]
