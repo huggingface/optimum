@@ -118,6 +118,49 @@ class BetterTransformerManager:
         "glpn": "GLPN has a convolutional layer present in the FFN network, which is not supported in PyTorch's BetterTransformer.",
     }
 
+    NOT_REQUIRES_NESTED_TENSOR = {
+        "blenderbot",
+        "codegen",
+        "gpt2",
+        "gptj",
+        "gpt_neo",
+        "gpt_neox",
+        "llama",
+        "opt",
+        "pegasus",
+        "t5",
+    }
+
+    NOT_REQUIRES_STRICT_VALIDATION = {
+        "blenderbot",
+        "codegen",
+        "gpt2",
+        "gptj",
+        "gpt_neo",
+        "gpt_neox",
+        "llama",
+        "opt",
+        "pegasus",
+        "t5",
+    }
+
+    REQUIRES_TORCH_20 = {
+        "blenderbot",
+        "bart",
+        "codegen",
+        "gpt2",
+        "gptj",
+        "gpt_neo",
+        "gpt_neox",
+        "llama",
+        "m2m_100",
+        "marian",
+        "mbart",
+        "opt",
+        "pegasus",
+        "t5",
+    }
+
     @staticmethod
     def cannot_support(model_type: str) -> bool:
         """
@@ -140,7 +183,6 @@ class BetterTransformerManager:
         """
         return model_type in BetterTransformerManager.MODEL_MAPPING
 
-    # TODO: the following methods are almost duplicate, it is frankly quite ugly
     @staticmethod
     def requires_nested_tensor(model_type: str) -> bool:
         """
@@ -150,21 +192,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in [
-            "blenderbot",
-            "codegen",
-            "gpt2",
-            "gptj",
-            "gpt_neo",
-            "gpt_neox",
-            "llama",
-            "opt",
-            "pegasus",
-            "t5",
-        ]:
-            return False
-        else:
-            return True
+        return model_type not in BetterTransformerManager.NOT_REQUIRES_NESTED_TENSOR
 
     @staticmethod
     def requires_strict_validation(model_type: str) -> bool:
@@ -175,21 +203,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in [
-            "blenderbot",
-            "codegen",
-            "gpt2",
-            "gptj",
-            "gpt_neo",
-            "gpt_neox",
-            "llama",
-            "opt",
-            "pegasus",
-            "t5",
-        ]:
-            return False
-        else:
-            return True
+        return model_type not in BetterTransformerManager.NOT_REQUIRES_STRICT_VALIDATION
 
     @staticmethod
     def requires_torch_20(model_type: str) -> bool:
@@ -200,25 +214,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in [
-            "blenderbot",
-            "bart",
-            "codegen",
-            "gpt2",
-            "gptj",
-            "gpt_neo",
-            "gpt_neox",
-            "llama",
-            "m2m_100",
-            "marian",
-            "mbart",
-            "opt",
-            "pegasus",
-            "t5",
-        ]:
-            return True
-        else:
-            return False
+        return model_type in BetterTransformerManager.REQUIRES_TORCH_20
 
 
 class warn_uncompatible_save(object):
