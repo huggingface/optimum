@@ -31,7 +31,13 @@ from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES
 
 from optimum.exporters import TasksManager
-from optimum.onnxruntime import AutoOptimizationConfig, ORTConfig, ORTModelForSequenceClassification, ORTOptimizer
+from optimum.onnxruntime import (
+    AutoOptimizationConfig,
+    ORTConfig,
+    ORTModelForImageClassification,
+    ORTModelForSequenceClassification,
+    ORTOptimizer,
+)
 from optimum.onnxruntime.configuration import OptimizationConfig
 from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
@@ -67,7 +73,7 @@ class ORTOptimizerTestMixin(unittest.TestCase):
             model_args.pop("model_arch")
 
             model_id = MODEL_NAMES[model_arch]
-            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, export=True)
+            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, use_io_binding=False, export=True)
 
             model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{self.TASK}_")
             onnx_model.save_pretrained(model_dir)
@@ -153,6 +159,33 @@ class ORTOptimizerTest(unittest.TestCase):
             optimized_model_outputs = optimized_model.generate(**tokens)
             # Compare tensors outputs
             self.assertTrue(torch.equal(model_outputs, optimized_model_outputs))
+            gc.collect()
+
+    # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
+    SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID = (
+        (ORTModelForImageClassification, "hf-internal-testing/tiny-random-vit"),
+    )
+
+    @parameterized.expand(SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID)
+    def test_compare_original_image_model_with_optimized_model(self, model_cls, model_name):
+        optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            model = model_cls.from_pretrained(model_name, export=True)
+            model.save_pretrained(tmp_dir)
+            optimizer = ORTOptimizer.from_pretrained(model)
+            optimizer.optimize(optimization_config=optimization_config, save_dir=tmp_dir)
+            optimized_model = model_cls.from_pretrained(tmp_dir, export=False, file_name="model_optimized.onnx")
+            expected_ort_config = ORTConfig(optimization=optimization_config)
+            ort_config = ORTConfig.from_pretrained(tmp_dir)
+
+            # Verify the ORTConfig was correctly created and saved
+            self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
+
+            image = torch.ones((1, model.config.num_channels, model.config.image_size, model.config.image_size))
+            model_outputs = model(image)
+            optimized_model_outputs = optimized_model(image)
+            # Compare tensors outputs
+            self.assertTrue(torch.equal(model_outputs.logits, optimized_model_outputs.logits))
             gc.collect()
 
     def test_optimization_details(self):
@@ -461,6 +494,9 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     ):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
+        if use_cache is False:
+            use_io_binding = False
 
         export_name = test_name[:-3]  # remove `_OX` that is irrelevant as the export
         model_args = {

@@ -14,7 +14,9 @@
 # limitations under the License.
 """ONNX model check and export functions."""
 
+import multiprocessing as mp
 import os
+import traceback
 from inspect import signature
 from itertools import chain
 from pathlib import Path
@@ -34,7 +36,7 @@ from ...utils import (
 )
 from ..error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
 from .base import OnnxConfig
-from .utils import recursive_to_device, recursive_to_dtype
+from .utils import PickableInferenceSession, recursive_to_device, recursive_to_dtype
 
 
 if is_torch_available():
@@ -48,6 +50,9 @@ if is_diffusers_available():
 
 if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
+
+
+mp.set_start_method("spawn", force=True)
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -92,6 +97,7 @@ def validate_models_outputs(
     input_shapes: Optional[Dict] = None,
     device: str = "cpu",
     dtype: Optional["torch.dtype"] = None,
+    use_subprocess: Optional[bool] = True,
 ):
     """
     Validates the export of several models, by checking that the outputs from both the reference and the exported model match.
@@ -115,6 +121,8 @@ def validate_models_outputs(
             The device on which the ONNX models will be validated. Either `cpu` or `cuda`. Validation on a CUDA device is supported only for PyTorch.
         dtype (`Optional[torch.dtype]`, defaults to `None`):
             Data type of the inputs to perform validation on. Validation on float16 is supported only for PyTorch.
+        use_subprocess (`Optional[bool]`, defaults to `True`):
+            Launch validation of each exported model in a subprocess.
 
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
@@ -129,6 +137,8 @@ def validate_models_outputs(
             f"Provided custom names {onnx_files_subpaths} for the validation of {len(models_and_onnx_configs)} models. Please provide the same number of ONNX file names as models to export."
         )
 
+    if use_subprocess:
+        logger.info("Validating models in subprocesses...")
     exceptions = []  # run all validations before raising
     onnx_paths = []
     for i, model_name in enumerate(models_and_onnx_configs.keys()):
@@ -140,6 +150,9 @@ def validate_models_outputs(
         )
         onnx_paths.append(onnx_model_path)
         try:
+            # Model validation is done in subprocesses, as ONNX Runtime has the bad habit of
+            # not releasing memory once an InferenceSession is initialized.
+            # Reference: https://github.com/huggingface/optimum/pull/1115
             validate_model_outputs(
                 config=sub_onnx_config,
                 reference_model=submodel,
@@ -149,6 +162,7 @@ def validate_models_outputs(
                 input_shapes=input_shapes,
                 device=device,
                 dtype=dtype,
+                use_subprocess=use_subprocess,
             )
         except Exception as e:
             exceptions.append(e)
@@ -168,10 +182,10 @@ def validate_model_outputs(
     input_shapes: Optional[Dict] = None,
     device: str = "cpu",
     dtype: Optional["torch.dtype"] = None,
+    use_subprocess: Optional[bool] = True,
 ):
     """
     Validates the export by checking that the outputs from both the reference and the exported model match.
-
     Args:
         config ([`~OnnxConfig`]:
             The configuration used to export the model.
@@ -187,11 +201,43 @@ def validate_model_outputs(
             If specified, allows to use specific shapes to validate the ONNX model on.
         device (`str`, defaults to `"cpu"`):
             The device on which the ONNX model will be validated. Either `cpu` or `cuda`. Validation on a CUDA device is supported only for PyTorch.
-
+        use_subprocess (`Optional[bool]`, defaults to `True`):
+            Launch validation of each exported model in a subprocess.
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
-    from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
+    if use_subprocess:
+        io_process = ValidationProcess(
+            config,
+            reference_model,
+            onnx_model,
+            onnx_named_outputs,
+            atol,
+            input_shapes,
+            device,
+            dtype,
+        )
+        io_process.start()
+        io_process.join()
+
+        if io_process.exception:
+            error, traceback = io_process.exception
+            raise error
+    else:
+        _run_validation(config, reference_model, onnx_model, onnx_named_outputs, atol, input_shapes, device, dtype)
+
+
+def _run_validation(
+    config: OnnxConfig,
+    reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+    onnx_model: Path,
+    onnx_named_outputs: List[str],
+    atol: Optional[float] = None,
+    input_shapes: Optional[Dict] = None,
+    device: str = "cpu",
+    dtype: Optional["torch.dtype"] = None,
+):
+    from onnxruntime import GraphOptimizationLevel, SessionOptions
 
     logger.info(f"Validating ONNX model {onnx_model.as_posix()}...")
 
@@ -217,7 +263,7 @@ def validate_model_outputs(
     else:
         provider = "CPUExecutionProvider"
 
-    session = InferenceSession(onnx_model.as_posix(), sess_options=session_options, providers=[provider])
+    session = PickableInferenceSession(onnx_model.as_posix(), sess_options=session_options, providers=[provider])
 
     # Sometimes the exported model can have more outputs than what is specified in the ONNX config because the original
     # PyTorch model has more outputs that were forgotten in the config, so we check for that.
@@ -280,9 +326,22 @@ def validate_model_outputs(
         else:
             ref_outputs_dict[name] = value
 
+    onnx_input_names = [inp.name for inp in session.get_inputs()]
+
     # Possibly edit the input for the onnxruntime.InferenceSession, this is for example the case for merged
     # models where the input `use_cache_branch` is added
-    reference_ort_inputs = config.generate_dummy_inputs_for_validation(reference_model_inputs)
+    reference_ort_inputs = config.generate_dummy_inputs_for_validation(
+        reference_model_inputs, onnx_input_names=onnx_input_names
+    )
+
+    # generate_dummy_inputs_for_validation may add inputs (e.g. past_key_values) that are by
+    # default on torch.float32 dtype. Thus, to run validation of fp16 model, these inputs need
+    # to be casted as well.
+    if is_torch_available() and isinstance(reference_model, nn.Module):
+        for key, value in reference_ort_inputs.items():
+            reference_ort_inputs[key] = recursive_to_dtype(
+                value=reference_ort_inputs[key], dtype=dtype, start_dtype=torch.float32
+            )
 
     # We flatten potential collection of inputs (i.e. past_keys)
     onnx_inputs = {}
@@ -355,6 +414,54 @@ def validate_model_outputs(
         raise AtolError(
             f"The maximum absolute difference between the output of the reference model and the ONNX exported model is not within the set tolerance {atol}:\n{msg}"
         )
+
+
+class ValidationProcess(mp.Process):
+    def __init__(
+        self,
+        config: OnnxConfig,
+        reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+        onnx_model: Path,
+        onnx_named_outputs: List[str],
+        atol: Optional[float] = None,
+        input_shapes: Optional[Dict] = None,
+        device: str = "cpu",
+        dtype: Optional["torch.dtype"] = None,
+    ):
+        super().__init__()
+        self._pconn, self._cconn = mp.Pipe()
+        self._exception = None
+        self.config = config
+        self.reference_model = reference_model
+        self.onnx_model = onnx_model
+        self.onnx_named_outputs = onnx_named_outputs
+        self.atol = atol
+        self.input_shapes = input_shapes
+        self.device = device
+        self.dtype = dtype
+
+    def run(self):
+        try:
+            _run_validation(
+                config=self.config,
+                reference_model=self.reference_model,
+                onnx_model=self.onnx_model,
+                onnx_named_outputs=self.onnx_named_outputs,
+                atol=self.atol,
+                input_shapes=self.input_shapes,
+                device=self.device,
+                dtype=self.dtype,
+            )
+        except Exception as e:
+            tb = traceback.format_exc()
+            self._cconn.send((e, tb))
+            return
+
+    @property
+    def exception(self):
+        if self._pconn.poll():
+            self._exception = self._pconn.recv()
+        return self._exception
 
 
 def export_pytorch(

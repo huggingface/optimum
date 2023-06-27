@@ -42,13 +42,15 @@ if is_diffusers_available():
             f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
             "Please update diffusers by running `pip install --upgrade diffusers`"
         )
-    TMP_DIFFUSERS_MAX_VERSION = "0.17.0"
-    if check_if_diffusers_greater(TMP_DIFFUSERS_MAX_VERSION):
-        logger.warning(
-            f"We found an newer version of diffusers {_diffusers_version} but we require diffusers to be < {TMP_DIFFUSERS_MAX_VERSION}."
-        )
-
-    from diffusers.models.cross_attention import CrossAttnProcessor
+    from diffusers.models.attention_processor import (
+        Attention,
+        AttnAddedKVProcessor,
+        AttnAddedKVProcessor2_0,
+        AttnProcessor,
+        AttnProcessor2_0,
+        LoRAAttnProcessor,
+        LoRAAttnProcessor2_0,
+    )
 
 if TYPE_CHECKING:
     from .base import OnnxConfig
@@ -190,13 +192,13 @@ def get_stable_diffusion_models_for_export(
     unet_onnx_config = onnx_config_constructor(pipeline.unet.config)
 
     # PyTorch does not support the ONNX export of torch.nn.functional.scaled_dot_product_attention
-    pipeline.unet.set_attn_processor(CrossAttnProcessor())
+    pipeline.unet.set_attn_processor(AttnProcessor())
     models_for_export["unet"] = (pipeline.unet, unet_onnx_config)
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
     vae_encoder = copy.deepcopy(pipeline.vae)
-    if hasattr(vae_encoder.encoder.mid_block.attentions[0], "_use_2_0_attn"):
-        vae_encoder.encoder.mid_block.attentions[0]._use_2_0_attn = False
+    if not packaging.version.parse(torch.__version__) >= packaging.version.parse("2.1.0"):
+        vae_encoder = override_diffusers_2_0_attn_processors(vae_encoder)
     vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample)["latent_dist"].sample()}
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_encoder, exporter="onnx", task="semantic-segmentation", model_type="vae-encoder"
@@ -206,8 +208,8 @@ def get_stable_diffusion_models_for_export(
 
     # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
     vae_decoder = copy.deepcopy(pipeline.vae)
-    if hasattr(vae_decoder.decoder.mid_block.attentions[0], "_use_2_0_attn"):
-        vae_decoder.decoder.mid_block.attentions[0]._use_2_0_attn = False
+    if not packaging.version.parse(torch.__version__) >= packaging.version.parse("2.1.0"):
+        vae_decoder = override_diffusers_2_0_attn_processors(vae_decoder)
     vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_decoder, exporter="onnx", task="semantic-segmentation", model_type="vae-decoder"
@@ -216,6 +218,28 @@ def get_stable_diffusion_models_for_export(
     models_for_export["vae_decoder"] = (vae_decoder, vae_onnx_config)
 
     return models_for_export
+
+
+def override_diffusers_2_0_attn_processors(model):
+    for _, submodule in model.named_modules():
+        if isinstance(submodule, Attention):
+            if isinstance(submodule.processor, AttnProcessor2_0):
+                submodule.set_processor(AttnProcessor())
+            elif isinstance(submodule.processor, LoRAAttnProcessor2_0):
+                lora_attn_processor = LoRAAttnProcessor(
+                    hidden_size=submodule.processor.hidden_size,
+                    cross_attention_dim=submodule.processor.cross_attention_dim,
+                    rank=submodule.processor.rank,
+                    network_alpha=submodule.processor.to_q_lora.network_alpha,
+                )
+                lora_attn_processor.to_q_lora = copy.deepcopy(submodule.processor.to_q_lora)
+                lora_attn_processor.to_k_lora = copy.deepcopy(submodule.processor.to_k_lora)
+                lora_attn_processor.to_v_lora = copy.deepcopy(submodule.processor.to_v_lora)
+                lora_attn_processor.to_out_lora = copy.deepcopy(submodule.processor.to_out_lora)
+                submodule.set_processor(lora_attn_processor)
+            elif isinstance(submodule.processor, AttnAddedKVProcessor2_0):
+                submodule.set_processor(AttnAddedKVProcessor())
+    return model
 
 
 def recursive_to_device(value: Union[Tuple, List, "torch.Tensor"], device: str):
@@ -252,3 +276,32 @@ def recursive_to_dtype(
             value = value.to(dtype=dtype)
 
     return value
+
+
+# Copied from https://github.com/microsoft/onnxruntime/issues/7846#issuecomment-850217402
+class PickableInferenceSession:  # This is a wrapper to make the current InferenceSession class pickable.
+    def __init__(self, model_path, sess_options, providers):
+        import onnxruntime as ort
+
+        self.model_path = model_path
+        self.sess_options = sess_options
+        self.providers = providers
+        self.sess = ort.InferenceSession(self.model_path, sess_options=sess_options, providers=providers)
+
+    def run(self, *args):
+        return self.sess.run(*args)
+
+    def get_outputs(self):
+        return self.sess.get_outputs()
+
+    def get_inputs(self):
+        return self.sess.get_inputs()
+
+    def __getstate__(self):
+        return {"model_path": self.model_path}
+
+    def __setstate__(self, values):
+        import onnxruntime as ort
+
+        self.model_path = values["model_path"]
+        self.sess = ort.InferenceSession(self.model_path, sess_options=self.sess_options, providers=self.providers)
