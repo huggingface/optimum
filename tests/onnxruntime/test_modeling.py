@@ -878,7 +878,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
 
             # verify loading from local folder works
-            model = ORTModelForCausalLM.from_pretrained(tmpdirname, use_cache=use_cache, export=False)
+            model = ORTModelForCausalLM.from_pretrained(
+                tmpdirname, use_cache=use_cache, export=False, use_io_binding=False
+            )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @parameterized.expand([(False,), (True,)])

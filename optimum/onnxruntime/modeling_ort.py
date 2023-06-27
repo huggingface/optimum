@@ -660,6 +660,7 @@ class ORTModel(OptimizedModel):
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
+            use_io_binding=use_io_binding,
             **kwargs,
         )
 

@@ -67,7 +67,7 @@ class ORTOptimizerTestMixin(unittest.TestCase):
             model_args.pop("model_arch")
 
             model_id = MODEL_NAMES[model_arch]
-            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, export=True)
+            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, use_io_binding=False, export=True)
 
             model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{self.TASK}_")
             onnx_model.save_pretrained(model_dir)
