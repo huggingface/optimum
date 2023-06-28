@@ -951,8 +951,10 @@ class WavLMOnnxConfig(HubertOnnxConfig):
     # we need to set output_attentions=True in the model input to avoid calling
     # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
     # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
-    def patch_model_for_export(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> "ModelPatcher":
-        return WavLMModelPatcher(self, model)
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Dict[str, Any]
+    ) -> "ModelPatcher":
+        return WavLMModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class ASTDummyAudioInputGenerator(DummyAudioInputGenerator):
