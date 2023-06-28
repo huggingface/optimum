@@ -13,17 +13,6 @@ ___This script is experimental. The script fine-tunes the whole model and often 
 ## Running locally with PyTorch
 ### Installing the dependencies
 
-Before running the scripts, make sure to install the library's training dependencies:
-
-**Important**
-
-To make sure you can successfully run the latest versions of the example scripts, we highly recommend **installing from source** and keeping the install up to date as we update the example scripts frequently and install some example-specific requirements. To do this, execute the following steps in a new virtual environment:
-```bash
-git clone https://github.com/huggingface/diffusers
-cd diffusers
-pip install .
-```
-
 ___Note___: This example requires PyTorch nightly and [ONNX Runtime](https://github.com/Microsoft/onnxruntime) nightly
 ```bash
 pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu118
