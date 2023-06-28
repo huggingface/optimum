@@ -294,7 +294,7 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
         latents_dtype = prompt_embeds.dtype
         latents_shape = (
             batch_size * num_images_per_prompt,
-            self._num_channels_latents,
+            self._num_unet_in_channels,
             height // self.vae_scale_factor,
             width // self.vae_scale_factor,
         )

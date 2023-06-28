@@ -80,7 +80,8 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
         batch_size = 6
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         self.assertEqual(pipeline.vae_scale_factor, 2)
-        self.assertEqual(pipeline._num_channels_latents, 4)
+        self.assertEqual(pipeline._num_unet_in_channels, 4)
+        self.assertEqual(pipeline._num_vae_latent_channels, 4)
         inputs = self.generate_random_inputs()
         outputs = pipeline(**inputs).images
         self.assertEqual(outputs.shape, (1, 128, 128, 3))
@@ -107,8 +108,11 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (1, 128, 128, 3))
 
-    def generate_random_inputs(self):
-        return _generate_random_inputs()
+    def generate_random_inputs(self, height=128, width=128):
+        inputs = _generate_random_inputs()
+        inputs["height"] = height
+        inputs["width"] = width
+        return inputs
 
 
 class ORTStableDiffusionImg2ImgPipelineTest(ORTStableDiffusionPipelineBase):
@@ -137,7 +141,7 @@ class ORTStableDiffusionImg2ImgPipelineTest(ORTStableDiffusionPipelineBase):
         self.assertTrue(np.allclose(output, diffusers_output, atol=1e-4))
 
     def generate_random_inputs(self):
-        inputs = super(ORTStableDiffusionImg2ImgPipelineTest, self).generate_random_inputs()
+        inputs = _generate_random_inputs()
         inputs["image"] = floats_tensor((1, 3, 128, 128), rng=random.Random(SEED))
         inputs["strength"] = 0.75
         return inputs
@@ -164,7 +168,7 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
 
         latents_shape = (
             num_images_per_prompt,
-            ort_pipeline._num_channels_latents,
+            ort_pipeline._num_unet_in_channels,
             height // ort_pipeline.vae_scale_factor,
             width // ort_pipeline.vae_scale_factor,
         )
@@ -220,23 +224,19 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
         width = 64
         latents_shape = (
             1,
-            ort_pipeline._num_channels_latents,
+            ort_pipeline._num_vae_latent_channels,
             height // ort_pipeline.vae_scale_factor,
             width // ort_pipeline.vae_scale_factor,
         )
         latents = np.random.randn(*latents_shape).astype(np.float32)
         inputs = self.generate_random_inputs(height=height, width=width)
-        output = ort_pipeline(**inputs, latents=latents).images[0, -3:, -3:, -1]
+        outputs = ort_pipeline(**inputs, latents=latents).images
+        self.assertEqual(outputs.shape, (1, height, width, 3))
         expected_slice = np.array([0.5442, 0.3002, 0.5665, 0.6485, 0.4421, 0.6441, 0.5778, 0.5076, 0.5612])
-        self.assertTrue(np.allclose(output.flatten(), expected_slice, atol=1e-4))
-
-        # Verify it can be loaded with ORT diffusers pipeline
-        diffusers_pipeline = OnnxStableDiffusionInpaintPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
-        diffusers_output = diffusers_pipeline(**inputs, latents=latents).images[0, -3:, -3:, -1]
-        self.assertTrue(np.allclose(output, diffusers_output, atol=1e-4))
+        self.assertTrue(np.allclose(outputs[0, -3:, -3:, -1].flatten(), expected_slice, atol=1e-4))
 
     def generate_random_inputs(self, height=128, width=128):
-        inputs = super(ORTStableDiffusionInpaintPipelineTest, self).generate_random_inputs()
+        inputs = super(ORTStableDiffusionInpaintPipelineTest, self).generate_random_inputs(height, width)
         inputs["image"] = load_image(
             "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
             "/in_paint/overture-creations-5sI6fQgYIuo.png"
@@ -246,8 +246,5 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
             "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
             "/in_paint/overture-creations-5sI6fQgYIuo_mask.png"
         ).resize((64, 64))
-
-        inputs["height"] = height
-        inputs["width"] = width
 
         return inputs

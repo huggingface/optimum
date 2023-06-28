@@ -28,10 +28,6 @@ from .pipeline_stable_diffusion import StableDiffusionPipelineMixin
 logger = logging.getLogger(__name__)
 
 
-NUM_UNET_INPUT_CHANNELS = 9
-NUM_LATENT_CHANNELS = 4
-
-
 def prepare_mask_and_masked_image(image, mask, latents_shape, vae_scale_factor):
     image = np.array(
         image.convert("RGB").resize((latents_shape[1] * vae_scale_factor, latents_shape[0] * vae_scale_factor))
@@ -227,7 +223,9 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
             negative_prompt_embeds=negative_prompt_embeds,
         )
 
-        num_channels_latents = NUM_LATENT_CHANNELS
+        num_channels_latents = self._num_vae_latent_channels
+        num_channels_unet = self._num_unet_in_channels
+
         latents_shape = (
             batch_size * num_images_per_prompt,
             num_channels_latents,
@@ -260,17 +258,22 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
             np.concatenate([masked_image_latents] * 2) if do_classifier_free_guidance else masked_image_latents
         )
 
-        num_channels_mask = mask.shape[1]
-        num_channels_masked_image = masked_image_latents.shape[1]
-
-        unet_input_channels = NUM_UNET_INPUT_CHANNELS
-        if num_channels_latents + num_channels_mask + num_channels_masked_image != unet_input_channels:
+        # check that sizes of mask, masked image and latents match
+        if num_channels_unet == 9:
+            # default case for runwayml/stable-diffusion-inpainting
+            num_channels_mask = mask.shape[1]
+            num_channels_masked_image = masked_image_latents.shape[1]
+            if num_channels_latents + num_channels_mask + num_channels_masked_image != num_channels_unet:
+                raise ValueError(
+                    f"Incorrect configuration settings! The config of `pipeline.unet`: expects"
+                    f" {num_channels_unet} but received `num_channels_latents`: {num_channels_latents} +"
+                    f" `num_channels_mask`: {num_channels_mask} + `num_channels_masked_image`: {num_channels_masked_image}"
+                    f" = {num_channels_latents+num_channels_masked_image+num_channels_mask}. Please verify the config of"
+                    " `pipeline.unet` or your `mask_image` or `image` input."
+                )
+        elif num_channels_unet != 4:
             raise ValueError(
-                "Incorrect configuration settings! The config of `pipeline.unet` expects"
-                f" {unet_input_channels} but received `num_channels_latents`: {num_channels_latents} +"
-                f" `num_channels_mask`: {num_channels_mask} + `num_channels_masked_image`: {num_channels_masked_image}"
-                f" = {num_channels_latents+num_channels_masked_image+num_channels_mask}. Please verify the config of"
-                " `pipeline.unet` or your `mask_image` or `image` input."
+                f"The unet {self.unet.__class__} should have either 4 or 9 input channels, not {num_channels_unet}."
             )
 
         # set timesteps
@@ -297,7 +300,7 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
             # concat latents, mask, masked_image_latnets in the channel dimension
             latent_model_input = self.scheduler.scale_model_input(torch.from_numpy(latent_model_input), t)
             latent_model_input = latent_model_input.cpu().numpy()
-            if self._num_channels_latents == 9:
+            if num_channels_unet == 9:
                 latent_model_input = np.concatenate([latent_model_input, mask, masked_image_latents], axis=1)
 
             # predict the noise residual
