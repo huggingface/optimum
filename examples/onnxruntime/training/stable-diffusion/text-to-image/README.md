@@ -105,14 +105,14 @@ accelerate launch --mixed_precision="fp16" train_text_to_image.py --ort \
 ```
 
 
-Once the training is finished the model will be saved in the `output_dir` specified in the command. In this example it's `sd-pokemon-model`. To load the fine-tuned model for inference just pass that path to `StableDiffusionPipeline`
+Once the training is finished the model will be saved in the `output_dir` specified in the command. In this example it's `sd-pokemon-model`. To load the fine-tuned model for inference just pass that path to `ORTStableDiffusionPipeline`
 
 
 ```python
-from diffusers import StableDiffusionPipeline
+from optimum import ORTStableDiffusionPipeline
 
 model_path = "path_to_saved_model"
-pipe = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16)
+pipe = ORTStableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16)
 pipe.to("cuda")
 
 image = pipe(prompt="yoda").images[0]
