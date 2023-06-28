@@ -205,6 +205,35 @@ class GPTNeoXOnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
+class MPTPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
+    def generate(self, input_name: str, framework: str = "pt"):
+        shape_k = (
+            self.batch_size,
+            self.num_attention_heads,
+            self.hidden_size // self.num_attention_heads,
+            self.sequence_length,
+        )
+
+        shape_v = (
+            self.batch_size,
+            self.num_attention_heads,
+            self.sequence_length,
+            self.hidden_size // self.num_attention_heads,
+        )
+        return [
+            (
+                self.random_float_tensor(shape_k, framework=framework),
+                self.random_float_tensor(shape_v, framework=framework),
+            )
+            for _ in range(self.num_layers)
+        ]
+
+class MPTOnnxConfig(TextDecoderOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MPTPastKeyValuesGenerator)
+    DEFAULT_ONNX_OPSET = 14
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(hidden_size="d_model", num_attention_heads="n_heads", num_layers="n_layers")
+
+
 class OPTOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
