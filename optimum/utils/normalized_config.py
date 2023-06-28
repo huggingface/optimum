@@ -222,6 +222,7 @@ class NormalizedConfigManager:
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
+        "mpt": NormalizedTextConfig.with_args(hidden_size="d_model", num_attention_heads="n_heads", num_layers="n_layers"),
         "m2m_100": BartLikeNormalizedTextConfig,
         "nystromformer": NormalizedTextConfig,
         "opt": NormalizedTextConfig,

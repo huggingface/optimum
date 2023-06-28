@@ -654,6 +654,13 @@ class TasksManager:
             onnx="MPNetOnnxConfig",
             tflite="MPNetTFLiteConfig",
         ),
+        "mpt": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            onnx="MPTOnnxConfig",
+        ),
         "mt5": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",

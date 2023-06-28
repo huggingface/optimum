@@ -228,6 +228,7 @@ class MPTPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             for _ in range(self.num_layers)
         ]
 
+
 class MPTOnnxConfig(TextDecoderOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MPTPastKeyValuesGenerator)
     DEFAULT_ONNX_OPSET = 14
