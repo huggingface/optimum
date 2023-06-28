@@ -1,6 +1,9 @@
-# Stable Diffusion text-to-image fine-tuning
+# Stable Diffusion Text-to-Image Fine-Tuning
 
-The `train_text_to_image.py` script shows how to fine-tune stable diffusion model on your own dataset.
+This example shows how to leverage ONNX Runtime Training to fine-tune stable diffusion model on your own dataset. 
+
+Our team has tested finetuning `CompVis/stable-diffusion-v1-4` model on the `lambdalabs/pokemon-blip-captions` dataset and achieved the following speedup:
+![image](https://github.com/microsoft/onnxruntime-training-examples/assets/31260940/00f199b1-3a84-4369-924d-fd6c613bd3b4)
 
 ___Note___:
 
@@ -21,7 +24,14 @@ cd diffusers
 pip install .
 ```
 
-Then cd in the example folder  and run
+___Note___: This example requires PyTorch nightly and [ONNX Runtime](https://github.com/Microsoft/onnxruntime) nightly
+```bash
+pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu118
+pip install onnxruntime-training --pre -f https://download.onnxruntime.ai/onnxruntime_nightly_cu118.html
+python -m onnxruntime.training.ortmodule.torch_cpp_extensions.install
+```
+
+Then, cd in the example folder and run
 ```bash
 pip install -r requirements.txt
 ```
@@ -33,8 +43,6 @@ accelerate config
 ```
 
 ### Pokemon example
-
-You need to accept the model license before downloading or using the weights. In this example we'll use model version `v1-4`, so you'll need to visit [its card](https://huggingface.co/CompVis/stable-diffusion-v1-4), read the license and tick the checkbox if you agree. 
 
 You have to be a registered user in 🤗 Hugging Face Hub, and you'll also need to use an access token for the code to work. For more information on access tokens, please refer to [this section of the documentation](https://huggingface.co/docs/hub/security-tokens).
 
@@ -49,7 +57,7 @@ If you have already cloned the repo, then you won't need to go through these ste
 <br>
 
 #### Hardware
-With `gradient_checkpointing` and `mixed_precision` it should be possible to fine tune the model on a single 24GB GPU. For higher `batch_size` and faster training it's better to use GPUs with >30GB memory.
+Cited performance metrics used an NIVIDIA V100, 8-GPU cluster.
 
 **___Note: Change the `resolution` to 768 if you are using the [stable-diffusion-2](https://huggingface.co/stabilityai/stable-diffusion-2) 768x768 model.___**
 <!-- accelerate_snippet_start -->
