@@ -149,8 +149,6 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             self.vae_scale_factor = 2 ** (len(self.vae_decoder.config["block_out_channels"]) - 1)
         else:
             self.vae_scale_factor = 8
-        self._num_unet_in_channels = self.unet.config.get("in_channels", 4)
-        self._num_vae_latent_channels = self.vae_decoder.config.get("latent_channels", 4)
 
     @staticmethod
     def load_model(

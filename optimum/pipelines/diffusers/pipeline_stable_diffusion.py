@@ -292,11 +292,12 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             negative_prompt_embeds=negative_prompt_embeds,
         )
 
+        num_unet_in_channels = self.unet.config.get("in_channels", 4)
         # get the initial random noise unless the user supplied it
         latents_dtype = prompt_embeds.dtype
         latents_shape = (
             batch_size * num_images_per_prompt,
-            self._num_unet_in_channels,
+            num_unet_in_channels,
             height // self.vae_scale_factor,
             width // self.vae_scale_factor,
         )

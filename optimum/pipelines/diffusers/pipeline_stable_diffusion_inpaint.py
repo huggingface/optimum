@@ -221,8 +221,8 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
             negative_prompt_embeds=negative_prompt_embeds,
         )
 
-        num_channels_latents = self._num_vae_latent_channels
-        num_channels_unet = self._num_unet_in_channels
+        num_channels_latents = self.vae_decoder.config.get("latent_channels", 4)
+        num_channels_unet = self.unet.config.get("in_channels", 9)
 
         latents_shape = (
             batch_size * num_images_per_prompt,

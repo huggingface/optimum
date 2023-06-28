@@ -79,8 +79,8 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
         batch_size = 6
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         self.assertEqual(pipeline.vae_scale_factor, 2)
-        self.assertEqual(pipeline._num_unet_in_channels, 4)
-        self.assertEqual(pipeline._num_vae_latent_channels, 4)
+        self.assertEqual(pipeline.vae_decoder.config["latent_channels"], 4)
+        self.assertEqual(pipeline.unet.config["in_channels"], 4)
         inputs = self.generate_inputs()
         outputs = pipeline(**inputs).images
         self.assertEqual(outputs.shape, (1, 128, 128, 3))
@@ -164,10 +164,9 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
         pipeline = StableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
         pipeline.safety_checker = None
         num_images_per_prompt, height, width = 1, 64, 64
-
         latents_shape = (
             num_images_per_prompt,
-            ort_pipeline._num_unet_in_channels,
+            ort_pipeline.unet.config["in_channels"],
             height // ort_pipeline.vae_scale_factor,
             width // ort_pipeline.vae_scale_factor,
         )
@@ -223,7 +222,7 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
         width = 64
         latents_shape = (
             1,
-            ort_pipeline._num_vae_latent_channels,
+            ort_pipeline.vae_decoder.config["latent_channels"],
             height // ort_pipeline.vae_scale_factor,
             width // ort_pipeline.vae_scale_factor,
         )
