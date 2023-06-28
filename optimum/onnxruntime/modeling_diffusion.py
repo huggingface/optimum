@@ -217,14 +217,14 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         for src_path, dst_path in zip(src_paths, dst_paths):
             dst_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src_path, dst_path)
-            config_path = src_path.parent.joinpath(self.sub_component_config_name)
+            config_path = src_path.parent / self.sub_component_config_name
             if config_path.is_file():
-                shutil.copyfile(config_path, dst_path.parent.joinpath(self.sub_component_config_name))
+                shutil.copyfile(config_path, dst_path.parent / self.sub_component_config_name)
 
-        self.tokenizer.save_pretrained(save_directory.joinpath("tokenizer"))
-        self.scheduler.save_pretrained(save_directory.joinpath("scheduler"))
+        self.tokenizer.save_pretrained(save_directory / "tokenizer")
+        self.scheduler.save_pretrained(save_directory / "scheduler")
         if self.feature_extractor is not None:
-            self.feature_extractor.save_pretrained(save_directory.joinpath("feature_extractor"))
+            self.feature_extractor.save_pretrained(save_directory / "feature_extractor")
 
     @classmethod
     def _from_pretrained(
@@ -297,7 +297,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
 
         if not vae_encoder_path.is_file():
             logger.warning(
-                f"VAE encoder not found in {model_id} and will not be loaded for inference. This component is needed for some tasks"
+                f"VAE encoder not found in {model_id} and will not be loaded for inference. This component is needed for some tasks."
             )
 
         inference_sessions = cls.load_model(
@@ -426,7 +426,7 @@ class _ORTDiffusionModelPart:
         self.parent_model = parent_model
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
-        config_path = Path(session._model_path).parent.joinpath(self.CONFIG_NAME)
+        config_path = Path(session._model_path).parent / self.CONFIG_NAME
         self.config = self.parent_model._dict_from_json_file(config_path) if config_path.is_file() else {}
 
     @property

@@ -287,9 +287,9 @@ def main_export(
         for model_name, name_dir in zip(models_and_onnx_configs, onnx_files_subpaths):
             subcomponent = models_and_onnx_configs[model_name][0]
             if hasattr(subcomponent, "save_config"):
-                subcomponent.save_config(output.joinpath(name_dir))
+                subcomponent.save_config(output / name_dir)
             elif hasattr(subcomponent, "config") and hasattr(subcomponent.config, "save_pretrained"):
-                subcomponent.config.save_pretrained(output.joinpath(name_dir))
+                subcomponent.config.save_pretrained(output / name_dir)
 
         onnx_files_subpaths = [os.path.join(path, ONNX_WEIGHTS_NAME) for path in onnx_files_subpaths]
 
