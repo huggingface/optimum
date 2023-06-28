@@ -68,7 +68,7 @@ class ModelPatcher:
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]],
+        model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         self._model = model
 
@@ -140,7 +140,10 @@ class ModelPatcher:
 
 class Seq2SeqModelPatcher(ModelPatcher):
     def __init__(
-        self, config: "OnnxConfig", model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Dict[str, Any]
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -190,7 +193,10 @@ class Seq2SeqModelPatcher(ModelPatcher):
 
 class WavLMModelPatcher(ModelPatcher):
     def __init__(
-        self, config: "OnnxConfig", model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Dict[str, Any]
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 

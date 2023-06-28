@@ -72,7 +72,7 @@ def main_export(
     for_ort: bool = False,
     do_validation: bool = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
-    custom_onnx_configs: Optional["OnnxConfig"] = None,
+    custom_onnx_configs: Optional[Dict[str, "OnnxConfig"]] = None,
     use_subprocess: bool = False,
     **kwargs_shapes,
 ):

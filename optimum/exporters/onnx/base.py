@@ -306,7 +306,7 @@ class OnnxConfig(ExportConfig, ABC):
             gc.collect()
 
     def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Dict[str, Any]
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
     ) -> ModelPatcher:
         return ModelPatcher(self, model, model_kwargs=model_kwargs)
 
@@ -813,7 +813,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
 
     def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Dict[str, Any]
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
     ) -> ModelPatcher:
         return Seq2SeqModelPatcher(self, model, model_kwargs=model_kwargs)
 

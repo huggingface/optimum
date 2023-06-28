@@ -952,7 +952,7 @@ class WavLMOnnxConfig(HubertOnnxConfig):
     # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
     # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
     def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Dict[str, Any]
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
     ) -> "ModelPatcher":
         return WavLMModelPatcher(self, model, model_kwargs=model_kwargs)
 
