@@ -224,7 +224,9 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
         image = image.astype(latents_dtype)
         # encode the init image into latents and scale the latents
         init_latents = self.vae_encoder(sample=image)[0]
-        init_latents = 0.18215 * init_latents
+
+        scaling_factor = self.vae_decoder.config.get("scaling_factor", 0.18215)
+        init_latents = scaling_factor * init_latents
 
         if isinstance(prompt, str):
             prompt = [prompt]
@@ -305,31 +307,18 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
             if callback is not None and i % callback_steps == 0:
                 callback(i, t, latents)
 
-        latents = 1 / 0.18215 * latents
-        # image = self.vae_decoder(latent_sample=latents)[0]
-        # it seems likes there is a strange result for using half-precision vae decoder if batchsize>1
-        image = np.concatenate(
-            [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
-        )
-
-        image = np.clip(image / 2 + 0.5, 0, 1)
-        image = image.transpose((0, 2, 3, 1))
-
-        if self.safety_checker is not None:
-            safety_checker_input = self.feature_extractor(
-                self.numpy_to_pil(image), return_tensors="np"
-            ).pixel_values.astype(image.dtype)
-            # safety_checker does not support batched inputs yet
-            images, has_nsfw_concept = [], []
-            for i in range(image.shape[0]):
-                image_i, has_nsfw_concept_i = self.safety_checker(
-                    clip_input=safety_checker_input[i : i + 1], images=image[i : i + 1]
-                )
-                images.append(image_i)
-                has_nsfw_concept.append(has_nsfw_concept_i[0])
-            image = np.concatenate(images)
-        else:
+        if output_type == "latent":
+            image = latents
             has_nsfw_concept = None
+        else:
+            latents = 1 / scaling_factor * latents
+            # it seems likes there is a strange result for using half-precision vae decoder if batchsize>1
+            image = np.concatenate(
+                [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
+            )
+            image = np.clip(image / 2 + 0.5, 0, 1)
+            image = image.transpose((0, 2, 3, 1))
+            image, has_nsfw_concept = self.run_safety_checker(image)
 
         if output_type == "pil":
             image = self.numpy_to_pil(image)

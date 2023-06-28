@@ -346,17 +346,32 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             if callback is not None and i % callback_steps == 0:
                 callback(i, t, latents)
 
-        latents = 1 / 0.18215 * latents
-        # image = self.vae_decoder(latent_sample=latents)[0]
-        # it seems likes there is a strange result for using half-precision vae decoder if batchsize>1
-        image = np.concatenate(
-            [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
-        )
+        if output_type == "latent":
+            image = latents
+            has_nsfw_concept = None
+        else:
+            latents = 1 / self.vae_decoder.config.get("scaling_factor", 0.18215) * latents
+            # it seems likes there is a strange result for using half-precision vae decoder if batchsize>1
+            image = np.concatenate(
+                [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
+            )
+            # TODO: add image_processor
+            image = np.clip(image / 2 + 0.5, 0, 1)
+            image = image.transpose((0, 2, 3, 1))
+            image, has_nsfw_concept = self.run_safety_checker(image)
 
-        image = np.clip(image / 2 + 0.5, 0, 1)
-        image = image.transpose((0, 2, 3, 1))
+        if output_type == "pil":
+            image = self.numpy_to_pil(image)
 
-        if self.safety_checker is not None:
+        if not return_dict:
+            return (image, has_nsfw_concept)
+
+        return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=has_nsfw_concept)
+
+    def run_safety_checker(self, image):
+        if self.safety_checker is None:
+            has_nsfw_concept = None
+        else:
             safety_checker_input = self.feature_extractor(
                 self.numpy_to_pil(image), return_tensors="np"
             ).pixel_values.astype(image.dtype)
@@ -369,13 +384,5 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
                 images.append(image_i)
                 has_nsfw_concept.append(has_nsfw_concept_i[0])
             image = np.concatenate(images)
-        else:
-            has_nsfw_concept = None
 
-        if output_type == "pil":
-            image = self.numpy_to_pil(image)
-
-        if not return_dict:
-            return (image, has_nsfw_concept)
-
-        return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=has_nsfw_concept)
+        return image, has_nsfw_concept

@@ -21,7 +21,6 @@ import pytest
 import torch
 from diffusers import (
     OnnxStableDiffusionImg2ImgPipeline,
-    OnnxStableDiffusionInpaintPipeline,
     StableDiffusionPipeline,
 )
 from diffusers.utils import floats_tensor, load_image
@@ -50,7 +49,7 @@ def _generate_random_inputs():
         "prompt": "sailing ship in storm by Leonardo da Vinci",
         "num_inference_steps": 3,
         "guidance_scale": 7.5,
-        "output_type": "numpy",
+        "output_type": "np",
     }
     return inputs
 
@@ -162,8 +161,8 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
         self.assertIsInstance(ort_pipeline.unet, ORTModelUnet)
         self.assertIsInstance(ort_pipeline.config, Dict)
 
-        diffusers_pipeline = StableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
-        diffusers_pipeline.safety_checker = None
+        pipeline = StableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
+        pipeline.safety_checker = None
         num_images_per_prompt, height, width = 1, 64, 64
 
         latents_shape = (
@@ -176,20 +175,20 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
         kwargs = {
             "prompt": "sailing ship in storm by Leonardo da Vinci",
             "num_inference_steps": 1,
-            "output_type": "np",
             "num_images_per_prompt": num_images_per_prompt,
             "height": height,
             "width": width,
         }
-        ort_outputs = ort_pipeline(latents=latents, **kwargs).images
-        self.assertIsInstance(ort_outputs, np.ndarray)
 
-        with torch.no_grad():
-            diffusers_outputs = diffusers_pipeline(latents=torch.from_numpy(latents), **kwargs).images
-        # Compare model outputs
-        self.assertTrue(np.allclose(ort_outputs, diffusers_outputs, atol=1e-4))
-        # Compare model devices
-        self.assertEqual(diffusers_pipeline.device, ort_pipeline.device)
+        for output_type in ["latent", "np"]:
+            ort_outputs = ort_pipeline(latents=latents, output_type=output_type, **kwargs).images
+            self.assertIsInstance(ort_outputs, np.ndarray)
+            with torch.no_grad():
+                outputs = pipeline(latents=torch.from_numpy(latents), output_type=output_type, **kwargs).images
+            # Compare model outputs
+            self.assertTrue(np.allclose(ort_outputs, outputs, atol=1e-4))
+            # Compare model devices
+            self.assertEqual(pipeline.device, ort_pipeline.device)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
