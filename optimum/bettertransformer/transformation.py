@@ -252,9 +252,9 @@ class BetterTransformer(object):
                 model_fast = deepcopy(model)
             except RuntimeError:
                 raise ValueError(
-                    f"The model {model.__class__.__name__} does not support `deepcopy` operation that is "
+                    f"The model {model.__class__.__name__} does not support `deepcopy` operation that is"
                     " internally used to create a copy of the original model when using"
-                    " `keep_original_model=True`. Please run the conversion with "
+                    " `keep_original_model=True`. Please run the conversion with"
                     " `keep_original_model=False` and create a new copy of the original"
                     " model somewhere else."
                 )

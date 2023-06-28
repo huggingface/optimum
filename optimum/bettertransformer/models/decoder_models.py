@@ -227,6 +227,8 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer, OPTAttentio
 
 class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer, T5Attention, torch.nn.Module):
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+        if hasattr(config, "text_config"):
+            config = config.text_config
         super().__init__(config)
 
         with torch.device("meta"):

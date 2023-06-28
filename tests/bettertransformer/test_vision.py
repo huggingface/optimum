@@ -27,7 +27,7 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
     r"""
     Testing suite for Vision Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
-    SUPPORTED_ARCH = ["clip", "clip_text_model", "deit", "vilt", "vit", "vit_mae", "vit_msn", "yolos"]
+    SUPPORTED_ARCH = ["blip-2", "clip", "clip_text_model", "deit", "vilt", "vit", "vit_mae", "vit_msn", "yolos"]
 
     def prepare_inputs_for_class(self, model_id, model_type, batch_size=3, **preprocessor_kwargs):
         if model_type == "vilt":
@@ -38,11 +38,13 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
             # Model takes image and text as input
             processor = AutoProcessor.from_pretrained(model_id)
             inputs = processor(images=image, text=text, return_tensors="pt")
-        elif model_type in ["clip", "clip_text_model"]:
+        elif model_type in ["blip-2", "clip", "clip_text_model"]:
             url = "http://images.cocodataset.org/val2017/000000039769.jpg"
             image = Image.open(requests.get(url, stream=True).raw)
 
-            if batch_size == 1:
+            if (
+                batch_size == 1 or model_type == "blip-2"
+            ):  # TODO setup preprocessor_kwargs with batch_size=1 for blip-2
                 text = ["a photo"]
             else:
                 text = ["a photo"] + ["a photo of two big cats"] * (batch_size - 1)
@@ -51,6 +53,10 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
             # Model takes image and text as input
             processor = AutoProcessor.from_pretrained(model_id)
             inputs = processor(images=image, text=text, padding=padding, return_tensors="pt", **preprocessor_kwargs)
+
+            if model_type == "blip-2":
+                inputs["decoder_input_ids"] = inputs["input_ids"]
+
         else:
             url = "http://images.cocodataset.org/val2017/000000039769.jpg"
             image = Image.open(requests.get(url, stream=True).raw)
@@ -74,6 +80,8 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_train(self, model_type: str):
+        if model_type in ["blip-2"]:
+            self.skipTest("can be trained")
         model_id = MODELS_DICT[model_type]
         self._test_raise_train(model_id, model_type=model_type)
 

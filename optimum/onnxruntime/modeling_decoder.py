@@ -151,8 +151,8 @@ class ORTModelDecoder(ORTModel):
             use_cache (`bool`, defaults to `True`):
                 Whether or not past key/values cache should be used. Defaults to `True`.
             use_io_binding (`Optional[bool]`, defaults to `None`):
-                Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
-                `True` if the device is CUDA, otherwise defaults to `False`.
+                Whether to use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
+                `True` if the execution provider is CPUExecutionProvider or CUDAExecutionProvider, otherwise defaults to `False`.
             model_save_dir (`Optional[Union[str, Path, TemporaryDirectory]]`, defaults to `""`):
                 The directory under which the model exported to ONNX was saved.
             preprocessors (`Optional[List]`, defaults to `None`):
@@ -162,7 +162,7 @@ class ORTModelDecoder(ORTModel):
                 Refer to https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationMixin.generate.
         """
         if use_io_binding is None:
-            if decoder_session.get_providers()[0] == "CUDAExecutionProvider":
+            if decoder_session.get_providers()[0] in ["CPUExecutionProvider", "CUDAExecutionProvider"]:
                 use_io_binding = True
             else:
                 use_io_binding = False
