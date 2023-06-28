@@ -56,6 +56,7 @@ class BetterTransformerManager:
         "bert-generation": {"BertGenerationLayer": BertLayerBetterTransformer},
         "blenderbot": {"BlenderbotAttention": BlenderbotAttentionLayerBetterTransformer},
         "camembert": {"CamembertLayer": BertLayerBetterTransformer},
+        "blip-2": {"T5Attention": T5AttentionLayerBetterTransformer},
         "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
         "codegen": {"CodeGenAttention": CodegenAttentionLayerBetterTransformer},
         "data2vec-text": {"Data2VecTextLayer": BertLayerBetterTransformer},
@@ -111,6 +112,8 @@ class BetterTransformerManager:
     EXCLUDE_FROM_TRANSFORM = {
         # clip's text model uses causal attention, that is most likely not supported in BetterTransformer
         "clip": ["text_model"],
+        # blip-2's Q-former and vision model should not be identified as the last layers of the model
+        "blip-2": ["qformer.encoder.layer", "vision_model.encoder.layers"],
     }
 
     CAN_NOT_BE_SUPPORTED = {
@@ -133,6 +136,7 @@ class BetterTransformerManager:
 
     NOT_REQUIRES_STRICT_VALIDATION = {
         "blenderbot",
+        "blip-2",
         "codegen",
         "gpt2",
         "gptj",
