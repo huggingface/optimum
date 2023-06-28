@@ -32,6 +32,7 @@ MODELS_DICT = {
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bert-generation": "ybelkada/random-tiny-BertGenerationModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
+    "blip-2": "hf-internal-testing/tiny-random-Blip2Model",
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip_text_model": "hf-internal-testing/tiny-random-clip-zero-shot-image-classification",  # with quick_gelu
     "clip": "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",  # with gelu
@@ -351,10 +352,17 @@ class BetterTransformersTestMixin(unittest.TestCase):
                 flattened_output_bt = [out for j in range(len(output_bt[i])) for out in output_bt[i][j]]
                 flattened_output_hf = [out for j in range(len(output_hf[i])) for out in output_hf[i][j]]
                 for j in range(len(flattened_output_bt)):
-                    self.assertTrue(
-                        torch.allclose(flattened_output_bt[j], flattened_output_hf[j], atol=1e-4),
-                        f" Maxdiff: {(flattened_output_bt[j] - flattened_output_hf[j]).abs().max()}",
-                    )
+                    if isinstance(flattened_output_bt[j], torch.Tensor):
+                        self.assertTrue(
+                            torch.allclose(flattened_output_bt[j], flattened_output_hf[j], atol=1e-4),
+                            f" Maxdiff: {(flattened_output_bt[j] - flattened_output_hf[j]).abs().max()}",
+                        )
+                    elif isinstance(flattened_output_bt[j], tuple):
+                        for k in range(len(flattened_output_bt[j])):
+                            self.assertTrue(
+                                torch.allclose(flattened_output_bt[j][k], flattened_output_hf[j][k], atol=1e-4),
+                                f" Maxdiff: {(flattened_output_bt[j][k] - flattened_output_hf[j][k]).abs().max()}",
+                            )
 
 
 def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_size, pad_idx=0):

@@ -36,6 +36,7 @@ from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
+from .constants import UNPICKABLE_ARCHS
 from .convert import export_models, validate_models_outputs
 from .utils import (
     get_decoder_models_for_export,
@@ -369,6 +370,16 @@ def main_export(
                 f"The post-processing of the ONNX export failed. The export can still be performed by passing the option --no-post-process. Detailed error: {e}"
             )
 
+    use_subprocess = True
+    if task == "stable-diffusion":
+        use_subprocess = (
+            False  # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
+        )
+    elif model.config.model_type in UNPICKABLE_ARCHS:
+        # Pickling is bugged for nn.utils.weight_norm: https://github.com/pytorch/pytorch/issues/102983
+        # TODO: fix "Cowardly refusing to serialize non-leaf tensor" error for wav2vec2-conformer
+        use_subprocess = False
+
     if do_validation is True:
         try:
             validate_models_outputs(
@@ -380,6 +391,7 @@ def main_export(
                 input_shapes=input_shapes,
                 device=device,
                 dtype=torch_dtype,
+                use_subprocess=use_subprocess,
             )
             logger.info(f"The ONNX export succeeded and the exported model was saved at: {output.as_posix()}")
         except ShapeError as e:
