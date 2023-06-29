@@ -81,15 +81,7 @@ def benchmark_training(model, num_epochs: int, train_dataloader, device):
     if device.type == "cpu":
         with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
             for _ in range(num_training_steps):
-                batch = {k: v.to(device) for k, v in batch.items()}
-                outputs = model(**batch)
-                loss = outputs.logits.sum()
-                loss.backward()
-
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad()
-                progress_bar.update(1)
+                training_fn(batch, device, lr_scheduler, model, optimizer, progress_bar)
 
         elapsed_time = p.key_averages().self_cpu_time_total
         max_memory = max([event.cpu_memory_usage for event in p.key_averages()])
@@ -102,20 +94,23 @@ def benchmark_training(model, num_epochs: int, train_dataloader, device):
         start_event.record()
         for _ in range(num_epochs):
             for _, batch in enumerate(train_dataloader):
-                batch = {k: v.to(device) for k, v in batch.items()}
-                outputs = model(**batch)
-                loss = outputs.logits.sum()
-                loss.backward()
-
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad()
-                progress_bar.update(1)
+                training_fn(batch, device, lr_scheduler, model, optimizer, progress_bar)
 
         end_event.record()
         torch.cuda.synchronize()
 
         return (start_event.elapsed_time(end_event) * 1.0e-3) / num_epochs
+
+
+def training_fn(batch, device, lr_scheduler, model, optimizer, progress_bar):
+    batch = {k: v.to(device) for k, v in batch.items()}
+    outputs = model(**batch)
+    loss = outputs.logits.sum()
+    loss.backward()
+    optimizer.step()
+    lr_scheduler.step()
+    optimizer.zero_grad()
+    progress_bar.update(1)
 
 
 if __name__ == "__main__":

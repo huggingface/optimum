@@ -71,13 +71,7 @@ def benchmark_training(model, inputs: Dict, num_training_steps: int, use_cuda: b
 
         torch.cuda.synchronize()
         start_event.record()
-        for _ in range(num_training_steps):
-            model.zero_grad()
-            outputs = model(**inputs)
-            loss = outputs.logits.sum()
-            loss.backward()
-
-            progress_bar.update(1)
+        training_fn(inputs, model, num_training_steps, progress_bar)
         end_event.record()
         torch.cuda.synchronize()
 
@@ -88,18 +82,22 @@ def benchmark_training(model, inputs: Dict, num_training_steps: int, use_cuda: b
     # CPU profiling
     else:
         with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
-            for _ in range(num_training_steps):
-                model.zero_grad()
-                outputs = model(**inputs)
-                loss = outputs.logits.sum()
-                loss.backward()
-
-                progress_bar.update(1)
+            training_fn(inputs, model, num_training_steps, progress_bar)
 
         elapsed_time = p.key_averages().self_cpu_time_total
         max_memory = max([event.cpu_memory_usage for event in p.key_averages()])
 
         return elapsed_time / num_training_steps, max_memory
+
+
+def training_fn(inputs, model, num_training_steps, progress_bar):
+    for _ in range(num_training_steps):
+        model.zero_grad()
+        outputs = model(**inputs)
+        loss = outputs.logits.sum()
+        loss.backward()
+
+        progress_bar.update(1)
 
 
 if __name__ == "__main__":

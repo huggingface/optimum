@@ -49,8 +49,7 @@ def get_batch(batch_size, model_name):
 def timing_cpu(model, num_batches, input_features):
 
     with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
-        for _ in range(num_batches):
-            _ = model(input_features)
+        inference_fn(input_features, model, num_batches)
 
     elapsed_time = p.key_averages().self_cpu_time_total
     max_memory = max([event.cpu_memory_usage for event in p.key_averages()])
@@ -62,11 +61,15 @@ def timing_cuda(model, num_batches, input_features):
     start_event = torch.cuda.Event(enable_timing=True)
     end_event = torch.cuda.Event(enable_timing=True)
     start_event.record()
-    for _ in range(num_batches):
-        _ = model(input_features)
+    inference_fn(input_features, model, num_batches)
     end_event.record()
     torch.cuda.synchronize()
     return (start_event.elapsed_time(end_event) * 1.0e-3) / num_batches
+
+
+def inference_fn(input_features, model, num_batches):
+    for _ in range(num_batches):
+        _ = model(input_features)
 
 
 def benchmark(model_name, num_batches, batch_size, is_cuda, is_half):

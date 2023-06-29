@@ -116,11 +116,8 @@ def timing_cuda(model, num_batches, input_ids, masks, is_decoder, generation_con
     torch.cuda.synchronize()
 
     start_event.record()
-    for _ in tqdm(range(num_batches)):
-        if is_decoder:
-            _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
-        else:
-            _ = model(input_ids, masks)
+    inference_fn(generation_config, input_ids, is_decoder, masks, model, num_batches)
+
     end_event.record()
     torch.cuda.synchronize()
     max_memory = torch.cuda.max_memory_allocated(device)
@@ -130,16 +127,20 @@ def timing_cuda(model, num_batches, input_ids, masks, is_decoder, generation_con
 
 def timing_cpu(model, num_batches, input_ids, masks, is_decoder, generation_config=None):
     with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
-        for _ in tqdm(range(num_batches)):
-            if is_decoder:
-                _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
-            else:
-                _ = model(input_ids, masks)
+        inference_fn(generation_config, input_ids, is_decoder, masks, model, num_batches)
 
     elapsed_time = p.key_averages().self_cpu_time_total
     max_memory = max([event.cpu_memory_usage for event in p.key_averages()])
 
     return elapsed_time / num_batches, max_memory
+
+
+def inference_fn(generation_config, input_ids, is_decoder, masks, model, num_batches):
+    for _ in tqdm(range(num_batches)):
+        if is_decoder:
+            _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
+        else:
+            _ = model(input_ids, masks)
 
 
 def benchmark(model, input_ids, masks, num_batches, is_decoder, max_token, pad_token_id, use_cuda):
