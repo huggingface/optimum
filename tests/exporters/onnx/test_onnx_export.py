@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import gc
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict
 from unittest import TestCase
 from unittest.mock import patch
 
+import onnx
 import pytest
 from parameterized import parameterized
 from transformers import AutoConfig, is_tf_available, is_torch_available, set_seed
@@ -34,6 +36,9 @@ from optimum.exporters.onnx import (
     get_stable_diffusion_models_for_export,
     validate_models_outputs,
 )
+from optimum.exporters.onnx.__main__ import main_export
+from optimum.exporters.onnx.base import ConfigBehavior
+from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
 from optimum.utils import is_diffusers_available
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
@@ -411,3 +416,64 @@ class OnnxExportTestCase(TestCase):
                 onnx_files_subpaths=output_names,
                 use_subprocess=False,
             )
+
+
+class CustomWhisperOnnxConfig(WhisperOnnxConfig):
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        common_outputs = super().outputs
+
+        if self._behavior is ConfigBehavior.ENCODER:
+            for i in range(self._config.encoder_layers):
+                common_outputs[f"encoder_attentions.{i}"] = {0: "batch_size"}
+        elif self._behavior is ConfigBehavior.DECODER:
+            for i in range(self._config.decoder_layers):
+                common_outputs[f"decoder_attentions.{i}"] = {0: "batch_size", 3: "decoder_sequence_length"}
+            for i in range(self._config.decoder_layers):
+                common_outputs[f"cross_attentions.{i}"] = {0: "batch_size", 3: "cross_attention_length"}
+
+        return common_outputs
+
+    @property
+    def torch_to_onnx_output_map(self):
+        if self._behavior is ConfigBehavior.ENCODER:
+            # The encoder export uses WhisperEncoder that returns the key "attentions"
+            return {"attentions": "encoder_attentions"}
+        else:
+            return {}
+
+
+class OnnxCustomExport(TestCase):
+    def test_custom_export(self):
+        model_id = "openai/whisper-tiny.en"
+        config = AutoConfig.from_pretrained(model_id)
+
+        custom_whisper_onnx_config = CustomWhisperOnnxConfig(
+            config=config,
+            task="automatic-speech-recognition",
+        )
+
+        encoder_config = custom_whisper_onnx_config.with_behavior("encoder")
+        decoder_config = custom_whisper_onnx_config.with_behavior("decoder", use_past=False)
+        decoder_with_past_config = custom_whisper_onnx_config.with_behavior("decoder", use_past=True)
+
+        custom_onnx_configs = {
+            "encoder_model": encoder_config,
+            "decoder_model": decoder_config,
+            "decoder_with_past_model": decoder_with_past_config,
+        }
+
+        with TemporaryDirectory() as tmpdirname:
+            main_export(
+                model_id,
+                output=tmpdirname,
+                no_post_process=True,
+                model_kwargs={"output_attentions": True},
+                custom_onnx_configs=custom_onnx_configs,
+            )
+
+            model = onnx.load(os.path.join(tmpdirname, "decoder_model.onnx"))
+
+            output_names = [outp.name for outp in model.graph.output]
+            assert "decoder_attentions.0" in output_names
+            assert "cross_attentions.0" in output_names
