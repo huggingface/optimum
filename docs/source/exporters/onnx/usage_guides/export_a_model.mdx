@@ -269,9 +269,17 @@ class CustomWhisperOnnxConfig(WhisperOnnxConfig):
                 common_outputs[f"encoder_attentions.{i}"] = {0: "batch_size"}
         elif self._behavior is ConfigBehavior.DECODER:
             for i in range(self._config.decoder_layers):
-                common_outputs[f"decoder_attentions.{i}"] = {0: "batch_size", 3: "decoder_sequence_length"}
+                common_outputs[f"decoder_attentions.{i}"] = {
+                    0: "batch_size",
+                    2: "decoder_sequence_length",
+                    3: "past_decoder_sequence_length + 1"
+                }
             for i in range(self._config.decoder_layers):
-                common_outputs[f"cross_attentions.{i}"] = {0: "batch_size", 3: "cross_attention_length"}
+                common_outputs[f"cross_attentions.{i}"] = {
+                    0: "batch_size",
+                    2: "decoder_sequence_length",
+                    3: "encoder_sequence_length_out"
+                }
 
         return common_outputs
 

@@ -437,7 +437,7 @@ class OnnxConfig(ExportConfig, ABC):
             `Dict[str, Any]`: Outputs with flattened structure and key mapping this new structure.
 
         """
-        if isinstance(field[0], list) or isinstance(field[0], tuple):
+        if isinstance(field[0], (list, tuple)):
             return {f"{name}.{idx}": item for idx, item in enumerate(itertools.chain.from_iterable(field))}
         else:
             return {f"{name}.{idx}": item for idx, item in enumerate(field)}

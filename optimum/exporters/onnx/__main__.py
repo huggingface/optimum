@@ -139,7 +139,7 @@ def main_export(
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
         custom_onnx_configs (`Optional[Dict[str, OnnxConfig]]`, defaults to `None`):
-            Experimental usage: override the default ONNX config used for the given model. This argument may be useful for advanced users that desire a finer-grained control on the export. An example is available [here](TODO: link).
+            Experimental usage: override the default ONNX config used for the given model. This argument may be useful for advanced users that desire a finer-grained control on the export. An example is available [here](https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model).
         use_subprocess (`bool`):
             Do the ONNX exported model validation in subprocesses. This is especially useful when
             exporting on CUDA device, where ORT does not release memory at inference session

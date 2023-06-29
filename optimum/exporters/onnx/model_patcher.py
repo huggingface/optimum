@@ -31,8 +31,8 @@ logger = logging.get_logger(__name__)
 def overwride_arguments(args, kwargs, forward_signature, model_kwargs):
     args = list(args)
 
-    for argument in model_kwargs.keys():
-        if argument in forward_signature.parameters.keys():
+    for argument in model_kwargs:
+        if argument in forward_signature.parameters:
             argument_index = list(forward_signature.parameters.keys()).index(argument)
 
             args[argument_index] = model_kwargs[argument]
