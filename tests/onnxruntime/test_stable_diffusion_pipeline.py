@@ -107,6 +107,21 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (1, 128, 128, 3))
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_callback(self, model_arch: str):
+        def callback_fn(step: int, timestep: int, latents: np.ndarray) -> None:
+            callback_fn.has_been_called = True
+            callback_fn.number_of_steps += 1
+
+        pipe = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
+        callback_fn.has_been_called = False
+        callback_fn.number_of_steps = 0
+        inputs = self.generate_inputs(height=64, width=64)
+        pipe(**inputs, callback=callback_fn, callback_steps=1)
+        self.assertTrue(callback_fn.has_been_called)
+        self.assertEqual(callback_fn.number_of_steps, inputs["num_inference_steps"])
+
     def generate_inputs(self, height=128, width=128):
         inputs = _generate_inputs()
         inputs["height"] = height
@@ -139,9 +154,9 @@ class ORTStableDiffusionImg2ImgPipelineTest(ORTStableDiffusionPipelineBase):
         diffusers_output = diffusers_pipeline(**inputs, generator=np.random.RandomState(0)).images[0, -3:, -3:, -1]
         self.assertTrue(np.allclose(output, diffusers_output, atol=1e-4))
 
-    def generate_inputs(self):
+    def generate_inputs(self, height=128, width=128):
         inputs = _generate_inputs()
-        inputs["image"] = floats_tensor((1, 3, 128, 128), rng=random.Random(SEED))
+        inputs["image"] = floats_tensor((1, 3, height, width), rng=random.Random(SEED))
         inputs["strength"] = 0.75
         return inputs
 
@@ -150,11 +165,12 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES = [
         "stable-diffusion",
     ]
+    ORTMODEL_CLASS = ORTStableDiffusionPipeline
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_compare_to_diffusers(self, model_arch: str):
-        ort_pipeline = ORTStableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch], export=True)
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
         self.assertIsInstance(ort_pipeline.text_encoder, ORTModelTextEncoder)
         self.assertIsInstance(ort_pipeline.vae_decoder, ORTModelVaeDecoder)
         self.assertIsInstance(ort_pipeline.vae_encoder, ORTModelVaeEncoder)
@@ -192,7 +208,7 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_image_reproducibility(self, model_arch: str):
-        pipeline = ORTStableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch], export=True)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
         inputs = _generate_inputs()
         height = 64
         width = 64

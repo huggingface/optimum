@@ -206,6 +206,7 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
 
         # set timesteps
         self.scheduler.set_timesteps(num_inference_steps)
+        timesteps = self.scheduler.timesteps
 
         # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
         # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
@@ -275,9 +276,6 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
                 f"The unet {self.unet.__class__} should have either 4 or 9 input channels, not {num_channels_unet}."
             )
 
-        # set timesteps
-        self.scheduler.set_timesteps(num_inference_steps)
-
         # scale the initial noise by the standard deviation required by the scheduler
         latents = latents * np.float64(self.scheduler.init_noise_sigma)
 
@@ -293,7 +291,8 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
         # Adapted from diffusers to extend it for other runtimes than ORT
         timestep_dtype = self.unet.input_dtype.get("timestep", np.float32)
 
-        for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
+        num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
+        for i, t in enumerate(self.progress_bar(timesteps)):
             # expand the latents if we are doing classifier free guidance
             latent_model_input = np.concatenate([latents] * 2) if do_classifier_free_guidance else latents
             # concat latents, mask, masked_image_latnets in the channel dimension
@@ -320,8 +319,9 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
             latents = scheduler_output.prev_sample.numpy()
 
             # call the callback, if provided
-            if callback is not None and i % callback_steps == 0:
-                callback(i, t, latents)
+            if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
+                if callback is not None and i % callback_steps == 0:
+                    callback(i, t, latents)
 
         if output_type == "latent":
             image = latents

@@ -283,6 +283,7 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
         # Adapted from diffusers to extend it for other runtimes than ORT
         timestep_dtype = self.unet.input_dtype.get("timestep", np.float32)
 
+        num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
         for i, t in enumerate(self.progress_bar(timesteps)):
             # expand the latents if we are doing classifier free guidance
             latent_model_input = np.concatenate([latents] * 2) if do_classifier_free_guidance else latents
@@ -307,8 +308,9 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
             latents = scheduler_output.prev_sample.numpy()
 
             # call the callback, if provided
-            if callback is not None and i % callback_steps == 0:
-                callback(i, t, latents)
+            if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
+                if callback is not None and i % callback_steps == 0:
+                    callback(i, t, latents)
 
         if output_type == "latent":
             image = latents
