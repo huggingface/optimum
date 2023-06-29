@@ -4,9 +4,13 @@ import requests
 import torch
 from PIL import Image
 from transformers import AutoFeatureExtractor, AutoModel
+from torch.profiler import profile
 
 from optimum.bettertransformer import BetterTransformer
 
+
+# TODO add this line?
+# torch.backends.cuda.matmul.allow_tf32 = True
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -42,6 +46,18 @@ def get_batch(batch_size, model_name):
     return input_features
 
 
+def timing_cpu(model, num_batches, input_features):
+
+    with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
+        for _ in range(num_batches):
+            _ = model(input_features)
+
+    elapsed_time = p.key_averages().self_cpu_time_total
+    max_memory = max([event.cpu_memory_usage for event in p.key_averages()])
+
+    return elapsed_time / num_batches
+
+
 def timing_cuda(model, num_batches, input_features):
     start_event = torch.cuda.Event(enable_timing=True)
     end_event = torch.cuda.Event(enable_timing=True)
@@ -71,13 +87,15 @@ def benchmark(model_name, num_batches, batch_size, is_cuda, is_half):
         input_features = input_features.to(0)
 
     # Warmup
-    _ = hf_model(input_features)
-    torch.cuda.synchronize()
-    _ = bt_model(input_features)
-    torch.cuda.synchronize()
+    for _ in range(2):
+        _ = hf_model(input_features)
+        if is_cuda:
+            torch.cuda.synchronize()
 
-    total_hf_time = timing_cuda(hf_model, num_batches, input_features)
-    total_bt_time = timing_cuda(bt_model, num_batches, input_features)
+    timing_fn = timing_cuda if is_cuda else timing_cpu
+
+    total_hf_time = timing_fn(hf_model, num_batches, input_features)
+    total_bt_time = timing_fn(bt_model, num_batches, input_features)
 
     return total_bt_time, total_hf_time
 

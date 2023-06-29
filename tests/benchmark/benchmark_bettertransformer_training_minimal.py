@@ -4,6 +4,7 @@ from typing import Dict
 
 import numpy as np
 import torch
+from torch.profiler import profile
 from tqdm.auto import tqdm
 from transformers import AutoModelForCausalLM
 
@@ -51,7 +52,7 @@ def seed_init_fn(x):
     return
 
 
-def benchmark_training(model, inputs: Dict, num_training_steps: int):
+def benchmark_training(model, inputs: Dict, num_training_steps: int, use_cuda: bool):
     progress_bar = tqdm(range(num_training_steps))
 
     model.train()
@@ -61,34 +62,51 @@ def benchmark_training(model, inputs: Dict, num_training_steps: int):
         loss = outputs.logits.sum()
         loss.backward()
 
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
+    if use_cuda:
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
 
-    torch.cuda.reset_peak_memory_stats(device)
-    torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats(device)
+        torch.cuda.empty_cache()
 
-    torch.cuda.synchronize()
-    start_event.record()
-    for _ in range(num_training_steps):
-        model.zero_grad()
-        outputs = model(**inputs)
-        loss = outputs.logits.sum()
-        loss.backward()
+        torch.cuda.synchronize()
+        start_event.record()
+        for _ in range(num_training_steps):
+            model.zero_grad()
+            outputs = model(**inputs)
+            loss = outputs.logits.sum()
+            loss.backward()
 
-        progress_bar.update(1)
-    end_event.record()
-    torch.cuda.synchronize()
+            progress_bar.update(1)
+        end_event.record()
+        torch.cuda.synchronize()
 
-    max_memory = torch.cuda.max_memory_allocated(device)
+        max_memory = torch.cuda.max_memory_allocated(device)
 
-    return (start_event.elapsed_time(end_event) * 1.0e-3) / num_training_steps, max_memory
+        return (start_event.elapsed_time(end_event) * 1.0e-3) / num_training_steps, max_memory
+
+    # CPU profiling
+    else:
+        with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
+            for _ in range(num_training_steps):
+                model.zero_grad()
+                outputs = model(**inputs)
+                loss = outputs.logits.sum()
+                loss.backward()
+
+                progress_bar.update(1)
+
+        elapsed_time = p.key_averages().self_cpu_time_total
+        max_memory = max([event.cpu_memory_usage for event in p.key_averages()])
+
+        return elapsed_time / num_training_steps, max_memory
 
 
 if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
 
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda") if torch.cuda.is_available() and args.use_cuda else torch.device("cpu")
     with torch.device(device):
         hf_model = AutoModelForCausalLM.from_pretrained(
             args.model_name, torch_dtype=torch.float16 if args.use_half else None
@@ -96,7 +114,7 @@ if __name__ == "__main__":
     hf_model = hf_model.to(device)
 
     BATCH_SIZES = [8]
-    SEQ_LEN = [1024]
+    SEQ_LEN = [hf_model.config.n_positions]
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.use_cuda else "cpu")
 
     output_file = open("log_{}_train.csv".format(args.model_name.replace("/", "-")), "w")
@@ -119,7 +137,7 @@ if __name__ == "__main__":
             }
 
             hf_time_per_batch, eager_max_mem = benchmark_training(
-                hf_model, inputs=inputs, num_training_steps=args.num_training_steps
+                hf_model, inputs=inputs, num_training_steps=args.num_training_steps, use_cuda=args.use_cuda
             )
 
             all_hf_time_per_batch[(batch_size, sequence_length)] = hf_time_per_batch
@@ -141,7 +159,7 @@ if __name__ == "__main__":
             # raise error if no optimized kernel is available
             with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=True, enable_mem_efficient=True):
                 bt_time_per_batch, bt_max_mem = benchmark_training(
-                    bt_model, inputs=inputs, num_training_steps=args.num_training_steps
+                    bt_model, inputs=inputs, num_training_steps=args.num_training_steps, use_cuda=args.use_cuda
                 )
 
             eager_max_mem = all_eager_max_mem[(batch_size, sequence_length)] * 1e-6

@@ -1,11 +1,16 @@
 import argparse
 
 import torch
+from torch.profiler import profile
 from tqdm import tqdm
 from transformers import AutoModel, AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, GenerationConfig
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.exporters import TasksManager
+
+
+# TODO add this line?
+# torch.backends.cuda.matmul.allow_tf32 = True
 
 
 def get_parser():
@@ -123,7 +128,21 @@ def timing_cuda(model, num_batches, input_ids, masks, is_decoder, generation_con
     return (start_event.elapsed_time(end_event) * 1.0e-3) / num_batches, max_memory
 
 
-def benchmark(model, input_ids, masks, num_batches, is_decoder, max_token, pad_token_id):
+def timing_cpu(model, num_batches, input_ids, masks, is_decoder, generation_config=None):
+    with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
+        for _ in tqdm(range(num_batches)):
+            if is_decoder:
+                _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
+            else:
+                _ = model(input_ids, masks)
+
+    elapsed_time = p.key_averages().self_cpu_time_total
+    max_memory = max([event.cpu_memory_usage for event in p.key_averages()])
+
+    return elapsed_time / num_batches, max_memory
+
+
+def benchmark(model, input_ids, masks, num_batches, is_decoder, max_token, pad_token_id, use_cuda):
     # Warmup
     if is_decoder:
         gen_config = GenerationConfig(
@@ -133,17 +152,20 @@ def benchmark(model, input_ids, masks, num_batches, is_decoder, max_token, pad_t
             pad_token_id=pad_token_id,
         )
         _ = model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
-        torch.cuda.synchronize()
 
     else:
         _ = model(input_ids, masks)
+
+    if use_cuda:
         torch.cuda.synchronize()
 
     # benchmark
+    timing_fn = timing_cuda if args.use_cuda else timing_cpu
+
     if is_decoder:
-        total_time, max_mem = timing_cuda(model, num_batches, input_ids, masks, is_decoder, gen_config)
+        total_time, max_mem = timing_fn(model, num_batches, input_ids, masks, is_decoder, gen_config)
     else:
-        total_time, max_mem = timing_cuda(model, num_batches, input_ids, masks, is_decoder)
+        total_time, max_mem = timing_fn(model, num_batches, input_ids, masks, is_decoder)
 
     return total_time, max_mem
 
@@ -179,7 +201,8 @@ if __name__ == "__main__":
             hf_model = autoclass.from_pretrained(args.model_name, torch_dtype=torch.float16 if args.use_half else None)
         # in PyTorch we trust :)
         hf_model = hf_model.to("cuda:0")
-        hf_model = hf_model.to(torch.float16)
+        if args.use_half:
+            hf_model = hf_model.to(torch.float16)
     else:
         hf_model = autoclass.from_pretrained(args.model_name, torch_dtype=torch.float16 if args.use_half else None)
 
@@ -219,6 +242,7 @@ if __name__ == "__main__":
                         args.is_decoder,
                         args.max_token,
                         tokenizer.pad_token_id,
+                        args.use_cuda,
                     )
 
             all_total_hf_time[(bs, seq_len)] = total_hf_time
@@ -257,6 +281,7 @@ if __name__ == "__main__":
                             args.is_decoder,
                             args.max_token,
                             tokenizer.pad_token_id,
+                            args.use_cuda,
                         )
 
                 total_hf_time = all_total_hf_time[(bs, seq_len)]

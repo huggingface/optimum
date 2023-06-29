@@ -4,6 +4,7 @@ import random
 import numpy as np
 import torch
 from datasets import load_dataset
+from torch.profiler import profile
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, get_scheduler
@@ -77,24 +78,44 @@ def benchmark_training(model, num_epochs: int, train_dataloader, device):
         lr_scheduler.step()
         optimizer.zero_grad()
 
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
-    start_event.record()
-    for _ in range(num_epochs):
-        for _, batch in enumerate(train_dataloader):
-            batch = {k: v.to(device) for k, v in batch.items()}
-            outputs = model(**batch)
-            loss = outputs.logits.sum()
-            loss.backward()
+    if device.type == "cpu":
+        with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
+            for _ in range(num_training_steps):
+                batch = {k: v.to(device) for k, v in batch.items()}
+                outputs = model(**batch)
+                loss = outputs.logits.sum()
+                loss.backward()
 
-            optimizer.step()
-            lr_scheduler.step()
-            optimizer.zero_grad()
-            progress_bar.update(1)
-    end_event.record()
-    torch.cuda.synchronize()
+                optimizer.step()
+                lr_scheduler.step()
+                optimizer.zero_grad()
+                progress_bar.update(1)
 
-    return (start_event.elapsed_time(end_event) * 1.0e-3) / num_epochs
+        elapsed_time = p.key_averages().self_cpu_time_total
+        max_memory = max([event.cpu_memory_usage for event in p.key_averages()])
+
+        return elapsed_time / num_training_steps, max_memory
+
+    else:
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        start_event.record()
+        for _ in range(num_epochs):
+            for _, batch in enumerate(train_dataloader):
+                batch = {k: v.to(device) for k, v in batch.items()}
+                outputs = model(**batch)
+                loss = outputs.logits.sum()
+                loss.backward()
+
+                optimizer.step()
+                lr_scheduler.step()
+                optimizer.zero_grad()
+                progress_bar.update(1)
+
+        end_event.record()
+        torch.cuda.synchronize()
+
+        return (start_event.elapsed_time(end_event) * 1.0e-3) / num_epochs
 
 
 if __name__ == "__main__":
@@ -109,7 +130,7 @@ if __name__ == "__main__":
 
     raw_datasets = load_dataset("Abirate/english_quotes", split="train")
 
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda") if torch.cuda.is_available() and args.use_cuda else torch.device("cpu")
     dtype = torch.float32 if args.use_half is False else torch.float16
     hf_model = hf_model.to(device=device, dtype=dtype)
 
