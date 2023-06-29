@@ -98,7 +98,7 @@ Once the training is finished the model will be saved in the `output_dir` specif
 
 
 ```python
-from optimum import ORTStableDiffusionPipeline
+from optimum.onnxruntime import ORTStableDiffusionPipeline
 
 model_path = "path_to_saved_model"
 pipe = ORTStableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16)
