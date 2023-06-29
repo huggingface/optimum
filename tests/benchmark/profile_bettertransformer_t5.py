@@ -12,6 +12,7 @@ from optimum.exporters import TasksManager
 # TODO add this line?
 # torch.backends.cuda.matmul.allow_tf32 = True
 
+
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(

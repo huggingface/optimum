@@ -12,6 +12,10 @@ from optimum.onnxruntime.runs import OnnxRuntimeRun
 from optimum.utils.runs import RunConfig
 
 
+# TODO add this line?
+# torch.backends.cuda.matmul.allow_tf32 = True
+
+
 class TestParity(unittest.TestCase):
     def setUp(self):
         self.dir_path = tempfile.mkdtemp("test_transformers_optimum_examples_parity")

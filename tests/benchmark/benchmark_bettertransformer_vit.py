@@ -3,14 +3,15 @@ import argparse
 import requests
 import torch
 from PIL import Image
-from transformers import AutoFeatureExtractor, AutoModel
 from torch.profiler import profile
+from transformers import AutoFeatureExtractor, AutoModel
 
 from optimum.bettertransformer import BetterTransformer
 
 
 # TODO add this line?
 # torch.backends.cuda.matmul.allow_tf32 = True
+
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -47,12 +48,11 @@ def get_batch(batch_size, model_name):
 
 
 def timing_cpu(model, num_batches, input_features):
-
     with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
         inference_fn(input_features, model, num_batches)
 
     elapsed_time = p.key_averages().self_cpu_time_total
-    max_memory = max([event.cpu_memory_usage for event in p.key_averages()])
+    max([event.cpu_memory_usage for event in p.key_averages()])
 
     return elapsed_time / num_batches
 
