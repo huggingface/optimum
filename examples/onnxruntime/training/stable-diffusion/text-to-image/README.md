@@ -19,6 +19,7 @@ pip install --pre torch torchvision --index-url https://download.pytorch.org/whl
 pip install onnxruntime-training --pre -f https://download.onnxruntime.ai/onnxruntime_nightly_cu118.html
 python -m onnxruntime.training.ortmodule.torch_cpp_extensions.install
 ```
+Or get your environment ready via Docker: [examples/onnxruntime/training/docker/Dockerfile-ort-nightly-cu118](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/Dockerfile-ort-nightly-cu118)
 
 Then, cd in the example folder and run
 ```bash
