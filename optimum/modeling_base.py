@@ -328,9 +328,13 @@ class OptimizedModel(PreTrainedModel):
         if config is None:
             if os.path.isdir(os.path.join(model_id, subfolder)) and cls.config_name == CONFIG_NAME:
                 if CONFIG_NAME in os.listdir(os.path.join(model_id, subfolder)):
-                    config = AutoConfig.from_pretrained(os.path.join(model_id, subfolder, CONFIG_NAME))
+                    config = AutoConfig.from_pretrained(
+                        os.path.join(model_id, subfolder, CONFIG_NAME), trust_remote_code=trust_remote_code
+                    )
                 elif CONFIG_NAME in os.listdir(model_id):
-                    config = AutoConfig.from_pretrained(os.path.join(model_id, CONFIG_NAME))
+                    config = AutoConfig.from_pretrained(
+                        os.path.join(model_id, CONFIG_NAME), trust_remote_code=trust_remote_code
+                    )
                     logger.info(
                         f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
                     )
@@ -344,6 +348,7 @@ class OptimizedModel(PreTrainedModel):
                     use_auth_token=use_auth_token,
                     force_download=force_download,
                     subfolder=subfolder,
+                    trust_remote_code=trust_remote_code,
                 )
         elif isinstance(config, (str, os.PathLike)):
             config = cls._load_config(
@@ -353,6 +358,7 @@ class OptimizedModel(PreTrainedModel):
                 use_auth_token=use_auth_token,
                 force_download=force_download,
                 subfolder=subfolder,
+                trust_remote_code=trust_remote_code,
             )
 
         if not export and trust_remote_code:
