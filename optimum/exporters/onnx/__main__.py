@@ -15,6 +15,7 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 import argparse
+import os
 from pathlib import Path
 
 from requests.exceptions import ConnectionError as RequestsConnectionError
@@ -22,7 +23,15 @@ from transformers import AutoTokenizer
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
-from ...utils import DEFAULT_DUMMY_SHAPES, logging
+from ...utils import (
+    DEFAULT_DUMMY_SHAPES,
+    DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
+    DIFFUSION_MODEL_UNET_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
+    ONNX_WEIGHTS_NAME,
+    logging,
+)
 from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
@@ -285,12 +294,24 @@ def main_export(
 
     if task == "stable-diffusion":
         onnx_files_subpaths = [
-            "text_encoder/model.onnx",
-            "unet/model.onnx",
-            "vae_encoder/model.onnx",
-            "vae_decoder/model.onnx",
+            DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
+            DIFFUSION_MODEL_UNET_SUBFOLDER,
+            DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
+            DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
         ]
+
         models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
+
+        # save the subcomponent configuration
+        for model_name, name_dir in zip(models_and_onnx_configs, onnx_files_subpaths):
+            subcomponent = models_and_onnx_configs[model_name][0]
+            if hasattr(subcomponent, "save_config"):
+                subcomponent.save_config(output / name_dir)
+            elif hasattr(subcomponent, "config") and hasattr(subcomponent.config, "save_pretrained"):
+                subcomponent.config.save_pretrained(output / name_dir)
+
+        onnx_files_subpaths = [os.path.join(path, ONNX_WEIGHTS_NAME) for path in onnx_files_subpaths]
+
         # Saving the additional components needed to perform inference.
         model.tokenizer.save_pretrained(output.joinpath("tokenizer"))
         model.scheduler.save_pretrained(output.joinpath("scheduler"))
