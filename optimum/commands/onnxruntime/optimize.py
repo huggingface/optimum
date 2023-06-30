@@ -69,7 +69,7 @@ def parse_args_onnxruntime_optimize(parser: "ArgumentParser"):
     )
 
 
-class ONNXRuntimmeOptimizeCommand(BaseOptimumCLICommand):
+class ONNXRuntimeOptimizeCommand(BaseOptimumCLICommand):
     @staticmethod
     def parse_args(parser: "ArgumentParser"):
         return parse_args_onnxruntime_optimize(parser)
