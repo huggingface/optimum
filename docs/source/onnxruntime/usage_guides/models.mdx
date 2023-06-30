@@ -95,10 +95,12 @@ Here is an example of how you can load a T5 model to the ONNX format and run inf
 ## Export and inference of Stable Diffusion models
 
 Stable Diffusion models can also be used when running inference with ONNX Runtime. When Stable Diffusion models
-are exported to the ONNX format, they are split into three components that are later combined during inference:
+are exported to the ONNX format, they are split into four components that are later combined during inference:
 - The text encoder
 - The U-NET
+- The VAE encoder
 - The VAE decoder
+
 
 Make sure you have 🤗 Diffusers installed.
 
@@ -106,6 +108,8 @@ To install `diffusers`:
 ```
 pip install diffusers
 ```
+
+### Text-to-Image
 
 Here is an example of how you can load an ONNX Stable Diffusion model and run inference using ONNX Runtime:
 
@@ -129,3 +133,54 @@ stable_diffusion.save_pretrained(save_directory)
 ```
 
 ![img](https://huggingface.co/datasets/optimum/documentation-images/resolve/main/onnxruntime/stable_diffusion_v1_5_ort_sail_boat.png)
+
+
+### Image-to-Image
+
+```python
+import requests
+import torch
+from PIL import Image
+from io import BytesIO
+from optimum.onnxruntime import ORTStableDiffusionImg2ImgPipeline
+
+model_id = "runwayml/stable-diffusion-v1-5"
+pipe = StableDiffusionImg2ImgPipeline.from_pretrained(model_id, revision="onnx")
+
+url = "https://raw.githubusercontent.com/CompVis/stable-diffusion/main/assets/stable-samples/img2img/sketch-mountains-input.jpg"
+
+response = requests.get(url)
+init_image = Image.open(BytesIO(response.content)).convert("RGB")
+init_image = init_image.resize((768, 512))
+
+prompt = "A fantasy landscape, trending on artstation"
+
+image = pipe(prompt=prompt, image=init_image, strength=0.75, guidance_scale=7.5).images[0]
+image.save("fantasy_landscape.png")
+```
+
+### Inpaint
+
+```python
+import PIL
+import requests
+import torch
+from io import BytesIO
+from optimum.onnxruntime import ORTStableDiffusionInpaintPipeline
+
+model_id = "runwayml/stable-diffusion-inpainting"
+pipe = ORTStableDiffusionInpaintPipeline.from_pretrained(model_id, revision="onnx")
+
+def download_image(url):
+    response = requests.get(url)
+    return PIL.Image.open(BytesIO(response.content)).convert("RGB")
+
+img_url = "https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png"
+mask_url = "https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo_mask.png"
+
+init_image = download_image(img_url).resize((512, 512))
+mask_image = download_image(mask_url).resize((512, 512))
+
+prompt = "Face of a yellow cat, high resolution, sitting on a park bench"
+image = pipe(prompt=prompt, image=init_image, mask_image=mask_image).images[0]
+```
