@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import torch
 from huggingface_hub import hf_hub_download
 from huggingface_hub.utils import EntryNotFoundError
-from transformers import AutoModelForCausalLM, GenerationConfig
+from transformers import AutoModelForCausalLM, BloomForCausalLM, GenerationConfig
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
@@ -315,6 +315,7 @@ class ORTModelDecoder(ORTModel):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
+        init_cls,
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -514,7 +515,7 @@ class ORTModelDecoder(ORTModel):
         else:
             onnx_paths.append(decoder_merged_path)
 
-        return cls(
+        return init_cls(
             ort_inference_sessions[0],
             config,
             decoder_with_past_session=ort_inference_sessions[1],
@@ -695,3 +696,54 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
     def can_generate(self):
         """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
         return True
+
+    @classmethod
+    def _from_pretrained(
+        cls,
+        model_id: Union[str, Path],
+        config: "PretrainedConfig",
+        **kwargs,
+    ):
+        if config.model_type == "bloom":
+            return super()._from_pretrained(model_id, config, init_cls=ORTBloomForCausalLM, **kwargs)
+        else:
+            return super()._from_pretrained(model_id, config, init_cls=ORTModelForCausalLM, **kwargs)
+
+
+class ORTBloomForCausalLM(ORTModelForCausalLM):
+    # Adapted from transformers.models.bloom.modeling_bloom.BloomForCausalLM._reorder_cache
+    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
+        attention_mask = kwargs.get("attention_mask", None)
+        use_cache = kwargs.get("use_cache", None)
+
+        # only last token for input_ids if past is not None
+        if past_key_values:
+            # the cache may be in the stardard format (e.g. in contrastive search), convert to bloom's format if needed
+            if past_key_values[0][0].shape[0] == input_ids.shape[0]:
+                past_key_values = BloomForCausalLM._convert_to_bloom_cache(past_key_values)
+
+        return {
+            "input_ids": input_ids,
+            "past_key_values": past_key_values,
+            "use_cache": use_cache,
+            "position_ids": None,
+            "attention_mask": attention_mask,
+        }
+
+    # Adapted from transformers.models.bloom.modeling_bloom.BloomForCausalLM._reorder_cache
+    @staticmethod
+    def _reorder_cache(past: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor) -> Tuple[Tuple[torch.Tensor]]:
+        standardized_past = BloomForCausalLM._convert_to_standard_cache(past, batch_size=len(beam_idx))
+
+        # Get a copy of `beam_idx` on all the devices where we need those indices.
+        device_to_beam_idx = {
+            past_state.device: beam_idx.to(past_state.device) for layer_past in past for past_state in layer_past
+        }
+        reordered_past = tuple(
+            (
+                layer_past[0].index_select(0, device_to_beam_idx[layer_past[0].device]),
+                layer_past[1].index_select(0, device_to_beam_idx[layer_past[0].device]),
+            )
+            for layer_past in standardized_past
+        )
+        return BloomForCausalLM._convert_to_bloom_cache(reordered_past)
