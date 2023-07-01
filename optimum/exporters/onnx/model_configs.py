@@ -551,6 +551,11 @@ class ViTOnnxConfig(VisionOnnxConfig):
         return {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
 
 
+class CvTOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 13
+    ATOL_FOR_VALIDATION = 1e-2
+
+
 class LevitOnnxConfig(ViTOnnxConfig):
     pass
 
@@ -959,8 +964,10 @@ class WavLMOnnxConfig(HubertOnnxConfig):
     # we need to set output_attentions=True in the model input to avoid calling
     # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
     # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
-    def patch_model_for_export(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> "ModelPatcher":
-        return WavLMModelPatcher(self, model)
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return WavLMModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class ASTDummyAudioInputGenerator(DummyAudioInputGenerator):

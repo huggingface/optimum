@@ -15,6 +15,7 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 import argparse
+import os
 from pathlib import Path
 
 from requests.exceptions import ConnectionError as RequestsConnectionError
@@ -22,7 +23,15 @@ from transformers import AutoTokenizer
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
-from ...utils import DEFAULT_DUMMY_SHAPES, logging
+from ...utils import (
+    DEFAULT_DUMMY_SHAPES,
+    DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
+    DIFFUSION_MODEL_UNET_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
+    DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
+    ONNX_WEIGHTS_NAME,
+    logging,
+)
 from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
@@ -39,8 +48,11 @@ from .utils import (
 if is_torch_available():
     import torch
 
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
+
+if TYPE_CHECKING:
+    from .base import OnnxConfig
 
 logger = logging.get_logger()
 logger.setLevel(logging.INFO)
@@ -68,6 +80,9 @@ def main_export(
     use_auth_token: Optional[Union[bool, str]] = None,
     for_ort: bool = False,
     do_validation: bool = True,
+    model_kwargs: Optional[Dict[str, Any]] = None,
+    custom_onnx_configs: Optional[Dict[str, "OnnxConfig"]] = None,
+    use_subprocess: bool = False,
     **kwargs_shapes,
 ):
     """
@@ -127,6 +142,18 @@ def main_export(
         use_auth_token (`Optional[str]`, defaults to `None`):
             The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
             when running `transformers-cli login` (stored in `~/.huggingface`).
+        model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
+            Experimental usage: keyword arguments to pass to the model during
+            the export. This argument should be used along the `custom_onnx_configs` argument
+            in case, for example, the model inputs/outputs are changed (for example, if
+            `model_kwargs={"output_attentions": True}` is passed).
+        custom_onnx_configs (`Optional[Dict[str, OnnxConfig]]`, defaults to `None`):
+            Experimental usage: override the default ONNX config used for the given model. This argument may be useful for advanced users that desire a finer-grained control on the export. An example is available [here](https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model).
+        use_subprocess (`bool`):
+            Do the ONNX exported model validation in subprocesses. This is especially useful when
+            exporting on CUDA device, where ORT does not release memory at inference session
+            destruction. When set to `True`, the `main_export` call should be guarded in
+            `if __name__ == "__main__":` block.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -267,12 +294,24 @@ def main_export(
 
     if task == "stable-diffusion":
         onnx_files_subpaths = [
-            "text_encoder/model.onnx",
-            "unet/model.onnx",
-            "vae_encoder/model.onnx",
-            "vae_decoder/model.onnx",
+            DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
+            DIFFUSION_MODEL_UNET_SUBFOLDER,
+            DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
+            DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
         ]
+
         models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
+
+        # save the subcomponent configuration
+        for model_name, name_dir in zip(models_and_onnx_configs, onnx_files_subpaths):
+            subcomponent = models_and_onnx_configs[model_name][0]
+            if hasattr(subcomponent, "save_config"):
+                subcomponent.save_config(output / name_dir)
+            elif hasattr(subcomponent, "config") and hasattr(subcomponent.config, "save_pretrained"):
+                subcomponent.config.save_pretrained(output / name_dir)
+
+        onnx_files_subpaths = [os.path.join(path, ONNX_WEIGHTS_NAME) for path in onnx_files_subpaths]
+
         # Saving the additional components needed to perform inference.
         model.tokenizer.save_pretrained(output.joinpath("tokenizer"))
         model.scheduler.save_pretrained(output.joinpath("scheduler"))
@@ -308,6 +347,10 @@ def main_export(
         else:
             models_and_onnx_configs = {"model": (model, onnx_config)}
 
+    if custom_onnx_configs is not None:
+        for key, custom_onnx_config in custom_onnx_configs.items():
+            models_and_onnx_configs[key] = (models_and_onnx_configs[key][0], custom_onnx_config)
+
     _, onnx_outputs = export_models(
         models_and_onnx_configs=models_and_onnx_configs,
         opset=opset,
@@ -316,6 +359,7 @@ def main_export(
         input_shapes=input_shapes,
         device=device,
         dtype="fp16" if fp16 is True else None,
+        model_kwargs=model_kwargs,
     )
 
     if optimize == "O4" and device != "cuda":
@@ -349,7 +393,6 @@ def main_export(
                 f"The post-processing of the ONNX export failed. The export can still be performed by passing the option --no-post-process. Detailed error: {e}"
             )
 
-    use_subprocess = True
     if task == "stable-diffusion":
         use_subprocess = (
             False  # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
@@ -371,6 +414,7 @@ def main_export(
                 device=device,
                 dtype=torch_dtype,
                 use_subprocess=use_subprocess,
+                model_kwargs=model_kwargs,
             )
             logger.info(f"The ONNX export succeeded and the exported model was saved at: {output.as_posix()}")
         except ShapeError as e:

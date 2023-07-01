@@ -311,14 +311,18 @@ class ORTDecoder(ORTModelPart):
             input_ids, past_key_values, use_torch=use_torch
         )
 
-        if self.device.type == "cuda" and self.parent_model.use_io_binding:
+        if self.parent_model.use_io_binding:
             known_output_shapes = self.compute_past_key_values_output_shapes(
                 input_ids,
                 use_cache_branch=use_cache_branch_tensor.item() if use_cache_branch_tensor is not None else None,
                 past_key_values=past_key_values,
             )
 
-            model_inputs = [input_ids]
+            # TODO: fix transformers generate to have contiguous input_ids here already
+            # For an unknown reason, calling `contigous()` here is necessary to not have errors
+            # on CPU EP with batch size > 1, despite it being also called in _prepare_io_binding.
+            # I suspect the reason is the contiguous python list that messes something up?
+            model_inputs = [input_ids.contiguous()]
 
             if "attention_mask" in self.input_names:
                 model_inputs.append(attention_mask)
@@ -340,9 +344,12 @@ class ORTDecoder(ORTModelPart):
                 ordered_input_names=self._ordered_input_names,
             )
 
-            io_binding.synchronize_inputs()
-            self.session.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer(2)
             past_key_values = ()
