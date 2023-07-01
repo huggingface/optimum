@@ -767,6 +767,7 @@ class TasksManager:
         "segformer": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
+            "image-segmentation",
             "semantic-segmentation",
             onnx="SegformerOnnxConfig",
         ),

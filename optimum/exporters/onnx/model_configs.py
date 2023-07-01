@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model specific ONNX configurations."""
-import copy
 import random
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
@@ -575,13 +574,6 @@ class ConvNextOnnxConfig(ViTOnnxConfig):
 class MobileViTOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
 
-    @property
-    def outputs(self) -> Dict[str, Dict[int, str]]:
-        if self.task == "image-segmentation":
-            return copy.deepcopy(self._TASK_TO_COMMON_OUTPUTS["semantic-segmentation"])
-        else:
-            return super().outputs
-
 
 class RegNetOnnxConfig(ViTOnnxConfig):
     # This config has the same inputs as ViTOnnxConfig
@@ -596,9 +588,14 @@ class DetrOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 
     @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
-        # TODO: is pixel mask needed?
-        return {**super().inputs, "pixel_mask": {0: "batch_size"}}
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "image-segmentation":
+            return {
+                "logits": {0: "batch_size", 1: "num_queries"},
+                "pred_masks": {0: "batch_size", 1: "num_queries"},
+            }
+        else:
+            return super().outputs
 
 
 class YolosOnnxConfig(ViTOnnxConfig):
