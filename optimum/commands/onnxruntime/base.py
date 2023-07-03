@@ -15,8 +15,8 @@
 """optimum.onnxruntime command-line interface base classes."""
 
 from .. import BaseOptimumCLICommand, CommandInfo
-from .optimize import ONNXRuntimmeOptimizeCommand
-from .quantize import ONNXRuntimmeQuantizeCommand
+from .optimize import ONNXRuntimeOptimizeCommand
+from .quantize import ONNXRuntimeQuantizeCommand
 
 
 class ONNXRuntimeCommand(BaseOptimumCLICommand):
@@ -28,11 +28,11 @@ class ONNXRuntimeCommand(BaseOptimumCLICommand):
         CommandInfo(
             name="optimize",
             help="Optimize ONNX models.",
-            subcommand_class=ONNXRuntimmeOptimizeCommand,
+            subcommand_class=ONNXRuntimeOptimizeCommand,
         ),
         CommandInfo(
             name="quantize",
             help="Dynammic quantization for ONNX models.",
-            subcommand_class=ONNXRuntimmeQuantizeCommand,
+            subcommand_class=ONNXRuntimeQuantizeCommand,
         ),
     )

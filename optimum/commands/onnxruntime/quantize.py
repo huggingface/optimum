@@ -63,7 +63,7 @@ def parse_args_onnxruntime_quantize(parser: "ArgumentParser"):
     )
 
 
-class ONNXRuntimmeQuantizeCommand(BaseOptimumCLICommand):
+class ONNXRuntimeQuantizeCommand(BaseOptimumCLICommand):
     @staticmethod
     def parse_args(parser: "ArgumentParser"):
         return parse_args_onnxruntime_quantize(parser)
