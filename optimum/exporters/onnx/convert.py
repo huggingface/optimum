@@ -14,6 +14,7 @@
 # limitations under the License.
 """ONNX model check and export functions."""
 
+import gc
 import multiprocessing as mp
 import os
 import traceback
@@ -593,6 +594,9 @@ def export_pytorch(
                 # try free model memory
                 del model
                 del onnx_model
+                gc.collect()
+                if device.type == "cuda" and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
                 onnx_model = onnx.load(
                     str(output), load_external_data=True
