@@ -133,14 +133,7 @@ class OnnxConfig(ExportConfig, ABC):
         "feature-extraction": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
-        # TODO: Is this the same thing as semantic-segmentation?
-        "image-segmentation": OrderedDict(
-            {
-                "logits": {0: "batch_size", 1: "num_queries"},
-                "pred_boxes": {0: "batch_size", 1: "num_queries"},
-                "pred_masks": {0: "batch_size", 1: "num_queries"},
-            }
-        ),
+        "image-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
         "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "mask-generation": OrderedDict({"logits": {0: "batch_size"}}),
         "masked-im": OrderedDict(

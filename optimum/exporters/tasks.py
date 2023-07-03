@@ -161,7 +161,7 @@ class TasksManager:
             "object-detection": "AutoModelForObjectDetection",
             "question-answering": "AutoModelForQuestionAnswering",
             "image-classification": "AutoModelForImageClassification",
-            "image-segmentation": "AutoModelForImageSegmentation",
+            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
@@ -632,6 +632,7 @@ class TasksManager:
         "mobilevit": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
+            "image-segmentation",
             onnx="MobileViTOnnxConfig",
         ),
         "mobilenet-v1": supported_tasks_mapping(
@@ -766,6 +767,7 @@ class TasksManager:
         "segformer": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
+            "image-segmentation",
             "semantic-segmentation",
             onnx="SegformerOnnxConfig",
         ),
