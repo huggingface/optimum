@@ -241,7 +241,7 @@ class NormalizedConfigManager:
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
         "mpt": MPTNormalizedTextConfig,
-        "chatglm": NormalizedTextConfig.with_args(num_layers="num_layers")
+        "chatglm": NormalizedTextConfig.with_args(num_layers="num_layers"),
     }
 
     @classmethod
