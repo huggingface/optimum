@@ -576,10 +576,10 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                         sequence_length = dummy_input_gen.sequence_length
                         if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
                             logger.info(
-                                f"Asked a sequence length of {kwargs['sequence_length']}, but a sequence length of 1 "
+                                f"Asked a sequence length of {kwargs['sequence_length']}, but a sequence length of 2 "
                                 f"will be used with use_past == True for `{input_name}`."
                             )
-                        dummy_input_gen.sequence_length = 1
+                        dummy_input_gen.sequence_length = 2
                         dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
                         dummy_input_gen.sequence_length = sequence_length
                     else:
@@ -601,7 +601,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             past_length = dummy_inputs["past_key_values"][0][0].shape[2]
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],
-                desired_length=past_length + 1,
+                desired_length=past_length + 2,
                 dim=1,
                 dtype=dummy_inputs["attention_mask"].dtype,
             )
@@ -610,7 +610,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             past_length = dummy_inputs["past_key_values"][0][0].shape[2]
             dummy_inputs["decoder_attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["decoder_attention_mask"],
-                desired_length=past_length + 1,
+                desired_length=past_length + 2,
                 dim=1,
                 dtype=dummy_inputs["decoder_attention_mask"].dtype,
             )
