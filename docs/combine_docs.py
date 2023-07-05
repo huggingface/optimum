@@ -106,12 +106,17 @@ def main():
         if subpackage == "neuron":
             # Update optimum table of contents
             base_toc.extend(
-                {
-                    "sections": {
-                        "local": "https://huggingface.co/docs/optimum-neuron/index",
+                [
+                    {
+                        "sections": [
+                            {
+                                "local": "https://huggingface.co/docs/optimum-neuron/index",
+                                "title": "🤗 Optimum Neuron",
+                            }
+                        ],
                         "title": "Optimum Neuron",
-                    },
-                }
+                    }
+                ]
             )
         else:
             subpackage_path = Path(f"{subpackage}-doc-build")
@@ -130,6 +135,8 @@ def main():
                 subpackage_toc = yaml.safe_load(f)
             # Extend table of contents sections with the subpackage name as the parent folder
             rename_subpackage_toc(subpackage, subpackage_toc)
+            # Update optimum table of contents
+            base_toc.extend(subpackage_toc)
 
     # Add popped sections at the end
     base_toc.extend(sections_to_pop.values())
