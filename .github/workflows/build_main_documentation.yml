@@ -44,6 +44,11 @@ jobs:
           repository: 'huggingface/optimum-intel'
           path: optimum-intel
 
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-furiosa'
+          path: optimum-furiosa
+
       - name: Set environment variables
         run: |
           cd optimum
@@ -88,6 +93,14 @@ jobs:
           sudo mv intel-doc-build ../optimum
           cd ..
 
+      - name: Make Furiosa documentation
+        run: |
+          cd optimum-furiosa
+          pip install .
+          doc-builder build optimum.furiosa docs/source/ --build_dir furiosa-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
+          mv furiosa-doc-build ../optimum
+          cd ..
+
       - name: Make Optimum documentation
         run: |
           sudo docker system prune -a -f
@@ -101,7 +114,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages graphcore habana intel --version ${{ env.VERSION }}
+          sudo python docs/combine_docs.py --subpackages graphcore habana intel furiosa --version ${{ env.VERSION }}
           cd ..
 
       - name: Push to repositories
