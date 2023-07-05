@@ -1,41 +1,74 @@
 import argparse
 from pathlib import Path
 
-from optimum.litmus import compile_onnx, export_onnx, simplify_onnx
-from optimum.litmus.nlp import BATCH_SIZE, SEQUENCE_LENGTH, TASKS
+from optimum.litmus import compile_onnx, export_onnx, utils
+from optimum.litmus.nlp import BATCH_SIZE, INPUT_LENGTH, TASKS, simplify
 
 
 def main():
     parser = argparse.ArgumentParser("FuriosaAI litmus OPT using HF Optimum API.")
-    parser.add_argument("output_dir", help="path to directory to save outputs")
+    parser.add_argument("output_dir", type=Path, help="path to directory to save outputs")
     parser.add_argument(
-        "--size", "-s", choices=["125m", "350m", "1.3b", "2.7b", "6.7b", "30b", "66b"], help="available model sizes"
+        "--model-size",
+        "-s",
+        choices=["125m", "350m", "1.3b", "2.7b", "6.7b", "30b", "66b"],
+        help="available model sizes",
+    )
+    parser.add_argument(
+        "--batch-size",
+        "-b",
+        default=BATCH_SIZE,
+        type=utils.check_non_negative,
+        help="Batch size for model inputs",
+    )
+    parser.add_argument(
+        "--input-len",
+        default=INPUT_LENGTH,
+        type=utils.check_non_negative,
+        help="Length of input prommpt",
+    )
+    parser.add_argument(
+        "--gen-step",
+        default=0,
+        type=utils.check_non_negative,
+        help="Generation step to simplify onnx graph",
+    )
+    parser.add_argument(
+        "--task",
+        default="text-generation-with-past",
+        type=str,
+        choices=TASKS,
+        help="Task to export model for",
     )
     args = parser.parse_args()
 
-    model_name = f"opt-{args.size}"
+    model_name = f"opt-{args.model_size}"
     model_tag = f"facebook/{model_name}"
-    task = "text-generation-with-past"
-    assert task in TASKS
-    output = Path(args.output_dir)
-    if not output.exists():
-        output.mkdir(parents=True)
-    export_onnx(model_name_or_path=model_tag, output=output, task=task, framework="pt")
+    output_dir = args.output_dir
 
-    onnx_model_name = "decoder_model"
-    input_model = output / f"{onnx_model_name}.onnx"
-    opt_model = output / f"{onnx_model_name}-opt.onnx"
-    overwrite_input_shapes = {
-        "input_ids": [BATCH_SIZE, SEQUENCE_LENGTH],
-        "attention_mask": [BATCH_SIZE, SEQUENCE_LENGTH],
-    }
-    simplify_onnx(input_model, opt_model, overwrite_input_shapes)
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True)
 
-    compile_onnx(opt_model, output / f"{model_name}.dfg", output / f"{model_name}.dot")
+    if not (output_dir / "decoder_model_merged.onnx").exists():
+        print("Exporting ONNX Model...")
+        export_onnx(model_name_or_path=model_tag, output=output_dir, task=args.task, framework="pt")
+
+    print("Simplifying ONNX Model...")
+    simplify(
+        output_dir / "decoder_model_merged.onnx",
+        output_dir,
+        args.batch_size,
+        args.input_len,
+        args.gen_step,
+        args.task,
+    )
+
+    compile_onnx(
+        output_dir / f"decoder_model-opt_gen_step={args.gen_step}.onnx",
+        output_dir / f"decoder_model-opt_gen_step={args.gen_step}.dfg",
+        output_dir / f"decoder_model-opt_gen_step={args.gen_step}.dot",
+    )
 
 
 if __name__ == "__main__":
-    import os
-
-    os.environ["ONNXSIM_FIXED_POINT_ITERS"] = "200"
     main()

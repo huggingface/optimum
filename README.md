@@ -62,16 +62,24 @@ optional arguments:
 ### OPT
 https://huggingface.co/docs/transformers/model_doc/opt
 ```
-$ python3 -m optimum.litmus.nlp.opt --help
-usage: FuriosaAI litmus OPT using HF Optimum API. [-h] [--size {125m,350m,1.3b,2.7b,6.7b,30b,66b}] output_dir
+usage: FuriosaAI litmus OPT using HF Optimum API. [-h] [--model-size {125m,350m,1.3b,2.7b,6.7b,30b,66b}] [--batch-size BATCH_SIZE] [--input-len INPUT_LEN] [--gen-step GEN_STEP]
+                                                  [--task {text-generation-with-past}]
+                                                  output_dir
 
 positional arguments:
   output_dir            path to directory to save outputs
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
-  --size {125m,350m,1.3b,2.7b,6.7b,30b,66b}, -s {125m,350m,1.3b,2.7b,6.7b,30b,66b}
+  --model-size {125m,350m,1.3b,2.7b,6.7b,30b,66b}, -s {125m,350m,1.3b,2.7b,6.7b,30b,66b}
                         available model sizes
+  --batch-size BATCH_SIZE, -b BATCH_SIZE
+                        Batch size for model inputs
+  --input-len INPUT_LEN
+                        Length of input prommpt
+  --gen-step GEN_STEP   Generation step to simplify onnx graph
+  --task {text-generation-with-past}
+                        Task to export model for
 ```
 
 ### LLaMA
