@@ -1,17 +1,11 @@
 # https://github.com/daquexian/onnx-simplifier/blob/v0.3.10/onnxsim/onnx_simplifier.py
-import argparse
-from collections import OrderedDict
 import copy
-import os
-import sys
-from typing import Callable, Dict, List, Optional, Sequence, Tuple, TypeVar, Union
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np  # type: ignore
 import onnx.helper  # type: ignore
 import onnx.numpy_helper  # type: ignore
 import onnx.shape_inference  # type: ignore
-import onnxoptimizer  # type: ignore
-import onnxruntime as rt  # type: ignore
 
 import onnx  # type: ignore
 
