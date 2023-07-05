@@ -564,6 +564,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
+                    if input_name == "past_key_values":
+                        sequence_length_pkv = dummy_input_gen.sequence_length
                     # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
                     # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
                     if (
@@ -596,7 +598,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             and self.use_cache_branch is not False
             and "attention_mask" in dummy_inputs
         ):
-            past_length = dummy_inputs["past_key_values"][0][0].shape[2]
+            past_length = sequence_length_pkv
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],
                 desired_length=past_length + 1,
@@ -605,7 +607,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             )
 
         if self.use_past_in_inputs and self.use_cache_branch is not False and "decoder_attention_mask" in dummy_inputs:
-            past_length = dummy_inputs["past_key_values"][0][0].shape[2]
+            past_length = sequence_length_pkv
             dummy_inputs["decoder_attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["decoder_attention_mask"],
                 desired_length=past_length + 1,
