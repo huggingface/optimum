@@ -103,24 +103,33 @@ def main():
 
     # Copy and rename all files from subpackages' docs to Optimum doc
     for subpackage in args.subpackages:
-        subpackage_path = Path(f"{subpackage}-doc-build")
+        if subpackage == "neuron":
+            # Update optimum table of contents
+            base_toc.extend(
+                {
+                    "sections": {
+                        "local": "https://huggingface.co/docs/optimum-neuron/index",
+                        "title": "Optimum Neuron",
+                    },
+                }
+            )
+        else:
+            subpackage_path = Path(f"{subpackage}-doc-build")
 
-        # Copy all HTML files from subpackage into optimum
-        rename_copy_subpackage_html_paths(
-            subpackage,
-            subpackage_path,
-            optimum_path,
-            args.version,
-        )
+            # Copy all HTML files from subpackage into optimum
+            rename_copy_subpackage_html_paths(
+                subpackage,
+                subpackage_path,
+                optimum_path,
+                args.version,
+            )
 
-        # Load subpackage table of contents
-        subpackage_toc_path = next(subpackage_path.rglob("_toctree.yml"))
-        with open(subpackage_toc_path, "r") as f:
-            subpackage_toc = yaml.safe_load(f)
-        # Extend table of contents sections with the subpackage name as the parent folder
-        rename_subpackage_toc(subpackage, subpackage_toc)
-        # Update optimum table of contents
-        base_toc.extend(subpackage_toc)
+            # Load subpackage table of contents
+            subpackage_toc_path = next(subpackage_path.rglob("_toctree.yml"))
+            with open(subpackage_toc_path, "r") as f:
+                subpackage_toc = yaml.safe_load(f)
+            # Extend table of contents sections with the subpackage name as the parent folder
+            rename_subpackage_toc(subpackage, subpackage_toc)
 
     # Add popped sections at the end
     base_toc.extend(sections_to_pop.values())
