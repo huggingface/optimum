@@ -40,15 +40,23 @@ https://huggingface.co/docs/transformers/model_doc/gpt2
 
 ```
 $ python3 -m optimum.litmus.nlp.gpt2 --help
-usage: FuriosaAI litmus GPT2 using HF Optimum API. [-h] [--size {s,m,l,xl}] output_dir
+usage: FuriosaAI litmus GPT2 using HF Optimum API. [-h] [--model-size {s,m,l,xl}] [--batch-size BATCH_SIZE] [--input-len INPUT_LEN] [--gen-step GEN_STEP] [--task {text-generation-with-past}]
+                                                   output_dir
 
 positional arguments:
   output_dir            path to directory to save outputs
 
 optional arguments:
   -h, --help            show this help message and exit
-  --size {s,m,l,xl}, -s {s,m,l,xl}
+  --model-size {s,m,l,xl}, -s {s,m,l,xl}
                         available model sizes
+  --batch-size BATCH_SIZE, -b BATCH_SIZE
+                        Batch size for model inputs
+  --input-len INPUT_LEN
+                        Length of input prommpt
+  --gen-step GEN_STEP   Generation step to simplify onnx graph
+  --task {text-generation-with-past}
+                        Task to export model for
 ```
 
 ### OPT
