@@ -619,6 +619,10 @@ class TasksManager:
         #     "automatic-speech-recognition",
         #     onnx="MCTCTOnnxConfig",
         # ),
+        "mgp-str": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="MgpstrOnnxConfig",
+        ),
         "mobilebert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",

@@ -73,6 +73,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
     "mbart": "hf-internal-testing/tiny-random-mbart",
+    "mgp-str": "hf-internal-testing/tiny-random-mgp-str",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
     "mobilenet-v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
     "mobilenet-v1": "google/mobilenet_v1_0.75_192",
@@ -189,6 +190,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",  # Not using facebook/m2m100_418M because it takes too much time for testing.
     "marian": "Helsinki-NLP/opus-mt-en-de",
     "mbart": "sshleifer/tiny-mbart",
+    "mgp-str": "alibaba-damo/mgp-str-base",
     "mobilebert": "google/mobilebert-uncased",
     # "mobilenet_v1": "google/mobilenet_v1_0.75_192",
     # "mobilenet_v2": "google/mobilenet_v2_0.35_96",
