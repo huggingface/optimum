@@ -2,6 +2,8 @@ import copy
 from pathlib import Path
 from typing import Dict, List, Union
 
+import onnxruntime as ort
+
 from furiosa.tools.compiler.api import compile
 import onnx
 from optimum.exporters.onnx import main_export
@@ -10,6 +12,8 @@ from optimum.litmus import onnxsim, utils
 TARGET_IR = "dfg"
 TARGET_NPU = "warboy-b0"
 
+# set default onnxruntime looging level 3: Error to suppress warnings(2: Warning)
+ort.set_default_logger_severity(3)
 export_onnx = main_export
 
 
