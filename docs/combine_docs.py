@@ -88,7 +88,7 @@ def add_neuron_doc(base_toc: List):
     Extends the table of content with a section about Optimum Neuron.
 
     Args:
-        base_toc (List): table of ocntent for the doc of Optimum.
+        base_toc (List): table of content for the doc of Optimum.
     """
     # Update optimum table of contents
     base_toc.extend(
@@ -129,7 +129,7 @@ def main():
     # Copy and rename all files from subpackages' docs to Optimum doc
     for subpackage in args.subpackages:
         if subpackage == "neuron":
-            # Neuron has its own doc so it is manged differently
+            # Neuron has its own doc so it is managed differently
             add_neuron_doc(base_toc)
         else:
             subpackage_path = Path(f"{subpackage}-doc-build")
