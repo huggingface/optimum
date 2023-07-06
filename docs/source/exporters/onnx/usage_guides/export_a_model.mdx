@@ -322,7 +322,7 @@ main_export(
 
 ### Customize the export of Transformers models with custom modeling
 
-Optimum supports the export of Transformers models with custom modeling that use [`trust_remote_code=True`](), not officially supported in the Transormers library but usable with its functionality as [pipelines]() and [generation]()
+Optimum supports the export of Transformers models with custom modeling that use [`trust_remote_code=True`](https://huggingface.co/docs/transformers/en/model_doc/auto#transformers.AutoModel.from_pretrained.trust_remote_code), not officially supported in the Transormers library but usable with its functionality as [pipelines](https://huggingface.co/docs/transformers/main_classes/pipelines) and [generation](https://huggingface.co/docs/transformers/main_classes/text_generation#transformers.GenerationMixin.generate).
 
 Examples of such models are [THUDM/chatglm2-6b](https://huggingface.co/THUDM/chatglm2-6b) and [mosaicml/mpt-30b](https://huggingface.co/mosaicml/mpt-30b).
 
@@ -420,4 +420,4 @@ main_export(
 )
 ```
 
-Moreover, the advanced argument `fn_get_submodels` to `main_export` allows to customize how the submodels are extracted in case the model needs to be exported in several submodels. Examples of such functions can be [consulted here](TODO).
+Moreover, the advanced argument `fn_get_submodels` to `main_export` allows to customize how the submodels are extracted in case the model needs to be exported in several submodels. Examples of such functions can be [consulted here](link to utils.py relevant code once merged).
