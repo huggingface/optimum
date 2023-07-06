@@ -100,15 +100,9 @@ def _get_submodels_for_export_stable_diffusion(
     """
     Returns the components of a Stable Diffusion model.
     """
-    from diffusers import StableDiffusionXLPipeline
-
-    is_xl = isinstance(pipeline, StableDiffusionXLPipeline)
-
     models_for_export = {}
 
     # Text encoder
-    if is_xl:
-        pipeline.text_encoder.config.output_hidden_states = True
     models_for_export["text_encoder"] = pipeline.text_encoder
 
     # U-NET
@@ -258,10 +252,12 @@ def get_stable_diffusion_models_for_export(
         `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
         onnx configs for the different components of the model.
     """
-
     from diffusers import StableDiffusionXLPipeline
 
     is_xl = isinstance(pipeline, StableDiffusionXLPipeline)
+
+    if is_xl:
+        pipeline.text_encoder.config.output_hidden_states = True
 
     models_for_export = _get_submodels_for_export_stable_diffusion(pipeline)
 
