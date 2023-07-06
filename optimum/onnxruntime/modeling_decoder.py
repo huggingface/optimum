@@ -706,8 +706,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
     ):
         if config.model_type == "bloom":
             return super()._from_pretrained(model_id, config, init_cls=ORTBloomForCausalLM, **kwargs)
-        else:
-            return super()._from_pretrained(model_id, config, init_cls=ORTModelForCausalLM, **kwargs)
+        return super()._from_pretrained(model_id, config, init_cls=ORTModelForCausalLM, **kwargs)
 
 
 class ORTBloomForCausalLM(ORTModelForCausalLM):
