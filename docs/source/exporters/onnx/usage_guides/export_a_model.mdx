@@ -246,7 +246,7 @@ You can then pass one of these tasks to the `--task` argument in the `optimum-cl
 
 Optimum allows for advanced users a finer-grained control over the configuration for the ONNX export. This is especially useful if you would like to export models with different keyword arguments, for example using `output_attentions=True` or `output_hidden_states=True`.
 
-To support these use cases, [~exporters.__main__.main_export] supports two arguments: `model_kwargs` and `custom_onnx_configs`, which are used in the following fashion:
+To support these use cases, [`~exporters.main_export`] supports two arguments: `model_kwargs` and `custom_onnx_configs`, which are used in the following fashion:
 
 * `model_kwargs` allows to override some of the default arguments to the models `forward`, in practice as `model(**reference_model_inputs, **model_kwargs)`.
 * `custom_onnx_configs` should be a `Dict[str, OnnxConfig]`, mapping from the submodel name (usually `model`, `encoder_model`, `decoder_model`, or `decoder_model_with_past` - [reference](https://github.com/huggingface/optimum/blob/main/optimum/exporters/onnx/constants.py)) to a custom ONNX configuration for the given submodel.
@@ -254,7 +254,7 @@ To support these use cases, [~exporters.__main__.main_export] supports two argum
 A complete example is given below, allowing to export models with `output_attentions=True`.
 
 ```python
-from optimum.exporters.onnx.__main__ import main_export
+from optimum.exporters.onnx import main_export
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
 from transformers import AutoConfig
 
@@ -326,7 +326,7 @@ Optimum supports the export of Transformers models with custom modeling that use
 
 Examples of such models are [THUDM/chatglm2-6b](https://huggingface.co/THUDM/chatglm2-6b) and [mosaicml/mpt-30b](https://huggingface.co/mosaicml/mpt-30b).
 
-To export custom models, a dictionary `custom_onnx_configs` needs to be passed, with the ONNX config definition for all the subparts of the model to export (for example, encoder and decoder subparts). The example below allows to export `mosaicml/mpt-7b` model:
+To export custom models, a dictionary `custom_onnx_configs` needs to be passed to [`~optimum.exporters.onnx.main_export`], with the ONNX config definition for all the subparts of the model to export (for example, encoder and decoder subparts). The example below allows to export `mosaicml/mpt-7b` model:
 
 ```python
 from optimum.exporters.onnx import main_export
