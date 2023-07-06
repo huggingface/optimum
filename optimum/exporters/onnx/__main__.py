@@ -71,8 +71,9 @@ def _get_submodels_and_onnx_configs(
     custom_architecture: bool,
     fn_get_submodels: Optional[Callable] = None,
 ):
+    is_stable_diffusion = "stable-diffusion" in task
     if not custom_architecture:
-        if task == "stable-diffusion":
+        if is_stable_diffusion:
             onnx_config = None
             models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
         else:
@@ -104,7 +105,7 @@ def _get_submodels_and_onnx_configs(
         if fn_get_submodels is not None:
             submodels_for_export = fn_get_submodels(model)
         else:
-            if task == "stable-diffusion":
+            if is_stable_diffusion:
                 submodels_for_export = _get_submodels_for_export_stable_diffusion(model)
             elif (
                 model.config.is_encoder_decoder
@@ -312,7 +313,9 @@ def main_export(
     )
 
     custom_architecture = False
-    if task != "stable-diffusion" and model.config.model_type.replace(
+    is_stable_diffusion = "stable-diffusion" in task
+
+    if not is_stable_diffusion and model.config.model_type.replace(
         "-", "_"
     ) not in TasksManager.get_supported_model_type_for_task(task, exporter="onnx"):
         custom_architecture = True
@@ -330,7 +333,7 @@ def main_export(
 
     if (
         not custom_architecture
-        and task != "stable-diffusion"
+        and not is_stable_diffusion
         and task + "-with-past"
         in TasksManager.get_supported_tasks_for_model_type(model.config.model_type.replace("_", "-"), "onnx")
     ):
@@ -367,7 +370,7 @@ def main_export(
         fn_get_submodels=fn_get_submodels,
     )
 
-    if task != "stable-diffusion":
+    if not is_stable_diffusion:
         needs_pad_token_id = (
             isinstance(onnx_config, OnnxConfigWithPast)
             and getattr(model.config, "pad_token_id", None) is None
@@ -412,15 +415,9 @@ def main_export(
                 f"at https://github.com/huggingface/optimum, if --task was explicitely passed, make sure you selected the right task for the model,"
                 f" referring to `optimum.exporters.tasks.TaskManager`'s `_TASKS_TO_AUTOMODELS`."
             )
+
         onnx_files_subpaths = None
     else:
-        onnx_files_subpaths = [
-            DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
-            DIFFUSION_MODEL_UNET_SUBFOLDER,
-            DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
-            DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
-        ]
-
         # save the subcomponent configuration
         for model_name in models_and_onnx_configs:
             subcomponent = models_and_onnx_configs[model_name][0]
@@ -463,7 +460,7 @@ def main_export(
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating stable diffusion separately is quite ugly
-    if not no_post_process and not is_from_diffusers:
+    if not no_post_process and not is_stable_diffusion:
         try:
             logger.info("Post-processing the exported models...")
             models_and_onnx_configs, onnx_files_subpaths = onnx_config.post_process_exported_models(
@@ -474,7 +471,7 @@ def main_export(
                 f"The post-processing of the ONNX export failed. The export can still be performed by passing the option --no-post-process. Detailed error: {e}"
             )
 
-    if is_from_diffusers:
+    if is_stable_diffusion:
         use_subprocess = (
             False  # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
         )
