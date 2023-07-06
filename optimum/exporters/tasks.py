@@ -161,7 +161,7 @@ class TasksManager:
             "object-detection": "AutoModelForObjectDetection",
             "question-answering": "AutoModelForQuestionAnswering",
             "image-classification": "AutoModelForImageClassification",
-            "image-segmentation": "AutoModelForImageSegmentation",
+            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
@@ -232,6 +232,16 @@ class TasksManager:
         # VisionEncoderDecoderModel is not registered in AutoModelForDocumentQuestionAnswering
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
     }
+
+    # TODO: why feature-extraction-with-past is here?
+    _ENCODER_DECODER_TASKS = (
+        "text2text-generation",
+        "automatic-speech-recognition",
+        "image-to-text",
+        "feature-extraction-with-past",
+        "visual-question-answering",
+        "document-question-answering",
+    )
 
     _TASKS_TO_LIBRARY = {
         "conversational": "transformers",
@@ -638,6 +648,7 @@ class TasksManager:
         "mobilevit": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
+            "image-segmentation",
             onnx="MobileViTOnnxConfig",
         ),
         "mobilenet-v1": supported_tasks_mapping(
@@ -766,12 +777,13 @@ class TasksManager:
             tflite="RoFormerTFLiteConfig",
         ),
         "sam": supported_tasks_mapping(
-            "mask-generation",
+            "feature-extraction",
             onnx="SamOnnxConfig",
         ),
         "segformer": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
+            "image-segmentation",
             "semantic-segmentation",
             onnx="SegformerOnnxConfig",
         ),

@@ -573,7 +573,7 @@ class ConvNextOnnxConfig(ViTOnnxConfig):
 
 
 class MobileViTOnnxConfig(ViTOnnxConfig):
-    pass
+    ATOL_FOR_VALIDATION = 1e-4
 
 
 class RegNetOnnxConfig(ViTOnnxConfig):
@@ -589,9 +589,14 @@ class DetrOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 
     @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
-        # TODO: is pixel mask needed?
-        return {**super().inputs, "pixel_mask": {0: "batch_size"}}
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "image-segmentation":
+            return {
+                "logits": {0: "batch_size", 1: "num_queries"},
+                "pred_masks": {0: "batch_size", 1: "num_queries"},
+            }
+        else:
+            return super().outputs
 
 
 class YolosOnnxConfig(ViTOnnxConfig):

@@ -14,6 +14,8 @@
 # limitations under the License.
 """ONNX model check and export functions."""
 
+import copy
+import gc
 import multiprocessing as mp
 import os
 import traceback
@@ -321,11 +323,15 @@ def _run_validation(
             reference_model_inputs[key] = recursive_to_dtype(
                 value=reference_model_inputs[key], dtype=dtype, start_dtype=torch.float32
             )
+
+    # Some models may modify in place the inputs, hence the copy.
+    copy_reference_model_inputs = copy.deepcopy(reference_model_inputs)
+
     if is_torch_available() and isinstance(reference_model, nn.Module):
         with torch.inference_mode():
-            ref_outputs = reference_model(**reference_model_inputs, **model_kwargs)
+            ref_outputs = reference_model(**copy_reference_model_inputs, **model_kwargs)
     else:
-        ref_outputs = reference_model(**reference_model_inputs, **model_kwargs)
+        ref_outputs = reference_model(**copy_reference_model_inputs, **model_kwargs)
     ref_outputs_dict = {}
 
     # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
@@ -595,6 +601,9 @@ def export_pytorch(
                 # try free model memory
                 del model
                 del onnx_model
+                gc.collect()
+                if device.type == "cuda" and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
                 onnx_model = onnx.load(
                     str(output), load_external_data=True
