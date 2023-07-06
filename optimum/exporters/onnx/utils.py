@@ -17,7 +17,7 @@
 import copy
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
-import packaging
+from packaging import version
 import torch
 from transformers.utils import is_tf_available, is_torch_available
 
@@ -65,7 +65,7 @@ if TYPE_CHECKING:
         from diffusers import ModelMixin, StableDiffusionPipeline
 
 
-def check_onnxruntime_requirements(minimum_version: packaging.version.Version):
+def check_onnxruntime_requirements(minimum_version: version.Version):
     """
     Checks that ONNX Runtime is installed and if version is recent enough.
 
@@ -85,7 +85,7 @@ def check_onnxruntime_requirements(minimum_version: packaging.version.Version):
             " and relaunch the conversion."
         )
 
-    ort_version = packaging.version.parse(onnxruntime.__version__)
+    ort_version = version.parse(onnxruntime.__version__)
     if ort_version < ORT_QUANTIZE_MINIMUM_VERSION:
         raise ImportError(
             f"We found an older version of ONNX Runtime ({onnxruntime.__version__}) "
@@ -112,14 +112,14 @@ def _get_submodels_for_export_stable_diffusion(
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
     vae_encoder = copy.deepcopy(pipeline.vae)
-    if not packaging.version.parse(torch.__version__) >= packaging.version.parse("2.1.0"):
+    if not version.parse(torch.__version__) >= version.parse("2.1.0"):
         vae_encoder = override_diffusers_2_0_attn_processors(vae_encoder)
     vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample)["latent_dist"].sample()}
     models_for_export["vae_encoder"] = vae_encoder
 
     # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
     vae_decoder = copy.deepcopy(pipeline.vae)
-    if not packaging.version.parse(torch.__version__) >= packaging.version.parse("2.1.0"):
+    if not version.parse(torch.__version__) >= version.parse("2.1.0"):
         vae_decoder = override_diffusers_2_0_attn_processors(vae_decoder)
     vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
     models_for_export["vae_decoder"] = vae_decoder

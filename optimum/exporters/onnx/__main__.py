@@ -91,6 +91,11 @@ def _get_submodels_and_onnx_configs(
                 models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
             else:
                 models_and_onnx_configs = {"model": (model, onnx_config)}
+
+        # When specifying custom ONNX configs for supported transformers architectures, we do
+        # not force to specify a custom ONNX config for each submodel.
+        for key, custom_onnx_config in custom_onnx_configs.items():
+            models_and_onnx_configs[key] = (models_and_onnx_configs[key][0], custom_onnx_config)
     else:
         onnx_config = None
         submodels_for_export = None
@@ -121,10 +126,8 @@ def _get_submodels_and_onnx_configs(
                 "Trying to export a custom model, but could not find as many custom ONNX configs as the number of submodels to export. Please specifiy the fn_get_submodels argument, that should return a dictionary of submodules with as many items as the provided custom_onnx_configs dictionary."
             )
 
-    # When specifying custom ONNX configs for supported transformers architectures, we do
-    # not force to specify a custom ONNX config for each submodel.
-    for key, custom_onnx_config in custom_onnx_configs.items():
-        models_and_onnx_configs[key] = (submodels_for_export[key], custom_onnx_config)
+        for key, custom_onnx_config in custom_onnx_configs.items():
+            models_and_onnx_configs[key] = (submodels_for_export[key], custom_onnx_config)
 
     # Default to the first ONNX config for stable-diffusion and custom architecture case.
     if onnx_config is None:
