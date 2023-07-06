@@ -101,7 +101,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages graphcore habana intel --version ${{ env.VERSION }}
+          sudo python docs/combine_docs.py --subpackages graphcore habana intel neuron --version ${{ env.VERSION }}
           cd ..
 
       - name: Push to repositories
