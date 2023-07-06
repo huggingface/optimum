@@ -1,7 +1,7 @@
 import argparse
 import shutil
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 import yaml
 
@@ -83,6 +83,31 @@ def rename_copy_subpackage_html_paths(subpackage: str, subpackage_path: Path, op
         shutil.copyfile(html_path, new_path_in_optimum)
 
 
+def add_neuron_doc(base_toc: List):
+    """
+    Extends the table of content with a section about Optimum Neuron.
+
+    Args:
+        base_toc (List): table of ocntent for the doc of Optimum.
+    """
+    # Update optimum table of contents
+    base_toc.extend(
+        [
+            {
+                "sections": [
+                    {
+                        # Ideally this should directly point at https://huggingface.co/docs/optimum-neuron/index
+                        "local": "neuron/overview",
+                        "title": "🤗 Optimum Neuron",
+                    }
+                ],
+                "title": "Optimum Neuron",
+                "isExpanded": "false",
+            }
+        ]
+    )
+
+
 def main():
     args = parser.parse_args()
     optimum_path = Path("optimum-doc-build")
@@ -104,20 +129,8 @@ def main():
     # Copy and rename all files from subpackages' docs to Optimum doc
     for subpackage in args.subpackages:
         if subpackage == "neuron":
-            # Update optimum table of contents
-            base_toc.extend(
-                [
-                    {
-                        "sections": [
-                            {
-                                "local": "https://huggingface.co/docs/optimum-neuron/index",
-                                "title": "🤗 Optimum Neuron",
-                            }
-                        ],
-                        "title": "Optimum Neuron",
-                    }
-                ]
-            )
+            # Neuron has its own doc so it is manged differently
+            add_neuron_doc(base_toc)
         else:
             subpackage_path = Path(f"{subpackage}-doc-build")
 
