@@ -662,6 +662,7 @@ class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         vocab_size="vocab_size",
         sequence_length="max_position_embeddings",
+        num_layers="num_hidden_layers",
         allow_new=True,
     )
 
@@ -677,9 +678,8 @@ class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
             "text_embeds": {0: "batch_size", 1: "sequence_length"},
             "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
         }
-
         if self._normalized_config.output_hidden_states:
-            for i in range(self._normalized_config.num_hidden_layers + 1):
+            for i in range(self._normalized_config.num_layers + 1):
                 outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
 
         return outputs
@@ -692,9 +692,8 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
             "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
             "pooler_output": {0: "batch_size"},
         }
-
         if self._normalized_config.output_hidden_states:
-            for i in range(self._normalized_config.num_hidden_layers + 1):
+            for i in range(self._normalized_config.num_layers + 1):
                 outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
 
         return outputs

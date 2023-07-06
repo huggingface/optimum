@@ -259,7 +259,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_stable_diffusion_xl(self):
         with TemporaryDirectory() as tmpdirname:
             subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-stable-diffusion-xl --task stable-diffusion-xl {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --model echarlaix/tiny-random-stable-diffusion-xl --task stable-diffusion-xl {tmpdirname}",
                 shell=True,
                 check=True,
             )
