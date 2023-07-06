@@ -6,9 +6,6 @@ from typing import Dict, List
 import yaml
 
 
-SECTIONS_AT_THE_END = ["Utilities"]
-
-
 parser = argparse.ArgumentParser(
     description="Script to combine doc builds from subpackages with base doc build of Optimum. "
     "Assumes all subpackage doc builds are present in the root of the `optimum` repo."
@@ -23,7 +20,7 @@ parser.add_argument("--version", type=str, default="main", help="The version of 
 
 def rename_subpackage_toc(subpackage: str, toc: Dict):
     """
-    Extend table of contents sections with the subpackage name as the parent folder.
+    Extends table of contents sections with the subpackage name as the parent folder.
 
     Args:
         subpackage (str): subpackage name.
@@ -36,6 +33,9 @@ def rename_subpackage_toc(subpackage: str, toc: Dict):
             else:
                 # if "local" is not in file, it means we have a subsection, hence the recursive call
                 rename_subpackage_toc(subpackage, [file])
+
+    # Just keep the name of the partner
+    toc["title"] = toc["title"].split("Optimum ")[-1]
 
 
 def rename_copy_subpackage_html_paths(subpackage: str, subpackage_path: Path, optimum_path: Path, version: str):
@@ -91,20 +91,20 @@ def add_neuron_doc(base_toc: List):
         base_toc (List): table of content for the doc of Optimum.
     """
     # Update optimum table of contents
-    base_toc.extend(
-        [
-            {
-                "sections": [
-                    {
-                        # Ideally this should directly point at https://huggingface.co/docs/optimum-neuron/index
-                        "local": "docs/optimum-neuron/index",
-                        "title": "🤗 Optimum Neuron",
-                    }
-                ],
-                "title": "Optimum Neuron",
-                "isExpanded": False,
-            }
-        ]
+    base_toc.insert(
+        1,
+        {
+            "sections": [
+                {
+                    # Ideally this should directly point at https://huggingface.co/docs/optimum-neuron/index
+                    # Current hacky solution is to have a redirection in _redirects.yml
+                    "local": "docs/optimum-neuron/index",
+                    "title": "🤗 Optimum Neuron",
+                }
+            ],
+            "title": "AWS Trainium/Inferentia",
+            "isExpanded": False,
+        },
     )
 
 
@@ -116,18 +116,8 @@ def main():
     with open(base_toc_path, "r") as f:
         base_toc = yaml.safe_load(f)
 
-    # Pop specific sections to add them after subpackages
-    sections_to_pop = {title: None for title in SECTIONS_AT_THE_END}
-    for i, section in enumerate(base_toc[:]):
-        if section["title"] in SECTIONS_AT_THE_END:
-            sections_to_pop[section["title"]] = base_toc.pop(i)
-    # Raise an error if a section was not found
-    for key, value in sections_to_pop.items():
-        if value is None:
-            raise ValueError(f"No section was found for title '{key}'.")
-
     # Copy and rename all files from subpackages' docs to Optimum doc
-    for subpackage in args.subpackages:
+    for subpackage in args.subpackages[::-1]:
         if subpackage == "neuron":
             # Neuron has its own doc so it is managed differently
             add_neuron_doc(base_toc)
@@ -148,11 +138,10 @@ def main():
                 subpackage_toc = yaml.safe_load(f)
             # Extend table of contents sections with the subpackage name as the parent folder
             rename_subpackage_toc(subpackage, subpackage_toc)
-            # Update optimum table of contents
-            base_toc.extend(subpackage_toc)
+            if subpackage != "graphcore":
+                # Update optimum table of contents
+                base_toc.insert(1, subpackage_toc[0])
 
-    # Add popped sections at the end
-    base_toc.extend(sections_to_pop.values())
     # Write final table of contents
     with open(base_toc_path, "w") as f:
         yaml.safe_dump(base_toc, f, allow_unicode=True)
