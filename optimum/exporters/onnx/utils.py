@@ -17,8 +17,8 @@
 import copy
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
-from packaging import version
 import torch
+from packaging import version
 from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import (
