@@ -312,7 +312,7 @@ def main_export(
     )
 
     custom_architecture = False
-    if model.config.model_type.replace("_", "-") not in TasksManager.get_supported_model_type_for_task(
+    if model.config.model_type.replace("-", "_") not in TasksManager.get_supported_model_type_for_task(
         task, exporter="onnx"
     ):
         custom_architecture = True
