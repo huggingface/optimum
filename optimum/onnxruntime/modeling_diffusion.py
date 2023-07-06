@@ -67,7 +67,6 @@ class ORTStableDiffusionPipelineBase(ORTModel):
     base_model_prefix = "onnx_model"
     config_name = "model_index.json"
     sub_component_config_name = "config.json"
-    # auto_model_class = StableDiffusionXLPipeline
 
     def __init__(
         self,

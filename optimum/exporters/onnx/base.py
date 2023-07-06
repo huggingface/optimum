@@ -376,6 +376,7 @@ class OnnxConfig(ExportConfig, ABC):
         """
         inputs = self.inputs
         ordered_inputs = {}
+
         if hasattr(model, "forward"):
             sig = inspect.signature(model.forward)
         else:

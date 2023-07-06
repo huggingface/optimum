@@ -63,7 +63,6 @@ if TYPE_CHECKING:
     if is_tf_available():
         from transformers.modeling_tf_utils import TFPreTrainedModel
 
-
 logger = logging.get_logger(__name__)
 
 
