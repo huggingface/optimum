@@ -322,7 +322,7 @@ def main_export(
 
     if custom_architecture and original_task == "auto":
         raise ValueError(
-            f'Automatic task detection is not supported with custom architectures. Please specify the `task` argument (suggetion: task="{task}" or task="{task}-with-past" if the model is decoder-based and supports KV cache)'
+            f'Automatic task detection is not supported with custom architectures. Please specify the `task` argument. Suggestion: task="{task}" (or task="{task}-with-past" if the model is decoder-based and supports KV cache)'
         )
 
     if (
