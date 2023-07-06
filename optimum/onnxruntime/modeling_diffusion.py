@@ -28,6 +28,7 @@ from diffusers import (
     LMSDiscreteScheduler,
     PNDMScheduler,
     StableDiffusionPipeline,
+    StableDiffusionXLPipeline,
 )
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils import CONFIG_NAME
@@ -66,6 +67,8 @@ class ORTStableDiffusionPipelineBase(ORTModel):
     base_model_prefix = "onnx_model"
     config_name = "model_index.json"
     sub_component_config_name = "config.json"
+    # auto_model_class = StableDiffusionXLPipeline
+
 
     def __init__(
         self,
@@ -494,3 +497,55 @@ class ORTStableDiffusionImg2ImgPipeline(ORTStableDiffusionPipelineBase, StableDi
 class ORTStableDiffusionInpaintPipeline(ORTStableDiffusionPipelineBase, StableDiffusionInpaintPipelineMixin):
     def __call__(self, *args, **kwargs):
         return StableDiffusionInpaintPipelineMixin.__call__(self, *args, **kwargs)
+
+
+class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
+    auto_model_class = StableDiffusionXLPipeline
+
+    def __init__(
+        self,
+        vae_decoder_session: ort.InferenceSession,
+        text_encoder_session: ort.InferenceSession,
+        unet_session: ort.InferenceSession,
+        config: Dict[str, Any],
+        tokenizer: CLIPTokenizer,
+        scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
+        feature_extractor: Optional[CLIPFeatureExtractor] = None,
+        vae_encoder_session: Optional[ort.InferenceSession] = None,
+        text_encoder_2_session: Optional[ort.InferenceSession] = None,
+        tokenizer_2: Optional[CLIPTokenizer] = None,
+        use_io_binding: Optional[bool] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+    ):
+        super().__init__(
+        vae_decoder_session=vae_decoder_session,
+        text_encoder_session=text_encoder_session,
+        unet_session=unet_session,
+        config=config,
+        tokenizer=tokenizer,
+        scheduler=scheduler,
+        feature_extractor=feature_extractor,
+        vae_encoder_session=vae_encoder_session,
+        use_io_binding=use_io_binding,
+        model_save_dir=model_save_dir,
+        )
+
+        self.text_encoder_2 = ORTModelTextEncoder(text_encoder_2_session, self) if text_encoder_2_session else None
+        self.tokenizer_2 = tokenizer_2
+
+    
+"""
+class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLPipelineMixin):
+    def __call__(self, *args, **kwargs):
+        return StableDiffusionPipelineMixin.__call__(self, *args, **kwargs)
+
+
+class ORTStableDiffusionXLImg2ImgPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLImg2ImgPipelineMixin):
+    def __call__(self, *args, **kwargs):
+        return StableDiffusionImg2ImgPipelineMixin.__call__(self, *args, **kwargs)
+
+
+class ORTStableDiffusionXLInpaintPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLInpaintPipelineMixin):
+    def __call__(self, *args, **kwargs):
+        return StableDiffusionInpaintPipelineMixin.__call__(self, *args, **kwargs)
+"""

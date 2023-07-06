@@ -63,6 +63,7 @@ if TYPE_CHECKING:
     if is_tf_available():
         from transformers.modeling_tf_utils import TFPreTrainedModel
 
+
 logger = logging.get_logger(__name__)
 
 
@@ -653,7 +654,10 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
         }
 
 
-class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
+
+
+class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
+
     ATOL_FOR_VALIDATION = 1e-3
     # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
@@ -672,13 +676,37 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        return {
+        outputs = {
+            "text_embeds": {0: "batch_size", 1: "sequence_length"},
+            "last_hidden_state":{0: "batch_size", 1: "sequence_length"},
+        }
+
+        if self._normalized_config.output_hidden_states:
+            for i in range(self._normalized_config.num_hidden_layers + 1):
+                outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
+
+        return outputs
+
+
+class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        outputs = {
             "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
             "pooler_output": {0: "batch_size"},
         }
 
+        if self._normalized_config.output_hidden_states:
+            for i in range(self._normalized_config.num_hidden_layers + 1):
+                outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
+
+        return outputs
+
+
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
+
         if framework == "pt":
             import torch
 
@@ -708,11 +736,18 @@ class UNetOnnxConfig(VisionOnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        return {
+
+        inputs = {
             "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
             "timestep": {0: "steps"},
             "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
         }
+
+        if self.task == "semantic-segmentation-with-time":
+            inputs["text_embeds"] = {0: "batch_size"}
+            inputs["time_ids"] = {0: "batch_size"}
+
+        return inputs
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
@@ -729,7 +764,14 @@ class UNetOnnxConfig(VisionOnnxConfig):
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
         dummy_inputs["encoder_hidden_states"] = dummy_inputs["encoder_hidden_states"][0]
+
+        if self.task == "semantic-segmentation-with-time":
+            dummy_inputs["added_cond_kwargs"] = {"text_embeds":  dummy_inputs.pop("text_embeds"), "time_ids":  dummy_inputs.pop("time_ids")}
+
         return dummy_inputs
+
+    def ordered_inputs(self, model) -> Dict[str, Dict[int, str]]:
+        return self.inputs
 
 
 class VaeEncoderOnnxConfig(VisionOnnxConfig):

@@ -223,7 +223,9 @@ def main_export(
         device=device,
     )
 
-    if task != "stable-diffusion" and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
+    is_from_diffusers =  "stable-diffusion" in task
+
+    if not is_from_diffusers and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
         model.config.model_type.replace("_", "-"), "onnx"
     ):
         if original_task == "auto":  # Make -with-past the default if --task was not explicitely specified
@@ -250,7 +252,7 @@ def main_export(
             possible_synonyms = ""
         logger.info(f"Automatic task detection to {task}{possible_synonyms}.")
 
-    if task != "stable-diffusion":
+    if not is_from_diffusers:
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
         onnx_config = onnx_config_constructor(model.config)
 
@@ -292,30 +294,23 @@ def main_export(
             generation_config.save_pretrained(output)
         maybe_save_preprocessors(model_name_or_path, output)
 
-    if task == "stable-diffusion":
-        onnx_files_subpaths = [
-            DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
-            DIFFUSION_MODEL_UNET_SUBFOLDER,
-            DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
-            DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
-        ]
-
+    if is_from_diffusers:
         models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
-
+        import pdb;pdb.set_trace()
         # save the subcomponent configuration
-        for model_name, name_dir in zip(models_and_onnx_configs, onnx_files_subpaths):
+        for model_name in models_and_onnx_configs:
             subcomponent = models_and_onnx_configs[model_name][0]
             if hasattr(subcomponent, "save_config"):
-                subcomponent.save_config(output / name_dir)
+                subcomponent.save_config(output / model_name)
             elif hasattr(subcomponent, "config") and hasattr(subcomponent.config, "save_pretrained"):
-                subcomponent.config.save_pretrained(output / name_dir)
+                subcomponent.config.save_pretrained(output / model_name)
 
-        onnx_files_subpaths = [os.path.join(path, ONNX_WEIGHTS_NAME) for path in onnx_files_subpaths]
+        onnx_files_subpaths = [os.path.join(name_dir, ONNX_WEIGHTS_NAME) for name_dir in models_and_onnx_configs]
 
         # Saving the additional components needed to perform inference.
         model.tokenizer.save_pretrained(output.joinpath("tokenizer"))
         model.scheduler.save_pretrained(output.joinpath("scheduler"))
-        if model.feature_extractor is not None:
+        if getattr(model, "feature_extractor", None) is not None:
             model.feature_extractor.save_pretrained(output.joinpath("feature_extractor"))
         model.save_config(output)
     else:
@@ -382,7 +377,7 @@ def main_export(
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating stable diffusion separately is quite ugly
-    if not no_post_process and task != "stable-diffusion":
+    if not no_post_process and not is_from_diffusers:
         try:
             logger.info("Post-processing the exported models...")
             models_and_onnx_configs, onnx_files_subpaths = onnx_config.post_process_exported_models(
@@ -393,7 +388,7 @@ def main_export(
                 f"The post-processing of the ONNX export failed. The export can still be performed by passing the option --no-post-process. Detailed error: {e}"
             )
 
-    if task == "stable-diffusion":
+    if is_from_diffusers:
         use_subprocess = (
             False  # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
         )

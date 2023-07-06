@@ -265,6 +265,7 @@ def _run_validation(
 
     if input_shapes is None:
         input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
+
     reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
 
     # Create ONNX Runtime session
@@ -320,7 +321,6 @@ def _run_validation(
             reference_model_inputs[key] = recursive_to_dtype(
                 value=reference_model_inputs[key], dtype=dtype, start_dtype=torch.float32
             )
-
     if is_torch_available() and isinstance(reference_model, nn.Module):
         with torch.inference_mode():
             ref_outputs = reference_model(**reference_model_inputs, **model_kwargs)
@@ -363,6 +363,8 @@ def _run_validation(
     for name, value in reference_ort_inputs.items():
         if isinstance(value, (list, tuple)):
             value = config.flatten_output_collection_property(name, value)
+            onnx_inputs.update({tensor_name: pt_tensor.cpu().numpy() for tensor_name, pt_tensor in value.items()})
+        elif isinstance(value, (dict)):
             onnx_inputs.update({tensor_name: pt_tensor.cpu().numpy() for tensor_name, pt_tensor in value.items()})
         else:
             onnx_inputs[name] = value.cpu().numpy()

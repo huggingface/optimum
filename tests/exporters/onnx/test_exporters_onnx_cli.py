@@ -256,6 +256,15 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 check=True,
             )
 
+    def test_stable_diffusion_xl(self):
+        with TemporaryDirectory() as tmpdirname:
+            subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-stable-diffusion-xl --task stable-diffusion-xl {tmpdirname}",
+                shell=True,
+                check=True,
+            )
+
+
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_vision
     @require_torch_gpu

@@ -171,6 +171,7 @@ class TasksManager:
             "audio-xvector": "AutoModelForAudioXVector",
             "image-to-text": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
+            "stable-diffusion-xl": "StableDiffusionXLPipeline",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
@@ -257,6 +258,7 @@ class TasksManager:
         "image-to-text": "transformers",
         "sentence-similarity": "transformers",
         "stable-diffusion": "diffusers",
+        "stable-diffusion-xl": "diffusers",
         "summarization": "transformers",
         "visual-question-answering": "transformers",
         "zero-shot-classification": "transformers",
@@ -379,6 +381,10 @@ class TasksManager:
         "clip-text-model": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPTextOnnxConfig",
+        ),
+        "clip-text-with-projection": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="CLIPTextWithProjectionOnnxConfig",
         ),
         "codegen": supported_tasks_mapping(
             "feature-extraction",
@@ -824,6 +830,7 @@ class TasksManager:
         ),
         "unet": supported_tasks_mapping(
             "semantic-segmentation",
+            "semantic-segmentation-with-time",
             onnx="UNetOnnxConfig",
         ),
         "unispeech": supported_tasks_mapping(
@@ -1259,7 +1266,7 @@ class TasksManager:
                 (
                     target_name.startswith("Auto"),
                     target_name.startswith("TFAuto"),
-                    target_name == "StableDiffusionPipeline",
+                    "StableDiffusion" in target_name,
                 )
             ):
                 if target_name == auto_cls_name:
@@ -1303,6 +1310,7 @@ class TasksManager:
             if model_info.library_name == "diffusers":
                 # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
                 if "stable-diffusion" in model_info.tags:
+                    # TODO : fix it for SD XL
                     inferred_task_name = "stable-diffusion"
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
