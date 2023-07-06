@@ -17,12 +17,12 @@ import logging
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
 import torch
 from huggingface_hub import hf_hub_download
 from huggingface_hub.utils import EntryNotFoundError
-from transformers import AutoModelForCausalLM, BloomForCausalLM, GenerationConfig
+from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
@@ -36,6 +36,7 @@ from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessor
 from .base import ORTDecoder
 from .constants import DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN, DECODER_WITH_PAST_ONNX_FILE_PATTERN
 from .modeling_ort import ORTModel
+from .models.bloom import bloom_convert_to_bloom_cache, bloom_convert_to_standard_cache
 from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
@@ -315,7 +316,7 @@ class ORTModelDecoder(ORTModel):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
-        init_cls: Type[ORTDecoderModel],
+        init_cls: Type["ORTModelDecoder"],
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -719,7 +720,7 @@ class ORTBloomForCausalLM(ORTModelForCausalLM):
         if past_key_values:
             # the cache may be in the stardard format (e.g. in contrastive search), convert to bloom's format if needed
             if past_key_values[0][0].shape[0] == input_ids.shape[0]:
-                past_key_values = BloomForCausalLM._convert_to_bloom_cache(past_key_values)
+                past_key_values = bloom_convert_to_bloom_cache(past_key_values)
 
         return {
             "input_ids": input_ids,
@@ -732,7 +733,7 @@ class ORTBloomForCausalLM(ORTModelForCausalLM):
     # Adapted from transformers.models.bloom.modeling_bloom.BloomForCausalLM._reorder_cache
     @staticmethod
     def _reorder_cache(past: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor) -> Tuple[Tuple[torch.Tensor]]:
-        standardized_past = BloomForCausalLM._convert_to_standard_cache(past, batch_size=len(beam_idx))
+        standardized_past = bloom_convert_to_standard_cache(past, batch_size=len(beam_idx))
 
         # Get a copy of `beam_idx` on all the devices where we need those indices.
         device_to_beam_idx = {
@@ -745,4 +746,4 @@ class ORTBloomForCausalLM(ORTModelForCausalLM):
             )
             for layer_past in standardized_past
         )
-        return BloomForCausalLM._convert_to_bloom_cache(reordered_past)
+        return bloom_convert_to_bloom_cache(reordered_past)
