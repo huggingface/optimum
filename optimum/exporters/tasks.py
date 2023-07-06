@@ -771,7 +771,7 @@ class TasksManager:
             tflite="RoFormerTFLiteConfig",
         ),
         "sam": supported_tasks_mapping(
-            "mask-generation",
+            "feature-extraction",
             onnx="SamOnnxConfig",
         ),
         "segformer": supported_tasks_mapping(
