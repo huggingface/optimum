@@ -569,3 +569,18 @@ class OnnxCustomExport(TestCase):
                 no_post_process=True,
                 fn_get_submodels=fn_get_submodels,
             )
+
+    def test_custom_export_trust_remote_error(self):
+        model_id = "fxmarty/tiny-mpt-random-remote-code"
+
+        with self.assertRaises(ValueError) as context:
+            with TemporaryDirectory() as tmpdirname:
+                main_export(
+                    model_id,
+                    output=tmpdirname,
+                    task="text-generation-with-past",
+                    trust_remote_code=True,
+                    no_post_process=True,
+                )
+
+        self.assertIn("export a model with a custom architecture, but no custom onnx", str(context.exception))
