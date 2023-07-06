@@ -25,3 +25,6 @@ intel_optimization: intel/optimization_inc
 intel_quantization: intel/optimization_inc
 intel_pruning: intel/optimization_inc
 intel_trainer: intel/reference_inc
+
+# Optimum Neuron
+docs/optimum-neuron/index: /docs/optimum-neuron/index

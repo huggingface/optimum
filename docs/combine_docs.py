@@ -97,12 +97,12 @@ def add_neuron_doc(base_toc: List):
                 "sections": [
                     {
                         # Ideally this should directly point at https://huggingface.co/docs/optimum-neuron/index
-                        "local": "/docs/optimum-neuron/index",
+                        "local": "docs/optimum-neuron/index",
                         "title": "🤗 Optimum Neuron",
                     }
                 ],
                 "title": "Optimum Neuron",
-                "isExpanded": "false",
+                "isExpanded": False,
             }
         ]
     )
