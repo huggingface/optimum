@@ -43,6 +43,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
     "codegen": "hf-internal-testing/tiny-random-CodeGenModel",
+    "cvt": "hf-internal-testing/tiny-random-CvTModel",
     "data2vec-text": "hf-internal-testing/tiny-random-Data2VecTextModel",
     "data2vec-vision": "hf-internal-testing/tiny-random-Data2VecVisionModel",
     "data2vec-audio": "hf-internal-testing/tiny-random-Data2VecAudioModel",
@@ -65,6 +66,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "levit": "hf-internal-testing/tiny-random-LevitModel",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
+    "lilt": "hf-internal-testing/tiny-random-LiltModel",
     "llama": "fxmarty/tiny-llama-fast-tokenizer",
     "longt5": "fxmarty/tiny-random-working-LongT5Model",
     # "longformer": "allenai/longformer-base-4096",
@@ -85,6 +87,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
+    "pix2struct": "fxmarty/pix2struct-tiny-random",
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
@@ -136,6 +139,10 @@ PYTORCH_EXPORT_MODELS_TINY = {
             "image-to-text-with-past",
         ],
         "microsoft/trocr-small-handwritten": ["image-to-text"],
+        "fxmarty/tiny-doc-qa-vision-encoder-decoder": [
+            "document-question-answering",
+            "document-question-answering-with-past",
+        ],
     },
 }
 
@@ -175,6 +182,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "levit": "facebook/levit-128S",
     "layoutlm": "microsoft/layoutlm-base-uncased",
     "layoutlmv3": "microsoft/layoutlmv3-base",
+    "lilt": "SCUT-DLVCLab/lilt-roberta-en-base",
     "llama": "decapoda-research/llama-65b-hf",
     "longt5": "fxmarty/tiny-random-working-LongT5Model",  # Not using google/long-t5-local-base because it takes too much time for testing.
     # "longformer": "allenai/longformer-base-4096",

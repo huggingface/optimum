@@ -24,6 +24,7 @@ from ...utils import (
     DummyAudioInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
+    DummyPix2StructInputGenerator,
     DummyPointsGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
@@ -307,10 +308,20 @@ class T5OnnxConfig(TextSeq2SeqOnnxConfig):
         allow_new=True,
     )
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_dummy_inputs_for_validation(
+        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
             reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
 
+        if onnx_input_names is not None:
+            if "encoder_outputs" in reference_model_inputs:
+                if "encoder_hidden_states" in onnx_input_names:
+                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+                else:
+                    reference_model_inputs.pop("encoder_outputs")
+        else:
+            # TODO: remove this else in optimum 2.0 and make onnx_input_names a required argument
             # T5 requires encoder_hidden_states as an input for both the without/with past models,
             # which is different than other architectures that require it only for the without past case
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
@@ -539,6 +550,11 @@ class ViTOnnxConfig(VisionOnnxConfig):
         return {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
 
 
+class CvTOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 13
+    ATOL_FOR_VALIDATION = 1e-2
+
+
 class LevitOnnxConfig(ViTOnnxConfig):
     pass
 
@@ -556,7 +572,7 @@ class ConvNextOnnxConfig(ViTOnnxConfig):
 
 
 class MobileViTOnnxConfig(ViTOnnxConfig):
-    pass
+    ATOL_FOR_VALIDATION = 1e-4
 
 
 class RegNetOnnxConfig(ViTOnnxConfig):
@@ -572,9 +588,14 @@ class DetrOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 
     @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
-        # TODO: is pixel mask needed?
-        return {**super().inputs, "pixel_mask": {0: "batch_size"}}
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "image-segmentation":
+            return {
+                "logits": {0: "batch_size", 1: "num_queries"},
+                "pred_masks": {0: "batch_size", 1: "num_queries"},
+            }
+        else:
+            return super().outputs
 
 
 class YolosOnnxConfig(ViTOnnxConfig):
@@ -829,6 +850,21 @@ class LayoutLMv3OnnxConfig(TextAndVisionOnnxConfig):
         }
 
 
+class LiltOnnxConfig(TextAndVisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        allow_new=True,
+        MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings",
+    )
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "bbox": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
+        }
+
+
 class Data2VecTextOnnxConfig(DistilBertOnnxConfig):
     pass
 
@@ -925,8 +961,10 @@ class WavLMOnnxConfig(HubertOnnxConfig):
     # we need to set output_attentions=True in the model input to avoid calling
     # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
     # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
-    def patch_model_for_export(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> "ModelPatcher":
-        return WavLMModelPatcher(self, model)
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return WavLMModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class ASTDummyAudioInputGenerator(DummyAudioInputGenerator):
@@ -1031,7 +1069,7 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["encoder_outputs"] = {
                 0: "batch_size",
-                1: f"encoder_sequence_length / {( 2 * self._config.num_conv_layers)}",
+                1: f"encoder_sequence_length / {(2 * self._config.num_conv_layers)}",
             }
 
         return common_inputs
@@ -1045,7 +1083,7 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
             # used for dummy input generation
             common_outputs["last_hidden_state"][
                 1
-            ] = f"{common_outputs['last_hidden_state'][1]} / {( 2 * self._config.num_conv_layers)}"
+            ] = f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
         return common_outputs
 
 
@@ -1132,3 +1170,78 @@ class SamOnnxConfig(OnnxConfig):
         }
 
         return outputs
+
+
+class Pix2StructNormalizedConfig(NormalizedSeq2SeqConfig):
+    ENCODER_NUM_LAYERS = "vision_config.num_hidden_layers"
+    DECODER_NUM_LAYERS = "text_config.num_layers"
+    ENCODER_NUM_ATTENTION_HEADS = "vision_config.num_attention_heads"
+    DECODER_NUM_ATTENTION_HEADS = "text_config.num_heads"
+    HIDDEN_SIZE = "text_config.hidden_size"  # TODO: Isn't this bug prone?
+    VOCAB_SIZE = "text_config.vocab_size"
+
+
+class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
+    NORMALIZED_CONFIG_CLASS = Pix2StructNormalizedConfig
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTextInputGenerator,
+        DummySeq2SeqDecoderTextInputGenerator,
+        DummySeq2SeqPastKeyValuesGenerator,
+        DummyPix2StructInputGenerator,
+    )
+    # Min operator needs to support int64, which is the case for opset>=12
+    DEFAULT_ONNX_OPSET = 12
+
+    @property
+    def inputs(self):
+        common_inputs = {}
+        common_inputs["attention_mask"] = {0: "batch_size", 1: "max_patches"}
+
+        if self._behavior is not ConfigBehavior.DECODER:
+            common_inputs["flattened_patches"] = {0: "batch_size", 1: "max_patches", 2: "patch_size"}
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            if self.use_past_in_inputs:
+                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+        if self._behavior is ConfigBehavior.DECODER:
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "max_patches"}
+
+            common_inputs["decoder_attention_mask"] = {0: "batch_size", 1: "past_sequence_length + 1"}
+
+        return common_inputs
+
+    @property
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
+        if self._behavior is ConfigBehavior.DECODER:
+            return {
+                "decoder_input_ids": "input_ids",
+                "encoder_outputs": "encoder_hidden_states",
+                "attention_mask": "encoder_attention_mask",
+            }
+        return {}
+
+    def generate_dummy_inputs_for_validation(
+        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        if self._behavior is ConfigBehavior.DECODER:
+            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+
+        if onnx_input_names is not None:
+            if "encoder_outputs" in reference_model_inputs:
+                if "encoder_hidden_states" in onnx_input_names:
+                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+                else:
+                    reference_model_inputs.pop("encoder_outputs")
+        else:
+            # TODO: remove this else in optimum 2.0 and make onnx_input_names a required argument
+            # Pix2Struct requires encoder_hidden_states as an input for both the without/with past models,
+            # which is different than other architectures that require it only for the without past case
+            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+
+        return super().generate_dummy_inputs_for_validation(reference_model_inputs)

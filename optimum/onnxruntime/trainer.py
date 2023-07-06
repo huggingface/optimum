@@ -938,7 +938,8 @@ class ORTTrainer(Trainer):
         """
         # memory metrics - must set up as early as possible
         # TODO: We need to enable evaluation using ORT backend.
-        self.model = unwrap_model(self.model)
+        if self.args.use_module_with_loss:
+            self.model = self.model._original_model
         self._memory_tracker.start()
 
         eval_dataloader = self.get_eval_dataloader(eval_dataset)
@@ -1031,7 +1032,8 @@ class ORTTrainer(Trainer):
               labels).
         """
         # TODO: We need to enable evaluation using ORT backend.
-        self.model = unwrap_model(self.model)
+        if self.args.use_module_with_loss:
+            self.model = self.model._original_model
 
         # memory metrics - must set up as early as possible
         self._memory_tracker.start()

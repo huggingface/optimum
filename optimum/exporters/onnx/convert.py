@@ -14,11 +14,15 @@
 # limitations under the License.
 """ONNX model check and export functions."""
 
+import copy
+import gc
+import multiprocessing as mp
 import os
+import traceback
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
@@ -34,7 +38,7 @@ from ...utils import (
 )
 from ..error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
 from .base import OnnxConfig
-from .utils import recursive_to_device, recursive_to_dtype
+from .utils import PickableInferenceSession, recursive_to_device, recursive_to_dtype
 
 
 if is_torch_available():
@@ -48,6 +52,9 @@ if is_diffusers_available():
 
 if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
+
+
+mp.set_start_method("spawn", force=True)
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -92,6 +99,8 @@ def validate_models_outputs(
     input_shapes: Optional[Dict] = None,
     device: str = "cpu",
     dtype: Optional["torch.dtype"] = None,
+    use_subprocess: Optional[bool] = True,
+    model_kwargs: Optional[Dict[str, Any]] = None,
 ):
     """
     Validates the export of several models, by checking that the outputs from both the reference and the exported model match.
@@ -115,7 +124,11 @@ def validate_models_outputs(
             The device on which the ONNX models will be validated. Either `cpu` or `cuda`. Validation on a CUDA device is supported only for PyTorch.
         dtype (`Optional[torch.dtype]`, defaults to `None`):
             Data type of the inputs to perform validation on. Validation on float16 is supported only for PyTorch.
-
+        use_subprocess (`Optional[bool]`, defaults to `True`):
+            Launch validation of each exported model in a subprocess.
+        model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
+            Experimental usage: keyword arguments to pass to the model during
+            the export and validation.
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
@@ -129,6 +142,8 @@ def validate_models_outputs(
             f"Provided custom names {onnx_files_subpaths} for the validation of {len(models_and_onnx_configs)} models. Please provide the same number of ONNX file names as models to export."
         )
 
+    if use_subprocess:
+        logger.info("Validating models in subprocesses...")
     exceptions = []  # run all validations before raising
     onnx_paths = []
     for i, model_name in enumerate(models_and_onnx_configs.keys()):
@@ -140,6 +155,9 @@ def validate_models_outputs(
         )
         onnx_paths.append(onnx_model_path)
         try:
+            # Model validation is done in subprocesses, as ONNX Runtime has the bad habit of
+            # not releasing memory once an InferenceSession is initialized.
+            # Reference: https://github.com/huggingface/optimum/pull/1115
             validate_model_outputs(
                 config=sub_onnx_config,
                 reference_model=submodel,
@@ -149,6 +167,8 @@ def validate_models_outputs(
                 input_shapes=input_shapes,
                 device=device,
                 dtype=dtype,
+                use_subprocess=use_subprocess,
+                model_kwargs=model_kwargs,
             )
         except Exception as e:
             exceptions.append(e)
@@ -168,10 +188,11 @@ def validate_model_outputs(
     input_shapes: Optional[Dict] = None,
     device: str = "cpu",
     dtype: Optional["torch.dtype"] = None,
+    use_subprocess: Optional[bool] = True,
+    model_kwargs: Optional[Dict[str, Any]] = None,
 ):
     """
     Validates the export by checking that the outputs from both the reference and the exported model match.
-
     Args:
         config ([`~OnnxConfig`]:
             The configuration used to export the model.
@@ -187,11 +208,52 @@ def validate_model_outputs(
             If specified, allows to use specific shapes to validate the ONNX model on.
         device (`str`, defaults to `"cpu"`):
             The device on which the ONNX model will be validated. Either `cpu` or `cuda`. Validation on a CUDA device is supported only for PyTorch.
-
+        use_subprocess (`Optional[bool]`, defaults to `True`):
+            Launch validation of each exported model in a subprocess.
+        model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
+            Experimental usage: keyword arguments to pass to the model during
+            the export and validation.
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
-    from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
+    if use_subprocess:
+        io_process = ValidationProcess(
+            config, reference_model, onnx_model, onnx_named_outputs, atol, input_shapes, device, dtype, model_kwargs
+        )
+        io_process.start()
+        io_process.join()
+
+        if io_process.exception:
+            error, traceback = io_process.exception
+            raise error
+    else:
+        _run_validation(
+            config,
+            reference_model,
+            onnx_model,
+            onnx_named_outputs,
+            atol,
+            input_shapes,
+            device,
+            dtype,
+            model_kwargs=model_kwargs,
+        )
+
+
+def _run_validation(
+    config: OnnxConfig,
+    reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+    onnx_model: Path,
+    onnx_named_outputs: List[str],
+    atol: Optional[float] = None,
+    input_shapes: Optional[Dict] = None,
+    device: str = "cpu",
+    dtype: Optional["torch.dtype"] = None,
+    model_kwargs: Optional[Dict[str, Any]] = None,
+):
+    from onnxruntime import GraphOptimizationLevel, SessionOptions
+
+    model_kwargs = model_kwargs if model_kwargs is not None else {}
 
     logger.info(f"Validating ONNX model {onnx_model.as_posix()}...")
 
@@ -217,7 +279,7 @@ def validate_model_outputs(
     else:
         provider = "CPUExecutionProvider"
 
-    session = InferenceSession(onnx_model.as_posix(), sess_options=session_options, providers=[provider])
+    session = PickableInferenceSession(onnx_model.as_posix(), sess_options=session_options, providers=[provider])
 
     # Sometimes the exported model can have more outputs than what is specified in the ONNX config because the original
     # PyTorch model has more outputs that were forgotten in the config, so we check for that.
@@ -261,7 +323,14 @@ def validate_model_outputs(
                 value=reference_model_inputs[key], dtype=dtype, start_dtype=torch.float32
             )
 
-    ref_outputs = reference_model(**reference_model_inputs)
+    # Some models may modify in place the inputs, hence the copy.
+    copy_reference_model_inputs = copy.deepcopy(reference_model_inputs)
+
+    if is_torch_available() and isinstance(reference_model, nn.Module):
+        with torch.inference_mode():
+            ref_outputs = reference_model(**copy_reference_model_inputs, **model_kwargs)
+    else:
+        ref_outputs = reference_model(**copy_reference_model_inputs, **model_kwargs)
     ref_outputs_dict = {}
 
     # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
@@ -271,14 +340,28 @@ def validate_model_outputs(
         if name == "past_key_values":
             name = "present"
         if isinstance(value, (list, tuple)):
-            value = config.flatten_output_collection_property(name, value)
+            onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
+            value = config.flatten_output_collection_property(onnx_output_name, value)
             ref_outputs_dict.update(value)
         else:
             ref_outputs_dict[name] = value
 
+    onnx_input_names = [inp.name for inp in session.get_inputs()]
+
     # Possibly edit the input for the onnxruntime.InferenceSession, this is for example the case for merged
     # models where the input `use_cache_branch` is added
-    reference_ort_inputs = config.generate_dummy_inputs_for_validation(reference_model_inputs)
+    reference_ort_inputs = config.generate_dummy_inputs_for_validation(
+        reference_model_inputs, onnx_input_names=onnx_input_names
+    )
+
+    # generate_dummy_inputs_for_validation may add inputs (e.g. past_key_values) that are by
+    # default on torch.float32 dtype. Thus, to run validation of fp16 model, these inputs need
+    # to be casted as well.
+    if is_torch_available() and isinstance(reference_model, nn.Module):
+        for key, value in reference_ort_inputs.items():
+            reference_ort_inputs[key] = recursive_to_dtype(
+                value=reference_ort_inputs[key], dtype=dtype, start_dtype=torch.float32
+            )
 
     # We flatten potential collection of inputs (i.e. past_keys)
     onnx_inputs = {}
@@ -302,7 +385,7 @@ def validate_model_outputs(
         raise OutputMatchError(
             "ONNX model output names do not match reference model output names.\n"
             f"Reference model output names: {ref_outputs_set}\n"
-            f"ONNX model output names: {onnx_outputs_set}"
+            f"ONNX model output names: {onnx_outputs_set}\n"
             f"Difference: {onnx_outputs_set.difference(ref_outputs_set)}"
         )
     else:
@@ -353,6 +436,57 @@ def validate_model_outputs(
         )
 
 
+class ValidationProcess(mp.Process):
+    def __init__(
+        self,
+        config: OnnxConfig,
+        reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+        onnx_model: Path,
+        onnx_named_outputs: List[str],
+        atol: Optional[float] = None,
+        input_shapes: Optional[Dict] = None,
+        device: str = "cpu",
+        dtype: Optional["torch.dtype"] = None,
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__()
+        self._pconn, self._cconn = mp.Pipe()
+        self._exception = None
+        self.config = config
+        self.reference_model = reference_model
+        self.onnx_model = onnx_model
+        self.onnx_named_outputs = onnx_named_outputs
+        self.atol = atol
+        self.input_shapes = input_shapes
+        self.device = device
+        self.dtype = dtype
+        self.model_kwargs = model_kwargs
+
+    def run(self):
+        try:
+            _run_validation(
+                config=self.config,
+                reference_model=self.reference_model,
+                onnx_model=self.onnx_model,
+                onnx_named_outputs=self.onnx_named_outputs,
+                atol=self.atol,
+                input_shapes=self.input_shapes,
+                device=self.device,
+                dtype=self.dtype,
+                model_kwargs=self.model_kwargs,
+            )
+        except Exception as e:
+            tb = traceback.format_exc()
+            self._cconn.send((e, tb))
+            return
+
+    @property
+    def exception(self):
+        if self._pconn.poll():
+            self._exception = self._pconn.recv()
+        return self._exception
+
+
 def export_pytorch(
     model: Union["PreTrainedModel", "ModelMixin"],
     config: OnnxConfig,
@@ -361,6 +495,7 @@ def export_pytorch(
     device: str = "cpu",
     dtype: Optional["torch.dtype"] = None,
     input_shapes: Optional[Dict] = None,
+    model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
     Exports a PyTorch model to an ONNX Intermediate Representation.
@@ -381,6 +516,11 @@ def export_pytorch(
             Data type to remap the model inputs to. PyTorch-only. Only `torch.float16` is supported.
         input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
+        model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
+            Experimental usage: keyword arguments to pass to the model during
+            the export. This argument should be used along the `custom_onnx_config` argument
+            in case, for example, the model inputs/outputs are changed (for example, if
+            `model_kwargs={"output_attentions": True}` is passed).
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
@@ -432,7 +572,7 @@ def export_pytorch(
         if is_torch_less_than_1_11:
             raise RuntimeError("The ONNX export using the PyTorch framework is only supported for v1.11+")
         else:
-            with config.patch_model_for_export(model):
+            with config.patch_model_for_export(model, model_kwargs=model_kwargs):
                 # Export can work with named args but the dict containing named args has to be the last element of the args
                 # tuple.
                 onnx_export(
@@ -458,6 +598,9 @@ def export_pytorch(
                 # try free model memory
                 del model
                 del onnx_model
+                gc.collect()
+                if device.type == "cuda" and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
                 onnx_model = onnx.load(
                     str(output), load_external_data=True
@@ -562,6 +705,7 @@ def export_models(
     input_shapes: Optional[Dict] = None,
     disable_dynamic_axes_fix: Optional[bool] = False,
     dtype: Optional[str] = None,
+    model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[List[str]], List[List[str]]]:
     """
     Exports a Pytorch or TensorFlow encoder decoder model to an ONNX Intermediate Representation.
@@ -587,6 +731,11 @@ def export_models(
             Whether to disable the default dynamic axes fixing.
         dtype (`Optional[str]`, defaults to `None`):
             Data type to remap the model inputs to. PyTorch-only. Only `fp16` is supported.
+        model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
+            Experimental usage: keyword arguments to pass to the model during
+            the export. This argument should be used along the `custom_onnx_config` argument
+            in case, for example, the model inputs/outputs are changed (for example, if
+            `model_kwargs={"output_attentions": True}` is passed).
     Returns:
         `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
         outputs from the ONNX configuration.
@@ -615,6 +764,7 @@ def export_models(
                 input_shapes=input_shapes,
                 disable_dynamic_axes_fix=disable_dynamic_axes_fix,
                 dtype=dtype,
+                model_kwargs=model_kwargs,
             )
         )
 
@@ -631,6 +781,7 @@ def export(
     input_shapes: Optional[Dict] = None,
     disable_dynamic_axes_fix: Optional[bool] = False,
     dtype: Optional[str] = None,
+    model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
     Exports a Pytorch or TensorFlow model to an ONNX Intermediate Representation.
@@ -653,6 +804,11 @@ def export(
             Whether to disable the default dynamic axes fixing.
         dtype (`Optional[str]`, defaults to `None`):
             Data type to remap the model inputs to. PyTorch-only. Only `fp16` is supported.
+        model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
+            Experimental usage: keyword arguments to pass to the model during
+            the export. This argument should be used along the `custom_onnx_config` argument
+            in case, for example, the model inputs/outputs are changed (for example, if
+            `model_kwargs={"output_attentions": True}` is passed).
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
@@ -703,10 +859,21 @@ def export(
             raise ValueError("Unsupported dtype, supported dtypes are: `torch.float16`.")
 
         export_output = export_pytorch(
-            model, config, opset, output, device=device, input_shapes=input_shapes, dtype=torch_dtype
+            model,
+            config,
+            opset,
+            output,
+            device=device,
+            input_shapes=input_shapes,
+            dtype=torch_dtype,
+            model_kwargs=model_kwargs,
         )
 
     elif is_tf_available() and issubclass(type(model), TFPreTrainedModel):
+        if model_kwargs is not None:
+            raise NotImplementedError(
+                "The argument `model_kwargs` is used only for PyTorch ONNX export, and unavailable for the Tensorflow export."
+            )
         if device == "cuda":
             raise RuntimeError("`tf2onnx` does not support export on CUDA device.")
         if input_shapes is not None:

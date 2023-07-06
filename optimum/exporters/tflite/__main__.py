@@ -16,6 +16,8 @@
 
 from argparse import ArgumentParser
 
+from requests.exceptions import ConnectionError as RequestsConnectionError
+
 from ...commands.export.tflite import parse_args_tflite
 from ...utils import logging
 from ...utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
@@ -50,6 +52,10 @@ def main():
             raise KeyError(
                 "The task could not be automatically inferred. Please provide the argument --task with the task "
                 f"from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
+            )
+        except RequestsConnectionError as e:
+            raise RequestsConnectionError(
+                f"The task could not be automatically inferred as this is available only for models hosted on the Hugging Face Hub. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
     model = TasksManager.get_model_from_task(

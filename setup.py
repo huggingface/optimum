@@ -31,8 +31,9 @@ TESTS_REQUIRE = [
     "Pillow",
     "sacremoses",
     "torchvision",
-    "diffusers",
+    "diffusers>=0.17.0",
     "torchaudio",
+    "einops",
 ]
 
 QUALITY_REQUIRE = ["black~=23.1", "ruff>=0.0.241,<=0.0.259"]
@@ -41,22 +42,23 @@ BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision",
 
 EXTRAS_REQUIRE = {
     "onnxruntime": [
-        "onnx<1.14.0",
+        "onnx",
         "onnxruntime>=1.9.0",
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
     ],
     "onnxruntime-gpu": [
-        "onnx<1.14.0",
+        "onnx",
         "onnxruntime-gpu>=1.9.0",
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
     ],
-    "exporters": ["onnx<1.14.0", "onnxruntime", "timm"],
-    "exporters-gpu": ["onnx<1.14.0", "onnxruntime-gpu", "timm"],
+    "exporters": ["onnx", "onnxruntime", "timm"],
+    "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
     "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm", "h5py", "numpy<1.24.0"],
+    "diffusers": ["diffusers"],
     "intel": "optimum-intel",
     "openvino": "optimum-intel[openvino]",
     "nncf": "optimum-intel[nncf]",

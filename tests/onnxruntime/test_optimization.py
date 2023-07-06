@@ -20,19 +20,27 @@ import unittest
 from pathlib import Path
 from typing import Dict, Optional
 
+import numpy as np
 import onnx
 import pytest
 import torch
 from parameterized import parameterized
 from transformers import AutoTokenizer
+from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES
 
 from optimum.exporters import TasksManager
-from optimum.onnxruntime import AutoOptimizationConfig, ORTConfig, ORTModelForSequenceClassification, ORTOptimizer
+from optimum.onnxruntime import (
+    AutoOptimizationConfig,
+    ORTConfig,
+    ORTModelForImageClassification,
+    ORTModelForSequenceClassification,
+    ORTOptimizer,
+)
 from optimum.onnxruntime.configuration import OptimizationConfig
 from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
-from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM
+from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
 from optimum.utils.testing_utils import grid_parameters
 
 
@@ -65,7 +73,7 @@ class ORTOptimizerTestMixin(unittest.TestCase):
             model_args.pop("model_arch")
 
             model_id = MODEL_NAMES[model_arch]
-            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, export=True)
+            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, use_io_binding=False, export=True)
 
             model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{self.TASK}_")
             onnx_model.save_pretrained(model_dir)
@@ -151,6 +159,33 @@ class ORTOptimizerTest(unittest.TestCase):
             optimized_model_outputs = optimized_model.generate(**tokens)
             # Compare tensors outputs
             self.assertTrue(torch.equal(model_outputs, optimized_model_outputs))
+            gc.collect()
+
+    # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
+    SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID = (
+        (ORTModelForImageClassification, "hf-internal-testing/tiny-random-vit"),
+    )
+
+    @parameterized.expand(SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID)
+    def test_compare_original_image_model_with_optimized_model(self, model_cls, model_name):
+        optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            model = model_cls.from_pretrained(model_name, export=True)
+            model.save_pretrained(tmp_dir)
+            optimizer = ORTOptimizer.from_pretrained(model)
+            optimizer.optimize(optimization_config=optimization_config, save_dir=tmp_dir)
+            optimized_model = model_cls.from_pretrained(tmp_dir, export=False, file_name="model_optimized.onnx")
+            expected_ort_config = ORTConfig(optimization=optimization_config)
+            ort_config = ORTConfig.from_pretrained(tmp_dir)
+
+            # Verify the ORTConfig was correctly created and saved
+            self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
+
+            image = torch.ones((1, model.config.num_channels, model.config.image_size, model.config.image_size))
+            model_outputs = model(image)
+            optimized_model_outputs = optimized_model(image)
+            # Compare tensors outputs
+            self.assertTrue(torch.equal(model_outputs.logits, optimized_model_outputs.logits))
             gc.collect()
 
     def test_optimization_details(self):
@@ -315,6 +350,120 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
             )
 
 
+class ORTOptimizerForSpeechSeq2SeqIntegrationTest(ORTOptimizerTestMixin):
+    TASK = "automatic-speech-recognition"
+    ORTMODEL_CLASS = ORTModelForSpeechSeq2Seq
+
+    SUPPORTED_ARCHITECTURES = ["whisper"]
+
+    FULL_GRID = {
+        "model_arch": SUPPORTED_ARCHITECTURES,
+    }
+
+    def _generate_random_audio_data(self):
+        np.random.seed(10)
+        t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
+        # generate pure sine wave at 220 Hz
+        audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
+        return audio_data
+
+    def _test_optimization_levels(
+        self,
+        test_name: str,
+        model_arch: str,
+        use_cache: bool,
+        optimization_level: str,
+        provider: str,
+        use_io_binding: Optional[bool] = None,
+    ):
+        export_name = test_name[:-3]  # remove `_OX` that is irrelevant as the export
+        model_args = {"test_name": export_name, "model_arch": model_arch, "use_cache": use_cache}
+        self._setup(model_args)
+
+        if provider == "CUDAExecutionProvider":
+            for_gpu = True
+            device = "cuda"
+        else:
+            for_gpu = False
+            device = "cpu"
+
+        ort_model = ORTModelForSpeechSeq2Seq.from_pretrained(
+            self.onnx_model_dirs[export_name], use_cache=use_cache, provider=provider, use_io_binding=use_io_binding
+        )
+
+        optimizer = ORTOptimizer.from_pretrained(ort_model)
+
+        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level, for_gpu=for_gpu)
+        optimization_config.disable_shape_inference = True
+        model_id = MODEL_NAMES[model_arch]
+
+        with tempfile.TemporaryDirectory(suffix="_optimized") as tmp_dir:
+            optimizer.optimize(save_dir=tmp_dir, optimization_config=optimization_config)
+
+            optimized_model = ORTModelForSpeechSeq2Seq.from_pretrained(
+                tmp_dir, use_cache=use_cache, provider=provider, use_io_binding=use_io_binding
+            )
+
+            expected_ort_config = ORTConfig(optimization=optimization_config)
+            ort_config = ORTConfig.from_pretrained(tmp_dir)
+
+            # Verify the ORTConfig was correctly created and saved
+            self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
+
+            data = self._generate_random_audio_data()
+            processor = get_preprocessor(model_id)
+            features = processor.feature_extractor(data, return_tensors="pt").to(device)
+
+            model_outputs = ort_model.generate(features["input_features"])
+
+            optimized_model_outputs = optimized_model.generate(features["input_features"])
+
+            self.assertTrue(torch.equal(model_outputs, optimized_model_outputs))
+            gc.collect()
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "use_cache": [False, True],
+                "optimization_level": ["O1", "O2", "O3"],
+            }
+        )
+    )
+    def test_optimization_levels_cpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
+        self._test_optimization_levels(
+            test_name=test_name,
+            model_arch=model_arch,
+            use_cache=use_cache,
+            optimization_level=optimization_level,
+            provider="CPUExecutionProvider",
+        )
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "use_cache": [True],
+                "use_io_binding": [False, True],
+                "optimization_level": ["O1", "O2", "O3", "O4"],
+            }
+        )
+    )
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    def test_optimization_levels_gpu(
+        self, test_name: str, model_arch: str, use_cache: bool, use_io_binding: bool, optimization_level: str
+    ):
+        self._test_optimization_levels(
+            test_name=test_name,
+            model_arch=model_arch,
+            use_cache=use_cache,
+            optimization_level=optimization_level,
+            provider="CUDAExecutionProvider",
+            use_io_binding=use_io_binding,
+        )
+
+
 class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     TASK = "text-generation"
     ORTMODEL_CLASS = ORTModelForCausalLM
@@ -345,6 +494,9 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     ):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
+        if use_cache is False:
+            use_io_binding = False
 
         export_name = test_name[:-3]  # remove `_OX` that is irrelevant as the export
         model_args = {

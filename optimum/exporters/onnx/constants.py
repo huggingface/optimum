@@ -20,3 +20,16 @@ ONNX_ENCODER_NAME = "encoder_model"
 ONNX_DECODER_NAME = "decoder_model"
 ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model"
 ONNX_DECODER_MERGED_NAME = "decoder_model_merged"
+
+UNPICKABLE_ARCHS = [
+    "encodec",
+    "hubert",
+    "sew",
+    "sew-d",
+    "speecht5",
+    "unispeech",
+    "unispeech-sat",
+    "wav2vec2",
+    "wav2vec2-conformer",
+    "wavlm",
+]
