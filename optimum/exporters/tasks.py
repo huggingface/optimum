@@ -232,6 +232,16 @@ class TasksManager:
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
     }
 
+    # TODO: why feature-extraction-with-past is here?
+    _ENCODER_DECODER_TASKS = (
+        "text2text-generation",
+        "automatic-speech-recognition",
+        "image-to-text",
+        "feature-extraction-with-past",
+        "visual-question-answering",
+        "document-question-answering",
+    )
+
     _TASKS_TO_LIBRARY = {
         "conversational": "transformers",
         "document-question-answering": "transformers",
