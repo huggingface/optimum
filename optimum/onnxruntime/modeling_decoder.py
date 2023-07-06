@@ -315,7 +315,7 @@ class ORTModelDecoder(ORTModel):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
-        init_cls,
+        init_cls: Type[ORTDecoderModel],
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
