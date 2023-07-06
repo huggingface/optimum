@@ -654,10 +654,7 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
         }
 
 
-
-
 class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
-
     ATOL_FOR_VALIDATION = 1e-3
     # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
@@ -678,7 +675,7 @@ class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
     def outputs(self) -> Dict[str, Dict[int, str]]:
         outputs = {
             "text_embeds": {0: "batch_size", 1: "sequence_length"},
-            "last_hidden_state":{0: "batch_size", 1: "sequence_length"},
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
         }
 
         if self._normalized_config.output_hidden_states:
@@ -689,7 +686,6 @@ class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
 
 
 class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
-
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         outputs = {
@@ -702,7 +698,6 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
                 outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
 
         return outputs
-
 
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
@@ -736,7 +731,6 @@ class UNetOnnxConfig(VisionOnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-
         inputs = {
             "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
             "timestep": {0: "steps"},
@@ -766,7 +760,10 @@ class UNetOnnxConfig(VisionOnnxConfig):
         dummy_inputs["encoder_hidden_states"] = dummy_inputs["encoder_hidden_states"][0]
 
         if self.task == "semantic-segmentation-with-time":
-            dummy_inputs["added_cond_kwargs"] = {"text_embeds":  dummy_inputs.pop("text_embeds"), "time_ids":  dummy_inputs.pop("time_ids")}
+            dummy_inputs["added_cond_kwargs"] = {
+                "text_embeds": dummy_inputs.pop("text_embeds"),
+                "time_ids": dummy_inputs.pop("time_ids"),
+            }
 
         return dummy_inputs
 

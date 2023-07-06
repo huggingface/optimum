@@ -600,16 +600,6 @@ class DummyAudioInputGenerator(DummyInputGenerator):
             )
 
 
-
-
-
-
-
-
-
-
-
-
 class DummyTimestepInputGenerator(DummyInputGenerator):
     """
     Generates dummy time step inputs.
@@ -651,6 +641,7 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
 
         shape.append(self.text_encoder_projection_dim if input_name == "text_embeds" else 6)
         return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework)
+
 
 class DummyLabelsGenerator(DummyInputGenerator):
     SUPPORTED_INPUT_NAMES = (

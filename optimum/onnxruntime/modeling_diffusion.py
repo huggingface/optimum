@@ -69,7 +69,6 @@ class ORTStableDiffusionPipelineBase(ORTModel):
     sub_component_config_name = "config.json"
     # auto_model_class = StableDiffusionXLPipeline
 
-
     def __init__(
         self,
         vae_decoder_session: ort.InferenceSession,
@@ -518,22 +517,22 @@ class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
     ):
         super().__init__(
-        vae_decoder_session=vae_decoder_session,
-        text_encoder_session=text_encoder_session,
-        unet_session=unet_session,
-        config=config,
-        tokenizer=tokenizer,
-        scheduler=scheduler,
-        feature_extractor=feature_extractor,
-        vae_encoder_session=vae_encoder_session,
-        use_io_binding=use_io_binding,
-        model_save_dir=model_save_dir,
+            vae_decoder_session=vae_decoder_session,
+            text_encoder_session=text_encoder_session,
+            unet_session=unet_session,
+            config=config,
+            tokenizer=tokenizer,
+            scheduler=scheduler,
+            feature_extractor=feature_extractor,
+            vae_encoder_session=vae_encoder_session,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
         )
 
         self.text_encoder_2 = ORTModelTextEncoder(text_encoder_2_session, self) if text_encoder_2_session else None
         self.tokenizer_2 = tokenizer_2
 
-    
+
 """
 class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLPipelineMixin):
     def __call__(self, *args, **kwargs):

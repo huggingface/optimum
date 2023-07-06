@@ -190,22 +190,19 @@ def get_stable_diffusion_models_for_export(
     )
     text_encoder_onnx_config = text_encoder_config_constructor(pipeline.text_encoder.config)
     models_for_export["text_encoder"] = (pipeline.text_encoder, text_encoder_onnx_config)
-    
-
-
 
     # U-NET
-    #task = "semantic-segmentation-with-time" if isinstance(pipeline, StableDiffusionXLPipeline) else "semantic-segmentation"
+    # task = "semantic-segmentation-with-time" if isinstance(pipeline, StableDiffusionXLPipeline) else "semantic-segmentation"
     task = "semantic-segmentation"
     pipeline.unet.config["text_encoder_projection_dim"] = pipeline.text_encoder.config.projection_dim
-    onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=pipeline.unet, exporter="onnx", task=task, model_type="unet")
+    onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+        model=pipeline.unet, exporter="onnx", task=task, model_type="unet"
+    )
     unet_onnx_config = onnx_config_constructor(pipeline.unet.config)
     unet_onnx_config.task = "semantic-segmentation-with-time" if is_xl else "semantic-segmentation"
-    #import pdb;pdb.set_trace()
     # PyTorch does not support the ONNX export of torch.nn.functional.scaled_dot_product_attention
     pipeline.unet.set_attn_processor(AttnProcessor())
     models_for_export["unet"] = (pipeline.unet, unet_onnx_config)
-
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
     vae_encoder = copy.deepcopy(pipeline.vae)
@@ -229,12 +226,14 @@ def get_stable_diffusion_models_for_export(
     vae_onnx_config = vae_config_constructor(vae_decoder.config)
     models_for_export["vae_decoder"] = (vae_decoder, vae_onnx_config)
 
-
     if getattr(pipeline, "text_encoder_2", None) is not None:
         pipeline.text_encoder_2.config.output_hidden_states = True
 
         text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
-            model=pipeline.text_encoder_2, exporter="onnx", task="feature-extraction", model_type="clip-text-with-projection"
+            model=pipeline.text_encoder_2,
+            exporter="onnx",
+            task="feature-extraction",
+            model_type="clip-text-with-projection",
         )
         text_encoder_onnx_config = text_encoder_config_constructor(pipeline.text_encoder_2.config)
         models_for_export["text_encoder_2"] = (pipeline.text_encoder_2, text_encoder_onnx_config)

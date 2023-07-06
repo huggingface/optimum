@@ -223,7 +223,7 @@ def main_export(
         device=device,
     )
 
-    is_from_diffusers =  "stable-diffusion" in task
+    is_from_diffusers = "stable-diffusion" in task
 
     if not is_from_diffusers and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(
         model.config.model_type.replace("_", "-"), "onnx"
@@ -296,7 +296,6 @@ def main_export(
 
     if is_from_diffusers:
         models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
-        import pdb;pdb.set_trace()
         # save the subcomponent configuration
         for model_name in models_and_onnx_configs:
             subcomponent = models_and_onnx_configs[model_name][0]

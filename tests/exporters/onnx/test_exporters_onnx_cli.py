@@ -264,7 +264,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 check=True,
             )
 
-
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_vision
     @require_torch_gpu
