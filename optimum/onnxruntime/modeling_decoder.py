@@ -711,7 +711,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
 
 
 class ORTBloomForCausalLM(ORTModelForCausalLM):
-    # Adapted from transformers.models.bloom.modeling_bloom.BloomForCausalLM._reorder_cache
+    # Adapted from transformers.models.bloom.modeling_bloom.BloomForCausalLM.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
         attention_mask = kwargs.get("attention_mask", None)
         use_cache = kwargs.get("use_cache", None)
