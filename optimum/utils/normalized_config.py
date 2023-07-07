@@ -31,7 +31,6 @@ class NormalizedConfig:
 
     def __init__(self, config: Union[PretrainedConfig, Dict], allow_new: bool = False, **kwargs):
         self.config = config
-
         for key, value in kwargs.items():
             if allow_new or hasattr(self, key.upper()):
                 setattr(self, key.upper(), value)
