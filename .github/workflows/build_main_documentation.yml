@@ -107,6 +107,6 @@ jobs:
       - name: Push to repositories
         run: |
           cd optimum/optimum-doc-build
-          chmod ugo+rwx optimum
+          sudo chmod -R ugo+rwx optimum
           doc-builder push optimum --doc_build_repo_id "hf-doc-build/doc-build" --token "${{ secrets.HF_DOC_BUILD_PUSH }}" --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5 --upload_version_yml
         shell: bash
