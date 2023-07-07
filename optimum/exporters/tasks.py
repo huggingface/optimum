@@ -938,7 +938,14 @@ class TasksManager:
             onnx="YolosOnnxConfig",
         ),
     }
-    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae-encoder", "vae-decoder", "clip-text-model", "clip-text-with-projection", "trocr"}
+    _UNSUPPORTED_CLI_MODEL_TYPE = {
+        "unet",
+        "vae-encoder",
+        "vae-decoder",
+        "clip-text-model",
+        "clip-text-with-projection",
+        "trocr",
+    }
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @classmethod
