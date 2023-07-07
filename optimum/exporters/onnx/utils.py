@@ -103,11 +103,12 @@ def _get_submodels_for_export_stable_diffusion(
     from diffusers import StableDiffusionXLPipeline
 
     models_for_export = {}
-    projection_dim = None
 
     if isinstance(pipeline, StableDiffusionXLPipeline):
         pipeline.text_encoder.config.output_hidden_states = True
         projection_dim = pipeline.text_encoder_2.config.projection_dim
+    else:
+        projection_dim = pipeline.text_encoder.config.projection_dim
 
     # Text encoder
     models_for_export["text_encoder"] = pipeline.text_encoder
