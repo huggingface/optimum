@@ -740,7 +740,8 @@ class UNetOnnxConfig(VisionOnnxConfig):
             "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
         }
 
-        if self.task == "semantic-segmentation-with-time":
+        # TODO : add text_image, image and image_embeds
+        if getattr(self._normalized_config, "addition_embed_type", None) == "text_time":
             inputs["text_embeds"] = {0: "batch_size"}
             inputs["time_ids"] = {0: "batch_size"}
 
@@ -762,7 +763,7 @@ class UNetOnnxConfig(VisionOnnxConfig):
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
         dummy_inputs["encoder_hidden_states"] = dummy_inputs["encoder_hidden_states"][0]
 
-        if self.task == "semantic-segmentation-with-time":
+        if getattr(self._normalized_config, "addition_embed_type", None) == "text_time":
             dummy_inputs["added_cond_kwargs"] = {
                 "text_embeds": dummy_inputs.pop("text_embeds"),
                 "time_ids": dummy_inputs.pop("time_ids"),

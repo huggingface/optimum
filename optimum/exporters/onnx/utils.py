@@ -100,7 +100,14 @@ def _get_submodels_for_export_stable_diffusion(
     """
     Returns the components of a Stable Diffusion model.
     """
+    from diffusers import StableDiffusionXLPipeline
+
     models_for_export = {}
+    projection_dim = None
+
+    if isinstance(pipeline, StableDiffusionXLPipeline):
+        pipeline.text_encoder.config.output_hidden_states = True
+        projection_dim = pipeline.text_encoder_2.config.projection_dim
 
     # Text encoder
     models_for_export["text_encoder"] = pipeline.text_encoder
@@ -108,8 +115,7 @@ def _get_submodels_for_export_stable_diffusion(
     # U-NET
     # PyTorch does not support the ONNX export of torch.nn.functional.scaled_dot_product_attention
     pipeline.unet.set_attn_processor(AttnProcessor())
-    # TODO : use text_encoder_2 instead
-    pipeline.unet.config["text_encoder_projection_dim"] = pipeline.text_encoder.config.projection_dim
+    pipeline.unet.config.text_encoder_projection_dim = projection_dim
     models_for_export["unet"] = pipeline.unet
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
@@ -252,13 +258,6 @@ def get_stable_diffusion_models_for_export(
         `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
         onnx configs for the different components of the model.
     """
-    from diffusers import StableDiffusionXLPipeline
-
-    is_xl = isinstance(pipeline, StableDiffusionXLPipeline)
-
-    if is_xl:
-        pipeline.text_encoder.config.output_hidden_states = True
-
     models_for_export = _get_submodels_for_export_stable_diffusion(pipeline)
 
     # Text encoder
@@ -273,7 +272,6 @@ def get_stable_diffusion_models_for_export(
         model=pipeline.unet, exporter="onnx", task="semantic-segmentation", model_type="unet"
     )
     unet_onnx_config = onnx_config_constructor(pipeline.unet.config)
-    unet_onnx_config.task = "semantic-segmentation-with-time" if is_xl else "semantic-segmentation"
     models_for_export["unet"] = (models_for_export["unet"], unet_onnx_config)
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565

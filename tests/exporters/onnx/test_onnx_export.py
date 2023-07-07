@@ -40,7 +40,7 @@ from optimum.exporters.onnx.__main__ import main_export
 from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
-from optimum.utils import DummyPastKeyValuesGenerator, NormalizedTextConfig, is_diffusers_available
+from optimum.utils import ONNX_WEIGHTS_NAME, DummyPastKeyValuesGenerator, NormalizedTextConfig, is_diffusers_available
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
 from ..exporters_utils import (
@@ -391,13 +391,8 @@ class OnnxExportTestCase(TestCase):
         set_seed(SEED)
 
         pipeline = StableDiffusionPipeline.from_pretrained(model_name)
-        output_names = [
-            "text_encoder/model.onnx",
-            "unet/model.onnx",
-            "vae_encoder/model.onnx",
-            "vae_decoder/model.onnx",
-        ]
         models_and_onnx_configs = get_stable_diffusion_models_for_export(pipeline)
+        output_names = [os.path.join(name_dir, ONNX_WEIGHTS_NAME) for name_dir in models_and_onnx_configs]
         model, _ = models_and_onnx_configs["vae_encoder"]
         model.forward = lambda sample: {"latent_sample": model.encode(x=sample)["latent_dist"].parameters}
 

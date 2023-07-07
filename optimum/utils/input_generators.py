@@ -621,12 +621,7 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
     ):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
-
-        if normalized_config.has_attribute("text_encoder_projection_dim"):
-            self.text_encoder_projection_dim = normalized_config.text_encoder_projection_dim
-        else:
-            self.text_encoder_projection_dim = normalized_config.cross_attention_dim
-
+        self.text_encoder_projection_dim = normalized_config.text_encoder_projection_dim
         if random_batch_size_range:
             low, high = random_batch_size_range
             self.batch_size = random.randint(low, high)

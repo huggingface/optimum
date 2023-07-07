@@ -842,7 +842,6 @@ class TasksManager:
         ),
         "unet": supported_tasks_mapping(
             "semantic-segmentation",
-            "semantic-segmentation-with-time",
             onnx="UNetOnnxConfig",
         ),
         "unispeech": supported_tasks_mapping(
