@@ -30,7 +30,7 @@ class NormalizedConfig:
     """
 
     def __init__(self, config: Union[PretrainedConfig, Dict], allow_new: bool = False, **kwargs):
-        self.config = config if isinstance(config, PretrainedConfig) else PretrainedConfig.from_dict(config)
+        self.config = config
         for key, value in kwargs.items():
             if allow_new or hasattr(self, key.upper()):
                 setattr(self, key.upper(), value)
@@ -205,6 +205,7 @@ class NormalizedConfigManager:
         "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
+        "cvt": NormalizedVisionConfig,
         "deberta": NormalizedTextConfig,
         "deberta-v2": NormalizedTextConfig,
         "deit": NormalizedVisionConfig,

@@ -232,5 +232,6 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             trust_remote_code=self.args.trust_remote_code,
             pad_token_id=self.args.pad_token_id,
             for_ort=self.args.for_ort,
+            use_subprocess=True,
             **input_shapes,
         )

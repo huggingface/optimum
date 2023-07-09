@@ -756,7 +756,7 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             attn_mask = torch.reshape(attn_mask, (attn_mask.shape[0], attn_mask.shape[-1]))
             seqlen = attn_mask.shape[1]
             lengths = torch.sum(~attn_mask, 1)
-            if not all([l == seqlen for l in lengths]):
+            if not all(l == seqlen for l in lengths):
                 x = torch._nested_tensor_from_mask(x, attn_mask)
             attn_mask = None
 
