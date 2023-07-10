@@ -71,12 +71,14 @@ except OptionalDependencyNotAvailable:
         "ORTStableDiffusionPipeline",
         "ORTStableDiffusionImg2ImgPipeline",
         "ORTStableDiffusionInpaintPipeline",
+        "ORTStableDiffusionXLPipeline",
     ]
 else:
     _import_structure["modeling_diffusion"] = [
         "ORTStableDiffusionPipeline",
         "ORTStableDiffusionImg2ImgPipeline",
         "ORTStableDiffusionInpaintPipeline",
+        "ORTStableDiffusionXLPipeline",
     ]
 
 
@@ -124,12 +126,14 @@ if TYPE_CHECKING:
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
+            ORTStableDiffusionXLPipeline,
         )
     else:
         from .modeling_diffusion import (
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
+            ORTStableDiffusionXLPipeline,
         )
 else:
     import sys

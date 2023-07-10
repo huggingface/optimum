@@ -22,6 +22,7 @@ import torch
 from diffusers import (
     OnnxStableDiffusionImg2ImgPipeline,
     StableDiffusionPipeline,
+    StableDiffusionXLPipeline,
 )
 from diffusers.utils import floats_tensor, load_image
 from parameterized import parameterized
@@ -36,6 +37,7 @@ from optimum.onnxruntime.modeling_diffusion import (
     ORTModelVaeEncoder,
     ORTStableDiffusionImg2ImgPipeline,
     ORTStableDiffusionInpaintPipeline,
+    ORTStableDiffusionXLPipeline,
 )
 from optimum.utils import logging
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
@@ -193,6 +195,7 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
             "num_images_per_prompt": num_images_per_prompt,
             "height": height,
             "width": width,
+            "guidance_rescale":0.1,
         }
 
         for output_type in ["latent", "np"]:
@@ -220,6 +223,57 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
         # Compare model outputs
         self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
         self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
+
+
+
+class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = [
+        "stable-diffusion-xl",
+    ]
+    ORTMODEL_CLASS = ORTStableDiffusionXLPipeline
+    TASK = "stable-diffusion-xl"
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_compare_to_diffusers(self, model_arch: str):
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
+        self.assertIsInstance(ort_pipeline.text_encoder, ORTModelTextEncoder)
+        self.assertIsInstance(ort_pipeline.text_encoder_2, ORTModelTextEncoder)
+        self.assertIsInstance(ort_pipeline.vae_decoder, ORTModelVaeDecoder)
+        self.assertIsInstance(ort_pipeline.vae_encoder, ORTModelVaeEncoder)
+        self.assertIsInstance(ort_pipeline.unet, ORTModelUnet)
+        self.assertIsInstance(ort_pipeline.config, Dict)
+
+        pipeline = StableDiffusionXLPipeline.from_pretrained(MODEL_NAMES[model_arch])
+        batch_size, num_images_per_prompt, height, width = 1, 2, 64, 64
+
+        latents = ort_pipeline.prepare_latents(
+            batch_size * num_images_per_prompt,
+            ort_pipeline.unet.config["in_channels"],
+            height,
+            width,
+            dtype=np.float32,
+            generator = np.random.RandomState(0)
+        )
+
+        kwargs = {
+            "prompt": "sailing ship in storm by Leonardo da Vinci",
+            "num_inference_steps": 1,
+            "num_images_per_prompt": num_images_per_prompt,
+            "height": height,
+            "width": width,
+            "guidance_rescale":0.1,
+        }
+
+        for output_type in ["latent"]:
+            ort_outputs = ort_pipeline(latents=latents, output_type=output_type, **kwargs).images
+            self.assertIsInstance(ort_outputs, np.ndarray)
+            with torch.no_grad():
+                outputs = pipeline(latents=torch.from_numpy(latents), output_type=output_type, **kwargs).images
+            # Compare model outputs
+            self.assertTrue(np.allclose(ort_outputs, outputs, atol=1e-4))
+            # Compare model devices
+            self.assertEqual(pipeline.device, ort_pipeline.device)
 
 
 class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
