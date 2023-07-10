@@ -195,7 +195,7 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
             "num_images_per_prompt": num_images_per_prompt,
             "height": height,
             "width": width,
-            "guidance_rescale":0.1,
+            "guidance_rescale": 0.1,
         }
 
         for output_type in ["latent", "np"]:
@@ -225,7 +225,6 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
         self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
 
 
-
 class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "stable-diffusion-xl",
@@ -253,7 +252,7 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
             height,
             width,
             dtype=np.float32,
-            generator = np.random.RandomState(0)
+            generator=np.random.RandomState(0),
         )
 
         kwargs = {
@@ -262,7 +261,7 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
             "num_images_per_prompt": num_images_per_prompt,
             "height": height,
             "width": width,
-            "guidance_rescale":0.1,
+            "guidance_rescale": 0.1,
         }
 
         for output_type in ["latent"]:

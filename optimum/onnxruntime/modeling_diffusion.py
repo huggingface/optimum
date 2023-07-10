@@ -226,7 +226,10 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             self.unet_model_path: save_directory / DIFFUSION_MODEL_UNET_SUBFOLDER / ONNX_WEIGHTS_NAME,
         }
 
-        sub_models_to_save = {self.vae_encoder_model_path : DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER, self.text_encoder_2_model_path : DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER}
+        sub_models_to_save = {
+            self.vae_encoder_model_path: DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
+            self.text_encoder_2_model_path: DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
+        }
         for path, subfolder in sub_models_to_save.items():
             if path is not None:
                 src_to_dst_path[path] = save_directory / subfolder / ONNX_WEIGHTS_NAME
@@ -250,7 +253,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             self.feature_extractor.save_pretrained(save_directory / "feature_extractor")
         if self.tokenizer_2 is not None:
             self.tokenizer_2.save_pretrained(save_directory / "tokenizer_2")
-    
+
     @classmethod
     def _from_pretrained(
         cls,
@@ -485,7 +488,14 @@ class ORTModelUnet(_ORTDiffusionModelPart):
     def __init__(self, session: ort.InferenceSession, parent_model: ORTModel):
         super().__init__(session, parent_model)
 
-    def forward(self, sample: np.ndarray, timestep: np.ndarray, encoder_hidden_states: np.ndarray, text_embeds : Optional[np.ndarray] = None,  time_ids : Optional[np.ndarray] = None):
+    def forward(
+        self,
+        sample: np.ndarray,
+        timestep: np.ndarray,
+        encoder_hidden_states: np.ndarray,
+        text_embeds: Optional[np.ndarray] = None,
+        time_ids: Optional[np.ndarray] = None,
+    ):
         onnx_inputs = {
             "sample": sample,
             "timestep": timestep,

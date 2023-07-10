@@ -109,14 +109,18 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
                 text_input_ids = text_inputs.input_ids
                 untruncated_ids = tokenizer(prompt, padding="longest", return_tensors="np").input_ids
 
-                if untruncated_ids.shape[-1] >= text_input_ids.shape[-1] and not np.array_equal(text_input_ids, untruncated_ids):
+                if untruncated_ids.shape[-1] >= text_input_ids.shape[-1] and not np.array_equal(
+                    text_input_ids, untruncated_ids
+                ):
                     removed_text = tokenizer.batch_decode(untruncated_ids[:, tokenizer.model_max_length - 1 : -1])
                     logger.warning(
                         "The following part of your input was truncated because CLIP can only handle sequences up to"
                         f" {tokenizer.model_max_length} tokens: {removed_text}"
                     )
 
-                prompt_embeds = text_encoder(input_ids=text_input_ids.astype(text_encoder.input_dtype.get("input_ids", np.int32)))
+                prompt_embeds = text_encoder(
+                    input_ids=text_input_ids.astype(text_encoder.input_dtype.get("input_ids", np.int32))
+                )
                 pooled_prompt_embeds = prompt_embeds[0]
                 prompt_embeds = prompt_embeds[-2]
                 prompt_embeds = np.repeat(prompt_embeds, num_images_per_prompt, axis=0)
@@ -157,7 +161,9 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
                     truncation=True,
                     return_tensors="pt",
                 )
-                negative_prompt_embeds = text_encoder(input_ids=uncond_input.input_ids.astype(text_encoder.input_dtype.get("input_ids", np.int32)))
+                negative_prompt_embeds = text_encoder(
+                    input_ids=uncond_input.input_ids.astype(text_encoder.input_dtype.get("input_ids", np.int32))
+                )
                 negative_pooled_prompt_embeds = negative_prompt_embeds[0]
                 negative_prompt_embeds = negative_prompt_embeds[-2]
 
@@ -254,7 +260,6 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
 
         return latents
 
-
     # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_extra_step_kwargs
     def prepare_extra_step_kwargs(self, generator, eta):
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
@@ -274,8 +279,8 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
     def __call__(
         self,
         prompt: Optional[Union[str, List[str]]] = None,
-        height:  Optional[int] = None,
-        width:  Optional[int] = None,
+        height: Optional[int] = None,
+        width: Optional[int] = None,
         num_inference_steps: int = 50,
         guidance_scale: float = 5.0,
         negative_prompt: Optional[Union[str, List[str]]] = None,
@@ -374,7 +379,15 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
 
         # 1. Check inputs. Raise error if not correct
         self.check_inputs(
-            prompt, height, width, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds
+            prompt,
+            height,
+            width,
+            callback_steps,
+            negative_prompt,
+            prompt_embeds,
+            negative_prompt_embeds,
+            pooled_prompt_embeds,
+            negative_pooled_prompt_embeds,
         )
 
         # 2. Define call parameters
@@ -394,7 +407,12 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
         do_classifier_free_guidance = guidance_scale > 1.0
 
         # 3. Encode input prompt
-        prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds = self._encode_prompt(
+        (
+            prompt_embeds,
+            negative_prompt_embeds,
+            pooled_prompt_embeds,
+            negative_pooled_prompt_embeds,
+        ) = self._encode_prompt(
             prompt,
             num_images_per_prompt,
             do_classifier_free_guidance,
@@ -425,7 +443,7 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
 
         # 7. Prepare added time ids & embeddings
         add_text_embeds = pooled_prompt_embeds
-        add_time_ids = original_size + crops_coords_top_left + target_size,
+        add_time_ids = (original_size + crops_coords_top_left + target_size,)
         add_time_ids = np.array(add_time_ids, dtype=prompt_embeds.dtype)
 
         if do_classifier_free_guidance:
@@ -447,7 +465,13 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
 
             # predict the noise residual
             timestep = np.array([t], dtype=timestep_dtype)
-            noise_pred = self.unet(sample=latent_model_input, timestep=timestep, encoder_hidden_states=prompt_embeds,text_embeds=add_text_embeds, time_ids=add_time_ids)
+            noise_pred = self.unet(
+                sample=latent_model_input,
+                timestep=timestep,
+                encoder_hidden_states=prompt_embeds,
+                text_embeds=add_text_embeds,
+                time_ids=add_time_ids,
+            )
             noise_pred = noise_pred[0]
 
             # perform guidance
