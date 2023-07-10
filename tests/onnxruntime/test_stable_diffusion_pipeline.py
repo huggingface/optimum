@@ -264,7 +264,7 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
             "guidance_rescale": 0.1,
         }
 
-        for output_type in ["latent"]:
+        for output_type in ["latent", "np"]:
             ort_outputs = ort_pipeline(latents=latents, output_type=output_type, **kwargs).images
             self.assertIsInstance(ort_outputs, np.ndarray)
             with torch.no_grad():
