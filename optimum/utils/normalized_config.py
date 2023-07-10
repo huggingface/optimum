@@ -141,7 +141,7 @@ MPTNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
 )
 GPTBigCodeNormalizedTextConfig = NormalizedTextConfig.with_args(
-    num_attention_heads="n_head", hidden_size="n_inner", num_layers="n_layer"
+    num_attention_heads="n_head", hidden_size="n_embd", num_layers="n_layer"
 )
 
 WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
