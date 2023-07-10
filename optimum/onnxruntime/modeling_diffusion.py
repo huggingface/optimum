@@ -549,7 +549,6 @@ class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
 
 
 class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLPipelineMixin):
-
     def __init__(
         self,
         vae_decoder_session: ort.InferenceSession,
@@ -584,7 +583,6 @@ class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffu
         from ..pipelines.diffusers.watermark import StableDiffusionXLWatermarker
 
         self.watermark = StableDiffusionXLWatermarker()
-
 
     def __call__(self, *args, **kwargs):
         return StableDiffusionXLPipelineMixin.__call__(self, *args, **kwargs)
