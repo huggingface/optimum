@@ -549,6 +549,43 @@ class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
 
 
 class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLPipelineMixin):
+
+    def __init__(
+        self,
+        vae_decoder_session: ort.InferenceSession,
+        text_encoder_session: ort.InferenceSession,
+        unet_session: ort.InferenceSession,
+        config: Dict[str, Any],
+        tokenizer: CLIPTokenizer,
+        scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
+        feature_extractor: Optional[CLIPFeatureExtractor] = None,
+        vae_encoder_session: Optional[ort.InferenceSession] = None,
+        text_encoder_2_session: Optional[ort.InferenceSession] = None,
+        tokenizer_2: Optional[CLIPTokenizer] = None,
+        use_io_binding: Optional[bool] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+    ):
+        super().__init__(
+            vae_decoder_session=vae_decoder_session,
+            text_encoder_session=text_encoder_session,
+            unet_session=unet_session,
+            config=config,
+            tokenizer=tokenizer,
+            scheduler=scheduler,
+            feature_extractor=feature_extractor,
+            vae_encoder_session=vae_encoder_session,
+            text_encoder_2_session=text_encoder_2_session,
+            tokenizer_2=tokenizer_2,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+        )
+
+        # additional invisible-watermark dependency for SD XL
+        from ..pipelines.diffusers.watermark import StableDiffusionXLWatermarker
+
+        self.watermark = StableDiffusionXLWatermarker()
+
+
     def __call__(self, *args, **kwargs):
         return StableDiffusionXLPipelineMixin.__call__(self, *args, **kwargs)
 

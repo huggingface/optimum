@@ -496,16 +496,15 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
         if output_type == "latent":
             image = latents
         else:
-            latents = 1 / self.vae_decoder.config.get("scaling_factor", 0.18215) * latents
+            latents = latents / self.vae_decoder.config.get("scaling_factor", 0.18215)
             # it seems likes there is a strange result for using half-precision vae decoder if batchsize>1
             image = np.concatenate(
                 [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
             )
-            # TODO: add watermark !!!
+            image = self.watermark.apply_watermark(image)
 
             # TODO: add image_processor
-            image = np.clip(image / 2 + 0.5, 0, 1)
-            image = image.transpose((0, 2, 3, 1))
+            image = np.clip(image / 2 + 0.5, 0, 1).transpose((0, 2, 3, 1))
 
         if output_type == "pil":
             image = self.numpy_to_pil(image)

@@ -244,8 +244,8 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
         self.assertIsInstance(ort_pipeline.config, Dict)
 
         pipeline = StableDiffusionXLPipeline.from_pretrained(MODEL_NAMES[model_arch])
-        batch_size, num_images_per_prompt, height, width = 1, 2, 64, 64
-
+        # image size must be higher or equal to 256 to encode with watermarker
+        batch_size, num_images_per_prompt, height, width = 1, 2, 256, 256
         latents = ort_pipeline.prepare_latents(
             batch_size * num_images_per_prompt,
             ort_pipeline.unet.config["in_channels"],
