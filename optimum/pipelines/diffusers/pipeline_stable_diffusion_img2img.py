@@ -30,7 +30,6 @@ from .pipeline_stable_diffusion import StableDiffusionPipelineMixin
 logger = logging.getLogger(__name__)
 
 
-
 class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
     # Copied from diffusers.pipelines.stable_diffusion.pipeline_onnx_stable_diffusion.OnnxStableDiffusionImg2ImgPipeline.check_inputs
     def check_inputs(
