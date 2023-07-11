@@ -74,7 +74,8 @@ def gpt2_wrapped_scaled_dot_product(
 
             # torch.Tensor.expand does no memory copy
             causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
-            attention_mask = causal_mask + attention_mask
+            if attention_mask is not None:
+                attention_mask = causal_mask + attention_mask
 
         sdpa_result = torch.nn.functional.scaled_dot_product_attention(
             query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=False
@@ -127,7 +128,8 @@ def gpt_neo_wrapped_scaled_dot_product(
             # torch.Tensor.expand does no memory copy
             causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
 
-        attention_mask = causal_mask + attention_mask
+        if attention_mask is not None:
+            attention_mask = causal_mask + attention_mask
 
         sdpa_result = torch.nn.functional.scaled_dot_product_attention(
             query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=False
