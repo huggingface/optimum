@@ -181,14 +181,17 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
 
         pipeline = StableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
         pipeline.safety_checker = None
-        num_images_per_prompt, height, width = 1, 64, 64
-        latents_shape = (
-            num_images_per_prompt,
+        batch_size, num_images_per_prompt, height, width = 1, 2, 64, 64
+
+        latents = ort_pipeline.prepare_latents(
+            batch_size * num_images_per_prompt,
             ort_pipeline.unet.config["in_channels"],
-            height // ort_pipeline.vae_scale_factor,
-            width // ort_pipeline.vae_scale_factor,
+            height,
+            width,
+            dtype=np.float32,
+            generator=np.random.RandomState(0),
         )
-        latents = np.random.randn(*latents_shape).astype(np.float32)
+
         kwargs = {
             "prompt": "sailing ship in storm by Leonardo da Vinci",
             "num_inference_steps": 1,

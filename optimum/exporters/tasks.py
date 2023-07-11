@@ -1327,9 +1327,10 @@ class TasksManager:
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             if model_info.library_name == "diffusers":
                 # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
-                if "stable-diffusion" in model_info.tags:
-                    # TODO : fix it for SD XL
-                    inferred_task_name = "stable-diffusion"
+                for task in ("stable-diffusion-xl", "stable-diffusion"):
+                    if task in model_info.tags:
+                        inferred_task_name = task
+                        break
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
                 # conversational is not a supported task per se, just an alias that may map to

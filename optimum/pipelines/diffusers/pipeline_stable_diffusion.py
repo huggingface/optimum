@@ -194,12 +194,31 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
                     f" {negative_prompt_embeds.shape}."
                 )
 
+    # Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
+    def prepare_latents(self, batch_size, num_channels_latents, height, width, dtype, generator, latents=None):
+        shape = (batch_size, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
+        if isinstance(generator, list) and len(generator) != batch_size:
+            raise ValueError(
+                f"You have passed a list of generators of length {len(generator)}, but requested an effective batch"
+                f" size of {batch_size}. Make sure the batch size matches the length of the generators."
+            )
+
+        if latents is None:
+            latents = generator.randn(*shape).astype(dtype)
+        elif latents.shape != shape:
+            raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {shape}")
+
+        # scale the initial noise by the standard deviation required by the scheduler
+        latents = latents * np.float64(self.scheduler.init_noise_sigma)
+
+        return latents
+
     # Adapted from https://github.com/huggingface/diffusers/blob/v0.17.1/src/diffusers/pipelines/stable_diffusion/pipeline_onnx_stable_diffusion.py#L264
     def __call__(
         self,
         prompt: Optional[Union[str, List[str]]] = None,
-        height: int = 512,
-        width: int = 512,
+        height: Optional[int] = None,
+        width: Optional[int] = None,
         num_inference_steps: int = 50,
         guidance_scale: float = 7.5,
         negative_prompt: Optional[Union[str, List[str]]] = None,
@@ -222,9 +241,9 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             prompt (`Optional[Union[str, List[str]]]`, defaults to None):
                 The prompt or prompts to guide the image generation. If not defined, one has to pass `prompt_embeds`.
                 instead.
-            height (`int`, defaults to 512):
+            height (`Optional[int]`, defaults to None):
                 The height in pixels of the generated image.
-            width (`int`, defaults to 512):
+            width (`Optional[int]`, defaults to None):
                 The width in pixels of the generated image.
             num_inference_steps (`int`, defaults to 50):
                 The number of denoising steps. More denoising steps usually lead to a higher quality image at the
@@ -282,6 +301,8 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             list of `bool`s denoting whether the corresponding generated image likely represents "not-safe-for-work"
             (nsfw) content, according to the `safety_checker`.
         """
+        height = height or self.unet.config["sample_size"] * self.vae_scale_factor
+        width = width or self.unet.config["sample_size"] * self.vae_scale_factor
 
         # check inputs. Raise error if not correct
         self.check_inputs(
@@ -313,25 +334,19 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             negative_prompt_embeds=negative_prompt_embeds,
         )
 
-        num_unet_in_channels = self.unet.config.get("in_channels", 4)
-        # get the initial random noise unless the user supplied it
-        latents_dtype = prompt_embeds.dtype
-        latents_shape = (
-            batch_size * num_images_per_prompt,
-            num_unet_in_channels,
-            height // self.vae_scale_factor,
-            width // self.vae_scale_factor,
-        )
-        if latents is None:
-            latents = generator.randn(*latents_shape).astype(latents_dtype)
-        elif latents.shape != latents_shape:
-            raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {latents_shape}")
-
         # set timesteps
         self.scheduler.set_timesteps(num_inference_steps)
         timesteps = self.scheduler.timesteps
 
-        latents = latents * np.float64(self.scheduler.init_noise_sigma)
+        latents = self.prepare_latents(
+            batch_size * num_images_per_prompt,
+            self.unet.config.get("in_channels", 4),
+            height,
+            width,
+            prompt_embeds.dtype,
+            generator,
+            latents,
+        )
 
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
         # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
