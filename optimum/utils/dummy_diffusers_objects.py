@@ -57,3 +57,14 @@ class ORTStableDiffusionXLPipeline(metaclass=DummyObject):
     @classmethod
     def from_pretrained(cls, *args, **kwargs):
         requires_backends(cls, ["diffusers"])
+
+
+class StableDiffusionXLImg2ImgPipelineMixin(metaclass=DummyObject):
+    _backends = ["diffusers"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["diffusers"])
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        requires_backends(cls, ["diffusers"])

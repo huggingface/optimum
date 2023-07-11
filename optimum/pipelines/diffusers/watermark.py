@@ -6,7 +6,7 @@ WATERMARK_MESSAGE = 0b101100111110110010010000011110111011000110011110
 WATERMARK_BITS = [int(bit) for bit in bin(WATERMARK_MESSAGE)[2:]]
 
 
-# Copied from https://github.com/huggingface/diffusers/blob/v0.18.1/src/diffusers/pipelines/stable_diffusion_xl/watermark.py#L12
+# Adapted from https://github.com/huggingface/diffusers/blob/v0.18.1/src/diffusers/pipelines/stable_diffusion_xl/watermark.py#L12
 class StableDiffusionXLWatermarker:
     def __init__(self):
         self.watermark = WATERMARK_BITS

@@ -17,31 +17,18 @@ import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import PIL
 import torch
 from diffusers.pipelines.stable_diffusion_xl import StableDiffusionXLPipelineOutput
 
-from .pipeline_utils import DiffusionPipelineMixin
+from .pipeline_utils import DiffusionPipelineMixin, rescale_noise_cfg, preprocess
+import warnings
 
 
 logger = logging.getLogger(__name__)
 
 
-# Adapted from https://github.com/huggingface/diffusers/blob/v0.18.1/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion.py#L58
-def rescale_noise_cfg(noise_cfg, noise_pred_text, guidance_rescale=0.0):
-    """
-    Rescale `noise_cfg` according to `guidance_rescale`. Based on findings of [Common Diffusion Noise Schedules and
-    Sample Steps are Flawed](https://arxiv.org/pdf/2305.08891.pdf). See Section 3.4
-    """
-    std_text = np.std(noise_pred_text, axis=tuple(range(1, noise_pred_text.ndim)), keepdims=True)
-    std_cfg = np.std(noise_cfg, axis=tuple(range(1, noise_cfg.ndim)), keepdims=True)
-    # rescale the results from guidance (fixes overexposure)
-    noise_pred_rescaled = noise_cfg * (std_text / std_cfg)
-    # mix with the original results from guidance by factor guidance_rescale to avoid "plain looking" images
-    noise_cfg = guidance_rescale * noise_pred_rescaled + (1 - guidance_rescale) * noise_cfg
-    return noise_cfg
-
-
-class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
+class StableDiffusionXLImg2ImgPipelineMixin(DiffusionPipelineMixin):
     # Adapted from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl.StableDiffusionXLPipeline.encode_prompt
     def _encode_prompt(
         self,
@@ -181,21 +168,18 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
 
         return prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds
 
-    # Copied from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl.StableDiffusionXLPipeline.check_inputs
+    # Copied from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img.StableDiffusionXLImg2ImgPipeline.check_inputs
     def check_inputs(
         self,
         prompt: Union[str, List[str]],
-        height: Optional[int],
-        width: Optional[int],
+        strength: float,
         callback_steps: int,
         negative_prompt: Optional[str] = None,
         prompt_embeds: Optional[np.ndarray] = None,
         negative_prompt_embeds: Optional[np.ndarray] = None,
-        pooled_prompt_embeds=None,
-        negative_pooled_prompt_embeds=None,
     ):
-        if height % 8 != 0 or width % 8 != 0:
-            raise ValueError(f"`height` and `width` have to be divisible by 8 but are {height} and {width}.")
+        if strength < 0 or strength > 1:
+            raise ValueError(f"The value of strength should in [0.0, 1.0] but is {strength}")
 
         if (callback_steps is None) or (
             callback_steps is not None and (not isinstance(callback_steps, int) or callback_steps <= 0)
@@ -231,56 +215,62 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
                     f" {negative_prompt_embeds.shape}."
                 )
 
-        if prompt_embeds is not None and pooled_prompt_embeds is None:
-            raise ValueError(
-                "If `prompt_embeds` are provided, `pooled_prompt_embeds` also have to be passed. Make sure to generate `pooled_prompt_embeds` from the same text encoder that was used to generate `prompt_embeds`."
-            )
+    def get_timesteps(self, num_inference_steps, strength):
+        # get the original timestep using init_timestep
+        init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
+        t_start = max(num_inference_steps - init_timestep, 0)
+        timesteps = self.scheduler.timesteps[t_start * self.scheduler.order :].numpy()
 
-        if negative_prompt_embeds is not None and negative_pooled_prompt_embeds is None:
-            raise ValueError(
-                "If `negative_prompt_embeds` are provided, `negative_pooled_prompt_embeds` also have to be passed. Make sure to generate `negative_pooled_prompt_embeds` from the same text encoder that was used to generate `negative_prompt_embeds`."
-            )
+        return timesteps, num_inference_steps - t_start
 
     # Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
-    def prepare_latents(self, batch_size, num_channels_latents, height, width, dtype, generator, latents=None):
-        shape = (batch_size, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
-        if isinstance(generator, list) and len(generator) != batch_size:
+    def prepare_latents(self, image, timestep, batch_size, num_images_per_prompt, dtype, generator=None):
+        batch_size = batch_size * num_images_per_prompt
+
+        if image.shape[1] == 4:
+            init_latents = image
+        else:
+            init_latents = self.vae_encoder(sample=image)[0] * self.vae_decoder.config.get("scaling_factor", 0.18215)
+
+        if batch_size > init_latents.shape[0] and batch_size % init_latents.shape[0] == 0:
+            # expand init_latents for batch_size
+            additional_image_per_prompt = batch_size // init_latents.shape[0]
+            init_latents = np.concatenate([init_latents] * additional_image_per_prompt, axis=0)
+        elif batch_size > init_latents.shape[0] and batch_size % init_latents.shape[0] != 0:
             raise ValueError(
-                f"You have passed a list of generators of length {len(generator)}, but requested an effective batch"
-                f" size of {batch_size}. Make sure the batch size matches the length of the generators."
+                f"Cannot duplicate `image` of batch size {init_latents.shape[0]} to {batch_size} text prompts."
             )
+        else:
+            init_latents = np.concatenate([init_latents], axis=0)
 
-        if latents is None:
-            latents = generator.randn(*shape).astype(dtype)
-        elif latents.shape != shape:
-            raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {shape}")
+        # add noise to latents using the timesteps
+        noise = generator.randn(*init_latents.shape).astype(dtype)
+        init_latents = self.scheduler.add_noise(
+            torch.from_numpy(init_latents), torch.from_numpy(noise), torch.from_numpy(timestep)
+        )
+        return init_latents.numpy()
 
-        # scale the initial noise by the standard deviation required by the scheduler
-        latents = latents * np.float64(self.scheduler.init_noise_sigma)
+    def _get_add_time_ids(
+        self, original_size, crops_coords_top_left, target_size, aesthetic_score, negative_aesthetic_score, dtype
+    ):
+        if self.config.get("requires_aesthetics_score"):
+            add_time_ids = (original_size + crops_coords_top_left + (aesthetic_score,),)
+            add_neg_time_ids = (original_size + crops_coords_top_left + (negative_aesthetic_score,),)
+        else:
+            add_time_ids = (original_size + crops_coords_top_left + target_size,)
+            add_neg_time_ids = (original_size + crops_coords_top_left + target_size,)
 
-        return latents
+        add_time_ids = np.array(add_time_ids, dtype=dtype)
+        add_neg_time_ids = np.array(add_neg_time_ids, dtype=dtype)
 
-    # Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_extra_step_kwargs
-    def prepare_extra_step_kwargs(self, generator, eta):
-        # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
-        # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
-        # eta corresponds to η in DDIM paper: https://arxiv.org/abs/2010.02502
-        # and should be between [0, 1]
-
-        extra_step_kwargs = {}
-
-        accepts_eta = "eta" in set(inspect.signature(self.scheduler.step).parameters.keys())
-        if accepts_eta:
-            extra_step_kwargs["eta"] = eta
-
-        return extra_step_kwargs
+        return add_time_ids, add_neg_time_ids
 
     # Adapted from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl.StableDiffusionXLPipeline.__call__
     def __call__(
         self,
         prompt: Optional[Union[str, List[str]]] = None,
-        height: Optional[int] = None,
-        width: Optional[int] = None,
+        image: Union[np.ndarray, PIL.Image.Image] = None,
+        strength: float = 0.3,
         num_inference_steps: int = 50,
         guidance_scale: float = 5.0,
         negative_prompt: Optional[Union[str, List[str]]] = None,
@@ -301,6 +291,8 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
         original_size: Optional[Tuple[int, int]] = None,
         crops_coords_top_left: Tuple[int, int] = (0, 0),
         target_size: Optional[Tuple[int, int]] = None,
+        aesthetic_score: float = 6.0,
+        negative_aesthetic_score: float = 2.5,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -309,10 +301,14 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
             prompt (`Optional[Union[str, List[str]]]`, defaults to None):
                 The prompt or prompts to guide the image generation. If not defined, one has to pass `prompt_embeds`.
                 instead.
-            height (`Optional[int]`, defaults to None):
-                The height in pixels of the generated image.
-            width (`Optional[int]`, defaults to None):
-                The width in pixels of the generated image.
+            image (`Union[np.ndarray, PIL.Image.Image]`):
+                `Image`, or tensor representing an image batch which will be upscaled.
+            strength (`float`, defaults to 0.8):
+                Conceptually, indicates how much to transform the reference `image`. Must be between 0 and 1. `image`
+                will be used as a starting point, adding more noise to it the larger the `strength`. The number of
+                denoising steps depends on the amount of noise initially added. When `strength` is 1, added noise will
+                be maximum and the denoising process will run for the full number of iterations specified in
+                `num_inference_steps`. A value of 1, therefore, essentially ignores `image`.
             num_inference_steps (`int`, defaults to 50):
                 The number of denoising steps. More denoising steps usually lead to a higher quality image at the
                 expense of slower inference.
@@ -369,28 +365,10 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
             list of `bool`s denoting whether the corresponding generated image likely represents "not-safe-for-work"
             (nsfw) content, according to the `safety_checker`.
         """
+        # 0. Check inputs. Raise error if not correct
+        self.check_inputs(prompt, strength, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds)
 
-        # 0. Default height and width to unet
-        height = height or self.unet.config["sample_size"] * self.vae_scale_factor
-        width = width or self.unet.config["sample_size"] * self.vae_scale_factor
-
-        original_size = original_size or (height, width)
-        target_size = target_size or (height, width)
-
-        # 1. Check inputs. Raise error if not correct
-        self.check_inputs(
-            prompt,
-            height,
-            width,
-            callback_steps,
-            negative_prompt,
-            prompt_embeds,
-            negative_prompt_embeds,
-            pooled_prompt_embeds,
-            negative_pooled_prompt_embeds,
-        )
-
-        # 2. Define call parameters
+        # 1. Define call parameters
         if isinstance(prompt, str):
             batch_size = 1
         elif isinstance(prompt, list):
@@ -406,7 +384,7 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
         # corresponds to doing no classifier free guidance.
         do_classifier_free_guidance = guidance_scale > 1.0
 
-        # 3. Encode input prompt
+        # 2. Encode input prompt
         (
             prompt_embeds,
             negative_prompt_embeds,
@@ -423,37 +401,52 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
             negative_pooled_prompt_embeds=negative_pooled_prompt_embeds,
         )
 
+        # 3. Preprocess image
+        image = preprocess(image)
+
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps)
-        timesteps = self.scheduler.timesteps
+
+        timesteps, num_inference_steps = self.get_timesteps(num_inference_steps, strength)
+        latent_timestep = np.repeat(timesteps[:1], batch_size * num_images_per_prompt, axis=0)
+        timestep_dtype = self.unet.input_dtype.get("timestep", np.float32)
+
+        latents_dtype = prompt_embeds.dtype
+        image = image.astype(latents_dtype)
 
         # 5. Prepare latent variables
         latents = self.prepare_latents(
-            batch_size * num_images_per_prompt,
-            self.unet.config.get("in_channels", 4),
-            height,
-            width,
-            prompt_embeds.dtype,
-            generator,
-            latents,
+            image, latent_timestep, batch_size, num_images_per_prompt, latents_dtype, generator
         )
 
         # 6. Prepare extra step kwargs
-        extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
+        extra_step_kwargs = {}
+        accepts_eta = "eta" in set(inspect.signature(self.scheduler.step).parameters.keys())
+        if accepts_eta:
+            extra_step_kwargs["eta"] = eta
 
-        # 7. Prepare added time ids & embeddings
+        height, width = latents.shape[-2:]
+        height = height * self.vae_scale_factor
+        width = width * self.vae_scale_factor
+        original_size = original_size or (height, width)
+        target_size = target_size or (height, width)
+
+        # 8. Prepare added time ids & embeddings
         add_text_embeds = pooled_prompt_embeds
-        add_time_ids = (original_size + crops_coords_top_left + target_size,)
-        add_time_ids = np.array(add_time_ids, dtype=prompt_embeds.dtype)
+        add_time_ids, add_neg_time_ids = self._get_add_time_ids(
+            original_size,
+            crops_coords_top_left,
+            target_size,
+            aesthetic_score,
+            negative_aesthetic_score,
+            dtype=prompt_embeds.dtype,
+        )
 
         if do_classifier_free_guidance:
             prompt_embeds = np.concatenate((negative_prompt_embeds, prompt_embeds), axis=0)
             add_text_embeds = np.concatenate((negative_pooled_prompt_embeds, add_text_embeds), axis=0)
             add_time_ids = np.concatenate((add_time_ids, add_time_ids), axis=0)
         add_time_ids = np.repeat(add_time_ids, batch_size * num_images_per_prompt, axis=0)
-
-        # Adapted from diffusers to extend it for other runtimes than ORT
-        timestep_dtype = self.unet.input_dtype.get("timestep", np.float32)
 
         # 8. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order

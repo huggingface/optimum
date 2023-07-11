@@ -37,6 +37,7 @@ from optimum.onnxruntime.modeling_diffusion import (
     ORTModelVaeEncoder,
     ORTStableDiffusionImg2ImgPipeline,
     ORTStableDiffusionInpaintPipeline,
+    ORTStableDiffusionXLImg2ImgPipeline,
     ORTStableDiffusionXLPipeline,
 )
 from optimum.utils import logging
@@ -332,4 +333,34 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
             "/in_paint/overture-creations-5sI6fQgYIuo_mask.png"
         ).resize((64, 64))
 
+        return inputs
+
+
+class ORTStableDiffusionImg2ImgPipelineTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = [
+        "stable-diffusion-xl",
+    ]
+    ORTMODEL_CLASS = ORTStableDiffusionXLImg2ImgPipeline
+    TASK = "stable-diffusion-xl"
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_inference(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        inputs = self.generate_inputs()
+        output = pipeline(**inputs, generator=np.random.RandomState(0)).images[0, -3:, -3:, -1]
+        expected_slice = np.array([0.6515, 0.5405, 0.4858, 0.5632, 0.5174, 0.5681, 0.4948, 0.4253, 0.5080])
+
+        self.assertTrue(np.allclose(output.flatten(), expected_slice, atol=1e-1))
+
+    def generate_inputs(self, height=128, width=128):
+        inputs = _generate_inputs()
+        inputs["image"] = load_image(
+            "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
+            "/in_paint/overture-creations-5sI6fQgYIuo.png"
+        ).resize((height, width))
+
+        inputs["strength"] = 0.75
         return inputs
