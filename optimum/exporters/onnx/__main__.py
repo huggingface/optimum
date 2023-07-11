@@ -421,10 +421,11 @@ def main_export(
         onnx_files_subpaths = [os.path.join(name_dir, ONNX_WEIGHTS_NAME) for name_dir in models_and_onnx_configs]
 
         # Saving the additional components needed to perform inference.
-        model.tokenizer.save_pretrained(output.joinpath("tokenizer"))
         model.scheduler.save_pretrained(output.joinpath("scheduler"))
         if getattr(model, "feature_extractor", None) is not None:
             model.feature_extractor.save_pretrained(output.joinpath("feature_extractor"))
+        if getattr(model, "tokenizer", None) is not None:
+            model.tokenizer.save_pretrained(output.joinpath("tokenizer"))
         if getattr(model, "tokenizer_2", None) is not None:
             model.tokenizer_2.save_pretrained(output.joinpath("tokenizer_2"))
         model.save_config(output)

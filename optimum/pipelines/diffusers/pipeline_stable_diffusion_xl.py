@@ -144,7 +144,7 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
                     padding="max_length",
                     max_length=max_length,
                     truncation=True,
-                    return_tensors="pt",
+                    return_tensors="np",
                 )
                 negative_prompt_embeds = text_encoder(
                     input_ids=uncond_input.input_ids.astype(text_encoder.input_dtype.get("input_ids", np.int32))
@@ -152,12 +152,11 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
                 negative_pooled_prompt_embeds = negative_prompt_embeds[0]
                 negative_prompt_embeds = negative_prompt_embeds[-2]
 
-                if do_classifier_free_guidance:
-                    # duplicate unconditional embeddings for each generation per prompt, using mps friendly method
-                    negative_prompt_embeds = np.repeat(negative_prompt_embeds, num_images_per_prompt, axis=0)
-                    # For classifier free guidance, we need to do two forward passes.
-                    # Here we concatenate the unconditional and text embeddings into a single batch
-                    # to avoid doing two forward passes
+                # duplicate unconditional embeddings for each generation per prompt, using mps friendly method
+                negative_prompt_embeds = np.repeat(negative_prompt_embeds, num_images_per_prompt, axis=0)
+                # For classifier free guidance, we need to do two forward passes.
+                # Here we concatenate the unconditional and text embeddings into a single batch
+                # to avoid doing two forward passes
                 negative_prompt_embeds_list.append(negative_prompt_embeds)
             negative_prompt_embeds = np.concatenate(negative_prompt_embeds, axis=-1)
 

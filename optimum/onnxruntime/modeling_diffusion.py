@@ -120,10 +120,15 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         self._internal_dict = config
         self.vae_decoder = ORTModelVaeDecoder(vae_decoder_session, self)
         self.vae_decoder_model_path = Path(vae_decoder_session._model_path)
-        self.text_encoder = ORTModelTextEncoder(text_encoder_session, self)
-        self.text_encoder_model_path = Path(text_encoder_session._model_path)
         self.unet = ORTModelUnet(unet_session, self)
         self.unet_model_path = Path(unet_session._model_path)
+
+        if text_encoder_session is not None:
+            self.text_encoder_model_path = Path(text_encoder_session._model_path)
+            self.text_encoder = ORTModelTextEncoder(text_encoder_session, self)
+        else:
+            self.text_encoder_model_path = None
+            self.text_encoder = None
 
         if vae_encoder_session is not None:
             self.vae_encoder_model_path = Path(vae_encoder_session._model_path)
@@ -200,23 +205,22 @@ class ORTStableDiffusionPipelineBase(ORTModel):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
-        vae_decoder_session = ORTModel.load_model(vae_decoder_path, provider, session_options, provider_options)
-        text_encoder_session = ORTModel.load_model(text_encoder_path, provider, session_options, provider_options)
-        unet_session = ORTModel.load_model(unet_path, provider, session_options, provider_options)
+        vae_decoder = ORTModel.load_model(vae_decoder_path, provider, session_options, provider_options)
+        unet = ORTModel.load_model(unet_path, provider, session_options, provider_options)
 
-        if vae_encoder_path is not None:
-            vae_encoder_session = ORTModel.load_model(vae_encoder_path, provider, session_options, provider_options)
-        else:
-            vae_encoder_session = None
+        sessions = {
+            "vae_encoder": vae_encoder_path,
+            "text_encoder": text_encoder_path,
+            "text_encoder_2": text_encoder_2_path,
+        }
 
-        if text_encoder_2_path is not None:
-            text_encoder_2_session = ORTModel.load_model(
-                text_encoder_2_path, provider, session_options, provider_options
-            )
-        else:
-            text_encoder_2_session = None
+        for key, value in sessions.items():
+            if value is not None and value.is_file():
+                sessions[key] = ORTModel.load_model(value, provider, session_options, provider_options)
+            else:
+                sessions[key] = None
 
-        return vae_decoder_session, text_encoder_session, unet_session, vae_encoder_session, text_encoder_2_session
+        return vae_decoder, sessions["text_encoder"], unet, sessions["vae_encoder"], sessions["text_encoder_2"]
 
     def _save_pretrained(self, save_directory: Union[str, Path]):
         save_directory = Path(save_directory)
@@ -247,10 +251,12 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             if config_path.is_file():
                 shutil.copyfile(config_path, dst_path.parent / self.sub_component_config_name)
 
-        self.tokenizer.save_pretrained(save_directory / "tokenizer")
         self.scheduler.save_pretrained(save_directory / "scheduler")
+
         if self.feature_extractor is not None:
             self.feature_extractor.save_pretrained(save_directory / "feature_extractor")
+        if self.tokenizer is not None:
+            self.tokenizer.save_pretrained(save_directory / "tokenizer")
         if self.tokenizer_2 is not None:
             self.tokenizer_2.save_pretrained(save_directory / "tokenizer_2")
 
@@ -322,20 +328,14 @@ class ORTStableDiffusionPipelineBase(ORTModel):
                 else:
                     sub_models[name] = load_method(new_model_save_dir)
 
-        vae_encoder_path = new_model_save_dir / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / vae_encoder_file_name
-        text_encoder_2_path = new_model_save_dir / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER / text_encoder_2_file_name
-
-        if not vae_encoder_path.is_file():
-            logger.warning(
-                f"VAE encoder not found in {model_id} and will not be loaded for inference. This component is needed for some tasks."
-            )
-
-        inference_sessions = cls.load_model(
+        vae_decoder, text_encoder, unet, vae_encoder, text_encoder_2 = cls.load_model(
             vae_decoder_path=new_model_save_dir / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / vae_decoder_file_name,
             text_encoder_path=new_model_save_dir / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / text_encoder_file_name,
             unet_path=new_model_save_dir / DIFFUSION_MODEL_UNET_SUBFOLDER / unet_file_name,
-            vae_encoder_path=vae_encoder_path if vae_encoder_path.is_file() else None,
-            text_encoder_2_path=text_encoder_2_path if text_encoder_2_path.is_file() else None,
+            vae_encoder_path=new_model_save_dir / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / vae_encoder_file_name,
+            text_encoder_2_path=new_model_save_dir
+            / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER
+            / text_encoder_2_file_name,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
@@ -350,14 +350,16 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             )
 
         return cls(
-            *inference_sessions[:-2],
+            vae_decoder_session=vae_decoder,
+            text_encoder_session=text_encoder,
+            unet_session=unet,
             config=config,
-            tokenizer=sub_models["tokenizer"],
-            scheduler=sub_models["scheduler"],
-            feature_extractor=sub_models.pop("feature_extractor", None),
-            tokenizer_2=sub_models.pop("tokenizer_2", None),
-            vae_encoder_session=inference_sessions[-2],
-            text_encoder_2_session=inference_sessions[-1],
+            tokenizer=sub_models.get("tokenizer", None),
+            scheduler=sub_models.get("scheduler"),
+            feature_extractor=sub_models.get("feature_extractor", None),
+            tokenizer_2=sub_models.get("tokenizer_2", None),
+            vae_encoder_session=vae_encoder,
+            text_encoder_2_session=text_encoder_2,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
         )

@@ -103,15 +103,16 @@ def _get_submodels_for_export_stable_diffusion(
     from diffusers import StableDiffusionXLPipeline
 
     models_for_export = {}
-
     if isinstance(pipeline, StableDiffusionXLPipeline):
-        pipeline.text_encoder.config.output_hidden_states = True
         projection_dim = pipeline.text_encoder_2.config.projection_dim
     else:
         projection_dim = pipeline.text_encoder.config.projection_dim
 
     # Text encoder
-    models_for_export["text_encoder"] = pipeline.text_encoder
+    if pipeline.text_encoder is not None:
+        if isinstance(pipeline, StableDiffusionXLPipeline):
+            pipeline.text_encoder.config.output_hidden_states = True
+        models_for_export["text_encoder"] = pipeline.text_encoder
 
     # U-NET
     # PyTorch does not support the ONNX export of torch.nn.functional.scaled_dot_product_attention
@@ -262,11 +263,12 @@ def get_stable_diffusion_models_for_export(
     models_for_export = _get_submodels_for_export_stable_diffusion(pipeline)
 
     # Text encoder
-    text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
-        model=pipeline.text_encoder, exporter="onnx", task="feature-extraction"
-    )
-    text_encoder_onnx_config = text_encoder_config_constructor(pipeline.text_encoder.config)
-    models_for_export["text_encoder"] = (models_for_export["text_encoder"], text_encoder_onnx_config)
+    if "text_encoder" in models_for_export:
+        text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=pipeline.text_encoder, exporter="onnx", task="feature-extraction"
+        )
+        text_encoder_onnx_config = text_encoder_config_constructor(pipeline.text_encoder.config)
+        models_for_export["text_encoder"] = (models_for_export["text_encoder"], text_encoder_onnx_config)
 
     # U-NET
     onnx_config_constructor = TasksManager.get_exporter_config_constructor(

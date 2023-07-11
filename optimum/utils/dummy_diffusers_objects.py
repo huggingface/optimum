@@ -59,7 +59,7 @@ class ORTStableDiffusionXLPipeline(metaclass=DummyObject):
         requires_backends(cls, ["diffusers"])
 
 
-class StableDiffusionXLImg2ImgPipelineMixin(metaclass=DummyObject):
+class ORTStableDiffusionXLImg2ImgPipeline(metaclass=DummyObject):
     _backends = ["diffusers"]
 
     def __init__(self, *args, **kwargs):
