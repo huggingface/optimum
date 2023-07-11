@@ -21,8 +21,7 @@ import PIL
 import torch
 from diffusers.pipelines.stable_diffusion_xl import StableDiffusionXLPipelineOutput
 
-from .pipeline_utils import DiffusionPipelineMixin, rescale_noise_cfg, preprocess
-import warnings
+from .pipeline_utils import DiffusionPipelineMixin, preprocess, rescale_noise_cfg
 
 
 logger = logging.getLogger(__name__)

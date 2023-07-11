@@ -19,9 +19,9 @@ import numpy as np
 import PIL
 import torch
 from diffusers import ConfigMixin
+from diffusers.utils import PIL_INTERPOLATION
 from PIL import Image
 from tqdm.auto import tqdm
-from diffusers.utils import PIL_INTERPOLATION, deprecate
 
 
 class DiffusionPipelineMixin(ConfigMixin):

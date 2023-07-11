@@ -14,7 +14,6 @@
 
 import inspect
 import logging
-import warnings
 from typing import Callable, List, Optional, Union
 
 import numpy as np
@@ -22,9 +21,9 @@ import PIL
 import torch
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.utils import deprecate
-from .pipeline_utils import preprocess
 
 from .pipeline_stable_diffusion import StableDiffusionPipelineMixin
+from .pipeline_utils import preprocess
 
 
 logger = logging.getLogger(__name__)

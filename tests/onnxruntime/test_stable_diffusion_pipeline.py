@@ -336,7 +336,7 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
         return inputs
 
 
-class ORTStableDiffusionImg2ImgPipelineTest(ORTModelTestMixin):
+class ORTStableDiffusionXLImg2ImgPipelineTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "stable-diffusion-xl",
     ]
