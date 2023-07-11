@@ -244,8 +244,7 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
         self.assertIsInstance(ort_pipeline.config, Dict)
 
         pipeline = StableDiffusionXLPipeline.from_pretrained(MODEL_NAMES[model_arch])
-        # image size must be higher or equal to 256 to encode with watermarker
-        batch_size, num_images_per_prompt, height, width = 1, 2, 256, 256
+        batch_size, num_images_per_prompt, height, width = 1, 2, 64, 64
         latents = ort_pipeline.prepare_latents(
             batch_size * num_images_per_prompt,
             ort_pipeline.unet.config["in_channels"],
@@ -269,10 +268,26 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
             self.assertIsInstance(ort_outputs, np.ndarray)
             with torch.no_grad():
                 outputs = pipeline(latents=torch.from_numpy(latents), output_type=output_type, **kwargs).images
+
             # Compare model outputs
             self.assertTrue(np.allclose(ort_outputs, outputs, atol=1e-4))
             # Compare model devices
             self.assertEqual(pipeline.device, ort_pipeline.device)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_image_reproducibility(self, model_arch: str):
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
+        inputs = _generate_inputs()
+        height = 64
+        width = 64
+        np.random.seed(0)
+        ort_outputs_1 = pipeline(**inputs, height=height, width=width)
+        np.random.seed(0)
+        ort_outputs_2 = pipeline(**inputs, height=height, width=width)
+        ort_outputs_3 = pipeline(**inputs, height=height, width=width)
+        self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
+        self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
 
 
 class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
