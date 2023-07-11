@@ -21,41 +21,14 @@ import numpy as np
 import PIL
 import torch
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-from diffusers.utils import PIL_INTERPOLATION, deprecate
+from diffusers.utils import deprecate
+from .pipeline_utils import preprocess
 
 from .pipeline_stable_diffusion import StableDiffusionPipelineMixin
 
 
 logger = logging.getLogger(__name__)
 
-
-# Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img.preprocess with 8->64
-def preprocess(image):
-    warnings.warn(
-        (
-            "The preprocess method is deprecated and will be removed in a future version. Please"
-            " use VaeImageProcessor.preprocess instead"
-        ),
-        FutureWarning,
-    )
-    if isinstance(image, torch.Tensor):
-        return image
-    elif isinstance(image, PIL.Image.Image):
-        image = [image]
-
-    if isinstance(image[0], PIL.Image.Image):
-        w, h = image[0].size
-        w, h = (x - x % 64 for x in (w, h))  # resize to integer multiple of 64
-
-        image = [np.array(i.resize((w, h), resample=PIL_INTERPOLATION["lanczos"]))[None, :] for i in image]
-        image = np.concatenate(image, axis=0)
-        image = np.array(image).astype(np.float32) / 255.0
-        image = image.transpose(0, 3, 1, 2)
-        image = 2.0 * image - 1.0
-        image = torch.from_numpy(image)
-    elif isinstance(image[0], torch.Tensor):
-        image = torch.cat(image, dim=0)
-    return image
 
 
 class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
@@ -207,7 +180,7 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
         # set timesteps
         self.scheduler.set_timesteps(num_inference_steps)
 
-        image = preprocess(image).cpu().numpy()
+        image = preprocess(image)
 
         # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
         # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
