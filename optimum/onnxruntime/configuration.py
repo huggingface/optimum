@@ -365,9 +365,11 @@ def set_quantization_parameters(quantization: dict):
     Returns:
         quant_config : QuantizationConfig typehint set dict.
     """
-    quantization["format"] = getattr(QuantFormat, quantization.get("format", ""), None)
-    quantization["mode"] = getattr(QuantizationMode, quantization.get("mode", ""), None)
-    format, mode = default_quantization_parameters(quantization.get("is_static", False), format, mode)
+    format = getattr(QuantFormat, quantization.get("format", ""), None)
+    mode = getattr(QuantizationMode, quantization.get("mode", ""), None)
+    quantization["format"], quantization["mode"] = default_quantization_parameters(
+        quantization.get("is_static", False), format, mode
+    )
     quantization["activations_dtype"] = getattr(QuantType, quantization.get("activations_dtype", "QUInt8"))
     quantization["weights_dtype"] = getattr(QuantType, quantization.get("weights_dtype", "QInt8"))
 
