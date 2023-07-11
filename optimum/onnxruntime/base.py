@@ -319,7 +319,7 @@ class ORTDecoder(ORTModelPart):
             )
 
             # TODO: fix transformers generate to have contiguous input_ids here already
-            # For an unknown reason, calling `contigous()` here is necessary to not have errors
+            # For an unknown reason, calling `contiguous()` here is necessary to not have errors
             # on CPU EP with batch size > 1, despite it being also called in _prepare_io_binding.
             # I suspect the reason is the contiguous python list that messes something up?
             model_inputs = [input_ids.contiguous()]
@@ -533,11 +533,11 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
 
             model_inputs = [input_ids]
 
-            if "encoder_attention_mask" in self.input_names:
-                model_inputs.append(encoder_attention_mask)
-
             if "encoder_hidden_states" in self.input_names:
                 model_inputs.append(encoder_hidden_states)
+
+            if "encoder_attention_mask" in self.input_names:
+                model_inputs.append(encoder_attention_mask)
 
             if past_key_values is not None:
                 model_inputs += past_key_values
