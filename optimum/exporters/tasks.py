@@ -1491,9 +1491,10 @@ class TasksManager:
                 elif device is None:
                     device = torch.device("cpu")
 
+                # TODO : fix EulerDiscreteScheduler loading to enable for SD models
                 if (
                     version.parse(torch.__version__) >= version.parse("2.0")
-                    and TasksManager._TASKS_TO_LIBRARY[task] != "diffusers"
+                    and TasksManager._TASKS_TO_LIBRARY[task.replace("-with-past", "")] != "diffusers"
                 ):
                     with device:
                         # Initialize directly in the requested device, to save allocation time. Especially useful for large

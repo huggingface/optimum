@@ -426,12 +426,19 @@ def main_export(
 
         # Saving the additional components needed to perform inference.
         model.scheduler.save_pretrained(output.joinpath("scheduler"))
-        if getattr(model, "feature_extractor", None) is not None:
-            model.feature_extractor.save_pretrained(output.joinpath("feature_extractor"))
-        if getattr(model, "tokenizer", None) is not None:
-            model.tokenizer.save_pretrained(output.joinpath("tokenizer"))
-        if getattr(model, "tokenizer_2", None) is not None:
-            model.tokenizer_2.save_pretrained(output.joinpath("tokenizer_2"))
+
+        feature_extractor = getattr(model, "feature_extractor", None)
+        if feature_extractor is not None:
+            feature_extractor.save_pretrained(output.joinpath("feature_extractor"))
+
+        tokenizer = getattr(model, "tokenizer", None)
+        if tokenizer is not None:
+            tokenizer.save_pretrained(output.joinpath("tokenizer"))
+
+        tokenizer_2 = getattr(model, "tokenizer_2", None)
+        if tokenizer_2 is not None:
+            tokenizer_2.save_pretrained(output.joinpath("tokenizer_2"))
+
         model.save_config(output)
 
     _, onnx_outputs = export_models(

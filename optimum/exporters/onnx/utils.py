@@ -134,9 +134,10 @@ def _get_submodels_for_export_stable_diffusion(
     vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
     models_for_export["vae_decoder"] = vae_decoder
 
-    if getattr(pipeline, "text_encoder_2", None) is not None:
-        pipeline.text_encoder_2.config.output_hidden_states = True
-        models_for_export["text_encoder_2"] = pipeline.text_encoder_2
+    text_encoder_2 = getattr(pipeline, "text_encoder_2", None)
+    if text_encoder_2 is not None:
+        text_encoder_2.config.output_hidden_states = True
+        models_for_export["text_encoder_2"] = text_encoder_2
 
     return models_for_export
 

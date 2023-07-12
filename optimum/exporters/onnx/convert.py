@@ -369,7 +369,7 @@ def _run_validation(
         if isinstance(value, (list, tuple)):
             value = config.flatten_output_collection_property(name, value)
             onnx_inputs.update({tensor_name: pt_tensor.cpu().numpy() for tensor_name, pt_tensor in value.items()})
-        elif isinstance(value, (dict)):
+        elif isinstance(value, dict):
             onnx_inputs.update({tensor_name: pt_tensor.cpu().numpy() for tensor_name, pt_tensor in value.items()})
         else:
             onnx_inputs[name] = value.cpu().numpy()

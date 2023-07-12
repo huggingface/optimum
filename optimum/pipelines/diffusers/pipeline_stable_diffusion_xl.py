@@ -175,8 +175,8 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
         negative_prompt: Optional[str] = None,
         prompt_embeds: Optional[np.ndarray] = None,
         negative_prompt_embeds: Optional[np.ndarray] = None,
-        pooled_prompt_embeds=None,
-        negative_pooled_prompt_embeds=None,
+        pooled_prompt_embeds: Optional[np.ndarray] = None,
+        negative_pooled_prompt_embeds: Optional[np.ndarray] = None,
     ):
         if height % 8 != 0 or width % 8 != 0:
             raise ValueError(f"`height` and `width` have to be divisible by 8 but are {height} and {width}.")
