@@ -134,6 +134,10 @@ def save_onnx(model: onnx.ModelProto, output_model: Union[Path, str]) -> None:
     if model.ByteSize() < onnx.checker.MAXIMUM_PROTOBUF:
         onnx.save(model, output_model.as_posix())
     else:
+        external_data_path = output_model.parent / (output_model.name + "_data")
+        if external_data_path.exists():
+            external_data_path.unlink()
+
         # large models
         onnx.save(
             model,
