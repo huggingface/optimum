@@ -1019,7 +1019,7 @@ class TasksManager:
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet. "
-                f"Only {TasksManager._SUPPORTED_CLI_MODEL_TYPE} are supported. "
+                f"Only {TasksManager._SUPPORTED_MODEL_TYPE} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
         elif exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
@@ -1491,7 +1491,10 @@ class TasksManager:
                 elif device is None:
                     device = torch.device("cpu")
 
-                if version.parse(torch.__version__) >= version.parse("2.0"):
+                if (
+                    version.parse(torch.__version__) >= version.parse("2.0")
+                    and TasksManager._TASKS_TO_LIBRARY[task] != "diffusers"
+                ):
                     with device:
                         # Initialize directly in the requested device, to save allocation time. Especially useful for large
                         # models to initialize on cuda device.

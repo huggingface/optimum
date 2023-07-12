@@ -306,11 +306,16 @@ def main_export(
 
     custom_architecture = False
     is_stable_diffusion = "stable-diffusion" in task
+    model_type = "stable-diffusion" if is_stable_diffusion else model.config.model_type.replace("_", "-")
 
-    if not is_stable_diffusion and model.config.model_type.replace(
-        "-", "_"
-    ) not in TasksManager.get_supported_model_type_for_task(task, exporter="onnx"):
-        custom_architecture = True
+    if not is_stable_diffusion:
+        if model_type in TasksManager._UNSUPPORTED_CLI_MODEL_TYPE:
+            raise ValueError(
+                f"{model_type} is not supported yet. Only {TasksManager._SUPPORTED_CLI_MODEL_TYPE} are supported. "
+                f"If you want to support {model_type} please propose a PR or open up an issue."
+            )
+        if model_type not in TasksManager.get_supported_model_type_for_task(task, exporter="onnx"):
+            custom_architecture = True
 
     # TODO: support onnx_config.py in the model repo
     if custom_architecture and custom_onnx_configs is None:
@@ -326,8 +331,7 @@ def main_export(
     if (
         not custom_architecture
         and not is_stable_diffusion
-        and task + "-with-past"
-        in TasksManager.get_supported_tasks_for_model_type(model.config.model_type.replace("_", "-"), "onnx")
+        and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
     ):
         if original_task == "auto":  # Make -with-past the default if --task was not explicitely specified
             task = task + "-with-past"
@@ -386,7 +390,7 @@ def main_export(
 
         if opset < onnx_config.DEFAULT_ONNX_OPSET:
             raise ValueError(
-                f"Opset {opset} is not sufficient to export {model.config.model_type}. "
+                f"Opset {opset} is not sufficient to export {model_type}. "
                 f"At least {onnx_config.DEFAULT_ONNX_OPSET} is required."
             )
         if atol is None:
