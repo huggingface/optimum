@@ -24,6 +24,7 @@ REQUIRED_PKGS = [
     "furiosa-sdk",
     "onnx",
     "onnxsim",
+    "onnxoptimizer",
     "onnxruntime",
 ]
 

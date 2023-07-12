@@ -2,6 +2,7 @@ import copy
 from pathlib import Path
 from typing import Dict, List, Union
 
+import onnxoptimizer
 import onnxruntime as ort
 
 from furiosa.tools.compiler.api import compile
@@ -32,14 +33,18 @@ def simplify_onnx(
             model_opt, overwrite_input_shapes
         ),
     )
+    passes = [
+        "eliminate_deadend",
+        "eliminate_if_with_const_cond",
+        "extract_constant_to_initializer",
+    ]
+    model_opt = onnxoptimizer.optimize(model_opt, passes=passes)
     model_opt = utils.optimize_with_onnxruntime(model_opt)
     model_opt = utils.infer_onnx_tensor_shapes(model_opt)
 
     utils.save_onnx(model_opt, output_model)
 
-    utils.check_opt_model(
-        model_opt, model_orig, n_times=5, input_shapes=overwrite_input_shapes
-    )
+    utils.check_opt_model(model_opt, model_orig, n_times=5, input_shapes=overwrite_input_shapes)
     onnxsim.print_simplifying_info(model_orig, model_opt)
     return model_opt
 
