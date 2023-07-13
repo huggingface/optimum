@@ -314,7 +314,9 @@ def main_export(
                 f"{model_type} is not supported yet. Only {TasksManager._SUPPORTED_CLI_MODEL_TYPE} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
-        if model_type not in TasksManager.get_supported_model_type_for_task(task, exporter="onnx"):
+        if model.config.model_type.replace("-", "_") not in TasksManager.get_supported_model_type_for_task(
+            task, exporter="onnx"
+        ):
             custom_architecture = True
 
     # TODO: support onnx_config.py in the model repo
