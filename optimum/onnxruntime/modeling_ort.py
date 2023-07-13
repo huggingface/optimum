@@ -206,7 +206,9 @@ class ORTModel(OptimizedModel):
             )
 
         self.providers = model.get_providers()
-        self._device = get_device_for_provider(self.providers[0])
+        self._device = get_device_for_provider(
+            self.providers[0], provider_options=model.get_provider_options()[self.providers[0]]
+        )
 
         # This attribute is needed to keep one reference on the temporary directory, since garbage collecting it
         # would end-up removing the directory containing the underlying ONNX model.
