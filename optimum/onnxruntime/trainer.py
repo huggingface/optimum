@@ -45,7 +45,7 @@ from torch.utils.data.distributed import DistributedSampler
 from tqdm.auto import tqdm
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
-from transformers.deepspeed import deepspeed_init, is_deepspeed_zero3_enabled
+from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
 from transformers.dependency_versions_check import dep_version_check
 from transformers.file_utils import (
     is_apex_available,
@@ -439,7 +439,7 @@ class ORTTrainer(Trainer):
             if resume_from_checkpoint is None:
                 raise ValueError(f"No valid checkpoint found in output directory ({args.output_dir})")
 
-        if resume_from_checkpoint is not None and not is_sagemaker_mp_enabled() and args.deepspeed is None:
+        if resume_from_checkpoint is not None and not is_sagemaker_mp_enabled() and self.is_deepspeed_enabled is None:
             self._load_from_checkpoint(resume_from_checkpoint)
 
         # If model was re-initialized, put it on the right device and update self.model_wrapped
@@ -527,9 +527,8 @@ class ORTTrainer(Trainer):
         logger.info("Wrap ORTModule for ONNX Runtime training.")
         model = ORTModule(self.model)
         self.model_wrapped = model
-
-        # Note transformers/trainer.py renamed this arg to is_deepspeed_enabled
-        if args.deepspeed: 
+        
+        if self.is_deepspeed_enabled: 
             if is_deepspeed_zero3_enabled():
                 raise NotImplementedError(
                     "`ORTTrainer` does not support ZeRO stage 3 for the moment. Please use DeepSpeed stage 1 or 2 instead."
@@ -546,13 +545,16 @@ class ORTTrainer(Trainer):
             optimizer, lr_scheduler = deepspeed_init(
                 self, num_training_steps=max_steps
             )
+            # deepspeed ckpt loading
+            if resume_from_checkpoint is not None and self.is_deepspeed_enabled:
+                deepspeed_load_checkpoint(self.model_wrapped, resume_from_checkpoint)
             model, optimizer, lr_scheduler = self.accelerator.prepare(
                     self.model, optimizer, lr_scheduler
                 )
-            
             # for the rest of this function `model` is the outside model, whether it was wrapped or not
             if model is not self.model:
                 self.model_wrapped = model
+
             # backward compatibility
             self.deepspeed = self.model_wrapped
 
@@ -1067,7 +1069,7 @@ class ORTTrainer(Trainer):
             onnx_model_path = Path(self.args.output_dir)
 
             logger.info("[INFO] Exporting the model to ONNX...")
-            if self.args.deepspeed and self.args.fp16:
+            if self.is_deepspeed_enabled and self.args.fp16:
                 export_device = "cuda"
             else:
                 export_device = "cpu"
@@ -1298,7 +1300,7 @@ class ORTTrainer(Trainer):
             onnx_model_path = Path(self.args.output_dir)
 
             logger.info("[INFO] Exporting the model to ONNX...")
-            if self.args.deepspeed and self.args.fp16:
+            if self.is_deepspeed_enabled and self.args.fp16:
                 export_device = "cuda"
             else:
                 export_device = "cpu"
@@ -1582,7 +1584,7 @@ class ORTTrainer(Trainer):
                 Whether to export ONNX model with the loss in outputs.
         """
         if model is None:
-            if not (self.args.fp16 and self.args.deepspeed):
+            if not (self.args.fp16 and self.is_deepspeed_enabled):
                 # Taking CPU to export the model
                 self.model.to("cpu")
             model = unwrap_model(self.model)

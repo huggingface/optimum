@@ -73,7 +73,7 @@ class ORTTrainingArguments(TrainingArguments):
         },
     )
 
-    # This method will not need to be overriden after the deprecation of `--adafactor` in version 5 of 🤗 Transformers.
+    # TODO This method will not need to be overriden after the deprecation of `--adafactor` in version 5 of 🤗 Transformers.
     def __post_init__(self):
         # Handle --use_env option in torch.distributed.launch (local_rank not passed as an arg then).
         # This needs to happen before any call to self.device or self.n_gpu.
