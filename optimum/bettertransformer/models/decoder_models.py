@@ -17,6 +17,7 @@ import torch
 import torch.nn as nn
 from transformers.models.bart.modeling_bart import BartAttention
 from transformers.models.blenderbot.modeling_blenderbot import BlenderbotAttention
+from transformers.models.bloom.modeling_bloom import BloomAttention
 from transformers.models.codegen.modeling_codegen import CodeGenAttention
 from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
 from transformers.models.gpt_neo.modeling_gpt_neo import GPTNeoSelfAttention
@@ -31,6 +32,7 @@ from transformers.models.t5.modeling_t5 import T5Attention
 
 from .attention import (
     bart_forward,
+    bloom_forward,
     codegen_wrapped_scaled_dot_product,
     gpt2_wrapped_scaled_dot_product,
     gpt_neo_wrapped_scaled_dot_product,
@@ -165,6 +167,29 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
     def forward(self, *args, **kwargs):
         super().forward_checker()
         return super().forward(*args, **kwargs)
+
+
+class BloomAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BloomAttention, nn.Module):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+        super().__init__(config)
+
+        with torch.device("meta"):
+            super(BetterTransformerBaseLayer, self).__init__(config)
+
+        self.scale = torch.sqrt(torch.tensor(layer.head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
+
+        self.module_mapping = None
+        submodules = ["query_key_value", "dense", "attention_dropout"]
+        for attr in submodules:
+            setattr(self, attr, getattr(layer, attr))
+
+        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
+
+        self.supports_training = True
+
+    def forward(self, *args, **kwargs):
+        super().forward_checker()
+        return bloom_forward(self, *args, **kwargs)
 
 
 class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGenAttention, nn.Module):

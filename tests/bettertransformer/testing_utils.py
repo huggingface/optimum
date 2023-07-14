@@ -33,6 +33,7 @@ MODELS_DICT = {
     "bert-generation": "ybelkada/random-tiny-BertGenerationModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blip-2": "hf-internal-testing/tiny-random-Blip2Model",
+    "bloom": "hf-internal-testing/tiny-random-BloomModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip_text_model": "hf-internal-testing/tiny-random-clip-zero-shot-image-classification",  # with quick_gelu
     "clip": "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",  # with gelu
@@ -139,7 +140,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
     def _test_logits(self, model_id: str, model_type: str, **preprocessor_kwargs):
         r"""
         This tests if the converted model produces the same logits
-        than the original model.
+        as the original model.
         """
         # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
         inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs)
