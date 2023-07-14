@@ -145,7 +145,7 @@ class Run:
 
     def load_datasets(self):
         """Load evaluation dataset, and if needed, calibration dataset for static quantization."""
-        datasets_dict = self.task_processor.load_datasets()
+        datasets_dict = self.task_processor.load_dataset()
 
         self._eval_dataset = datasets_dict["eval"]
         if self.static_quantization:

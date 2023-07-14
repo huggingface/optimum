@@ -3,8 +3,8 @@ import random
 
 import numpy as np
 import torch
+from benchmark_common import timing_cpu, timing_cuda
 from datasets import load_dataset
-from torch.profiler import profile
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, get_scheduler
@@ -78,39 +78,28 @@ def benchmark_training(model, num_epochs: int, train_dataloader, device):
         lr_scheduler.step()
         optimizer.zero_grad()
 
+    def benchmark_fn():
+        training_fn(num_training_steps, batch, device, lr_scheduler, model, optimizer, progress_bar)
+
     if device.type == "cpu":
-        with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
-            for _ in range(num_training_steps):
-                training_fn(batch, device, lr_scheduler, model, optimizer, progress_bar)
-
-        elapsed_time = p.key_averages().self_cpu_time_total
-        max_memory = max([event.cpu_memory_usage for event in p.key_averages()])
-
-        return elapsed_time / num_training_steps, max_memory
+        total_time, max_mem = timing_cpu(benchmark_fn, num_training_steps)
+        return total_time, max_mem
 
     else:
-        start_event = torch.cuda.Event(enable_timing=True)
-        end_event = torch.cuda.Event(enable_timing=True)
-        start_event.record()
-        for _ in range(num_epochs):
-            for _, batch in enumerate(train_dataloader):
-                training_fn(batch, device, lr_scheduler, model, optimizer, progress_bar)
-
-        end_event.record()
-        torch.cuda.synchronize()
-
-        return (start_event.elapsed_time(end_event) * 1.0e-3) / num_epochs
+        total_time, max_mem = timing_cuda(benchmark_fn, num_training_steps, device)
+        return total_time, max_mem
 
 
-def training_fn(batch, device, lr_scheduler, model, optimizer, progress_bar):
-    batch = {k: v.to(device) for k, v in batch.items()}
-    outputs = model(**batch)
-    loss = outputs.logits.sum()
-    loss.backward()
-    optimizer.step()
-    lr_scheduler.step()
-    optimizer.zero_grad()
-    progress_bar.update(1)
+def training_fn(num_train_steps, batch, device, lr_scheduler, model, optimizer, progress_bar):
+    for _ in range(num_train_steps):
+        batch = {k: v.to(device) for k, v in batch.items()}
+        outputs = model(**batch)
+        loss = outputs.logits.sum()
+        loss.backward()
+        optimizer.step()
+        lr_scheduler.step()
+        optimizer.zero_grad()
+        progress_bar.update(1)
 
 
 if __name__ == "__main__":

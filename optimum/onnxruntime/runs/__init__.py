@@ -1,4 +1,3 @@
-import copy
 import os
 from pathlib import Path
 
@@ -56,20 +55,8 @@ class OnnxRuntimeRun(Run):
 
         processing_class = task_processing_map[self.task]
         self.task_processor = processing_class(
-            dataset_path=run_config["dataset"]["path"],
-            dataset_name=run_config["dataset"]["name"],
-            calibration_split=run_config["dataset"]["calibration_split"],
-            eval_split=run_config["dataset"]["eval_split"],
             preprocessor=self.preprocessor,
-            data_keys=run_config["dataset"]["data_keys"],
-            ref_keys=run_config["dataset"]["ref_keys"],
-            task_args=run_config["task_args"],
-            static_quantization=self.static_quantization,
-            num_calibration_samples=run_config["calibration"]["num_calibration_samples"]
-            if self.static_quantization
-            else None,
-            config=trfs_model.config,
-            max_eval_samples=run_config["max_eval_samples"],
+            config=run_config,
         )
 
         self.metric_names = run_config["metrics"]

@@ -278,6 +278,7 @@ class TestParity(unittest.TestCase):
             optimum_results["exact_match"], benchmark_results["evaluation"]["others"]["optimized"]["exact_match"]
         )
 
+    # TODO shuffle issue is solved; fix this test
     @unittest.skip(
         "failing related to shuffle issue https://github.com/huggingface/datasets/issues/5145 , skip for now"
     )

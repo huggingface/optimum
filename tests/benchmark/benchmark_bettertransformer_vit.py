@@ -2,8 +2,8 @@ import argparse
 
 import requests
 import torch
+from benchmark_common import timing_cpu, timing_cuda
 from PIL import Image
-from torch.profiler import profile
 from transformers import AutoFeatureExtractor, AutoModel
 
 from optimum.bettertransformer import BetterTransformer
@@ -47,26 +47,6 @@ def get_batch(batch_size, model_name):
     return input_features
 
 
-def timing_cpu(model, num_batches, input_features):
-    with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
-        inference_fn(input_features, model, num_batches)
-
-    elapsed_time = p.key_averages().self_cpu_time_total
-    max([event.cpu_memory_usage for event in p.key_averages()])
-
-    return elapsed_time / num_batches
-
-
-def timing_cuda(model, num_batches, input_features):
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
-    start_event.record()
-    inference_fn(input_features, model, num_batches)
-    end_event.record()
-    torch.cuda.synchronize()
-    return (start_event.elapsed_time(end_event) * 1.0e-3) / num_batches
-
-
 def inference_fn(input_features, model, num_batches):
     for _ in range(num_batches):
         _ = model(input_features)
@@ -90,15 +70,22 @@ def benchmark(model_name, num_batches, batch_size, is_cuda, is_half):
         input_features = input_features.to(0)
 
     # Warmup
-    for _ in range(2):
-        _ = hf_model(input_features)
-        if is_cuda:
-            torch.cuda.synchronize()
+    inference_fn(input_features, hf_model, 2)
+    if is_cuda:
+        torch.cuda.synchronize()
 
-    timing_fn = timing_cuda if is_cuda else timing_cpu
+    def hf_benchmark_fn():
+        inference_fn(input_features, hf_model, num_batches)
 
-    total_hf_time = timing_fn(hf_model, num_batches, input_features)
-    total_bt_time = timing_fn(bt_model, num_batches, input_features)
+    def bt_benchmark_fn():
+        inference_fn(input_features, bt_model, num_batches)
+
+    if is_cuda:
+        total_hf_time, _ = timing_cuda(hf_benchmark_fn, num_batches, torch.device(0))
+        total_bt_time, _ = timing_cuda(bt_benchmark_fn, num_batches, torch.device(0))
+    else:
+        total_hf_time, _ = timing_cpu(hf_benchmark_fn, num_batches)
+        total_bt_time, _ = timing_cpu(bt_benchmark_fn, num_batches)
 
     return total_bt_time, total_hf_time
 

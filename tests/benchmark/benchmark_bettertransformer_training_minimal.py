@@ -4,7 +4,7 @@ from typing import Dict
 
 import numpy as np
 import torch
-from torch.profiler import profile
+from benchmark_common import timing_cpu, timing_cuda
 from tqdm.auto import tqdm
 from transformers import AutoModelForCausalLM
 
@@ -62,32 +62,17 @@ def benchmark_training(model, inputs: Dict, num_training_steps: int, use_cuda: b
         loss = outputs.logits.sum()
         loss.backward()
 
-    if use_cuda:
-        start_event = torch.cuda.Event(enable_timing=True)
-        end_event = torch.cuda.Event(enable_timing=True)
-
-        torch.cuda.reset_peak_memory_stats(device)
-        torch.cuda.empty_cache()
-
-        torch.cuda.synchronize()
-        start_event.record()
+    def benchmark_fn():
         training_fn(inputs, model, num_training_steps, progress_bar)
-        end_event.record()
-        torch.cuda.synchronize()
 
-        max_memory = torch.cuda.max_memory_allocated(device)
-
-        return (start_event.elapsed_time(end_event) * 1.0e-3) / num_training_steps, max_memory
+    if use_cuda:
+        total_time, max_mem = timing_cuda(benchmark_fn, num_training_steps, device)
+        return total_time, max_mem
 
     # CPU profiling
     else:
-        with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
-            training_fn(inputs, model, num_training_steps, progress_bar)
-
-        elapsed_time = p.key_averages().self_cpu_time_total
-        max_memory = max([event.cpu_memory_usage for event in p.key_averages()])
-
-        return elapsed_time / num_training_steps, max_memory
+        total_time, max_mem = timing_cpu(benchmark_fn, num_training_steps)
+        return total_time, max_mem
 
 
 def training_fn(inputs, model, num_training_steps, progress_bar):

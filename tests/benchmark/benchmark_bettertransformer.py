@@ -1,7 +1,7 @@
 import argparse
 
 import torch
-from torch.profiler import profile
+from benchmark_common import timing_cpu, timing_cuda
 from tqdm import tqdm
 from transformers import AutoModel, AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, GenerationConfig
 
@@ -107,34 +107,6 @@ def get_batch(batch_size, avg_seqlen, max_sequence_length, seqlen_stdev, vocab_s
     return tokens, lengths, mask
 
 
-def timing_cuda(model, num_batches, input_ids, masks, is_decoder, generation_config=None):
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
-
-    torch.cuda.reset_peak_memory_stats(device)
-    torch.cuda.empty_cache()
-    torch.cuda.synchronize()
-
-    start_event.record()
-    inference_fn(generation_config, input_ids, is_decoder, masks, model, num_batches)
-
-    end_event.record()
-    torch.cuda.synchronize()
-    max_memory = torch.cuda.max_memory_allocated(device)
-
-    return (start_event.elapsed_time(end_event) * 1.0e-3) / num_batches, max_memory
-
-
-def timing_cpu(model, num_batches, input_ids, masks, is_decoder, generation_config=None):
-    with profile(activities=[torch.profiler.ProfilerActivity.CPU], profile_memory=True) as p:
-        inference_fn(generation_config, input_ids, is_decoder, masks, model, num_batches)
-
-    elapsed_time = p.key_averages().self_cpu_time_total
-    max_memory = max([event.cpu_memory_usage for event in p.key_averages()])
-
-    return elapsed_time / num_batches, max_memory
-
-
 def inference_fn(generation_config, input_ids, is_decoder, masks, model, num_batches):
     for _ in tqdm(range(num_batches)):
         if is_decoder:
@@ -144,7 +116,6 @@ def inference_fn(generation_config, input_ids, is_decoder, masks, model, num_bat
 
 
 def benchmark(model, input_ids, masks, num_batches, is_decoder, max_token, pad_token_id, use_cuda):
-    # Warmup
     if is_decoder:
         gen_config = GenerationConfig(
             max_new_tokens=max_token,
@@ -152,21 +123,24 @@ def benchmark(model, input_ids, masks, num_batches, is_decoder, max_token, pad_t
             use_cache=True,
             pad_token_id=pad_token_id,
         )
-        _ = model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
 
     else:
-        _ = model(input_ids, masks)
+        gen_config = None
+
+    # Warmup
+    inference_fn(gen_config, input_ids, is_decoder, masks, model, num_batches=1)
 
     if use_cuda:
         torch.cuda.synchronize()
 
-    # benchmark
-    timing_fn = timing_cuda if args.use_cuda else timing_cpu
+    def benchmarked_fn():
+        inference_fn(gen_config, input_ids, is_decoder, masks, model, num_batches)
 
-    if is_decoder:
-        total_time, max_mem = timing_fn(model, num_batches, input_ids, masks, is_decoder, gen_config)
+    # benchmark
+    if args.use_cuda:
+        total_time, max_mem = timing_cuda(benchmarked_fn, num_batches, device)
     else:
-        total_time, max_mem = timing_fn(model, num_batches, input_ids, masks, is_decoder)
+        total_time, max_mem = timing_cpu(benchmarked_fn, num_batches)
 
     return total_time, max_mem
 
