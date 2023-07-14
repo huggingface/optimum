@@ -803,10 +803,10 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
             outputs["logits_per_image"] = {0: "image_batch_size", 1: "text_batch_size"}
             outputs["logits_per_text"] = {0: "text_batch_size", 1: "image_batch_size"}
         elif self.task == "zero-shot-object-detection":
-            outputs["logits"] = {0: "batch_size", 1: "num_queries"}
-            outputs["pred_boxes"] = {0: "batch_size", 1: "num_queries"}
+            outputs["logits"] = {0: "image_batch_size", 2: "num_queries"}
+            outputs["pred_boxes"] = {0: "image_batch_size", 1: "num_boxes"}
 
-        outputs["text_embeds"] = {0: "text_batch_size"}
+        outputs["text_embeds"] = {0: "text_batch_size", 1: "max_text_queries"}
         outputs["image_embeds"] = {0: "image_batch_size"}
         return outputs
 
