@@ -17,6 +17,7 @@ from .attention import _llama_prepare_decoder_attention_mask
 from .decoder_models import (
     BartAttentionLayerBetterTransformer,
     BlenderbotAttentionLayerBetterTransformer,
+    BloomAttentionLayerBetterTransformer,
     CodegenAttentionLayerBetterTransformer,
     GPT2AttentionLayerBetterTransformer,
     GPTJAttentionLayerBetterTransformer,
@@ -55,6 +56,7 @@ class BetterTransformerManager:
         "bert": {"BertLayer": BertLayerBetterTransformer},
         "bert-generation": {"BertGenerationLayer": BertLayerBetterTransformer},
         "blenderbot": {"BlenderbotAttention": BlenderbotAttentionLayerBetterTransformer},
+        "bloom": {"BloomAttention": BloomAttentionLayerBetterTransformer},
         "camembert": {"CamembertLayer": BertLayerBetterTransformer},
         "blip-2": {"T5Attention": T5AttentionLayerBetterTransformer},
         "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
@@ -123,6 +125,7 @@ class BetterTransformerManager:
 
     NOT_REQUIRES_NESTED_TENSOR = {
         "blenderbot",
+        "bloom",
         "codegen",
         "gpt2",
         "gptj",
@@ -150,6 +153,7 @@ class BetterTransformerManager:
 
     REQUIRES_TORCH_20 = {
         "blenderbot",
+        "bloom",
         "bart",
         "codegen",
         "gpt2",
