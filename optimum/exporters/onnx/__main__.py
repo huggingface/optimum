@@ -23,15 +23,7 @@ from transformers import AutoTokenizer
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
-from ...utils import (
-    DEFAULT_DUMMY_SHAPES,
-    DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
-    DIFFUSION_MODEL_UNET_SUBFOLDER,
-    DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
-    DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
-    ONNX_WEIGHTS_NAME,
-    logging,
-)
+from ...utils import DEFAULT_DUMMY_SHAPES, ONNX_WEIGHTS_NAME, logging
 from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
@@ -71,8 +63,9 @@ def _get_submodels_and_onnx_configs(
     custom_architecture: bool,
     fn_get_submodels: Optional[Callable] = None,
 ):
+    is_stable_diffusion = "stable-diffusion" in task
     if not custom_architecture:
-        if task == "stable-diffusion":
+        if is_stable_diffusion:
             onnx_config = None
             models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
         else:
@@ -104,7 +97,7 @@ def _get_submodels_and_onnx_configs(
         if fn_get_submodels is not None:
             submodels_for_export = fn_get_submodels(model)
         else:
-            if task == "stable-diffusion":
+            if is_stable_diffusion:
                 submodels_for_export = _get_submodels_for_export_stable_diffusion(model)
             elif (
                 model.config.is_encoder_decoder
@@ -312,10 +305,19 @@ def main_export(
     )
 
     custom_architecture = False
-    if task != "stable-diffusion" and model.config.model_type.replace(
-        "-", "_"
-    ) not in TasksManager.get_supported_model_type_for_task(task, exporter="onnx"):
-        custom_architecture = True
+    is_stable_diffusion = "stable-diffusion" in task
+    model_type = "stable-diffusion" if is_stable_diffusion else model.config.model_type.replace("_", "-")
+
+    if not is_stable_diffusion:
+        if model_type in TasksManager._UNSUPPORTED_CLI_MODEL_TYPE:
+            raise ValueError(
+                f"{model_type} is not supported yet. Only {TasksManager._SUPPORTED_CLI_MODEL_TYPE} are supported. "
+                f"If you want to support {model_type} please propose a PR or open up an issue."
+            )
+        if model.config.model_type.replace("-", "_") not in TasksManager.get_supported_model_type_for_task(
+            task, exporter="onnx"
+        ):
+            custom_architecture = True
 
     # TODO: support onnx_config.py in the model repo
     if custom_architecture and custom_onnx_configs is None:
@@ -330,9 +332,8 @@ def main_export(
 
     if (
         not custom_architecture
-        and task != "stable-diffusion"
-        and task + "-with-past"
-        in TasksManager.get_supported_tasks_for_model_type(model.config.model_type.replace("_", "-"), "onnx")
+        and not is_stable_diffusion
+        and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
     ):
         if original_task == "auto":  # Make -with-past the default if --task was not explicitely specified
             task = task + "-with-past"
@@ -367,7 +368,7 @@ def main_export(
         fn_get_submodels=fn_get_submodels,
     )
 
-    if task != "stable-diffusion":
+    if not is_stable_diffusion:
         needs_pad_token_id = (
             isinstance(onnx_config, OnnxConfigWithPast)
             and getattr(model.config, "pad_token_id", None) is None
@@ -391,7 +392,7 @@ def main_export(
 
         if opset < onnx_config.DEFAULT_ONNX_OPSET:
             raise ValueError(
-                f"Opset {opset} is not sufficient to export {model.config.model_type}. "
+                f"Opset {opset} is not sufficient to export {model_type}. "
                 f"At least {onnx_config.DEFAULT_ONNX_OPSET} is required."
             )
         if atol is None:
@@ -415,28 +416,31 @@ def main_export(
 
         onnx_files_subpaths = None
     else:
-        onnx_files_subpaths = [
-            DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
-            DIFFUSION_MODEL_UNET_SUBFOLDER,
-            DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
-            DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
-        ]
-
         # save the subcomponent configuration
-        for model_name, name_dir in zip(models_and_onnx_configs, onnx_files_subpaths):
+        for model_name in models_and_onnx_configs:
             subcomponent = models_and_onnx_configs[model_name][0]
             if hasattr(subcomponent, "save_config"):
-                subcomponent.save_config(output / name_dir)
+                subcomponent.save_config(output / model_name)
             elif hasattr(subcomponent, "config") and hasattr(subcomponent.config, "save_pretrained"):
-                subcomponent.config.save_pretrained(output / name_dir)
+                subcomponent.config.save_pretrained(output / model_name)
 
-        onnx_files_subpaths = [os.path.join(path, ONNX_WEIGHTS_NAME) for path in onnx_files_subpaths]
+        onnx_files_subpaths = [os.path.join(name_dir, ONNX_WEIGHTS_NAME) for name_dir in models_and_onnx_configs]
 
         # Saving the additional components needed to perform inference.
-        model.tokenizer.save_pretrained(output.joinpath("tokenizer"))
         model.scheduler.save_pretrained(output.joinpath("scheduler"))
-        if model.feature_extractor is not None:
-            model.feature_extractor.save_pretrained(output.joinpath("feature_extractor"))
+
+        feature_extractor = getattr(model, "feature_extractor", None)
+        if feature_extractor is not None:
+            feature_extractor.save_pretrained(output.joinpath("feature_extractor"))
+
+        tokenizer = getattr(model, "tokenizer", None)
+        if tokenizer is not None:
+            tokenizer.save_pretrained(output.joinpath("tokenizer"))
+
+        tokenizer_2 = getattr(model, "tokenizer_2", None)
+        if tokenizer_2 is not None:
+            tokenizer_2.save_pretrained(output.joinpath("tokenizer_2"))
+
         model.save_config(output)
 
     _, onnx_outputs = export_models(
@@ -464,7 +468,7 @@ def main_export(
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating stable diffusion separately is quite ugly
-    if not no_post_process and task != "stable-diffusion":
+    if not no_post_process and not is_stable_diffusion:
         try:
             logger.info("Post-processing the exported models...")
             models_and_onnx_configs, onnx_files_subpaths = onnx_config.post_process_exported_models(
@@ -475,7 +479,7 @@ def main_export(
                 f"The post-processing of the ONNX export failed. The export can still be performed by passing the option --no-post-process. Detailed error: {e}"
             )
 
-    if task == "stable-diffusion":
+    if is_stable_diffusion:
         use_subprocess = (
             False  # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
         )

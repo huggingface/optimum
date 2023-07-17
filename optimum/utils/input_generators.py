@@ -605,7 +605,11 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
     Generates dummy time step inputs.
     """
 
-    SUPPORTED_INPUT_NAMES = ("timestep",)
+    SUPPORTED_INPUT_NAMES = (
+        "timestep",
+        "text_embeds",
+        "time_ids",
+    )
 
     def __init__(
         self,
@@ -617,7 +621,7 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
     ):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
-
+        self.text_encoder_projection_dim = normalized_config.text_encoder_projection_dim
         if random_batch_size_range:
             low, high = random_batch_size_range
             self.batch_size = random.randint(low, high)
@@ -626,7 +630,12 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt"):
         shape = [self.batch_size]
-        return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)
+
+        if input_name == "timestep":
+            return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)
+
+        shape.append(self.text_encoder_projection_dim if input_name == "text_embeds" else 6)
+        return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework)
 
 
 class DummyLabelsGenerator(DummyInputGenerator):
