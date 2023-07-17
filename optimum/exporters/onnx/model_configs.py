@@ -658,7 +658,7 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
         }
 
 
-class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
+class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
@@ -666,6 +666,7 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         vocab_size="vocab_size",
         sequence_length="max_position_embeddings",
+        num_layers="num_hidden_layers",
         allow_new=True,
     )
 
@@ -677,13 +678,33 @@ class CLIPTextOnnxConfig(TextEncoderOnnxConfig):
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        return {
+        common_outputs = {
+            "text_embeds": {0: "batch_size", 1: "sequence_length"},
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
+        }
+        if self._normalized_config.output_hidden_states:
+            for i in range(self._normalized_config.num_layers + 1):
+                common_outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
+
+        return common_outputs
+
+
+class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        common_outputs = {
             "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
             "pooler_output": {0: "batch_size"},
         }
+        if self._normalized_config.output_hidden_states:
+            for i in range(self._normalized_config.num_layers + 1):
+                common_outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
+
+        return common_outputs
 
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
+
         if framework == "pt":
             import torch
 
@@ -713,11 +734,18 @@ class UNetOnnxConfig(VisionOnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        return {
+        common_inputs = {
             "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
             "timestep": {0: "steps"},
             "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
         }
+
+        # TODO : add text_image, image and image_embeds
+        if getattr(self._normalized_config, "addition_embed_type", None) == "text_time":
+            common_inputs["text_embeds"] = {0: "batch_size"}
+            common_inputs["time_ids"] = {0: "batch_size"}
+
+        return common_inputs
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
@@ -734,7 +762,24 @@ class UNetOnnxConfig(VisionOnnxConfig):
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
         dummy_inputs["encoder_hidden_states"] = dummy_inputs["encoder_hidden_states"][0]
+
+        if getattr(self._normalized_config, "addition_embed_type", None) == "text_time":
+            dummy_inputs["added_cond_kwargs"] = {
+                "text_embeds": dummy_inputs.pop("text_embeds"),
+                "time_ids": dummy_inputs.pop("time_ids"),
+            }
+
         return dummy_inputs
+
+    def ordered_inputs(self, model) -> Dict[str, Dict[int, str]]:
+        inputs = super().ordered_inputs(model=model)
+        # to fix mismatch between model forward signature and expected inputs
+        # a dictionnary of additional embeddings `added_cond_kwargs` is expected depending on config.addition_embed_type
+        if getattr(self._normalized_config, "addition_embed_type", None) == "text_time":
+            inputs["text_embeds"] = self.inputs["text_embeds"]
+            inputs["time_ids"] = self.inputs["time_ids"]
+
+        return inputs
 
 
 class VaeEncoderOnnxConfig(VisionOnnxConfig):

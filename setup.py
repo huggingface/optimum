@@ -34,6 +34,7 @@ TESTS_REQUIRE = [
     "diffusers>=0.17.0",
     "torchaudio",
     "einops",
+    "invisible-watermark",
 ]
 
 QUALITY_REQUIRE = ["black~=23.1", "ruff>=0.0.241,<=0.0.259"]

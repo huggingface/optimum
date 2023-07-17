@@ -22,6 +22,7 @@ import torch
 from diffusers import (
     OnnxStableDiffusionImg2ImgPipeline,
     StableDiffusionPipeline,
+    StableDiffusionXLPipeline,
 )
 from diffusers.utils import floats_tensor, load_image
 from parameterized import parameterized
@@ -36,6 +37,8 @@ from optimum.onnxruntime.modeling_diffusion import (
     ORTModelVaeEncoder,
     ORTStableDiffusionImg2ImgPipeline,
     ORTStableDiffusionInpaintPipeline,
+    ORTStableDiffusionXLImg2ImgPipeline,
+    ORTStableDiffusionXLPipeline,
 )
 from optimum.utils import logging
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
@@ -179,20 +182,24 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
 
         pipeline = StableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
         pipeline.safety_checker = None
-        num_images_per_prompt, height, width = 1, 64, 64
-        latents_shape = (
-            num_images_per_prompt,
+        batch_size, num_images_per_prompt, height, width = 1, 2, 64, 64
+
+        latents = ort_pipeline.prepare_latents(
+            batch_size * num_images_per_prompt,
             ort_pipeline.unet.config["in_channels"],
-            height // ort_pipeline.vae_scale_factor,
-            width // ort_pipeline.vae_scale_factor,
+            height,
+            width,
+            dtype=np.float32,
+            generator=np.random.RandomState(0),
         )
-        latents = np.random.randn(*latents_shape).astype(np.float32)
+
         kwargs = {
             "prompt": "sailing ship in storm by Leonardo da Vinci",
             "num_inference_steps": 1,
             "num_images_per_prompt": num_images_per_prompt,
             "height": height,
             "width": width,
+            "guidance_rescale": 0.1,
         }
 
         for output_type in ["latent", "np"]:
@@ -218,6 +225,71 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
         ort_outputs_2 = pipeline(**inputs, height=height, width=width)
         ort_outputs_3 = pipeline(**inputs, height=height, width=width)
         # Compare model outputs
+        self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
+        self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
+
+
+class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = [
+        "stable-diffusion-xl",
+    ]
+    ORTMODEL_CLASS = ORTStableDiffusionXLPipeline
+    TASK = "stable-diffusion-xl"
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_compare_to_diffusers(self, model_arch: str):
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
+        self.assertIsInstance(ort_pipeline.text_encoder, ORTModelTextEncoder)
+        self.assertIsInstance(ort_pipeline.text_encoder_2, ORTModelTextEncoder)
+        self.assertIsInstance(ort_pipeline.vae_decoder, ORTModelVaeDecoder)
+        self.assertIsInstance(ort_pipeline.vae_encoder, ORTModelVaeEncoder)
+        self.assertIsInstance(ort_pipeline.unet, ORTModelUnet)
+        self.assertIsInstance(ort_pipeline.config, Dict)
+
+        pipeline = StableDiffusionXLPipeline.from_pretrained(MODEL_NAMES[model_arch])
+        batch_size, num_images_per_prompt, height, width = 2, 2, 64, 64
+        latents = ort_pipeline.prepare_latents(
+            batch_size * num_images_per_prompt,
+            ort_pipeline.unet.config["in_channels"],
+            height,
+            width,
+            dtype=np.float32,
+            generator=np.random.RandomState(0),
+        )
+
+        kwargs = {
+            "prompt": ["sailing ship in storm by Leonardo da Vinci"] * batch_size,
+            "num_inference_steps": 1,
+            "num_images_per_prompt": num_images_per_prompt,
+            "height": height,
+            "width": width,
+            "guidance_rescale": 0.1,
+        }
+
+        for output_type in ["latent", "np"]:
+            ort_outputs = ort_pipeline(latents=latents, output_type=output_type, **kwargs).images
+            self.assertIsInstance(ort_outputs, np.ndarray)
+            with torch.no_grad():
+                outputs = pipeline(latents=torch.from_numpy(latents), output_type=output_type, **kwargs).images
+
+            # Compare model outputs
+            self.assertTrue(np.allclose(ort_outputs, outputs, atol=1e-4))
+            # Compare model devices
+            self.assertEqual(pipeline.device, ort_pipeline.device)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_image_reproducibility(self, model_arch: str):
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
+        inputs = _generate_inputs()
+        height = 64
+        width = 64
+        np.random.seed(0)
+        ort_outputs_1 = pipeline(**inputs, height=height, width=width)
+        np.random.seed(0)
+        ort_outputs_2 = pipeline(**inputs, height=height, width=width)
+        ort_outputs_3 = pipeline(**inputs, height=height, width=width)
         self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
         self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
 
@@ -261,4 +333,34 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
             "/in_paint/overture-creations-5sI6fQgYIuo_mask.png"
         ).resize((64, 64))
 
+        return inputs
+
+
+class ORTStableDiffusionXLImg2ImgPipelineTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = [
+        "stable-diffusion-xl",
+    ]
+    ORTMODEL_CLASS = ORTStableDiffusionXLImg2ImgPipeline
+    TASK = "stable-diffusion-xl"
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_inference(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        inputs = self.generate_inputs()
+        output = pipeline(**inputs, generator=np.random.RandomState(0)).images[0, -3:, -3:, -1]
+        expected_slice = np.array([0.6515, 0.5405, 0.4858, 0.5632, 0.5174, 0.5681, 0.4948, 0.4253, 0.5080])
+
+        self.assertTrue(np.allclose(output.flatten(), expected_slice, atol=1e-1))
+
+    def generate_inputs(self, height=128, width=128):
+        inputs = _generate_inputs()
+        inputs["image"] = load_image(
+            "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
+            "/in_paint/overture-creations-5sI6fQgYIuo.png"
+        ).resize((height, width))
+
+        inputs["strength"] = 0.75
         return inputs
