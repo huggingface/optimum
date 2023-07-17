@@ -266,8 +266,6 @@ class GPTQQuantizer(object):
             if module is None:
                 raise ValueError(f"Module {module_name} was not found in model")
             module = module.to(0)
-            
-        layers_block_name = "model.decoder.layers"
 
         # get inputs for first block
         # run the block on gpu 
@@ -360,7 +358,7 @@ class GPTQQuantizer(object):
                     
                     # put on cpu because it is not possible to quantize on cuda for now
                     subset_layers[name], scale, zero, g_idx = subset_layers[name].to('cpu'), scale.to('cpu'), zero.to('cpu'), g_idx.to('cpu')
-                    layer_name = f'{layers_block_name}.{i}.{name}'
+                    layer_name = f'{block_to_quantize}.{i}.{name}'
                     self._replace_by_quant_linear(model,[layer_name])
                     quantized_layer = get_module_by_name_prefix(model,layer_name)
                     quantized_layer = quantized_layer.to("cpu")
