@@ -89,6 +89,37 @@ def gpt2_wrapped_scaled_dot_product(
     return sdpa_result, None
 
 
+# Adapted from transformers.models.bark.modeling_bark.BarkSelfAttention._attn
+def bark_wrapped_scaled_dot_product(
+    self,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attention_mask: Optional[torch.Tensor] = None,
+    head_mask: Optional[torch.Tensor] = None,
+):
+    raise_on_head_mask(head_mask)
+
+    # When `past_kv` is provided, we're doing incremental decoding and `q.shape[2] == 1`: q only contains
+    # the query for the last token. scaled_dot_product_attention interprets this as the first token in the
+    # sequence, so if is_causal=True it will mask out all attention from it. This is not what we want, so
+    # to work around this we set is_causal=False.
+    is_causal = self.is_causal and query.shape[2] != 1
+
+    batch_size = query.shape[0]
+
+    if is_causal or batch_size == 1:
+        sdpa_result = torch.nn.functional.scaled_dot_product_attention(
+            query, key, value, attn_mask=None, dropout_p=self.dropout, is_causal=is_causal
+        )
+    else:
+        sdpa_result = torch.nn.functional.scaled_dot_product_attention(
+            query, key, value, attn_mask=attention_mask, dropout_p=self.dropout, is_causal=False
+        )
+
+    return sdpa_result, None
+
+
 # Adapted from transformers.models.gpt_neo.modeling_gpt_neo.GPTNeoSelfAttention._attn
 def gpt_neo_wrapped_scaled_dot_product(
     self,
