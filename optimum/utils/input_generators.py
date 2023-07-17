@@ -622,6 +622,7 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
         self.text_encoder_projection_dim = normalized_config.text_encoder_projection_dim
+        self.time_ids = 5 if normalized_config.requires_aesthetics_score else 6
         if random_batch_size_range:
             low, high = random_batch_size_range
             self.batch_size = random.randint(low, high)
@@ -634,7 +635,7 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
         if input_name == "timestep":
             return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)
 
-        shape.append(self.text_encoder_projection_dim if input_name == "text_embeds" else 6)
+        shape.append(self.text_encoder_projection_dim if input_name == "text_embeds" else self.time_ids)
         return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework)
 
 
