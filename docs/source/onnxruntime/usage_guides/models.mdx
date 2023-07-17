@@ -64,7 +64,7 @@ It is also possible, just as with regular [`~transformers.PreTrainedModel`]s, to
 ... )
 ```
 
-## Export and inference of sequence-to-sequence models
+## Sequence-to-sequence models
 
 Sequence-to-sequence (Seq2Seq) models can also be used when running inference with ONNX Runtime. When Seq2Seq models
 are exported to the ONNX format, they are decomposed into three parts that are later combined during inference:
@@ -92,7 +92,7 @@ Here is an example of how you can load a T5 model to the ONNX format and run inf
 >>> # [{'translation_text': "Il n'est jamais sorti sans un livre sous son bras, et il est souvent revenu avec deux."}]
 ```
 
-## Export and inference of Stable Diffusion models
+## Stable Diffusion
 
 Stable Diffusion models can also be used when running inference with ONNX Runtime. When Stable Diffusion models
 are exported to the ONNX format, they are split into four components that are later combined during inference:
@@ -182,4 +182,49 @@ mask_image = download_image(mask_url).resize((512, 512))
 
 prompt = "Face of a yellow cat, high resolution, sitting on a park bench"
 image = pipeline(prompt=prompt, image=init_image, mask_image=mask_image).images[0]
+```
+
+
+## Stable Diffusion XL
+
+Before using `ORTStableDiffusionXLPipeline` make sure to have `diffusers` and `invisible_watermark` installed. You can install the libraries as follows:
+
+```
+pip install diffusers
+pip install invisible-watermark>=2.0
+```
+
+### Text-to-Image
+
+Here is an example of how you can load a PyTorch SD XL model, convert it to ONNX on-the-fly and run inference using ONNX Runtime:
+
+```python
+from optimum.onnxruntime import ORTStableDiffusionXLPipeline
+
+model_id = "stabilityai/stable-diffusion-xl-base-0.9"
+pipeline = ORTStableDiffusionXLPipeline.from_pretrained(model_id, export=True)
+prompt = "sailing ship in storm by Leonardo da Vinci"
+image = pipeline(prompt).images[0]
+
+# Don't forget to save the ONNX model
+save_directory = "a_local_path"
+pipeline.save_pretrained(save_directory)
+
+```
+
+### Image-to-Image
+
+The image can be refined by making use of a model like [stabilityai/stable-diffusion-xl-refiner-0.9](https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-0.9). In this case, you only have to output the latents from the base model.
+
+
+```python
+from optimum.onnxruntime import ORTStableDiffusionXLImg2ImgPipeline
+
+use_refiner = True
+model_id = "stabilityai/stable-diffusion-xl-refiner-0.9"
+refiner = ORTStableDiffusionXLImg2ImgPipeline.from_pretrained(model_id, export=True)
+
+image = pipeline(prompt=prompt, output_type="latent" if use_refiner else "pil").images[0]
+image = refiner(prompt=prompt, image=image[None, :]).images[0]
+image.save("sailing_ship.png")
 ```
