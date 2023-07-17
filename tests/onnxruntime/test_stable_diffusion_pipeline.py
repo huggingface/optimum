@@ -248,7 +248,7 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
         self.assertIsInstance(ort_pipeline.config, Dict)
 
         pipeline = StableDiffusionXLPipeline.from_pretrained(MODEL_NAMES[model_arch])
-        batch_size, num_images_per_prompt, height, width = 1, 2, 64, 64
+        batch_size, num_images_per_prompt, height, width = 2, 2, 64, 64
         latents = ort_pipeline.prepare_latents(
             batch_size * num_images_per_prompt,
             ort_pipeline.unet.config["in_channels"],
@@ -259,7 +259,7 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
         )
 
         kwargs = {
-            "prompt": "sailing ship in storm by Leonardo da Vinci",
+            "prompt": ["sailing ship in storm by Leonardo da Vinci"] * batch_size,
             "num_inference_steps": 1,
             "num_images_per_prompt": num_images_per_prompt,
             "height": height,
