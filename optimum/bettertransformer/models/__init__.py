@@ -140,6 +140,7 @@ class BetterTransformerManager:
     NOT_REQUIRES_STRICT_VALIDATION = {
         "blenderbot",
         "blip-2",
+        "bloom",
         "codegen",
         "gpt2",
         "gptj",
