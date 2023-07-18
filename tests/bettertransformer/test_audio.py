@@ -15,13 +15,14 @@
 import unittest
 
 import numpy as np
+import pytest
 import torch
 from parameterized import parameterized
 from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
 
 from optimum.bettertransformer import BetterTransformer
-from optimum.utils.testing_utils import grid_parameters, require_torch_20
+from optimum.utils.testing_utils import grid_parameters, require_torch_20, require_torch_gpu
 
 
 ALL_AUDIO_MODELS_TO_TEST = [
@@ -29,7 +30,167 @@ ALL_AUDIO_MODELS_TO_TEST = [
     "patrickvonplaten/wav2vec2_tiny_random",
     "ybelkada/hubert-tiny-random",
     "ybelkada/tiny-wav2vec2-stable-ln",
+    "ylacombe/bark-small",
 ]
+
+
+class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase):
+    r"""
+    Testing suite for Bark - tests all the tests defined in `BetterTransformersTestMixin`
+    Since `Bark` is a text-to-speech model, it is preferrable
+    to define its own testing class.
+    """
+    SUPPORTED_ARCH = ["bark"]
+
+    FULL_GRID = {
+        "model_type": SUPPORTED_ARCH,
+        "keep_original_model": [False],
+    }
+
+    def prepare_inputs_for_class(self, model_id, model_type, batch_size=1, **kwargs):
+        if batch_size == 1:
+            texts = ["a dummy input yeah!"]
+        else:
+            texts = ["a dummy input yeah!"] + ["and two"] * (batch_size - 1)
+
+        processor = AutoProcessor.from_pretrained(model_id)
+
+        input_dict = processor(texts, **kwargs)
+
+        return input_dict
+
+    @require_torch_gpu
+    def _test_fp16_inference(
+        self, model_id: str, model_type: str, automodel_class, use_to_operator=False, **preprocessor_kwargs
+    ):
+        r"""
+        This tests if the converted model runs fine under fp16.
+        """
+        # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
+        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs).to(0)
+
+        torch.manual_seed(0)
+        if not use_to_operator:
+            hf_random_model = automodel_class.from_pretrained(model_id, torch_dtype=torch.float16).to(0)
+            converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=False)
+
+            hf_random_model = automodel_class.from_pretrained(model_id, torch_dtype=torch.float16).to(0)
+        else:
+            hf_random_model = automodel_class.from_pretrained(model_id).to(0)
+            converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=False)
+
+            hf_random_model = automodel_class.from_pretrained(model_id).to(0)
+            hf_random_model = hf_random_model.to(torch.float16)
+            converted_model = converted_model.to(torch.float16)
+
+        self.assertFalse(
+            hasattr(hf_random_model, "use_bettertransformer"),
+            f"The model {hf_random_model.__class__.__name__} has been converted to a `fast` model by mistake.",
+        )
+
+        length = 50
+        with torch.inference_mode():
+            r"""
+            Make sure the models are in eval mode! Make also sure that the original model
+            has not been converted to a fast model. The check is done above.
+            """
+            torch.manual_seed(0)
+            output_hf = hf_random_model.generate(
+                **inputs, fine_temperature=None, do_sample=False, semantic_max_new_tokens=length
+            )
+
+            torch.manual_seed(0)
+            output_bt = converted_model.generate(
+                **inputs, fine_temperature=None, do_sample=False, semantic_max_new_tokens=length
+            )
+
+            self.assertTrue(
+                torch.allclose(output_hf, output_bt),
+                f"Maxdiff: {(output_hf - output_bt).abs().max()}",
+            )
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_type": SUPPORTED_ARCH,
+                "use_to_operator": [True, False],
+                "batch_size": [1, 2],
+            }
+        )
+    )
+    @pytest.mark.fp16
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    def test_fp16_inference(self, test_name: str, model_type: str, use_to_operator: bool, batch_size: int):
+        self._skip_on_torch_version(model_type)
+
+        model_id = MODELS_DICT[model_type]
+        self._test_fp16_inference(
+            model_id,
+            model_type=model_type,
+            use_to_operator=use_to_operator,
+            automodel_class=AutoModel,
+            batch_size=batch_size,
+        )
+
+    @parameterized.expand(grid_parameters({"model_type": SUPPORTED_ARCH, "batch_size": [1, 2]}))
+    def test_generation(self, test_name: str, model_type: str, batch_size: int):
+        self._skip_on_torch_version(model_type)
+
+        model_id = MODELS_DICT[model_type]
+        processor = AutoProcessor.from_pretrained(model_id)
+
+        model = AutoModel.from_pretrained(model_id)
+
+        text = ["This is me and me"]
+        if batch_size > 1:
+            text.append("Please continue this my dear me")
+        inp = processor(text, return_tensors="pt")
+
+        length = 50
+
+        result_vanilla = model.generate(
+            **inp, num_beams=1, fine_temperature=None, do_sample=False, semantic_max_new_tokens=length
+        )
+
+        model = BetterTransformer.transform(model)
+
+        result_bettertransformer = model.generate(
+            **inp, num_beams=1, fine_temperature=None, do_sample=False, semantic_max_new_tokens=length
+        )
+
+        self.assertTrue(
+            torch.allclose(result_vanilla, result_bettertransformer),
+            f" Maxdiff: {(result_vanilla - result_bettertransformer).abs().max()}",
+        )
+
+    @parameterized.expand(SUPPORTED_ARCH)
+    def test_raise_autocast(self, model_type: str):
+        self._skip_on_torch_version(model_type)
+        model_id = MODELS_DICT[model_type]
+        self._test_raise_autocast(model_id, model_type=model_type)
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_20
+    def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
+        self._skip_on_torch_version(model_type)
+        model_id = MODELS_DICT[model_type]
+        self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_20
+    def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
+        self._skip_on_torch_version(model_type)
+        model_id = MODELS_DICT[model_type]
+        self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    @require_torch_20
+    def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
+        model_id = MODELS_DICT[model_type]
+        self._test_invert_model_logits(
+            model_id=model_id, model_type=model_type, keep_original_model=keep_original_model
+        )
 
 
 class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCase):

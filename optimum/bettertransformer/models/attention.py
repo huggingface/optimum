@@ -106,9 +106,7 @@ def bark_wrapped_scaled_dot_product(
     # to work around this we set is_causal=False.
     is_causal = self.is_causal and query.shape[2] != 1
 
-    batch_size = query.shape[0]
-
-    if is_causal or batch_size == 1:
+    if is_causal:
         sdpa_result = torch.nn.functional.scaled_dot_product_attention(
             query, key, value, attn_mask=None, dropout_p=self.dropout, is_causal=is_causal
         )

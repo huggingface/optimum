@@ -332,14 +332,14 @@ class BetterTransformer(object):
             )
         config = bt_model.config
 
-        if config.model_type not in ["wav2vec2", "hubert"]:
+        if config.model_type not in ["wav2vec2", "hubert", "bark"]:
             with torch.device("meta"):
                 reversed_model = bt_model.__class__(config)
         else:
             # TODO: fix once this is fixed in pytorch
             # reference: https://github.com/pytorch/pytorch/issues/96409
             logger.warning(
-                "The reverse transform for the architectures wav2vec2 and hubert is memory-heavy due to a bug in PyTorch."
+                "The reverse transform for the architectures wav2vec2, hubert, bark is memory-heavy due to a bug in PyTorch."
             )
             reversed_model = bt_model.__class__(config)
 

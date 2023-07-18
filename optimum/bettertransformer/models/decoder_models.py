@@ -197,6 +197,10 @@ class BarkAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BarkSelfAt
 
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
+        if is_causal:
+            setattr(self, "bias", getattr(layer, "bias"))
+            self.original_layers_mapping["bias"] = "bias"
+
         self.supports_training = True
         self.dropout_prob_attn = float(config.dropout)
 
