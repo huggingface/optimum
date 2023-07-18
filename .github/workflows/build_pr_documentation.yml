@@ -23,6 +23,11 @@ jobs:
           repository: 'huggingface/doc-builder'
           path: doc-builder
 
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache-dependency-path: "kit/package-lock.json"
+
       - uses: actions/checkout@v2
         with:
           repository: 'huggingface/optimum'

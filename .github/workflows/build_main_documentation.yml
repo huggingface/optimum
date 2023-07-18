@@ -24,6 +24,11 @@ jobs:
           path: doc-build
           token: ${{ secrets.HUGGINGFACE_PUSH }}
 
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '18'
+          cache-dependency-path: "kit/package-lock.json"
+
       - uses: actions/checkout@v2
         with:
           repository: 'huggingface/optimum'
