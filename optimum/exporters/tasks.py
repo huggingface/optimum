@@ -171,7 +171,7 @@ class TasksManager:
             "audio-xvector": "AutoModelForAudioXVector",
             "image-to-text": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
-            "stable-diffusion-xl": "StableDiffusionXLPipeline",
+            "stable-diffusion-xl": "StableDiffusionXLImg2ImgPipeline",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }

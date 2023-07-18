@@ -28,7 +28,7 @@ from diffusers import (
     LMSDiscreteScheduler,
     PNDMScheduler,
     StableDiffusionPipeline,
-    StableDiffusionXLPipeline,
+    StableDiffusionXLImg2ImgPipeline,
 )
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils import CONFIG_NAME
@@ -547,7 +547,7 @@ class ORTStableDiffusionInpaintPipeline(ORTStableDiffusionPipelineBase, StableDi
 
 
 class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
-    auto_model_class = StableDiffusionXLPipeline
+    auto_model_class = StableDiffusionXLImg2ImgPipeline
 
     def __init__(
         self,
