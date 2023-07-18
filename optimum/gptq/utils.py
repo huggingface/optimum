@@ -12,35 +12,67 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+from logging import getLogger
+from typing import Union
+
+import torch
 from torch import nn
 from transformers.pytorch_utils import Conv1D
-from logging import getLogger 
-from typing import Union
-import torch
+
+from .constants import BLOCK_PATTERNS
+
 
 logger = getLogger(__name__)
+
 
 def get_module_by_name_prefix(model, module_name: str):
     for name, module in model.named_modules():
         if name.startswith(module_name):
             return module
-        
-def get_layers(module, layers=None, name=''):
-    if not layers:
-        layers = [Conv1D, nn.Conv2d, nn.Linear]
+
+
+def get_layers(module, layers=[Conv1D, nn.Conv2d, nn.Linear], name=""):
     for layer in layers:
-        if isinstance(module,layer):
+        if isinstance(module, layer):
             return {name: module}
     res = {}
     for name1, child in module.named_children():
-        res.update(get_layers(child, layers=layers, name=name + '.' + name1 if name != '' else name1))
+        res.update(get_layers(child, layers=layers, name=name + "." + name1 if name != "" else name1))
     return res
 
-def get_sequential_layers_name(module):
-    pass
 
-def get_previous_module_name(module_name):
-    pass
+def get_block_name(model):
+    modules_names = [n for n, _ in model.named_modules()]
+    for pattern_candidate in BLOCK_PATTERNS:
+        pattern_candidate = pattern_candidate
+        if any([pattern_candidate in name for name in modules_names]):
+            return pattern_candidate
+    raise ValueError(
+        "We are not able to infer the block name to quantize. Pass `block_name_to_quantize` argument in `quantize_model`"
+    )
+
+
+def get_preceding_modules(model, module_name):
+    """
+    We get the high-level modules preceding the one with `module_name`.
+    """
+    previous_module_name = []
+    stop_adding = False
+
+    def _get_preceding_modules(model, module_name, name=""):
+        nonlocal stop_adding
+        for name_bis, child in model.named_children():
+            new_name = name + "." + name_bis if name != "" else name_bis
+            if new_name == module_name:
+                stop_adding = True
+                break
+            _get_preceding_modules(child, module_name, name=new_name)
+        if not stop_adding:
+            previous_module_name.append(name)
+        return previous_module_name
+
+    return _get_preceding_modules(model, module_name)
+
 
 def get_device(obj: Union[torch.Tensor, nn.Module]):
     if isinstance(obj, torch.Tensor):
