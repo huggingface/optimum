@@ -169,7 +169,7 @@ def set_last_layer(model: torch.nn.Module):
     )
 
 
-class BetterTransformer(object):
+class BetterTransformer:
     r"""
     A conversion wrapper that takes as an input the `transformers` model to be converted
     and returns the converted `BetterTransformer` model. The `BetterTransformer` model is based on the `BetterTransformer`
@@ -179,6 +179,7 @@ class BetterTransformer(object):
     # Original PR from: https://github.com/huggingface/transformers/pull/19553 adapted and wrapped in this script.
     """
 
+    @staticmethod
     @check_if_pytorch_greater(
         "1.13.0",
         "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
@@ -308,6 +309,7 @@ class BetterTransformer(object):
 
         return model_fast
 
+    @staticmethod
     def reverse(bt_model: "PreTrainedModel") -> "PreTrainedModel":
         """
         Converts back a model using BetterTransformer to its canonical transformers modeling implementation, in order to save
