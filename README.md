@@ -106,6 +106,112 @@ options:
                         Task to export model for
 ```
 
+### toy model
+```
+python3 -m optimum.litmus.nlp.toy_model --help
+usage: FuriosaAI litmus exporting toy model(w/o pretrained weights) using HF Optimum API. [-h] [--config-path CONFIG_PATH] [--batch-size BATCH_SIZE]
+                                                                                          [--input-len INPUT_LEN] [--gen-step GEN_STEP]
+                                                                                          [--task {text-generation-with-past}]
+                                                                                          output_dir
+
+positional arguments:
+  output_dir            path to directory to save outputs
+
+options:
+  -h, --help            show this help message and exit
+  --config-path CONFIG_PATH, -c CONFIG_PATH
+                        path to model config saved in json format
+  --batch-size BATCH_SIZE, -b BATCH_SIZE
+                        Batch size for model inputs
+  --input-len INPUT_LEN
+                        Length of input prommpt
+  --gen-step GEN_STEP   Generation step to simplify onnx graph
+  --task {text-generation-with-past}
+                        Task to export model for
+```
+
+- example
+  <details>
+
+  ```
+  $ python3 -m optimum.litmus.nlp.toy_model toy/gpt2 -c configs/gpt2-toy.json -b 1 --input-len 128 --gen-step 0
+  Proceeding model exporting and optimization based given model config:
+  {
+    "activation_function": "gelu_new",
+    "architectures": [
+      "GPT2LMHeadModel"
+    ],
+    "attn_pdrop": 0.1,
+    "bos_token_id": 1023,
+    "embd_pdrop": 0.1,
+    "eos_token_id": 1023,
+    "initializer_range": 0.02,
+    "layer_norm_epsilon": 1e-05,
+    "model_type": "gpt2",
+    "n_ctx": 1024,
+    "n_embd": 128,
+    "n_head": 4,
+    "n_layer": 3,
+    "n_positions": 1024,
+    "resid_pdrop": 0.1,
+    "summary_activation": null,
+    "summary_first_dropout": 0.1,
+    "summary_proj_to_labels": true,
+    "summary_type": "cls_index",
+    "summary_use_proj": true,
+    "task_specific_params": {
+      "text-generation": {
+        "do_sample": true,
+        "max_length": 50
+      }
+    },
+    "vocab_size": 1024,
+    "_reference": "https://huggingface.co/docs/transformers/model_doc/gpt2#transformers.GPT2Config"
+  }
+  Simplifying ONNX Model...
+  Checking 1/5...
+  Checking 2/5...
+  Checking 3/5...
+  Checking 4/5...
+  Checking 5/5...
+  ┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┓
+  ┃                 ┃ Original Model ┃ Simplified Model ┃
+  ┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━┩
+  │ Add             │ 33             │ 30               │
+  │ Cast            │ 11             │ 1                │
+  │ Concat          │ 40             │ 0                │
+  │ Constant        │ 343            │ 42               │
+  │ ConstantOfShape │ 3              │ 0                │
+  │ Div             │ 10             │ 10               │
+  │ Gather          │ 53             │ 1                │
+  │ Gemm            │ 12             │ 12               │
+  │ Identity        │ 22             │ 0                │
+  │ MatMul          │ 7              │ 7                │
+  │ Mul             │ 20             │ 20               │
+  │ Pow             │ 13             │ 10               │
+  │ Range           │ 1              │ 0                │
+  │ ReduceMean      │ 14             │ 14               │
+  │ Reshape         │ 40             │ 39               │
+  │ Shape           │ 73             │ 0                │
+  │ Slice           │ 28             │ 0                │
+  │ Softmax         │ 3              │ 3                │
+  │ Split           │ 3              │ 3                │
+  │ Sqrt            │ 7              │ 7                │
+  │ Squeeze         │ 22             │ 0                │
+  │ Sub             │ 11             │ 8                │
+  │ Tanh            │ 3              │ 3                │
+  │ Transpose       │ 15             │ 15               │
+  │ Unsqueeze       │ 78             │ 2                │
+  │ Where           │ 3              │ 3                │
+  │ Model Size      │ 4.9MiB         │ 3.4MiB           │
+  └─────────────────┴────────────────┴──────────────────┘
+  [1/1] 🔍   Compiling from onnx to dfg
+  Done in 0.01319545s
+  ✨  Finished in 0.013528679s
+  ```
+  </details>
+
+
 [![ONNX Runtime](https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml/badge.svg)](https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml)
 
 # Hugging Face Optimum
