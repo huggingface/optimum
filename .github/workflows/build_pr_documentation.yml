@@ -39,11 +39,6 @@ jobs:
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-graphcore'
-          path: optimum-graphcore
-
-      - uses: actions/checkout@v2
-        with:
           repository: 'huggingface/optimum-intel'
           path: optimum-intel
 
@@ -54,13 +49,6 @@ jobs:
           git pull origin main
           pip install .
           pip install black
-          cd ..
-
-      - name: Make Graphcore documentation
-        run: |
-          cd optimum-graphcore
-          make doc BUILD_DIR=graphcore-doc-build VERSION=pr_$PR_NUMBER
-          sudo mv graphcore-doc-build ../optimum
           cd ..
 
       - name: Make Habana documentation
@@ -87,7 +75,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages graphcore habana intel neuron --version pr_$PR_NUMBER
+          sudo python docs/combine_docs.py --subpackages habana intel neuron --version pr_$PR_NUMBER
           sudo mv optimum-doc-build ../
           cd ..
 

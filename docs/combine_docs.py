@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "--subpackages",
     nargs="+",
-    help="Subpackages to integrate docs with Optimum. Use hardware partner names like `habana`, `graphcore`, or `intel`",
+    help="Subpackages to integrate docs with Optimum. Use hardware partner names like `habana`, `neuron`, or `intel`",
 )
 parser.add_argument("--version", type=str, default="main", help="The version of the Optimum docs")
 
