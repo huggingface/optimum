@@ -100,17 +100,17 @@ def _get_submodels_for_export_stable_diffusion(
     """
     Returns the components of a Stable Diffusion model.
     """
-    from diffusers import StableDiffusionXLPipeline
+    from diffusers import StableDiffusionXLImg2ImgPipeline
 
     models_for_export = {}
-    if isinstance(pipeline, StableDiffusionXLPipeline):
+    if isinstance(pipeline, StableDiffusionXLImg2ImgPipeline):
         projection_dim = pipeline.text_encoder_2.config.projection_dim
     else:
         projection_dim = pipeline.text_encoder.config.projection_dim
 
     # Text encoder
     if pipeline.text_encoder is not None:
-        if isinstance(pipeline, StableDiffusionXLPipeline):
+        if isinstance(pipeline, StableDiffusionXLImg2ImgPipeline):
             pipeline.text_encoder.config.output_hidden_states = True
         models_for_export["text_encoder"] = pipeline.text_encoder
 
@@ -118,6 +118,9 @@ def _get_submodels_for_export_stable_diffusion(
     # PyTorch does not support the ONNX export of torch.nn.functional.scaled_dot_product_attention
     pipeline.unet.set_attn_processor(AttnProcessor())
     pipeline.unet.config.text_encoder_projection_dim = projection_dim
+    # The U-NET time_ids inputs shapes depends on the value of `requires_aesthetics_score`
+    # https://github.com/huggingface/diffusers/blob/v0.18.2/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl_img2img.py#L571
+    pipeline.unet.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
     models_for_export["unet"] = pipeline.unet
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
