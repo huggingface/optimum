@@ -19,7 +19,7 @@ import torch
 from torch import nn
 from transformers.pytorch_utils import Conv1D
 
-from .constants import BLOCK_PATTERNS
+from .constants import BLOCK_PATTERNS, SEQLEN_KEYS_TRANFORMERS
 
 
 logger = getLogger(__name__)
@@ -31,13 +31,17 @@ def get_module_by_name_prefix(model, module_name: str):
             return module
 
 
-def get_layers(module, layers=[Conv1D, nn.Conv2d, nn.Linear], name=""):
+def get_layers(module, layers=[Conv1D, nn.Conv2d, nn.Linear], prefix=None, name=""):
     for layer in layers:
         if isinstance(module, layer):
-            return {name: module}
+            if prefix is not None: 
+                if name.startswith(prefix):
+                    return{name:module}
+            else: 
+                return {name: module}
     res = {}
     for name1, child in module.named_children():
-        res.update(get_layers(child, layers=layers, name=name + "." + name1 if name != "" else name1))
+        res.update(get_layers(child, layers=layers,prefix=prefix, name=name + "." + name1 if name != "" else name1))
     return res
 
 
@@ -78,3 +82,12 @@ def get_device(obj: Union[torch.Tensor, nn.Module]):
     if isinstance(obj, torch.Tensor):
         return obj.device
     return next(obj.parameters()).device
+
+def get_seqlen(model):
+    if hasattr(model,'config'):
+        model_config = model.config.to_dict()
+        if any([k in model_config for k in SEQLEN_KEYS_TRANFORMERS]):
+            for key in SEQLEN_KEYS_TRANFORMERS:
+                if key in model_config:
+                    return(model_config[key])
+    return None

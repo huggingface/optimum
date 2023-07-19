@@ -13,7 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from logging import getLogger
+import os
+import json
 
+from typing import Optional
 import torch
 from auto_gptq.quantization import GPTQ
 from auto_gptq.utils.import_utils import dynamically_import_QuantLinear
@@ -21,11 +24,14 @@ from torch import nn
 from transformers.pytorch_utils import Conv1D
 
 from .data import get_examples, prepare_examples
-from .utils import get_block_name, get_device, get_layers, get_module_by_name_prefix, get_preceding_modules
+from .utils import get_block_name, get_device, get_layers, get_module_by_name_prefix, get_preceding_modules, get_seqlen
+from .constants import WEIGHTS_NAME, GPTQ_CONFIG
+from ..utils import is_accelerate_available
 
+if is_accelerate_available():
+    from accelerate import Accelerator, load_checkpoint_and_dispatch
 
 logger = getLogger(__name__)
-
 
 class GPTQQuantizer(object):
     r"""
@@ -42,29 +48,57 @@ class GPTQQuantizer(object):
         self,
         n_bits: int,
         group_size: int,
-        kernel_switch_threshold: int = 128,
         damp_percent: float = 0.01,
         desc_act: bool = True,
         symmetric_quantization: bool = True,
+        true_sequential: bool = True,
+        pack_sequentially: bool = True,
         use_triton: bool = False,
         warmup_triton: bool = False,
         use_cuda_fp16: bool = True,
-        true_sequential: bool = True,
-        pack_sequentially: bool = True,
+        model_seqlen: Optional[int] = None, 
+        block_name_to_quantize: Optional[str] = None,
+        module_name_preceding_first_block: Optional[str] = None,
     ):
         self.n_bits = n_bits
         self.group_size = group_size
-        self.kernel_switch_threshold = kernel_switch_threshold
         self.damp_percent = damp_percent
         self.desc_act = desc_act
         self.symmetric_quantization = symmetric_quantization
+        self.true_sequential = true_sequential
+        self.pack_sequentially = pack_sequentially
         self.use_triton = use_triton
         self.warmup_triton = warmup_triton
         self.use_cuda_fp16 = use_cuda_fp16
-        self.true_sequential = true_sequential
-        self.pack_sequentially = pack_sequentially
+        self.block_name_to_quantize=block_name_to_quantize
+        self.module_name_preceding_first_block=module_name_preceding_first_block
+        self.model_seqlen = model_seqlen
 
-    def _replace_by_quant_linear(self, module, names, name=""):
+    def to_dict(self):
+        '''
+        Only return args that are useful for loading a quantized model
+        '''
+        return {
+            "n_bits": self.n_bits,
+            "group_size": self.group_size,
+            "damp_percent": self.damp_percent,
+            "desc_act": self.desc_act,
+            "symmetric_quantization": self.symmetric_quantization,
+            "use_triton":self.use_triton,
+            "warmup_triton":self.warmup_triton,
+            "true_sequential":self.true_sequential,
+            "pack_sequentially": self.pack_sequentially,
+            "use_cuda_fp16": self.use_cuda_fp16,
+            "model_seqlen": self.model_seqlen,
+            "block_name_to_quantize": self.block_name_to_quantize,
+            "module_name_preceding_first_block":self.module_name_preceding_first_block
+        }
+
+    @classmethod
+    def from_dict(cls, config_dict):
+        return cls(**config_dict)
+
+    def _replace_by_quant_layers(self, module, names, name=""):
         QuantLinear = dynamically_import_QuantLinear(
             use_triton=self.use_triton, desc_act=self.desc_act, group_size=self.group_size
         )
@@ -94,27 +128,35 @@ class GPTQQuantizer(object):
                 new_layer.device = device
                 setattr(module, attr, new_layer.to(device))
         for name1, child in module.named_children():
-            self._replace_by_quant_linear(child, names, name + "." + name1 if name != "" else name1)
+            self._replace_by_quant_layers(child, names, name + "." + name1 if name != "" else name1)
 
     def quantize_model(
         self,
         model,
         examples,
-        block_name_to_quantize=None,
-        module_name_preceding_first_block=None,
         tokenizer=None,
         pad_token_id=None,
     ):
+        if not torch.cuda.is_available():
+            raise RuntimeError("No GPU found. A GPU is needed to quantize model.")
+        
         device = get_device(model)
 
+        if self.model_seqlen is None:
+            seqlen = get_seqlen(model)
+            if seqlen is not None:
+                self.model_seqlen = seqlen
+            else:
+                self.model_seqlen = 4096
+                logger.warning("can't get model's sequence length from model config, will set to 4096.")
+    
         # Step 1: Prepare the data
         if isinstance(examples, str):
             if tokenizer is None:
                 raise ValueError(
                     f"You need to provide a tokenizer in order to process the data from {examples} dataset"
                 )
-            examples = get_examples(examples, tokenizer)
-
+            examples = get_examples(examples, tokenizer, seqlen=self.model_seqlen)
         examples = prepare_examples(examples, pad_token_id=pad_token_id)
 
         # Step 2: get the input of the 1st block
@@ -146,24 +188,24 @@ class GPTQQuantizer(object):
                 raise ValueError
 
         # get block_name
-        if block_name_to_quantize is None:
-            block_name_to_quantize = get_block_name(model)
+        if self.block_name_to_quantize is None:
+            self.block_name_to_quantize = get_block_name(model)
 
         # get modules_name that are preceding the first block
-        if module_name_preceding_first_block is None:
-            module_name_preceding_first_block = get_preceding_modules(model, block_name_to_quantize)
+        if self.module_name_preceding_first_block is None:
+            self.module_name_preceding_first_block = get_preceding_modules(model, self.block_name_to_quantize)
 
         # get block
-        blocks = get_module_by_name_prefix(model, block_name_to_quantize)
+        blocks = get_module_by_name_prefix(model, self.block_name_to_quantize)
 
         # put modules from module_name_preceding_first_block on cuda
-        for module_name in module_name_preceding_first_block:
+        for module_name in self.module_name_preceding_first_block:
             module = get_module_by_name_prefix(model, module_name)
             if module is None:
                 raise ValueError(f"Module {module_name} was not found in model")
             module = module.to(0)
 
-        # get inputs by running module_name_preceding_first_block + first block on gpu
+        # get inputs by running self.module_name_preceding_first_block + first block on gpu
         blocks[0] = blocks[0].to(0)
         blocks[0] = Catcher(blocks[0])
         for example in examples:
@@ -178,7 +220,7 @@ class GPTQQuantizer(object):
 
         # move everything back to device
         blocks[0] = blocks[0].to(device)
-        for module_name in module_name_preceding_first_block:
+        for module_name in self.module_name_preceding_first_block:
             module = get_module_by_name_prefix(model, module_name)
             if module is None:
                 raise ValueError(f"Module {module_name} was not found in model")
@@ -189,7 +231,7 @@ class GPTQQuantizer(object):
         quantizers = {}
         # start quantizing the blocks
         for i, block in enumerate(blocks):
-            logger.info(f"Start quantizing block {i + 1}/{len(blocks)}")
+            logger.info(f"Start quantizing block {self.block_name_to_quantize} {i + 1}/{len(blocks)}")
             # move block to cuda
             block = block.to(0)
             layers = get_layers(block)
@@ -230,7 +272,7 @@ class GPTQQuantizer(object):
                     )
                     # if we pack the model at the end
                     if not self.pack_sequentially:
-                        quantizers[f"{block_name_to_quantize}.{i}.{name}"] = (gptq[name].quantizer, scale, zero, g_idx)
+                        quantizers[f"{self.block_name_to_quantize}.{i}.{name}"] = (gptq[name].quantizer, scale, zero, g_idx)
                     else:
                         # put on cpu because it is not possible to quantize on cuda for now
                         subset_layers[name], scale, zero, g_idx = (
@@ -239,8 +281,8 @@ class GPTQQuantizer(object):
                             zero.to("cpu"),
                             g_idx.to("cpu"),
                         )
-                        layer_name = f"{block_name_to_quantize}.{i}.{name}"
-                        self._replace_by_quant_linear(model, [layer_name])
+                        layer_name = f"{self.block_name_to_quantize}.{i}.{name}"
+                        self._replace_by_quant_layers(model, [layer_name])
                         quantized_layer = get_module_by_name_prefix(model, layer_name)
                         quantized_layer = quantized_layer.to("cpu")
                         quantized_layer.pack(subset_layers[name], scale, zero, g_idx)
@@ -272,9 +314,9 @@ class GPTQQuantizer(object):
             logger.warning(
                 "using autotune_warmup will move model to GPU, make sure you have enough VRAM to load the whole model."
             )
-            QuantLinear.warmup(model.to(0), seqlen=model.seqlen)
+            QuantLinear.warmup(model.to(0), seqlen=self.model_seqlen)
 
-        model._gptq_is_quantized = False
+        model._gptq_is_quantized = True
         torch.cuda.empty_cache()
         return model
 
@@ -289,7 +331,7 @@ class GPTQQuantizer(object):
         logger.info("Packing model...")
         layers = get_layers(model)
         layers = {n: layers[n] for n in quantizers}
-        self._replace_by_quant_linear(model, quantizers)
+        self._replace_by_quant_layers(model, quantizers)
         qlayers = get_layers(model, [QuantLinear])
         for name in qlayers:
             logger.info(name)
@@ -302,3 +344,69 @@ class GPTQQuantizer(object):
             qlayers[name].to(layer_device)
 
         logger.info("Model packed.")
+
+    def save(self, model, save_dir, max_shard_size="10GB", safe_serialization = False):
+        """Save quantized model and configs to local disk"""
+        # TODO: Modify save_pretrained from transformers to save gptq quantized model
+        os.makedirs(save_dir, exist_ok=True)
+        if not model._gptq_is_quantized:
+            raise EnvironmentError("can only save quantized model, please execute .quantize first.")
+        model = model.to('cpu')
+        # save model and config
+        accelerator = Accelerator()
+        accelerator.save_model(model, save_dir, max_shard_size=max_shard_size, safe_serialization=max_shard_size)
+        with open(os.path.join(save_dir, GPTQ_CONFIG), "w", encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, indent=2)
+        # Specific to transformers but I will keep it here for now
+        if hasattr(model,"config"):
+            model.config.save_pretrained(save_dir)
+
+def load_quantized_model(model, 
+                        save_folder=None,
+                        device_map=None,
+                        max_memory=None,
+                        no_split_module_classes=None,
+                        offload_folder=None,
+                        offload_buffers=None,
+                        offload_state_dict=None
+                        ):
+    
+    if device_map is None:
+        if torch.cuda.is_available():
+            device_map = {"": torch.cuda.current_device()}
+        else:
+            raise RuntimeError("No GPU found. A GPU is needed to run quantized model.")
+        logger.info("The device_map was not initialized." "Setting device_map to `{'':torch.cuda.current_device()}`.")
+    
+    with open(os.path.join(save_folder,GPTQ_CONFIG), "r", encoding="utf-8") as f:
+        quantize_config_dict = json.load(f)
+    quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
+    
+    block_name = quantizer.block_name_to_quantize
+    layers_to_be_replaced = get_layers(model,prefix=block_name)
+    quantizer._replace_by_quant_layers(model,layers_to_be_replaced)
+    if no_split_module_classes is None:
+        block_class_name = get_module_by_name_prefix(model,block_name)[0].__class__.__name__
+        no_split_module_classes = [block_class_name]
+
+    # specific to transformers
+    # make sure that the weights are tied
+    model.tie_weights()
+    
+    model = load_checkpoint_and_dispatch(model,
+                                        checkpoint=save_folder,
+                                        device_map=device_map,
+                                        max_memory=max_memory,
+                                        no_split_module_classes=no_split_module_classes,
+                                        offload_folder=offload_folder,
+                                        offload_buffers=offload_buffers,
+                                        offload_state_dict=offload_state_dict
+                                        )
+    # put on eval mode
+    model.eval()
+    if quantizer.warmup_triton:
+        QuantLinear = dynamically_import_QuantLinear(
+                use_triton=quantizer.use_triton, desc_act=quantizer.desc_act, group_size=quantizer.group_size
+            )
+        QuantLinear.warmup(model, seqlen=quantizer.model_seqlen)
+    return model

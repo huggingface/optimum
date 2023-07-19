@@ -12,9 +12,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+SEQLEN_KEYS_TRANFORMERS = ["max_position_embeddings", "seq_length", "n_positions"]
 BLOCK_PATTERNS = [
     "transformer.h",
     "model.decoder.layers",
     "gpt_neox.layers",
     "model.layers",
 ]
+
+WEIGHTS_NAME = "pytorch_model.bin"
+GPTQ_CONFIG =  "gtpq_config.json"
