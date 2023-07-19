@@ -587,4 +587,4 @@ class OnnxCustomExport(TestCase):
                     no_post_process=True,
                 )
 
-        self.assertIn("export a model with a custom architecture, but no custom onnx", str(context.exception))
+        self.assertIn("custom or unsupported architecture", str(context.exception))
