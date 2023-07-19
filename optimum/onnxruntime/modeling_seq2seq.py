@@ -391,11 +391,11 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
     def compute_encoder_known_output_shapes(self, pixel_values: torch.FloatTensor) -> Dict[str, List[int]]:
         return {
             "last_hidden_state": [
-                pixel_values.shape[0], # batch_size
+                pixel_values.shape[0],  # batch_size
                 self.normalized_config.config.image_size[0]
                 * self.normalized_config.config.image_size[1]
-                // self.normalized_config.config.hidden_size, # encoder_sequence_length
-                self.normalized_config.config.hidden_size, # hidden_size
+                // self.normalized_config.config.hidden_size,  # encoder_sequence_length
+                self.normalized_config.config.hidden_size,  # hidden_size
             ]
         }
 
