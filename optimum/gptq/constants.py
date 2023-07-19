@@ -19,6 +19,4 @@ BLOCK_PATTERNS = [
     "gpt_neox.layers",
     "model.layers",
 ]
-
-WEIGHTS_NAME = "pytorch_model.bin"
-GPTQ_CONFIG =  "gtpq_config.json"
+GPTQ_CONFIG = "gtpq_config.json"

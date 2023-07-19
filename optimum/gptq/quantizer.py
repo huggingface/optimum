@@ -12,93 +12,157 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from logging import getLogger
-import os
+import copy
 import json
+import os
+from logging import getLogger
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from typing import Optional
 import torch
-from auto_gptq.quantization import GPTQ
-from auto_gptq.utils.import_utils import dynamically_import_QuantLinear
 from torch import nn
 from transformers.pytorch_utils import Conv1D
 
-from .data import get_examples, prepare_examples
+from ..utils import is_accelerate_available, is_autogptq_available
+from .constants import GPTQ_CONFIG
+from .data import get_dataset, prepare_dataset
 from .utils import get_block_name, get_device, get_layers, get_module_by_name_prefix, get_preceding_modules, get_seqlen
-from .constants import WEIGHTS_NAME, GPTQ_CONFIG
-from ..utils import is_accelerate_available
+
 
 if is_accelerate_available():
     from accelerate import Accelerator, load_checkpoint_and_dispatch
 
+if is_autogptq_available():
+    from auto_gptq.quantization import GPTQ
+    from auto_gptq.utils.import_utils import dynamically_import_QuantLinear
+
 logger = getLogger(__name__)
+
 
 class GPTQQuantizer(object):
     r"""
-    A simple API that converts a model to a quantized model.
-
-    Args:
-        n_bits (`int`):
-            The number of bits to quantize to, supported numbers are (2, 3, 4, 8).
-        group_size (`int`):
-            The groupe size to use for quantization, recommended value is 128.
+    A simple API for GTPQ Quantization
     """
 
     def __init__(
         self,
-        n_bits: int,
-        group_size: int,
+        bits: int,
+        group_size: int = 128,
         damp_percent: float = 0.01,
         desc_act: bool = True,
-        symmetric_quantization: bool = True,
+        sym: bool = True,
         true_sequential: bool = True,
-        pack_sequentially: bool = True,
+        pack_sequentially: bool = False,
+        use_cuda_fp16: bool = True,
         use_triton: bool = False,
         warmup_triton: bool = False,
-        use_cuda_fp16: bool = True,
-        model_seqlen: Optional[int] = None, 
+        model_seqlen: Optional[int] = None,
         block_name_to_quantize: Optional[str] = None,
-        module_name_preceding_first_block: Optional[str] = None,
+        module_name_preceding_first_block: Optional[List[str]] = None,
     ):
-        self.n_bits = n_bits
+        """
+        Args:
+            bits (`int`):
+                The number of bits to quantize to, supported numbers are (2, 3, 4, 8).
+            group_size (int, *optional*, defaults to -1):
+                The group size to use for quantization. Recommended value is 128 and -1 uses full row.
+            damp_percent (`float`, *optional*, defaults to `0.01`):
+                The percent of the average Hessian diagonal to use for dampening, recommended value is 0.01.
+            desc_act (`bool`, *optional*, defaults to `True`):
+                Whether to quantize columns in order of decreasing activation size.
+                Setting it to False can significantly speed up inference but the perplexity may become slightly worse.
+                Also known as act-order.
+            sym (`bool`, *optional*, defaults to `True`):
+                Whether to use symetric quantization.
+            true_sequential (`bool`, *optional*, defaults to `True`):
+                Whether to performing sequential quantization even within a single Transformer block.
+            pack_sequentially (`bool`, *optional*, defaults to `True`):
+                Whether to pack the layer just after it is quantized. If False, we will pack the model at the end.
+            use_cuda_fp16 (`bool`, *optional*, defaults to `True`):
+                Whether or not to use optmized cuda kernel for fp16 model. Need to have model in fp16.
+            use_triton (`bool`, *optional*, defaults to `False`):
+                Whether to use triton.
+            warmup_triton (`bool`, *optional*, defaults to `False`):
+                Whether to warm up triton. Need to have `use_triton=True`.
+            model_seqlen (`int`, *optional*, defaults to `None`):
+                The model sequence length
+            block_name_to_quantize (`str`, *optional*, defaults to `None`):
+                The transformers block name to quantize.
+            module_name_preceding_first_block (`str`, *optional*, defaults to `None`):
+                The layers that are preceding the first Transformer block.
+        """
+
+        self.bits = bits
         self.group_size = group_size
         self.damp_percent = damp_percent
         self.desc_act = desc_act
-        self.symmetric_quantization = symmetric_quantization
+        self.sym = sym
         self.true_sequential = true_sequential
         self.pack_sequentially = pack_sequentially
+        self.use_cuda_fp16 = use_cuda_fp16
         self.use_triton = use_triton
         self.warmup_triton = warmup_triton
-        self.use_cuda_fp16 = use_cuda_fp16
-        self.block_name_to_quantize=block_name_to_quantize
-        self.module_name_preceding_first_block=module_name_preceding_first_block
         self.model_seqlen = model_seqlen
+        self.block_name_to_quantize = block_name_to_quantize
+        self.module_name_preceding_first_block = module_name_preceding_first_block
+
+        if self.bits not in [2, 4, 6, 8]:
+            raise ValueError("only support quantize to [2,4,6,8] bits.")
+        if self.group_size != -1 and self.group_size <= 0:
+            raise ValueError("group_size must be greater than 0 or equal to -1")
+        if not (0 < self.damp_percent < 1):
+            raise ValueError("damp_percent must between 0 and 1.")
+        for boolean in [
+            "desc_act",
+            "sym",
+            "true_sequential",
+            "pack_sequentially",
+            "use_cuda_fp16",
+            "use_triton",
+            "warmup_triton",
+        ]:
+            if not isinstance(getattr(self, boolean), bool):
+                raise ValueError(f"{boolean} must be a float")
+        if self.model_seqlen is not None and not isinstance(self.model_seqlen, int):
+            raise ValueError("model_seqlen must be an int")
+        if self.block_name_to_quantize is not None and not isinstance(self.block_name_to_quantize, str):
+            raise ValueError("block_name_to_quantize must be a string")
+        if self.module_name_preceding_first_block is not None and not isinstance(
+            self.module_name_preceding_first_block, list
+        ):
+            raise ValueError("block_name_to_quantize must be a list of string")
 
     def to_dict(self):
-        '''
-        Only return args that are useful for loading a quantized model
-        '''
-        return {
-            "n_bits": self.n_bits,
-            "group_size": self.group_size,
-            "damp_percent": self.damp_percent,
-            "desc_act": self.desc_act,
-            "symmetric_quantization": self.symmetric_quantization,
-            "use_triton":self.use_triton,
-            "warmup_triton":self.warmup_triton,
-            "true_sequential":self.true_sequential,
-            "pack_sequentially": self.pack_sequentially,
-            "use_cuda_fp16": self.use_cuda_fp16,
-            "model_seqlen": self.model_seqlen,
-            "block_name_to_quantize": self.block_name_to_quantize,
-            "module_name_preceding_first_block":self.module_name_preceding_first_block
-        }
+        """
+        Return the args in dict format
+        """
+        return copy.deepcopy(self.__dict__)
 
     @classmethod
-    def from_dict(cls, config_dict):
+    def from_dict(cls, config_dict: Dict[str, Any]):
+        """
+        Instantiates a `GPTQQuantizer` using config_dict as kwargs
+
+        Args:
+            config_dict (`Dict[str,Any]`):
+                quantization config
+
+        Returns:
+            `GPTQQuantizer`:  The quantizer object instantiated from those parameters.
+        """
         return cls(**config_dict)
 
-    def _replace_by_quant_layers(self, module, names, name=""):
+    def _replace_by_quant_layers(self, module: nn.Module, names: List[str], name: str = ""):
+        """
+        Replace linear layers in `module` by `QuantLinear`
+
+        Args:
+            module (`nn.Module`):
+                Module to quantize
+            names (`List[str]`):
+                List of names of the module to quantize
+            name (`str`, *optional*, defaults to `""`):
+                To keep track of the name of the current module
+        """
         QuantLinear = dynamically_import_QuantLinear(
             use_triton=self.use_triton, desc_act=self.desc_act, group_size=self.group_size
         )
@@ -121,43 +185,68 @@ class GPTQQuantizer(object):
                     out_features = layer.weight.shape[1]
                 if (not (self.desc_act) or self.group_size == -1) and not self.use_triton:
                     new_layer = QuantLinear(
-                        self.n_bits, self.group_size, in_features, out_features, True, use_cuda_fp16=self.use_cuda_fp16
+                        self.bits, self.group_size, in_features, out_features, True, use_cuda_fp16=self.use_cuda_fp16
                     )
                 else:
-                    new_layer = QuantLinear(self.n_bits, self.group_size, in_features, out_features, True)
+                    new_layer = QuantLinear(self.bits, self.group_size, in_features, out_features, True)
                 new_layer.device = device
                 setattr(module, attr, new_layer.to(device))
         for name1, child in module.named_children():
             self._replace_by_quant_layers(child, names, name + "." + name1 if name != "" else name1)
 
+    @torch.no_grad()
     def quantize_model(
         self,
-        model,
-        examples,
-        tokenizer=None,
-        pad_token_id=None,
+        model: nn.Module,
+        tokenizer: Any,
+        dataset: Union[List[str], str],
+        batch_size: int = 1,
+        pad_token_id: Optional[int] = None,
     ):
+        """
+        Quantize the model using the dataset
+
+        Args:
+            model (`nn.Module`):
+                The model to quantize
+            dataset (`Union[List[str],str]`):
+                The dataset used for quantization. You can provide your own dataset in a list of string or just use the original datasets used
+                in the paper ['wikitext2','c4'].
+            tokenizer (`Any`, defaults to `None`):
+                The tokenizer to use in order to prepare the dataset
+            batch_size (`Optional[int]`, *optional*, defaults to `1`):
+                The batch size of the dataset
+            pad_token_id (`Optional[int]`, *optional*, defaults to `None`):
+                The pad token id. Needed to prepare the dataset when `batch_size` > 1.
+
+        Returns:
+            `nn.Module`: The quantized model
+        """
+
         if not torch.cuda.is_available():
             raise RuntimeError("No GPU found. A GPU is needed to quantize model.")
-        
+
         device = get_device(model)
+        model.eval()
+
+        # For Transformer model
+        has_config = False
+        if hasattr(model, "config"):
+            has_config = True
+
+        if has_config:
+            use_cache = model.config.use_cache
+            model.config.use_cache = False
 
         if self.model_seqlen is None:
-            seqlen = get_seqlen(model)
-            if seqlen is not None:
-                self.model_seqlen = seqlen
-            else:
-                self.model_seqlen = 4096
-                logger.warning("can't get model's sequence length from model config, will set to 4096.")
-    
+            self.model_seqlen = get_seqlen(model)
+
         # Step 1: Prepare the data
-        if isinstance(examples, str):
-            if tokenizer is None:
-                raise ValueError(
-                    f"You need to provide a tokenizer in order to process the data from {examples} dataset"
-                )
-            examples = get_examples(examples, tokenizer, seqlen=self.model_seqlen)
-        examples = prepare_examples(examples, pad_token_id=pad_token_id)
+        if isinstance(dataset, str):
+            dataset, _ = get_dataset(dataset, tokenizer, seqlen=self.model_seqlen)
+        elif isinstance(dataset, list):
+            dataset = [tokenizer(data, return_tensors="pt") for data in dataset]
+        dataset = prepare_dataset(dataset, pad_token_id=pad_token_id, batch_size=batch_size)
 
         # Step 2: get the input of the 1st block
         layer_inputs = []
@@ -208,12 +297,12 @@ class GPTQQuantizer(object):
         # get inputs by running self.module_name_preceding_first_block + first block on gpu
         blocks[0] = blocks[0].to(0)
         blocks[0] = Catcher(blocks[0])
-        for example in examples:
-            for k, v in example.items():
+        for data in dataset:
+            for k, v in data.items():
                 # put on gpu, we won't put them back to cpu
-                example[k] = v.to(0)
+                data[k] = v.to(0)
             try:
-                model(**example)
+                model(**data)
             except ValueError:
                 pass
         blocks[0] = blocks[0].module
@@ -248,7 +337,7 @@ class GPTQQuantizer(object):
                 # add hook for each layer in subset_layers
                 for name in subset_layers:
                     gptq[name] = GPTQ(subset_layers[name])
-                    gptq[name].quantizer.configure(bits=self.n_bits, sym=self.symmetric_quantization, perchannel=True)
+                    gptq[name].quantizer.configure(bits=self.bits, sym=self.sym, perchannel=True)
 
                     def add_batch(name):
                         def tmp(_, input, output):
@@ -258,7 +347,7 @@ class GPTQQuantizer(object):
 
                     handles.append(subset_layers[name].register_forward_hook(add_batch(name)))
                 # update Hessian for each layer in subset_layers thanks to the hook
-                for j in range(len(examples)):
+                for j in range(len(dataset)):
                     # the args are already on the gpu
                     # don't need to store the output
                     block(layer_inputs[j], **layer_input_kwargs[j])
@@ -272,7 +361,12 @@ class GPTQQuantizer(object):
                     )
                     # if we pack the model at the end
                     if not self.pack_sequentially:
-                        quantizers[f"{self.block_name_to_quantize}.{i}.{name}"] = (gptq[name].quantizer, scale, zero, g_idx)
+                        quantizers[f"{self.block_name_to_quantize}.{i}.{name}"] = (
+                            gptq[name].quantizer,
+                            scale,
+                            zero,
+                            g_idx,
+                        )
                     else:
                         # put on cpu because it is not possible to quantize on cuda for now
                         subset_layers[name], scale, zero, g_idx = (
@@ -290,7 +384,7 @@ class GPTQQuantizer(object):
                     gptq[name].free()
                 del subset_layers
             # we get the new output from the partial quantized block
-            for j in range(len(examples)):
+            for j in range(len(dataset)):
                 layer_output = block(layer_inputs[j], **layer_input_kwargs[j])[0]
                 layer_outputs.append(layer_output)
 
@@ -317,14 +411,26 @@ class GPTQQuantizer(object):
             QuantLinear.warmup(model.to(0), seqlen=self.model_seqlen)
 
         model._gptq_is_quantized = True
+        if has_config:
+            model.config.use_cache = use_cache
+
         torch.cuda.empty_cache()
         return model
 
     def pack_model(
         self,
-        model,
-        quantizers,
+        model: nn.Module,
+        quantizers: Dict[str, Tuple],
     ):
+        """
+        Pack the model by replacing the layers by quantized layers
+
+        Args:
+            model (`nn.Module`):
+                _description_
+            quantizers (`Dict[str,Tuple]`):
+                _description_
+        """
         QuantLinear = dynamically_import_QuantLinear(
             use_triton=self.use_triton, desc_act=self.desc_act, group_size=self.group_size
         )
@@ -345,68 +451,126 @@ class GPTQQuantizer(object):
 
         logger.info("Model packed.")
 
-    def save(self, model, save_dir, max_shard_size="10GB", safe_serialization = False):
-        """Save quantized model and configs to local disk"""
-        # TODO: Modify save_pretrained from transformers to save gptq quantized model
+    def save(self, model: nn.Module, save_dir: str, max_shard_size: str = "10GB", safe_serialization: bool = False):
+        """
+        Save model state dict and configs
+
+        Args:
+            model (`nn.Module`):
+                Model to be saved. The model can be wrapped or unwraped.
+            save_dir (`str`):
+                Directory to which to save. Will be created if it doesn't exist.
+            max_shard_size (`str`, *optional*, defaults to `"10GB"`):
+                The maximum size for a checkpoint before being sharded. Checkpoints shard will then be each of size
+                lower than this size. If expressed as a string, needs to be digits followed by a unit (like `"5MB"`).
+                <Tip warning={true}>
+
+                If a single weight of the model is bigger than `max_shard_size`, it will be in its own checkpoint shard
+                which will be bigger than `max_shard_size`.
+
+                </Tip>
+            safe_serialization (`bool`, *optional*, defaults to `False`):
+                Whether to save the model using `safetensors` or the traditional PyTorch way (that uses `pickle`).
+
+        """
+
         os.makedirs(save_dir, exist_ok=True)
         if not model._gptq_is_quantized:
             raise EnvironmentError("can only save quantized model, please execute .quantize first.")
-        model = model.to('cpu')
+        model = model.to("cpu")
         # save model and config
         accelerator = Accelerator()
-        accelerator.save_model(model, save_dir, max_shard_size=max_shard_size, safe_serialization=max_shard_size)
+        accelerator.save_model(model, save_dir, max_shard_size=max_shard_size, safe_serialization=safe_serialization)
         with open(os.path.join(save_dir, GPTQ_CONFIG), "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2)
         # Specific to transformers but I will keep it here for now
-        if hasattr(model,"config"):
+        if hasattr(model, "config"):
             model.config.save_pretrained(save_dir)
 
-def load_quantized_model(model, 
-                        save_folder=None,
-                        device_map=None,
-                        max_memory=None,
-                        no_split_module_classes=None,
-                        offload_folder=None,
-                        offload_buffers=None,
-                        offload_state_dict=None
-                        ):
-    
+
+def load_quantized_model(
+    model: nn.Module,
+    save_folder: Optional[str] = None,
+    device_map: Optional[str] = None,
+    max_memory: Optional[Dict] = None,
+    no_split_module_classes: Optional[Dict] = None,
+    offload_folder: Optional[str] = None,
+    offload_buffers: Optional[str] = None,
+    offload_state_dict: bool = False,
+):
+    """
+    Load quantized weights from the save_folder into the converted model and dispatch the weights according to the device_map.
+
+    Args:
+        model (`nn.Module`):
+            The model can be enpty or not.
+        save_folder (`Optional[str]`, *optional*, defaults to `None`):
+            Directory to which to load the weights.
+        device_map (`Optional[str]`, *optional*, defaults to `None`):
+            A map that specifies where each submodule should go. It doesn't need to be refined to each parameter/buffer
+            name, once a given module name is inside, every submodule of it will be sent to the same device.
+            To have Accelerate compute the most optimized `device_map` automatically, set `device_map="auto"`.
+        max_memory (`Optional[Dict]`, *optional*, defaults to `None`):
+            A dictionary device identifier to maximum memory. Will default to the maximum memory available for each GPU
+            and the available CPU RAM if unset.
+        no_split_module_classes (`Optional[Dict]`, *optional*, defaults to `None`):
+            A list of layer class names that should never be split across device (for instance any layer that has a
+            residual connection).
+        offload_folder (`Optional[str]`, *optional*, defaults to `None`):
+            If the `device_map` contains any value `"disk"`, the folder where we will offload weights.
+        offload_buffers (`Optional[str]`, *optional*, defaults to `None`):
+            In the layers that are offloaded on the CPU or the hard drive, whether or not to offload the buffers as
+            well as the parameters.
+        offload_state_dict (`bool`, *optional*, defaults to `False`):
+            If `True`, will temporarily offload the CPU state dict on the hard drive to avoid getting out of CPU RAM if
+            the weight of the CPU state dict + the biggest shard does not fit. Will default to `True` if the device map
+            picked contains `"disk"` values.
+
+    Returns:
+        `nn.Module`: The quantized model
+    """
     if device_map is None:
         if torch.cuda.is_available():
             device_map = {"": torch.cuda.current_device()}
         else:
             raise RuntimeError("No GPU found. A GPU is needed to run quantized model.")
         logger.info("The device_map was not initialized." "Setting device_map to `{'':torch.cuda.current_device()}`.")
-    
-    with open(os.path.join(save_folder,GPTQ_CONFIG), "r", encoding="utf-8") as f:
+
+    with open(os.path.join(save_folder, GPTQ_CONFIG), "r", encoding="utf-8") as f:
         quantize_config_dict = json.load(f)
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
-    
+
+    if quantizer.block_name_to_quantize is None:
+        quantizer.block_name_to_quantize = get_block_name(model)
     block_name = quantizer.block_name_to_quantize
-    layers_to_be_replaced = get_layers(model,prefix=block_name)
-    quantizer._replace_by_quant_layers(model,layers_to_be_replaced)
+
+    layers_to_be_replaced = get_layers(model, prefix=block_name)
+    quantizer._replace_by_quant_layers(model, layers_to_be_replaced)
     if no_split_module_classes is None:
-        block_class_name = get_module_by_name_prefix(model,block_name)[0].__class__.__name__
+        block_class_name = get_module_by_name_prefix(model, block_name)[0].__class__.__name__
         no_split_module_classes = [block_class_name]
 
     # specific to transformers
     # make sure that the weights are tied
     model.tie_weights()
-    
-    model = load_checkpoint_and_dispatch(model,
-                                        checkpoint=save_folder,
-                                        device_map=device_map,
-                                        max_memory=max_memory,
-                                        no_split_module_classes=no_split_module_classes,
-                                        offload_folder=offload_folder,
-                                        offload_buffers=offload_buffers,
-                                        offload_state_dict=offload_state_dict
-                                        )
+
+    model = load_checkpoint_and_dispatch(
+        model,
+        checkpoint=save_folder,
+        device_map=device_map,
+        max_memory=max_memory,
+        no_split_module_classes=no_split_module_classes,
+        offload_folder=offload_folder,
+        offload_buffers=offload_buffers,
+        offload_state_dict=offload_state_dict,
+    )
     # put on eval mode
     model.eval()
     if quantizer.warmup_triton:
         QuantLinear = dynamically_import_QuantLinear(
-                use_triton=quantizer.use_triton, desc_act=quantizer.desc_act, group_size=quantizer.group_size
-            )
+            use_triton=quantizer.use_triton, desc_act=quantizer.desc_act, group_size=quantizer.group_size
+        )
+        if quantizer.model_seqlen is None:
+            quantizer.model_seqlen = get_seqlen(model)
         QuantLinear.warmup(model, seqlen=quantizer.model_seqlen)
     return model

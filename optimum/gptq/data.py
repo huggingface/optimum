@@ -13,16 +13,15 @@
 #  limitations under the License.
 
 
-import logging
 import random
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union
 
 import numpy as np
 import torch
 from datasets import load_dataset
 
 
-def prepare_examples(
+def prepare_dataset(
     examples: List[Dict[str, Union[List[int], torch.LongTensor]]], pad_token_id: int = None, batch_size: int = 1
 ):
     new_examples = []
@@ -85,32 +84,80 @@ def collate_data(
 
 
 def get_wikitext2(tokenizer, seqlen, nsamples):
-    logger = logging.getLogger(__name__)
+    traindata = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
+    testdata = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
 
-    wikidata = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
-    wikilist = [" \n" if s == "" else s for s in wikidata["text"]]
+    trainenc = tokenizer("\n\n".join(traindata["text"]), return_tensors="pt")
+    testenc = tokenizer("\n\n".join(testdata["text"]), return_tensors="pt")
 
-    text = "".join(wikilist)
-    logger.info("Tokenising wikitext2")
-    trainenc = tokenizer(text, return_tensors="pt")
-
-    traindataset = []
+    trainloader = []
     for _ in range(nsamples):
         i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
         j = i + seqlen
         inp = trainenc.input_ids[:, i:j]
-        attention_mask = torch.ones_like(inp)
-        traindataset.append({"input_ids": inp, "attention_mask": attention_mask})
-    return traindataset
+        tar = inp.clone()
+        tar[:, :-1] = -100
+        trainloader.append((inp, tar))
+    return trainloader, testenc
 
 
 def get_c4(tokenizer, seqlen, nsamples):
+    from datasets import load_dataset
+
     traindata = load_dataset(
+        "allenai/c4", "allenai--c4", data_files={"train": "en/c4-train.00000-of-01024.json.gz"}, split="train"
+    )
+    valdata = load_dataset(
         "allenai/c4",
         "allenai--c4",
-        data_files={"train": "en/c4-train.00000-of-01024.json.gz"},
-        split="train",
-        use_auth_token=False,
+        data_files={"validation": "en/c4-validation.00000-of-00008.json.gz"},
+        split="validation",
+    )
+
+    trainloader = []
+    for _ in range(nsamples):
+        while True:
+            i = random.randint(0, len(traindata) - 1)
+            trainenc = tokenizer(traindata[i]["text"], return_tensors="pt")
+            if trainenc.input_ids.shape[1] >= seqlen:
+                break
+        i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+        j = i + seqlen
+        inp = trainenc.input_ids[:, i:j]
+        tar = inp.clone()
+        tar[:, :-1] = -100
+        trainloader.append((inp, tar))
+
+    valenc = []
+    for _ in range(256):
+        while True:
+            i = random.randint(0, len(valdata) - 1)
+            tmp = tokenizer(valdata[i]["text"], return_tensors="pt")
+            if tmp.input_ids.shape[1] >= seqlen:
+                break
+        i = random.randint(0, tmp.input_ids.shape[1] - seqlen - 1)
+        j = i + seqlen
+        valenc.append(tmp.input_ids[:, i:j])
+    valenc = torch.hstack(valenc)
+
+    class TokenizerWrapper:
+        def __init__(self, input_ids):
+            self.input_ids = input_ids
+
+    valenc = TokenizerWrapper(valenc)
+
+    return trainloader, valenc
+
+
+def get_c4_new(tokenizer, seqlen, nsamples):
+    traindata = load_dataset(
+        "allenai/c4", "allenai--c4", data_files={"train": "en/c4-train.00000-of-01024.json.gz"}, split="train"
+    )
+    valdata = load_dataset(
+        "allenai/c4",
+        "allenai--c4",
+        data_files={"validation": "en/c4-validation.00000-of-00008.json.gz"},
+        split="validation",
     )
     trainloader = []
     for _ in range(nsamples):
@@ -122,13 +169,59 @@ def get_c4(tokenizer, seqlen, nsamples):
         i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
         j = i + seqlen
         inp = trainenc.input_ids[:, i:j]
-        attention_mask = torch.ones_like(inp)
-        trainloader.append({"input_ids": inp, "attention_mask": attention_mask})
+        tar = inp.clone()
+        tar[:, :-1] = -100
+        trainloader.append((inp, tar))
 
-    return trainloader
+    valenc = tokenizer(" ".join(valdata[:1100]["text"]), return_tensors="pt")
+    valenc = valenc.input_ids[:, : (256 * seqlen)]
+
+    class TokenizerWrapper:
+        def __init__(self, input_ids):
+            self.input_ids = input_ids
+
+    valenc = TokenizerWrapper(valenc)
+
+    return trainloader, valenc
 
 
-def get_examples(dataset_name, tokenizer, nsamples=128, seqlen=2048, seed=0):
+def get_ptb(tokenizer, seqlen, nsamples):
+    traindata = load_dataset("ptb_text_only", "penn_treebank", split="train")
+    valdata = load_dataset("ptb_text_only", "penn_treebank", split="validation")
+
+    trainenc = tokenizer("\n\n".join(traindata["sentence"]), return_tensors="pt")
+    testenc = tokenizer("\n\n".join(valdata["sentence"]), return_tensors="pt")
+
+    trainloader = []
+    for _ in range(nsamples):
+        i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+        j = i + seqlen
+        inp = trainenc.input_ids[:, i:j]
+        tar = inp.clone()
+        tar[:, :-1] = -100
+        trainloader.append((inp, tar))
+    return trainloader, testenc
+
+
+def get_ptb_new(tokenizer, seqlen, nsamples):
+    traindata = load_dataset("ptb_text_only", "penn_treebank", split="train")
+    testdata = load_dataset("ptb_text_only", "penn_treebank", split="test")
+
+    trainenc = tokenizer(" ".join(traindata["sentence"]), return_tensors="pt")
+    testenc = tokenizer(" ".join(testdata["sentence"]), return_tensors="pt")
+
+    trainloader = []
+    for _ in range(nsamples):
+        i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+        j = i + seqlen
+        inp = trainenc.input_ids[:, i:j]
+        tar = inp.clone()
+        tar[:, :-1] = -100
+        trainloader.append((inp, tar))
+    return trainloader, testenc
+
+
+def get_dataset(dataset_name: str, tokenizer: Any, nsamples: int = 128, seqlen: int = 2048, seed: int = 0):
     random.seed(seed)
     np.random.seed(seed)
     torch.random.manual_seed(seed)
@@ -136,5 +229,11 @@ def get_examples(dataset_name, tokenizer, nsamples=128, seqlen=2048, seed=0):
         return get_wikitext2(tokenizer=tokenizer, nsamples=nsamples, seqlen=seqlen)
     elif dataset_name == "c4":
         return get_c4(tokenizer=tokenizer, nsamples=nsamples, seqlen=seqlen)
+    elif dataset_name == "c4-new":
+        return get_c4_new(tokenizer=tokenizer, nsamples=nsamples, seqlen=seqlen)
+    elif dataset_name == "ptb":
+        return get_ptb(tokenizer=tokenizer, nsamples=nsamples, seqlen=seqlen)
+    elif dataset_name == "ptb-new":
+        return get_ptb_new(tokenizer=tokenizer, nsamples=nsamples, seqlen=seqlen)
     else:
-        raise ValueError(f"Expected a value in ['wikitext2','c4'] but found {dataset_name}")
+        raise ValueError(f"Expected a value in ['wikitext2','c4','ptb','c4-new','ptb_new'] but found {dataset_name}")

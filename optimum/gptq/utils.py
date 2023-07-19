@@ -13,7 +13,7 @@
 #  limitations under the License.
 
 from logging import getLogger
-from typing import Union
+from typing import Optional, Union
 
 import torch
 from torch import nn
@@ -25,27 +25,27 @@ from .constants import BLOCK_PATTERNS, SEQLEN_KEYS_TRANFORMERS
 logger = getLogger(__name__)
 
 
-def get_module_by_name_prefix(model, module_name: str):
+def get_module_by_name_prefix(model: nn.Module, module_name: str):
     for name, module in model.named_modules():
         if name.startswith(module_name):
             return module
 
 
-def get_layers(module, layers=[Conv1D, nn.Conv2d, nn.Linear], prefix=None, name=""):
+def get_layers(module: nn.Module, layers=[Conv1D, nn.Conv2d, nn.Linear], prefix: Optional[str] = None, name: str = ""):
     for layer in layers:
         if isinstance(module, layer):
-            if prefix is not None: 
+            if prefix is not None:
                 if name.startswith(prefix):
-                    return{name:module}
-            else: 
+                    return {name: module}
+            else:
                 return {name: module}
     res = {}
     for name1, child in module.named_children():
-        res.update(get_layers(child, layers=layers,prefix=prefix, name=name + "." + name1 if name != "" else name1))
+        res.update(get_layers(child, layers=layers, prefix=prefix, name=name + "." + name1 if name != "" else name1))
     return res
 
 
-def get_block_name(model):
+def get_block_name(model: nn.Module):
     modules_names = [n for n, _ in model.named_modules()]
     for pattern_candidate in BLOCK_PATTERNS:
         pattern_candidate = pattern_candidate
@@ -56,14 +56,11 @@ def get_block_name(model):
     )
 
 
-def get_preceding_modules(model, module_name):
-    """
-    We get the high-level modules preceding the one with `module_name`.
-    """
+def get_preceding_modules(model: nn.Module, module_name: str):
     previous_module_name = []
     stop_adding = False
 
-    def _get_preceding_modules(model, module_name, name=""):
+    def _get_preceding_modules(model: nn.Module, module_name: str, name: str = ""):
         nonlocal stop_adding
         for name_bis, child in model.named_children():
             new_name = name + "." + name_bis if name != "" else name_bis
@@ -83,11 +80,13 @@ def get_device(obj: Union[torch.Tensor, nn.Module]):
         return obj.device
     return next(obj.parameters()).device
 
-def get_seqlen(model):
-    if hasattr(model,'config'):
+
+def get_seqlen(model: nn.Module):
+    if hasattr(model, "config"):
         model_config = model.config.to_dict()
         if any([k in model_config for k in SEQLEN_KEYS_TRANFORMERS]):
             for key in SEQLEN_KEYS_TRANFORMERS:
                 if key in model_config:
-                    return(model_config[key])
-    return None
+                    return model_config[key]
+    logger.info("We couldn't get the model sequence length. Setting it to 2048")
+    return 2048
