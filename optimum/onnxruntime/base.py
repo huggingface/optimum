@@ -694,7 +694,6 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to:
             # * 4 for the decoder without cache (k/v of self-attention + k/v of cross-attention)
             # * 2 for the decoder with cache (k/v of self-attention as cross-attention cache is constant)
-            print("self.no_cross_attention_cache", self.no_cross_attention_cache)
             if not self.use_past or use_merged_no_cache or self.no_cross_attention_cache:
                 out_past_key_values = tuple(
                     out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
