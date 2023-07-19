@@ -360,8 +360,13 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
 
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
+            known_output_shapes = self.compute_encoder_known_output_shapes(pixel_values)
+
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session, pixel_values, ordered_input_names=self._ordered_input_names
+                self.session,
+                pixel_values,
+                known_output_shapes=known_output_shapes,
+                ordered_input_names=self._ordered_input_names,
             )
 
             io_binding.synchronize_inputs()
@@ -382,6 +387,17 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
                 last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
 
         return BaseModelOutput(last_hidden_state=last_hidden_state)
+
+    def compute_encoder_known_output_shapes(self, pixel_values: torch.FloatTensor) -> Dict[str, List[int]]:
+        return {
+            "last_hidden_state": [
+                pixel_values.shape[0], # batch_size
+                self.normalized_config.config.image_size[0]
+                * self.normalized_config.config.image_size[1]
+                // self.normalized_config.config.hidden_size, # encoder_sequence_length
+                self.normalized_config.config.hidden_size, # hidden_size
+            ]
+        }
 
 
 class ORTModelForConditionalGeneration(ORTModel, ABC):
