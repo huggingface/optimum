@@ -1089,7 +1089,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForQuestionAnswering.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("custom or unsupported architecture", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
