@@ -58,6 +58,8 @@ class GPTQQuantizer(object):
         model_seqlen: Optional[int] = None,
         block_name_to_quantize: Optional[str] = None,
         module_name_preceding_first_block: Optional[List[str]] = None,
+        *args,
+        **kwargs,
     ):
         """
         Args:
@@ -490,7 +492,9 @@ class GPTQQuantizer(object):
 
 def load_quantized_model(
     model: nn.Module,
-    save_folder: Optional[str] = None,
+    save_folder: str,
+    quant_config_name: Optional[str] = GPTQ_CONFIG,
+    state_dict_name: Optional[str] = None,
     device_map: Optional[str] = None,
     max_memory: Optional[Dict] = None,
     no_split_module_classes: Optional[Dict] = None,
@@ -506,6 +510,10 @@ def load_quantized_model(
             The model can be enpty or not.
         save_folder (`Optional[str]`, *optional*, defaults to `None`):
             Directory to which to load the weights.
+        quant_config_name (`Optional[str]`, *optional*, defaults to `GPTQ_CONFIG`):
+            Name of the quantization config file
+        state_dict_name (`Optional[str]`, *optional*, defaults to `None`):
+            Name of the state dict file
         device_map (`Optional[str]`, *optional*, defaults to `None`):
             A map that specifies where each submodule should go. It doesn't need to be refined to each parameter/buffer
             name, once a given module name is inside, every submodule of it will be sent to the same device.
@@ -536,7 +544,7 @@ def load_quantized_model(
             raise RuntimeError("No GPU found. A GPU is needed to run quantized model.")
         logger.info("The device_map was not initialized." "Setting device_map to `{'':torch.cuda.current_device()}`.")
 
-    with open(os.path.join(save_folder, GPTQ_CONFIG), "r", encoding="utf-8") as f:
+    with open(os.path.join(save_folder, quant_config_name), "r", encoding="utf-8") as f:
         quantize_config_dict = json.load(f)
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
 
@@ -556,7 +564,7 @@ def load_quantized_model(
 
     model = load_checkpoint_and_dispatch(
         model,
-        checkpoint=save_folder,
+        checkpoint= os.path.join(save_folder,state_dict_name) if state_dict_name is not None else save_folder,
         device_map=device_map,
         max_memory=max_memory,
         no_split_module_classes=no_split_module_classes,

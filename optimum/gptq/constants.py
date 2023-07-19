@@ -19,4 +19,6 @@ BLOCK_PATTERNS = [
     "gpt_neox.layers",
     "model.layers",
 ]
-GPTQ_CONFIG = "gtpq_config.json"
+# GPTQ_CONFIG = "gtpq_config.json"
+
+GPTQ_CONFIG = "quantize_config.json"
