@@ -101,6 +101,7 @@ setup(
     author_email="hardware@huggingface.co",
     license="Apache",
     packages=find_namespace_packages(include=["optimum*"]),
+    package_data={"optimum": ["py.typed"]},
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS_REQUIRE,
     python_requires=">=3.7.0",
