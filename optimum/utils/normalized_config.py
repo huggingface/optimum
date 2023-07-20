@@ -30,7 +30,7 @@ class NormalizedConfig:
     """
 
     def __init__(self, config: Union[PretrainedConfig, Dict], allow_new: bool = False, **kwargs):
-        self.config = config if isinstance(config, PretrainedConfig) else PretrainedConfig.from_dict(config)
+        self.config = config
         for key, value in kwargs.items():
             if allow_new or hasattr(self, key.upper()):
                 setattr(self, key.upper(), value)
@@ -140,6 +140,9 @@ T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
 MPTNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
 )
+GPTBigCodeNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="n_head", hidden_size="n_embd", num_layers="n_layer"
+)
 
 WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     hidden_size="d_model",
@@ -241,6 +244,7 @@ class NormalizedConfigManager:
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
         "mpt": MPTNormalizedTextConfig,
+        "gpt_bigcode": GPTBigCodeNormalizedTextConfig,
     }
 
     @classmethod

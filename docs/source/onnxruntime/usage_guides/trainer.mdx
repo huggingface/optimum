@@ -236,6 +236,47 @@ in the Optimum repository.
 
 </Tip>
 
+## ORTModule+StableDiffusion
+
+Optimum supports accelerating Hugging Face Diffusers with ONNX Runtime in [this example](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training/stable-diffusion/text-to-image).
+The core changes required to enable ONNX Runtime Training are summarized below:
+
+```diff
+import torch
+from diffusers import AutoencoderKL, UNet2DConditionModel
+from transformers import CLIPTextModel
+
++from onnxruntime.training.ortmodule import ORTModule
++from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer as ORT_FP16_Optimizer
+
+unet = UNet2DConditionModel.from_pretrained(
+    "CompVis/stable-diffusion-v1-4", 
+    subfolder="unet",
+    ...
+)
+text_encoder = CLIPTextModel.from_pretrained(
+    "CompVis/stable-diffusion-v1-4", 
+    subfolder="text_encoder",
+    ...
+)
+vae = AutoencoderKL.from_pretrained(
+    "CompVis/stable-diffusion-v1-4", 
+    subfolder="vae",
+    ...
+)
+
+optimizer = torch.optim.AdamW(
+    unet.parameters(),
+    ...
+)
+
++vae = ORTModule(vae)
++text_encoder = ORTModule(text_encoder)
++unet = ORTModule(unet)
+
++optimizer = ORT_FP16_Optimizer(optimizer)
+```
+
 ## Other Resources
 
 * Blog posts
