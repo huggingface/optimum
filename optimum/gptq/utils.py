@@ -84,12 +84,11 @@ def get_device(obj: Union[torch.Tensor, nn.Module]):
 def get_seqlen(model: nn.Module):
     if hasattr(model, "config"):
         model_config = model.config.to_dict()
-        print(model_config)
         if any([k in model_config for k in SEQLEN_KEYS_TRANFORMERS]):
             for key in SEQLEN_KEYS_TRANFORMERS:
                 if key in model_config:
                     return model_config[key]
-    logger.warn(
+    logger.info(
         "We couldn't get the model sequence length. Setting it to 2048. You can overwrite this value by passing `model_seqlen` in` GTPQQuantizer`"
     )
     return 2048

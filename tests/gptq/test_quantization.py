@@ -109,8 +109,8 @@ class GTPQTest(unittest.TestCase):
             with init_empty_weights():
                 empty_model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype=torch.float16)
             empty_model.tie_weights()
-            load_quantized_model(empty_model, save_folder=tmpdirname, device_map="auto")
-            self.check_inference_correctness(self.quantized_model)
+            quantized_model_from_saved = load_quantized_model(empty_model, save_folder=tmpdirname, device_map={"": 0})
+            self.check_inference_correctness(quantized_model_from_saved)
 
 
 class GTPQUtilsTest(unittest.TestCase):

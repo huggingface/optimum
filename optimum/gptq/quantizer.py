@@ -218,14 +218,17 @@ class GPTQQuantizer(object):
         if not torch.cuda.is_available():
             raise RuntimeError("No GPU found. A GPU is needed to quantize model.")
 
-        device = get_device(model)
         model.eval()
 
         # For Transformer model
         has_config = False
         if hasattr(model, "config"):
             has_config = True
-
+        if hasattr(model,"hf_device_map"):
+            # If the model has a device_map, we don't move to model. We have already dispatch the hook that will do the work
+            has_device_map = True
+        device = get_device(model)
+        
         if has_config:
             use_cache = model.config.use_cache
             model.config.use_cache = False
@@ -279,33 +282,33 @@ class GPTQQuantizer(object):
         # get block
         blocks = get_module_by_name_prefix(model, self.block_name_to_quantize)
 
-        # put modules from module_name_preceding_first_block on cuda
-        for module_name in self.module_name_preceding_first_block:
-            module = get_module_by_name_prefix(model, module_name)
-            if module is None:
-                raise ValueError(f"Module {module_name} was not found in model")
-            module = module.to(0)
-
-        # get inputs by running self.module_name_preceding_first_block + first block on gpu
-        blocks[0] = blocks[0].to(0)
+        if not has_device_map:
+            # put modules from module_name_preceding_first_block on cuda
+            for module_name in self.module_name_preceding_first_block:
+                module = get_module_by_name_prefix(model, module_name)
+                if module is None:
+                    raise ValueError(f"Module {module_name} was not found in model")
+                module = module.to(0)
+            # get inputs by running self.module_name_preceding_first_block + first block on gpu
+            blocks[0] = blocks[0].to(0)
+    
         blocks[0] = Catcher(blocks[0])
         for data in dataset:
             for k, v in data.items():
-                # put on gpu, we won't put them back to cpu
+                # put the data on gpu, we won't put them back to cpu
                 data[k] = v.to(0)
             try:
                 model(**data)
             except ValueError:
                 pass
         blocks[0] = blocks[0].module
+        if not has_device_map:
+            blocks[0].to(device)
+            for module_name in self.module_name_preceding_first_block:
+                module = get_module_by_name_prefix(model, module_name)
+                if module is None:
+                    raise ValueError(f"Module {module_name} was not found in model")
 
-        # move everything back to device
-        blocks[0] = blocks[0].to(device)
-        for module_name in self.module_name_preceding_first_block:
-            module = get_module_by_name_prefix(model, module_name)
-            if module is None:
-                raise ValueError(f"Module {module_name} was not found in model")
-            module = module.to(device)
         torch.cuda.empty_cache()
 
         # Step 3: Quantize the blocks
@@ -313,8 +316,9 @@ class GPTQQuantizer(object):
         # start quantizing the blocks
         for i, block in enumerate(blocks):
             logger.info(f"Start quantizing block {self.block_name_to_quantize} {i + 1}/{len(blocks)}")
-            # move block to cuda
-            block = block.to(0)
+            # move block to cuda if needed
+            if not has_device_map:
+                block = block.to(0)
             layers = get_layers(block)
             if self.true_sequential:
                 # lazy sequential but works well
@@ -336,7 +340,8 @@ class GPTQQuantizer(object):
                             gptq[name].add_batch(input[0].data, output.data)
 
                         return tmp
-
+                    # TODO : need to rework on these hooks if we use a device_map 
+                    # because it adding a hook will replace the old one. 
                     handles.append(subset_layers[name].register_forward_hook(add_batch(name)))
                 # update Hessian for each layer in subset_layers thanks to the hook
                 for j in range(len(dataset)):
@@ -353,6 +358,7 @@ class GPTQQuantizer(object):
                     )
                     # if we pack the model at the end
                     if not self.pack_sequentially:
+                        pass
                         quantizers[f"{self.block_name_to_quantize}.{i}.{name}"] = (
                             gptq[name].quantizer,
                             scale,
@@ -370,9 +376,10 @@ class GPTQQuantizer(object):
                         layer_name = f"{self.block_name_to_quantize}.{i}.{name}"
                         self._replace_by_quant_layers(model, [layer_name])
                         quantized_layer = get_module_by_name_prefix(model, layer_name)
+                        device_layer = get_device(quantized_layer)
                         quantized_layer = quantized_layer.to("cpu")
                         quantized_layer.pack(subset_layers[name], scale, zero, g_idx)
-                        quantized_layer = quantized_layer.to(0)
+                        quantized_layer = quantized_layer.to(device_layer)
                     gptq[name].free()
                 del subset_layers
             # we get the new output from the partial quantized block
@@ -381,7 +388,8 @@ class GPTQQuantizer(object):
                 layer_outputs.append(layer_output)
 
             # put back to device
-            blocks[i] = block.to(device)
+            if not has_device_map:
+                blocks[i] = block.to(device)
             del layers
             del layer_inputs
             layer_inputs, layer_outputs = layer_outputs, []
@@ -455,10 +463,12 @@ class GPTQQuantizer(object):
                 Whether to save the model using `safetensors` or the traditional PyTorch way (that uses `pickle`).
 
         """
-        
+
         if not is_accelerate_available():
-            raise RuntimeError("You need to install accelerate in order to save a quantized model. You can do it with `pip install accelerate`")
-    
+            raise RuntimeError(
+                "You need to install accelerate in order to save a quantized model. You can do it with `pip install accelerate`"
+            )
+
         os.makedirs(save_dir, exist_ok=True)
         if not model._is_quantized_gptq:
             raise EnvironmentError("can only save quantized model, please execute .quantize first.")
@@ -523,8 +533,10 @@ def load_quantized_model(
     if not torch.cuda.is_available():
         raise RuntimeError("No GPU found. A GPU is needed to run quantized model.")
     if not is_accelerate_available():
-        raise RuntimeError("You need to install accelerate in order to load and dispatch weights to"
-                            "a quantized model. You can do it with `pip install accelerate`")
+        raise RuntimeError(
+            "You need to install accelerate in order to load and dispatch weights to"
+            "a quantized model. You can do it with `pip install accelerate`"
+        )
     if device_map is None:
         device_map = {"": torch.cuda.current_device()}
         logger.info("The device_map was not initialized." "Setting device_map to `{'':torch.cuda.current_device()}`.")
