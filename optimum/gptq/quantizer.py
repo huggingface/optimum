@@ -392,7 +392,7 @@ class GPTQQuantizer(object):
         if not self.pack_sequentially:
             self.pack_model(model=model, quantizers=quantizers)
 
-        model._gptq_is_quantized = True
+        model._is_quantized_gptq = True
         if has_config:
             model.config.use_cache = use_cache
 
@@ -457,7 +457,7 @@ class GPTQQuantizer(object):
         """
 
         os.makedirs(save_dir, exist_ok=True)
-        if not model._gptq_is_quantized:
+        if not model._is_quantized_gptq:
             raise EnvironmentError("can only save quantized model, please execute .quantize first.")
         model = model.to("cpu")
         # save model and config
@@ -465,7 +465,7 @@ class GPTQQuantizer(object):
         accelerator.save_model(model, save_dir, max_shard_size=max_shard_size, safe_serialization=safe_serialization)
         with open(os.path.join(save_dir, GPTQ_CONFIG), "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2)
-        # Specific to transformers but I will keep it here for now
+        # TODO: remove that when the integration with transformers is done
         if hasattr(model, "config"):
             model.config.save_pretrained(save_dir)
 
@@ -517,11 +517,10 @@ def load_quantized_model(
     Returns:
         `nn.Module`: The quantized model
     """
+    if not torch.cuda.is_available():
+        raise RuntimeError("No GPU found. A GPU is needed to run quantized model.")
     if device_map is None:
-        if torch.cuda.is_available():
-            device_map = {"": torch.cuda.current_device()}
-        else:
-            raise RuntimeError("No GPU found. A GPU is needed to run quantized model.")
+        device_map = {"": torch.cuda.current_device()}
         logger.info("The device_map was not initialized." "Setting device_map to `{'':torch.cuda.current_device()}`.")
 
     with open(os.path.join(save_folder, quant_config_name), "r", encoding="utf-8") as f:
@@ -537,10 +536,6 @@ def load_quantized_model(
     if no_split_module_classes is None:
         block_class_name = get_module_by_name_prefix(model, block_name)[0].__class__.__name__
         no_split_module_classes = [block_class_name]
-
-    # specific to transformers
-    # make sure that the weights are tied
-    model.tie_weights()
 
     model = load_checkpoint_and_dispatch(
         model,
