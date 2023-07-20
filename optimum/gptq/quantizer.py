@@ -53,8 +53,6 @@ class GPTQQuantizer(object):
         true_sequential: bool = True,
         pack_sequentially: bool = False,
         use_cuda_fp16: bool = True,
-        use_triton: bool = False,
-        warmup_triton: bool = False,
         model_seqlen: Optional[int] = None,
         block_name_to_quantize: Optional[str] = None,
         module_name_preceding_first_block: Optional[List[str]] = None,
@@ -81,10 +79,6 @@ class GPTQQuantizer(object):
                 Whether to pack the layer just after it is quantized. If False, we will pack the model at the end.
             use_cuda_fp16 (`bool`, *optional*, defaults to `True`):
                 Whether or not to use optmized cuda kernel for fp16 model. Need to have model in fp16.
-            use_triton (`bool`, *optional*, defaults to `False`):
-                Whether to use triton.
-            warmup_triton (`bool`, *optional*, defaults to `False`):
-                Whether to warm up triton. Need to have `use_triton=True`.
             model_seqlen (`int`, *optional*, defaults to `None`):
                 The model sequence length
             block_name_to_quantize (`str`, *optional*, defaults to `None`):
@@ -101,8 +95,6 @@ class GPTQQuantizer(object):
         self.true_sequential = true_sequential
         self.pack_sequentially = pack_sequentially
         self.use_cuda_fp16 = use_cuda_fp16
-        self.use_triton = use_triton
-        self.warmup_triton = warmup_triton
         self.model_seqlen = model_seqlen
         self.block_name_to_quantize = block_name_to_quantize
         self.module_name_preceding_first_block = module_name_preceding_first_block
@@ -119,8 +111,6 @@ class GPTQQuantizer(object):
             "true_sequential",
             "pack_sequentially",
             "use_cuda_fp16",
-            "use_triton",
-            "warmup_triton",
         ]:
             if not isinstance(getattr(self, boolean), bool):
                 raise ValueError(f"{boolean} must be a float")
@@ -166,7 +156,7 @@ class GPTQQuantizer(object):
                 To keep track of the name of the current module
         """
         QuantLinear = dynamically_import_QuantLinear(
-            use_triton=self.use_triton, desc_act=self.desc_act, group_size=self.group_size
+            use_triton=False, desc_act=self.desc_act, group_size=self.group_size
         )
         if isinstance(module, QuantLinear):
             return
@@ -185,7 +175,7 @@ class GPTQQuantizer(object):
                 elif isinstance(layer, Conv1D):
                     in_features = layer.weight.shape[0]
                     out_features = layer.weight.shape[1]
-                if (not (self.desc_act) or self.group_size == -1) and not self.use_triton:
+                if not (self.desc_act) or self.group_size == -1:
                     new_layer = QuantLinear(
                         self.bits, self.group_size, in_features, out_features, True, use_cuda_fp16=self.use_cuda_fp16
                     )
@@ -402,16 +392,6 @@ class GPTQQuantizer(object):
         if not self.pack_sequentially:
             self.pack_model(model=model, quantizers=quantizers)
 
-        # Step 5 (Optional) :Warmup
-        if self.use_triton and self.warmup_triton:
-            QuantLinear = dynamically_import_QuantLinear(
-                use_triton=self.use_triton, desc_act=self.desc_act, group_size=self.group_size
-            )
-            logger.warning(
-                "using autotune_warmup will move model to GPU, make sure you have enough VRAM to load the whole model."
-            )
-            QuantLinear.warmup(model.to(0), seqlen=self.model_seqlen)
-
         model._gptq_is_quantized = True
         if has_config:
             model.config.use_cache = use_cache
@@ -434,7 +414,7 @@ class GPTQQuantizer(object):
                 _description_
         """
         QuantLinear = dynamically_import_QuantLinear(
-            use_triton=self.use_triton, desc_act=self.desc_act, group_size=self.group_size
+            use_triton=False, desc_act=self.desc_act, group_size=self.group_size
         )
         logger.info("Packing model...")
         layers = get_layers(model)
@@ -564,7 +544,7 @@ def load_quantized_model(
 
     model = load_checkpoint_and_dispatch(
         model,
-        checkpoint= os.path.join(save_folder,state_dict_name) if state_dict_name is not None else save_folder,
+        checkpoint=os.path.join(save_folder, state_dict_name) if state_dict_name is not None else save_folder,
         device_map=device_map,
         max_memory=max_memory,
         no_split_module_classes=no_split_module_classes,
@@ -574,11 +554,4 @@ def load_quantized_model(
     )
     # put on eval mode
     model.eval()
-    if quantizer.warmup_triton:
-        QuantLinear = dynamically_import_QuantLinear(
-            use_triton=quantizer.use_triton, desc_act=quantizer.desc_act, group_size=quantizer.group_size
-        )
-        if quantizer.model_seqlen is None:
-            quantizer.model_seqlen = get_seqlen(model)
-        QuantLinear.warmup(model, seqlen=quantizer.model_seqlen)
     return model
