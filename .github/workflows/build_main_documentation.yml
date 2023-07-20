@@ -74,6 +74,7 @@ jobs:
 
       - name: Make Graphcore documentation
         run: |
+          sudo docker system prune -a -f
           cd optimum-graphcore
           make doc BUILD_DIR=graphcore-doc-build VERSION=${{ env.VERSION }}
           sudo mv graphcore-doc-build ../optimum
@@ -81,6 +82,7 @@ jobs:
 
       - name: Make Habana documentation
         run: |
+          sudo docker system prune -a -f
           cd optimum-habana
           make doc BUILD_DIR=habana-doc-build VERSION=${{ env.VERSION }}
           sudo mv habana-doc-build ../optimum
@@ -88,6 +90,7 @@ jobs:
 
       - name: Make Intel documentation
         run: |
+          sudo docker system prune -a -f
           cd optimum-intel
           make doc BUILD_DIR=intel-doc-build VERSION=${{ env.VERSION }}
           sudo mv intel-doc-build ../optimum
@@ -97,6 +100,19 @@ jobs:
         run: |
           cd optimum-furiosa
           pip install .
+          sudo apt update
+          sudo apt install -y ca-certificates apt-transport-https gnupg
+          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key 5F03AFA423A751913F249259814F888B20B09A7E
+          sudo tee -a /etc/apt/auth.conf.d/furiosa.conf > /dev/null <<EOT
+            machine archive.furiosa.ai
+            login ${{ secrets.FURIOSA_ACCESS_KEY }}
+            password ${{ secrets.FURIOSA_SECRET_ACCESS_KEY }}
+          EOT
+          sudo chmod 400 /etc/apt/auth.conf.d/furiosa.conf
+          sudo tee -a /etc/apt/sources.list.d/furiosa.list <<EOT
+            deb [arch=amd64] https://archive.furiosa.ai/ubuntu jammy restricted
+          EOT
+          sudo apt update && sudo apt install -y furiosa-libnux
           doc-builder build optimum.furiosa docs/source/ --build_dir furiosa-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
           mv furiosa-doc-build ../optimum
           cd ..
