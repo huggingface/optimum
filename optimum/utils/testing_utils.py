@@ -25,7 +25,7 @@ from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 import torch
 from packaging.version import parse
 
-from . import is_accelerate_available, is_diffusers_available
+from . import is_accelerate_available, is_autogptq_available, is_diffusers_available
 
 
 # Used to test the hub
@@ -54,6 +54,13 @@ def require_accelerate(test_case):
     Decorator marking a test that requires accelerate. These tests are skipped when accelerate isn't installed.
     """
     return unittest.skipUnless(is_accelerate_available(), "test requires accelerate")(test_case)
+
+
+def require_autogptq(test_case):
+    """
+    Decorator marking a test that requires autogptq. These tests are skipped when autogptq isn't installed.
+    """
+    return unittest.skipUnless(is_autogptq_available(), "test requires autogptq")(test_case)
 
 
 def require_torch_gpu(test_case):
