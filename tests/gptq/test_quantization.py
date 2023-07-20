@@ -164,11 +164,11 @@ class GTPQDataTest(unittest.TestCase):
     def setUp(self):
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=True)
 
-    @parameterized.expand(['wikitext2','c4','ptb','c4-new','ptb-new'])
+    @parameterized.expand(["wikitext2", "c4", "ptb", "c4-new", "ptb-new"])
     def test_dataset(self, dataset):
         train_dataset = get_dataset(
             dataset, self.tokenizer, nsamples=self.NBSAMPLES, seqlen=self.SEQLEN, split="train"
         )
         self.assertEqual(len(train_dataset), self.NBSAMPLES)
         self.assertCountEqual(list(train_dataset[0].keys()), ["input_ids", "attention_mask"])
-        self.assertEqual(list(train_dataset[0]["input_ids"].size()), [1,self.SEQLEN])
+        self.assertEqual(list(train_dataset[0]["input_ids"].size()), [1, self.SEQLEN])
