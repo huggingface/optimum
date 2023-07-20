@@ -455,7 +455,10 @@ class GPTQQuantizer(object):
                 Whether to save the model using `safetensors` or the traditional PyTorch way (that uses `pickle`).
 
         """
-
+        
+        if not is_accelerate_available():
+            raise RuntimeError("You need to install accelerate in order to save a quantized model. You can do it with `pip install accelerate`")
+    
         os.makedirs(save_dir, exist_ok=True)
         if not model._is_quantized_gptq:
             raise EnvironmentError("can only save quantized model, please execute .quantize first.")
@@ -519,6 +522,9 @@ def load_quantized_model(
     """
     if not torch.cuda.is_available():
         raise RuntimeError("No GPU found. A GPU is needed to run quantized model.")
+    if not is_accelerate_available():
+        raise RuntimeError("You need to install accelerate in order to load and dispatch weights to"
+                            "a quantized model. You can do it with `pip install accelerate`")
     if device_map is None:
         device_map = {"": torch.cuda.current_device()}
         logger.info("The device_map was not initialized." "Setting device_map to `{'':torch.cuda.current_device()}`.")
