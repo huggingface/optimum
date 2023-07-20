@@ -224,11 +224,11 @@ class GPTQQuantizer(object):
         has_config = False
         if hasattr(model, "config"):
             has_config = True
-        if hasattr(model,"hf_device_map"):
+        if hasattr(model, "hf_device_map"):
             # If the model has a device_map, we don't move to model. We have already dispatch the hook that will do the work
             has_device_map = True
         device = get_device(model)
-        
+
         if has_config:
             use_cache = model.config.use_cache
             model.config.use_cache = False
@@ -291,7 +291,7 @@ class GPTQQuantizer(object):
                 module = module.to(0)
             # get inputs by running self.module_name_preceding_first_block + first block on gpu
             blocks[0] = blocks[0].to(0)
-    
+
         blocks[0] = Catcher(blocks[0])
         for data in dataset:
             for k, v in data.items():
@@ -340,8 +340,9 @@ class GPTQQuantizer(object):
                             gptq[name].add_batch(input[0].data, output.data)
 
                         return tmp
-                    # TODO : need to rework on these hooks if we use a device_map 
-                    # because it adding a hook will replace the old one. 
+
+                    # TODO : need to rework on these hooks if we use a device_map
+                    # because it adding a hook will replace the old one.
                     handles.append(subset_layers[name].register_forward_hook(add_batch(name)))
                 # update Hessian for each layer in subset_layers thanks to the hook
                 for j in range(len(dataset)):
