@@ -74,7 +74,6 @@ jobs:
 
       - name: Make Graphcore documentation
         run: |
-          sudo docker system prune -a -f
           cd optimum-graphcore
           make doc BUILD_DIR=graphcore-doc-build VERSION=${{ env.VERSION }}
           sudo mv graphcore-doc-build ../optimum
@@ -130,7 +129,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages graphcore habana intel furiosa neuron --version ${{ env.VERSION }}
+          sudo python docs/combine_docs.py --subpackages graphcore habana intel neuron furiosa --version ${{ env.VERSION }}
           cd ..
 
       - name: Push to repositories
