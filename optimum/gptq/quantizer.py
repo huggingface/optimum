@@ -76,6 +76,8 @@ class GPTQQuantizer(object):
                 Whether to use symetric quantization.
             true_sequential (`bool`, defaults to `True`):
                 Whether to perform sequential quantization even within a single Transformer block.
+                Instead of quantizing the entire block at once, we perform layer-wise quantization.
+                As a result, each layer undergoes quantization using inputs that have passed through the previously quantized layers.
             pack_sequentially (`bool`, defaults to `True`):
                 Whether to pack the layer just after it is quantized. If False, we will pack the model at the end.
             use_cuda_fp16 (`bool`, defaults to `True`):
