@@ -35,10 +35,7 @@ def rename_subpackage_toc(subpackage: str, toc: Dict):
                 rename_subpackage_toc(subpackage, [file])
 
     # Just keep the name of the partner
-    if subpackage != "furiosa":
-        toc[0]["title"] = toc[0]["title"].split("Optimum ")[-1]
-    else:
-        toc[0]["title"] = "FuriosaAI"
+    toc[0]["title"] = toc[0]["title"].split("Optimum ")[-1]
 
 
 def rename_copy_subpackage_html_paths(subpackage: str, subpackage_path: Path, optimum_path: Path, version: str):
