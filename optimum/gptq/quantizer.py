@@ -106,23 +106,6 @@ class GPTQQuantizer(object):
             raise ValueError("group_size must be greater than 0 or equal to -1")
         if not (0 < self.damp_percent < 1):
             raise ValueError("damp_percent must between 0 and 1.")
-        for boolean in [
-            "desc_act",
-            "sym",
-            "true_sequential",
-            "pack_sequentially",
-            "use_cuda_fp16",
-        ]:
-            if not isinstance(getattr(self, boolean), bool):
-                raise ValueError(f"{boolean} must be a boolean")
-        if self.model_seqlen is not None and not isinstance(self.model_seqlen, int):
-            raise ValueError("model_seqlen must be an int")
-        if self.block_name_to_quantize is not None and not isinstance(self.block_name_to_quantize, str):
-            raise ValueError("block_name_to_quantize must be a string")
-        if self.module_name_preceding_first_block is not None and not isinstance(
-            self.module_name_preceding_first_block, list
-        ):
-            raise ValueError("block_name_to_quantize must be a list of string")
 
     def to_dict(self):
         """
