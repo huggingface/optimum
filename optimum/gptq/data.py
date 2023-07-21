@@ -26,7 +26,9 @@ Set of utilities for loading most used datasets (original dataset from GPTQ pape
 """
 
 
-def prepare_dataset(examples: List[Dict[str, torch.LongTensor]], batch_size: int = 1, pad_token_id: Optional[int] = None):
+def prepare_dataset(
+    examples: List[Dict[str, torch.LongTensor]], batch_size: int = 1, pad_token_id: Optional[int] = None
+):
     """
     Prepare the dataset by making sure that we have the right format and `batch_size`
     Args:

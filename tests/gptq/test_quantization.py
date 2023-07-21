@@ -19,11 +19,11 @@ import unittest
 import torch
 from parameterized import parameterized
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.testing_utils import slow
 
 from optimum.gptq import GPTQQuantizer, load_quantized_model
 from optimum.gptq.data import get_dataset
 from optimum.utils.testing_utils import require_accelerate, require_autogptq, require_torch_gpu
-from transformers.testing_utils import slow
 
 
 @slow

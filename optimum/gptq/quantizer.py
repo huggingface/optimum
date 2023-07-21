@@ -341,7 +341,6 @@ class GPTQQuantizer(object):
                     )
                     # if we pack the model at the end
                     if not self.pack_sequentially:
-                        pass
                         quantizers[f"{self.block_name_to_quantize}.{i}.{name}"] = (
                             gptq[name].quantizer,
                             scale,
@@ -400,9 +399,9 @@ class GPTQQuantizer(object):
 
         Args:
             model (`nn.Module`):
-                _description_
+                The model to pack
             quantizers (`Dict[str,Tuple]`):
-                _description_
+                A mapping of the layer name and the data needed to pack the layer
         """
         QuantLinear = dynamically_import_QuantLinear(
             use_triton=False, desc_act=self.desc_act, group_size=self.group_size
