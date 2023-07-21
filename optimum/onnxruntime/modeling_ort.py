@@ -170,7 +170,6 @@ class ORTModel(OptimizedModel):
     @classproperty
     def export_feature(cls):
         logger.warning(f"{cls.__name__}.export_feature is deprecated, and will be removed in optimum 2.0.")
-
         try:
             feature = TasksManager.infer_task_from_model(cls.auto_model_class)
         except ValueError:

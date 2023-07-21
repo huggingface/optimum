@@ -1244,6 +1244,11 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         generation_config: Optional[GenerationConfig] = None,
         **kwargs,
     ):
+        # There are probably other archs that do not support cross attention KV cache, but only
+        # this one seem popular on the Hub.
+        if config.decoder.model_type == "gpt2":
+            self.no_cross_attention_cache = True
+
         super().__init__(
             encoder_session,
             decoder_session,
