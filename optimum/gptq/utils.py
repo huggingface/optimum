@@ -25,13 +25,27 @@ from .constants import BLOCK_PATTERNS, SEQLEN_KEYS_TRANFORMERS
 logger = getLogger(__name__)
 
 
-def get_module_by_name_prefix(model: nn.Module, module_name: str):
-    for name, module in model.named_modules():
-        if name.startswith(module_name):
-            return module
+"""
+Set of utilities to get specific attributes of a model
+"""
 
 
 def get_layers(module: nn.Module, layers=[Conv1D, nn.Conv2d, nn.Linear], prefix: Optional[str] = None, name: str = ""):
+    """
+    Get all the layers with a specific prefix in the module
+    Args:
+        module (`nn.Module`):
+            The module that contains our layers
+        layers (`list`, *optional*, defaults to `[Conv1D, nn.Conv2d, nn.Linear]`):
+            Type of the layers that we want to get
+        prefix (`Optional[str]`, *optional*, defaults to `None`):
+            Prefix of layers
+        name (`str`, *optional*, defaults to `""`):
+            Used for recursion. Don't modify
+
+    Returns:
+        `Dict[str,Union[Conv1D, nn.Conv2d, nn.Linear]]`: Mapping of the name of the layer and the actual layer
+    """
     for layer in layers:
         if isinstance(module, layer):
             if prefix is not None:
@@ -45,15 +59,22 @@ def get_layers(module: nn.Module, layers=[Conv1D, nn.Conv2d, nn.Linear], prefix:
     return res
 
 
-def get_block_name(model: nn.Module):
+def get_block_name_with_pattern(model: nn.Module):
+    """
+    Get the name of the module that contains the transformers blocks by checking if any modules has a specific pattern
+
+    Args:
+        model (`nn.Module`):
+        The input model
+    Returns:
+        `str`: The name of the module that contains the Transformer blocks.
+    """
     modules_names = [n for n, _ in model.named_modules()]
     for pattern_candidate in BLOCK_PATTERNS:
         pattern_candidate = pattern_candidate
         if any([pattern_candidate in name for name in modules_names]):
             return pattern_candidate
-    raise ValueError(
-        "We are not able to infer the block name to quantize. Pass `block_name_to_quantize` argument in `quantize_model`"
-    )
+    raise ValueError("Block pattern could not be match. Pass `block_name_to_quantize` argument in `quantize_model`")
 
 
 def get_preceding_modules(model: nn.Module, module_name: str):

@@ -132,10 +132,10 @@ class GTPQUtilsTest(unittest.TestCase):
         self.assertEqual(seqlen, self.expected_seqlen)
 
     def test_get_block_name(self):
-        from optimum.gptq.utils import get_block_name, get_module_by_name_prefix
+        from optimum.gptq.utils import get_block_name_with_pattern, get_module_by_name_prefix
 
         model = AutoModelForCausalLM.from_pretrained(self.model_name)
-        block_name = get_block_name(model)
+        block_name = get_block_name_with_pattern(model)
         self.assertEqual(block_name, self.expected_block_name)
         block_name_class = get_module_by_name_prefix(model, block_name)[0].__class__.__name__
         self.assertEqual(block_name_class, self.expected_block_name_class)

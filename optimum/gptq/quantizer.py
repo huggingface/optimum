@@ -23,9 +23,10 @@ from torch import nn
 from transformers.pytorch_utils import Conv1D
 
 from ..utils import is_accelerate_available, is_autogptq_available
+from ..utils.modeling_utils import recurse_getattr
 from .constants import GPTQ_CONFIG
 from .data import get_dataset, prepare_dataset
-from .utils import get_block_name, get_device, get_layers, get_module_by_name_prefix, get_preceding_modules, get_seqlen
+from .utils import get_block_name_with_pattern, get_device, get_layers, get_preceding_modules, get_seqlen
 
 
 if is_accelerate_available():
@@ -238,7 +239,7 @@ class GPTQQuantizer(object):
 
         # Step 1: Prepare the data
         if isinstance(dataset, str):
-            dataset, _ = get_dataset(dataset, tokenizer, seqlen=self.model_seqlen)
+            dataset = get_dataset(dataset, tokenizer, seqlen=self.model_seqlen, split="train")
         elif isinstance(dataset, list):
             dataset = [tokenizer(data, return_tensors="pt") for data in dataset]
         dataset = prepare_dataset(dataset, pad_token_id=pad_token_id, batch_size=batch_size)
@@ -273,19 +274,19 @@ class GPTQQuantizer(object):
 
         # get block_name
         if self.block_name_to_quantize is None:
-            self.block_name_to_quantize = get_block_name(model)
+            self.block_name_to_quantize = get_block_name_with_pattern(model)
 
         # get modules_name that are preceding the first block
         if self.module_name_preceding_first_block is None:
             self.module_name_preceding_first_block = get_preceding_modules(model, self.block_name_to_quantize)
 
         # get block
-        blocks = get_module_by_name_prefix(model, self.block_name_to_quantize)
+        blocks = recurse_getattr(model, self.block_name_to_quantize)
 
         if not has_device_map:
             # put modules from module_name_preceding_first_block on cuda
             for module_name in self.module_name_preceding_first_block:
-                module = get_module_by_name_prefix(model, module_name)
+                module = recurse_getattr(model, module_name)
                 if module is None:
                     raise ValueError(f"Module {module_name} was not found in model")
                 module = module.to(0)
@@ -305,7 +306,7 @@ class GPTQQuantizer(object):
         if not has_device_map:
             blocks[0].to(device)
             for module_name in self.module_name_preceding_first_block:
-                module = get_module_by_name_prefix(model, module_name)
+                module = recurse_getattr(model, module_name)
                 if module is None:
                     raise ValueError(f"Module {module_name} was not found in model")
 
@@ -376,7 +377,7 @@ class GPTQQuantizer(object):
                         )
                         layer_name = f"{self.block_name_to_quantize}.{i}.{name}"
                         self._replace_by_quant_layers(model, [layer_name])
-                        quantized_layer = get_module_by_name_prefix(model, layer_name)
+                        quantized_layer = recurse_getattr(model, layer_name)
                         device_layer = get_device(quantized_layer)
                         quantized_layer = quantized_layer.to("cpu")
                         quantized_layer.pack(subset_layers[name], scale, zero, g_idx)
@@ -547,13 +548,13 @@ def load_quantized_model(
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
 
     if quantizer.block_name_to_quantize is None:
-        quantizer.block_name_to_quantize = get_block_name(model)
+        quantizer.block_name_to_quantize = get_block_name_with_pattern(model)
     block_name = quantizer.block_name_to_quantize
 
     layers_to_be_replaced = get_layers(model, prefix=block_name)
     quantizer._replace_by_quant_layers(model, layers_to_be_replaced)
     if no_split_module_classes is None:
-        block_class_name = get_module_by_name_prefix(model, block_name)[0].__class__.__name__
+        block_class_name = recurse_getattr(model, block_name)[0].__class__.__name__
         no_split_module_classes = [block_class_name]
 
     model = load_checkpoint_and_dispatch(
