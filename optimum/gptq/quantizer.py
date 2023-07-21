@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2023 HuggingFace Inc. team and BigScience workshop.
+# Copyright 2023 HuggingFace Inc. team and GPTQ and AutoGPTQ authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,11 +75,11 @@ class GPTQQuantizer(object):
             sym (`bool`, defaults to `True`):
                 Whether to use symetric quantization.
             true_sequential (`bool`, defaults to `True`):
-                Whether to performing sequential quantization even within a single Transformer block.
+                Whether to perform sequential quantization even within a single Transformer block.
             pack_sequentially (`bool`, defaults to `True`):
                 Whether to pack the layer just after it is quantized. If False, we will pack the model at the end.
             use_cuda_fp16 (`bool`, defaults to `True`):
-                Whether or not to use optmized cuda kernel for fp16 model. Need to have model in fp16.
+                Whether or not to use optimized cuda kernel for fp16 model. Need to have model in fp16.
             model_seqlen (`Optional[int]`, defaults to `None`):
                 The model sequence length
             block_name_to_quantize (`Optional[str]`, defaults to `None`):
@@ -114,7 +114,7 @@ class GPTQQuantizer(object):
             "use_cuda_fp16",
         ]:
             if not isinstance(getattr(self, boolean), bool):
-                raise ValueError(f"{boolean} must be a float")
+                raise ValueError(f"{boolean} must be a boolean")
         if self.model_seqlen is not None and not isinstance(self.model_seqlen, int):
             raise ValueError("model_seqlen must be an int")
         if self.block_name_to_quantize is not None and not isinstance(self.block_name_to_quantize, str):
@@ -126,7 +126,7 @@ class GPTQQuantizer(object):
 
     def to_dict(self):
         """
-        Return the args in dict format
+        Returns the args in dict format.
         """
         return copy.deepcopy(self.__dict__)
 
@@ -146,7 +146,7 @@ class GPTQQuantizer(object):
 
     def _replace_by_quant_layers(self, module: nn.Module, names: List[str], name: str = ""):
         """
-        Replace linear layers in `module` by `QuantLinear`
+        Replaces linear layers in `module` by `QuantLinear`
 
         Args:
             module (`nn.Module`):
@@ -197,14 +197,14 @@ class GPTQQuantizer(object):
         pad_token_id: Optional[int] = None,
     ):
         """
-        Quantize the model using the dataset
+        Quantizes the model using the dataset
 
         Args:
             model (`nn.Module`):
                 The model to quantize
             dataset (`Union[List[str],str]`):
                 The dataset used for quantization. You can provide your own dataset in a list of string or just use the original datasets used
-                in the paper ['wikitext2','c4'].
+                in GPTQ paper ['wikitext2','c4'].
             tokenizer (`Any`):
                 The tokenizer to use in order to prepare the dataset
             batch_size (`int`, defaults to `1`):
@@ -280,7 +280,6 @@ class GPTQQuantizer(object):
         if self.module_name_preceding_first_block is None:
             self.module_name_preceding_first_block = get_preceding_modules(model, self.block_name_to_quantize)
 
-        # get block
         blocks = recurse_getattr(model, self.block_name_to_quantize)
 
         if not has_device_map:
@@ -314,7 +313,6 @@ class GPTQQuantizer(object):
 
         # Step 3: Quantize the blocks
         quantizers = {}
-        # start quantizing the blocks
         for i, block in enumerate(blocks):
             logger.info(f"Start quantizing block {self.block_name_to_quantize} {i + 1}/{len(blocks)}")
             # move block to cuda if needed
