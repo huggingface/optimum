@@ -36,11 +36,11 @@ def get_layers(module: nn.Module, layers=[Conv1D, nn.Conv2d, nn.Linear], prefix:
     Args:
         module (`nn.Module`):
             The module that contains our layers
-        layers (`list`, *optional*, defaults to `[Conv1D, nn.Conv2d, nn.Linear]`):
+        layers (`list`, defaults to `[Conv1D, nn.Conv2d, nn.Linear]`):
             Type of the layers that we want to get
-        prefix (`Optional[str]`, *optional*, defaults to `None`):
+        prefix (`Optional[str]`, defaults to `None`):
             Prefix of layers
-        name (`str`, *optional*, defaults to `""`):
+        name (`str`, defaults to `""`):
             Used for recursion. Don't modify
 
     Returns:

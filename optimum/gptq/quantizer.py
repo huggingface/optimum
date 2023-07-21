@@ -64,27 +64,27 @@ class GPTQQuantizer(object):
         Args:
             bits (`int`):
                 The number of bits to quantize to, supported numbers are (2, 3, 4, 8).
-            group_size (int, *optional*, defaults to -1):
-                The group size to use for quantization. Recommended value is 128 and -1 uses full row.
-            damp_percent (`float`, *optional*, defaults to `0.01`):
+            group_size (int, defaults to -1):
+                The group size to use for quantization. Recommended value is 128 and -1 uses per-column quantization.
+            damp_percent (`float`, defaults to `0.01`):
                 The percent of the average Hessian diagonal to use for dampening, recommended value is 0.01.
-            desc_act (`bool`, *optional*, defaults to `True`):
+            desc_act (`bool`, defaults to `True`):
                 Whether to quantize columns in order of decreasing activation size.
                 Setting it to False can significantly speed up inference but the perplexity may become slightly worse.
                 Also known as act-order.
-            sym (`bool`, *optional*, defaults to `True`):
+            sym (`bool`, defaults to `True`):
                 Whether to use symetric quantization.
-            true_sequential (`bool`, *optional*, defaults to `True`):
+            true_sequential (`bool`, defaults to `True`):
                 Whether to performing sequential quantization even within a single Transformer block.
-            pack_sequentially (`bool`, *optional*, defaults to `True`):
+            pack_sequentially (`bool`, defaults to `True`):
                 Whether to pack the layer just after it is quantized. If False, we will pack the model at the end.
-            use_cuda_fp16 (`bool`, *optional*, defaults to `True`):
+            use_cuda_fp16 (`bool`, defaults to `True`):
                 Whether or not to use optmized cuda kernel for fp16 model. Need to have model in fp16.
-            model_seqlen (`int`, *optional*, defaults to `None`):
+            model_seqlen (`Optional[int]`, defaults to `None`):
                 The model sequence length
-            block_name_to_quantize (`str`, *optional*, defaults to `None`):
+            block_name_to_quantize (`Optional[str]`, defaults to `None`):
                 The transformers block name to quantize.
-            module_name_preceding_first_block (`str`, *optional*, defaults to `None`):
+            module_name_preceding_first_block (`Optional[List[str]]`, defaults to `None`):
                 The layers that are preceding the first Transformer block.
         """
 
@@ -153,7 +153,7 @@ class GPTQQuantizer(object):
                 Module to quantize
             names (`List[str]`):
                 List of names of the module to quantize
-            name (`str`, *optional*, defaults to `""`):
+            name (`str`, defaults to `""`):
                 To keep track of the name of the current module
         """
         QuantLinear = dynamically_import_QuantLinear(
@@ -205,11 +205,11 @@ class GPTQQuantizer(object):
             dataset (`Union[List[str],str]`):
                 The dataset used for quantization. You can provide your own dataset in a list of string or just use the original datasets used
                 in the paper ['wikitext2','c4'].
-            tokenizer (`Any`, defaults to `None`):
+            tokenizer (`Any`):
                 The tokenizer to use in order to prepare the dataset
-            batch_size (`Optional[int]`, *optional*, defaults to `1`):
+            batch_size (`int`, defaults to `1`):
                 The batch size of the dataset
-            pad_token_id (`Optional[int]`, *optional*, defaults to `None`):
+            pad_token_id (`Optional[int]`, defaults to `None`):
                 The pad token id. Needed to prepare the dataset when `batch_size` > 1.
 
         Returns:
@@ -397,7 +397,7 @@ class GPTQQuantizer(object):
             layer_inputs, layer_outputs = layer_outputs, []
             torch.cuda.empty_cache()
 
-        # Step 4 (Optional) : Pack the model at the end (Replacing the layers)
+        # Step 4 () : Pack the model at the end (Replacing the layers)
         # if we pack the model at the end
         if not self.pack_sequentially:
             self.pack_model(model=model, quantizers=quantizers)
@@ -452,7 +452,7 @@ class GPTQQuantizer(object):
                 Model to be saved. The model can be wrapped or unwraped.
             save_dir (`str`):
                 Directory to which to save. Will be created if it doesn't exist.
-            max_shard_size (`str`, *optional*, defaults to `"10GB"`):
+            max_shard_size (`str`, defaults to `"10GB"`):
                 The maximum size for a checkpoint before being sharded. Checkpoints shard will then be each of size
                 lower than this size. If expressed as a string, needs to be digits followed by a unit (like `"5MB"`).
                 <Tip warning={true}>
@@ -461,7 +461,7 @@ class GPTQQuantizer(object):
                 which will be bigger than `max_shard_size`.
 
                 </Tip>
-            safe_serialization (`bool`, *optional*, defaults to `False`):
+            safe_serialization (`bool`, defaults to `False`):
                 Whether to save the model using `safetensors` or the traditional PyTorch way (that uses `pickle`).
 
         """
@@ -488,7 +488,7 @@ class GPTQQuantizer(object):
 def load_quantized_model(
     model: nn.Module,
     save_folder: str,
-    quant_config_name: Optional[str] = GPTQ_CONFIG,
+    quant_config_name: str = GPTQ_CONFIG,
     state_dict_name: Optional[str] = None,
     device_map: Optional[str] = None,
     max_memory: Optional[Dict] = None,
@@ -503,28 +503,28 @@ def load_quantized_model(
     Args:
         model (`nn.Module`):
             The model can be enpty or not.
-        save_folder (`Optional[str]`, *optional*, defaults to `None`):
+        save_folder (`str`):
             Directory to which to load the weights.
-        quant_config_name (`Optional[str]`, *optional*, defaults to `GPTQ_CONFIG`):
+        quant_config_name (`str`, defaults to `GPTQ_CONFIG`):
             Name of the quantization config file
-        state_dict_name (`Optional[str]`, *optional*, defaults to `None`):
+        state_dict_name (`Optional[str]`, defaults to `None`):
             Name of the state dict file
-        device_map (`Optional[str]`, *optional*, defaults to `None`):
+        device_map (`Optional[str]`, defaults to `None`):
             A map that specifies where each submodule should go. It doesn't need to be refined to each parameter/buffer
             name, once a given module name is inside, every submodule of it will be sent to the same device.
             To have Accelerate compute the most optimized `device_map` automatically, set `device_map="auto"`.
-        max_memory (`Optional[Dict]`, *optional*, defaults to `None`):
+        max_memory (`Optional[Dict]`, defaults to `None`):
             A dictionary device identifier to maximum memory. Will default to the maximum memory available for each GPU
             and the available CPU RAM if unset.
-        no_split_module_classes (`Optional[Dict]`, *optional*, defaults to `None`):
+        no_split_module_classes (`Optional[Dict]`, defaults to `None`):
             A list of layer class names that should never be split across device (for instance any layer that has a
             residual connection).
-        offload_folder (`Optional[str]`, *optional*, defaults to `None`):
+        offload_folder (`Optional[str]`, defaults to `None`):
             If the `device_map` contains any value `"disk"`, the folder where we will offload weights.
-        offload_buffers (`Optional[str]`, *optional*, defaults to `None`):
+        offload_buffers (`Optional[str]`, defaults to `None`):
             In the layers that are offloaded on the CPU or the hard drive, whether or not to offload the buffers as
             well as the parameters.
-        offload_state_dict (`bool`, *optional*, defaults to `False`):
+        offload_state_dict (`bool`, defaults to `False`):
             If `True`, will temporarily offload the CPU state dict on the hard drive to avoid getting out of CPU RAM if
             the weight of the CPU state dict + the biggest shard does not fit. Will default to `True` if the device map
             picked contains `"disk"` values.

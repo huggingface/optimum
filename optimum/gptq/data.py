@@ -14,7 +14,7 @@
 
 
 import random
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
@@ -26,15 +26,15 @@ Set of utilities for loading most used datasets (original dataset from GPTQ pape
 """
 
 
-def prepare_dataset(examples: List[Dict[str, torch.LongTensor]], batch_size: int = 1, pad_token_id: int = None):
+def prepare_dataset(examples: List[Dict[str, torch.LongTensor]], batch_size: int = 1, pad_token_id: Optional[int] = None):
     """
     Prepare the dataset by making sure that we have the right format and `batch_size`
     Args:
         examples (`List[Dict[str, torch.LongTensor]]`):
             List of data to prepare
-        batch_size (`int`, *optional*, defaults to `1`):
+        batch_size (`int`, defaults to `1`):
             Batch size of the data
-        pad_token_id (`int`, *optional*, defaults to `None`):
+        pad_token_id (`Optional[int]`, defaults to `None`):
             Pad token id of the model
     Returns:
         `_type_`: _description_
@@ -60,16 +60,16 @@ def prepare_dataset(examples: List[Dict[str, torch.LongTensor]], batch_size: int
 def collate_data(
     blocks: List[Dict[str, torch.LongTensor]],
     contain_labels: bool = False,
-    pad_token_id: int = None,
+    pad_token_id: Optional[int] = None,
 ) -> Dict[str, torch.LongTensor]:
     """
         Collate data in `blocks`
     Args:
         blocks (`List[Dict[str, torch.LongTensor]]`):
             List of tensors that we need to batch together
-        pad_token_id (`int`, *optional*, defaults to `None`):
+        pad_token_id (`Optional[int]`, defaults to `None`):
             Pad token id of the model
-        contain_labels (`bool`, *optional*, defaults to `False`):
+        contain_labels (`bool`, defaults to `False`):
            Set True to also process the labels
 
     Returns:
