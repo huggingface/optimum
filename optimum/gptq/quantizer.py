@@ -41,7 +41,7 @@ logger = getLogger(__name__)
 
 class GPTQQuantizer(object):
     r"""
-    A simple API for GTPQ Quantization
+    A simple API for GPTQ Quantization
     """
 
     def __init__(
