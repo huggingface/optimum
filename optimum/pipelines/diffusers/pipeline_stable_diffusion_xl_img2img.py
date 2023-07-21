@@ -21,7 +21,7 @@ import PIL
 import torch
 from diffusers.pipelines.stable_diffusion_xl import StableDiffusionXLPipelineOutput
 
-from .pipeline_utils import DiffusionPipelineMixin, preprocess, rescale_noise_cfg
+from .pipeline_utils import DiffusionPipelineMixin, rescale_noise_cfg
 
 
 logger = logging.getLogger(__name__)
@@ -400,7 +400,7 @@ class StableDiffusionXLImg2ImgPipelineMixin(DiffusionPipelineMixin):
         )
 
         # 3. Preprocess image
-        image = preprocess(image)
+        image = self.image_processor.preprocess(image)
 
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps)
@@ -487,15 +487,13 @@ class StableDiffusionXLImg2ImgPipelineMixin(DiffusionPipelineMixin):
         if output_type == "latent":
             image = latents
         else:
-            latents = latents / self.vae_decoder.config.get("scaling_factor", 0.18215)
+            latents /= self.vae_decoder.config.get("scaling_factor", 0.18215)
             # it seems likes there is a strange result for using half-precision vae decoder if batchsize>1
             image = np.concatenate(
                 [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
             )
             image = self.watermark.apply_watermark(image)
-
-            # TODO: add image_processor
-            image = np.clip(image / 2 + 0.5, 0, 1).transpose((0, 2, 3, 1))
+            image = self.image_processor.postprocess(image, output_type=output_type)
 
         if output_type == "pil":
             image = self.numpy_to_pil(image)
