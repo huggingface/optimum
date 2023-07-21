@@ -841,6 +841,15 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
     MIN_TORCH_VERSION = version.parse("2.1")
 
+    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
+        super().__init__(config, task)
+        if task == "zero-shot-object-detection":
+            logger.warning(
+                "The batch size of this model will not be dynamic because non-maximum suppression is performed. "
+                "Make sure to export the model with the same batch size as the one you will use at inference "
+                "with `--batch_size N`."
+            )
+
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         outputs = {}
