@@ -205,13 +205,13 @@ def get_dataset(
             Dataset name. The options are ['wikitext2','c4','ptb','c4-new','ptb_new']
         tokenizer (`Any`):
             Tokenizer of the model
-        nsamples (`int`, *optional*, defaults to `128`):
+        nsamples (`int`, defaults to `128`):
             Number of samples
-        seqlen (`int`, *optional*, defaults to `2048`):
+        seqlen (`int`, defaults to `2048`):
             The sequence length of the model
-        seed (`int`, *optional*, defaults to `0`):
+        seed (`int`, defaults to `0`):
             Seed
-        split (`str`, *optional*, defaults to `train`):
+        split (`str`, defaults to `train`):
             Split of the dataset. Can be either "train" or "validation"
     Returns:
         `List[Dict[str,torch.LongTensor]]`: The tokenized dataset.
