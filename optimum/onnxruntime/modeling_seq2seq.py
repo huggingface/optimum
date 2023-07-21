@@ -389,15 +389,36 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
     def compute_encoder_known_output_shapes(self, pixel_values: torch.FloatTensor) -> Dict[str, List[int]]:
-        return {
-            "last_hidden_state": [
-                pixel_values.shape[0],  # batch_size
+        print(pixel_values.shape)
+        if type(self.normalized_config.config.image_size) == int:
+            # for vit models
+            encoder_sequence_length = (
+                self.normalized_config.config.image_size**2
+                * self.normalized_config.config.num_channels
+                // self.normalized_config.config.hidden_size
+                + 1  # for cls token
+            )
+            return {
+                "last_hidden_state": [
+                    pixel_values.shape[0],  # batch_size
+                    encoder_sequence_length,  # encoder_sequence_length
+                    self.normalized_config.config.hidden_size,  # hidden_size
+                ]
+            }
+        else:
+            # for swin and donut-swim models
+            encoder_sequence_length = (
                 self.normalized_config.config.image_size[0]
                 * self.normalized_config.config.image_size[1]
-                // self.normalized_config.config.hidden_size,  # encoder_sequence_length
-                self.normalized_config.config.hidden_size,  # hidden_size
-            ]
-        }
+                // self.normalized_config.config.hidden_size
+            )
+            return {
+                "last_hidden_state": [
+                    pixel_values.shape[0],  # batch_size
+                    encoder_sequence_length,  # encoder_sequence_length
+                    self.normalized_config.config.hidden_size,  # hidden_size
+                ]
+            }
 
 
 class ORTModelForConditionalGeneration(ORTModel, ABC):
