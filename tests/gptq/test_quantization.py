@@ -23,11 +23,11 @@ from transformers.testing_utils import slow
 
 from optimum.gptq import GPTQQuantizer, load_quantized_model
 from optimum.gptq.data import get_dataset
-from optimum.utils.testing_utils import require_accelerate, require_autogptq, require_torch_gpu
+from optimum.utils.testing_utils import require_accelerate, require_auto_gptq, require_torch_gpu
 
 
 @slow
-@require_autogptq
+@require_auto_gptq
 @require_torch_gpu
 class GTPQTest(unittest.TestCase):
     model_name = "bigscience/bloom-560m"

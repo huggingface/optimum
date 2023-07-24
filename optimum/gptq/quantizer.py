@@ -22,7 +22,7 @@ import torch
 from torch import nn
 from transformers.pytorch_utils import Conv1D
 
-from ..utils import is_accelerate_available, is_autogptq_available
+from ..utils import is_accelerate_available, is_auto_gptq_available
 from ..utils.modeling_utils import recurse_getattr
 from .constants import GPTQ_CONFIG
 from .data import get_dataset, prepare_dataset
@@ -32,7 +32,7 @@ from .utils import get_block_name_with_pattern, get_device, get_layers, get_prec
 if is_accelerate_available():
     from accelerate import Accelerator, load_checkpoint_and_dispatch
 
-if is_autogptq_available():
+if is_auto_gptq_available():
     from auto_gptq.quantization import GPTQ
     from auto_gptq.utils.import_utils import dynamically_import_QuantLinear
 
@@ -230,7 +230,8 @@ class GPTQQuantizer(object):
         Returns:
             `nn.Module`: The quantized model
         """
-
+        if not is_auto_gptq_available():
+            raise RuntimeError("auto-gptq is required in order to perform quantzation : `pip install auto-gptq`")
         if not torch.cuda.is_available():
             raise RuntimeError("No GPU found. A GPU is needed to quantize model.")
 
@@ -544,6 +545,8 @@ def load_quantized_model(
     """
     if not torch.cuda.is_available():
         raise RuntimeError("No GPU found. A GPU is needed to run quantized model.")
+    if not is_auto_gptq_available():
+        raise RuntimeError("auto-gptq is required in order to load quantized weights : `pip install auto-gptq`")
     if not is_accelerate_available():
         raise RuntimeError(
             "You need to install accelerate in order to load and dispatch weights to"
