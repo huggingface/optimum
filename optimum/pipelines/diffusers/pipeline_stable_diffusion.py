@@ -286,8 +286,8 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             list of `bool`s denoting whether the corresponding generated image likely represents "not-safe-for-work"
             (nsfw) content, according to the `safety_checker`.
         """
-        height = height or self.unet.config["sample_size"] * self.vae_scale_factor
-        width = width or self.unet.config["sample_size"] * self.vae_scale_factor
+        height = height or self.unet.config.get("sample_size", 64) * self.vae_scale_factor
+        width = width or self.unet.config.get("sample_size", 64) * self.vae_scale_factor
 
         # check inputs. Raise error if not correct
         self.check_inputs(
