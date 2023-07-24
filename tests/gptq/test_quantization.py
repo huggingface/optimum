@@ -63,7 +63,7 @@ class GTPQTest(unittest.TestCase):
         cls.quantized_model = cls.quantizer.quantize_model(cls.model_fp16, cls.tokenizer, cls.dataset)
 
     def test_memory_footprint(self):
-        r"""
+        """
         A simple test to check if the model conversion has been done correctly by checking on the
         memory footprint of the converted model and the class type of the linear layers of the converted models
         """
@@ -73,6 +73,10 @@ class GTPQTest(unittest.TestCase):
         self.assertAlmostEqual(self.mem_fp16 / mem_quantized, self.EXPECTED_RELATIVE_DIFFERENCE)
 
     def test_quantized_layers_class(self):
+        """
+        A simple test to check if the model conversion has been done correctly by checking on the
+        the class type of the linear layers of the converted models
+        """
         from auto_gptq.utils.import_utils import dynamically_import_QuantLinear
 
         QuantLinear = dynamically_import_QuantLinear(
@@ -81,7 +85,7 @@ class GTPQTest(unittest.TestCase):
         self.assertTrue(self.quantized_model.transformer.h[0].mlp.dense_4h_to_h.__class__ == QuantLinear)
 
     def check_inference_correctness(self, model):
-        r"""
+        """
         Test the generation quality of the quantized model and see that we are matching the expected output.
         Given that we are operating on small numbers + the testing model is relatively small, we might not get
         the same output across GPUs. So we'll generate few tokens (5-10) and check their output.
@@ -100,6 +104,9 @@ class GTPQTest(unittest.TestCase):
 
     @require_accelerate
     def test_serialization(self):
+        """
+        Test the serialization of the model and the loading of the quantized weights
+        """
         from accelerate import init_empty_weights
 
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -114,6 +121,10 @@ class GTPQTest(unittest.TestCase):
 
 
 class GTPQUtilsTest(unittest.TestCase):
+    """
+    Test utilities
+    """
+
     model_name = "facebook/opt-125m"
     expected_seqlen = 2048
     expected_block_name = "model.decoder.layers"
@@ -158,6 +169,10 @@ class BloomGTPQUtilsTest(GTPQUtilsTest):
 
 
 class GTPQDataTest(unittest.TestCase):
+    """
+    Test data
+    """
+
     model_name = "facebook/opt-125m"
     NBSAMPLES = 128
     SEQLEN = 2048
