@@ -53,7 +53,7 @@ class GPTQQuantizer(object):
         sym: bool = True,
         true_sequential: bool = True,
         pack_sequentially: bool = False,
-        use_cuda_fp16: bool = True,
+        use_cuda_fp16: bool = False,
         model_seqlen: Optional[int] = None,
         block_name_to_quantize: Optional[str] = None,
         module_name_preceding_first_block: Optional[List[str]] = None,
@@ -80,16 +80,17 @@ class GPTQQuantizer(object):
                 As a result, each layer undergoes quantization using inputs that have passed through the previously quantized layers.
             pack_sequentially (`bool`, defaults to `True`):
                 Whether to pack the layer just after it is quantized. If False, we will pack the model at the end.
-            use_cuda_fp16 (`bool`, defaults to `True`):
+            use_cuda_fp16 (`bool`, defaults to `False`):
                 Whether or not to use optimized cuda kernel for fp16 model. Need to have model in fp16.
             model_seqlen (`Optional[int]`, defaults to `None`):
-                The model sequence length
+                The maximum sequence length that the model can take.
             block_name_to_quantize (`Optional[str]`, defaults to `None`):
                 The transformers block name to quantize.
             module_name_preceding_first_block (`Optional[List[str]]`, defaults to `None`):
                 The layers that are preceding the first Transformer block.
         """
 
+        self.quant_method = "gptq"
         self.bits = bits
         self.group_size = group_size
         self.damp_percent = damp_percent
@@ -128,6 +129,35 @@ class GPTQQuantizer(object):
             `GPTQQuantizer`:  The quantizer object instantiated from those parameters.
         """
         return cls(**config_dict)
+
+    def convert_model(self, model: nn.Module):
+        """
+        Convert the model to a GPTQ model by getting and replacing the layers.
+
+        Args:
+            model (`nn.Module`):
+                Model to be converted
+
+        """
+        if self.block_name_to_quantize is None:
+            self.block_name_to_quantize = get_block_name_with_pattern(model)
+        block_name = self.block_name_to_quantize
+        layers_to_be_replaced = get_layers(model, prefix=block_name)
+        self._replace_by_quant_layers(model, layers_to_be_replaced)
+
+        return model
+
+    def get_no_split_module_classes(self, model):
+        """
+        Get the modules that should not be split across multiple devices.
+        Args:
+            model (`nn.Module`):
+                The input model
+        """
+
+        block_class_name = recurse_getattr(model, self.block_name_to_quantize)[0].__class__.__name__
+        no_split_module_classes = [block_class_name]
+        return no_split_module_classes
 
     def _replace_by_quant_layers(self, module: nn.Module, names: List[str], name: str = ""):
         """
@@ -208,19 +238,25 @@ class GPTQQuantizer(object):
 
         # For Transformer model
         has_config = False
+        has_device_map = False
         if hasattr(model, "config"):
             has_config = True
-        if hasattr(model, "hf_device_map"):
-            # If the model has a device_map, we don't move to model. We have already dispatch the hook that will do the work
-            has_device_map = True
-        device = get_device(model)
-
-        if has_config:
             use_cache = model.config.use_cache
             model.config.use_cache = False
 
+        if hasattr(model, "hf_device_map"):
+            if "cpu" in model.hf_device_map:
+                raise ValueError("CPU offload is not supported yet with GPTQ quantization")
+            # If the model has a device_map, we don't move to model. We have already dispatch the hook that will do the work
+            has_device_map = True
+
+        if hasattr(model, "dtype"):
+            self.use_cuda_fp16 = model.dtype == torch.float16
+
         if self.model_seqlen is None:
             self.model_seqlen = get_seqlen(model)
+
+        device = get_device(model)
 
         # Step 1: Prepare the data
         if isinstance(dataset, str):
@@ -230,18 +266,16 @@ class GPTQQuantizer(object):
         dataset = prepare_dataset(dataset, pad_token_id=pad_token_id, batch_size=batch_size)
 
         # Step 2: get the input of the 1st block
-        # To do that, we need to put the module preceding the first block on the same device as the first bloc.
+        # To do that, we need to put the modules preceding the first block on the same device as the first bloc.
         # Then we run the model and it will stop at the first bloc as we added a prehook that raise an Exception after storing the inputs.
 
         layer_inputs = []
         layer_outputs = []
         layer_input_kwargs = []
 
-        # get block_name
         if self.block_name_to_quantize is None:
             self.block_name_to_quantize = get_block_name_with_pattern(model)
 
-        # get modules_name that are preceding the first block
         if self.module_name_preceding_first_block is None:
             self.module_name_preceding_first_block = get_preceding_modules(model, self.block_name_to_quantize)
 
@@ -254,7 +288,6 @@ class GPTQQuantizer(object):
                 if module is None:
                     raise ValueError(f"Module {module_name} was not found in model")
                 module = module.to(0)
-            # get inputs by running self.module_name_preceding_first_block + first block on gpu
             blocks[0] = blocks[0].to(0)
 
         def store_input_hook(_, input, *args):
@@ -384,6 +417,7 @@ class GPTQQuantizer(object):
         model._is_quantized_gptq = True
         if has_config:
             model.config.use_cache = use_cache
+            model.config.quantization_config = self.to_dict()
 
         torch.cuda.empty_cache()
         return model
@@ -459,9 +493,6 @@ class GPTQQuantizer(object):
         accelerator.save_model(model, save_dir, max_shard_size=max_shard_size, safe_serialization=safe_serialization)
         with open(os.path.join(save_dir, GPTQ_CONFIG), "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2)
-        # TODO: remove that when the integration with transformers is done
-        if hasattr(model, "config"):
-            model.config.save_pretrained(save_dir)
 
 
 def load_quantized_model(
@@ -526,15 +557,10 @@ def load_quantized_model(
         quantize_config_dict = json.load(f)
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
 
-    if quantizer.block_name_to_quantize is None:
-        quantizer.block_name_to_quantize = get_block_name_with_pattern(model)
-    block_name = quantizer.block_name_to_quantize
+    model = quantizer.convert_model(model)
 
-    layers_to_be_replaced = get_layers(model, prefix=block_name)
-    quantizer._replace_by_quant_layers(model, layers_to_be_replaced)
     if no_split_module_classes is None:
-        block_class_name = recurse_getattr(model, block_name)[0].__class__.__name__
-        no_split_module_classes = [block_class_name]
+        no_split_module_classes = quantizer.get_no_split_module_classes(model)
 
     model = load_checkpoint_and_dispatch(
         model,
