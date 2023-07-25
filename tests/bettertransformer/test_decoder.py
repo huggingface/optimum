@@ -49,9 +49,6 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
             texts = ["a dummy input yeah!"] + ["and two"] * (batch_size - 1)
         inputs = tokenizer(texts, return_tensors="pt", padding=padding, max_length=20, **preprocessor_kwargs)
 
-        if model_type == "llama":
-            del inputs["token_type_ids"]
-
         return inputs
 
     @parameterized.expand(
@@ -157,9 +154,6 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         if batch_size > 1:
             text.append("Please continue this my dear me")
         inp = tokenizer(text, return_tensors="pt", padding=padding, max_length=30)
-
-        if model_type == "llama":
-            del inp["token_type_ids"]
 
         length = 50
         result_vanilla = model.generate(**inp, num_beams=1, min_length=length, max_length=length)
