@@ -40,9 +40,7 @@ import torch
 import torch.distributed as dist
 from packaging import version
 from torch import nn
-from torch.utils.data import DataLoader, Dataset, RandomSampler
-from torch.utils.data.distributed import DistributedSampler
-from tqdm.auto import tqdm
+from torch.utils.data import DataLoader, Dataset
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, is_deepspeed_zero3_enabled
@@ -54,7 +52,6 @@ from transformers.file_utils import (
     is_torch_tpu_available,
 )
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
-from transformers.pytorch_utils import is_torch_less_than_1_11
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
 from transformers.trainer_callback import TrainerCallback, TrainerState
@@ -63,17 +60,16 @@ from transformers.trainer_pt_utils import (
     IterableDatasetShard,
     SequentialDistributedSampler,
     find_batch_size,
+    get_model_param_count,
     get_module_class_from_name,
     get_parameter_names,
     nested_concat,
     nested_detach,
     nested_numpify,
-    nested_truncate,
 )
 from transformers.trainer_utils import (
     EvalLoopOutput,
     EvalPrediction,
-    FSDPOption,
     HPSearchBackend,
     PredictionOutput,
     ShardedDDPOption,
@@ -86,6 +82,7 @@ from transformers.trainer_utils import (
     set_seed,
     speed_metrics,
 )
+from transformers.training_args import ParallelMode
 from transformers.utils import is_accelerate_available
 
 from ..exporters import TasksManager
@@ -118,6 +115,9 @@ from .utils import (
 if is_apex_available():
     from apex import amp
 
+if is_torch_tpu_available(check_device=False):
+    import torch_xla.core.xla_model as xm
+
 if is_fairscale_available():
     dep_version_check("fairscale")
     from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
@@ -126,6 +126,7 @@ if is_fairscale_available():
 skip_first_batches = None
 if is_accelerate_available():
     from accelerate import __version__ as accelerate_version
+    from accelerate.utils import DistributedDataParallelKwargs
 
     if version.parse(accelerate_version) >= version.parse("0.16"):
         from accelerate import skip_first_batches
@@ -384,7 +385,7 @@ class ORTTrainer(Trainer):
             ignore_keys_for_eval (`List[str]`, *optional*)
                 A list of keys in the output of your model (if it is a dictionary) that should be ignored when
                 gathering predictions for evaluation during the training.
-            kwargs:
+            kwargs (`Dict[str, Any]`, *optional*):
                 Additional keyword arguments used to hide deprecated arguments
         """
         if not is_onnxruntime_training_available():
@@ -463,7 +464,9 @@ class ORTTrainer(Trainer):
     ):
         from torch_ort import ORTModule
 
+        self.accelerator.free_memory()
         self._train_batch_size = batch_size
+        logger.debug(f"Currently training with a batch size of: {self._train_batch_size}")
 
         # Data loader and number of training steps
         train_dataloader = self.get_train_dataloader()
@@ -472,7 +475,7 @@ class ORTTrainer(Trainer):
         # number of training epochs: num_train_epochs
         # number of training steps per epoch: num_update_steps_per_epoch
         # total number of training steps to execute: max_steps
-        total_train_batch_size = args.train_batch_size * args.gradient_accumulation_steps * args.world_size
+        total_train_batch_size = self._train_batch_size * args.gradient_accumulation_steps * args.world_size
 
         len_dataloader = None
         if has_length(train_dataloader):
@@ -505,6 +508,14 @@ class ORTTrainer(Trainer):
                 f" {args.max_steps}"
             )
 
+        # Compute absolute values for logging, eval, and save if given as ratio
+        if args.logging_steps and args.logging_steps < 1:
+            args.logging_steps = math.ceil(max_steps * args.logging_steps)
+        if args.eval_steps and args.eval_steps < 1:
+            args.eval_steps = math.ceil(max_steps * args.eval_steps)
+        if args.save_steps and args.save_steps < 1:
+            args.save_steps = math.ceil(max_steps * args.save_steps)
+
         if DebugOption.UNDERFLOW_OVERFLOW in self.args.debug:
             if self.args.n_gpu > 1:
                 # nn.DataParallel(model) replicates the model, creating new variables and module
@@ -528,34 +539,29 @@ class ORTTrainer(Trainer):
         model = ORTModule(self.model)
         self.model_wrapped = model
 
-        if args.deepspeed:
+        # We need to reset the scheduler, as its parameters may be different on subsequent calls
+        if self._created_lr_scheduler:
+            self.lr_scheduler = None
+            self._created_lr_scheduler = False
+
+        if self.is_deepspeed_enabled:
             if is_deepspeed_zero3_enabled():
                 raise NotImplementedError(
                     "`ORTTrainer` does not support ZeRO stage 3 for the moment. Please use DeepSpeed stage 1 or 2 instead."
                 )
-
             if args.bf16:
                 warnings.warn(
                     "ONNX Runtime doesn't support BF16 when executing some operators. The execution will fail if there are any"
                     " op which doesn't support BF16 in the IR.",
                     RuntimeWarning,
                 )
-
-            self.model = model
-            deepspeed_engine, optimizer, lr_scheduler = deepspeed_init(
-                self, num_training_steps=max_steps, resume_from_checkpoint=resume_from_checkpoint
-            )
-            self.model = unwrap_model(deepspeed_engine)
-            self.model_wrapped = deepspeed_engine
-            self.deepspeed = deepspeed_engine
+            self.optimizer, self.lr_scheduler = deepspeed_init(self, num_training_steps=max_steps)
             if args.fp16:
                 from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
 
-                self.optimizer = FP16_Optimizer(optimizer)
-            else:
-                self.optimizer = optimizer
-            self.lr_scheduler = lr_scheduler
-        elif not delay_optimizer_creation:
+                self.optimizer = FP16_Optimizer(self.optimizer)
+
+        if not delay_optimizer_creation:
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
         self.state = TrainerState()
@@ -569,6 +575,31 @@ class ORTTrainer(Trainer):
 
         if is_sagemaker_mp_enabled() and resume_from_checkpoint is not None:
             self._load_from_checkpoint(resume_from_checkpoint, model)
+
+        # as the model is wrapped, don't use `accelerator.prepare`
+        # this is for unhandled cases such as
+        # Fairscale Sharded DDP, FSDP-XLA, SageMaker MP/DP, DataParallel, IPEX
+        use_accelerator_prepare = True if model is self.model else False
+
+        if delay_optimizer_creation:
+            self.create_optimizer_and_scheduler(num_training_steps=max_steps)
+
+        # prepare using `accelerator` prepare
+        if use_accelerator_prepare:
+            self.model.train()
+            if hasattr(self.lr_scheduler, "step"):
+                if self.use_apex:
+                    model = self.accelerator.prepare(self.model)
+                else:
+                    model, self.optimizer = self.accelerator.prepare(self.model, self.optimizer)
+            else:
+                # to handle cases wherein we pass "DummyScheduler" such as when it is specified in DeepSpeed config.
+                model, self.optimizer, self.lr_scheduler = self.accelerator.prepare(
+                    self.model, self.optimizer, self.lr_scheduler
+                )
+
+        if self.is_fsdp_enabled:
+            self.model = model
 
         # for the rest of this function `model` is the outside model, whether it was wrapped or not
         if model is not self.model:
@@ -585,17 +616,16 @@ class ORTTrainer(Trainer):
         # self.model_wrapped is DDP(ORTModule(Transformers Model)), Deepspeed(ORTModule(Transformers Model)), etc.
 
         # Train!
-
         logger.info("***** Running training *****")
-        logger.info(f"  Num examples = {num_examples}")
-        logger.info(f"  Num Epochs = {num_train_epochs}")
-        logger.info(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
-        logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_train_batch_size}")
+        logger.info(f"  Num examples = {num_examples:,}")
+        logger.info(f"  Num Epochs = {num_train_epochs:,}")
+        logger.info(f"  Instantaneous batch size per device = {self.args.per_device_train_batch_size:,}")
+        if self.args.per_device_train_batch_size != self._train_batch_size:
+            logger.info(f"  Training with DataParallel so batch size has been adjusted to: {self._train_batch_size:,}")
+        logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_train_batch_size:,}")
         logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
-        logger.info(f"  Total optimization steps = {max_steps}")
-        logger.info(
-            f"  Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
-        )
+        logger.info(f"  Total optimization steps = {max_steps:,}")
+        logger.info(f"  Number of trainable parameters = {get_model_param_count(model, trainable_only=True):,}")
 
         self.state.epoch = 0
         start_time = time.time()
@@ -619,22 +649,10 @@ class ORTTrainer(Trainer):
             logger.info(f"  Continuing training from epoch {epochs_trained}")
             logger.info(f"  Continuing training from global step {self.state.global_step}")
             if not args.ignore_data_skip:
-                if skip_first_batches is None:
-                    logger.info(
-                        f"  Will skip the first {epochs_trained} epochs then the first"
-                        f" {steps_trained_in_current_epoch} batches in the first epoch. If this takes a lot of time,"
-                        " you can install the latest version of Accelerate with `pip install -U accelerate`.You can"
-                        " also add the `--ignore_data_skip` flag to your launch command, but you will resume the"
-                        " training on data already seen by your model."
-                    )
-                else:
-                    logger.info(
-                        f"  Will skip the first {epochs_trained} epochs then the first"
-                        f" {steps_trained_in_current_epoch} batches in the first epoch."
-                    )
-                if self.is_local_process_zero() and not args.disable_tqdm and skip_first_batches is None:
-                    steps_trained_progress_bar = tqdm(total=steps_trained_in_current_epoch)
-                    steps_trained_progress_bar.set_description("Skipping the first batches")
+                logger.info(
+                    f"  Will skip the first {epochs_trained} epochs then the first"
+                    f" {steps_trained_in_current_epoch} batches in the first epoch."
+                )
 
         # Update the references
         self.callback_handler.model = self.model
@@ -669,26 +687,11 @@ class ORTTrainer(Trainer):
         # Skip the first epochs_trained epochs to get the random state of the dataloader at the right point.
         if not args.ignore_data_skip:
             for epoch in range(epochs_trained):
-                is_random_sampler = hasattr(train_dataloader, "sampler") and isinstance(
-                    train_dataloader.sampler, RandomSampler
-                )
-                if is_torch_less_than_1_11 or not is_random_sampler:
-                    # We just need to begin an iteration to create the randomization of the sampler.
-                    # That was before PyTorch 1.11 however...
-                    for _ in train_dataloader:
-                        break
-                else:
-                    # Otherwise we need to call the whooooole sampler cause there is some random operation added
-                    # AT THE VERY END!
-                    _ = list(train_dataloader.sampler)
+                for _ in train_dataloader:
+                    break
 
         total_batched_samples = 0
         for epoch in range(epochs_trained, num_train_epochs):
-            if isinstance(train_dataloader, DataLoader) and isinstance(train_dataloader.sampler, DistributedSampler):
-                train_dataloader.sampler.set_epoch(epoch)
-            elif hasattr(train_dataloader, "dataset") and isinstance(train_dataloader.dataset, IterableDatasetShard):
-                train_dataloader.dataset.set_epoch(epoch)
-
             epoch_iterator = train_dataloader
 
             # Reset the past mems state at the beginning of each epoch if necessary.
@@ -707,7 +710,7 @@ class ORTTrainer(Trainer):
 
             rng_to_sync = False
             steps_skipped = 0
-            if skip_first_batches is not None and steps_trained_in_current_epoch > 0:
+            if steps_trained_in_current_epoch > 0:
                 skip_first_batches(epoch_iterator, steps_trained_in_current_epoch)
                 steps_skipped = steps_trained_in_current_epoch
                 steps_trained_in_current_epoch = 0
@@ -735,15 +738,7 @@ class ORTTrainer(Trainer):
                 if step % args.gradient_accumulation_steps == 0:
                     self.control = self.callback_handler.on_step_begin(args, self.state, self.control)
 
-                if (
-                    (total_batched_samples % args.gradient_accumulation_steps != 0)
-                    and args.local_rank != -1
-                    and args._no_sync_in_gradient_accumulation
-                ):
-                    # Avoid unnecessary DDP synchronization since there will be no backward pass on this example.
-                    with model.no_sync():
-                        tr_loss_step = self.training_step(model, inputs)
-                else:
+                with self.accelerator.accumulate(model):
                     tr_loss_step = self.training_step(model, inputs)
 
                 if (
@@ -758,17 +753,25 @@ class ORTTrainer(Trainer):
 
                 self.current_flos += float(self.floating_point_ops(inputs))
 
-                # Optimizer step for deepspeed must be called on every step regardless of the value of gradient_accumulation_steps
-                if self.deepspeed:
-                    self.deepspeed.step()
+                is_last_step_and_steps_less_than_grad_acc = (
+                    steps_in_epoch <= args.gradient_accumulation_steps and (step + 1) == steps_in_epoch
+                )
 
-                if total_batched_samples % args.gradient_accumulation_steps == 0 or (
+                if (
+                    total_batched_samples % args.gradient_accumulation_steps == 0
+                    or
                     # last step in epoch but step is always smaller than gradient_accumulation_steps
-                    steps_in_epoch <= args.gradient_accumulation_steps
-                    and (step + 1) == steps_in_epoch
+                    is_last_step_and_steps_less_than_grad_acc
                 ):
+                    # the `or` condition of `is_last_step_and_steps_less_than_grad_acc` is not covered
+                    # in accelerate. So, explicitly enable sync gradients to True in that case.
+                    if is_last_step_and_steps_less_than_grad_acc or (
+                        version.parse(accelerate_version) <= version.parse("0.20.3")
+                    ):
+                        self.accelerator.gradient_state._set_sync_gradients(True)
+
                     # Gradient clipping
-                    if args.max_grad_norm is not None and args.max_grad_norm > 0 and not self.deepspeed:
+                    if args.max_grad_norm is not None and args.max_grad_norm > 0:
                         # deepspeed does its own clipping
 
                         if self.do_grad_scaling:
@@ -784,17 +787,14 @@ class ORTTrainer(Trainer):
                             # Some models (like FullyShardedDDP) have a specific way to do gradient clipping
                             model.clip_grad_norm_(args.max_grad_norm)
                         else:
-                            # Revert to normal clipping otherwise, handling Apex or full precision
-                            nn.utils.clip_grad_norm_(
-                                amp.master_params(self.optimizer) if self.use_apex else model.parameters(),
+                            self.accelerator.clip_grad_norm_(
+                                model.parameters(),
                                 args.max_grad_norm,
                             )
 
                     # Optimizer step
                     optimizer_was_run = True
-                    if self.deepspeed:
-                        pass  # called outside the loop
-                    elif is_torch_tpu_available():
+                    if is_torch_tpu_available():
                         raise NotImplementedError("`ORTTrainer` is not supported by TPU!")
                     elif self.do_grad_scaling:
                         scale_before = self.scaler.get_scale()
@@ -804,9 +804,12 @@ class ORTTrainer(Trainer):
                         optimizer_was_run = scale_before <= scale_after
                     else:
                         self.optimizer.step()
+                        optimizer_was_run = not self.accelerator.optimizer_step_was_skipped
 
-                    if optimizer_was_run and not self.deepspeed:
-                        self.lr_scheduler.step()
+                    if optimizer_was_run:
+                        # Delay optimizer scheduling until metrics are generated
+                        if not isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                            self.lr_scheduler.step()
 
                     model.zero_grad()
                     self.state.global_step += 1
@@ -845,7 +848,7 @@ class ORTTrainer(Trainer):
         logger.info("\n\nTraining completed. Do not forget to share your model on huggingface.co/models =)\n\n")
         if args.load_best_model_at_end and self.state.best_model_checkpoint is not None:
             # Wait for everyone to get here so we are sur the model has been saved by process 0.
-            if args.local_rank != -1:
+            if args.parallel_mode == ParallelMode.DISTRIBUTED:
                 dist.barrier()
 
             self._load_best_model()
@@ -1159,31 +1162,33 @@ class ORTTrainer(Trainer):
 
             # Update containers on host
             if loss is not None:
-                losses = self._nested_gather(loss.repeat(batch_size))
-                losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
+                losses = self.accelerator.gather_for_metrics((loss.repeat(batch_size)))
+                losses_host = losses if losses_host is None else nested_concat(losses_host, losses, padding_index=-100)
             if labels is not None:
-                labels = self._pad_across_processes(labels)
-                labels = self._nested_gather(labels)
-                labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
+                labels = self.accelerator.pad_across_processes(labels, dim=1, pad_index=-100)
             if inputs_decode is not None:
-                inputs_decode = self._pad_across_processes(inputs_decode)
-                inputs_decode = self._nested_gather(inputs_decode)
+                inputs_decode = self.accelerator.pad_across_processes(inputs_decode, dim=1, pad_index=-100)
+                inputs_decode = self.accelerator.gather_for_metrics((inputs_decode))
                 inputs_host = (
                     inputs_decode
                     if inputs_host is None
                     else nested_concat(inputs_host, inputs_decode, padding_index=-100)
                 )
-
             if logits is not None:
-                logits = self._pad_across_processes(logits)
-                logits = self._nested_gather(logits)
+                logits = self.accelerator.pad_across_processes(logits, dim=1, pad_index=-100)
                 if self.preprocess_logits_for_metrics is not None:
                     logits = self.preprocess_logits_for_metrics(logits, labels)
+                logits = self.accelerator.gather_for_metrics((logits))
                 preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
+
+            if labels is not None:
+                labels = self.accelerator.gather_for_metrics((labels))
+            labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
+
             self.control = self.callback_handler.on_prediction_step(args, self.state, self.control)
 
             # Gather all tensors and put them back on the CPU if we have done enough accumulation steps.
-            if args.eval_accumulation_steps is not None and (step + 1) % args.eval_accumulation_steps == 0:
+            if args.eval_accumulation_steps is not None and self.accelerator.sync_gradients:
                 if losses_host is not None:
                     losses = nested_numpify(losses_host)
                     all_losses = losses if all_losses is None else np.concatenate((all_losses, losses), axis=0)
@@ -1240,17 +1245,6 @@ class ORTTrainer(Trainer):
                 num_samples = observed_num_examples
         if num_samples == 0 and observed_num_examples > 0:
             num_samples = observed_num_examples
-
-        # Number of losses has been rounded to a multiple of batch_size and in a distributed training, the number of
-        # samplers has been rounded to a multiple of batch_size, so we truncate.
-        if all_losses is not None:
-            all_losses = all_losses[:num_samples]
-        if all_preds is not None:
-            all_preds = nested_truncate(all_preds, num_samples)
-        if all_labels is not None:
-            all_labels = nested_truncate(all_labels, num_samples)
-        if all_inputs is not None:
-            all_inputs = nested_truncate(all_inputs, num_samples)
 
         # Metrics!
         if self.compute_metrics is not None and all_preds is not None and all_labels is not None:
@@ -1463,7 +1457,7 @@ class ORTTrainer(Trainer):
                 argument `labels`. Check your model's documentation for all accepted arguments.
             prediction_loss_only (`bool`):
                 Whether or not to return the loss only.
-            ignore_keys (`Lst[str]`, *optional*):
+            ignore_keys (`List[str]`, *optional*):
                 A list of keys in the output of your model (if it is a dictionary) that should be ignored when
                 gathering predictions.
 
@@ -1471,7 +1465,6 @@ class ORTTrainer(Trainer):
             Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss,
             logits and labels (each being optional).
         """
-
         has_labels = False if len(self.label_names) == 0 else all(inputs.get(k) is not None for k in self.label_names)
         # For CLIP-like models capable of returning loss values.
         # If `return_loss` is not specified or being `None` in `inputs`, we check if the default value of `return_loss`
@@ -1636,13 +1629,6 @@ class ORTTrainer(Trainer):
         model.config.save_pretrained(model_path)
 
     def _wrap_model(self, model, training=True, dataloader=None):
-        # TODO: torchdynamo works for inference with PyTorch in ORTTrainer, will move `inference_with_ort` to training arguments and
-        # whether be able to use ipex will depend on both `self.args.torchdynamo` and `self.args.ort_mode_eval`.
-        if self.args.torchdynamo is not None:
-            import torch._dynamo as dynamo
-
-            model = dynamo.optimize(self.args.torchdynamo)(model)
-
         # TODO: ipex only works with inference with PyTorch, will move `inference_with_ort` to training arguments and
         # whether be able to use ipex will depend on both `self.args.use_ipex` and `self.args.ort_mode_eval`.
         if self.args.use_ipex:
@@ -1653,10 +1639,6 @@ class ORTTrainer(Trainer):
             raise NotImplementedError(
                 "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer`."
             )
-
-        # already initialized its own DDP and AMP
-        if self.deepspeed:
-            return self.deepspeed
 
         # train/eval could be run multiple-times - if already wrapped, don't re-wrap it again
         if unwrap_model(model) is not model:
@@ -1674,8 +1656,8 @@ class ORTTrainer(Trainer):
 
                 self.optimizer = FP16_Optimizer(self.optimizer)
 
-        # Multi-gpu training (should be after apex fp16 initialization)
-        if self.args.n_gpu > 1:
+        # Multi-gpu training (should be after apex fp16 initialization) / 8bit models does not support DDP
+        if self.args.n_gpu > 1 and not getattr(model, "is_loaded_in_8bit", False):
             model = nn.DataParallel(model)
 
         if self.args.jit_mode_eval:
@@ -1701,55 +1683,63 @@ class ORTTrainer(Trainer):
                 )
         # Distributed training using PyTorch FSDP
         elif self.fsdp is not None:
-            # PyTorch FSDP!
-            from torch.distributed.fsdp.fully_sharded_data_parallel import CPUOffload, MixedPrecision
-            from torch.distributed.fsdp.fully_sharded_data_parallel import FullyShardedDataParallel as FSDP
-            from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy, transformer_auto_wrap_policy
-
-            if FSDPOption.OFFLOAD in self.args.fsdp:
-                raise NotImplementedError("CPU offload is not compatible with `torch_ort.ORTModule`.")
-            else:
-                cpu_offload = CPUOffload(offload_params=False)
+            try:
+                from torch_xla.distributed.fsdp import XlaFullyShardedDataParallel as FSDP
+                from torch_xla.distributed.fsdp import checkpoint_module
+                from torch_xla.distributed.fsdp.wrap import (
+                    size_based_auto_wrap_policy,
+                    transformer_auto_wrap_policy,
+                )
+            except ImportError:
+                raise ImportError("Missing XLA FSDP related module; please make sure to use torch-xla >= 2.0.")
 
             auto_wrap_policy = None
-            if FSDPOption.AUTO_WRAP in self.args.fsdp:
-                if self.args.fsdp_min_num_params > 0:
-                    auto_wrap_policy = functools.partial(
-                        size_based_auto_wrap_policy, min_num_params=self.args.fsdp_min_num_params
-                    )
-                elif self.args.fsdp_transformer_layer_cls_to_wrap is not None:
-                    transformer_cls_to_wrap = get_module_class_from_name(
-                        model, self.args.fsdp_transformer_layer_cls_to_wrap
-                    )
-                    auto_wrap_policy = functools.partial(
-                        transformer_auto_wrap_policy,
-                        # Transformer layer class to wrap
-                        transformer_layer_cls={transformer_cls_to_wrap},
-                    )
-            mixed_precision_policy = None
-            dtype = None
-            if self.args.fp16:
-                dtype = torch.float16
-            elif self.args.bf16:
-                dtype = torch.bfloat16
-            if dtype is not None:
-                mixed_precision_policy = MixedPrecision(param_dtype=dtype, reduce_dtype=dtype, buffer_dtype=dtype)
-            if type(model) != FSDP:
-                # XXX: Breaking the self.model convention but I see no way around it for now.
+            auto_wrapper_callable = None
+            if self.args.fsdp_config["fsdp_min_num_params"] > 0:
+                auto_wrap_policy = functools.partial(
+                    size_based_auto_wrap_policy, min_num_params=self.args.fsdp_config["fsdp_min_num_params"]
+                )
+            elif self.args.fsdp_config.get("fsdp_transformer_layer_cls_to_wrap", None) is not None:
+                transformer_cls_to_wrap = set()
+                for layer_class in self.args.fsdp_config["fsdp_transformer_layer_cls_to_wrap"]:
+                    transformer_cls = get_module_class_from_name(model, layer_class)
+                    if transformer_cls is None:
+                        raise Exception("Could not find the transformer layer class to wrap in the model.")
+                    else:
+                        transformer_cls_to_wrap.add(transformer_cls)
+                auto_wrap_policy = functools.partial(
+                    transformer_auto_wrap_policy,
+                    # Transformer layer class to wrap
+                    transformer_layer_cls=transformer_cls_to_wrap,
+                )
+            fsdp_kwargs = self.args.xla_fsdp_config
+            if self.args.fsdp_config["xla_fsdp_grad_ckpt"]:
+                # Apply gradient checkpointing to auto-wrapped sub-modules if specified
+                def auto_wrapper_callable(m, *args, **kwargs):
+                    return FSDP(checkpoint_module(m), *args, **kwargs)
+
+                # Wrap the base model with an outer FSDP wrapper
                 self.model = model = FSDP(
                     model,
-                    sharding_strategy=self.fsdp,
-                    cpu_offload=cpu_offload,
                     auto_wrap_policy=auto_wrap_policy,
-                    mixed_precision=mixed_precision_policy,
+                    auto_wrapper_callable=auto_wrapper_callable,
+                    **fsdp_kwargs,
                 )
-                if FSDPOption.OFFLOAD not in self.args.fsdp:
-                    model.to(self.args.device)
+
+                # Patch `xm.optimizer_step` should not reduce gradients in this case,
+                # as FSDP does not need gradient reduction over sharded parameters.
+                def patched_optimizer_step(optimizer, barrier=False, optimizer_args={}):
+                    loss = optimizer.step(**optimizer_args)
+                    if barrier:
+                        xm.mark_step()
+                    return loss
+
+                xm.optimizer_step = patched_optimizer_step
         elif is_sagemaker_dp_enabled():
             raise NotImplementedError(
                 "Sagemaker's distrubuted data parallel features are not supported by `ORTTrainer` yet."
             )
-        elif self.args.local_rank != -1:
+        elif self.args.parallel_mode == ParallelMode.DISTRIBUTED:
             kwargs = {}
             if self.args.ddp_find_unused_parameters is not None:
                 kwargs["find_unused_parameters"] = self.args.ddp_find_unused_parameters
@@ -1762,13 +1752,11 @@ class ORTTrainer(Trainer):
 
             if self.args.ddp_bucket_cap_mb is not None:
                 kwargs["bucket_cap_mb"] = self.args.ddp_bucket_cap_mb
-            model = nn.parallel.DistributedDataParallel(
-                model,
-                device_ids=[self.args.local_rank] if self.args._n_gpu != 0 else None,
-                output_device=self.args.local_rank if self.args._n_gpu != 0 else None,
-                **kwargs,
-            )
 
+            if self.args.ddp_broadcast_buffers is not None:
+                kwargs["broadcast_buffers"] = self.args.ddp_broadcast_buffers
+
+            self.accelerator.ddp_handler = DistributedDataParallelKwargs(**kwargs)
         return model
 
     def create_optimizer(self):
