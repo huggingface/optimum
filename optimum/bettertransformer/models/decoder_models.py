@@ -175,7 +175,7 @@ class BarkAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BarkSelfAt
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig", is_causal: bool = False):
         super().__init__(config)
 
-        is_causal = layer.is_causal  # True # TODO
+        is_causal = layer.is_causal
 
         config.dropout = layer.dropout
 
@@ -201,7 +201,7 @@ class BarkAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BarkSelfAt
             setattr(self, "bias", getattr(layer, "bias"))
             self.original_layers_mapping["bias"] = "bias"
 
-        self.supports_training = True
+        self.supports_training = False
         self.dropout_prob_attn = float(config.dropout)
 
     def forward(self, *args, **kwargs):
