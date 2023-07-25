@@ -58,9 +58,11 @@ class GTPQTest(unittest.TestCase):
         cls.mem_fp16 = cls.model_fp16.get_memory_footprint()
 
         cls.tokenizer = AutoTokenizer.from_pretrained(cls.model_name, use_fast=True)
-        cls.quantizer = GPTQQuantizer(bits=cls.bits, group_size=cls.group_size, desc_act=cls.desc_act)
+        cls.quantizer = GPTQQuantizer(
+            bits=cls.bits, dataset=cls.dataset, group_size=cls.group_size, desc_act=cls.desc_act
+        )
 
-        cls.quantized_model = cls.quantizer.quantize_model(cls.model_fp16, cls.tokenizer, cls.dataset)
+        cls.quantized_model = cls.quantizer.quantize_model(cls.model_fp16, cls.tokenizer)
 
     def test_memory_footprint(self):
         """

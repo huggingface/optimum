@@ -47,6 +47,7 @@ class GPTQQuantizer(object):
     def __init__(
         self,
         bits: int,
+        dataset: Union[List[str], str],
         group_size: int = 128,
         damp_percent: float = 0.01,
         desc_act: bool = True,
@@ -57,6 +58,8 @@ class GPTQQuantizer(object):
         model_seqlen: Optional[int] = None,
         block_name_to_quantize: Optional[str] = None,
         module_name_preceding_first_block: Optional[List[str]] = None,
+        batch_size: int = 1,
+        pad_token_id: Optional[int] = None,
         *args,
         **kwargs,
     ):
@@ -64,6 +67,9 @@ class GPTQQuantizer(object):
         Args:
             bits (`int`):
                 The number of bits to quantize to, supported numbers are (2, 3, 4, 8).
+            dataset (`Union[List[str],str]`):
+                The dataset used for quantization. You can provide your own dataset in a list of string or just use the original datasets used
+                in GPTQ paper ['wikitext2','c4','c4-new','ptb','ptb-new'].
             group_size (int, defaults to -1):
                 The group size to use for quantization. Recommended value is 128 and -1 uses per-column quantization.
             damp_percent (`float`, defaults to `0.01`):
@@ -88,10 +94,14 @@ class GPTQQuantizer(object):
                 The transformers block name to quantize.
             module_name_preceding_first_block (`Optional[List[str]]`, defaults to `None`):
                 The layers that are preceding the first Transformer block.
+            batch_size (`int`, defaults to `1`):
+                The batch size of the dataset
+            pad_token_id (`Optional[int]`, defaults to `None`):
+                The pad token id. Needed to prepare the dataset when `batch_size` > 1.
         """
 
-        self.quant_method = "gptq"
         self.bits = bits
+        self.dataset = dataset
         self.group_size = group_size
         self.damp_percent = damp_percent
         self.desc_act = desc_act
@@ -102,6 +112,8 @@ class GPTQQuantizer(object):
         self.model_seqlen = model_seqlen
         self.block_name_to_quantize = block_name_to_quantize
         self.module_name_preceding_first_block = module_name_preceding_first_block
+        self.batch_size = batch_size
+        self.pad_token_id = pad_token_id
 
         if self.bits not in [2, 4, 6, 8]:
             raise ValueError("only support quantize to [2,4,6,8] bits.")
@@ -203,33 +215,27 @@ class GPTQQuantizer(object):
             self._replace_by_quant_layers(child, names, name + "." + name1 if name != "" else name1)
 
     @torch.no_grad()
-    def quantize_model(
-        self,
-        model: nn.Module,
-        tokenizer: Any,
-        dataset: Union[List[str], str],
-        batch_size: int = 1,
-        pad_token_id: Optional[int] = None,
-    ):
+    def quantize_model(self, model: nn.Module, tokenizer: Any, verbose: bool = False):
         """
         Quantizes the model using the dataset
 
         Args:
             model (`nn.Module`):
                 The model to quantize
-            dataset (`Union[List[str],str]`):
-                The dataset used for quantization. You can provide your own dataset in a list of string or just use the original datasets used
-                in GPTQ paper ['wikitext2','c4'].
             tokenizer (`Any`):
                 The tokenizer to use in order to prepare the dataset
-            batch_size (`int`, defaults to `1`):
-                The batch size of the dataset
-            pad_token_id (`Optional[int]`, defaults to `None`):
-                The pad token id. Needed to prepare the dataset when `batch_size` > 1.
-
+            verbose (`bool`):
+                Set the logger level to INFO is True
         Returns:
             `nn.Module`: The quantized model
         """
+        if verbose:
+            logger.basicConfig(
+                format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+                level=logger.INFO,
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+
         if not is_auto_gptq_available():
             raise RuntimeError("auto-gptq is required in order to perform quantzation : `pip install auto-gptq`")
         if not torch.cuda.is_available():
@@ -260,11 +266,11 @@ class GPTQQuantizer(object):
         device = get_device(model)
 
         # Step 1: Prepare the data
-        if isinstance(dataset, str):
-            dataset = get_dataset(dataset, tokenizer, seqlen=self.model_seqlen, split="train")
-        elif isinstance(dataset, list):
-            dataset = [tokenizer(data, return_tensors="pt") for data in dataset]
-        dataset = prepare_dataset(dataset, pad_token_id=pad_token_id, batch_size=batch_size)
+        if isinstance(self.dataset, str):
+            dataset = get_dataset(self.dataset, tokenizer, seqlen=self.model_seqlen, split="train")
+        elif isinstance(self.dataset, list):
+            dataset = [tokenizer(data, return_tensors="pt") for data in self.dataset]
+        dataset = prepare_dataset(dataset, pad_token_id=self.pad_token_id, batch_size=self.batch_size)
 
         # Step 2: get the input of the 1st block
         # To do that, we need to put the modules preceding the first block on the same device as the first bloc.
