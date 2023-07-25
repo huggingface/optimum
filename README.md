@@ -16,7 +16,7 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 
 | Accelerator                                                                                                            | Installation                                      |
 |:-----------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------|
-| [ONNX Runtime](https://onnxruntime.ai/docs/)                                                                           | `pip install --upgrade-strategy eageroptimum[onnxruntime]`       |
+| [ONNX Runtime](https://onnxruntime.ai/docs/)                                                                           | `pip install --upgrade-strategy eager optimum[onnxruntime]`       |
 | [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html)       | `pip install --upgrade-strategy eager optimum[neural-compressor]`|
 | [OpenVINO](https://docs.openvino.ai/latest/index.html)                                                                 | `pip install --upgrade-strategy eager optimum[openvino,nncf]`    |
 | [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `pip install --upgrade-strategy eager optimum[habana]`           |
