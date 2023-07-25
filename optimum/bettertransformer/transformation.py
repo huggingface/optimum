@@ -231,12 +231,9 @@ class BetterTransformer(object):
                 f" Currently supported models are: {BetterTransformerManager.MODEL_MAPPING.keys()}."
             )
 
-        # check on 1.14 in case there is any more patch release on 1.13
-        if BetterTransformerManager.requires_torch_20(model.config.model_type) and parse(torch.__version__) <= parse(
-            "1.14"
-        ):
+        if parse(torch.__version__) <= parse("1.14"):
             raise ValueError(
-                f"BetterTransformer for {model.config.model_type} requires torch>=2.0 but {torch.__version__} is installed. Please upgrade PyTorch."
+                f"BetterTransformer requires torch>=2.0 but {torch.__version__} is installed. Please upgrade PyTorch."
             )
 
         hf_config = model.config
@@ -290,9 +287,10 @@ class BetterTransformer(object):
                 model = dispatch_model(model, hf_device_map, offload_dir=offload_dir)
 
         # See: https://github.com/pytorch/pytorch/issues/96099
-        if BetterTransformerManager.requires_torch_20(model_fast.config.model_type):
+        # TODO: show the warning only for decoders (which do not need an attention mask for training)
+        if BetterTransformerManager.is_decoder(model_fast.config.model_type):
             logging.warning(
-                f"For training, the BetterTransformer implementation for {model_fast.config.model_type} "
+                f"For decoder training, the BetterTransformer implementation for {model_fast.config.model_type} "
                 " architecture currently does not support padding as fused kernels do not support custom"
                 " attention masks. Beware that passing padded batched training data may result in unexpected outputs."
             )

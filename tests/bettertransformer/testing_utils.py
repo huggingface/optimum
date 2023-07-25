@@ -57,7 +57,7 @@ MODELS_DICT = {
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "prophetnet": "hirotasoshu/tiny-random-prophetnet",  # the other tiny ones have a too small max_position_embeddings
-    "rembert": "hf-internal-testing/tiny-random-rembert",
+    "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "rocbert": "hf-internal-testing/tiny-random-RoCBertModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
@@ -73,6 +73,26 @@ MODELS_DICT = {
     "xlm_roberta": "hf-internal-testing/tiny-xlm-roberta",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
 }
+
+known_dropout_keys = [
+    "attention_probs_dropout_prob",
+    "hidden_dropout_prob",
+    "classifier_dropout_prob",
+    "attention_dropout",
+    "dropout",
+    "qa_dropout",
+    "seq_classif_dropout",
+    "summary_last_dropout",
+    "classifier_dropout",
+]
+
+
+def set_dropout_to_zero(config):
+    for attr_name in known_dropout_keys:
+        if hasattr(config, attr_name):
+            setattr(config, attr_name, 0.0)
+
+    return config
 
 
 class BetterTransformersTestMixin(unittest.TestCase):
@@ -135,6 +155,59 @@ class BetterTransformersTestMixin(unittest.TestCase):
                 torch.allclose(output_hf, output_bt),
                 f"Maxdiff: {(output_hf - output_bt).abs().max()}",
             )
+
+    def _test_logits_backward(self, model_id: str, model_type: str, **preprocessor_kwargs):
+        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs)
+
+        hf_random_model = AutoModel.from_pretrained(model_id).eval()
+        random_config = hf_random_model.config
+
+        # I could not obtain reproducible results with `torch.manual_seed` nor with
+        # `torch.random.set_rng_state`. An alternative could be to make dropout stateful,
+        # and to replace them with a static pattern for this test. Currently, we use
+        # functional dropout though.
+        random_config = set_dropout_to_zero(random_config)
+
+        hf_random_model = hf_random_model.__class__(random_config)
+        converted_model = copy.deepcopy(hf_random_model)
+        converted_model = BetterTransformer.transform(converted_model)
+
+        hf_random_model = hf_random_model.train()
+        converted_model = converted_model.train()
+
+        optimizer_hf = torch.optim.SGD(hf_random_model.parameters(), lr=0.2)
+        optimizer_bt = torch.optim.SGD(converted_model.parameters(), lr=0.2)
+
+        tol = 2e-3
+
+        hf_hidden_states = hf_random_model(**inputs)[0]
+        bt_hidden_states = converted_model(**inputs)[0]
+
+        self.assert_equal(
+            hf_hidden_states,
+            bt_hidden_states,
+            atol=tol,
+            model_name=hf_random_model.__class__.__name__,
+        )
+
+        loss_hf = hf_hidden_states.abs().mean()
+        loss_bt = bt_hidden_states.abs().mean()
+
+        loss_hf.backward()
+        loss_bt.backward()
+
+        optimizer_hf.step()
+        optimizer_bt.step()
+
+        hf_hidden_states = hf_random_model(**inputs)[0]
+        bt_hidden_states = converted_model(**inputs)[0]
+
+        self.assert_equal(
+            hf_hidden_states,
+            bt_hidden_states,
+            atol=tol,
+            model_name=hf_random_model.__class__.__name__,
+        )
 
     def _test_logits(self, model_id: str, model_type: str, **preprocessor_kwargs):
         r"""

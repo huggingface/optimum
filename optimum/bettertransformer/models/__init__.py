@@ -148,23 +148,6 @@ class BetterTransformerManager:
         "t5",
     }
 
-    REQUIRES_TORCH_20 = {
-        "blenderbot",
-        "bart",
-        "codegen",
-        "gpt2",
-        "gptj",
-        "gpt_neo",
-        "gpt_neox",
-        "llama",
-        "m2m_100",
-        "marian",
-        "mbart",
-        "opt",
-        "pegasus",
-        "t5",
-    }
-
     @staticmethod
     def cannot_support(model_type: str) -> bool:
         """
@@ -208,17 +191,6 @@ class BetterTransformerManager:
                 The model type to check.
         """
         return model_type not in BetterTransformerManager.NOT_REQUIRES_STRICT_VALIDATION
-
-    @staticmethod
-    def requires_torch_20(model_type: str) -> bool:
-        """
-        Returns True if the architecture requires PyTorch 2.0 to be used with BetterTransformer.
-
-        Args:
-            model_type (`str`):
-                The model type to check.
-        """
-        return model_type in BetterTransformerManager.REQUIRES_TORCH_20
 
 
 class warn_uncompatible_save(object):
