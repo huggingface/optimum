@@ -68,6 +68,7 @@ EXTRAS_REQUIRE = {
     "habana": ["transformers<4.29.0", "optimum-habana"],
     "neuron": "optimum-neuron[neuron]",
     "neuronx": "optimum-neuron[neuronx]",
+    "furiosa": "optimum-furiosa",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
