@@ -116,7 +116,7 @@ class BetterTransformerManager:
         "clip": ["text_model"],
         # blip-2's Q-former and vision model should not be identified as the last layers of the model
         "blip-2": ["qformer.encoder.layer", "vision_model.encoder.layers"],
-        # encodec should not be identified as the last layer
+        # bark.codec_model.encoder is not supported in BetterTransformer
         "bark": ["codec_model.encoder.layers"],
     }
 
