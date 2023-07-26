@@ -255,9 +255,9 @@ class BetterTransformer(object):
                     " `keep_original_model=False` and create a new copy of the original"
                     " model somewhere else."
                 )
-            model_fast = replace_to_bettertransformer(model_fast, hf_config).eval()
+            model_fast = replace_to_bettertransformer(model_fast, hf_config)
         else:
-            model_fast = replace_to_bettertransformer(model, hf_config).eval()
+            model_fast = replace_to_bettertransformer(model, hf_config)
             model = None
 
         if BetterTransformerManager.requires_nested_tensor(model_fast.config.model_type):
