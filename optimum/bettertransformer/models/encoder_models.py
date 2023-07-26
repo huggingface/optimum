@@ -145,7 +145,6 @@ class AlbertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             if hidden_states.is_nested and self.is_last_layer:
                 hidden_states = hidden_states.to_padded_tensor(0.0)
         else:
-            # TODO: check dropout
             qkv = F.linear(hidden_states, weight=self.in_proj_weight, bias=self.in_proj_bias)
 
             qkv = qkv.view(qkv.size()[:-1] + (3, self.num_heads, self.attention_head_size)).permute(2, 0, 3, 1, 4)
@@ -279,8 +278,6 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             "norm2_weight": "output.LayerNorm.weight",
             "norm2_bias": "output.LayerNorm.bias",
         }
-
-        # TODO: cleaner solution
         self.attention_head_size = int(config.hidden_size / config.num_attention_heads)
         self.hidden_dropout_prob = config.hidden_dropout_prob
         self.attention_probs_dropout_prob = config.attention_probs_dropout_prob
@@ -877,7 +874,6 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             if hidden_states.is_nested and self.is_last_layer:
                 hidden_states = hidden_states.to_padded_tensor(0.0)
         else:
-            # TODO: check dropout
             qkv = F.linear(hidden_states, weight=self.in_proj_weight, bias=self.in_proj_bias)
 
             qkv = qkv.view(qkv.size()[:-1] + (3, self.num_heads, self.attention_head_size)).permute(2, 0, 3, 1, 4)
@@ -1041,7 +1037,9 @@ class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module
             if hidden_states.is_nested and self.is_last_layer:
                 hidden_states = hidden_states.to_padded_tensor(0.0)
         else:
-            raise NotImplementedError("TODO")
+            raise NotImplementedError(
+                "Training and Autocast are not implemented for BetterTransformer + Whisper. Please open an issue."
+            )
         return (hidden_states,)
 
 
@@ -1159,7 +1157,9 @@ class ViTLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             if hidden_states.is_nested and self.is_last_layer:
                 hidden_states = hidden_states.to_padded_tensor(0.0)
         else:
-            raise NotImplementedError("TODO")
+            raise NotImplementedError(
+                "Training and Autocast are not implemented for BetterTransformer + ViT. Please open an issue."
+            )
         return (hidden_states,)
 
 
@@ -1277,7 +1277,9 @@ class ViltLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             if hidden_states.is_nested and self.is_last_layer:
                 hidden_states = hidden_states.to_padded_tensor(0.0)
         else:
-            raise NotImplementedError("TODO")
+            raise NotImplementedError(
+                "Training and Autocast are not implemented for BetterTransformer + Vilt. Please open an issue."
+            )
         return (hidden_states,)
 
 
@@ -1402,7 +1404,9 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Modul
             if hidden_states.is_nested and self.is_last_layer:
                 hidden_states = hidden_states.to_padded_tensor(0.0)
         else:
-            raise NotImplementedError("TODO")
+            raise NotImplementedError(
+                "Training and Autocast are not implemented for BetterTransformer + Wav2Vec2. Please open an issue."
+            )
         return (hidden_states,)
 
 
@@ -1788,7 +1792,9 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
                 attention_mask,
             )
         else:
-            raise NotImplementedError("TODO")
+            NotImplementedError(
+                "Training and Autocast are not implemented for BetterTransformer + CLIP. Please open an issue."
+            )
 
         return (hidden_states,)
 
