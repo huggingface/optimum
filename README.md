@@ -22,7 +22,7 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 | [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `pip install --upgrade-strategy eager optimum[habana]`           |
 | [FuriosaAI](https://www.furiosa.ai/)                                                                                   | `pip install --upgrade-strategy eager optimum[furiosa]`          |
 
-+The `--upgrade-strategy eager` option is needed to ensure the different packages are upgraded to the latest possible version.
+The `--upgrade-strategy eager` option is needed to ensure the different packages are upgraded to the latest possible version.
 
 To install from source:
 
