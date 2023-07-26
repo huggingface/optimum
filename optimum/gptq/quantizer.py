@@ -263,14 +263,14 @@ class GPTQQuantizer(object):
             devices = list(model.hf_device_map.values())
             if "disk" in devices:
                 raise ValueError("disk offload is not supported with GPTQ quantization")
-            if "cpu" in devices and len(model.hf_device_map)>1:
+            if "cpu" in devices and len(model.hf_device_map) > 1:
                 logger.info("Cpu offload is not recommended. There might be some issues with the memory")
                 hook = None
                 for name, device in model.hf_device_map.items():
                     if device == "cpu":
                         module = recurse_getattr(model, name)
                         remove_hook_from_module(module, recurse=True)
-                        module, hook = cpu_offload_with_hook(module, 0, prev_hook=hook)
+                        module, hook = cpu_offload_with_hook(module, prev_module_hook=hook)
             # If the model has a device_map, we don't move to model. We have already dispatched the hook that will do the work
             has_device_map = True
 
@@ -284,7 +284,13 @@ class GPTQQuantizer(object):
 
         # Step 1: Prepare the data
         if isinstance(tokenizer, str):
-            tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+            except Exception:
+                raise ValueError(
+                    f"""We were not able to get the tokenizer using `AutoTokenizer.from_pretrained`
+                    with the string that you have passed {tokenizer}. If you have a custom tokenizer, you can pass it as input."""
+                )
 
         if isinstance(self.dataset, str):
             dataset = get_dataset(self.dataset, tokenizer, seqlen=self.model_seqlen, split="train")
@@ -358,7 +364,8 @@ class GPTQQuantizer(object):
         for i, block in enumerate(blocks):
             logger.info(f"Start quantizing block {self.block_name_to_quantize} {i + 1}/{len(blocks)}")
             # move block to cuda if needed
-            if not has_device_map:
+            # in case we have offload modules, we need to put them on cuda because of GPTQ object
+            if not has_device_map or get_device(block) == torch.device("cpu"):
                 block = block.to(0)
             layers = get_layers(block)
             if self.true_sequential:
