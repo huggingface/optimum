@@ -256,6 +256,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
         )
     )
     def test_logits(self, test_name: str, model_type: str, batch_size: int):
+        # TODO: enable those tests
         if model_type in ["rocbert", "splinter", "markuplm", "bert-generation"]:
             self.skipTest(f"tiny tokenizers are broken on the Hub {model_type}")
         if model_type in ["tapas"]:
@@ -273,6 +274,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
         )
     )
     def test_logits_backward(self, test_name: str, model_type: str, batch_size: int):
+        # TODO: enable those tests
         if model_type in ["rocbert", "splinter", "markuplm", "bert-generation"]:
             self.skipTest(f"tiny tokenizer is broken on the Hub for {model_type}")
         if model_type in ["tapas"]:
@@ -293,6 +295,12 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
 
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
+        # TODO: reenable those tests
+        if model_type in ["rocbert", "splinter", "markuplm", "bert-generation"]:
+            self.skipTest(f"tiny tokenizers are broken on the Hub {model_type}")
+        if model_type in ["tapas"]:
+            self.skipTest(f"{model_type} requires dataframe")
+
         model_id = MODELS_DICT[model_type]
         self._test_invert_model_logits(
             model_id=model_id, model_type=model_type, keep_original_model=keep_original_model
