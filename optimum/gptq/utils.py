@@ -110,6 +110,6 @@ def get_seqlen(model: nn.Module):
                 if key in model_config:
                     return model_config[key]
     logger.info(
-        "We couldn't get the model sequence length. Setting it to 2048. You can overwrite this value by passing `model_seqlen` in` GTPQQuantizer`"
+        "We couldn't get the model sequence length. Setting it to 2048. You can overwrite this value by passing `model_seqlen` in` GPTQQuantizer`"
     )
     return 2048

@@ -227,7 +227,7 @@ def get_dataset(
     dataset_name: str, tokenizer: Any, nsamples: int = 128, seqlen: int = 2048, seed: int = 0, split: str = "train"
 ):
     """
-    Get the dataset from the original paper of GTPQ
+    Get the dataset from the original paper of GPTQ
 
     Args:
         dataset_name (`str`):

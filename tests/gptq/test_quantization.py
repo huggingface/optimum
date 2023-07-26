@@ -29,7 +29,7 @@ from optimum.utils.testing_utils import require_accelerate, require_auto_gptq, r
 @slow
 @require_auto_gptq
 @require_torch_gpu
-class GTPQTest(unittest.TestCase):
+class GPTQTest(unittest.TestCase):
     model_name = "bigscience/bloom-560m"
 
     input_text = "Hello my name is"
@@ -122,7 +122,7 @@ class GTPQTest(unittest.TestCase):
             self.check_inference_correctness(quantized_model_from_saved)
 
 
-class GTPQUtilsTest(unittest.TestCase):
+class GPTQUtilsTest(unittest.TestCase):
     """
     Test utilities
     """
@@ -162,7 +162,7 @@ class GTPQUtilsTest(unittest.TestCase):
         self.assertCountEqual(modules_names, self.expected_preceding_modules)
 
 
-class BloomGTPQUtilsTest(GTPQUtilsTest):
+class BloomGPTQUtilsTest(GPTQUtilsTest):
     model_name = "bigscience/bloom-560m"
     expected_seqlen = 2048
     expected_block_name = "transformer.h"
@@ -170,7 +170,7 @@ class BloomGTPQUtilsTest(GTPQUtilsTest):
     expected_preceding_modules = ["transformer.word_embeddings", "transformer.word_embeddings_layernorm"]
 
 
-class GTPQDataTest(unittest.TestCase):
+class GPTQDataTest(unittest.TestCase):
     """
     Test data
     """
