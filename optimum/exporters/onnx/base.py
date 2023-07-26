@@ -133,14 +133,7 @@ class OnnxConfig(ExportConfig, ABC):
         "feature-extraction": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
-        # TODO: Is this the same thing as semantic-segmentation?
-        "image-segmentation": OrderedDict(
-            {
-                "logits": {0: "batch_size", 1: "num_queries"},
-                "pred_boxes": {0: "batch_size", 1: "num_queries"},
-                "pred_masks": {0: "batch_size", 1: "num_queries"},
-            }
-        ),
+        "image-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
         "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "mask-generation": OrderedDict({"logits": {0: "batch_size"}}),
         "masked-im": OrderedDict(
@@ -305,8 +298,10 @@ class OnnxConfig(ExportConfig, ABC):
             del onnx_model
             gc.collect()
 
-    def patch_model_for_export(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> ModelPatcher:
-        return ModelPatcher(self, model)
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> ModelPatcher:
+        return ModelPatcher(self, model, model_kwargs=model_kwargs)
 
     @property
     def values_override(self) -> Optional[Dict[str, Any]]:
@@ -435,7 +430,10 @@ class OnnxConfig(ExportConfig, ABC):
             `Dict[str, Any]`: Outputs with flattened structure and key mapping this new structure.
 
         """
-        return {f"{name}.{idx}": item for idx, item in enumerate(itertools.chain.from_iterable(field))}
+        if isinstance(field[0], (list, tuple)):
+            return {f"{name}.{idx}": item for idx, item in enumerate(itertools.chain.from_iterable(field))}
+        else:
+            return {f"{name}.{idx}": item for idx, item in enumerate(field)}
 
     def generate_dummy_inputs_for_validation(
         self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
@@ -807,8 +805,10 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
         flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
 
-    def patch_model_for_export(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> ModelPatcher:
-        return Seq2SeqModelPatcher(self, model)
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> ModelPatcher:
+        return Seq2SeqModelPatcher(self, model, model_kwargs=model_kwargs)
 
     def post_process_exported_models(
         self,

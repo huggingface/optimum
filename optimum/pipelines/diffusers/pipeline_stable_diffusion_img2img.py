@@ -17,133 +17,31 @@ import logging
 from typing import Callable, List, Optional, Union
 
 import numpy as np
+import PIL
 import torch
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
+from diffusers.utils import deprecate
 
-from .pipeline_utils import DiffusionPipelineMixin, rescale_noise_cfg
+from .pipeline_stable_diffusion import StableDiffusionPipelineMixin
+from .pipeline_utils import preprocess
 
 
 logger = logging.getLogger(__name__)
 
 
-class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
-    # Copied from https://github.com/huggingface/diffusers/blob/v0.17.1/src/diffusers/pipelines/stable_diffusion/pipeline_onnx_stable_diffusion.py#L114
-    def _encode_prompt(
-        self,
-        prompt: Union[str, List[str]],
-        num_images_per_prompt: int,
-        do_classifier_free_guidance: bool,
-        negative_prompt: Optional[Union[str, list]],
-        prompt_embeds: Optional[np.ndarray] = None,
-        negative_prompt_embeds: Optional[np.ndarray] = None,
-    ):
-        r"""
-        Encodes the prompt into text encoder hidden states.
-
-        Args:
-            prompt (`Union[str, List[str]]`):
-                prompt to be encoded
-            num_images_per_prompt (`int`):
-                number of images that should be generated per prompt
-            do_classifier_free_guidance (`bool`):
-                whether to use classifier free guidance or not
-            negative_prompt (`Optional[Union[str, list]]`):
-                The prompt or prompts not to guide the image generation. Ignored when not using guidance (i.e., ignored
-                if `guidance_scale` is less than `1`).
-            prompt_embeds (`Optional[np.ndarray]`, defaults to `None`):
-                Pre-generated text embeddings. Can be used to easily tweak text inputs, *e.g.* prompt weighting. If not
-                provided, text embeddings will be generated from `prompt` input argument.
-            negative_prompt_embeds (`Optional[np.ndarray]`, defaults to `None`):
-                Pre-generated negative text embeddings. Can be used to easily tweak text inputs, *e.g.* prompt
-                weighting. If not provided, negative_prompt_embeds will be generated from `negative_prompt` input
-                argument.
-        """
-        if isinstance(prompt, str):
-            batch_size = 1
-        elif isinstance(prompt, list):
-            batch_size = len(prompt)
-        else:
-            batch_size = prompt_embeds.shape[0]
-
-        if prompt_embeds is None:
-            # get prompt text embeddings
-            text_inputs = self.tokenizer(
-                prompt,
-                padding="max_length",
-                max_length=self.tokenizer.model_max_length,
-                truncation=True,
-                return_tensors="np",
-            )
-            text_input_ids = text_inputs.input_ids
-            untruncated_ids = self.tokenizer(prompt, padding="max_length", return_tensors="np").input_ids
-
-            if not np.array_equal(text_input_ids, untruncated_ids):
-                removed_text = self.tokenizer.batch_decode(
-                    untruncated_ids[:, self.tokenizer.model_max_length - 1 : -1]
-                )
-                logger.warning(
-                    "The following part of your input was truncated because CLIP can only handle sequences up to"
-                    f" {self.tokenizer.model_max_length} tokens: {removed_text}"
-                )
-
-            prompt_embeds = self.text_encoder(input_ids=text_input_ids.astype(np.int32))[0]
-
-        prompt_embeds = np.repeat(prompt_embeds, num_images_per_prompt, axis=0)
-
-        # get unconditional embeddings for classifier free guidance
-        if do_classifier_free_guidance and negative_prompt_embeds is None:
-            uncond_tokens: List[str]
-            if negative_prompt is None:
-                uncond_tokens = [""] * batch_size
-            elif type(prompt) is not type(negative_prompt):
-                raise TypeError(
-                    f"`negative_prompt` should be the same type to `prompt`, but got {type(negative_prompt)} !="
-                    f" {type(prompt)}."
-                )
-            elif isinstance(negative_prompt, str):
-                uncond_tokens = [negative_prompt] * batch_size
-            elif batch_size != len(negative_prompt):
-                raise ValueError(
-                    f"`negative_prompt`: {negative_prompt} has batch size {len(negative_prompt)}, but `prompt`:"
-                    f" {prompt} has batch size {batch_size}. Please make sure that passed `negative_prompt` matches"
-                    " the batch size of `prompt`."
-                )
-            else:
-                uncond_tokens = negative_prompt
-
-            max_length = prompt_embeds.shape[1]
-            uncond_input = self.tokenizer(
-                uncond_tokens,
-                padding="max_length",
-                max_length=max_length,
-                truncation=True,
-                return_tensors="np",
-            )
-            negative_prompt_embeds = self.text_encoder(input_ids=uncond_input.input_ids.astype(np.int32))[0]
-
-        if do_classifier_free_guidance:
-            negative_prompt_embeds = np.repeat(negative_prompt_embeds, num_images_per_prompt, axis=0)
-
-            # For classifier free guidance, we need to do two forward passes.
-            # Here we concatenate the unconditional and text embeddings into a single batch
-            # to avoid doing two forward passes
-            prompt_embeds = np.concatenate([negative_prompt_embeds, prompt_embeds])
-
-        return prompt_embeds
-
-    # Copied from https://github.com/huggingface/diffusers/blob/v0.17.1/src/diffusers/pipelines/stable_diffusion/pipeline_onnx_stable_diffusion.py#L217
+class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
+    # Copied from diffusers.pipelines.stable_diffusion.pipeline_onnx_stable_diffusion.OnnxStableDiffusionImg2ImgPipeline.check_inputs
     def check_inputs(
         self,
         prompt: Union[str, List[str]],
-        height: Optional[int],
-        width: Optional[int],
+        strength: float,
         callback_steps: int,
-        negative_prompt: Optional[str] = None,
+        negative_prompt: Optional[Union[str, List[str]]] = None,
         prompt_embeds: Optional[np.ndarray] = None,
         negative_prompt_embeds: Optional[np.ndarray] = None,
     ):
-        if height % 8 != 0 or width % 8 != 0:
-            raise ValueError(f"`height` and `width` have to be divisible by 8 but are {height} and {width}.")
+        if strength < 0 or strength > 1:
+            raise ValueError(f"The value of strength should in [0.0, 1.0] but is {strength}")
 
         if (callback_steps is None) or (
             callback_steps is not None and (not isinstance(callback_steps, int) or callback_steps <= 0)
@@ -179,57 +77,41 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
                     f" {negative_prompt_embeds.shape}."
                 )
 
-    # Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
-    def prepare_latents(self, batch_size, num_channels_latents, height, width, dtype, generator, latents=None):
-        shape = (batch_size, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
-        if isinstance(generator, list) and len(generator) != batch_size:
-            raise ValueError(
-                f"You have passed a list of generators of length {len(generator)}, but requested an effective batch"
-                f" size of {batch_size}. Make sure the batch size matches the length of the generators."
-            )
-
-        if latents is None:
-            latents = generator.randn(*shape).astype(dtype)
-        elif latents.shape != shape:
-            raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {shape}")
-
-        # scale the initial noise by the standard deviation required by the scheduler
-        latents = latents * np.float64(self.scheduler.init_noise_sigma)
-
-        return latents
-
-    # Adapted from https://github.com/huggingface/diffusers/blob/v0.17.1/src/diffusers/pipelines/stable_diffusion/pipeline_onnx_stable_diffusion.py#L264
+    # Adapted from diffusers.pipelines.stable_diffusion.pipeline_onnx_stable_diffusion.OnnxStableDiffusionImg2ImgPipeline.__call__
     def __call__(
         self,
         prompt: Optional[Union[str, List[str]]] = None,
-        height: Optional[int] = None,
-        width: Optional[int] = None,
+        image: Union[np.ndarray, PIL.Image.Image] = None,
+        strength: float = 0.8,
         num_inference_steps: int = 50,
         guidance_scale: float = 7.5,
         negative_prompt: Optional[Union[str, List[str]]] = None,
         num_images_per_prompt: int = 1,
         eta: float = 0.0,
         generator: Optional[np.random.RandomState] = None,
-        latents: Optional[np.ndarray] = None,
         prompt_embeds: Optional[np.ndarray] = None,
         negative_prompt_embeds: Optional[np.ndarray] = None,
         output_type: str = "pil",
         return_dict: bool = True,
         callback: Optional[Callable[[int, int, np.ndarray], None]] = None,
         callback_steps: int = 1,
-        guidance_rescale: float = 0.0,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
+
 
         Args:
             prompt (`Optional[Union[str, List[str]]]`, defaults to None):
                 The prompt or prompts to guide the image generation. If not defined, one has to pass `prompt_embeds`.
                 instead.
-            height (`Optional[int]`, defaults to None):
-                The height in pixels of the generated image.
-            width (`Optional[int]`, defaults to None):
-                The width in pixels of the generated image.
+            image (`Union[np.ndarray, PIL.Image.Image]`):
+                `Image`, or tensor representing an image batch which will be upscaled.
+            strength (`float`, defaults to 0.8):
+                Conceptually, indicates how much to transform the reference `image`. Must be between 0 and 1. `image`
+                will be used as a starting point, adding more noise to it the larger the `strength`. The number of
+                denoising steps depends on the amount of noise initially added. When `strength` is 1, added noise will
+                be maximum and the denoising process will run for the full number of iterations specified in
+                `num_inference_steps`. A value of 1, therefore, essentially ignores `image`.
             num_inference_steps (`int`, defaults to 50):
                 The number of denoising steps. More denoising steps usually lead to a higher quality image at the
                 expense of slower inference.
@@ -250,10 +132,6 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
                 [`schedulers.DDIMScheduler`], will be ignored for others.
             generator (`Optional[np.random.RandomState]`, defaults to `None`)::
                 A np.random.RandomState to make generation deterministic.
-            latents (`Optional[np.ndarray]`, defaults to `None`):
-                Pre-generated noisy latents, sampled from a Gaussian distribution, to be used as inputs for image
-                generation. Can be used to tweak the same generation with different prompts. If not provided, a latents
-                tensor will ge generated by sampling using the supplied random `generator`.
             prompt_embeds (`Optional[np.ndarray]`, defaults to `None`):
                 Pre-generated text embeddings. Can be used to easily tweak text inputs, *e.g.* prompt weighting. If not
                 provided, text embeddings will be generated from `prompt` input argument.
@@ -273,11 +151,7 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             callback_steps (`int`, defaults to 1):
                 The frequency at which the `callback` function will be called. If not specified, the callback will be
                 called at every step.
-            guidance_rescale (`float`, defaults to 0.0):
-                Guidance rescale factor proposed by [Common Diffusion Noise Schedules and Sample Steps are
-                Flawed](https://arxiv.org/pdf/2305.08891.pdf) `guidance_scale` is defined as `φ` in equation 16. of
-                [Common Diffusion Noise Schedules and Sample Steps are Flawed](https://arxiv.org/pdf/2305.08891.pdf).
-                Guidance rescale factor should fix overexposure when using zero terminal SNR.
+
 
         Returns:
             [`~pipelines.stable_diffusion.StableDiffusionPipelineOutput`] or `tuple`:
@@ -286,24 +160,25 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             list of `bool`s denoting whether the corresponding generated image likely represents "not-safe-for-work"
             (nsfw) content, according to the `safety_checker`.
         """
-        height = height or self.unet.config.get("sample_size", 64) * self.vae_scale_factor
-        width = width or self.unet.config.get("sample_size", 64) * self.vae_scale_factor
 
         # check inputs. Raise error if not correct
-        self.check_inputs(
-            prompt, height, width, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds
-        )
+        self.check_inputs(prompt, strength, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds)
 
         # define call parameters
-        if isinstance(prompt, str):
+        if prompt is not None and isinstance(prompt, str):
             batch_size = 1
-        elif isinstance(prompt, list):
+        elif prompt is not None and isinstance(prompt, list):
             batch_size = len(prompt)
         else:
             batch_size = prompt_embeds.shape[0]
 
         if generator is None:
             generator = np.random
+
+        # set timesteps
+        self.scheduler.set_timesteps(num_inference_steps)
+
+        image = preprocess(image)
 
         # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
         # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
@@ -319,19 +194,48 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             negative_prompt_embeds=negative_prompt_embeds,
         )
 
-        # set timesteps
-        self.scheduler.set_timesteps(num_inference_steps)
-        timesteps = self.scheduler.timesteps
+        latents_dtype = prompt_embeds.dtype
+        image = image.astype(latents_dtype)
+        # encode the init image into latents and scale the latents
+        init_latents = self.vae_encoder(sample=image)[0]
 
-        latents = self.prepare_latents(
-            batch_size * num_images_per_prompt,
-            self.unet.config.get("in_channels", 4),
-            height,
-            width,
-            prompt_embeds.dtype,
-            generator,
-            latents,
+        scaling_factor = self.vae_decoder.config.get("scaling_factor", 0.18215)
+        init_latents = scaling_factor * init_latents
+
+        if isinstance(prompt, str):
+            prompt = [prompt]
+        if len(prompt) > init_latents.shape[0] and len(prompt) % init_latents.shape[0] == 0:
+            # expand init_latents for batch_size
+            deprecation_message = (
+                f"You have passed {len(prompt)} text prompts (`prompt`), but only {init_latents.shape[0]} initial"
+                " images (`image`). Initial images are now duplicating to match the number of text prompts. Note"
+                " that this behavior is deprecated and will be removed in a version 1.0.0. Please make sure to update"
+                " your script to pass as many initial images as text prompts to suppress this warning."
+            )
+            deprecate("len(prompt) != len(image)", "1.0.0", deprecation_message, standard_warn=False)
+            additional_image_per_prompt = len(prompt) // init_latents.shape[0]
+            init_latents = np.concatenate([init_latents] * additional_image_per_prompt * num_images_per_prompt, axis=0)
+        elif len(prompt) > init_latents.shape[0] and len(prompt) % init_latents.shape[0] != 0:
+            raise ValueError(
+                f"Cannot duplicate `image` of batch size {init_latents.shape[0]} to {len(prompt)} text prompts."
+            )
+        else:
+            init_latents = np.concatenate([init_latents] * num_images_per_prompt, axis=0)
+
+        # get the original timestep using init_timestep
+        offset = self.scheduler.config.get("steps_offset", 0)
+        init_timestep = int(num_inference_steps * strength) + offset
+        init_timestep = min(init_timestep, num_inference_steps)
+
+        timesteps = self.scheduler.timesteps.numpy()[-init_timestep]
+        timesteps = np.array([timesteps] * batch_size * num_images_per_prompt)
+
+        # add noise to latents using the timesteps
+        noise = generator.randn(*init_latents.shape).astype(latents_dtype)
+        init_latents = self.scheduler.add_noise(
+            torch.from_numpy(init_latents), torch.from_numpy(noise), torch.from_numpy(timesteps)
         )
+        init_latents = init_latents.numpy()
 
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
         # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
@@ -341,6 +245,11 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
         extra_step_kwargs = {}
         if accepts_eta:
             extra_step_kwargs["eta"] = eta
+
+        latents = init_latents
+
+        t_start = max(num_inference_steps - init_timestep + offset, 0)
+        timesteps = self.scheduler.timesteps[t_start:].numpy()
 
         # Adapted from diffusers to extend it for other runtimes than ORT
         timestep_dtype = self.unet.input_dtype.get("timestep", np.float32)
@@ -354,16 +263,14 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
 
             # predict the noise residual
             timestep = np.array([t], dtype=timestep_dtype)
-            noise_pred = self.unet(sample=latent_model_input, timestep=timestep, encoder_hidden_states=prompt_embeds)
-            noise_pred = noise_pred[0]
+            noise_pred = self.unet(sample=latent_model_input, timestep=timestep, encoder_hidden_states=prompt_embeds)[
+                0
+            ]
 
             # perform guidance
             if do_classifier_free_guidance:
                 noise_pred_uncond, noise_pred_text = np.split(noise_pred, 2)
                 noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-                if guidance_rescale > 0.0:
-                    # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
-                    noise_pred = rescale_noise_cfg(noise_pred, noise_pred_text, guidance_rescale=guidance_rescale)
 
             # compute the previous noisy sample x_t -> x_t-1
             scheduler_output = self.scheduler.step(
@@ -380,12 +287,11 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             image = latents
             has_nsfw_concept = None
         else:
-            latents = 1 / self.vae_decoder.config.get("scaling_factor", 0.18215) * latents
+            latents = 1 / scaling_factor * latents
             # it seems likes there is a strange result for using half-precision vae decoder if batchsize>1
             image = np.concatenate(
                 [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
             )
-            # TODO: add image_processor
             image = np.clip(image / 2 + 0.5, 0, 1)
             image = image.transpose((0, 2, 3, 1))
             image, has_nsfw_concept = self.run_safety_checker(image)
@@ -397,22 +303,3 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             return (image, has_nsfw_concept)
 
         return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=has_nsfw_concept)
-
-    def run_safety_checker(self, image):
-        if self.safety_checker is None:
-            has_nsfw_concept = None
-        else:
-            safety_checker_input = self.feature_extractor(
-                self.numpy_to_pil(image), return_tensors="np"
-            ).pixel_values.astype(image.dtype)
-
-            images, has_nsfw_concept = [], []
-            for i in range(image.shape[0]):
-                image_i, has_nsfw_concept_i = self.safety_checker(
-                    clip_input=safety_checker_input[i : i + 1], images=image[i : i + 1]
-                )
-                images.append(image_i)
-                has_nsfw_concept.append(has_nsfw_concept_i[0])
-            image = np.concatenate(images)
-
-        return image, has_nsfw_concept

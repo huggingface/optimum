@@ -16,6 +16,30 @@ This quick tour is intended for developers who are ready to dive into the code a
 
 ## Accelerated inference
 
+#### OpenVINO
+
+To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class.
+If you want to load a PyTorch checkpoint, set `export=True` to convert your model to the OpenVINO IR (Intermediate Representation).
+
+```diff
+- from transformers import AutoModelForSequenceClassification
++ from optimum.intel.openvino import OVModelForSequenceClassification
+  from transformers import AutoTokenizer, pipeline
+
+  # Download a tokenizer and model from the Hub and convert to OpenVINO format
+  tokenizer = AutoTokenizer.from_pretrained(model_id)
+  model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+- model = AutoModelForSequenceClassification.from_pretrained(model_id)
++ model = OVModelForSequenceClassification.from_pretrained(model_id, export=True)
+
+  # Run inference!
+  classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+  results = classifier("He's a dreadful magician.")
+```
+
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
+
+
 #### ONNX Runtime
 
 To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for graph optimization and quantization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
@@ -67,30 +91,6 @@ In this example, we've quantized a model from the Hugging Face Hub, in the same 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/quickstart) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime).
 
 
-#### Intel
-
-To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class.
-If you want to load a PyTorch checkpoint, set `export=True` to convert your model to the OpenVINO IR (Intermediate Representation).
-
-```diff
-- from transformers import AutoModelForSequenceClassification
-+ from optimum.intel.openvino import OVModelForSequenceClassification
-  from transformers import AutoTokenizer, pipeline
-
-  # Download a tokenizer and model from the Hub and convert to OpenVINO format
-  tokenizer = AutoTokenizer.from_pretrained(model_id)
-  model_id = "distilbert-base-uncased-finetuned-sst-2-english"
-- model = AutoModelForSequenceClassification.from_pretrained(model_id)
-+ model = OVModelForSequenceClassification.from_pretrained(model_id, export=True)
-
-  # Run inference!
-  classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
-  results = classifier("He's a dreadful magician.")
-```
-
-You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
-
-
 ## Accelerated training
 
 #### Habana
@@ -128,45 +128,6 @@ To train transformers on Habana's Gaudi processors, 🤗 Optimum provides a `Gau
 ```
 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/habana/quickstart) and in the [examples](https://github.com/huggingface/optimum-habana/tree/main/examples).
-
-
-#### Graphcore
-
-To train transformers on Graphcore's IPUs, 🤗 Optimum provides a `IPUTrainer` that is very similar to the 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer). Here is a simple example:
-
-```diff
-- from transformers import Trainer, TrainingArguments
-+ from optimum.graphcore import IPUConfig, IPUTrainer, IPUTrainingArguments
-
-  # Download a pretrained model from the Hub
-  model = AutoModelForXxx.from_pretrained("bert-base-uncased")
-
-  # Define the training arguments
-- training_args = TrainingArguments(
-+ training_args = IPUTrainingArguments(
-      output_dir="path/to/save/folder/",
-+     ipu_config_name="Graphcore/bert-base-ipu", # Any IPUConfig on the Hub or stored locally
-      ...
-  )
-
-  # Define the configuration to compile and put the model on the IPU
-+ ipu_config = IPUConfig.from_pretrained(training_args.ipu_config_name)
-
-  # Initialize the trainer
-- trainer = Trainer(
-+ trainer = IPUTrainer(
-      model=model,
-+     ipu_config=ipu_config
-      args=training_args,
-      train_dataset=train_dataset
-      ...
-  )
-
-  # Use Graphcore IPU for training!
-  trainer.train()
-```
-
-You can find more examples in the [documentation](https://huggingface.co/docs/optimum/graphcore/quickstart) and in the [examples](https://github.com/huggingface/optimum-graphcore/tree/main/examples).
 
 
 #### ONNX Runtime
