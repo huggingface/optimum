@@ -19,10 +19,9 @@ import tempfile
 import unittest
 
 import torch
-from packaging.version import parse
 from transformers import AutoModel
 
-from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
+from optimum.bettertransformer import BetterTransformer
 from optimum.utils.testing_utils import flatten_dict, require_torch_gpu
 
 
@@ -84,6 +83,13 @@ known_dropout_keys = [
     "seq_classif_dropout",
     "summary_last_dropout",
     "classifier_dropout",
+    "activation_dropout",
+    "classif_dropout",
+    "dropout_rate",
+    "attn_pdrop",
+    "embd_pdrop",
+    "resid_pdrop",
+    "summary_first_dropout",
 ]
 
 
@@ -109,10 +115,6 @@ class BetterTransformersTestMixin(unittest.TestCase):
 
     def prepare_inputs_for_class(self, model_id=None, model_type=None):
         raise NotImplementedError
-
-    def _skip_on_torch_version(self, model_type: str):
-        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("1.14"):
-            self.skipTest(f"The model type {model_type} require PyTorch 2.0 for BetterTransformer")
 
     @require_torch_gpu
     def _test_fp16_inference(
@@ -168,7 +170,13 @@ class BetterTransformersTestMixin(unittest.TestCase):
         # functional dropout though.
         random_config = set_dropout_to_zero(random_config)
 
+        # m2m_100 randomly drops layers, which makes testing flaky (see `skip_the_layer` in transformers, some other models use it as well)
+        if model_type == "m2m_100":
+            random_config.encoder_layerdrop = 0
+            random_config.decoder_layerdrop = 0
+
         hf_random_model = hf_random_model.__class__(random_config)
+
         converted_model = copy.deepcopy(hf_random_model)
         converted_model = BetterTransformer.transform(converted_model)
 

@@ -288,7 +288,7 @@ class BetterTransformer(object):
 
         # See: https://github.com/pytorch/pytorch/issues/96099
         # TODO: show the warning only for decoders (which do not need an attention mask for training)
-        if BetterTransformerManager.is_decoder(model_fast.config.model_type):
+        if False:  # BetterTransformerManager.is_decoder(model_fast.config.model_type):
             logging.warning(
                 f"For decoder training, the BetterTransformer implementation for {model_fast.config.model_type} "
                 " architecture currently does not support padding as fused kernels do not support custom"
