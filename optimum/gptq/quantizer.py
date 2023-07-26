@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 from torch import nn
+from transformers import AutoTokenizer
 from transformers.pytorch_utils import Conv1D
 
 from ..utils import is_accelerate_available, is_auto_gptq_available
@@ -30,7 +31,8 @@ from .utils import get_block_name_with_pattern, get_device, get_layers, get_prec
 
 
 if is_accelerate_available():
-    from accelerate import Accelerator, load_checkpoint_and_dispatch
+    from accelerate import Accelerator, cpu_offload_with_hook, load_checkpoint_and_dispatch
+    from accelerate.hooks import remove_hook_from_module
 
 if is_auto_gptq_available():
     from auto_gptq.quantization import GPTQ
@@ -223,7 +225,13 @@ class GPTQQuantizer(object):
             model (`nn.Module`):
                 The model to quantize
             tokenizer (`Any`):
-                The tokenizer to use in order to prepare the dataset
+                The tokenizer to use in order to prepare the dataset. You can pass either:
+                    - A custom tokenizer object.
+                    - A string, the *model id* of a predefined tokenizer hosted inside a model repo on huggingface.co.
+                      Valid model ids can be located at the root-level, like `bert-base-uncased`, or namespaced under a
+                      user or organization name, like `dbmdz/bert-base-german-cased`.
+                    - A path to a *directory* containing vocabulary files required by the tokenizer, for instance saved
+                      using the [`~PreTrainedTokenizer.save_pretrained`] method, e.g., `./my_model_directory/`.
             verbose (`bool`):
                 Set the logger level to INFO is True
         Returns:
@@ -252,9 +260,18 @@ class GPTQQuantizer(object):
             model.config.use_cache = False
 
         if hasattr(model, "hf_device_map"):
-            if "cpu" in model.hf_device_map:
-                raise ValueError("CPU offload is not supported yet with GPTQ quantization")
-            # If the model has a device_map, we don't move to model. We have already dispatch the hook that will do the work
+            devices = list(model.hf_device_map.values())
+            if "disk" in devices:
+                raise ValueError("disk offload is not supported with GPTQ quantization")
+            if "cpu" in devices and len(model.hf_device_map)>1:
+                logger.log("Cpu offload is not recommended. There might be some issues with the memory")
+                hook = None
+                for name, device in model.hf_device_map.items():
+                    if device == "cpu":
+                        module = recurse_getattr(model, name)
+                        remove_hook_from_module(module, recurse=True)
+                        module, hook = cpu_offload_with_hook(module, 0, prev_hook=hook)
+            # If the model has a device_map, we don't move to model. We have already dispatched the hook that will do the work
             has_device_map = True
 
         if hasattr(model, "dtype"):
@@ -266,6 +283,9 @@ class GPTQQuantizer(object):
         device = get_device(model)
 
         # Step 1: Prepare the data
+        if isinstance(tokenizer, str):
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+
         if isinstance(self.dataset, str):
             dataset = get_dataset(self.dataset, tokenizer, seqlen=self.model_seqlen, split="train")
         elif isinstance(self.dataset, list):
@@ -362,7 +382,6 @@ class GPTQQuantizer(object):
 
                         return tmp
 
-                    # TODO : need to rework on these hooks if we use a device_map
                     # because it adding a hook will replace the old one.
                     handles.append(subset_layers[name].register_forward_hook(add_batch(name)))
                 # update Hessian for each layer in subset_layers thanks to the hook
