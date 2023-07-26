@@ -264,7 +264,7 @@ class GPTQQuantizer(object):
             if "disk" in devices:
                 raise ValueError("disk offload is not supported with GPTQ quantization")
             if "cpu" in devices and len(model.hf_device_map)>1:
-                logger.log("Cpu offload is not recommended. There might be some issues with the memory")
+                logger.info("Cpu offload is not recommended. There might be some issues with the memory")
                 hook = None
                 for name, device in model.hf_device_map.items():
                     if device == "cpu":
