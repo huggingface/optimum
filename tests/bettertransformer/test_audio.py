@@ -21,7 +21,7 @@ from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
 
 from optimum.bettertransformer import BetterTransformer
-from optimum.utils.testing_utils import grid_parameters, require_torch_20
+from optimum.utils.testing_utils import grid_parameters
 
 
 ALL_AUDIO_MODELS_TO_TEST = [
@@ -64,21 +64,16 @@ class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCa
         return input_dict
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
         model_id = MODELS_DICT[model_type]
         self._test_invert_model_logits(
@@ -165,24 +160,7 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
                     ),
                 )
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
-        model_ids = (
-            MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
-        )
-        for model_id in model_ids:
-            self._test_raise_autocast(model_id, model_type=model_type)
-
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_train(self, model_type: str):
-        model_ids = (
-            MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
-        )
-        for model_id in model_ids:
-            self._test_raise_train(model_id, model_type=model_type)
-
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
         if model_type in ["hubert", "wav2vec2"] and keep_original_model is True:
             self.skipTest(f"{model_type} does not support keep_original_model=True")
@@ -194,7 +172,6 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
             self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
         if model_type in ["hubert", "wav2vec2"] and keep_original_model is True:
             self.skipTest(f"{model_type} does not support keep_original_model=True")
@@ -206,7 +183,6 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
             self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
         if model_type == "hubert" and keep_original_model is True:
             self.skipTest("hubert does not support keep_original_model=True")

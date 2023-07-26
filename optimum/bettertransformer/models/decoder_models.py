@@ -65,16 +65,13 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPT2Attent
             setattr(self, "q_attn", getattr(layer, "q_attn"))
             self.original_layers_mapping["q_attn"] = "q_attn"
 
-        self.supports_training = True
         self.downcast_qk = False
         self.dropout_prob_attn = config.attn_pdrop
 
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return super().forward(*args, **kwargs)
 
 
-# TODO: validate
 class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttention, nn.Module):
     _attn = gpt2_wrapped_scaled_dot_product
 
@@ -105,11 +102,9 @@ class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttent
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
         self.downcast_qk = True
-        self.supports_training = True
         self.dropout_prob_attn = config.attn_pdrop
 
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return super().forward(*args, **kwargs)
 
 
@@ -129,11 +124,9 @@ class GPTNeoXAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoX
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
         self.downcast_qk = True
-        self.supports_training = True
         self.dropout_prob_attn = 0.0  # no dropout for gpt-neox
 
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return super().forward(*args, **kwargs)
 
 
@@ -159,11 +152,9 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
         self.scale = torch.sqrt(torch.tensor(layer.head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
-        self.supports_training = True
         self.dropout_prob_attn = float(config.attention_dropout)
 
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return super().forward(*args, **kwargs)
 
 
@@ -188,11 +179,9 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGen
 
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
-        self.supports_training = True
         self.dropout_prob_attn = config.attn_pdrop
 
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return super().forward(*args, **kwargs)
 
 
@@ -218,10 +207,7 @@ class OPTAttentionLayerBetterTransformer(BetterTransformerBaseLayer, OPTAttentio
 
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
-        self.supports_training = True
-
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return opt_forward(self, *args, **kwargs)
 
 
@@ -249,11 +235,9 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer, T5Attention,
 
         self.module_mapping = None
 
-        self.supports_training = True
         self.is_decoder = layer.is_decoder
 
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return t5_forward(self, *args, **kwargs)
 
 
@@ -274,7 +258,6 @@ def bart_bettertransformer_init(self, layer: "nn.Module", config: "PretrainedCon
 
     self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
-    self.supports_training = True
     self.is_decoder = layer.is_decoder
 
 
@@ -284,7 +267,6 @@ class BartAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BartAttent
         bart_bettertransformer_init(self, layer, config)
 
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return bart_forward(self, *args, **kwargs)
 
 
@@ -294,7 +276,6 @@ class BlenderbotAttentionLayerBetterTransformer(BetterTransformerBaseLayer, Blen
         bart_bettertransformer_init(self, layer, config)
 
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return bart_forward(self, *args, **kwargs)
 
 
@@ -304,7 +285,6 @@ class M2M100AttentionLayerBetterTransformer(BetterTransformerBaseLayer, M2M100At
         bart_bettertransformer_init(self, layer, config)
 
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return bart_forward(self, *args, **kwargs)
 
 
@@ -314,7 +294,6 @@ class MarianAttentionLayerBetterTransformer(BetterTransformerBaseLayer, MarianAt
         bart_bettertransformer_init(self, layer, config)
 
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return bart_forward(self, *args, **kwargs)
 
 
@@ -323,7 +302,6 @@ class PegasusAttentionLayerBetterTransformer(BetterTransformerBaseLayer, Pegasus
         bart_bettertransformer_init(self, layer, config)
 
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return bart_forward(self, *args, **kwargs)
 
 
@@ -339,8 +317,5 @@ class LlamaAttentionLayerBetterTransformer(BetterTransformerBaseLayer, LlamaAtte
 
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
-        self.supports_training = True
-
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return llama_forward(self, *args, **kwargs)

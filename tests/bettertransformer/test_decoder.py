@@ -23,7 +23,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils import DummyPastKeyValuesGenerator, NormalizedConfigManager
-from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_20, require_torch_gpu
+from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_gpu
 
 
 class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
@@ -34,7 +34,9 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         "keep_original_model": [True, False],
     }
 
-    def prepare_inputs_for_class(self, model_id: str, model_type: str, batch_size: int = 2, **preprocessor_kwargs):
+    def prepare_inputs_for_class(
+        self, model_id: str, model_type: str, batch_size: int = 2, no_padding: bool = False, **preprocessor_kwargs
+    ):
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         if not hasattr(tokenizer, "pad_token") or tokenizer.pad_token is None:
             if tokenizer.eos_token != "":
@@ -45,6 +47,8 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         padding = preprocessor_kwargs.pop("padding", True)
         if batch_size == 1:
             texts = ["a dummy input yeah!"]
+        elif no_padding:
+            texts = ["a dummy input yeah!"] * batch_size
         else:
             texts = ["a dummy input yeah!"] + ["and two"] * (batch_size - 1)
         inputs = tokenizer(texts, return_tensors="pt", padding=padding, max_length=20, **preprocessor_kwargs)
@@ -61,12 +65,23 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         )
     )
     def test_logits_without_cache(self, test_name: str, model_type: str, padding, batch_size: int):
-        self._skip_on_torch_version(model_type)
         if batch_size == 1 and padding == "max_length":
             self.skipTest("batch_size=1 + padding='max_length' is unsupported")
 
         model_id = MODELS_DICT[model_type]
         self._test_logits(model_id, model_type=model_type, padding=padding, batch_size=batch_size)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_type": SUPPORTED_ARCH,
+                "batch_size": [1, 3],
+            }
+        )
+    )
+    def test_logits_backward(self, test_name: str, model_type: str, batch_size: int):
+        model_id = MODELS_DICT[model_type]
+        self._test_logits_backward(model_id, model_type=model_type, no_padding=True, batch_size=batch_size)
 
     @parameterized.expand(
         grid_parameters(
@@ -81,8 +96,6 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_fp16_inference(self, test_name: str, model_type: str, use_to_operator: bool, batch_size: int):
-        self._skip_on_torch_version(model_type)
-
         model_id = MODELS_DICT[model_type]
         self._test_fp16_inference(
             model_id,
@@ -101,7 +114,6 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         )
     )
     def test_logits_with_cache(self, test_name: str, model_type: str, batch_size: int):
-        self._skip_on_torch_version(model_type)
         input_ids = torch.randint(low=1, high=10, size=(batch_size, 1))
         seq_length = 12
         attention_mask = torch.ones(batch_size, seq_length + 1, dtype=torch.int32)
@@ -135,7 +147,6 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         grid_parameters({"model_type": SUPPORTED_ARCH, "batch_size": [1, 3], "padding": [True, "max_length"]})
     )
     def test_generation(self, test_name: str, model_type: str, batch_size: int, padding: str):
-        self._skip_on_torch_version(model_type)
         if batch_size == 1 and padding == "max_length":
             self.skipTest("batch_size=1 + padding='max_length' is unsupported")
 
@@ -168,34 +179,22 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         )
 
     @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
-        self._skip_on_torch_version(model_type)
-        model_id = MODELS_DICT[model_type]
-        self._test_raise_autocast(model_id, model_type=model_type)
-
-    @parameterized.expand(SUPPORTED_ARCH)
     @pytest.mark.training
     def test_train(self, model_type: str):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_train_decoder(model_id, model_type=model_type)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
         model_id = MODELS_DICT[model_type]
         self._test_invert_model_logits(
