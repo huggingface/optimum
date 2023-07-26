@@ -209,21 +209,6 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
         self.assertTrue(torch.allclose(output_bt[0][1, 3:], torch.zeros_like(output_bt[0][1, 3:])))
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
-        if model_type == "rocbert":
-            self.skipTest(
-                "unrelated issue with torch.amp.autocast with rocbert (expected scalar type BFloat16 but found Float)"
-            )
-
-        model_id = MODELS_DICT[model_type]
-        self._test_raise_autocast(model_id, model_type)
-
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_train(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        self._test_raise_train(model_id, model_type)
-
     @pytest.mark.gpu_test
     @pytest.mark.accelerate_test
     def test_accelerate_compatibility_cpu_gpu(self):

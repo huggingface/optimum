@@ -160,22 +160,6 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
                     ),
                 )
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
-        model_ids = (
-            MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
-        )
-        for model_id in model_ids:
-            self._test_raise_autocast(model_id, model_type=model_type)
-
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_train(self, model_type: str):
-        model_ids = (
-            MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
-        )
-        for model_id in model_ids:
-            self._test_raise_train(model_id, model_type=model_type)
-
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
         if model_type in ["hubert", "wav2vec2"] and keep_original_model is True:

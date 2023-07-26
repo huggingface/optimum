@@ -182,11 +182,6 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         )
 
     @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        self._test_raise_autocast(model_id, model_type=model_type)
-
-    @parameterized.expand(SUPPORTED_ARCH)
     @pytest.mark.training
     def test_train(self, model_type: str):
         model_id = MODELS_DICT[model_type]

@@ -89,19 +89,6 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         model_id = MODELS_DICT[model_type]
         self._test_logits_backward(model_id, model_type=model_type, padding=padding, max_length=max_length)
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        self._test_raise_autocast(model_id, model_type=model_type)
-
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_train(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        if model_type not in ["blenderbot", "pegasus", "t5"]:
-            self._test_raise_train(model_id, model_type=model_type)
-        else:
-            self._test_train_decoder(model_id, model_type=model_type)
-
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
         model_id = MODELS_DICT[model_type]

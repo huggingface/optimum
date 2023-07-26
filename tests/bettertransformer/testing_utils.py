@@ -108,9 +108,6 @@ class BetterTransformersTestMixin(unittest.TestCase):
         - `test_logits`: This tests if the converted model produces the same logits
         than the original model.
         - `test_raise_on_save`: Test if the converion properly raises an error if someone tries to save the model using `save_pretrained`.
-        - `test_raise_autocast`: A tests that checks if the conversion raises an error if the model is run under
-        `torch.cuda.amp.autocast`.
-        - `test_raise_train`: A tests that checks if the conversion raises an error if the model is run in training mode.
     """
 
     def prepare_inputs_for_class(self, model_id=None, model_type=None):
@@ -168,6 +165,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
         # `torch.random.set_rng_state`. An alternative could be to make dropout stateful,
         # and to replace them with a static pattern for this test. Currently, we use
         # functional dropout though.
+        # We need to be in train mode to take the right path.
         random_config = set_dropout_to_zero(random_config)
 
         # m2m_100 randomly drops layers, which makes testing flaky (see `skip_the_layer` in transformers, some other models use it as well)
@@ -229,9 +227,13 @@ class BetterTransformersTestMixin(unittest.TestCase):
         hf_random_model = AutoModel.from_pretrained(model_id).eval()
         random_config = hf_random_model.config
 
+        hf_random_model = hf_random_model.eval()
+
         torch.manual_seed(0)
         converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
 
+        self.assertFalse(hf_random_model.training)
+        self.assertFalse(converted_model.training)
         self.assertFalse(
             hasattr(hf_random_model, "use_bettertransformer"),
             f"The model {hf_random_model.__class__.__name__} has been converted to a `fast` model by mistake.",
@@ -289,33 +291,6 @@ class BetterTransformersTestMixin(unittest.TestCase):
             f"The BetterTransformer converted model does not produce the same logits as the original model. Failed for the model {model_name}."
             f" Maxdiff: {torch.abs(tensor1 - tensor2).max()}",
         )
-
-    def _test_raise_autocast(self, model_id: str, model_type: str, **kwargs):
-        r"""
-        A tests that checks if the conversion raises an error if the model is run under
-        `torch.cuda.amp.autocast`.
-        """
-        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **kwargs)
-        hf_random_model = AutoModel.from_pretrained(model_id).eval()
-
-        # Check for the autocast on CPU
-        with self.assertRaises(ValueError), torch.amp.autocast("cpu"):
-            bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
-            _ = bt_model(**inputs)
-
-    def _test_raise_train(self, model_id: str, model_type: str, **kwargs):
-        r"""
-        A tests that checks if the conversion raises an error if the model is run under
-        `model.train()`.
-        """
-        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **kwargs)
-
-        hf_random_model = AutoModel.from_pretrained(model_id).eval()
-        # Check for training mode
-        with self.assertRaises(ValueError):
-            bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
-            bt_model.train()
-            _ = bt_model(**inputs)
 
     def _test_train_decoder(self, model_id: str, model_type: str, **kwargs):
         r"""

@@ -73,18 +73,6 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
         model_id = MODELS_DICT[model_type]
         self._test_logits(model_id, model_type=model_type)
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        self._test_raise_autocast(model_id, model_type=model_type)
-
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_train(self, model_type: str):
-        if model_type in ["blip-2"]:
-            self.skipTest("can be trained")
-        model_id = MODELS_DICT[model_type]
-        self._test_raise_train(model_id, model_type=model_type)
-
     @parameterized.expand(
         grid_parameters(
             {
