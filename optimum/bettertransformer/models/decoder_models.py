@@ -72,7 +72,6 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPT2Attent
         return super().forward(*args, **kwargs)
 
 
-# TODO: validate
 class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttention, nn.Module):
     _attn = gpt2_wrapped_scaled_dot_product
 

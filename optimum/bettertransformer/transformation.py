@@ -287,12 +287,11 @@ class BetterTransformer(object):
                 model = dispatch_model(model, hf_device_map, offload_dir=offload_dir)
 
         # See: https://github.com/pytorch/pytorch/issues/96099
-        # TODO: show the warning only for decoders (which do not need an attention mask for training)
-        if False:  # BetterTransformerManager.is_decoder(model_fast.config.model_type):
-            logging.warning(
-                f"For decoder training, the BetterTransformer implementation for {model_fast.config.model_type} "
-                " architecture currently does not support padding as fused kernels do not support custom"
-                " attention masks. Beware that passing padded batched training data may result in unexpected outputs."
+        if model_fast.config.model_type in BetterTransformerManager.DO_NOT_SUPPORT_PADDED_TRAINING:
+            logger.warning(
+                f"For decoder models (here {model_fast.config.model_type}), the BetterTransformer implementation"
+                " does not support padding during training, as the fused kernels do not support"
+                " attention masks. Beware that passing padded batched data during training may result in unexpected outputs."
             )
 
         # Overwrite the `save_pretrained` method
