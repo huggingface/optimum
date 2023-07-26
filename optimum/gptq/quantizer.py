@@ -49,7 +49,7 @@ class GPTQQuantizer(object):
     def __init__(
         self,
         bits: int,
-        dataset: Union[List[str], str],
+        dataset: Optional[Union[List[str], str]] = None,
         group_size: int = 128,
         damp_percent: float = 0.01,
         desc_act: bool = True,
@@ -69,7 +69,7 @@ class GPTQQuantizer(object):
         Args:
             bits (`int`):
                 The number of bits to quantize to, supported numbers are (2, 3, 4, 8).
-            dataset (`Union[List[str],str]`):
+            dataset (`Union[List[str],str]`, defaults to None):
                 The dataset used for quantization. You can provide your own dataset in a list of string or just use the original datasets used
                 in GPTQ paper ['wikitext2','c4','c4-new','ptb','ptb-new'].
             group_size (int, defaults to -1):
@@ -292,11 +292,15 @@ class GPTQQuantizer(object):
                     with the string that you have passed {tokenizer}. If you have a custom tokenizer, you can pass it as input.
                     For now, we only support quantization for text model. Support for vision, speech and multimodel will come later."""
                 )
-
-        if isinstance(self.dataset, str):
+        if self.dataset is None:
+            raise ValueError("You need to pass `dataset` in order to quantize your model")
+        elif isinstance(self.dataset, str):
             dataset = get_dataset(self.dataset, tokenizer, seqlen=self.model_seqlen, split="train")
         elif isinstance(self.dataset, list):
             dataset = [tokenizer(data, return_tensors="pt") for data in self.dataset]
+        else:
+            raise ValueError("You need to pass a list of string or a string for `dataset`")
+
         dataset = prepare_dataset(dataset, pad_token_id=self.pad_token_id, batch_size=self.batch_size)
 
         # Step 2: get the input of the 1st block
