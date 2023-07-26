@@ -447,7 +447,7 @@ class GPTQQuantizer(object):
         if not self.pack_sequentially:
             self.pack_model(model=model, quantizers=quantizers)
 
-        model._is_quantized_gptq = True
+        model._is_gptq_quantized = True
         if has_config:
             model.config.use_cache = use_cache
             model.config.quantization_config = self.to_dict()
