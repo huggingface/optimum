@@ -289,7 +289,8 @@ class GPTQQuantizer(object):
             except Exception:
                 raise ValueError(
                     f"""We were not able to get the tokenizer using `AutoTokenizer.from_pretrained`
-                    with the string that you have passed {tokenizer}. If you have a custom tokenizer, you can pass it as input."""
+                    with the string that you have passed {tokenizer}. If you have a custom tokenizer, you can pass it as input.
+                    For now, we only support quantization for text model. Support for vision, speech and multimodel will come later."""
                 )
 
         if isinstance(self.dataset, str):
