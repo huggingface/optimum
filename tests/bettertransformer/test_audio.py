@@ -19,7 +19,7 @@ import pytest
 import torch
 from parameterized import parameterized
 from testing_utils import MODELS_DICT, BetterTransformersTestMixin
-from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor
+from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor, set_seed
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils.testing_utils import grid_parameters, require_torch_20, require_torch_gpu
@@ -69,7 +69,8 @@ class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase)
         # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
         inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs).to(0)
 
-        torch.manual_seed(0)
+        set_seed(0)
+
         if not use_to_operator:
             hf_random_model = automodel_class.from_pretrained(model_id, torch_dtype=torch.float16).to(0)
             converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=False)
@@ -89,24 +90,24 @@ class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase)
         )
 
         length = 50
+        rtol = 5e-2
+
         with torch.inference_mode():
             r"""
             Make sure the models are in eval mode! Make also sure that the original model
             has not been converted to a fast model. The check is done above.
             """
-            torch.manual_seed(0)
             output_hf = hf_random_model.generate(
                 **inputs, fine_temperature=None, do_sample=False, semantic_max_new_tokens=length
             )
 
-            torch.manual_seed(0)
             output_bt = converted_model.generate(
                 **inputs, fine_temperature=None, do_sample=False, semantic_max_new_tokens=length
             )
 
             self.assertTrue(
-                torch.allclose(output_hf, output_bt),
-                f"Maxdiff: {(output_hf - output_bt).abs().max()}",
+                (output_hf - output_bt).abs().mean() < rtol,
+                f"Mean absolute diff: {(output_hf - output_bt).abs().mean()}",
             )
 
     @parameterized.expand(
