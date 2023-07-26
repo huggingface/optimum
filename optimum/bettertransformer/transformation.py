@@ -242,6 +242,8 @@ class BetterTransformer(object):
             # Remove the hooks from the original model to avoid weights being on `meta` device.
             remove_hook_from_module(model, recurse=True)
 
+        training_mode = model.training
+
         if keep_original_model:
             try:
                 if not check_if_pytorch_greater(2.0, "Please upgrade PyTorch to >=2.0 to use training mode"):
@@ -302,6 +304,11 @@ class BetterTransformer(object):
 
         model_fast.save_pretrained = raise_save_or_push_incompatible
         model_fast.push_to_hub = raise_save_or_push_incompatible
+
+        if training_mode:
+            model_fast = model_fast.train()
+        else:
+            model_fast = model_fast.eval()
 
         return model_fast
 
