@@ -22,8 +22,7 @@ from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor, set_seed
 
 from optimum.bettertransformer import BetterTransformer
-from optimum.utils.testing_utils import grid_parameters, require_torch_20, require_torch_gpu
-
+from optimum.utils.testing_utils import grid_parameters, require_torch_gpu
 
 
 ALL_AUDIO_MODELS_TO_TEST = [
@@ -124,8 +123,6 @@ class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase)
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_fp16_inference(self, test_name: str, model_type: str, use_to_operator: bool, batch_size: int):
-        self._skip_on_torch_version(model_type)
-
         model_id = MODELS_DICT[model_type]
         self._test_fp16_inference(
             model_id,
@@ -137,8 +134,6 @@ class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase)
 
     @parameterized.expand(grid_parameters({"model_type": SUPPORTED_ARCH, "batch_size": [1, 2]}))
     def test_generation(self, test_name: str, model_type: str, batch_size: int):
-        self._skip_on_torch_version(model_type)
-
         model_id = MODELS_DICT[model_type]
         processor = AutoProcessor.from_pretrained(model_id)
 
@@ -168,21 +163,16 @@ class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase)
 
     @parameterized.expand(SUPPORTED_ARCH)
     def test_raise_autocast(self, model_type: str):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_raise_autocast(model_id, model_type=model_type)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
         self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 

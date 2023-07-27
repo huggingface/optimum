@@ -90,7 +90,7 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
         Test if the converted model raises an error when calling `save_pretrained`
         but not when the model is reverted
         """
-        
+
         if model_type in ["wav2vec2", "hubert", "bark"] and keep_original_model is True:
             self.skipTest("These architectures do not support deepcopy")
 
