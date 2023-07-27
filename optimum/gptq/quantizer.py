@@ -15,12 +15,12 @@
 import copy
 import json
 import os
-from tqdm import tqdm
 from logging import getLogger
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 from torch import nn
+from tqdm import tqdm
 from transformers import AutoTokenizer
 from transformers.pytorch_utils import Conv1D
 
@@ -234,7 +234,7 @@ class GPTQQuantizer(object):
                     - A path to a *directory* containing vocabulary files required by the tokenizer, for instance saved
                       using the [`~PreTrainedTokenizer.save_pretrained`] method, e.g., `./my_model_directory/`.
             verbose (`bool`):
-                Whether to show the tqdm bar or not 
+                Whether to show the tqdm bar or not
         Returns:
             `nn.Module`: The quantized model
         """
@@ -361,7 +361,9 @@ class GPTQQuantizer(object):
 
         # Step 3: Quantize the blocks
         quantizers = {}
-        for i, block in enumerate(tqdm(blocks, disable=not verbose, desc = f"Quantizing {self.block_name_to_quantize} blocks ")):
+        for i, block in enumerate(
+            tqdm(blocks, disable=not verbose, desc=f"Quantizing {self.block_name_to_quantize} blocks ")
+        ):
             logger.info(f"Start quantizing block {self.block_name_to_quantize} {i + 1}/{len(blocks)}")
             # move block to cuda if needed
             # in case we have offload modules, we need to put them on cuda because of GPTQ object
@@ -374,7 +376,9 @@ class GPTQQuantizer(object):
             else:
                 layers_name_list = [list(layers.keys())]
             logger.info(f"Module to quantize {layers_name_list}")
-            for subset_name_list in tqdm(layers_name_list, disable=not verbose, leave=False, desc = "Quantizing layers inside the block"):
+            for subset_name_list in tqdm(
+                layers_name_list, disable=not verbose, leave=False, desc="Quantizing layers inside the block"
+            ):
                 subset_layers = {name: layers[name] for name in subset_name_list}
                 gptq = {}
                 handles = []
