@@ -201,30 +201,49 @@ Here is an example of how you can load a PyTorch SD XL model, convert it to ONNX
 ```python
 from optimum.onnxruntime import ORTStableDiffusionXLPipeline
 
-model_id = "stabilityai/stable-diffusion-xl-base-0.9"
-pipeline = ORTStableDiffusionXLPipeline.from_pretrained(model_id, export=True)
+model_id = "stabilityai/stable-diffusion-xl-base-1.0"
+base = ORTStableDiffusionXLPipeline.from_pretrained(model_id, export=True)
 prompt = "sailing ship in storm by Leonardo da Vinci"
-image = pipeline(prompt).images[0]
+image = base(prompt).images[0]
 
 # Don't forget to save the ONNX model
-save_directory = "a_local_path"
-pipeline.save_pretrained(save_directory)
-
+save_directory = "sd_xl_base"
+base.save_pretrained(save_directory)
 ```
+
 
 ### Image-to-Image
 
-The image can be refined by making use of a model like [stabilityai/stable-diffusion-xl-refiner-0.9](https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-0.9). In this case, you only have to output the latents from the base model.
+You can use SDXL as follows for *image-to-image*:
+
+```python
+from optimum.onnxruntime import ORTStableDiffusionXLImg2ImgPipeline
+from diffusers.utils import load_image
+
+model_id = "stabilityai/stable-diffusion-xl-refiner-1.0"
+pipeline = ORTStableDiffusionXLImg2ImgPipeline.from_pretrained(model_id, export=True)
+
+url = "https://huggingface.co/datasets/optimum/documentation-images/resolve/main/intel/openvino/sd_xl/castle_friedrich.png"
+image = load_image(url).convert("RGB")
+prompt = "medieval castle by Caspar David Friedrich"
+image = pipeline(prompt, image=image).images[0]
+image.save("medieval_castle.png")
+```
+
+
+### Refining the image output
+
+The image can be refined by making use of a model like [stabilityai/stable-diffusion-xl-refiner-1.0](https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0). In this case, you only have to output the latents from the base model.
 
 
 ```python
 from optimum.onnxruntime import ORTStableDiffusionXLImg2ImgPipeline
 
-use_refiner = True
-model_id = "stabilityai/stable-diffusion-xl-refiner-0.9"
+model_id = "stabilityai/stable-diffusion-xl-refiner-1.0"
 refiner = ORTStableDiffusionXLImg2ImgPipeline.from_pretrained(model_id, export=True)
 
-image = pipeline(prompt=prompt, output_type="latent" if use_refiner else "pil").images[0]
+image = base(prompt=prompt, output_type="latent").images[0]
 image = refiner(prompt=prompt, image=image[None, :]).images[0]
 image.save("sailing_ship.png")
 ```
+
