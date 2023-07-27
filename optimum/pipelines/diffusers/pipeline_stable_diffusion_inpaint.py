@@ -105,8 +105,8 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
         prompt: Union[str, List[str]],
         image: PIL.Image.Image,
         mask_image: PIL.Image.Image,
-        height: int = 512,
-        width: int = 512,
+        height: Optional[int] = None,
+        width: Optional[int] = None,
         num_inference_steps: int = 50,
         guidance_scale: float = 7.5,
         negative_prompt: Optional[Union[str, List[str]]] = None,
@@ -132,9 +132,9 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
                 `Image`, or tensor representing an image batch which will be upscaled.
             mask_image (`PIL.Image.Image`):
                 `Image`, or tensor representing a masked image batch which will be upscaled.
-            height (`int`, defaults to 512):
+            height (`Optional[int]`, defaults to None):
                 The height in pixels of the generated image.
-            width (`int`, defaults to 512):
+            width (`Optional[int]`, defaults to None):
                 The width in pixels of the generated image.
             num_inference_steps (`int`, defaults to 50):
                 The number of denoising steps. More denoising steps usually lead to a higher quality image at the
@@ -187,6 +187,8 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
             list of `bool`s denoting whether the corresponding generated image likely represents "not-safe-for-work"
             (nsfw) content, according to the `safety_checker`.
         """
+        height = height or self.unet.config.get("sample_size", 64) * self.vae_scale_factor
+        width = width or self.unet.config.get("sample_size", 64) * self.vae_scale_factor
 
         # check inputs. Raise error if not correct
         self.check_inputs(

@@ -613,9 +613,6 @@ def llama_forward(
                     f"Attention mask should be of size {(bsz, 1, q_len, kv_seq_len)}, but is {attention_mask.size()}"
                 )
 
-        # This line is necessary for numerical equivalence, although I'm not sure it is useful in any way.
-        attention_mask = torch.max(attention_mask, torch.tensor(torch.finfo(attention_mask.dtype).min))
-
         attn_output = torch.nn.functional.scaled_dot_product_attention(
             query_states, key_states, value_states, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
         )

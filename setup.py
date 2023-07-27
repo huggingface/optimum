@@ -34,6 +34,7 @@ TESTS_REQUIRE = [
     "diffusers>=0.17.0",
     "torchaudio",
     "einops",
+    "invisible-watermark",
 ]
 
 QUALITY_REQUIRE = ["black~=23.1", "ruff>=0.0.241,<=0.0.259"]
@@ -57,7 +58,7 @@ EXTRAS_REQUIRE = {
     ],
     "exporters": ["onnx", "onnxruntime", "timm"],
     "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
-    "exporters-tf": ["tensorflow>=2.4,<2.11", "tf2onnx", "onnx", "onnxruntime", "timm", "h5py", "numpy<1.24.0"],
+    "exporters-tf": ["tensorflow>=2.4", "tf2onnx", "onnx", "onnxruntime", "timm", "h5py", "numpy<1.24.0"],
     "diffusers": ["diffusers"],
     "intel": "optimum-intel",
     "openvino": "optimum-intel[openvino]",
@@ -67,6 +68,7 @@ EXTRAS_REQUIRE = {
     "habana": ["transformers<4.29.0", "optimum-habana"],
     "neuron": "optimum-neuron[neuron]",
     "neuronx": "optimum-neuron[neuronx]",
+    "furiosa": "optimum-furiosa",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,

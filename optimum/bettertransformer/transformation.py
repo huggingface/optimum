@@ -231,12 +231,9 @@ class BetterTransformer(object):
                 f" Currently supported models are: {BetterTransformerManager.MODEL_MAPPING.keys()}."
             )
 
-        # check on 1.14 in case there is any more patch release on 1.13
-        if BetterTransformerManager.requires_torch_20(model.config.model_type) and parse(torch.__version__) <= parse(
-            "1.14"
-        ):
+        if parse(torch.__version__) <= parse("1.14"):
             raise ValueError(
-                f"BetterTransformer for {model.config.model_type} requires torch>=2.0 but {torch.__version__} is installed. Please upgrade PyTorch."
+                f"BetterTransformer requires torch>=2.0 but {torch.__version__} is installed. Please upgrade PyTorch."
             )
 
         hf_config = model.config
@@ -244,6 +241,8 @@ class BetterTransformer(object):
         if load_accelerate:
             # Remove the hooks from the original model to avoid weights being on `meta` device.
             remove_hook_from_module(model, recurse=True)
+
+        training_mode = model.training
 
         if keep_original_model:
             try:
@@ -258,9 +257,9 @@ class BetterTransformer(object):
                     " `keep_original_model=False` and create a new copy of the original"
                     " model somewhere else."
                 )
-            model_fast = replace_to_bettertransformer(model_fast, hf_config).eval()
+            model_fast = replace_to_bettertransformer(model_fast, hf_config)
         else:
-            model_fast = replace_to_bettertransformer(model, hf_config).eval()
+            model_fast = replace_to_bettertransformer(model, hf_config)
             model = None
 
         if BetterTransformerManager.requires_nested_tensor(model_fast.config.model_type):
@@ -290,11 +289,11 @@ class BetterTransformer(object):
                 model = dispatch_model(model, hf_device_map, offload_dir=offload_dir)
 
         # See: https://github.com/pytorch/pytorch/issues/96099
-        if BetterTransformerManager.requires_torch_20(model_fast.config.model_type):
-            logging.warning(
-                f"For training, the BetterTransformer implementation for {model_fast.config.model_type} "
-                " architecture currently does not support padding as fused kernels do not support custom"
-                " attention masks. Beware that passing padded batched training data may result in unexpected outputs."
+        if model_fast.config.model_type in BetterTransformerManager.DO_NOT_SUPPORT_PADDED_TRAINING:
+            logger.warning(
+                f"For decoder models (here {model_fast.config.model_type}), the BetterTransformer implementation"
+                " does not support padding during training, as the fused kernels do not support"
+                " attention masks. Beware that passing padded batched data during training may result in unexpected outputs."
             )
 
         # Overwrite the `save_pretrained` method
@@ -305,6 +304,11 @@ class BetterTransformer(object):
 
         model_fast.save_pretrained = raise_save_or_push_incompatible
         model_fast.push_to_hub = raise_save_or_push_incompatible
+
+        if training_mode:
+            model_fast = model_fast.train()
+        else:
+            model_fast = model_fast.eval()
 
         return model_fast
 
