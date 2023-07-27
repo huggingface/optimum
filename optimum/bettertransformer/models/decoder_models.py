@@ -196,7 +196,6 @@ class BarkAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BarkSelfAt
         self.dropout_prob_attn = float(config.dropout)
 
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return super().forward(*args, **kwargs)
 
 
