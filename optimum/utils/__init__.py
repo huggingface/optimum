@@ -15,10 +15,12 @@
 
 from .constant import (
     CONFIG_NAME,
+    DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
     DIFFUSION_MODEL_UNET_SUBFOLDER,
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
+    ONNX_WEIGHTS_NAME,
 )
 from .import_utils import (
     DIFFUSERS_MINIMUM_VERSION,
@@ -45,6 +47,7 @@ from .input_generators import (
     DummyInputGenerator,
     DummyLabelsGenerator,
     DummyPastKeyValuesGenerator,
+    DummyPix2StructInputGenerator,
     DummyPointsGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,

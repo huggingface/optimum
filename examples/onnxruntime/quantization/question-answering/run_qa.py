@@ -537,7 +537,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
 
     # Export the model
-    model = ORTModelForQuestionAnswering.from_pretrained(model_args.model_name_or_path, from_transformers=True)
+    model = ORTModelForQuestionAnswering.from_pretrained(model_args.model_name_or_path, export=True)
 
     # Create the quantizer
     quantizer = ORTQuantizer.from_pretrained(model)

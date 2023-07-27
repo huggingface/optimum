@@ -31,7 +31,7 @@ from ..utils.save_utils import maybe_save_preprocessors
 from .configuration import OptimizationConfig, ORTConfig
 from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import ORTModel
-from .modeling_seq2seq import ORTModelForSeq2SeqLM
+from .modeling_seq2seq import ORTModelForConditionalGeneration
 from .utils import ONNX_WEIGHTS_NAME, ORTConfigManager
 
 
@@ -89,7 +89,7 @@ class ORTOptimizer:
         config = None
         if isinstance(model_or_path, ORTModel):
             from_ortmodel = True
-            if isinstance(model_or_path, ORTModelForSeq2SeqLM):
+            if isinstance(model_or_path, ORTModelForConditionalGeneration):
                 onnx_model_path += [
                     model_or_path.encoder_model_path,
                     model_or_path.decoder_model_path,
@@ -102,7 +102,7 @@ class ORTOptimizer:
                     raise NotImplementedError(
                         "ORTOptimizer does not support ORTModelForCausalLM models that use a single ONNX for both the without/with past cases."
                         " Please pass an ORTModelForCausalLM that uses a separate ONNX for each without/with past cases. This can be done"
-                        " by using `ORTModelForCausalLM.from_pretrained(..., from_transformers=True, use_merged=False)`, or by"
+                        " by using `ORTModelForCausalLM.from_pretrained(..., export=True, use_merged=False)`, or by"
                         " using the option `--no-post-process` in the optimum-cli ONNX export tool."
                     )
                 onnx_model_path.append(model_or_path.decoder_model_path)
@@ -186,6 +186,9 @@ class ORTOptimizer:
         )
 
         for model_path in self.onnx_model_path:
+            suffix = f"_{file_suffix}" if file_suffix else ""
+            output_path = save_dir.joinpath(f"{model_path.stem}{suffix}").with_suffix(model_path.suffix)
+
             try:
                 optimizer = optimize_model(
                     model_path.as_posix(),
@@ -199,6 +202,20 @@ class ORTOptimizer:
                 )
 
                 if optimization_config.fp16:
+                    if model_uses_external_data:
+                        # Refer to https://github.com/microsoft/onnxruntime/blob/v1.15.0/onnxruntime/python/tools/transformers/float16.py#L204
+                        # The ONNX infer_shapes_path method should be used instead of infer_shapes
+                        # for models >= 2 GB, and it expects a model written to disk.
+                        # Note that convert_float_to_float16 then overwrites optimizer.model as the
+                        # new ModelProto.
+                        optimizer.save_model_to_file(
+                            output_path.as_posix(),
+                            use_external_data_format=model_uses_external_data,
+                            all_tensors_to_one_file=one_external_file,
+                        )
+
+                        optimizer.model = output_path.as_posix()
+
                     # keep_io_types to keep inputs/outputs as float32
                     optimizer.convert_float_to_float16(
                         use_symbolic_shape_infer=not optimization_config.disable_shape_inference, keep_io_types=True
@@ -210,9 +227,6 @@ class ORTOptimizer:
                     )
                     raise err from e
                 raise
-
-            suffix = f"_{file_suffix}" if file_suffix else ""
-            output_path = save_dir.joinpath(f"{model_path.stem}{suffix}").with_suffix(model_path.suffix)
 
             # TODO: ORT save_model_to_file will save as `.data` although we save as `.onnx_data` in the export
             optimizer.save_model_to_file(

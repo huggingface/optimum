@@ -90,7 +90,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
-            model = model_cls.from_pretrained(model_name, from_transformers=True)
+            model = model_cls.from_pretrained(model_name, export=True)
             model.save_pretrained(tmp_dir)
 
             quantizer = ORTQuantizer.from_pretrained(model)
@@ -118,7 +118,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
         tmp_dir = tempfile.mkdtemp()
         output_dir = Path(tmp_dir)
         model = ORTModelForCausalLM.from_pretrained(
-            "hf-internal-testing/tiny-random-gpt2", from_transformers=True, use_merged=True
+            "hf-internal-testing/tiny-random-gpt2", export=True, use_merged=True
         )
 
         self.assertTrue(model.use_merged)
@@ -168,7 +168,7 @@ class ORTStaticQuantizationTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
-            model = model_cls.from_pretrained(model_name, from_transformers=True)
+            model = model_cls.from_pretrained(model_name, export=True)
             model.save_pretrained(tmp_dir)
             tokenizer = AutoTokenizer.from_pretrained(model_name)
 

@@ -51,6 +51,7 @@
     title: Reference
     isExpanded: false
   title: ONNX Runtime
+  isExpanded: false
 - sections:
   - local: exporters/overview
     title: Overview
@@ -91,6 +92,7 @@
       isExpanded: false
     title: "TFLite"
   title: Exporters
+  isExpanded: false
 - sections:
   - local: torch_fx/overview
     title: Overview
@@ -110,6 +112,7 @@
     title: Reference
     isExpanded: false
   title: Torch FX
+  isExpanded: false
 - sections:
   - local: bettertransformer/overview
     title: Overview
@@ -121,6 +124,7 @@
     title: Tutorials
     isExpanded: false
   title: BetterTransformer
+  isExpanded: false
 - sections:
   - local: utils/dummy_input_generators
     title: Dummy input generators

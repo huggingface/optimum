@@ -22,12 +22,13 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 
 | Accelerator                                                                                                            | Installation                                      |
 |:-----------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------|
-| [ONNX runtime](https://onnxruntime.ai/docs/)                                                                           | `python -m pip install optimum[onnxruntime]`      |
-| [Intel Neural Compressor (INC)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) | `python -m pip install optimum[neural-compressor]`|
-| [Intel OpenVINO](https://docs.openvino.ai/latest/index.html)                                                           | `python -m pip install optimum[openvino,nncf]`    |
-| [Graphcore IPU](https://www.graphcore.ai/products/ipu)                                                                 | `python -m pip install optimum[graphcore]`        |
-| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `python -m pip install optimum[habana]`           |
+| [ONNX runtime](https://onnxruntime.ai/docs/)                                                                           | `pip install --upgrade-strategy eager install optimum[onnxruntime]`|
+| [Intel Neural Compressor (INC)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html) | `pip install --upgrade-strategy eager optimum[neural-compressor]`  |
+| [Intel OpenVINO](https://docs.openvino.ai/latest/index.html)                                                           | `pip install --upgrade-strategy eager optimum[openvino,nncf]`      |
+| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `pip install --upgrade-strategy eager optimum[habana]`             |
+| [FuriosaAI](https://www.furiosa.ai/)                                                                                   | `pip install --upgrade-strategy eager optimum[furiosa]`            |
 
+The `--upgrade-strategy eager` option is needed to ensure the different packages are upgraded to the latest possible version.
 
 If you'd like to play with the examples or need the bleeding edge of the code and can't wait for a new release, you can install the base library from source as follows:
 
@@ -35,8 +36,8 @@ If you'd like to play with the examples or need the bleeding edge of the code an
 python -m pip install git+https://github.com/huggingface/optimum.git
 ```
 
-For the accelerator-specific features, you can install them by appending `#egg=optimum[accelerator_type]` to the `pip` command, e.g.
+For the accelerator-specific features, you can install them by appending `optimum[accelerator_type]` to the `pip` command, e.g.
 
 ```bash
-python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
+python -m pip install optimum[onnxruntime]@git+https://github.com/huggingface/optimum.git
 ```

@@ -16,10 +16,13 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 
 | Accelerator                                                                                                            | Installation                                      |
 |:-----------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------|
-| [ONNX Runtime](https://onnxruntime.ai/docs/)                                                                           | `python -m pip install optimum[onnxruntime]`      |
-| [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html)       | `python -m pip install optimum[neural-compressor]`|
-| [OpenVINO](https://docs.openvino.ai/latest/index.html)                                                                 | `python -m pip install optimum[openvino,nncf]`    |
-| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `python -m pip install optimum[habana]`           |
+| [ONNX Runtime](https://onnxruntime.ai/docs/)                                                                           | `pip install --upgrade-strategy eager optimum[onnxruntime]`       |
+| [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html)       | `pip install --upgrade-strategy eager optimum[neural-compressor]`|
+| [OpenVINO](https://docs.openvino.ai/latest/index.html)                                                                 | `pip install --upgrade-strategy eager optimum[openvino,nncf]`    |
+| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `pip install --upgrade-strategy eager optimum[habana]`           |
+| [FuriosaAI](https://www.furiosa.ai/)                                                                                   | `pip install --upgrade-strategy eager optimum[furiosa]`          |
+
+The `--upgrade-strategy eager` option is needed to ensure the different packages are upgraded to the latest possible version.
 
 To install from source:
 
@@ -27,10 +30,10 @@ To install from source:
 python -m pip install git+https://github.com/huggingface/optimum.git
 ```
 
-For the accelerator-specific features, append `#egg=optimum[accelerator_type]` to the above command:
+For the accelerator-specific features, append `optimum[accelerator_type]` to the above command:
 
 ```bash
-python -m pip install git+https://github.com/huggingface/optimum.git#egg=optimum[onnxruntime]
+python -m pip install optimum[onnxruntime]@git+https://github.com/huggingface/optimum.git
 ```
 
 ## Accelerated Inference
@@ -59,7 +62,7 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 
 ### OpenVINO
 
-This requires to install the OpenVINO extra by doing `pip install optimum[openvino,nncf]`
+This requires to install the OpenVINO extra by doing `pip install --upgrade-strategy eager optimum[openvino,nncf]`
 
 To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class. To load a PyTorch checkpoint and convert it to the OpenVINO format on-the-fly, you can set `export=True` when loading your model.
 
@@ -82,7 +85,7 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 ### Neural Compressor
 
-This requires to install the Neural Compressor extra by doing `pip install optimum[neural-compressor]`
+This requires to install the Neural Compressor extra by doing `pip install --upgrade-strategy eager optimum[neural-compressor]`
 
 Dynamic quantization can be applied on your model:
 
@@ -167,7 +170,7 @@ We support many providers:
 
 ### Habana
 
-This requires to install the Habana extra by doing `pip install optimum[habana]`
+This requires to install the Habana extra by doing `pip install --upgrade-strategy eager optimum[habana]`
 
 ```diff
 - from transformers import Trainer, TrainingArguments

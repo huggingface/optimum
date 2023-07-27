@@ -18,7 +18,7 @@ from typing import Optional, Set
 from unittest import TestCase
 
 import pytest
-from transformers import BertConfig, VisualBertForQuestionAnswering
+from transformers import BertConfig, Pix2StructForConditionalGeneration, VisualBertForQuestionAnswering
 from transformers.testing_utils import slow
 
 from optimum.exporters import TasksManager
@@ -162,6 +162,9 @@ class TasksManagerTestCase(TestCase):
     def test_custom_class(self):
         task = TasksManager.infer_task_from_model("google/pix2struct-base")
         self.assertEqual(task, "image-to-text")
+
+        model = TasksManager.get_model_from_task("image-to-text", "google/pix2struct-base")
+        self.assertTrue(isinstance(model, Pix2StructForConditionalGeneration))
 
         model = TasksManager.get_model_from_task("question-answering", "uclanlp/visualbert-vqa")
         self.assertTrue(isinstance(model, VisualBertForQuestionAnswering))
