@@ -306,6 +306,9 @@ class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
                 1: decoder_sequence_name,
             }
 
+    def flatten_past_key_values(self, flattened_output, name, idx, t):
+        flattened_output[f"{name}.{idx}.key_value"] = t
+
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
     def generate(self, input_name: str, framework: str = "pt"):
         encoder_shape = (
