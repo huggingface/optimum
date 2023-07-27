@@ -63,7 +63,7 @@ EXTRAS_REQUIRE = {
     "intel": "optimum-intel>=1.10.1",
     "openvino": "optimum-intel[openvino]>=1.10.1",
     "nncf": "optimum-intel[nncf]>=1.10.1",
-    "neural-compressor": "optimum-intel[neural-compressor]>=1.10.1",
+    "neural-compressor": "optimum-intel[neural-compressor]>=1.9.2",
     "graphcore": "optimum-graphcore",
     "habana": ["transformers<4.29.0", "optimum-habana"],
     "neuron": "optimum-neuron[neuron]",
