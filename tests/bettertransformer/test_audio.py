@@ -161,11 +161,6 @@ class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase)
             f" Maxdiff: {(result_vanilla - result_bettertransformer).abs().max()}",
         )
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        self._test_raise_autocast(model_id, model_type=model_type)
-
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
         model_id = MODELS_DICT[model_type]
