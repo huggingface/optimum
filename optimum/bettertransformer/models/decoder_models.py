@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
+from transformers.models.bark.modeling_bark import BarkSelfAttention
 from transformers.models.bart.modeling_bart import BartAttention
 from transformers.models.blenderbot.modeling_blenderbot import BlenderbotAttention
 from transformers.models.codegen.modeling_codegen import CodeGenAttention
@@ -30,6 +31,7 @@ from transformers.models.pegasus.modeling_pegasus import PegasusAttention
 from transformers.models.t5.modeling_t5 import T5Attention
 
 from .attention import (
+    bark_wrapped_scaled_dot_product,
     bart_forward,
     codegen_wrapped_scaled_dot_product,
     gpt2_wrapped_scaled_dot_product,
@@ -153,6 +155,45 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
 
         self.scale = torch.sqrt(torch.tensor(layer.head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
         self.dropout_prob_attn = float(config.attention_dropout)
+
+    def forward(self, *args, **kwargs):
+        return super().forward(*args, **kwargs)
+
+
+class BarkAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BarkSelfAttention, nn.Module):
+    _attn = bark_wrapped_scaled_dot_product
+
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig", is_causal: bool = False):
+        super().__init__(config)
+
+        is_causal = layer.is_causal
+
+        config.dropout = layer.dropout
+
+        config.hidden_size = layer.embed_dim
+        config.num_heads = layer.num_heads
+        config.bias = layer.out_proj.bias is not None
+
+        if is_causal:
+            config.block_size = layer.bias.shape[-1]
+
+        with torch.device("meta"):
+            super(BetterTransformerBaseLayer, self).__init__(config, is_causal)
+
+        self.module_mapping = None
+        submodules = ["dropout", "attn_dropout", "resid_dropout", "att_proj", "out_proj"]
+
+        for attr in submodules:
+            setattr(self, attr, getattr(layer, attr))
+
+        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
+
+        if is_causal:
+            setattr(self, "bias", getattr(layer, "bias"))
+            self.original_layers_mapping["bias"] = "bias"
+
+        self.supports_training = False
+        self.dropout_prob_attn = float(config.dropout)
 
     def forward(self, *args, **kwargs):
         return super().forward(*args, **kwargs)

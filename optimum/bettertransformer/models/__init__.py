@@ -15,6 +15,7 @@ import warnings
 
 from .attention import _llama_prepare_decoder_attention_mask
 from .decoder_models import (
+    BarkAttentionLayerBetterTransformer,
     BartAttentionLayerBetterTransformer,
     BlenderbotAttentionLayerBetterTransformer,
     CodegenAttentionLayerBetterTransformer,
@@ -48,6 +49,7 @@ from .encoder_models import (
 class BetterTransformerManager:
     MODEL_MAPPING = {
         "albert": {"AlbertLayer": AlbertLayerBetterTransformer},
+        "bark": {"BarkSelfAttention": BarkAttentionLayerBetterTransformer},
         "bart": {
             "BartEncoderLayer": BartEncoderLayerBetterTransformer,
             "BartAttention": BartAttentionLayerBetterTransformer,
@@ -114,6 +116,8 @@ class BetterTransformerManager:
         "clip": ["text_model"],
         # blip-2's Q-former and vision model should not be identified as the last layers of the model
         "blip-2": ["qformer.encoder.layer", "vision_model.encoder.layers"],
+        # bark.codec_model.encoder is not supported in BetterTransformer
+        "bark": ["codec_model.encoder.layers"],
     }
 
     CAN_NOT_BE_SUPPORTED = {
@@ -122,6 +126,7 @@ class BetterTransformerManager:
     }
 
     NOT_REQUIRES_NESTED_TENSOR = {
+        "bark",
         "blenderbot",
         "codegen",
         "gpt2",
