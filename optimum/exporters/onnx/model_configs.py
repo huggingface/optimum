@@ -301,11 +301,7 @@ class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
 
         for i in range(self._normalized_config.num_layers):
             # No dim for `n_head` when using multi-query attention
-            inputs_or_outputs[f"{name}.{i}.key"] = {
-                0: "batch_size",
-                1: decoder_sequence_name,
-            }
-            inputs_or_outputs[f"{name}.{i}.value"] = {
+            inputs_or_outputs[f"{name}.{i}.key_value"] = {
                 0: "batch_size",
                 1: decoder_sequence_name,
             }
