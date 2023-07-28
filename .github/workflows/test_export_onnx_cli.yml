@@ -27,6 +27,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies for pytorch export
       run: |
+        pip install git+https://github.com/huggingface/diffusers
         pip install .[tests,exporters]
     - name: Test with unittest
       working-directory: tests
