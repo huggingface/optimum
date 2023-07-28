@@ -39,7 +39,7 @@ With 🤗 Transformers integration, you don't need to pass the `block_name_to_qu
 ```py
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from optimum.gptq import GPTQQuantizer, load_quantized_model
-model_name = "bigscience/bloom-1b7"
+model_name = "facebook/opt-125m"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
 
@@ -61,8 +61,7 @@ quantizer.save(model,save_folder)
 
 ### Load quantized weights
 
-You can load your quantized weights by using the [`~optimum.gptq.load_quantized_model`] function. 
-
+You can load your quantized weights by using the [`~optimum.gptq.load_quantized_model`] function.
 ```python
 from optimum.gptq import load_quantized_model
 model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
@@ -70,7 +69,6 @@ model_from_saved = load_quantized_model(model, save_folder=save_folder, device_m
 ```
 
 You can also load your model faster and without using more memory with `accelerate`. You need to initialize an empty model and laod the quantized weights.
-
 ```python
 from accelerate import init_empty_weights
 with init_empty_weights():
