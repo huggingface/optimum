@@ -197,7 +197,7 @@ pip install invisible-watermark>=0.2.0
 
 ### Text-to-Image
 
-Here is an example of how you can load an ONN model already present in [stabilityai/stable-diffusion-xl-base-1.0](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0) and run inference using ONNX Runtime :
+Here is an example of how you can load a SDXL ONNX model from [stabilityai/stable-diffusion-xl-base-1.0](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0) and run inference using ONNX Runtime :
 
 ```python
 from optimum.onnxruntime import ORTStableDiffusionXLPipeline
@@ -215,7 +215,7 @@ base.save_pretrained(save_directory)
 
 ### Image-to-Image
 
-Here is an example of how you can load a PyTorch SD XL model, convert it to ONNX on-the-fly and run inference using ONNX Runtime for *image-to-image* :
+Here is an example of how you can load a PyTorch SDXL model, convert it to ONNX on-the-fly and run inference using ONNX Runtime for *image-to-image* :
 
 ```python
 from optimum.onnxruntime import ORTStableDiffusionXLImg2ImgPipeline
