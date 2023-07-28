@@ -19,15 +19,15 @@ import tempfile
 import unittest
 
 import torch
-from packaging.version import parse
 from transformers import AutoModel
 
-from optimum.bettertransformer import BetterTransformer, BetterTransformerManager
+from optimum.bettertransformer import BetterTransformer
 from optimum.utils.testing_utils import flatten_dict, require_torch_gpu
 
 
 MODELS_DICT = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
+    "bark": "ylacombe/bark-small",  # TODO: put a smaller model, this one is 1.7GB...
     "bart": "hf-internal-testing/tiny-random-bart",
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bert-generation": "ybelkada/random-tiny-BertGenerationModel",
@@ -57,7 +57,7 @@ MODELS_DICT = {
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "prophetnet": "hirotasoshu/tiny-random-prophetnet",  # the other tiny ones have a too small max_position_embeddings
-    "rembert": "hf-internal-testing/tiny-random-rembert",
+    "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "rocbert": "hf-internal-testing/tiny-random-RoCBertModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
@@ -74,6 +74,33 @@ MODELS_DICT = {
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
 }
 
+known_dropout_keys = [
+    "attention_probs_dropout_prob",
+    "hidden_dropout_prob",
+    "classifier_dropout_prob",
+    "attention_dropout",
+    "dropout",
+    "qa_dropout",
+    "seq_classif_dropout",
+    "summary_last_dropout",
+    "classifier_dropout",
+    "activation_dropout",
+    "classif_dropout",
+    "dropout_rate",
+    "attn_pdrop",
+    "embd_pdrop",
+    "resid_pdrop",
+    "summary_first_dropout",
+]
+
+
+def set_dropout_to_zero(config):
+    for attr_name in known_dropout_keys:
+        if hasattr(config, attr_name):
+            setattr(config, attr_name, 0.0)
+
+    return config
+
 
 class BetterTransformersTestMixin(unittest.TestCase):
     r"""
@@ -82,17 +109,10 @@ class BetterTransformersTestMixin(unittest.TestCase):
         - `test_logits`: This tests if the converted model produces the same logits
         than the original model.
         - `test_raise_on_save`: Test if the converion properly raises an error if someone tries to save the model using `save_pretrained`.
-        - `test_raise_autocast`: A tests that checks if the conversion raises an error if the model is run under
-        `torch.cuda.amp.autocast`.
-        - `test_raise_train`: A tests that checks if the conversion raises an error if the model is run in training mode.
     """
 
     def prepare_inputs_for_class(self, model_id=None, model_type=None):
         raise NotImplementedError
-
-    def _skip_on_torch_version(self, model_type: str):
-        if BetterTransformerManager.requires_torch_20(model_type) and parse(torch.__version__) < parse("1.14"):
-            self.skipTest(f"The model type {model_type} require PyTorch 2.0 for BetterTransformer")
 
     @require_torch_gpu
     def _test_fp16_inference(
@@ -136,6 +156,66 @@ class BetterTransformersTestMixin(unittest.TestCase):
                 f"Maxdiff: {(output_hf - output_bt).abs().max()}",
             )
 
+    def _test_logits_backward(self, model_id: str, model_type: str, **preprocessor_kwargs):
+        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs)
+
+        hf_random_model = AutoModel.from_pretrained(model_id).eval()
+        random_config = hf_random_model.config
+
+        # I could not obtain reproducible results with `torch.manual_seed` nor with
+        # `torch.random.set_rng_state`. An alternative could be to make dropout stateful,
+        # and to replace them with a static pattern for this test. Currently, we use
+        # functional dropout though.
+        # We need to be in train mode to take the right path.
+        random_config = set_dropout_to_zero(random_config)
+
+        # m2m_100 randomly drops layers, which makes testing flaky (see `skip_the_layer` in transformers, some other models use it as well)
+        if model_type == "m2m_100":
+            random_config.encoder_layerdrop = 0
+            random_config.decoder_layerdrop = 0
+
+        hf_random_model = hf_random_model.__class__(random_config)
+
+        converted_model = copy.deepcopy(hf_random_model)
+        converted_model = BetterTransformer.transform(converted_model)
+
+        hf_random_model = hf_random_model.train()
+        converted_model = converted_model.train()
+
+        optimizer_hf = torch.optim.SGD(hf_random_model.parameters(), lr=0.2)
+        optimizer_bt = torch.optim.SGD(converted_model.parameters(), lr=0.2)
+
+        tol = 2e-3
+
+        hf_hidden_states = hf_random_model(**inputs)[0]
+        bt_hidden_states = converted_model(**inputs)[0]
+
+        self.assert_equal(
+            hf_hidden_states,
+            bt_hidden_states,
+            atol=tol,
+            model_name=hf_random_model.__class__.__name__,
+        )
+
+        loss_hf = hf_hidden_states.abs().mean()
+        loss_bt = bt_hidden_states.abs().mean()
+
+        loss_hf.backward()
+        loss_bt.backward()
+
+        optimizer_hf.step()
+        optimizer_bt.step()
+
+        hf_hidden_states = hf_random_model(**inputs)[0]
+        bt_hidden_states = converted_model(**inputs)[0]
+
+        self.assert_equal(
+            hf_hidden_states,
+            bt_hidden_states,
+            atol=tol,
+            model_name=hf_random_model.__class__.__name__,
+        )
+
     def _test_logits(self, model_id: str, model_type: str, **preprocessor_kwargs):
         r"""
         This tests if the converted model produces the same logits
@@ -148,9 +228,13 @@ class BetterTransformersTestMixin(unittest.TestCase):
         hf_random_model = AutoModel.from_pretrained(model_id).eval()
         random_config = hf_random_model.config
 
+        hf_random_model = hf_random_model.eval()
+
         torch.manual_seed(0)
         converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
 
+        self.assertFalse(hf_random_model.training)
+        self.assertFalse(converted_model.training)
         self.assertFalse(
             hasattr(hf_random_model, "use_bettertransformer"),
             f"The model {hf_random_model.__class__.__name__} has been converted to a `fast` model by mistake.",
@@ -208,33 +292,6 @@ class BetterTransformersTestMixin(unittest.TestCase):
             f"The BetterTransformer converted model does not produce the same logits as the original model. Failed for the model {model_name}."
             f" Maxdiff: {torch.abs(tensor1 - tensor2).max()}",
         )
-
-    def _test_raise_autocast(self, model_id: str, model_type: str, **kwargs):
-        r"""
-        A tests that checks if the conversion raises an error if the model is run under
-        `torch.cuda.amp.autocast`.
-        """
-        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **kwargs)
-        hf_random_model = AutoModel.from_pretrained(model_id).eval()
-
-        # Check for the autocast on CPU
-        with self.assertRaises(ValueError), torch.amp.autocast("cpu"):
-            bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
-            _ = bt_model(**inputs)
-
-    def _test_raise_train(self, model_id: str, model_type: str, **kwargs):
-        r"""
-        A tests that checks if the conversion raises an error if the model is run under
-        `model.train()`.
-        """
-        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **kwargs)
-
-        hf_random_model = AutoModel.from_pretrained(model_id).eval()
-        # Check for training mode
-        with self.assertRaises(ValueError):
-            bt_model = BetterTransformer.transform(hf_random_model, keep_original_model=True)
-            bt_model.train()
-            _ = bt_model(**inputs)
 
     def _test_train_decoder(self, model_id: str, model_type: str, **kwargs):
         r"""

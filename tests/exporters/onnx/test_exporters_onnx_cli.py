@@ -27,12 +27,13 @@ from transformers.testing_utils import require_torch, require_torch_gpu, require
 from optimum.exporters.error_utils import MinimumVersionError
 from optimum.exporters.onnx.__main__ import main_export
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
+from optimum.utils.testing_utils import require_diffusers
 
 
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
-from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY
+from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY, PYTORCH_STABLE_DIFFUSION_MODEL
 
 
 def _get_models_to_test(export_models_dict: Dict):
@@ -133,6 +134,31 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         missing_models_set = TasksManager._SUPPORTED_CLI_MODEL_TYPE - set(PYTORCH_EXPORT_MODELS_TINY.keys())
         if len(missing_models_set) > 0:
             self.fail(f"Not testing all models. Missing models: {missing_models_set}")
+
+    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @require_torch
+    @require_vision
+    @require_diffusers
+    def test_exporters_cli_pytorch_cpu_stable_diffusion(self, model_type: str, model_name: str):
+        self._onnx_export(model_name, model_type)
+
+    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @require_torch_gpu
+    @require_vision
+    @require_diffusers
+    @slow
+    @pytest.mark.run_slow
+    def test_exporters_cli_pytorch_gpu_stable_diffusion(self, model_type: str, model_name: str):
+        self._onnx_export(model_name, model_type, device="cuda")
+
+    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @require_torch_gpu
+    @require_vision
+    @require_diffusers
+    @slow
+    @pytest.mark.run_slow
+    def test_exporters_cli_fp16_stable_diffusion(self, model_type: str, model_name: str):
+        self._onnx_export(model_name, model_type, device="cuda", fp16=True)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch

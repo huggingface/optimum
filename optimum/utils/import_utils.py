@@ -34,7 +34,7 @@ else:
 
 TORCH_MINIMUM_VERSION = packaging.version.parse("1.11.0")
 TRANSFORMERS_MINIMUM_VERSION = packaging.version.parse("4.25.0")
-DIFFUSERS_MINIMUM_VERSION = packaging.version.parse("0.17.0")
+DIFFUSERS_MINIMUM_VERSION = packaging.version.parse("0.18.0")
 
 
 # This is the minimal required version to support some ONNX Runtime features

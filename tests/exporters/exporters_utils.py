@@ -237,5 +237,6 @@ TENSORFLOW_EXPORT_MODELS = {
 }
 
 PYTORCH_STABLE_DIFFUSION_MODEL = {
-    ("hf-internal-testing/tiny-stable-diffusion-torch"),
+    "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
+    "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
 }

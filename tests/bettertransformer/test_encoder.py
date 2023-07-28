@@ -20,10 +20,11 @@ import torch
 import transformers
 from parameterized import parameterized
 from testing_utils import MODELS_DICT, BetterTransformersTestMixin
-from transformers import AutoModel
+from transformers import AutoModel, AutoProcessor, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
-from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_20, require_torch_gpu
+from optimum.pipelines import pipeline
+from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_gpu
 
 
 class BetterTransformersEncoderTest(BetterTransformersTestMixin):
@@ -64,12 +65,27 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
     def tearDown(self):
         gc.collect()
 
-    def prepare_inputs_for_class(self, model_id, model_type):
-        input_dict = {
-            "input_ids": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]]),
-            "attention_mask": torch.LongTensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]]),
-        }
-        return input_dict
+    def prepare_inputs_for_class(self, model_id: str, model_type: str, batch_size: int = 2, **preprocessor_kwargs):
+        # TODO: remove the need for tokenizer
+        if model_type == "markuplm":
+            preprocessor = AutoProcessor.from_pretrained(model_id)
+        else:
+            preprocessor = AutoTokenizer.from_pretrained(model_id)
+        if batch_size == 1:
+            texts = ["a dummy input yeah yeah!"]
+        else:
+            texts = ["a dummy input yeah yeah!"] + ["and two"] * (batch_size - 1)
+
+        padding = preprocessor_kwargs.pop("padding", True)
+        if padding == "max_length":
+            max_length = 25
+        else:
+            max_length = None
+
+        inputs = preprocessor(
+            texts, return_tensors="pt", padding=padding, max_length=max_length, **preprocessor_kwargs
+        )
+        return inputs
 
     def test_raise_pos_emb(self):
         r"""
@@ -129,8 +145,6 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
         r"""
         This test runs pipeline together with Better Transformers converted models using optimum `pipeline`.
         """
-        from optimum.pipelines import pipeline
-
         model_name = "distilbert-base-uncased"
         unmasker = pipeline("fill-mask", model_name, accelerator="bettertransformer")
 
@@ -145,8 +159,6 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
         r"""
         This test runs pipeline together with Better Transformers converted models using optimum `pipeline`.
         """
-        from optimum.pipelines import pipeline
-
         model_name = "distilbert-base-uncased"
         unmasker = pipeline("fill-mask", model_name, accelerator="bettertransformer", device="cuda:0")
 
@@ -197,21 +209,6 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
         self.assertTrue(torch.allclose(output_bt[0][1, 3:], torch.zeros_like(output_bt[0][1, 3:])))
         gc.collect()
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
-        if model_type == "rocbert":
-            self.skipTest(
-                "unrelated issue with torch.amp.autocast with rocbert (expected scalar type BFloat16 but found Float)"
-            )
-
-        model_id = MODELS_DICT[model_type]
-        self._test_raise_autocast(model_id, model_type)
-
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_train(self, model_type: str):
-        model_id = MODELS_DICT[model_type]
-        self._test_raise_train(model_id, model_type)
-
     @pytest.mark.gpu_test
     @pytest.mark.accelerate_test
     def test_accelerate_compatibility_cpu_gpu(self):
@@ -250,21 +247,60 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
         max_memory = {0: "2GB"}
         self.check_accelerate_compatibility_cpu_gpu(keep_original_model=False, max_memory=max_memory)
 
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_type": SUPPORTED_ARCH,
+                "batch_size": [1, 3],
+            }
+        )
+    )
+    def test_logits(self, test_name: str, model_type: str, batch_size: int):
+        # TODO: enable those tests
+        if model_type in ["rocbert", "splinter", "markuplm", "bert-generation"]:
+            self.skipTest(f"tiny tokenizers are broken on the Hub {model_type}")
+        if model_type in ["tapas"]:
+            self.skipTest(f"{model_type} requires dataframe")
+
+        model_id = MODELS_DICT[model_type]
+        self._test_logits(model_id=model_id, model_type=model_type, batch_size=batch_size)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_type": SUPPORTED_ARCH,
+                "batch_size": [1, 3],
+            }
+        )
+    )
+    def test_logits_backward(self, test_name: str, model_type: str, batch_size: int):
+        # TODO: enable those tests
+        if model_type in ["rocbert", "splinter", "markuplm", "bert-generation"]:
+            self.skipTest(f"tiny tokenizer is broken on the Hub for {model_type}")
+        if model_type in ["tapas"]:
+            self.skipTest(f"{model_type} requires dataframe")
+
+        model_id = MODELS_DICT[model_type]
+        self._test_logits_backward(model_id=model_id, model_type=model_type, batch_size=batch_size)
+
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
         model_id = MODELS_DICT[model_type]
         self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
         model_id = MODELS_DICT[model_type]
         self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
+        # TODO: reenable those tests
+        if model_type in ["rocbert", "splinter", "markuplm", "bert-generation"]:
+            self.skipTest(f"tiny tokenizers are broken on the Hub {model_type}")
+        if model_type in ["tapas"]:
+            self.skipTest(f"{model_type} requires dataframe")
+
         model_id = MODELS_DICT[model_type]
         self._test_invert_model_logits(
             model_id=model_id, model_type=model_type, keep_original_model=keep_original_model
