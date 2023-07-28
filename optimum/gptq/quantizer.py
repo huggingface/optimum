@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 from torch import nn
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 from transformers.pytorch_utils import Conv1D
 
