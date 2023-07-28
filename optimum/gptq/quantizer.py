@@ -522,8 +522,8 @@ class GPTQQuantizer(object):
             )
 
         os.makedirs(save_dir, exist_ok=True)
-        if not model._is_quantized_gptq:
-            raise EnvironmentError("can only save quantized model, please execute .quantize first.")
+        if not model._is_gptq_quantized:
+            raise EnvironmentError("Can only save quantized model, please execute .quantize first.")
         model = model.to("cpu")
         # save model and config
         accelerator = Accelerator()
