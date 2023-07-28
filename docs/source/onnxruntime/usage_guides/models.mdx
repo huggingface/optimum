@@ -131,8 +131,9 @@ save_directory = "a_local_path"
 pipeline.save_pretrained(save_directory)
 ```
 
-![img](https://huggingface.co/datasets/optimum/documentation-images/resolve/main/onnxruntime/stable_diffusion_v1_5_ort_sail_boat.png)
-
+<div class="flex justify-center">
+    <img src="https://huggingface.co/datasets/optimum/documentation-images/resolve/main/onnxruntime/stable_diffusion_v1_5_ort_sail_boat.png">
+</div>
 
 ### Image-to-Image
 
@@ -196,13 +197,13 @@ pip install invisible-watermark>=0.2.0
 
 ### Text-to-Image
 
-Here is an example of how you can load a PyTorch SD XL model, convert it to ONNX on-the-fly and run inference using ONNX Runtime:
+Here is an example of how you can load an ONN model already present in [stabilityai/stable-diffusion-xl-base-1.0](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0) and run inference using ONNX Runtime :
 
 ```python
 from optimum.onnxruntime import ORTStableDiffusionXLPipeline
 
 model_id = "stabilityai/stable-diffusion-xl-base-1.0"
-base = ORTStableDiffusionXLPipeline.from_pretrained(model_id, export=True)
+base = ORTStableDiffusionXLPipeline.from_pretrained(model_id)
 prompt = "sailing ship in storm by Leonardo da Vinci"
 image = base(prompt).images[0]
 
@@ -214,7 +215,7 @@ base.save_pretrained(save_directory)
 
 ### Image-to-Image
 
-You can use SDXL as follows for *image-to-image*:
+Here is an example of how you can load a PyTorch SD XL model, convert it to ONNX on-the-fly and run inference using ONNX Runtime for *image-to-image* :
 
 ```python
 from optimum.onnxruntime import ORTStableDiffusionXLImg2ImgPipeline
