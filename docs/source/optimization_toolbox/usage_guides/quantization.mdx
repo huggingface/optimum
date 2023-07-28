@@ -1,0 +1,80 @@
+# Quantization
+
+## `AutoGPTQ` Integration
+
+🤗 Optimum collaborated with `AutoGPTQ` library to provides a simple API that perform GPTQ quantization on language models.  With GPTQ quantization, you can quantize your favorite lanmguage model to 8,6,4 or even 2 bits. This comes without a big drop of performance and with faster inference speed. This is supported by most GPU hardwares.
+
+If you want to quantize 🤗 Transformers models with GPTQ, follow this [documentation](https://huggingface.co/docs/transformers/main_classes/quantization). 
+
+To learn more about the the quantization model, check out: 
+- the [GPTQ](https://arxiv.org/pdf/2210.17323.pdf) paper
+- the [`AutoGPTQ`](https://github.com/PanQiWei/AutoGPTQ) library used as the backend
+
+### Requirements
+
+You need to have the following requirements installed to run the code below: 
+
+- Install latest `AutoGPTQ` library
+`pip install auto-gptq`
+
+- Install latest `optimum` from source 
+`pip install --upgrade optimum`
+
+- Install latest `transformers` from source 
+`pip install --upgrade transformers`
+
+- Install latest `accelerate` from source 
+`pip install --upgrade accelerate`
+
+### Load and quantize model
+
+The [`~optimum.gptq.GPTQQuantizer`] class is used to quantize your model. In order to quantize your model, you need to provide a few arguemnts:
+- the number of bits: `bits`
+- the dataset used to calibrate the quantization: `dataset`
+- the model sequence length used to process the dataset: `model_seqlen`
+- the block name to quantize: `block_name_to_quantize`
+
+With 🤗 Transformers integration, you don't need to pass the `block_name_to_quantize` and `model_seqlen` as we can retrieve them. However, for custom model, you need to specify them. Also, make sure that your model is converted to `torch.float16` before quantization.
+
+```py
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from optimum.gptq import GPTQQuantizer, load_quantized_model
+model_name = "bigscience/bloom-1b7"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
+
+quantizer = GPTQQuantizer(bits=4, dataset="c4", block_name_to_quantize = "model.decoder.layers", model_seqlen = 2048)
+quantized_model = quantizer.quantize_model(quantized_model, tokenizer)
+```
+
+<Tip warning={true}>
+GPTQ quantization only works for text model for now. Futhermore, the quantization process can a lot of time depending on one's hardware (175B model = 4 gpu hours using NVIDIA A100). Please check on the hub if there is not a GPTQ quantized version of the model. If not, you can submit a demand on github. 
+</Tip>
+
+### Save model
+
+To save your model, use the save method from [`~optimum.gptq.GPTQQuantizer`] class. It will create a folder with your model state dict along with the quantization config.
+```python
+save_folder = "/path/to/save_folder/"
+quantizer.save(model,save_folder)
+```
+
+### Load quantized weights
+
+You can load your quantized weights by using the [`~optimum.gptq.load_quantized_model`] function. 
+
+```python
+from optimum.gptq import load_quantized_model
+model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
+model_from_saved = load_quantized_model(model, save_folder=save_folder, device_map = "auto")
+```
+
+You can also load your model faster and without using more memory with `accelerate`. You need to initialize an empty model and laod the quantized weights.
+
+```python
+from accelerate import init_empty_weights
+with init_empty_weights():
+    empty_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
+empty_model.tie_weights()
+model_from_saved = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto")
+```

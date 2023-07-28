@@ -126,6 +126,11 @@
   title: BetterTransformer
   isExpanded: false
 - sections:
+  - local: optimization_toolbox/usage_guides/quantization
+    title: How to quantize model ?
+  title: Optimization toolbox
+  isExpanded: false
+- sections:
   - local: utils/dummy_input_generators
     title: Dummy input generators
   - local: utils/normalized_config
