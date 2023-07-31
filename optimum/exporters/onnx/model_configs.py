@@ -259,14 +259,14 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
             name = "present"
 
         for i in range(self._normalized_config.num_layers):
-            # No dim for `n_head` when using multi-query attention
-            inputs_or_outputs[f"{name}.{i}.key_value"] = {
-                0: "batch_size",
+            inputs_or_outputs[f"{name}.{i}.key"] = {
+                0: "batch_size x num_heads",
+                2: decoder_sequence_name,
+            }
+            inputs_or_outputs[f"{name}.{i}.value"] = {
+                0: "batch_size x num_heads",
                 1: decoder_sequence_name,
             }
-
-    def flatten_past_key_values(self, flattened_output, name, idx, t):
-        flattened_output[f"{name}.{idx}.key_value"] = t
 
 
 class GPTBigCodeDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
@@ -299,8 +299,13 @@ class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
 
         for i in range(self._normalized_config.num_layers):
             # No dim for `n_head` when using multi-query attention
-            inputs_or_outputs[f"{name}.{i}.key"] = {0: "batch_size", 1: decoder_sequence_name}
-            inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 1: decoder_sequence_name}
+            inputs_or_outputs[f"{name}.{i}.key_value"] = {
+                0: "batch_size",
+                1: decoder_sequence_name,
+            }
+
+    def flatten_past_key_values(self, flattened_output, name, idx, t):
+        flattened_output[f"{name}.{idx}.key_value"] = t
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
