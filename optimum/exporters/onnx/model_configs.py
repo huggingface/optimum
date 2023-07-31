@@ -39,6 +39,7 @@ from ...utils import (
     NormalizedVisionConfig,
     logging,
 )
+from ...utils.normalized_config import NormalizedConfigManager
 from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .config import (
     AudioOnnxConfig,
@@ -283,12 +284,9 @@ class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
         GPTBigCodeDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = GPTBigCodeDummyPastKeyValuesGenerator
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
+    NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("gpt_bigcode")
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
-        """
-        Refer to OnnxConfigWithPast in base.py
-        """
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
