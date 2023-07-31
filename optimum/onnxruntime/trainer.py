@@ -43,7 +43,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
-from transformers.deepspeed import deepspeed_init, is_deepspeed_zero3_enabled
+from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
 from transformers.dependency_versions_check import dep_version_check
 from transformers.file_utils import (
     is_apex_available,
@@ -467,7 +467,6 @@ class ORTTrainer(Trainer):
         self.accelerator.free_memory()
         self._train_batch_size = batch_size
         logger.debug(f"Currently training with a batch size of: {self._train_batch_size}")
-
         # Data loader and number of training steps
         train_dataloader = self.get_train_dataloader()
 
@@ -530,8 +529,8 @@ class ORTTrainer(Trainer):
         delay_optimizer_creation = (
             self.sharded_ddp is not None
             and self.sharded_ddp != ShardedDDPOption.SIMPLE
-            or is_sagemaker_mp_enabled()
             or self.fsdp is not None
+            or self.is_fsdp_enabled
         )
 
         # Wrap the model with `ORTModule`
@@ -555,6 +554,7 @@ class ORTTrainer(Trainer):
                     " op which doesn't support BF16 in the IR.",
                     RuntimeWarning,
                 )
+            # 'DummyOptim' object has no attribute 'step' -> should be FusedAdam
             self.optimizer, self.lr_scheduler = deepspeed_init(self, num_training_steps=max_steps)
             if args.fp16:
                 from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
@@ -582,6 +582,8 @@ class ORTTrainer(Trainer):
         use_accelerator_prepare = True if model is self.model else False
 
         if delay_optimizer_creation:
+            if use_accelerator_prepare:
+                self.model = self.accelerator.prepare(self.model)
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
         # prepare using `accelerator` prepare
@@ -605,8 +607,13 @@ class ORTTrainer(Trainer):
         if model is not self.model:
             self.model_wrapped = model
 
-        if delay_optimizer_creation:
-            self.create_optimizer_and_scheduler(num_training_steps=max_steps)
+        # backward compatibility
+        if self.is_deepspeed_enabled:
+            self.deepspeed = self.model_wrapped
+
+        # deepspeed ckpt loading
+        if resume_from_checkpoint is not None and self.is_deepspeed_enabled:
+            deepspeed_load_checkpoint(self.model_wrapped, resume_from_checkpoint)
 
         # Check if saved optimizer or scheduler states exist
         self._load_optimizer_and_scheduler(resume_from_checkpoint)
@@ -1788,7 +1795,11 @@ class ORTTrainer(Trainer):
                 optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
 
             if self.sharded_ddp == ShardedDDPOption.SIMPLE:
-                self.optimizer = OSS(params=optimizer_grouped_parameters, optim=optimizer_cls, **optimizer_kwargs)
+                self.optimizer = OSS(
+                    params=optimizer_grouped_parameters,
+                    optim=optimizer_cls,
+                    **optimizer_kwargs,
+                )
             else:
                 self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
                 if optimizer_cls.__name__ == "Adam8bit":
@@ -1796,10 +1807,14 @@ class ORTTrainer(Trainer):
 
                     manager = bitsandbytes.optim.GlobalOptimManager.get_instance()
 
+                    skipped = 0
                     for module in opt_model.modules():
                         if isinstance(module, nn.Embedding):
+                            skipped += sum({p.data_ptr(): p.numel() for p in module.parameters()}.values())
+                            logger.info(f"skipped {module}: {skipped/2**20}M params")
                             manager.register_module_override(module, "weight", {"optim_bits": 32})
                             logger.debug(f"bitsandbytes: will optimize {module} in fp32")
+                    logger.info(f"skipped: {skipped/2**20}M params")
 
         if is_sagemaker_mp_enabled():
             raise NotImplementedError(
