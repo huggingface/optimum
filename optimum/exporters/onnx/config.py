@@ -163,19 +163,13 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self._behavior is not ConfigBehavior.ENCODER:
-            # TODO: it is likely this pop() is unwanted as we then always hit
-            # https://github.com/huggingface/transformers/blob/v4.26.0/src/transformers/models/t5/modeling_t5.py#L965-L969
-            common_inputs.pop("attention_mask")
-
             if self.use_past_in_inputs:
                 # TODO: validate the axis name for attention_mask
                 # common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
                 common_inputs["decoder_input_ids"] = {0: "batch_size"}
+                self.add_past_key_values(common_inputs, direction="inputs")
             else:
                 common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
-            if self.use_past_in_inputs:
-                self.add_past_key_values(common_inputs, direction="inputs")
 
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
@@ -323,6 +317,11 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 )
 
             self._decoder_onnx_config = decoder_onnx_config_constructor(config.decoder, **kwargs)
+            if issubclass(decoder_onnx_config_constructor.func, OnnxSeq2SeqConfigWithPast):
+                self._decoder_onnx_config = self._decoder_onnx_config.with_behavior(
+                    self._behavior, use_past=kwargs["use_past"]
+                )
+
             self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
 
             if isinstance(self._decoder_onnx_config, OnnxSeq2SeqConfigWithPast):
@@ -359,15 +358,20 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_dummy_inputs_for_validation(
+        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         if self._behavior is ConfigBehavior.ENCODER:
             return self._encoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
         else:
             if self._behavior is ConfigBehavior.DECODER:
                 reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
 
-                # for encoder-decoder custom models, always pass encoder_hidden_states as input
-                reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+            if "encoder_outputs" in reference_model_inputs:
+                if "encoder_hidden_states" in onnx_input_names:
+                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+                else:
+                    reference_model_inputs.pop("encoder_outputs")
 
             return self._decoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
 

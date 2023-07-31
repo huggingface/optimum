@@ -36,7 +36,7 @@ class OnnxRuntimeRun(Run):
         )
 
         onnx_model = ORT_SUPPORTED_TASKS[self.task]["class"][0].from_pretrained(
-            run_config["model_name_or_path"], from_transformers=True
+            run_config["model_name_or_path"], export=True
         )
 
         trfs_model = FeaturesManager.get_model_from_feature(

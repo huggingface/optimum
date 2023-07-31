@@ -65,7 +65,7 @@ By default, `BetterTransformer.transform` will overwrite your model, which means
 
 >>> model_bt = BetterTransformer.transform(model, keep_original_model=True)
 ```
-If your model does not support `BetterTransformer` API, this will displayed on an error trace. Note also that decoder-based models (OPT, BLOOM, etc.) are not supported yet but this is in the roadmap of PyTorch for the future.
+If your model does not support the `BetterTransformer` API, this will be displayed on an error trace. Note also that decoder-based models (OPT, BLOOM, etc.) are not supported yet but this is in the roadmap of PyTorch for the future.
 
 ## Pipeline compatibility
 
@@ -84,7 +84,7 @@ If you want to run a pipeline on a GPU device, run:
 >>> ...
 ```
 
-You can also use `transformers.pipeline` as usual and pass the convertede model directly:
+You can also use `transformers.pipeline` as usual and pass the converted model directly:
 ```python
 >>> from transformers import pipeline
 

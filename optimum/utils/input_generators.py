@@ -605,7 +605,11 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
     Generates dummy time step inputs.
     """
 
-    SUPPORTED_INPUT_NAMES = ("timestep",)
+    SUPPORTED_INPUT_NAMES = (
+        "timestep",
+        "text_embeds",
+        "time_ids",
+    )
 
     def __init__(
         self,
@@ -617,7 +621,8 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
     ):
         self.task = task
         self.vocab_size = normalized_config.vocab_size
-
+        self.text_encoder_projection_dim = normalized_config.text_encoder_projection_dim
+        self.time_ids = 5 if normalized_config.requires_aesthetics_score else 6
         if random_batch_size_range:
             low, high = random_batch_size_range
             self.batch_size = random.randint(low, high)
@@ -626,7 +631,12 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt"):
         shape = [self.batch_size]
-        return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)
+
+        if input_name == "timestep":
+            return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)
+
+        shape.append(self.text_encoder_projection_dim if input_name == "text_embeds" else self.time_ids)
+        return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework)
 
 
 class DummyLabelsGenerator(DummyInputGenerator):
@@ -689,4 +699,33 @@ class DummyPointsGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt"):
         shape = [self.batch_size, self.point_batch_size, self.nb_points_per_image, 2]
-        return self.random_int_tensor(shape, max_value=50, framework=framework)
+        return self.random_float_tensor(shape, framework=framework)
+
+
+class DummyPix2StructInputGenerator(DummyInputGenerator):
+    """
+    Generates dummy time step inputs.
+    """
+
+    SUPPORTED_INPUT_NAMES = ("flattened_patches",)
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        patch_height: int = 16,
+        patch_width: int = 16,
+        max_patches: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
+        **kwargs,
+    ):
+        self.task = task
+
+        self.batch_size = batch_size
+        self.flattened_patch_size = 2 + patch_height * patch_width * num_channels
+        self.max_patches = max_patches
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        shape = [self.batch_size, self.max_patches, self.flattened_patch_size]
+        return self.random_float_tensor(shape, framework=framework)
