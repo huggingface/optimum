@@ -60,7 +60,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Build image
         run: |
-          docker build -f tests/onnxruntime/docker/Dockerfile_quantization_gpu -t gptq-gpu .
+          docker build -f tests/gptq/docker/Dockerfile_quantization_gpu -t gptq-gpu .
       - name: Test with unittest within docker container
         run: |
           docker run --rm --gpus all -v $(pwd)/hf_cache:/root/.cache/huggingface --workdir=/workspace/optimum/tests gptq-gpu:latest
