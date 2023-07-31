@@ -36,6 +36,7 @@ if is_accelerate_available():
     from accelerate.hooks import remove_hook_from_module
 
 if is_auto_gptq_available():
+    from auto_gptq.nn_modules.qlinear import GeneralQuantLinear
     from auto_gptq.quantization import GPTQ
     from auto_gptq.utils.import_utils import dynamically_import_QuantLinear
 
@@ -160,6 +161,16 @@ class GPTQQuantizer(object):
         layers_to_be_replaced = get_layers(model, prefix=block_name)
         self._replace_by_quant_layers(model, layers_to_be_replaced)
 
+        return model
+
+    def get_compatible_with_peft(self, model):
+        """
+        Convert the model to be compatible with peft by replacing the quantized layers by `GeneralQuantLinear`.
+        """
+        module_type = dynamically_import_QuantLinear(
+            use_triton=False, desc_act=self.desc_act, group_size=self.group_size
+        )
+        GeneralQuantLinear.inject_to_model(model, module_type)
         return model
 
     def get_no_split_module_classes(self, model):
@@ -446,7 +457,7 @@ class GPTQQuantizer(object):
             layer_inputs, layer_outputs = layer_outputs, []
             torch.cuda.empty_cache()
 
-        # Step 4 () : Pack the model at the end (Replacing the layers)
+        # Step 4: Pack the model at the end (Replacing the layers)
         # if we pack the model at the end
         if not self.pack_sequentially:
             self.pack_model(model=model, quantizers=quantizers)
@@ -455,6 +466,8 @@ class GPTQQuantizer(object):
         if has_config:
             model.config.use_cache = use_cache
             model.config.quantization_config = self.to_dict()
+
+        # Step 5: Compatibility with peft
 
         torch.cuda.empty_cache()
         return model
