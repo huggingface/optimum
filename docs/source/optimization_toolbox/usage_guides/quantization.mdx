@@ -2,13 +2,14 @@
 
 ## `AutoGPTQ` Integration
 
-🤗 Optimum collaborated with `AutoGPTQ` library to provides a simple API that perform GPTQ quantization on language models.  With GPTQ quantization, you can quantize your favorite lanmguage model to 8,6,4 or even 2 bits. This comes without a big drop of performance and with faster inference speed. This is supported by most GPU hardwares.
+🤗 Optimum collaborated with `AutoGPTQ` library to provide a simple API that apply GPTQ quantization on language models.  With GPTQ quantization, you can quantize your favorite lanmguage model to 8,6,4 or even 2 bits. This comes without a big drop of performance and with faster inference speed. This is supported by most GPU hardwares.
 
 If you want to quantize 🤗 Transformers models with GPTQ, follow this [documentation](https://huggingface.co/docs/transformers/main_classes/quantization). 
 
 To learn more about the the quantization model, check out: 
 - the [GPTQ](https://arxiv.org/pdf/2210.17323.pdf) paper
 - the [`AutoGPTQ`](https://github.com/PanQiWei/AutoGPTQ) library used as the backend
+For more advanced usage (triton backend and fused attention), please check out the `auto-gptq` library in more details.
 
 ### Requirements
 
@@ -18,12 +19,12 @@ You need to have the following requirements installed to run the code below:
 `pip install auto-gptq`
 
 - Install latest `optimum` from source 
-`pip install --upgrade optimum`
+`pip install --upgrade git+https://github.com/huggingface/optimum.git`
 
 - Install latest `transformers` from source 
-`pip install --upgrade transformers`
+`pip install --upgrade git+https://github.com/huggingface/transformers.git`
 
-- Install latest `accelerate` from source 
+- Install latest `accelerate` library 
 `pip install --upgrade accelerate`
 
 ### Load and quantize model
