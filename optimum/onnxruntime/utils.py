@@ -53,6 +53,8 @@ _ORT_TO_NP_TYPE = {
     "tensor(double)": np.float64,
 }
 
+MULTI_QUERY_ATTN_MODELS = {"gpt_bigcode"}
+
 
 def _is_gpu_available():
     """

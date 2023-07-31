@@ -24,7 +24,7 @@ from onnxruntime import InferenceSession
 
 from ..utils import NormalizedConfigManager
 from ..utils.logging import warn_once
-from .utils import get_ordered_input_names, logging
+from .utils import MULTI_QUERY_ATTN_MODELS, get_ordered_input_names, logging
 
 
 logger = logging.get_logger(__name__)
@@ -161,7 +161,15 @@ class ORTDecoder(ORTModelPart):
             self.expected_key_symbolic_shape = None
             self.expected_value_symbolic_shape = None
             for output in self.session.get_outputs():
-                if ".key" in output.name:
+                # To handle the case of multi-query attn where key and value are concatenated
+                if ".key_value" in output.name:
+                    expected_key_value_symbolic_shape = output.shape
+                    self.expected_key_symbolic_shape = (
+                        self.expected_value_symbolic_shape
+                    ) = expected_key_value_symbolic_shape[:-1] + [
+                        expected_key_value_symbolic_shape[-1] // 2,
+                    ]
+                elif ".key" in output.name:
                     self.expected_key_symbolic_shape = output.shape
                 elif ".value" in output.name:
                     self.expected_value_symbolic_shape = output.shape
@@ -227,6 +235,14 @@ class ORTDecoder(ORTModelPart):
                 past_key_values = tuple(
                     key_or_value for _ in range(len(self.key_value_input_names) // 2) for key_or_value in [key, value]
                 )
+            elif self.parent_model.config.model_type in MULTI_QUERY_ATTN_MODELS:
+                shape_key_and_value = (batch_size, 1, embed_size_per_head * 2)
+                key_and_value = constructor.zeros(shape_key_and_value, dtype=dtype)
+
+                if use_torch is True:
+                    key_and_value = key_and_value.to(self.device)
+
+                past_key_values = tuple(key_and_value for _ in range(len(self.key_value_input_names)))
             else:
                 shape = (batch_size, num_attention_heads, 1, embed_size_per_head)
                 key_or_value = constructor.zeros(shape, dtype=dtype)
@@ -288,6 +304,24 @@ class ORTDecoder(ORTModelPart):
 
         return {name: key_shape if "key" in name else value_shape for name in self.key_value_output_names}
 
+    def compute_past_key_values_output_shapes_mqa(
+        self,
+        input_ids: torch.Tensor,
+        use_cache_branch: Optional[bool],
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+    ) -> Dict[str, List[int]]:
+        batch_size = input_ids.size(0)
+        num_attention_heads = self.normalized_config.num_attention_heads
+        embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
+
+        sequence_length = input_ids.size(1)
+        if past_key_values is not None and use_cache_branch is not False:
+            sequence_length += past_key_values[0].size(-2)
+
+        key_and_value_shape = (batch_size, sequence_length, embed_size_per_head * 2)
+
+        return {name: key_and_value_shape for name in self.key_value_output_names}
+
     def forward(
         self,
         input_ids: torch.LongTensor,
@@ -300,8 +334,8 @@ class ORTDecoder(ORTModelPart):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
 
-        # Flatten the past_key_values
-        if past_key_values is not None:
+        # Flatten the past_key_values (no need to flatten for models using multi-query attn)
+        if past_key_values is not None and (self.parent_model.config.model_type not in MULTI_QUERY_ATTN_MODELS):
             past_key_values = tuple(
                 past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
             )
@@ -312,7 +346,11 @@ class ORTDecoder(ORTModelPart):
         )
 
         if self.parent_model.use_io_binding:
-            known_output_shapes = self.compute_past_key_values_output_shapes(
+            if self.parent_model.config.model_type in MULTI_QUERY_ATTN_MODELS:
+                compute_past_key_values_output_shapes_func = self.compute_past_key_values_output_shapes_mqa
+            else:
+                compute_past_key_values_output_shapes_func = self.compute_past_key_values_output_shapes
+            known_output_shapes = compute_past_key_values_output_shapes_func(
                 input_ids,
                 use_cache_branch=use_cache_branch_tensor.item() if use_cache_branch_tensor is not None else None,
                 past_key_values=past_key_values,
@@ -357,8 +395,11 @@ class ORTDecoder(ORTModelPart):
                 past_key_values += (output_buffers[name].view(output_shapes[name]),)
 
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to 2 (self-attention key and value per decoder layer)
-            num_pkv = 2
-            past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
+            if self.parent_model.config.model_type not in MULTI_QUERY_ATTN_MODELS:
+                num_pkv = 2
+                past_key_values = tuple(
+                    past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv)
+                )
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
 
@@ -410,8 +451,12 @@ class ORTDecoder(ORTModelPart):
 
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
             # per decoder layer
-            num_pkv = 2
-            past_key_values = tuple(past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv))
+            if self.parent_model.config.model_type not in MULTI_QUERY_ATTN_MODELS:
+                num_pkv = 2
+                past_key_values = tuple(
+                    past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv)
+                )
+
             logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 
             loss = None
