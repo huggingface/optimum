@@ -17,8 +17,7 @@ from typing import Optional, Tuple
 import torch
 from transformers.models.llama.modeling_llama import _expand_mask as _llama_expand_mask
 from transformers.models.llama.modeling_llama import _make_causal_mask as _llama_make_causal_mask
-from transformers.models.llama.modeling_llama import apply_rotary_pos_emb
-from transformers.models.llama.modeling_llama import repeat_kv
+from transformers.models.llama.modeling_llama import apply_rotary_pos_emb, repeat_kv
 
 
 def raise_on_head_mask(head_mask: Optional[torch.Tensor]):
