@@ -50,6 +50,7 @@ MODELS_DICT = {
     "hubert": "ybelkada/hubert-tiny-random",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "llama": "fxmarty/tiny-llama-fast-tokenizer",
+    "llama-gqa": "noamwies/llama-test-gqa-with-better-transformer",
     "m2m_100": "hf-internal-testing/tiny-random-nllb",
     "marian": "fxmarty/tiny-marian",  # the other tiny ones have a too small max_position_embeddings
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
