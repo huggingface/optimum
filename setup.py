@@ -44,14 +44,14 @@ BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision",
 EXTRAS_REQUIRE = {
     "onnxruntime": [
         "onnx",
-        "onnxruntime>=1.9.0",
+        "onnxruntime>=1.11.0",
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
     ],
     "onnxruntime-gpu": [
         "onnx",
-        "onnxruntime-gpu>=1.9.0",
+        "onnxruntime-gpu>=1.11.0",
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
