@@ -19,10 +19,10 @@ You need to have the following requirements installed to run the code below:
 `pip install auto-gptq`
 
 - Optimum library:
-`pip install --upgrade git+https://github.com/huggingface/optimum.git`
+`pip install --upgrade optimum`
 
 - Install latest `transformers` from source 
-`pip install --upgrade git+https://github.com/huggingface/transformers.git`
+`pip install --upgrade transformers`
 
 - Install latest `accelerate` library 
 `pip install --upgrade accelerate`
@@ -40,12 +40,13 @@ With 🤗 Transformers integration, you don't need to pass the `block_name_to_qu
 ```py
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from optimum.gptq import GPTQQuantizer, load_quantized_model
+import torch
 model_name = "facebook/opt-125m"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
 
 quantizer = GPTQQuantizer(bits=4, dataset="c4", block_name_to_quantize = "model.decoder.layers", model_seqlen = 2048)
-quantized_model = quantizer.quantize_model(quantized_model, tokenizer)
+quantized_model = quantizer.quantize_model(model, tokenizer)
 ```
 
 <Tip warning={true}>
@@ -63,17 +64,11 @@ quantizer.save(model,save_folder)
 ### Load quantized weights
 
 You can load your quantized weights by using the [`~optimum.gptq.load_quantized_model`] function.
-```python
-from optimum.gptq import load_quantized_model
-model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
-model_from_saved = load_quantized_model(model, save_folder=save_folder, device_map="auto")
-```
-
-Through the Accelerate library, it is also possible to load a model faster with a lower memory usage. The model needs to be initialized using empty weights, with weights loaded as a next step.
+Through the Accelerate library, it is possible to load a model faster with a lower memory usage. The model needs to be initialized using empty weights, with weights loaded as a next step.
 ```python
 from accelerate import init_empty_weights
 with init_empty_weights():
     empty_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
 empty_model.tie_weights()
-model_from_saved = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto")
+quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto")
 ```
