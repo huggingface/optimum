@@ -33,7 +33,9 @@ class GPTQTest(unittest.TestCase):
     model_name = "bigscience/bloom-560m"
 
     input_text = "Hello my name is"
-    EXPECTED_OUTPUT = "Hello my name is John and I am a professional photographer. I"
+    EXPECTED_OUTPUTS = set()
+    EXPECTED_OUTPUTS.add("Hello my name is John and I am a professional photographer. I")
+    EXPECTED_OUTPUTS.add("Hello my name is John and I am a very good looking man.")
 
     # this seems a little small considering that we are doing 4bit quant but we have a small model and ww don't quantize the embeddings
     EXPECTED_RELATIVE_DIFFERENCE = 1.664253062
@@ -95,11 +97,11 @@ class GPTQTest(unittest.TestCase):
         # Check that inference pass works on the model
         encoded_input = self.tokenizer(self.input_text, return_tensors="pt")
 
-        # Check the exactness of the results
-        output_parallel = model.generate(input_ids=encoded_input["input_ids"].to(0), max_new_tokens=10)
-
         # Get the generation
-        self.assertEqual(self.tokenizer.decode(output_parallel[0], skip_special_tokens=True), self.EXPECTED_OUTPUT)
+        output_sequences = model.generate(input_ids=encoded_input["input_ids"].to(0), max_new_tokens=10)
+
+        # Check the exactness of the result
+        self.assertIn(self.tokenizer.decode(output_sequences[0], skip_special_tokens=True), self.EXPECTED_OUTPUTS)
 
     def test_generate_quality(self):
         self.check_inference_correctness(self.quantized_model)

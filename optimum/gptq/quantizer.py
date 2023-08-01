@@ -159,16 +159,7 @@ class GPTQQuantizer(object):
 
         return model
 
-    def get_compatible_with_peft(self, model):
-        """
-        Convert the model to be compatible with peft by replacing the quantized layers by `GeneralQuantLinear`.
-        """
-        module_type = dynamically_import_QuantLinear(
-            use_triton=False, desc_act=self.desc_act, group_size=self.group_size
-        )
-        GeneralQuantLinear.inject_to_model(model, module_type)
-        return model
-
+        
     def get_no_split_module_classes(self, model):
         """
         Get the modules that should not be split across multiple devices.
@@ -433,7 +424,7 @@ class GPTQQuantizer(object):
         # Step 4: Pack the model at the end (Replacing the layers)
         self.pack_model(model=model, quantizers=quantizers)
 
-        model._is_gptq_quantized = True
+        model.is_gptq_quantized = True
         if has_config:
             model.config.use_cache = use_cache
             model.config.quantization_config = self.to_dict()
@@ -504,7 +495,7 @@ class GPTQQuantizer(object):
             )
 
         os.makedirs(save_dir, exist_ok=True)
-        if not model._is_gptq_quantized:
+        if not model.is_gptq_quantized:
             raise EnvironmentError("Can only save quantized model, please execute .quantize first.")
         model = model.to("cpu")
         # save model and config
