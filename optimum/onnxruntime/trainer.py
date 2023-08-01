@@ -84,6 +84,7 @@ from transformers.trainer_utils import (
 )
 from transformers.training_args import ParallelMode
 from transformers.utils import is_accelerate_available
+from accelerate.utils import DistributedType
 
 from ..exporters import TasksManager
 from ..exporters.onnx import OnnxConfigWithPast, export, export_models, get_decoder_models_for_export
@@ -554,12 +555,8 @@ class ORTTrainer(Trainer):
                     " op which doesn't support BF16 in the IR.",
                     RuntimeWarning,
                 )
-            # 'DummyOptim' object has no attribute 'step' -> should be FusedAdam
+            self.model = model
             self.optimizer, self.lr_scheduler = deepspeed_init(self, num_training_steps=max_steps)
-            if args.fp16:
-                from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
-
-                self.optimizer = FP16_Optimizer(self.optimizer)
 
         if not delay_optimizer_creation:
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
@@ -571,7 +568,7 @@ class ORTTrainer(Trainer):
         if args.gradient_checkpointing:
             self.model.gradient_checkpointing_enable()
 
-        model = self._wrap_model(self.model_wrapped)
+        model = self._wrap_model(self.model_wrapped)  # Wrap unless the ORTModule is already wrapped, eg. wrap DDP
 
         if is_sagemaker_mp_enabled() and resume_from_checkpoint is not None:
             self._load_from_checkpoint(resume_from_checkpoint, model)
@@ -589,6 +586,7 @@ class ORTTrainer(Trainer):
         # prepare using `accelerator` prepare
         if use_accelerator_prepare:
             self.model.train()
+            self.accelerator.distributed_type == DistributedType.DEEPSPEED
             if hasattr(self.lr_scheduler, "step"):
                 if self.use_apex:
                     model = self.accelerator.prepare(self.model)
@@ -599,6 +597,14 @@ class ORTTrainer(Trainer):
                 model, self.optimizer, self.lr_scheduler = self.accelerator.prepare(
                     self.model, self.optimizer, self.lr_scheduler
                 )
+            self.model = unwrap_model(model)
+        
+        # ORT optimized FP16 optimizer for Deepspeed training
+        if self.is_deepspeed_enabled and args.fp16:
+            from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
+
+            self.optimizer = FP16_Optimizer(self.optimizer)
+
 
         if self.is_fsdp_enabled:
             self.model = model
