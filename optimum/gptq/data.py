@@ -231,7 +231,7 @@ def get_dataset(
 
     Args:
         dataset_name (`str`):
-            Dataset name. The options are ['wikitext2','c4','ptb','c4-new','ptb_new']
+            Dataset name. Available options are `['wikitext2', 'c4', 'ptb', 'c4-new', 'ptb_new']`.
         tokenizer (`Any`):
             Tokenizer of the model
         nsamples (`int`, defaults to `128`):
