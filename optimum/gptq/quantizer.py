@@ -36,7 +36,6 @@ if is_accelerate_available():
     from accelerate.hooks import remove_hook_from_module
 
 if is_auto_gptq_available():
-    from auto_gptq.nn_modules.qlinear import GeneralQuantLinear
     from auto_gptq.quantization import GPTQ
     from auto_gptq.utils.import_utils import dynamically_import_QuantLinear
 
@@ -159,7 +158,6 @@ class GPTQQuantizer(object):
 
         return model
 
-        
     def get_no_split_module_classes(self, model):
         """
         Get the modules that should not be split across multiple devices.
