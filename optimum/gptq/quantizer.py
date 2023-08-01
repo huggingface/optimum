@@ -57,7 +57,6 @@ class GPTQQuantizer(object):
         desc_act: bool = True,
         sym: bool = True,
         true_sequential: bool = True,
-        pack_sequentially: bool = False,
         use_cuda_fp16: bool = False,
         model_seqlen: Optional[int] = None,
         block_name_to_quantize: Optional[str] = None,
@@ -74,7 +73,7 @@ class GPTQQuantizer(object):
             dataset (`Union[List[str],str]`, defaults to None):
                 The dataset used for quantization. You can provide your own dataset in a list of string or just use the original datasets used
                 in GPTQ paper ['wikitext2','c4','c4-new','ptb','ptb-new'].
-            group_size (int, defaults to -1):
+            group_size (int, defaults to 128):
                 The group size to use for quantization. Recommended value is 128 and -1 uses per-column quantization.
             damp_percent (`float`, defaults to `0.01`):
                 The percent of the average Hessian diagonal to use for dampening, recommended value is 0.01.
@@ -88,8 +87,6 @@ class GPTQQuantizer(object):
                 Whether to perform sequential quantization even within a single Transformer block.
                 Instead of quantizing the entire block at once, we perform layer-wise quantization.
                 As a result, each layer undergoes quantization using inputs that have passed through the previously quantized layers.
-            pack_sequentially (`bool`, defaults to `True`):
-                Whether to pack the layer just after it is quantized. If False, we will pack the model at the end.
             use_cuda_fp16 (`bool`, defaults to `False`):
                 Whether or not to use optimized cuda kernel for fp16 model. Need to have model in fp16.
             model_seqlen (`Optional[int]`, defaults to `None`):
@@ -111,7 +108,6 @@ class GPTQQuantizer(object):
         self.desc_act = desc_act
         self.sym = sym
         self.true_sequential = true_sequential
-        self.pack_sequentially = pack_sequentially
         self.use_cuda_fp16 = use_cuda_fp16
         self.model_seqlen = model_seqlen
         self.block_name_to_quantize = block_name_to_quantize
@@ -229,7 +225,7 @@ class GPTQQuantizer(object):
             self._replace_by_quant_layers(child, names, name + "." + name1 if name != "" else name1)
 
     @torch.no_grad()
-    def quantize_model(self, model: nn.Module, tokenizer: Any, verbose: bool = False):
+    def quantize_model(self, model: nn.Module, tokenizer: Any):
         """
         Quantizes the model using the dataset
 
@@ -244,8 +240,6 @@ class GPTQQuantizer(object):
                       user or organization name, like `dbmdz/bert-base-german-cased`.
                     - A path to a *directory* containing vocabulary files required by the tokenizer, for instance saved
                       using the [`~PreTrainedTokenizer.save_pretrained`] method, e.g., `./my_model_directory/`.
-            verbose (`bool`):
-                Whether to show the tqdm bar or not
         Returns:
             `nn.Module`: The quantized model
         """
@@ -372,9 +366,7 @@ class GPTQQuantizer(object):
 
         # Step 3: Quantize the blocks
         quantizers = {}
-        for i, block in enumerate(
-            tqdm(blocks, disable=not verbose, desc=f"Quantizing {self.block_name_to_quantize} blocks ")
-        ):
+        for i, block in enumerate(tqdm(blocks, desc=f"Quantizing {self.block_name_to_quantize} blocks ")):
             logger.info(f"Start quantizing block {self.block_name_to_quantize} {i + 1}/{len(blocks)}")
             # move block to cuda if needed
             # in case we have offload modules, we need to put them on cuda because of GPTQ object
@@ -387,9 +379,7 @@ class GPTQQuantizer(object):
             else:
                 layers_name_list = [list(layers.keys())]
             logger.info(f"Module to quantize {layers_name_list}")
-            for subset_name_list in tqdm(
-                layers_name_list, disable=not verbose, leave=False, desc="Quantizing layers inside the block"
-            ):
+            for subset_name_list in tqdm(layers_name_list, leave=False, desc="Quantizing layers inside the block"):
                 subset_layers = {name: layers[name] for name in subset_name_list}
                 gptq = {}
                 handles = []
@@ -419,29 +409,12 @@ class GPTQQuantizer(object):
                     scale, zero, g_idx = gptq[name].fasterquant(
                         percdamp=self.damp_percent, group_size=self.group_size, actorder=self.desc_act
                     )
-                    # if we pack the model at the end
-                    if not self.pack_sequentially:
-                        quantizers[f"{self.block_name_to_quantize}.{i}.{name}"] = (
-                            gptq[name].quantizer,
-                            scale,
-                            zero,
-                            g_idx,
-                        )
-                    else:
-                        # put on cpu because it is not possible to quantize on cuda for now
-                        subset_layers[name], scale, zero, g_idx = (
-                            subset_layers[name].to("cpu"),
-                            scale.to("cpu"),
-                            zero.to("cpu"),
-                            g_idx.to("cpu"),
-                        )
-                        layer_name = f"{self.block_name_to_quantize}.{i}.{name}"
-                        self._replace_by_quant_layers(model, [layer_name])
-                        quantized_layer = recurse_getattr(model, layer_name)
-                        device_layer = get_device(quantized_layer)
-                        quantized_layer = quantized_layer.to("cpu")
-                        quantized_layer.pack(subset_layers[name], scale, zero, g_idx)
-                        quantized_layer = quantized_layer.to(device_layer)
+                    quantizers[f"{self.block_name_to_quantize}.{i}.{name}"] = (
+                        gptq[name].quantizer,
+                        scale,
+                        zero,
+                        g_idx,
+                    )
                     gptq[name].free()
                 del subset_layers
             # we get the new output from the partial quantized block
@@ -458,16 +431,12 @@ class GPTQQuantizer(object):
             torch.cuda.empty_cache()
 
         # Step 4: Pack the model at the end (Replacing the layers)
-        # if we pack the model at the end
-        if not self.pack_sequentially:
-            self.pack_model(model=model, quantizers=quantizers)
+        self.pack_model(model=model, quantizers=quantizers)
 
         model._is_gptq_quantized = True
         if has_config:
             model.config.use_cache = use_cache
             model.config.quantization_config = self.to_dict()
-
-        # Step 5: Compatibility with peft
 
         torch.cuda.empty_cache()
         return model

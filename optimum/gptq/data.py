@@ -39,7 +39,7 @@ def prepare_dataset(
         pad_token_id (`Optional[int]`, defaults to `None`):
             Pad token id of the model
     Returns:
-        `_type_`: _description_
+        ` List[Dict[str, torch.LongTensor]]`: Batched dataset
     """
     new_examples = []
     for example in examples:
