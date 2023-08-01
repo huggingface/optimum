@@ -531,9 +531,8 @@ class ORTModelVaeEncoder(_ORTDiffusionModelPart):
         return outputs
 
 
-class ORTStableDiffusionPipeline(ORTStableDiffusionPipelineBase, StableDiffusionPipelineMixin):
-    def __call__(self, *args, **kwargs):
-        return StableDiffusionPipelineMixin.__call__(self, *args, **kwargs)
+class ORTStableDiffusionPipeline(StableDiffusionPipelineMixin, ORTStableDiffusionPipelineBase):
+    pass
 
 
 class ORTStableDiffusionImg2ImgPipeline(ORTStableDiffusionPipelineBase, StableDiffusionImg2ImgPipelineMixin):
