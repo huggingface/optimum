@@ -39,6 +39,7 @@ from ...utils import (
     NormalizedVisionConfig,
     logging,
 )
+from ...utils.normalized_config import NormalizedConfigManager
 from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .config import (
     AudioOnnxConfig,
@@ -266,6 +267,45 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
                 0: "batch_size x num_heads",
                 1: decoder_sequence_name,
             }
+
+
+class GPTBigCodeDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
+    def generate(self, input_name: str, framework: str = "pt"):
+        past_key_value_shape = (
+            self.batch_size,
+            self.sequence_length,
+            self.hidden_size // self.num_attention_heads * 2,
+        )
+        return [self.random_float_tensor(past_key_value_shape, framework=framework) for _ in range(self.num_layers)]
+
+
+class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        GPTBigCodeDummyPastKeyValuesGenerator,
+    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_PKV_GENERATOR_CLASS = GPTBigCodeDummyPastKeyValuesGenerator
+    NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("gpt_bigcode")
+
+    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
+        if direction not in ["inputs", "outputs"]:
+            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+
+        if direction == "inputs":
+            decoder_sequence_name = "past_sequence_length"
+            name = "past_key_values"
+        else:
+            decoder_sequence_name = "past_sequence_length + 1"
+            name = "present"
+
+        for i in range(self._normalized_config.num_layers):
+            # No dim for `n_head` when using multi-query attention
+            inputs_or_outputs[f"{name}.{i}.key_value"] = {
+                0: "batch_size",
+                1: decoder_sequence_name,
+            }
+
+    def flatten_past_key_values(self, flattened_output, name, idx, t):
+        flattened_output[f"{name}.{idx}.key_value"] = t
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):

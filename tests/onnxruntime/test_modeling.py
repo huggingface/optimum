@@ -1946,6 +1946,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "bloom",
         "codegen",
         "gpt2",
+        "gpt_bigcode",
         "gpt_neo",
         "gpt_neox",
         "gptj",

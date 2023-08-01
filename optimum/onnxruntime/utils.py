@@ -53,6 +53,8 @@ _ORT_TO_NP_TYPE = {
     "tensor(double)": np.float64,
 }
 
+MULTI_QUERY_ATTN_MODELS = {"gpt_bigcode"}
+
 
 def _is_gpu_available():
     """
@@ -109,6 +111,7 @@ class ORTConfigManager:
         "distilbert": "bert",
         "electra": "bert",
         "gpt2": "gpt2",
+        "gpt_bigcode": "gpt2",
         "gpt_neo": "gpt2",
         "gpt_neox": "gpt2",
         "gptj": "gpt2",
