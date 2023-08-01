@@ -359,7 +359,7 @@ def default_quantization_parameters(
     format: Optional[QuantFormat] = None,
     mode: Optional[QuantizationMode] = None,
     operators_to_quantize: Optional[List[str]] = None,
-) -> Tuple[QuantFormat, QuantizationMode]:
+) -> Tuple[QuantFormat, QuantizationMode, List[str]]:
     if format is None:
         format = QuantFormat.QDQ if is_static else QuantFormat.QOperator
 
@@ -408,7 +408,9 @@ class AutoQuantizationConfig:
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode = default_quantization_parameters(is_static, operators_to_quantize=operators_to_quantize)
+        format, mode, operators_to_quantize = default_quantization_parameters(
+            is_static, operators_to_quantize=operators_to_quantize
+        )
 
         # u8/s8 is faster (than u8/u8) on lower-end ARM64 and identical on higher-end ARM64,
         # so let's use u8/s8 by default
@@ -464,7 +466,9 @@ class AutoQuantizationConfig:
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode = default_quantization_parameters(is_static, operators_to_quantize=operators_to_quantize)
+        format, mode, operators_to_quantize = default_quantization_parameters(
+            is_static, operators_to_quantize=operators_to_quantize
+        )
 
         return QuantizationConfig(
             is_static=is_static,
@@ -518,7 +522,9 @@ class AutoQuantizationConfig:
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode = default_quantization_parameters(is_static, operators_to_quantize=operators_to_quantize)
+        format, mode, operators_to_quantize = default_quantization_parameters(
+            is_static, operators_to_quantize=operators_to_quantize
+        )
 
         return QuantizationConfig(
             is_static=is_static,
@@ -573,7 +579,9 @@ class AutoQuantizationConfig:
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode = default_quantization_parameters(is_static, operators_to_quantize=operators_to_quantize)
+        format, mode, operators_to_quantize = default_quantization_parameters(
+            is_static, operators_to_quantize=operators_to_quantize
+        )
 
         return QuantizationConfig(
             is_static=is_static,
@@ -611,7 +619,9 @@ class AutoQuantizationConfig:
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode = default_quantization_parameters(is_static=True, operators_to_quantize=operators_to_quantize)
+        format, mode, operators_to_quantize = default_quantization_parameters(
+            is_static=True, operators_to_quantize=operators_to_quantize
+        )
 
         return QuantizationConfig(
             is_static=True,
