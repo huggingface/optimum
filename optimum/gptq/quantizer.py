@@ -23,6 +23,7 @@ from torch import nn
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 from transformers.pytorch_utils import Conv1D
+from transformers.utils.quantization_config import QuantizationMethod
 
 from ..utils import is_accelerate_available, is_auto_gptq_available
 from ..utils.modeling_utils import recurse_getattr
@@ -422,7 +423,8 @@ class GPTQQuantizer(object):
         # Step 4: Pack the model at the end (Replacing the layers)
         self.pack_model(model=model, quantizers=quantizers)
 
-        model.is_gptq_quantized = True
+        model.is_quantized = True
+        model.quantization_method = QuantizationMethod.GPTQ
         if has_config:
             model.config.use_cache = use_cache
             model.config.quantization_config = self.to_dict()
@@ -493,8 +495,6 @@ class GPTQQuantizer(object):
             )
 
         os.makedirs(save_dir, exist_ok=True)
-        if not model.is_gptq_quantized:
-            raise EnvironmentError("Can only save quantized model, please execute .quantize first.")
         model = model.to("cpu")
         # save model and config
         accelerator = Accelerator()
@@ -582,6 +582,8 @@ def load_quantized_model(
         offload_buffers=offload_buffers,
         offload_state_dict=offload_state_dict,
     )
+    model.is_quantized = True
+    model.quantization_method = QuantizationMethod.GPTQ
     # put on eval mode
     model.eval()
     return model
