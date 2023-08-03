@@ -541,7 +541,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         elif self.task == "feature-extraction":
             common_outputs = OrderedDict({"last_hidden_state": {0: "batch_size"}})
         else:
-            common_outputs = OrderedDict({"logits": {0: "batch_size"}})
+            common_outputs = OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}})
         if self.use_present_in_outputs:
             self.add_past_key_values(common_outputs, direction="outputs")
         return common_outputs
