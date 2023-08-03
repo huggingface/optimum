@@ -38,6 +38,7 @@ from transformers.integrations import (
 import numpy as np
 import torch
 import torch.distributed as dist
+from accelerate.utils import DistributedType
 from packaging import version
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
@@ -84,7 +85,6 @@ from transformers.trainer_utils import (
 )
 from transformers.training_args import ParallelMode
 from transformers.utils import is_accelerate_available
-from accelerate.utils import DistributedType
 
 from ..exporters import TasksManager
 from ..exporters.onnx import OnnxConfigWithPast, export, export_models, get_decoder_models_for_export
@@ -598,13 +598,12 @@ class ORTTrainer(Trainer):
                     self.model, self.optimizer, self.lr_scheduler
                 )
             self.model = unwrap_model(model)
-        
+
         # ORT optimized FP16 optimizer for Deepspeed training
         if self.is_deepspeed_enabled and args.fp16:
             from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
 
             self.optimizer = FP16_Optimizer(self.optimizer)
-
 
         if self.is_fsdp_enabled:
             self.model = model

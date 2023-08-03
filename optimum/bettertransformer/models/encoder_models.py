@@ -153,6 +153,8 @@ class AlbertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             # NOTE: In PyTorch 2.0, passing an attention_mask will automatically dispatch
             # to the "math" path and will NOT use flash attention / memory-efficient attention.
             # We should support xformers / Hazy-flash / rocm-flash directly and stop relying on PyTorch to do the work.
+            if self.training:
+                attention_mask = None
             attention_out = F.scaled_dot_product_attention(
                 query,
                 key,
@@ -330,6 +332,8 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             # NOTE: In PyTorch 2.0, passing an attention_mask will automatically dispatch
             # to the "math" path and will NOT use flash attention / memory-efficient attention.
             # We should support xformers / Hazy-flash / rocm-flash directly and stop relying on PyTorch to do the work.
+            if self.training:
+                attention_mask = None
             attention_out = F.scaled_dot_product_attention(
                 query,
                 key,
@@ -514,6 +518,8 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             # NOTE: In PyTorch 2.0, passing an attention_mask will automatically dispatch
             # to the "math" path and will NOT use flash attention / memory-efficient attention.
             # We should support xformers / Hazy-flash / rocm-flash directly and stop relying on PyTorch to do the work.
+            if self.training:
+                attention_mask = None
             attention_out = F.scaled_dot_product_attention(
                 query,
                 key,
@@ -711,6 +717,8 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             # NOTE: In PyTorch 2.0, passing an attention_mask will automatically dispatch
             # to the "math" path and will NOT use flash attention / memory-efficient attention.
             # We should support xformers / Hazy-flash / rocm-flash directly and stop relying on PyTorch to do the work.
+            if self.training:
+                attention_mask = None
             attention_out = F.scaled_dot_product_attention(
                 query,
                 key,
@@ -886,6 +894,8 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             # NOTE: In PyTorch 2.0, passing an attention_mask will automatically dispatch
             # to the "math" path and will NOT use flash attention / memory-efficient attention.
             # We should support xformers / Hazy-flash / rocm-flash directly and stop relying on PyTorch to do the work.
+            if self.training:
+                attn_mask = None
             attention_out = F.scaled_dot_product_attention(
                 query,
                 key,
