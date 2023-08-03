@@ -44,6 +44,8 @@ MODELS_DICT = {
     "ernie": "hf-internal-testing/tiny-random-ErnieModel",
     "fsmt": "hf-internal-testing/tiny-random-FSMTModel",
     "gpt2": "hf-internal-testing/tiny-random-GPT2Model",
+    # NOTE: this tiny model does not use attention_softmax_in_fp32=True (contrary to e.g. starcoder)
+    "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeForCausalLM",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",

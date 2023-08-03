@@ -22,12 +22,12 @@ from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
-from optimum.utils import DummyPastKeyValuesGenerator, NormalizedConfigManager
+from optimum.utils import DummyPastKeyValuesGenerator, GPTBigCodeDummyPastKeyValuesGenerator, NormalizedConfigManager
 from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_gpu
 
 
 class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
-    SUPPORTED_ARCH = ["codegen", "gpt2", "gptj", "gpt_neo", "gpt_neox", "llama", "opt"]
+    SUPPORTED_ARCH = ["codegen", "gpt2", "gpt_bigcode", "gptj", "gpt_neo", "gpt_neox", "llama", "opt"]
 
     FULL_GRID = {
         "model_type": SUPPORTED_ARCH,
@@ -123,7 +123,13 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         model = AutoModelForCausalLM.from_pretrained(model_id)
 
         normalized_config = NormalizedConfigManager.get_normalized_config_class(model.config.model_type)(model.config)
-        pkv_generator = DummyPastKeyValuesGenerator(
+
+        if model_type == "gpt_bigcode":
+            pkv_generator_class = GPTBigCodeDummyPastKeyValuesGenerator
+        else:
+            pkv_generator_class = DummyPastKeyValuesGenerator
+
+        pkv_generator = pkv_generator_class(
             task="", normalized_config=normalized_config, batch_size=batch_size, sequence_length=seq_length
         )
         past_key_values = pkv_generator.generate(input_name="past_key_values")

@@ -54,6 +54,7 @@ from .input_generators import (
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
     DummyVisionInputGenerator,
+    GPTBigCodeDummyPastKeyValuesGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr
 from .normalized_config import (

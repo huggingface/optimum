@@ -31,6 +31,7 @@ from ...utils import (
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
     DummyVisionInputGenerator,
+    GPTBigCodeDummyPastKeyValuesGenerator,
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
@@ -267,16 +268,6 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
                 0: "batch_size x num_heads",
                 1: decoder_sequence_name,
             }
-
-
-class GPTBigCodeDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
-    def generate(self, input_name: str, framework: str = "pt"):
-        past_key_value_shape = (
-            self.batch_size,
-            self.sequence_length,
-            self.hidden_size // self.num_attention_heads * 2,
-        )
-        return [self.random_float_tensor(past_key_value_shape, framework=framework) for _ in range(self.num_layers)]
 
 
 class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):

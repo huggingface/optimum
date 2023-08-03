@@ -20,6 +20,9 @@ from transformers.models.llama.modeling_llama import _make_causal_mask as _llama
 from transformers.models.llama.modeling_llama import apply_rotary_pos_emb, repeat_kv
 
 
+# TODO (CRITICAL): Layer-wise attention scaling is broken for several archs (see a fix in gpt_bigcode_wrapped_scaled_dot_product).
+
+
 def raise_on_head_mask(head_mask: Optional[torch.Tensor]):
     if head_mask is not None:
         raise ValueError(
@@ -663,3 +666,136 @@ def llama_forward(
         attn_weights = None
 
     return attn_output, attn_weights, past_key_value
+
+
+def gpt_bigcode_wrapped_scaled_dot_product(
+    self,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attention_mask: Optional[torch.Tensor] = None,
+    head_mask: Optional[torch.Tensor] = None,
+):
+    raise_on_head_mask(head_mask)
+
+    # TODO: remove once PyTorch 2.1 is released with the scale argument to SDPA
+    if self.scale_attn_weights:
+        softmax_dtype = torch.float32 if self.attention_softmax_in_fp32 else query.dtype
+        if self.scale_attention_softmax_in_fp32 and query.dtype != softmax_dtype:
+            query = query / (self.layer_idx + 1)
+    else:
+        query = query / self.head_dim**0.5
+
+    # MQA models: (batch_size, query_length, num_heads * head_dim)
+    # MHA models: (batch_size, num_heads, query_length, head_dim)
+    query_shape = query.shape
+    batch_size = query_shape[0]
+
+    if self.multi_query:
+        query_length = query_shape[1]
+
+        # NOTE: Maybe there is better than this?
+        query = query.view(batch_size, query_length, self.num_heads, self.head_dim).transpose(1, 2)
+    else:
+        raise NotImplementedError(
+            "BetterTransformer integration with GPT BigCode without Multi-Query Attention (MQA) has not been implemented. Please open an issue or PR at https://github.com/huggingface/optimum."
+        )
+
+    dropout_p = self.dropout_prob_attn if self.training else 0.0
+
+    # I did not find how to avoid these unsqueeze, SDPA complains otherwise.
+    key = key.unsqueeze(1)
+    value = value.unsqueeze(1)
+
+    if batch_size == 1 or self.training:
+        if query_length > 1:
+            sdpa_result = torch.nn.functional.scaled_dot_product_attention(
+                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=True
+            )
+        else:
+            sdpa_result = torch.nn.functional.scaled_dot_product_attention(
+                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=False
+            )
+    else:
+        if attention_mask is not None:
+            mask_value = self._get_mask_value(query.device, query.dtype)
+
+            # gpt_bigcode has the bad taste to use a causal mask a
+            # [batch_size, target_length, 1, source_length] which is different from
+            # **all** other architectures and not compatible with SDPA.
+            # We could avoid this transpose by overriding the forward from GPTBigCodeModel,
+            # but it is probably not worth it.
+            attention_mask = attention_mask.transpose(1, 2)
+            attention_mask = torch.where(attention_mask, 0.0, mask_value)
+
+        sdpa_result = torch.nn.functional.scaled_dot_product_attention(
+            query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=False
+        )
+
+    if self.multi_query:
+        # (batch_size, num_heads, seq_len, head_dim) --> (batch_size, seq_len, num_heads, head_dim)
+        sdpa_result = sdpa_result.transpose(1, 2)
+
+        # Reshape is kind of expensive here (as here it does a memory copy)
+        # but I did not manage to make away without it.
+        # (batch_size, seq_len, num_heads, head_dim) --> (batch_size, seq_len, num_heads * head_dim)
+        sdpa_result = sdpa_result.reshape(query_shape)
+
+    return sdpa_result
+
+
+def gpt_bigcode_forward(
+    self,
+    hidden_states: torch.Tensor,
+    layer_past: Optional[torch.Tensor] = None,
+    attention_mask: Optional[torch.Tensor] = None,
+    head_mask: Optional[torch.Tensor] = None,
+    encoder_hidden_states: Optional[torch.Tensor] = None,
+    encoder_attention_mask: Optional[torch.Tensor] = None,
+    use_cache: Optional[bool] = False,
+    output_attentions: Optional[bool] = False,
+) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    if output_attentions is True:
+        raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
+    if encoder_hidden_states is not None:
+        if not hasattr(self, "q_attn") or not self.is_cross_attention:
+            raise ValueError(
+                "If class is used as cross attention, the weights `q_attn` have to be defined. "
+                "Please make sure to instantiate class with `GPTBigCodeAttention(..., is_cross_attention=True)`."
+            )
+
+        query = self.q_attn(hidden_states)
+        key_value = self.c_attn(encoder_hidden_states)
+        attention_mask = encoder_attention_mask
+    elif self.multi_query:
+        query, key_value = self.c_attn(hidden_states).split((self.embed_dim, 2 * self.kv_dim), dim=2)
+    else:
+        # Note: We split as (self.num_heads, 3, self.head_dim) instead of (3, self.num_heads, self.head_dim),
+        # i.e., the memory layout is not the same as GPT2.
+        # This makes the concatenation with past_key_value more efficient.
+        query, key_value = (
+            self.c_attn(hidden_states)
+            .view(*hidden_states.shape[:2], self.num_heads, 3 * self.head_dim)
+            .transpose(1, 2)
+            .split((self.head_dim, 2 * self.head_dim), dim=3)
+        )
+
+    if layer_past is not None:
+        key_value = torch.cat((layer_past, key_value), dim=-2)
+    present = key_value if use_cache else None
+
+    key, value = key_value.split((self.head_dim, self.head_dim), dim=-1)
+
+    # Difference with the transformers implementation: there is no need to transpose the key here,
+    # as SDPA expects seq_length to be at index -2
+    attn_output = self._attn(query, key, value, attention_mask, head_mask)
+
+    if not self.multi_query:
+        attn_output = attn_output.transpose(1, 2).reshape(hidden_states.shape)
+    attn_output = self.c_proj(attn_output)
+    attn_output = self.resid_dropout(attn_output)
+
+    outputs = (attn_output, present)
+
+    return outputs
