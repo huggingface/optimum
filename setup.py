@@ -21,6 +21,7 @@ REQUIRED_PKGS = [
     "numpy",
     "huggingface_hub>=0.8.0",
     "datasets",
+    "accelerate",
 ]
 
 TESTS_REQUIRE = [
