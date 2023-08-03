@@ -1597,7 +1597,7 @@ class ORTTrainer(Trainer):
         if model is None:
             if not (self.args.fp16 and self.args.deepspeed):
                 # Taking CPU to export the model
-                self.model.to("cpu")
+                self.model.to(torch.device("cpu"))
             model = unwrap_model(self.model)
 
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(
