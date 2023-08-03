@@ -153,19 +153,6 @@ class BetterTransformerManager:
         "t5",
     }
 
-    DO_NOT_SUPPORT_PADDED_TRAINING = {
-        "blenderbot",
-        "codegen",
-        "gpt2",
-        "gptj",
-        "gpt_neo",
-        "gpt_neox",
-        "llama",
-        "opt",
-        "pegasus",
-        "t5",
-    }
-
     @staticmethod
     def cannot_support(model_type: str) -> bool:
         """
