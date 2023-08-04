@@ -23,7 +23,7 @@ import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
 from huggingface_hub.utils import EntryNotFoundError
-from transformers import AutoModelForCausalLM, GenerationConfig, PretrainedConfig
+from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
@@ -48,7 +48,6 @@ from .utils import (
     parse_device,
     validate_provider_availability,
 )
-
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
@@ -852,8 +851,14 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         pkv_output_shape = {}
         for name, value in zip(self.key_value_output_names, past_key_values):
             shape = [*value.shape]
-            # TODO : modify for different pkv shape : bloom / big_code
-            shape[2] += sequence_length
+            index = (
+                1
+                if self.config.model_type in MULTI_QUERY_ATTN_MODELS
+                or (self.config.model_type == "bloom" and "value" in name)
+                else 2
+            )
+
+            shape[index] += sequence_length
             pkv_output_shape[name] = shape
 
         return use_cache_branch, past_key_values, pkv_output_shape
@@ -963,8 +968,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         if use_cache ^ model.use_cache:
             raise ValueError(
-                f"`use_cache` was set to `{use_cache}` but the loaded model only supports `use_cache={self.use_cache}`. "
-                f"Please load your current model with `use_cache={self.use_cache}` or export the original model "
+                f"`use_cache` was set to `{use_cache}` but the loaded model only supports `use_cache={model.use_cache}`. "
+                f"Please load your current model with `use_cache={model.use_cache}` or export the original model "
                 f"once again with `use_cache={use_cache}` when calling the `from_pretrained` method. "
                 "To export your model, simply set `export=True`."
             )
