@@ -120,7 +120,6 @@ jobs:
         run: |
           sudo docker system prune -a -f
           cd optimum
-          pip install .[doc-build]
           mkdir -p optimum-doc-build/optimum && cd optimum-doc-build/optimum
           wget https://huggingface.co/datasets/hf-doc-build/doc-build/raw/main/optimum/_versions.yml
           cd ../..

@@ -105,7 +105,6 @@ jobs:
         run: |
           sudo docker system prune -a -f
           cd optimum
-          pip install .[doc-build]
           make doc BUILD_DIR=optimum-doc-build VERSION=pr_$PR_NUMBER COMMIT_SHA_OPTIMUM=$COMMIT_SHA CLONE_URL=$PR_CLONE_URL
           cd ..
 
