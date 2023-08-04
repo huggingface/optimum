@@ -679,11 +679,7 @@ def gpt_bigcode_wrapped_scaled_dot_product(
     raise_on_head_mask(head_mask)
 
     # TODO: remove once PyTorch 2.1 is released with the scale argument to SDPA
-    if self.scale_attn_weights:
-        softmax_dtype = torch.float32 if self.attention_softmax_in_fp32 else query.dtype
-        if self.scale_attention_softmax_in_fp32 and query.dtype != softmax_dtype:
-            query = query / (self.layer_idx + 1)
-    else:
+    if not self.scale_attn_weights:
         query = query / self.head_dim**0.5
 
     # MQA models: (batch_size, query_length, num_heads * head_dim)
