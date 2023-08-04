@@ -33,13 +33,28 @@ from transformers.integrations import (
     is_fairscale_available,
 )
 
+from transformers.utils import is_accelerate_available
+from packaging import version
+
+if is_accelerate_available():
+    from accelerate import __version__ as accelerate_version
+    from accelerate.utils import DistributedDataParallelKwargs
+
+    if version.parse(accelerate_version) >= version.parse("0.16"):
+        from accelerate import skip_first_batches
+    else:
+        skip_first_batches = None
+    from accelerate.utils import DistributedType
+else:
+    raise ImportError(
+        "The package `accelerate` is required to use the ORTTrainer. Please install it following https://huggingface.co/docs/accelerate/basic_tutorials/install."
+    )
+
 # isort: on
 
 import numpy as np
 import torch
 import torch.distributed as dist
-from accelerate.utils import DistributedType
-from packaging import version
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from transformers.data.data_collator import DataCollator
@@ -84,7 +99,6 @@ from transformers.trainer_utils import (
     speed_metrics,
 )
 from transformers.training_args import ParallelMode
-from transformers.utils import is_accelerate_available
 
 from ..exporters import TasksManager
 from ..exporters.onnx import OnnxConfigWithPast, export, export_models, get_decoder_models_for_export
@@ -123,14 +137,6 @@ if is_fairscale_available():
     dep_version_check("fairscale")
     from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
     from fairscale.optim import OSS
-
-skip_first_batches = None
-if is_accelerate_available():
-    from accelerate import __version__ as accelerate_version
-    from accelerate.utils import DistributedDataParallelKwargs
-
-    if version.parse(accelerate_version) >= version.parse("0.16"):
-        from accelerate import skip_first_batches
 
 if TYPE_CHECKING:
     import optuna
@@ -242,9 +248,9 @@ class ORTTrainer(Trainer):
             manually set the seed of this `generator` at each epoch) or have a `set_epoch()` method that internally
             sets the seed of the RNGs used.
         eval_dataset (Union[`torch.utils.data.Dataset`, Dict[str, `torch.utils.data.Dataset`]), *optional*):
-             The dataset to use for evaluation. If it is a [`~datasets.Dataset`], columns not accepted by the
-             `model.forward()` method are automatically removed. If it is a dictionary, it will evaluate on each
-             dataset prepending the dictionary key to the metric name.
+            The dataset to use for evaluation. If it is a [`~datasets.Dataset`], columns not accepted by the
+            `model.forward()` method are automatically removed. If it is a dictionary, it will evaluate on each
+            dataset prepending the dictionary key to the metric name.
         tokenizer ([`~transformers.PreTrainedTokenizerBase`], *optional*):
             The tokenizer used to preprocess the data. If provided, will be used to automatically pad the inputs the
             maximum length when batching inputs, and it will be saved along the model to make it easier to rerun an
@@ -272,19 +278,19 @@ class ORTTrainer(Trainer):
             Note that the labels (second parameter) will be `None` if the dataset does not have them.
     Important attributes:
         - **model** -- Always points to the core model. If using a transformers model, it will be a [`~transformers.PreTrainedModel`]
-          subclass.
+        subclass.
         - **model_wrapped** -- Always points to the most external model in case one or more other modules wrap the
-          original model. This is the model that should be used for the forward pass. For example, under `DeepSpeed`,
-          the inner model is first wrapped in `ORTModule` and then in `DeepSpeed` and then again in
-          `torch.nn.DistributedDataParallel`. If the inner model hasn't been wrapped, then `self.model_wrapped` is the
-          same as `self.model`.
+        original model. This is the model that should be used for the forward pass. For example, under `DeepSpeed`,
+        the inner model is first wrapped in `ORTModule` and then in `DeepSpeed` and then again in
+        `torch.nn.DistributedDataParallel`. If the inner model hasn't been wrapped, then `self.model_wrapped` is the
+        same as `self.model`.
         - **is_model_parallel** -- Whether or not a model has been switched to a model parallel mode (different from
-          data parallelism, this means some of the model layers are split on different GPUs).
+        data parallelism, this means some of the model layers are split on different GPUs).
         - **place_model_on_device** -- Whether or not to automatically place the model on the device - it will be set
-          to `False` if model parallel or deepspeed is used, or if the default
-          `ORTTrainingArguments.place_model_on_device` is overridden to return `False` .
+        to `False` if model parallel or deepspeed is used, or if the default
+        `ORTTrainingArguments.place_model_on_device` is overridden to return `False` .
         - **is_in_train** -- Whether or not a model is currently running `train` (e.g. when `evaluate` is called while
-          in `train`)
+        in `train`)
     """
 
     def __init__(
