@@ -370,7 +370,7 @@ class GPTBigCodeAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTB
 
     def __init__(self, layer: nn.Module, config: "PretrainedConfig"):
         with torch.device("meta"):
-            super(BetterTransformerBaseLayer, self).__init__(config)
+            super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
 
         self.module_mapping = None
         submodules = ["c_attn", "c_proj"]
