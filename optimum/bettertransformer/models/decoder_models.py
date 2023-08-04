@@ -20,6 +20,7 @@ from transformers.models.bart.modeling_bart import BartAttention
 from transformers.models.blenderbot.modeling_blenderbot import BlenderbotAttention
 from transformers.models.codegen.modeling_codegen import CodeGenAttention
 from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
+from transformers.models.gpt_bigcode.modeling_gpt_bigcode import GPTBigCodeAttention
 from transformers.models.gpt_neo.modeling_gpt_neo import GPTNeoSelfAttention
 from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXAttention
 from transformers.models.gptj.modeling_gptj import GPTJAttention
@@ -35,6 +36,8 @@ from .attention import (
     bart_forward,
     codegen_wrapped_scaled_dot_product,
     gpt2_wrapped_scaled_dot_product,
+    gpt_bigcode_forward,
+    gpt_bigcode_wrapped_scaled_dot_product,
     gpt_neo_wrapped_scaled_dot_product,
     llama_forward,
     opt_forward,
@@ -360,3 +363,26 @@ class LlamaAttentionLayerBetterTransformer(BetterTransformerBaseLayer, LlamaAtte
 
     def forward(self, *args, **kwargs):
         return llama_forward(self, *args, **kwargs)
+
+
+class GPTBigCodeAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTBigCodeAttention):
+    _attn = gpt_bigcode_wrapped_scaled_dot_product
+
+    def __init__(self, layer: nn.Module, config: "PretrainedConfig"):
+        with torch.device("meta"):
+            super(BetterTransformerBaseLayer, self).__init__(config)
+
+        self.module_mapping = None
+        submodules = ["c_attn", "c_proj"]
+
+        if layer.is_cross_attention:
+            submodules.append("q_attn")
+
+        for attr in submodules:
+            setattr(self, attr, getattr(layer, attr))
+
+        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
+        self.dropout_prob_attn = config.attn_pdrop
+
+    def forward(self, *args, **kwargs):
+        return gpt_bigcode_forward(self, *args, **kwargs)
