@@ -33,12 +33,14 @@ from ..exporters.onnx import export, main_export
 from ..onnx.utils import _get_external_data_paths
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
+from ..utils.modeling_utils import _prepare_attn_mask, _prepare_decoder_attention_mask
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .base import ORTDecoder
 from .constants import DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN, DECODER_WITH_PAST_ONNX_FILE_PATTERN
 from .modeling_ort import ORTModel
 from .models.bloom import bloom_convert_to_bloom_cache, bloom_convert_to_standard_cache
 from .utils import (
+    MULTI_QUERY_ATTN_MODELS,
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_WEIGHTS_NAME,
@@ -51,30 +53,10 @@ from .utils import (
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
-
 if check_if_transformers_greater("4.25.0"):
     from transformers.generation import GenerationMixin
 else:
     from transformers.generation_utils import GenerationMixin
-
-
-from huggingface_hub import hf_hub_download
-from transformers.modeling_outputs import CausalLMOutputWithPast
-
-from .utils import MULTI_QUERY_ATTN_MODELS
-
-
-if TYPE_CHECKING:
-    from transformers import PretrainedConfig
-
-
-if check_if_transformers_greater("4.25.0"):
-    from transformers.generation import GenerationMixin
-else:
-    from transformers.generation_utils import GenerationMixin
-
-
-from ..utils.modeling_utils import _prepare_attn_mask, _prepare_decoder_attention_mask
 
 
 logger = logging.getLogger(__name__)
@@ -1012,9 +994,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         file_name = ONNX_WEIGHTS_NAME
 
         if use_merged:
-            logger.warning(
-                "The `use_merged` argument is deprecated when the model is exported, and not used anymore."
-            )
+            logger.warning("The `use_merged` argument is deprecated when the model is exported, and not used anymore.")
             use_merged = False
 
         if task is None:
@@ -1064,6 +1044,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
+        # if model is used as a decoder in encoder-decoder model, the decoder attention mask is created on the fly
+
+        attention_mask = kwargs.get("attention_mask", None)  # input_ids.new_ones(input_ids.shape)
         past_key_values = past_key_values or kwargs.get("past", None)
         use_cache = kwargs.get("use_cache", None)
 
@@ -1077,7 +1060,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "past_key_values": past_key_values,
             "use_cache": use_cache,
             "position_ids": None,
-            "attention_mask": kwargs.get("attention_mask", None),  # input_ids.new_ones(input_ids.shape)
+            "attention_mask": attention_mask,
         }
 
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel._reorder_cache
