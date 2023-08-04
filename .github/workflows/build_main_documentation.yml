@@ -68,7 +68,7 @@ jobs:
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
-          pip install .
+          pip install .[doc-build]
           pip install black
           cd ..
 
