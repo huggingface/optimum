@@ -1331,18 +1331,6 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 
-class FunnelTransformerOnnxConfig(TextEncoderOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    ATOL_FOR_VALIDATION = 1e-4
 
-    @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
-        if self.task == "multiple-choice":
-            dynamic_axis = {0: "batch_size", 1: "num_choices", 2: "sequence_length"}
-        else:
-            dynamic_axis = {0: "batch_size", 1: "sequence_length"}
-        return {
-            "input_ids": dynamic_axis,
-            "attention_mask": dynamic_axis,
-            "token_type_ids": dynamic_axis,
-        }
+class FunnelTransformerOnnxConfig(BertOnnxConfig):
+    pass
