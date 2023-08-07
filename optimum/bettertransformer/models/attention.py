@@ -699,9 +699,18 @@ def gpt_bigcode_wrapped_scaled_dot_product(
 
     dropout_p = self.dropout_prob_attn if self.training else 0.0
 
-    # I did not find how to avoid these unsqueeze, SDPA complains otherwise.
+    # I did not find how to avoid these unsqueeze, SDPA complains otherwise as the query and key/value have a different number of dimensions.
     key = key.unsqueeze(1)
     value = value.unsqueeze(1)
+
+    # Although these expand are not numerically useful, PyTorch 2.0.1 and 2.1.0.dev20230805+cu118 can not dispatch to mem-efficient attention
+    # and flash attention from the shapes
+    # query = [batch_size, num_heads, query_length, head_dim]
+    # key = [batch_size, 1, past_length, head_dim]
+    # value = [batch_size, 1, past_length, head_dim]
+    # which is unfortunate. Hopefully can be changed in the future. These expand should not be too expansive as they do not do memory copy.
+    key = key.expand(-1, self.num_heads, -1, -1)
+    value = value.expand(-1, self.num_heads, -1, -1)
 
     if batch_size == 1 or self.training:
         if query_length > 1:
