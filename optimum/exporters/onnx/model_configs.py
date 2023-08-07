@@ -1333,4 +1333,5 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 
 class FunnelTransformerOnnxConfig(BertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 12
     pass
