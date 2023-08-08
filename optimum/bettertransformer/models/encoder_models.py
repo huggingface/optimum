@@ -569,6 +569,7 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
 
 class BlipTextLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
+
     def __init__(self, blip_text_layer, config):
         warnings.warn("This works only for the text encoding side, vision encoding class pending.")
         super().__init__(config)
