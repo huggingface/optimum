@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
 from typing import TYPE_CHECKING
 
 import torch
@@ -564,6 +565,103 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
                 weight=self.norm2_weight,
                 bias=self.norm2_bias,
             )
+        return (hidden_states,)
+
+
+class BlipTextLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
+    def __init__(self, blip_text_layer, config):
+        warnings.warn("This works only for the text encoding side, vision encoding class pending.")
+        super().__init__(config)
+        super(BetterTransformerBaseLayer, self).__init__()
+        # In_proj layer
+        self.in_proj_weight = nn.Parameter(
+            torch.cat(
+                [
+                    blip_text_layer.attention.self.query.weight,
+                    blip_text_layer.attention.self.key.weight,
+                    blip_text_layer.attention.self.value.weight,
+                ]
+            )
+        )
+        self.in_proj_bias = nn.Parameter(
+            torch.cat(
+                [
+                    blip_text_layer.attention.self.query.bias,
+                    blip_text_layer.attention.self.key.bias,
+                    blip_text_layer.attention.self.value.bias,
+                ]
+            )
+        )
+        # Out proj layer
+        self.out_proj_weight = blip_text_layer.attention.output.dense.weight
+        self.out_proj_bias = blip_text_layer.attention.output.dense.bias
+
+        # Linear layer 1
+        self.linear1_weight = blip_text_layer.intermediate.dense.weight
+        self.linear1_bias = blip_text_layer.intermediate.dense.bias
+
+        self.linear2_weight = blip_text_layer.output.dense.weight
+        self.linear2_bias = blip_text_layer.output.dense.bias
+
+        # Layer norm 1
+        self.norm1_eps = blip_text_layer.attention.output.LayerNorm.eps
+        self.norm1_weight = blip_text_layer.attention.output.LayerNorm.weight
+        self.norm1_bias = blip_text_layer.attention.output.LayerNorm.bias
+        # Layer norm 2
+        self.norm2_eps = blip_text_layer.output.LayerNorm.eps
+        self.norm2_weight = blip_text_layer.output.LayerNorm.weight
+        self.norm2_bias = blip_text_layer.output.LayerNorm.bias
+
+        # Model hyper parameters
+        self.num_heads = blip_text_layer.attention.self.num_attention_heads
+        self.embed_dim = blip_text_layer.attention.self.all_head_size
+
+        self.is_last_layer = False
+
+        self.act_fn = "gelu"
+        self.validate_bettertransformer()
+
+    def forward(self, hidden_states, attention_mask, *_):
+        # you'll maybe have to consider if not self.training and not torch.is_autocast_enabled() and not torch.is_autocast_cpu_enabled():
+        super().forward_checker()
+        if hidden_states.is_nested:
+            attention_mask = None
+
+        if attention_mask is not None:
+            # attention mask comes in with values 0 and -inf. we convert to torch.nn.TransformerEncoder style bool mask
+            # 0->false->keep this token -inf->true->mask this token
+            attention_mask = attention_mask.bool()
+            attention_mask = torch.reshape(attention_mask, (attention_mask.shape[0], attention_mask.shape[-1]))
+            seqlen = attention_mask.shape[1]
+            lengths = torch.sum(~attention_mask, 1)
+            if not all([l == seqlen for l in lengths]):
+                hidden_states = torch._nested_tensor_from_mask(hidden_states, ~attention_mask)
+            attention_mask = None
+
+        hidden_states = torch._transformer_encoder_layer_fwd(
+            hidden_states,
+            self.embed_dim,
+            self.num_heads,
+            self.in_proj_weight,
+            self.in_proj_bias,
+            self.out_proj_weight,
+            self.out_proj_bias,
+            self.use_gelu,
+            self.norm_first,
+            self.norm1_eps,
+            self.norm1_weight,
+            self.norm1_bias,
+            self.norm2_weight,
+            self.norm2_bias,
+            self.linear1_weight,
+            self.linear1_bias,
+            self.linear2_weight,
+            self.linear2_bias,
+            attention_mask,
+        )
+        if hidden_states.is_nested and self.is_last_layer:
+            hidden_states = hidden_states.to_padded_tensor(0.0)
+
         return (hidden_states,)
 
 
