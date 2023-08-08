@@ -21,10 +21,10 @@ You need to have the following requirements installed to run the code below:
 - Optimum library:
 `pip install --upgrade optimum`
 
-- Install latest `transformers` from source 
-`pip install --upgrade transformers`
+- Install latest `transformers` library from source: 
+`pip install --upgrade git+https://github.com/huggingface/transformers.git`
 
-- Install latest `accelerate` library 
+- Install latest `accelerate` library:
 `pip install --upgrade accelerate`
 
 ### Load and quantize a model
@@ -72,3 +72,11 @@ with init_empty_weights():
 empty_model.tie_weights()
 quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto")
 ```
+
+### References
+
+[[autodoc]] gtpq.GPTQQuantizer
+    - all
+
+[[autodoc]] gtpq.load_quantized_model
+    - all
