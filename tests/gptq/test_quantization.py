@@ -43,6 +43,7 @@ class GPTQTest(unittest.TestCase):
     bits = 4
     group_size = 128
     desc_act = False
+    disable_exllama = True
 
     dataset = [
         "auto-gptq is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
@@ -61,7 +62,11 @@ class GPTQTest(unittest.TestCase):
 
         cls.tokenizer = AutoTokenizer.from_pretrained(cls.model_name, use_fast=True)
         cls.quantizer = GPTQQuantizer(
-            bits=cls.bits, dataset=cls.dataset, group_size=cls.group_size, desc_act=cls.desc_act
+            bits=cls.bits,
+            dataset=cls.dataset,
+            group_size=cls.group_size,
+            desc_act=cls.desc_act,
+            disable_exllama=cls.disable_exllama,
         )
 
         cls.quantized_model = cls.quantizer.quantize_model(cls.model_fp16, cls.tokenizer)
@@ -84,7 +89,11 @@ class GPTQTest(unittest.TestCase):
         from auto_gptq.utils.import_utils import dynamically_import_QuantLinear
 
         QuantLinear = dynamically_import_QuantLinear(
-            use_triton=False, desc_act=self.desc_act, group_size=self.group_size
+            use_triton=False,
+            desc_act=self.desc_act,
+            group_size=self.group_size,
+            bits=self.bits,
+            disable_exllama=self.disable_exllama,
         )
         self.assertTrue(self.quantized_model.transformer.h[0].mlp.dense_4h_to_h.__class__ == QuantLinear)
 
@@ -116,12 +125,15 @@ class GPTQTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname:
             self.quantizer.save(self.quantized_model, tmpdirname)
             self.quantized_model.config.save_pretrained(tmpdirname)
-
             with init_empty_weights():
                 empty_model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype=torch.float16)
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(empty_model, save_folder=tmpdirname, device_map={"": 0})
             self.check_inference_correctness(quantized_model_from_saved)
+
+
+class GPTQTestExllama(GPTQTest):
+    disable_exllama = False
 
 
 class GPTQUtilsTest(unittest.TestCase):

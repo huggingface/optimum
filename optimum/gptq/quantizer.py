@@ -33,10 +33,15 @@ from .utils import get_block_name_with_pattern, get_device, get_layers, get_prec
 
 
 if is_accelerate_available():
-    from accelerate import Accelerator, cpu_offload_with_hook, load_checkpoint_and_dispatch
+    from accelerate import (
+        Accelerator,
+        cpu_offload_with_hook,
+        load_checkpoint_and_dispatch,
+    )
     from accelerate.hooks import remove_hook_from_module
 
 if is_auto_gptq_available():
+    from auto_gptq.modeling._utils import autogptq_post_init
     from auto_gptq.quantization import GPTQ
     from auto_gptq.utils.import_utils import dynamically_import_QuantLinear
 
@@ -63,6 +68,7 @@ class GPTQQuantizer(object):
         module_name_preceding_first_block: Optional[List[str]] = None,
         batch_size: int = 1,
         pad_token_id: Optional[int] = None,
+        disable_exllama: bool = False,
         *args,
         **kwargs,
     ):
@@ -99,6 +105,8 @@ class GPTQQuantizer(object):
                 The batch size of the dataset
             pad_token_id (`Optional[int]`, defaults to `None`):
                 The pad token id. Needed to prepare the dataset when `batch_size` > 1.
+            disable_exllama (`bool`, defaults to `False`):
+                Whether to use exllama backend. Only works with `bits` = 4.
         """
 
         self.bits = bits
@@ -114,6 +122,7 @@ class GPTQQuantizer(object):
         self.module_name_preceding_first_block = module_name_preceding_first_block
         self.batch_size = batch_size
         self.pad_token_id = pad_token_id
+        self.disable_exllama = disable_exllama
 
         if self.bits not in [2, 4, 6, 8]:
             raise ValueError("only support quantize to [2,4,6,8] bits.")
@@ -184,7 +193,11 @@ class GPTQQuantizer(object):
                 To keep track of the name of the current module
         """
         QuantLinear = dynamically_import_QuantLinear(
-            use_triton=False, desc_act=self.desc_act, group_size=self.group_size
+            use_triton=False,
+            desc_act=self.desc_act,
+            group_size=self.group_size,
+            bits=self.bits,
+            disable_exllama=self.disable_exllama,
         )
         if isinstance(module, QuantLinear):
             return
@@ -420,6 +433,12 @@ class GPTQQuantizer(object):
             layer_inputs, layer_outputs = layer_outputs, []
             torch.cuda.empty_cache()
 
+        if self.bits == 4 and not self.disable_exllama:
+            if device == torch.device("cpu") or (has_device_map and any(d in devices for d in ["cpu", "disk"])):
+                logger.warning(
+                    "Found modules on cpu/disk. Using Exllama backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
+                )
+                self.disable_exllama = True
         # Step 4: Pack the model at the end (Replacing the layers)
         self.pack_model(model=model, quantizers=quantizers)
 
@@ -429,8 +448,30 @@ class GPTQQuantizer(object):
             model.config.use_cache = use_cache
             model.config.quantization_config = self.to_dict()
 
+        # Step 5: Any post-initialization that require device information, for example buffers initialization on device.
+        model = self.post_init_model(model)
+
         torch.cuda.empty_cache()
         return model
+
+    def post_init_model(self, model):
+        """
+        Post-initialization that require device information, for example buffers initialization on device.
+
+        Args:
+            model (`nn.Module`):
+                The input model
+        """
+        if self.bits == 4 and not self.disable_exllama:
+            if get_device(model) == torch.device("cpu") or (
+                hasattr(model, "hf_device_map") and any(d in model.hf_device_map for d in ["cpu", "disk"])
+            ):
+                raise ValueError(
+                    "Found modules on cpu/disk. Using Exllama backend requires all the modules to be on GPU."
+                    "You can deactivate exllama backend by setting `disable_exllama=True` in the quantization config object"
+                )
+
+        return autogptq_post_init(model, use_act_order=self.desc_act)
 
     def pack_model(
         self,
@@ -447,7 +488,11 @@ class GPTQQuantizer(object):
                 A mapping of the layer name and the data needed to pack the layer
         """
         QuantLinear = dynamically_import_QuantLinear(
-            use_triton=False, desc_act=self.desc_act, group_size=self.group_size
+            use_triton=False,
+            desc_act=self.desc_act,
+            group_size=self.group_size,
+            bits=self.bits,
+            disable_exllama=self.disable_exllama,
         )
         logger.info("Packing model...")
         layers = get_layers(model)
@@ -514,6 +559,7 @@ def load_quantized_model(
     offload_folder: Optional[str] = None,
     offload_buffers: Optional[str] = None,
     offload_state_dict: bool = False,
+    disable_exllama: bool = False,
 ):
     """
     Load quantized weights from the save_folder into the converted model and dispatch the weights according to the device_map.
@@ -546,6 +592,8 @@ def load_quantized_model(
             If `True`, will temporarily offload the CPU state dict on the hard drive to avoid getting out of CPU RAM if
             the weight of the CPU state dict + the biggest shard does not fit. Will default to `True` if the device map
             picked contains `"disk"` values.
+        disable_exllama (`bool`, defaults to `False`):
+                Whether to use exllama backend. Only works with `bits` = 4.
 
     Returns:
         `nn.Module`: The quantized model
@@ -566,6 +614,7 @@ def load_quantized_model(
     with open(os.path.join(save_folder, quant_config_name), "r", encoding="utf-8") as f:
         quantize_config_dict = json.load(f)
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
+    quantizer.disable_exllama = disable_exllama
 
     model = quantizer.convert_model(model)
 
@@ -582,8 +631,9 @@ def load_quantized_model(
         offload_buffers=offload_buffers,
         offload_state_dict=offload_state_dict,
     )
+
+    model = quantizer.post_init_model(model)
     model.is_quantized = True
     model.quantization_method = QuantizationMethod.GPTQ
-    # put on eval mode
     model.eval()
     return model
