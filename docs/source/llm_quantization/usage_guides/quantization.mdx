@@ -75,7 +75,7 @@ quantized_model = load_quantized_model(empty_model, save_folder=save_folder, dev
 
 ### Exllama kernels for faster inference
 
-For 4-bit model, you can use the exllama kernels in order to a faster inference speed. You just need to pass `disable_exllama = False` in [`~optimum.gptq.load_quantized_model`]. In order to use these kernels, you need to have the entire model on gpus.
+For 4-bit model, you can use the exllama kernels in order to a faster inference speed. It is activated by default. If you want to change its value, you just need to pass `disable_exllama` in [`~optimum.gptq.load_quantized_model`]. In order to use these kernels, you need to have the entire model on gpus.
 
 ```py
 from optimum.gptq import GPTQQuantizer, load_quantized_model
@@ -88,7 +88,12 @@ empty_model.tie_weights()
 quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto", disable_exllama=False)
 ```
 
-Note that only 4-bit models are supported with exllama kernels for now.
+Note that only 4-bit models are supported with exllama kernels for now. Furthermore, it is recommended to disable the exllama kernel when you are finetuning your model with peft.
+
+#### Fine-tune a quantized model 
+
+With the official support of adapters in the Hugging Face ecosystem, you can fine-tune models that have been quantized with GPTQ. 
+Please have a look at [`peft`](https://github.com/huggingface/peft) library for more details.
 
 ### References
 
