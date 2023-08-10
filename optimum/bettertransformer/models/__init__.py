@@ -59,7 +59,7 @@ class BetterTransformerManager:
         "bert": {"BertLayer": BertLayerBetterTransformer},
         "bert-generation": {"BertGenerationLayer": BertLayerBetterTransformer},
         "blenderbot": {"BlenderbotAttention": BlenderbotAttentionLayerBetterTransformer},
-        "blip": {"BlipLayer": BlipTextLayerBetterTransformer},
+        "blip": {"BlipTextLayer": BlipTextLayerBetterTransformer},
         "camembert": {"CamembertLayer": BertLayerBetterTransformer},
         "blip-2": {"T5Attention": T5AttentionLayerBetterTransformer},
         "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},

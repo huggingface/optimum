@@ -570,56 +570,62 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
 class BlipTextLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
-    def __init__(self, blip_text_layer, config):
+    def __init__(self, blip_layer, config):
+        # You'll probably have to
         warnings.warn("This works only for the text encoding side, vision encoding class pending.")
         super().__init__(config)
         super(BetterTransformerBaseLayer, self).__init__()
+
         # In_proj layer
         self.in_proj_weight = nn.Parameter(
             torch.cat(
                 [
-                    blip_text_layer.attention.self.query.weight,
-                    blip_text_layer.attention.self.key.weight,
-                    blip_text_layer.attention.self.value.weight,
+                    blip_layer.attention.self.query.weight,
+                    blip_layer.attention.self.key.weight,
+                    blip_layer.attention.self.value.weight,
                 ]
             )
         )
         self.in_proj_bias = nn.Parameter(
             torch.cat(
                 [
-                    blip_text_layer.attention.self.query.bias,
-                    blip_text_layer.attention.self.key.bias,
-                    blip_text_layer.attention.self.value.bias,
+                    blip_layer.attention.self.query.bias,
+                    blip_layer.attention.self.key.bias,
+                    blip_layer.attention.self.value.bias,
                 ]
             )
         )
         # Out proj layer
-        self.out_proj_weight = blip_text_layer.attention.output.dense.weight
-        self.out_proj_bias = blip_text_layer.attention.output.dense.bias
+        self.out_proj_weight = blip_layer.attention.output.dense.weight
+        self.out_proj_bias = blip_layer.attention.output.dense.bias
 
         # Linear layer 1
-        self.linear1_weight = blip_text_layer.intermediate.dense.weight
-        self.linear1_bias = blip_text_layer.intermediate.dense.bias
+        self.linear1_weight = blip_layer.intermediate.dense.weight
+        self.linear1_bias = blip_layer.intermediate.dense.bias
 
-        self.linear2_weight = blip_text_layer.output.dense.weight
-        self.linear2_bias = blip_text_layer.output.dense.bias
+        self.linear2_weight = blip_layer.output.dense.weight
+        self.linear2_bias = blip_layer.output.dense.bias
 
         # Layer norm 1
-        self.norm1_eps = blip_text_layer.attention.output.LayerNorm.eps
-        self.norm1_weight = blip_text_layer.attention.output.LayerNorm.weight
-        self.norm1_bias = blip_text_layer.attention.output.LayerNorm.bias
+        self.norm1_eps = blip_layer.attention.output.LayerNorm.eps
+        self.norm1_weight = blip_layer.attention.output.LayerNorm.weight
+        self.norm1_bias = blip_layer.attention.output.LayerNorm.bias
         # Layer norm 2
-        self.norm2_eps = blip_text_layer.output.LayerNorm.eps
-        self.norm2_weight = blip_text_layer.output.LayerNorm.weight
-        self.norm2_bias = blip_text_layer.output.LayerNorm.bias
+        self.norm2_eps = blip_layer.output.LayerNorm.eps
+        self.norm2_weight = blip_layer.output.LayerNorm.weight
+        self.norm2_bias = blip_layer.output.LayerNorm.bias
 
         # Model hyper parameters
-        self.num_heads = blip_text_layer.attention.self.num_attention_heads
-        self.embed_dim = blip_text_layer.attention.self.all_head_size
+        self.num_heads = blip_layer.attention.self.num_attention_heads
+        self.embed_dim = blip_layer.attention.self.all_head_size
 
         self.is_last_layer = False
 
         self.act_fn = "gelu"
+        breakpoint()
+
+        self.act_fn_callable = ACT2FN[self.act_fn]
+
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, attention_mask, *_):
