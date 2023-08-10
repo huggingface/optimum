@@ -31,6 +31,7 @@ from .import_utils import (
     check_if_pytorch_greater,
     check_if_transformers_greater,
     is_accelerate_available,
+    is_auto_gptq_available,
     is_diffusers_available,
     is_onnx_available,
     is_onnxruntime_available,

@@ -1,0 +1,26 @@
+FROM nvidia/cuda:11.7.1-cudnn8-devel-ubuntu22.04
+CMD nvidia-smi
+
+# Ignore interactive questions during `docker build`
+ENV DEBIAN_FRONTEND noninteractive
+
+# Install and update tools to minimize security vulnerabilities
+RUN apt-get update
+RUN apt-get install -y software-properties-common wget apt-utils patchelf git libprotobuf-dev protobuf-compiler cmake \
+    bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion libopenmpi-dev python3-pip && \
+    apt-get clean
+RUN unattended-upgrade
+RUN apt-get autoremove -y
+
+RUN python3 -m pip install -U pip
+
+RUN pip install torch torchvision torchaudio
+RUN pip install transformers accelerate auto-gptq datasets
+
+# Install Optimum
+COPY . /workspace/optimum
+RUN pip install /workspace/optimum[tests]
+
+ENV RUN_SLOW=1
+WORKDIR /workspace/optimum/tests/
+CMD pytest gptq/test_*.py --durations=0 -s -vvvvv

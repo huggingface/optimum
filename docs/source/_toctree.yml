@@ -126,6 +126,11 @@
   title: BetterTransformer
   isExpanded: false
 - sections:
+  - local: llm_quantization/usage_guides/quantization
+    title: GPTQ quantization
+  title: LLM quantization
+  isExpanded: false
+- sections:
   - local: utils/dummy_input_generators
     title: Dummy input generators
   - local: utils/normalized_config
