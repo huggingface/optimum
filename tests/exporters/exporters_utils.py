@@ -39,6 +39,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "blenderbot-small": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
+    # "bloomz": "bigscience/bloomz-560m",  # TODO replace with a tiny model
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",

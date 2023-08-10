@@ -1,0 +1,7 @@
+*.o
+*.a
+
+models/*
+
+/main
+/quantize

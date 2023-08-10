@@ -56,6 +56,7 @@ TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
 
 def is_backend_available(backend):
     backend_availablilty = {
+        "ggml": True,
         "onnx": is_onnx_available(),
         "tflite": is_tf_available(),
     }
@@ -200,6 +201,10 @@ class TasksManager:
             "zero-shot-image-classification": "TFAutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "TFAutoModelForZeroShotObjectDetection",
         }
+
+    if is_backend_available("ggml"):
+        # TODO support more tasks
+        _SUPPORTED_GGML_TASKS = {"text-generation"}
 
     _SYNONYM_TASK_MAP = {
         "sequence-classification": "text-classification",
@@ -369,6 +374,7 @@ class TasksManager:
             "text-generation-with-past",
             "text-classification",
             "token-classification",
+            ggml="BloomGgmlConfig",
             onnx="BloomOnnxConfig",
         ),
         "camembert": supported_tasks_mapping(
@@ -1273,7 +1279,7 @@ class TasksManager:
         else:
             raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
 
-        logger.info(f"Framework not specified. Using {framework} to export to ONNX.")
+        logger.info(f"Framework not specified. Using {framework} to export model.")
 
         return framework
 
