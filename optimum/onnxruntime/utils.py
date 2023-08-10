@@ -106,6 +106,8 @@ class ORTConfigManager:
         "bloom": "gpt2",
         "camembert": "bert",
         "codegen": "gpt2",
+        "clip": "clip",
+        "clip_text_model": "clip",
         "deberta": "bert",
         "deberta-v2": "bert",
         "distilbert": "bert",

@@ -58,6 +58,7 @@ from .input_generators import (
 )
 from .modeling_utils import recurse_getattr, recurse_setattr
 from .normalized_config import (
+    CLIPNormalizedConfig,
     NormalizedConfig,
     NormalizedConfigManager,
     NormalizedEncoderDecoderConfig,
