@@ -622,7 +622,6 @@ class BlipTextLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
         self.is_last_layer = False
 
         self.act_fn = "gelu"
-        breakpoint()
 
         self.act_fn_callable = ACT2FN[self.act_fn]
 
