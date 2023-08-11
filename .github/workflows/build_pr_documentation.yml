@@ -1,7 +1,9 @@
 name: Build PR documentation
 
+# WARNING: As this workflow supports the pull_request_target event, please exercise extra care when editing it.
+
 on:
-  pull_request:
+  pull_request_target:
     branches: [ main ]
 
 concurrency:
@@ -9,7 +11,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  authorize:
+    if: (github.event.action == 'labeled' && github.event.label.name == 'build-pr-doc') || github.event_name != 'pull_request_target' || (! github.event.pull_request.head.repo.fork)
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
+
   build_documentation:
+    needs: authorize
     runs-on: ubuntu-latest
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
@@ -27,6 +36,7 @@ jobs:
         with:
           repository: 'huggingface/optimum'
           path: optimum
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - uses: actions/checkout@v2
         with:
@@ -87,6 +97,7 @@ jobs:
           sudo apt update
           sudo apt install -y ca-certificates apt-transport-https gnupg
           sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key 5F03AFA423A751913F249259814F888B20B09A7E
+            # TODO: remove secrets and pull_request_target once archive.furiosa.ai is public
           sudo tee -a /etc/apt/auth.conf.d/furiosa.conf > /dev/null <<EOT
             machine archive.furiosa.ai
             login ${{ secrets.FURIOSA_ACCESS_KEY }}
