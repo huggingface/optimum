@@ -39,7 +39,7 @@ from transformers import (
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
 )
-from transformers.file_utils import add_start_docstrings, add_end_docstrings, add_start_docstrings_to_model_forward
+from transformers.file_utils import add_end_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import (
     BaseModelOutput,
     CausalLMOutput,
