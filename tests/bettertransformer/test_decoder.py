@@ -22,7 +22,12 @@ from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
-from optimum.utils import DummyPastKeyValuesGenerator, GPTBigCodeDummyPastKeyValuesGenerator, NormalizedConfigManager
+from optimum.utils import (
+    BloomDummyPastKeyValuesGenerator,
+    DummyPastKeyValuesGenerator,
+    GPTBigCodeDummyPastKeyValuesGenerator,
+    NormalizedConfigManager,
+)
 from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_gpu
 
 
@@ -126,6 +131,8 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
 
         if model_type == "gpt_bigcode":
             pkv_generator_class = GPTBigCodeDummyPastKeyValuesGenerator
+        elif model_type == "bloom":
+            pkv_generator_class = BloomDummyPastKeyValuesGenerator
         else:
             pkv_generator_class = DummyPastKeyValuesGenerator
 
@@ -133,12 +140,6 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
             task="", normalized_config=normalized_config, batch_size=batch_size, sequence_length=seq_length
         )
         past_key_values = pkv_generator.generate(input_name="past_key_values")
-        
-        # TODO: here BloomDummyPKV should rather be used
-        # Convert to Bloom cache format
-        if model_type == "bloom":
-            past_key_values = [(k.transpose(2, 3), v) for k, v in past_key_values]
-            past_key_values = model._convert_to_bloom_cache(past_key_values)
 
         result_vanilla = model(input_ids=input_ids, attention_mask=attention_mask, past_key_values=past_key_values)
 

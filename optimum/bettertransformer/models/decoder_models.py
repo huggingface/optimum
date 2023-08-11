@@ -211,7 +211,7 @@ class BloomAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BloomAtte
         with torch.device("meta"):
             super(BetterTransformerBaseLayer, self).__init__(config)
 
-        self.scale = torch.sqrt(torch.tensor(layer.head_dim, dtype=torch.float32)).to(torch.get_default_dtype())
+        self.dropout_prob_attn = config.attention_dropout
 
         self.module_mapping = None
         submodules = ["query_key_value", "dense", "attention_dropout"]
@@ -220,10 +220,7 @@ class BloomAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BloomAtte
 
         self.original_layers_mapping = {submodule: submodule for submodule in submodules}
 
-        self.supports_training = True
-
     def forward(self, *args, **kwargs):
-        super().forward_checker()
         return bloom_forward(self, *args, **kwargs)
 
 

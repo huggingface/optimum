@@ -42,6 +42,7 @@ from .import_utils import (
 )
 from .input_generators import (
     DEFAULT_DUMMY_SHAPES,
+    BloomDummyPastKeyValuesGenerator,
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,

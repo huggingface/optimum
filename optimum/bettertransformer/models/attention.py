@@ -847,7 +847,6 @@ def bloom_forward(
         # untangle batch_size from self.num_heads
         key_layer = key_layer.reshape(batch_size, self.num_heads, *key_layer.shape[1:])
         value_layer = value_layer.reshape(batch_size, self.num_heads, *value_layer.shape[1:])
-
     else:
         key_layer = key_layer.transpose(1, 2)
         value_layer = value_layer.transpose(1, 2)
@@ -856,7 +855,11 @@ def bloom_forward(
     alibi = torch.masked_fill(alibi, attention_mask, torch.finfo(alibi.dtype).min)
 
     context_layer = torch.nn.functional.scaled_dot_product_attention(
-        query_layer, key_layer, value_layer, attn_mask=alibi
+        query_layer,
+        key_layer,
+        value_layer,
+        attn_mask=alibi,
+        dropout_p=self.dropout_prob_attn if self.training else 0.0,
     )
 
     # Transform [batch_size, num_heads, seq_length, head_dim] to [batch_size, seq_length, num_heads * head_dim]
@@ -886,6 +889,4 @@ def bloom_forward(
     else:
         present = None
 
-    outputs = (output_tensor, present)
-
-    return outputs
+    return (output_tensor, present)

@@ -83,6 +83,7 @@ known_dropout_keys = [
     "hidden_dropout_prob",
     "classifier_dropout_prob",
     "attention_dropout",
+    "hidden_dropout",
     "dropout",
     "qa_dropout",
     "seq_classif_dropout",
