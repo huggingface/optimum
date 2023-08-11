@@ -516,6 +516,15 @@ class TasksManager:
             "token-classification",
             onnx="GPT2OnnxConfig",
         ),
+        "gpt-bigcode": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            "token-classification",
+            onnx="GPTBigCodeOnnxConfig",
+        ),
         "gptj": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -1240,7 +1249,9 @@ class TasksManager:
             framework = "pt"
         elif any(is_tf_weight_file):
             framework = "tf"
-        elif "model_index.json" in all_files and any(file.endswith(Path(WEIGHTS_NAME).suffix) for file in all_files):
+        elif "model_index.json" in all_files and any(
+            file.endswith((pt_weight_extension, safe_weight_extension)) for file in all_files
+        ):
             # stable diffusion case
             framework = "pt"
         else:

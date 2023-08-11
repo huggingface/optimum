@@ -1,4 +1,4 @@
-#  Copyright 2021 The HuggingFace Team. All rights reserved.
+#  Copyright 2023 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,4 +12,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-__version__ = "1.11.1.dev0"
+SEQLEN_KEYS_TRANFORMERS = ["max_position_embeddings", "seq_length", "n_positions"]
+BLOCK_PATTERNS = [
+    "transformer.h",
+    "model.decoder.layers",
+    "gpt_neox.layers",
+    "model.layers",
+]
+
+GPTQ_CONFIG = "quantization_config.json"
