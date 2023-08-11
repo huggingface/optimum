@@ -760,7 +760,6 @@ class OptimizationConfig:
     # https://github.com/microsoft/onnxruntime/blob/v1.15.1/onnxruntime/python/tools/transformers/onnx_model_clip.py#L23
     disable_nhwc_conv: bool = True
 
-
     def __post_init__(self):
         def deprecate_renamed_attribute(old_name, new_name, mapping_func=None):
             if getattr(self, old_name, None) is not None:

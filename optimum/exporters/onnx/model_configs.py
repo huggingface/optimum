@@ -20,8 +20,8 @@ from packaging import version
 from transformers.utils import is_tf_available
 
 from ...utils import (
-    CLIPNormalizedConfig,
     DEFAULT_DUMMY_SHAPES,
+    CLIPNormalizedConfig,
     DummyAudioInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
@@ -36,7 +36,6 @@ from ...utils import (
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
-    NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedVisionConfig,
     logging,
