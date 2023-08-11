@@ -32,7 +32,7 @@ from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
 from ..quantization_base import OptimumQuantizer
 from ..utils.save_utils import maybe_save_preprocessors
 from . import ORTQuantizableOperator
-from .configuration import CalibrationConfig, NodeName, NodeType, ORTConfig, QuantizationConfig
+from .configuration import CalibrationConfig, ORTConfig, QuantizationConfig
 from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForConditionalGeneration
@@ -91,7 +91,7 @@ class ORTQuantizer(OptimumQuantizer):
         Args:
             onnx_model_path (`Path`):
                 Path to the onnx model files you want to quantize.
-            config (`Optional[PretrainedConfig]`, *optional*):
+            config (`Optional[PretrainedConfig]`, defaults to `None`):
                 The configuration of the model.
         """
         super().__init__()
@@ -122,7 +122,7 @@ class ORTQuantizer(OptimumQuantizer):
                 Can be either:
                     - A path to a saved exported ONNX Intermediate Representation (IR) model, e.g., `./my_model_directory/.
                     - Or an `ORTModelForXX` class, e.g., `ORTModelForQuestionAnswering`.
-            file_name(`Optional[str]`, *optional*):
+            file_name(`Optional[str]`, defaults to `None`):
                 Overwrites the default model file name from `"model.onnx"` to `file_name`.
                 This allows you to load different model files from the same repository or directory.
         Returns:
@@ -167,7 +167,7 @@ class ORTQuantizer(OptimumQuantizer):
         dataset: Dataset,
         calibration_config: CalibrationConfig,
         onnx_augmented_model_name: Union[str, Path] = "augmented_model.onnx",
-        operators_to_quantize: Optional[List[NodeType]] = None,
+        operators_to_quantize: Optional[List[str]] = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
         use_gpu: bool = False,
@@ -181,17 +181,17 @@ class ORTQuantizer(OptimumQuantizer):
                 The dataset to use when performing the calibration step.
             calibration_config ([`~CalibrationConfig`]):
                 The configuration containing the parameters related to the calibration step.
-            onnx_augmented_model_name (`Union[str, Path]`, *optional*, defaults to `"augmented_model.onnx"`):
+            onnx_augmented_model_name (`Union[str, Path]`, defaults to `"augmented_model.onnx"`):
                 The path used to save the augmented model used to collect the quantization ranges.
-            operators_to_quantize (`Optional[List[NodeType]]`, *optional*):
+            operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 List of the operators types to quantize.
-            batch_size (`int`, *optional*, defaults to 1):
+            batch_size (`int`, defaults to 1):
                 The batch size to use when collecting the quantization ranges values.
             use_external_data_format (`bool`, defaults to `False`):
                 Whether to use external data format to store model which size is >= 2Gb.
             use_gpu (`bool`, defaults to `False`):
                 Whether to use the GPU when collecting the quantization ranges values.
-            force_symmetric_range (`bool`, *optional*, defaults to `False`):
+            force_symmetric_range (`bool`, defaults to `False`):
                 Whether to make the quantization ranges symmetric.
 
         Returns:
@@ -221,7 +221,7 @@ class ORTQuantizer(OptimumQuantizer):
         dataset: Dataset,
         calibration_config: CalibrationConfig,
         onnx_augmented_model_name: Union[str, Path] = "augmented_model.onnx",
-        operators_to_quantize: Optional[List[NodeType]] = None,
+        operators_to_quantize: Optional[List[str]] = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
         use_gpu: bool = False,
@@ -235,17 +235,17 @@ class ORTQuantizer(OptimumQuantizer):
                 The dataset to use when performing the calibration step.
             calibration_config (`CalibrationConfig`):
                 The configuration containing the parameters related to the calibration step.
-            onnx_augmented_model_name (`Union[str, Path]`, *optional*, defaults to `"augmented_model.onnx"`):
+            onnx_augmented_model_name (`Union[str, Path]`, defaults to `"augmented_model.onnx"`):
                 The path used to save the augmented model used to collect the quantization ranges.
-            operators_to_quantize (`Optional[List[NodeType]]`, *optional*):
+            operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 List of the operators types to quantize.
-            batch_size (`int`, *optional*, defaults to 1):
+            batch_size (`int`, defaults to 1):
                 The batch size to use when collecting the quantization ranges values.
-            use_external_data_format (`bool`, *optional*, defaults to `False`):
+            use_external_data_format (`bool`, defaults to `False`):
                 Whether uto se external data format to store model which size is >= 2Gb.
-            use_gpu (`bool`, *optional*, defaults to `False`):
+            use_gpu (`bool`, defaults to `False`):
                 Whether to use the GPU when collecting the quantization ranges values.
-            force_symmetric_range (`bool`, *optional*, defaults to `False`):
+            force_symmetric_range (`bool`, defaults to `False`):
                 Whether to make the quantization ranges symmetric.
         """
         # If no calibrator, then create one
@@ -266,7 +266,7 @@ class ORTQuantizer(OptimumQuantizer):
         reader = ORTCalibrationDataReader(dataset, batch_size)
         self._calibrator.collect_data(reader)
 
-    def compute_ranges(self) -> Dict[NodeName, Tuple[float, float]]:
+    def compute_ranges(self) -> Dict[str, Tuple[float, float]]:
         """
         Computes the quantization ranges.
 
@@ -286,7 +286,7 @@ class ORTQuantizer(OptimumQuantizer):
         quantization_config: QuantizationConfig,
         save_dir: Union[str, Path],
         file_suffix: Optional[str] = "quantized",
-        calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
+        calibration_tensors_range: Optional[Dict[str, Tuple[float, float]]] = None,
         use_external_data_format: bool = False,
         preprocessor: Optional[QuantizationPreprocessor] = None,
     ) -> Path:
@@ -298,14 +298,13 @@ class ORTQuantizer(OptimumQuantizer):
                 The configuration containing the parameters related to quantization.
             save_dir (`Union[str, Path]`):
                 The directory where the quantized model should be saved.
-            file_suffix (`Optional[str]`, *optional*, defaults to `"quantized"`):
+            file_suffix (`Optional[str]`, defaults to `"quantized"`):
                 The file_suffix used to save the quantized model.
-            calibration_tensors_range (`Optional[Dict[NodeName, Tuple[float, float]]]`, *optional*):
-                The dictionary mapping the nodes name to their quantization ranges, used and required only when applying
-                static quantization.
-            use_external_data_format (`bool`, *optional*, defaults to `False`):
+            calibration_tensors_range (`Optional[Dict[str, Tuple[float, float]]]`, defaults to `None`):
+                The dictionary mapping the nodes name to their quantization ranges, used and required only when applying static quantization.
+            use_external_data_format (`bool`, defaults to `False`):
                 Whether to use external data format to store model which size is >= 2Gb.
-            preprocessor (`Optional[QuantizationPreprocessor]`, *optional*):
+            preprocessor (`Optional[QuantizationPreprocessor]`, defaults to `None`):
                 The preprocessor to use to collect the nodes to include or exclude from quantization.
 
         Returns:
@@ -315,6 +314,10 @@ class ORTQuantizer(OptimumQuantizer):
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
 
+        if quantization_config.is_static and calibration_tensors_range is None:
+            raise ValueError(
+                "Requested static quantization in the QuantizationConfig, but no calibration ranges were provided. Please run calibration first using the quantizer fit method, or use dynamic quantization."
+            )
         if not quantization_config.is_static:
             if quantization_config.mode != QuantizationMode.IntegerOps:
                 LOGGER.warning(
@@ -446,19 +449,19 @@ class ORTQuantizer(OptimumQuantizer):
             dataset_name (`str`):
                 The dataset repository name on the Hugging Face Hub or path to a local directory containing data files
                 to load to use for the calibration step.
-            num_samples (`int`, *optional*, defaults to 100):
+            num_samples (`int`, defaults to 100):
                 The maximum number of samples composing the calibration dataset.
-            dataset_config_name (`Optional[str]`, *optional*):
+            dataset_config_name (`Optional[str]`, defaults to `None`):
                 The name of the dataset configuration.
-            dataset_split (`Optional[str]`, *optional*):
+            dataset_split (`Optional[str]`, defaults to `None`):
                 Which split of the dataset to use to perform the calibration step.
-            preprocess_function (`Optional[Callable]`, *optional*):
+            preprocess_function (`Optional[Callable]`, defaults to `None`):
                 Processing function to apply to each example after loading dataset.
-            preprocess_batch (`bool`, *optional*, defaults to `True`):
+            preprocess_batch (`bool`, defaults to `True`):
                 Whether the `preprocess_function` should be batched.
-            seed (`int`, *optional*, defaults to 2016):
+            seed (`int`, defaults to 2016):
                 The random seed to use when shuffling the calibration dataset.
-            use_auth_token (`bool`, *optional*, defaults to `False`):
+            use_auth_token (`bool`, defaults to `False`):
                 Whether to use the token generated when running `transformers-cli login` (necessary for some datasets
                 like ImageNet).
         Returns:

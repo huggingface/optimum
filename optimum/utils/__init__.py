@@ -15,10 +15,12 @@
 
 from .constant import (
     CONFIG_NAME,
+    DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
     DIFFUSION_MODEL_UNET_SUBFOLDER,
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
+    ONNX_WEIGHTS_NAME,
 )
 from .import_utils import (
     DIFFUSERS_MINIMUM_VERSION,
@@ -29,6 +31,7 @@ from .import_utils import (
     check_if_pytorch_greater,
     check_if_transformers_greater,
     is_accelerate_available,
+    is_auto_gptq_available,
     is_diffusers_available,
     is_onnx_available,
     is_onnxruntime_available,
@@ -39,18 +42,21 @@ from .import_utils import (
 )
 from .input_generators import (
     DEFAULT_DUMMY_SHAPES,
+    BloomDummyPastKeyValuesGenerator,
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyInputGenerator,
     DummyLabelsGenerator,
     DummyPastKeyValuesGenerator,
+    DummyPix2StructInputGenerator,
     DummyPointsGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
     DummyVisionInputGenerator,
+    GPTBigCodeDummyPastKeyValuesGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr
 from .normalized_config import (

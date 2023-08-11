@@ -170,7 +170,6 @@ class ORTModel(OptimizedModel):
     @classproperty
     def export_feature(cls):
         logger.warning(f"{cls.__name__}.export_feature is deprecated, and will be removed in optimum 2.0.")
-
         try:
             feature = TasksManager.infer_task_from_model(cls.auto_model_class)
         except ValueError:
@@ -207,7 +206,9 @@ class ORTModel(OptimizedModel):
             )
 
         self.providers = model.get_providers()
-        self._device = get_device_for_provider(self.providers[0])
+        self._device = get_device_for_provider(
+            self.providers[0], provider_options=model.get_provider_options()[self.providers[0]]
+        )
 
         # This attribute is needed to keep one reference on the temporary directory, since garbage collecting it
         # would end-up removing the directory containing the underlying ONNX model.
@@ -614,6 +615,7 @@ class ORTModel(OptimizedModel):
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
+        use_io_binding: Optional[bool] = None,
         **kwargs,
     ):
         """
@@ -625,6 +627,10 @@ class ORTModel(OptimizedModel):
         provider_options (`Optional[Dict[str, Any]]`, defaults to `None`):
             Provider option dictionaries corresponding to the provider used. See available options
             for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
+        use_io_binding (`Optional[bool]`, defaults to `None`):
+            Whether to use IOBinding during inference to avoid memory copy between the host and device, or between numpy/torch tensors and ONNX Runtime ORTValue. Defaults to
+            `True` if the execution provider is CUDAExecutionProvider. For [~onnxruntime.ORTModelForCausalLM], defaults to `True` on CPUExecutionProvider,
+            in all other cases defaults to `False`.
         kwargs (`Dict[str, Any]`):
             Will be passed to the underlying model loading methods.
 
@@ -655,6 +661,7 @@ class ORTModel(OptimizedModel):
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
+            use_io_binding=use_io_binding,
             **kwargs,
         )
 
@@ -745,17 +752,17 @@ class ORTModel(OptimizedModel):
 
         name_to_np_type = TypeHelper.get_io_numpy_type_map(model)
 
-        input_name_to_tensor = {}
+        input_name_to_shape = {}
         for idx, tensor in enumerate(model_inputs):
             if tensor is None:
                 continue
             name = ordered_input_names[idx]
-            input_name_to_tensor[name] = tensor
             tensor = tensor.contiguous()
+            input_name_to_shape[name] = tensor.shape
             io_binding.bind_input(
                 name,
                 tensor.device.type,
-                self.device.index,
+                IOBindingHelper.get_device_index(self.device),
                 name_to_np_type[name],
                 tuple(tensor.shape),
                 tensor.data_ptr(),
@@ -765,7 +772,7 @@ class ORTModel(OptimizedModel):
             shape = input_.shape
             for idx, axis in enumerate(shape):
                 if isinstance(axis, str):
-                    dimensions[axis] = input_name_to_tensor[input_.name].shape[idx]
+                    dimensions[axis] = input_name_to_shape[input_.name][idx]
 
         output_shapes = {}
         output_buffers = {}
@@ -793,7 +800,7 @@ class ORTModel(OptimizedModel):
             io_binding.bind_output(
                 output_name,
                 output_buffer.device.type,
-                self.device.index,
+                IOBindingHelper.get_device_index(self.device),
                 name_to_np_type[output_name],
                 output_shape,
                 output_buffer.data_ptr(),

@@ -15,10 +15,13 @@ import warnings
 
 from .attention import _llama_prepare_decoder_attention_mask
 from .decoder_models import (
+    BarkAttentionLayerBetterTransformer,
     BartAttentionLayerBetterTransformer,
     BlenderbotAttentionLayerBetterTransformer,
+    BloomAttentionLayerBetterTransformer,
     CodegenAttentionLayerBetterTransformer,
     GPT2AttentionLayerBetterTransformer,
+    GPTBigCodeAttentionLayerBetterTransformer,
     GPTJAttentionLayerBetterTransformer,
     GPTNeoAttentionLayerBetterTransformer,
     GPTNeoXAttentionLayerBetterTransformer,
@@ -48,6 +51,7 @@ from .encoder_models import (
 class BetterTransformerManager:
     MODEL_MAPPING = {
         "albert": {"AlbertLayer": AlbertLayerBetterTransformer},
+        "bark": {"BarkSelfAttention": BarkAttentionLayerBetterTransformer},
         "bart": {
             "BartEncoderLayer": BartEncoderLayerBetterTransformer,
             "BartAttention": BartAttentionLayerBetterTransformer,
@@ -55,7 +59,9 @@ class BetterTransformerManager:
         "bert": {"BertLayer": BertLayerBetterTransformer},
         "bert-generation": {"BertGenerationLayer": BertLayerBetterTransformer},
         "blenderbot": {"BlenderbotAttention": BlenderbotAttentionLayerBetterTransformer},
+        "bloom": {"BloomAttention": BloomAttentionLayerBetterTransformer},
         "camembert": {"CamembertLayer": BertLayerBetterTransformer},
+        "blip-2": {"T5Attention": T5AttentionLayerBetterTransformer},
         "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
         "codegen": {"CodeGenAttention": CodegenAttentionLayerBetterTransformer},
         "data2vec-text": {"Data2VecTextLayer": BertLayerBetterTransformer},
@@ -65,6 +71,7 @@ class BetterTransformerManager:
         "ernie": {"ErnieLayer": BertLayerBetterTransformer},
         "fsmt": {"EncoderLayer": FSMTEncoderLayerBetterTransformer},
         "gpt2": {"GPT2Attention": GPT2AttentionLayerBetterTransformer},
+        "gpt_bigcode": {"GPTBigCodeAttention": GPTBigCodeAttentionLayerBetterTransformer},
         "gptj": {"GPTJAttention": GPTJAttentionLayerBetterTransformer},
         "gpt_neo": {"GPTNeoSelfAttention": GPTNeoAttentionLayerBetterTransformer},
         "gpt_neox": {"GPTNeoXAttention": GPTNeoXAttentionLayerBetterTransformer},
@@ -111,11 +118,47 @@ class BetterTransformerManager:
     EXCLUDE_FROM_TRANSFORM = {
         # clip's text model uses causal attention, that is most likely not supported in BetterTransformer
         "clip": ["text_model"],
+        # blip-2's Q-former and vision model should not be identified as the last layers of the model
+        "blip-2": ["qformer.encoder.layer", "vision_model.encoder.layers"],
+        # bark.codec_model.encoder is not supported in BetterTransformer
+        "bark": ["codec_model.encoder.layers"],
     }
 
     CAN_NOT_BE_SUPPORTED = {
         "deberta-v2": "DeBERTa v2 does not use a regular attention mechanism, which is not supported in PyTorch's BetterTransformer.",
         "glpn": "GLPN has a convolutional layer present in the FFN network, which is not supported in PyTorch's BetterTransformer.",
+    }
+
+    NOT_REQUIRES_NESTED_TENSOR = {
+        "bark",
+        "blenderbot",
+        "bloom",
+        "codegen",
+        "gpt2",
+        "gpt_bigcode",
+        "gptj",
+        "gpt_neo",
+        "gpt_neox",
+        "llama",
+        "opt",
+        "pegasus",
+        "t5",
+    }
+
+    NOT_REQUIRES_STRICT_VALIDATION = {
+        "blenderbot",
+        "blip-2",
+        "bloom",
+        "codegen",
+        "gpt2",
+        "gpt_bigcode",
+        "gptj",
+        "gpt_neo",
+        "gpt_neox",
+        "llama",
+        "opt",
+        "pegasus",
+        "t5",
     }
 
     @staticmethod
@@ -140,7 +183,6 @@ class BetterTransformerManager:
         """
         return model_type in BetterTransformerManager.MODEL_MAPPING
 
-    # TODO: the following methods are almost duplicate, it is frankly quite ugly
     @staticmethod
     def requires_nested_tensor(model_type: str) -> bool:
         """
@@ -150,21 +192,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in [
-            "blenderbot",
-            "codegen",
-            "gpt2",
-            "gptj",
-            "gpt_neo",
-            "gpt_neox",
-            "llama",
-            "opt",
-            "pegasus",
-            "t5",
-        ]:
-            return False
-        else:
-            return True
+        return model_type not in BetterTransformerManager.NOT_REQUIRES_NESTED_TENSOR
 
     @staticmethod
     def requires_strict_validation(model_type: str) -> bool:
@@ -175,50 +203,7 @@ class BetterTransformerManager:
             model_type (`str`):
                 The model type to check.
         """
-        if model_type in [
-            "blenderbot",
-            "codegen",
-            "gpt2",
-            "gptj",
-            "gpt_neo",
-            "gpt_neox",
-            "llama",
-            "opt",
-            "pegasus",
-            "t5",
-        ]:
-            return False
-        else:
-            return True
-
-    @staticmethod
-    def requires_torch_20(model_type: str) -> bool:
-        """
-        Returns True if the architecture requires PyTorch 2.0 to be used with BetterTransformer.
-
-        Args:
-            model_type (`str`):
-                The model type to check.
-        """
-        if model_type in [
-            "blenderbot",
-            "bart",
-            "codegen",
-            "gpt2",
-            "gptj",
-            "gpt_neo",
-            "gpt_neox",
-            "llama",
-            "m2m_100",
-            "marian",
-            "mbart",
-            "opt",
-            "pegasus",
-            "t5",
-        ]:
-            return True
-        else:
-            return False
+        return model_type not in BetterTransformerManager.NOT_REQUIRES_STRICT_VALIDATION
 
 
 class warn_uncompatible_save(object):

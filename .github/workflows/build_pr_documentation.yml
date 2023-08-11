@@ -1,15 +1,30 @@
 name: Build PR documentation
 
+# WARNING: As this workflow supports the pull_request_target event, please exercise extra care when editing it.
+
 on:
-  pull_request:
+  workflow_dispatch:
+  pull_request_target:
     branches: [ main ]
+    types: [ opened, synchronize, reopened, labeled ]
+    paths:
+      - "optimum/**.py"
+      - "docs/**.mdx"
+      - "docs/**.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
+  authorize:
+    if: (github.event.action == 'labeled' && github.event.label.name == 'build-pr-doc') || github.event_name != 'pull_request_target' || (! github.event.pull_request.head.repo.fork)
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
+
   build_documentation:
+    needs: authorize
     runs-on: ubuntu-latest
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
@@ -27,6 +42,7 @@ jobs:
         with:
           repository: 'huggingface/optimum'
           path: optimum
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - uses: actions/checkout@v2
         with:
@@ -43,9 +59,10 @@ jobs:
           repository: 'huggingface/optimum-intel'
           path: optimum-intel
 
-      - name: Set environment variables
-        run: |
-          echo "write_token=$(echo 'ghp_'$(wget -qO- lysand.re/doc-build-dev)'bm')" >> $GITHUB_ENV
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-furiosa'
+          path: optimum-furiosa
 
       - name: Setup environment
         run: |
@@ -65,6 +82,7 @@ jobs:
 
       - name: Make Habana documentation
         run: |
+          sudo docker system prune -a -f
           cd optimum-habana
           make doc BUILD_DIR=habana-doc-build VERSION=pr_$PR_NUMBER
           sudo mv habana-doc-build ../optimum
@@ -72,13 +90,37 @@ jobs:
 
       - name: Make Intel documentation
         run: |
+          sudo docker system prune -a -f
           cd optimum-intel
           make doc BUILD_DIR=intel-doc-build VERSION=pr_$PR_NUMBER
           sudo mv intel-doc-build ../optimum
           cd ..
 
+      - name: Make Furiosa documentation
+        run: |
+          cd optimum-furiosa
+          pip install .
+          sudo apt update
+          sudo apt install -y ca-certificates apt-transport-https gnupg
+          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key 5F03AFA423A751913F249259814F888B20B09A7E
+            # TODO: remove secrets and pull_request_target once archive.furiosa.ai is public
+          sudo tee -a /etc/apt/auth.conf.d/furiosa.conf > /dev/null <<EOT
+            machine archive.furiosa.ai
+            login ${{ secrets.FURIOSA_ACCESS_KEY }}
+            password ${{ secrets.FURIOSA_SECRET_ACCESS_KEY }}
+          EOT
+          sudo chmod 400 /etc/apt/auth.conf.d/furiosa.conf
+          sudo tee -a /etc/apt/sources.list.d/furiosa.list <<EOT
+            deb [arch=amd64] https://archive.furiosa.ai/ubuntu jammy restricted
+          EOT
+          sudo apt update && sudo apt install -y furiosa-libnux
+          doc-builder build optimum.furiosa docs/source/ --build_dir furiosa-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
+          mv furiosa-doc-build ../optimum
+          cd ..
+
       - name: Make Optimum documentation
         run: |
+          sudo docker system prune -a -f
           cd optimum
           make doc BUILD_DIR=optimum-doc-build VERSION=pr_$PR_NUMBER COMMIT_SHA_OPTIMUM=$COMMIT_SHA CLONE_URL=$PR_CLONE_URL
           cd ..
@@ -86,38 +128,18 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages graphcore habana intel --version pr_$PR_NUMBER
+          sudo python docs/combine_docs.py --subpackages graphcore habana intel neuron furiosa --version pr_$PR_NUMBER
           sudo mv optimum-doc-build ../
           cd ..
 
-      - name: Push to repositories
+      - name: Save commit_sha & pr_number
         run: |
           sudo chmod -R ugo+rwx optimum-doc-build
           cd optimum-doc-build
-          doc-builder push optimum --doc_build_repo_id "hf-doc-build/doc-build-dev" --token "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" --commit_msg "Updated with commit $COMMIT_SHA See: https://github.com/huggingface/optimum/commit/$COMMIT_SHA" --n_retries 5
-        shell: bash
+          echo ${{ env.COMMIT_SHA }} > ./commit_sha
+          echo ${{ env.PR_NUMBER }} > ./pr_number
 
-      - name: Find doc comment
-        uses: peter-evans/find-comment@v2
-        id: find_comment
+      - uses: actions/upload-artifact@v3
         with:
-          issue-number: ${{ env.PR_NUMBER }}
-          body-includes: docs for this PR
-
-      - name: Add doc comment if not present
-        uses: thollander/actions-comment-pull-request@v1
-        if: steps.find_comment.outputs.comment-id == ''
-
-        with:
-          message: 'The docs for this PR live [here](https://moon-ci-docs.huggingface.co/docs/optimum/pr_${{ env.PR_NUMBER }}). All of your documentation changes will be reflected on that endpoint.'
-          GITHUB_TOKEN: ${{ env.write_token }}
-
-      - name: Update doc comment if necessary
-        if: github.event.action == 'reopened' && steps.find_comment.outputs.comment-id != ''
-        uses: peter-evans/create-or-update-comment@v1
-        with:
-          comment-id: ${{ steps.find_comment.outputs.comment-id }}
-          token: ${{ env.write_token }}
-          edit-mode: replace
-          body: |
-            The docs for this PR live [here](https://moon-ci-docs.huggingface.co/docs/optimum/pr_${{ env.PR_NUMBER }}). All of your documentation changes will be reflected on that endpoint.
+          name: doc-build-artifact
+          path: optimum-doc-build/

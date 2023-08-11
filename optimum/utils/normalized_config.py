@@ -30,7 +30,7 @@ class NormalizedConfig:
     """
 
     def __init__(self, config: Union[PretrainedConfig, Dict], allow_new: bool = False, **kwargs):
-        self.config = config if isinstance(config, PretrainedConfig) else PretrainedConfig.from_dict(config)
+        self.config = config
         for key, value in kwargs.items():
             if allow_new or hasattr(self, key.upper()):
                 setattr(self, key.upper(), value)
@@ -44,13 +44,21 @@ class NormalizedConfig:
         return functools.partial(cls, allow_new=allow_new, **kwargs)
 
     def __getattr__(self, attr_name):
+        if attr_name == "config":
+            return super().__getattr__(attr_name)
+
+        try:
+            attr_name = super().__getattribute__(attr_name.upper())
+        except AttributeError:  # e.g. in the NormalizedTextAndVisionConfig case
+            pass
+
         attr_name = attr_name.split(".")
         leaf_attr_name = attr_name[-1]
         config = self.config
         for attr in attr_name[:-1]:
             config = getattr(config, attr)
 
-        attr = getattr(config, super().__getattribute__(leaf_attr_name.upper()), None)
+        attr = getattr(config, leaf_attr_name, None)
 
         # If the attribute was not specified manually, try to fallback on the attribute_map.
         if attr is None:
@@ -129,6 +137,13 @@ T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="num_heads",
     hidden_size="d_model",
 )
+MPTNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
+)
+GPTBigCodeNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="n_head", hidden_size="n_embd", num_layers="n_layer"
+)
+
 WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     hidden_size="d_model",
 )
@@ -193,6 +208,7 @@ class NormalizedConfigManager:
         "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
+        "cvt": NormalizedVisionConfig,
         "deberta": NormalizedTextConfig,
         "deberta-v2": NormalizedTextConfig,
         "deit": NormalizedVisionConfig,
@@ -200,6 +216,7 @@ class NormalizedConfigManager:
         "donut-swin": NormalizedVisionConfig,
         "electra": NormalizedTextConfig,
         "gpt2": GPT2LikeNormalizedTextConfig,
+        "gpt-bigcode": GPT2LikeNormalizedTextConfig,
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
         "gpt_neox": NormalizedTextConfig,
         "llama": NormalizedTextConfig,
@@ -213,6 +230,7 @@ class NormalizedConfigManager:
         "nystromformer": NormalizedTextConfig,
         "opt": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
+        "pix2struct": NormalizedVisionConfig,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
@@ -226,6 +244,8 @@ class NormalizedConfigManager:
         "vit": NormalizedVisionConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
+        "mpt": MPTNormalizedTextConfig,
+        "gpt_bigcode": GPTBigCodeNormalizedTextConfig,
     }
 
     @classmethod

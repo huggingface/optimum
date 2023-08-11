@@ -13,7 +13,13 @@
 #  limitations under the License.
 
 
+import warnings
+
+import numpy as np
+import PIL
+import torch
 from diffusers import ConfigMixin
+from diffusers.utils import PIL_INTERPOLATION
 from PIL import Image
 from tqdm.auto import tqdm
 
@@ -51,3 +57,46 @@ class DiffusionPipelineMixin(ConfigMixin):
             return tqdm(total=total, **self._progress_bar_config)
         else:
             raise ValueError("Either `total` or `iterable` has to be defined.")
+
+
+# Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img.preprocess with 8->64
+def preprocess(image):
+    warnings.warn(
+        (
+            "The preprocess method is deprecated and will be removed in a future version. Please"
+            " use VaeImageProcessor.preprocess instead"
+        ),
+        FutureWarning,
+    )
+    if isinstance(image, torch.Tensor):
+        return image.cpu().numpy()
+    elif isinstance(image, PIL.Image.Image):
+        image = [image]
+
+    if isinstance(image[0], PIL.Image.Image):
+        w, h = image[0].size
+        w, h = (x - x % 64 for x in (w, h))  # resize to integer multiple of 64
+
+        image = [np.array(i.resize((w, h), resample=PIL_INTERPOLATION["lanczos"]))[None, :] for i in image]
+        image = np.concatenate(image, axis=0)
+        image = np.array(image).astype(np.float32) / 255.0
+        image = image.transpose(0, 3, 1, 2)
+        image = 2.0 * image - 1.0
+    elif isinstance(image[0], torch.Tensor):
+        image = torch.cat(image, dim=0).cpu().numpy()
+    return image
+
+
+# Adapted from https://github.com/huggingface/diffusers/blob/v0.18.1/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion.py#L58
+def rescale_noise_cfg(noise_cfg, noise_pred_text, guidance_rescale=0.0):
+    """
+    Rescale `noise_cfg` according to `guidance_rescale`. Based on findings of [Common Diffusion Noise Schedules and
+    Sample Steps are Flawed](https://arxiv.org/pdf/2305.08891.pdf). See Section 3.4
+    """
+    std_text = np.std(noise_pred_text, axis=tuple(range(1, noise_pred_text.ndim)), keepdims=True)
+    std_cfg = np.std(noise_cfg, axis=tuple(range(1, noise_cfg.ndim)), keepdims=True)
+    # rescale the results from guidance (fixes overexposure)
+    noise_pred_rescaled = noise_cfg * (std_text / std_cfg)
+    # mix with the original results from guidance by factor guidance_rescale to avoid "plain looking" images
+    noise_cfg = guidance_rescale * noise_pred_rescaled + (1 - guidance_rescale) * noise_cfg
+    return noise_cfg

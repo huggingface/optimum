@@ -34,7 +34,7 @@ else:
 
 TORCH_MINIMUM_VERSION = packaging.version.parse("1.11.0")
 TRANSFORMERS_MINIMUM_VERSION = packaging.version.parse("4.25.0")
-DIFFUSERS_MINIMUM_VERSION = packaging.version.parse("0.16.1")
+DIFFUSERS_MINIMUM_VERSION = packaging.version.parse("0.18.0")
 
 
 # This is the minimal required version to support some ONNX Runtime features
@@ -46,6 +46,7 @@ _onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
 _pydantic_available = importlib.util.find_spec("pydantic") is not None
 _accelerate_available = importlib.util.find_spec("accelerate") is not None
 _diffusers_available = importlib.util.find_spec("diffusers") is not None
+_auto_gptq_available = importlib.util.find_spec("auto_gptq") is not None
 
 torch_version = None
 if is_torch_available():
@@ -98,6 +99,10 @@ def is_accelerate_available():
 
 def is_diffusers_available():
     return _diffusers_available
+
+
+def is_auto_gptq_available():
+    return _auto_gptq_available
 
 
 @contextmanager

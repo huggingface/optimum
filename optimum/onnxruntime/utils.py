@@ -53,6 +53,8 @@ _ORT_TO_NP_TYPE = {
     "tensor(double)": np.float64,
 }
 
+MULTI_QUERY_ATTN_MODELS = {"gpt_bigcode"}
+
 
 def _is_gpu_available():
     """
@@ -109,6 +111,7 @@ class ORTConfigManager:
         "distilbert": "bert",
         "electra": "bert",
         "gpt2": "gpt2",
+        "gpt_bigcode": "gpt2",
         "gpt_neo": "gpt2",
         "gpt_neox": "gpt2",
         "gptj": "gpt2",
@@ -123,6 +126,7 @@ class ORTConfigManager:
         "pegasus": "bert",
         "roberta": "bert",
         "t5": "bert",
+        "vit": "vit",
         "whisper": "bart",
         "xlm-roberta": "bert",
     }
@@ -143,13 +147,24 @@ class ORTConfigManager:
 
     @classmethod
     def check_optimization_supported_model(cls, model_type: str, optimization_config):
-        # as of 1.14.O: https://github.com/microsoft/onnxruntime/blob/6ccaeddefa65ccac402a47fa4d9cad8229794bb2/onnxruntime/python/tools/transformers/optimizer.py#L39
-        supported_model_types_for_optimization = ["bert", "gpt2", "bart", "unet"]
+        # as of 1.15.O: https://github.com/microsoft/onnxruntime/blob/v1.15.0/onnxruntime/python/tools/transformers/optimizer.py#L42
+        supported_model_types_for_optimization = [
+            "bart",
+            "bert",
+            "gpt2",
+            "tnlr",
+            "t5",
+            "unet",
+            "vae",
+            "clip",
+            "vit",
+            "swin",
+        ]
 
         if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):
             raise NotImplementedError(
                 f"ONNX Runtime doesn't support the graph optimization of {model_type} yet. Only {list(cls._conf.keys())} are supported. "
-                f"If you want to support {model_type} please propose a PR or open up an issue in ONNX Runtime:https://github.com/microsoft/onnxruntime."
+                f"If you want to support {model_type} please propose a PR or open up an issue in ONNX Runtime: https://github.com/microsoft/onnxruntime."
             )
 
 
@@ -161,15 +176,14 @@ def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
     return OnnxConfigWithLoss(onnx_config)
 
 
-def get_device_for_provider(provider: str) -> torch.device:
+def get_device_for_provider(provider: str, provider_options: Dict) -> torch.device:
     """
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
-    return (
-        torch.device("cuda:0")
-        if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]
-        else torch.device("cpu")
-    )
+    if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
+        return torch.device(f"cuda:{provider_options['device_id']}")
+    else:
+        return torch.device("cpu")
 
 
 def get_provider_for_device(device: torch.device) -> str:
@@ -252,10 +266,10 @@ def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None
     """
     if use_io_binding is None and providers[0] == "CUDAExecutionProvider":
         use_io_binding = True
-    elif providers[0] != "CUDAExecutionProvider":
+    elif providers[0] != "CPUExecutionProvider" and providers[0] != "CUDAExecutionProvider":
         if use_io_binding is True:
             logger.warning(
-                "No need to enable IO Binding if the provider used is not CUDAExecutionProvider. IO Binding will be turned off."
+                "No need to enable IO Binding if the provider used is neither CPUExecutionProvider nor CUDAExecutionProvider. IO Binding will be turned off."
             )
         use_io_binding = False
 
