@@ -320,6 +320,8 @@ main_export(
 )
 ```
 
+For tasks that require only a single ONNX (e.g. encoder-only), an exported model with custom inputs/outputs can then be used with the class [`optimum.onnxruntime.ORTModelForCustomTasks`] for inference with ONNX Runtime on CPU or GPU.
+
 ### Customize the export of Transformers models with custom modeling
 
 Optimum supports the export of Transformers models with custom modeling that use [`trust_remote_code=True`](https://huggingface.co/docs/transformers/en/model_doc/auto#transformers.AutoModel.from_pretrained.trust_remote_code), not officially supported in the Transormers library but usable with its functionality as [pipelines](https://huggingface.co/docs/transformers/main_classes/pipelines) and [generation](https://huggingface.co/docs/transformers/main_classes/text_generation#transformers.GenerationMixin.generate).
