@@ -29,7 +29,7 @@ You need to have the following requirements installed to run the code below:
 
 ### Load and quantize a model
 
-The [`~gptq.GPTQQuantizer`] class is used to quantize your model. In order to quantize your model, you need to provide a few arguemnts:
+The [`~optimum.gptq.GPTQQuantizer`] class is used to quantize your model. In order to quantize your model, you need to provide a few arguemnts:
 - the number of bits: `bits`
 - the dataset used to calibrate the quantization: `dataset`
 - the model sequence length used to process the dataset: `model_seqlen`
@@ -55,7 +55,7 @@ GPTQ quantization only works for text model for now. Futhermore, the quantizatio
 
 ### Save the model
 
-To save your model, use the save method from [`~gptq.GPTQQuantizer`] class. It will create a folder with your model state dict along with the quantization config.
+To save your model, use the save method from [`~optimum.gptq.GPTQQuantizer`] class. It will create a folder with your model state dict along with the quantization config.
 ```python
 save_folder = "/path/to/save_folder/"
 quantizer.save(model,save_folder)
@@ -63,7 +63,7 @@ quantizer.save(model,save_folder)
 
 ### Load quantized weights
 
-You can load your quantized weights by using the [`~gptq.load_quantized_model`] function.
+You can load your quantized weights by using the [`~optimum.gptq.load_quantized_model`] function.
 Through the Accelerate library, it is possible to load a model faster with a lower memory usage. The model needs to be initialized using empty weights, with weights loaded as a next step.
 ```python
 from accelerate import init_empty_weights
@@ -75,7 +75,7 @@ quantized_model = load_quantized_model(empty_model, save_folder=save_folder, dev
 
 ### Exllama kernels for faster inference
 
-For 4-bit model, you can use the exllama kernels in order to a faster inference speed. It is activated by default. If you want to change its value, you just need to pass `disable_exllama` in [`~gptq.load_quantized_model`]. In order to use these kernels, you need to have the entire model on gpus.
+For 4-bit model, you can use the exllama kernels in order to a faster inference speed. It is activated by default. If you want to change its value, you just need to pass `disable_exllama` in [`~optimum.gptq.load_quantized_model`]. In order to use these kernels, you need to have the entire model on gpus.
 
 ```py
 from optimum.gptq import GPTQQuantizer, load_quantized_model
