@@ -3,6 +3,7 @@ name: Build PR documentation
 # WARNING: As this workflow supports the pull_request_target event, please exercise extra care when editing it.
 
 on:
+  workflow_dispatch:
   pull_request_target:
     branches: [ main ]
     types: [ opened, synchronize, reopened, labeled ]
