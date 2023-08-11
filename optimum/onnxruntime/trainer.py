@@ -544,6 +544,7 @@ class ORTTrainer(Trainer):
         logger.info("Wrap ORTModule for ONNX Runtime training.")
         model = ORTModule(self.model)
         self.model_wrapped = model
+        self.model = model
 
         # We need to reset the scheduler, as its parameters may be different on subsequent calls
         if self._created_lr_scheduler:
