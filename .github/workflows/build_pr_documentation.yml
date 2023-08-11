@@ -5,6 +5,7 @@ name: Build PR documentation
 on:
   pull_request_target:
     branches: [ main ]
+    types: [ opened, synchronize, reopened, labeled ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
