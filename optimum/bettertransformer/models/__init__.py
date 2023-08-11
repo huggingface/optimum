@@ -18,6 +18,7 @@ from .decoder_models import (
     BarkAttentionLayerBetterTransformer,
     BartAttentionLayerBetterTransformer,
     BlenderbotAttentionLayerBetterTransformer,
+    BloomAttentionLayerBetterTransformer,
     CodegenAttentionLayerBetterTransformer,
     GPT2AttentionLayerBetterTransformer,
     GPTBigCodeAttentionLayerBetterTransformer,
@@ -58,6 +59,7 @@ class BetterTransformerManager:
         "bert": {"BertLayer": BertLayerBetterTransformer},
         "bert-generation": {"BertGenerationLayer": BertLayerBetterTransformer},
         "blenderbot": {"BlenderbotAttention": BlenderbotAttentionLayerBetterTransformer},
+        "bloom": {"BloomAttention": BloomAttentionLayerBetterTransformer},
         "camembert": {"CamembertLayer": BertLayerBetterTransformer},
         "blip-2": {"T5Attention": T5AttentionLayerBetterTransformer},
         "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
@@ -130,6 +132,7 @@ class BetterTransformerManager:
     NOT_REQUIRES_NESTED_TENSOR = {
         "bark",
         "blenderbot",
+        "bloom",
         "codegen",
         "gpt2",
         "gpt_bigcode",
@@ -145,6 +148,7 @@ class BetterTransformerManager:
     NOT_REQUIRES_STRICT_VALIDATION = {
         "blenderbot",
         "blip-2",
+        "bloom",
         "codegen",
         "gpt2",
         "gpt_bigcode",

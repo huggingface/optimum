@@ -22,12 +22,17 @@ from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
-from optimum.utils import DummyPastKeyValuesGenerator, GPTBigCodeDummyPastKeyValuesGenerator, NormalizedConfigManager
+from optimum.utils import (
+    BloomDummyPastKeyValuesGenerator,
+    DummyPastKeyValuesGenerator,
+    GPTBigCodeDummyPastKeyValuesGenerator,
+    NormalizedConfigManager,
+)
 from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_gpu
 
 
 class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
-    SUPPORTED_ARCH = ["codegen", "gpt2", "gpt_bigcode", "gptj", "gpt_neo", "gpt_neox", "llama", "opt"]
+    SUPPORTED_ARCH = ["bloom", "codegen", "gpt2", "gpt_bigcode", "gptj", "gpt_neo", "gpt_neox", "llama", "opt"]
 
     FULL_GRID = {
         "model_type": SUPPORTED_ARCH,
@@ -126,6 +131,8 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
 
         if model_type == "gpt_bigcode":
             pkv_generator_class = GPTBigCodeDummyPastKeyValuesGenerator
+        elif model_type == "bloom":
+            pkv_generator_class = BloomDummyPastKeyValuesGenerator
         else:
             pkv_generator_class = DummyPastKeyValuesGenerator
 
