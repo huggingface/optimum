@@ -152,7 +152,7 @@ class ORTDecoder(ORTModelPart):
 
         self.use_fp16 = False
         for inp in session.get_inputs():
-            if inp.name == "past_key_values" and inp.type == "tensor(float16)":
+            if "past_key_values" in inp.name and inp.type == "tensor(float16)":
                 self.use_fp16 = True
                 break
 
