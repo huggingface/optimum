@@ -3,11 +3,9 @@ name: Build PR documentation
 # WARNING: As this workflow supports the pull_request_target event, please exercise extra care when editing it.
 
 on:
-  pull_request:
+  pull_request_target:
     branches: [ main ]
-#  pull_request_target:
-#    branches: [ main ]
-#    types: [ opened, synchronize, reopened, labeled ]
+    types: [ opened, synchronize, reopened, labeled ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
