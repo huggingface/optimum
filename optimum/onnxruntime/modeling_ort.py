@@ -1957,7 +1957,7 @@ AUDIO_FRAME_CLASSIFICATION_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForAudioFrameClassification(ORTModel):
     """
-    ONNX Model for with a frame classification head on top for tasks like Speaker Diarization.
+    ONNX Model with a frame classification head on top for tasks like Speaker Diarization.
     """
 
     auto_model_class = AutoModelForAudioFrameClassification
