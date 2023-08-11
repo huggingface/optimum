@@ -20,6 +20,7 @@ from packaging import version
 from transformers.utils import is_tf_available
 
 from ...utils import (
+    CLIPNormalizedConfig,
     DEFAULT_DUMMY_SHAPES,
     BloomDummyPastKeyValuesGenerator,
     DummyAudioInputGenerator,
@@ -640,11 +641,6 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
 
 class DonutSwinOnnxConfig(ViTOnnxConfig):
     pass
-
-
-class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
-    TEXT_CONFIG = "text_config"
-    VISION_CONFIG = "vision_config"
 
 
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):

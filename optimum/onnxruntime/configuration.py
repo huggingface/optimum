@@ -752,6 +752,15 @@ class OptimizationConfig:
     disable_group_norm_fusion: bool = True
     disable_packed_kv: bool = True
 
+    # CLIP arguments
+    disable_bias_splitgelu: bool = False
+    disable_packed_qkv: bool = False
+    disable_bias_add: bool = False
+    # As of onnxruntime 1.15.1, NHWC is not an implemented op, so disable:
+    # https://github.com/microsoft/onnxruntime/blob/v1.15.1/onnxruntime/python/tools/transformers/onnx_model_clip.py#L23
+    disable_nhwc_conv: bool = True
+
+
     def __post_init__(self):
         def deprecate_renamed_attribute(old_name, new_name, mapping_func=None):
             if getattr(self, old_name, None) is not None:
@@ -801,6 +810,10 @@ class OptimizationConfig:
             "use_raw_attention_mask": "use_raw_attention_mask",
             "enable_gemm_fast_gelu_fusion": "enable_gemm_fast_gelu",
             "use_multi_head_attention": "use_multi_head_attention",
+            "disable_bias_splitgelu": "disable_bias_splitgelu",
+            "disable_packed_qkv": "disable_packed_qkv",
+            "disable_bias_add": "disable_bias_add",
+            "disable_nhwc_conv": "disable_nhwc_conv",
         }
         for attr_name, fusion_attr_name in attribute_map.items():
             setattr(args, fusion_attr_name, getattr(self, attr_name))

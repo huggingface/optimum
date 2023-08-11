@@ -109,6 +109,12 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         return super().__getattr__(attr_name)
 
 
+# define here, so we can use it in NormalizedConfigManager
+class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
+    TEXT_CONFIG = "text_config"
+    VISION_CONFIG = "vision_config"
+
+
 class NormalizedEncoderDecoderConfig(NormalizedConfig):
     ENCODER_NORMALIZED_CONFIG_CLASS = None
     DECODER_NORMALIZED_CONFIG_CLASS = None
@@ -175,7 +181,6 @@ class NormalizedConfigManager:
     """
     TODO: missing normalized configs (currently not useful)
         ['beit',
-        'clip',
         'convbert',
         'convnext',
         'data2vec-text',
@@ -208,6 +213,12 @@ class NormalizedConfigManager:
         "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
+        "clip": CLIPNormalizedConfig,
+        "clip_text_model": NormalizedConfig.with_args(
+            vocab_size="vocab_size",
+            sequence_length="max_position_embeddings",
+            allow_new=True,
+        ),
         "cvt": NormalizedVisionConfig,
         "deberta": NormalizedTextConfig,
         "deberta-v2": NormalizedTextConfig,
