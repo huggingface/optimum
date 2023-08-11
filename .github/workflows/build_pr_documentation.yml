@@ -6,6 +6,10 @@ on:
   pull_request_target:
     branches: [ main ]
     types: [ opened, synchronize, reopened, labeled ]
+    paths:
+      - "optimum/**.py"
+      - "docs/**.mdx"
+      - "docs/**.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
