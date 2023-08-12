@@ -74,7 +74,7 @@ EXTRAS_REQUIRE = {
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
     "benchmark": BENCHMARK_REQUIRE,
-    "doc-build": ["accelerate", "torch", "auto-gptq"],
+    "doc-build": ["accelerate", "auto-gptq"],
 }
 
 setup(

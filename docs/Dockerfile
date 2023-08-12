@@ -8,4 +8,6 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip
 RUN python3 -m pip install --no-cache-dir git+https://github.com/huggingface/doc-builder.git
 
 RUN git clone $clone_url && cd optimum && git checkout $commit_sha
+# PyTorch must be installed before auto-gptq is collected
+RUN python3 -m pip install torch
 RUN python3 -m pip install --no-cache-dir ./optimum[onnxruntime,benchmark,quality,exporters-tf,doc-build]
