@@ -48,7 +48,7 @@ if is_auto_gptq_available():
 logger = getLogger(__name__)
 
 
-class GPTQQuantizer:
+class GPTQQuantizer(object):
     r"""
     A simple API for GPTQ Quantization
     """
