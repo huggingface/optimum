@@ -9,6 +9,7 @@ If you want to quantize 🤗 Transformers models with GPTQ, follow this [documen
 To learn more about the quantization technique used in GPTQ, please refer to:
 - the [GPTQ](https://arxiv.org/pdf/2210.17323.pdf) paper
 - the [AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ) library used as the backend
+
 Note that the AutoGPTQ library provides more advanced usage (triton backend, fused attention, fused MLP) that are not integrated with Optimum. For now, we leverage only the CUDA kernel for GPTQ.
 
 ### Requirements
