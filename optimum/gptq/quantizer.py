@@ -59,7 +59,7 @@ class GPTQQuantizer(object):
         dataset: Optional[Union[List[str], str]] = None,
         group_size: int = 128,
         damp_percent: float = 0.01,
-        desc_act: bool = True,
+        desc_act: bool = False,
         sym: bool = True,
         true_sequential: bool = True,
         use_cuda_fp16: bool = False,
@@ -83,7 +83,7 @@ class GPTQQuantizer(object):
                 The group size to use for quantization. Recommended value is 128 and -1 uses per-column quantization.
             damp_percent (`float`, defaults to `0.01`):
                 The percent of the average Hessian diagonal to use for dampening, recommended value is 0.01.
-            desc_act (`bool`, defaults to `True`):
+            desc_act (`bool`, defaults to `False`):
                 Whether to quantize columns in order of decreasing activation size.
                 Setting it to False can significantly speed up inference but the perplexity may become slightly worse.
                 Also known as act-order.
@@ -124,8 +124,8 @@ class GPTQQuantizer(object):
         self.pad_token_id = pad_token_id
         self.disable_exllama = disable_exllama
 
-        if self.bits not in [2, 4, 6, 8]:
-            raise ValueError("only support quantize to [2,4,6,8] bits.")
+        if self.bits not in [2, 3, 4, 8]:
+            raise ValueError("only support quantize to [2,3,4,8] bits.")
         if self.group_size != -1 and self.group_size <= 0:
             raise ValueError("group_size must be greater than 0 or equal to -1")
         if not (0 < self.damp_percent < 1):
