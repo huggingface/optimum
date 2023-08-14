@@ -652,12 +652,14 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
                 attention_mask=attention_mask,
                 past_key_values=past_key_values,
                 labels=labels,
+                **kwargs,
             )
         elif self.use_merged is True:
             outputs = self.decoder(
                 input_ids=input_ids[:, -1:],
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
+                **kwargs,
             )
         else:
             outputs = self.decoder_with_past(
@@ -665,6 +667,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
                 labels=labels,
+                **kwargs,
             )
 
         return CausalLMOutputWithCrossAttentions(
