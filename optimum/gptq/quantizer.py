@@ -58,7 +58,7 @@ class GPTQQuantizer(object):
         bits: int,
         dataset: Optional[Union[List[str], str]] = None,
         group_size: int = 128,
-        damp_percent: float = 0.01,
+        damp_percent: float = 0.1,
         desc_act: bool = False,
         sym: bool = True,
         true_sequential: bool = True,
@@ -81,8 +81,8 @@ class GPTQQuantizer(object):
                 in GPTQ paper ['wikitext2','c4','c4-new','ptb','ptb-new'].
             group_size (int, defaults to 128):
                 The group size to use for quantization. Recommended value is 128 and -1 uses per-column quantization.
-            damp_percent (`float`, defaults to `0.01`):
-                The percent of the average Hessian diagonal to use for dampening, recommended value is 0.01.
+            damp_percent (`float`, defaults to `0.1`):
+                The percent of the average Hessian diagonal to use for dampening, recommended value is 0.1.
             desc_act (`bool`, defaults to `False`):
                 Whether to quantize columns in order of decreasing activation size.
                 Setting it to False can significantly speed up inference but the perplexity may become slightly worse.
