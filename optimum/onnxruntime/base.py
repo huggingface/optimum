@@ -330,7 +330,6 @@ class ORTDecoder(ORTModelPart):
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
         use_cache_branch: None = None,
-        **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
         # adding use_cache_branch in the signature here is just a hack for IO Binding
         use_torch = isinstance(input_ids, torch.Tensor)
