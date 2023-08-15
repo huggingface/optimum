@@ -642,6 +642,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         self,
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.FloatTensor] = None,
+        position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
@@ -650,16 +651,16 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
             outputs = self.decoder(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
+                position_ids=position_ids,
                 past_key_values=past_key_values,
                 labels=labels,
-                **kwargs,
             )
         elif self.use_merged is True:
             outputs = self.decoder(
                 input_ids=input_ids[:, -1:],
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
-                **kwargs,
+                position_ids=position_ids,
             )
         else:
             outputs = self.decoder_with_past(
@@ -667,7 +668,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
                 labels=labels,
-                **kwargs,
+                position_ids=position_ids,
             )
 
         return CausalLMOutputWithCrossAttentions(

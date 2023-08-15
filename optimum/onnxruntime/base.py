@@ -326,6 +326,7 @@ class ORTDecoder(ORTModelPart):
         self,
         input_ids: torch.LongTensor,
         attention_mask: Optional[torch.LongTensor] = None,
+        position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
         use_cache_branch: None = None,
@@ -367,7 +368,7 @@ class ORTDecoder(ORTModelPart):
                 model_inputs.append(attention_mask)
 
             if "position_ids" in self.input_names:
-                model_inputs.append(kwargs["position_ids"])
+                model_inputs.append(position_ids)
 
             if past_key_values is not None:
                 model_inputs += past_key_values
@@ -418,7 +419,7 @@ class ORTDecoder(ORTModelPart):
                 }
 
                 if "position_ids" in self.input_names:
-                    onnx_inputs["position_ids"] = kwargs["position_ids"].cpu().detach().numpy()
+                    onnx_inputs["position_ids"] = position_ids.cpu().detach().numpy()
 
                 if self.parent_model.use_merged is True:
                     onnx_inputs["use_cache_branch"] = use_cache_branch_tensor.cpu().detach().numpy()
@@ -437,7 +438,7 @@ class ORTDecoder(ORTModelPart):
                 }
 
                 if "position_ids" in self.input_names:
-                    onnx_inputs["position_ids"] = kwargs["position_ids"]
+                    onnx_inputs["position_ids"] = position_ids
 
                 if self.parent_model.use_merged is True:
                     onnx_inputs["use_cache_branch"] = use_cache_branch_tensor
