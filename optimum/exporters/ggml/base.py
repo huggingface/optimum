@@ -14,7 +14,11 @@
 # limitations under the License.
 """ggml configuration base classes."""
 
-from abc import ABC
+from abc import ABC, abstractmethod
+from typing import Dict, Union
+
+from numpy import ndarray
+from torch import Tensor
 
 from ..base import ExportConfig
 
@@ -24,24 +28,32 @@ class GgmlConfig(ExportConfig, ABC):
     Base class for GGML exportable model.
     """
 
-    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
+    STRUCT_HPARAM_KEYS = []
+    USE_BYTE_DECODER = True  # TODO this should eventually be always True
+    GGML_MEM_ALIGN = 16
+
+    def __init__(self, config: "PretrainedConfig", task: str = "text-generation"):
         self.task = task
         self._config = config
+
+    @abstractmethod
+    def get_cpp_name(self, name: str) -> str:
+        raise NotImplementedError
+
+    def should_skip(self, name: str) -> bool:
+        return False
+
+    @abstractmethod
+    def reshape_weights(self, name: str, weights: Union[ndarray, Tensor], hparams: Dict) -> ndarray:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def convert_dtype(name: str, data: Union[ndarray, Tensor], ftype: int, n_dims: int) -> tuple[ndarray, int]:
+        return data, ftype
 
 
 class GgmlConfigWithPast(GgmlConfig, ABC):
     @classmethod
-    def with_past(cls, config: "PretrainedConfig", task: str = "feature-extraction") -> "OnnxConfigWithPast":
-        """
-        Instantiates a [`~optimum.exporters.onnx.OnnxConfig`] with `use_past` attribute set to `True`.
-
-        Args:
-            config (`transformers.PretrainedConfig`):
-                The underlying model's config to use when exporting to ONNX.
-            task (`str`, defaults to `"feature-extraction"`):
-                The task the model should be exported for.
-
-        Returns:
-            [`~optimum.exporters.onnx.GgmlConfig`]: The ggml config with `.use_past = True`
-        """
+    def with_past(cls, config: "PretrainedConfig", task: str = "text-generation") -> "OnnxConfigWithPast":
         return cls(config, task=task, use_past=True)

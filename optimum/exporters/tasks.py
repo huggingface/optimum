@@ -530,6 +530,7 @@ class TasksManager:
             "text-classification",
             "token-classification",
             onnx="GPTBigCodeOnnxConfig",
+            ggml="GPTBigCodeGgmlConfig",
         ),
         "gptj": supported_tasks_mapping(
             "feature-extraction",

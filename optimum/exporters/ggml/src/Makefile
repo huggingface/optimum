@@ -165,53 +165,10 @@ clean:
 	rm -f *.o
 	rm -f *.a
 	rm -rf build
-	rm -rf example
 	rm -f main
 
 bloom: bloomz.cpp ggml.o common.o
 	$(CXX) $(CXXFLAGS) bloomz.cpp ggml.o common.o -o main $(LDFLAGS)
-	./main -h
 
-gpt2.o: gpt2.cpp ggml.o common.o
-	$(CXX) $(CXXFLAGS) gpt2.cpp ggml.o common.o -o main -c $(LDFLAGS)
-
-falcon.o: falcon.cpp
-	$(CXX) $(CXXFLAGS) falcon.cpp -o falcon.o -c $(LDFLAGS)
-
-dolly.o: dolly.cpp
-	$(CXX) $(CXXFLAGS) dolly.cpp -o dolly.o -c $(LDFLAGS)
-
-replit.o: replit.cpp
-	$(CXX) $(CXXFLAGS) replit.cpp -o replit.o -c $(LDFLAGS)
-
-mpt.o: mpt.cpp
-	$(CXX) $(CXXFLAGS) mpt.cpp -o mpt.o -c $(LDFLAGS)
-
-gptj.o: gptj.cpp
-	$(CXX) $(CXXFLAGS) gptj.cpp -o gptj.o -c $(LDFLAGS)
-
-gptneox.o: gptneox.cpp
-	$(CXX) $(CXXFLAGS) gptneox.cpp -o gptneox.o -c $(LDFLAGS)
-
-starcoder.o: starcoder.cpp
-	$(CXX) $(CXXFLAGS) starcoder.cpp -o starcoder.o -c $(LDFLAGS)
-
-prepare:
-# As we are going to link back to the examples, we need to avoid multiple definitions of main.
-# This is hack, but it's easier to maintain than duplicating code from the main repository.
-	@find ./ggml.cpp/examples/dolly-v2 -type f -name "*.cpp" -exec sed -i'' -e 's/int main/int main_dolly/g' {} +
-	@find ./ggml.cpp/examples/gpt-2 -type f -name "*.cpp" -exec sed -i'' -e 's/int main/int main_gpt2/g' {} +
-	@find ./ggml.cpp/examples/gpt-j -type f -name "*.cpp" -exec sed -i'' -e 's/int main/int main_gptj/g' {} +
-	@find ./ggml.cpp/examples/gpt-neox -type f -name "*.cpp" -exec sed -i'' -e 's/int main/int main_gptneox/g' {} +
-	@find ./ggml.cpp/examples/mpt -type f -name "*.cpp" -exec sed -i'' -e 's/int main/int main_mpt/g' {} +
-	@find ./ggml.cpp/examples/replit -type f -name "*.cpp" -exec sed -i'' -e 's/int main/int main_replit/g' {} +
-	@find ./ggml.cpp/examples/starcoder -type f -name "*.cpp" -exec sed -i'' -e 's/int main/int main_starcoder/g' {} +
-
-libtransformers.a: prepare starcoder.o falcon.o gptj.o mpt.o gpt2.o replit.o gptneox.o ggml.o dolly.o common-ggml.o common.o
-	ar src libtransformers.a replit.o gptj.o mpt.o gptneox.o starcoder.o gpt2.o dolly.o  falcon.o  ggml.o common-ggml.o common.o ${EXTRA_OBJS}
-
-example:
-	@C_INCLUDE_PATH=${INCLUDE_PATH} LIBRARY_PATH=${LIBRARY_PATH} go build -o example -x ./examples
-
-test: libtransformers.a
-	@C_INCLUDE_PATH=${INCLUDE_PATH} LIBRARY_PATH=${LIBRARY_PATH} go test -v ./...
+gpt-bigcode: starcoder.cpp ggml.o common.o
+	$(CXX) $(CXXFLAGS) starcoder.cpp ggml.o common.o -o main $(LDFLAGS)

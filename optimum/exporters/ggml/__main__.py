@@ -20,12 +20,11 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import Optional, Union
 
-import numpy as np
 import torch
 from transformers import AutoConfig, AutoTokenizer
 
 from optimum.commands.export.ggml import parse_args_ggml
-from optimum.exporters.ggml.utils import infer_task
+from optimum.exporters.ggml.utils import bytes_to_unicode, infer_task
 from optimum.exporters.tasks import TasksManager
 from optimum.utils import logging
 
@@ -94,63 +93,62 @@ def main_export(
         task=task,
     )
 
-    conv_map = ggml_config.CONV_MAP
-
     fname_out = os.path.join(output, f"ggml-model-{model_name_or_path.split('/')[-1]}-{ftype_str[ftype]}.bin")
     fout = open(fname_out, "wb")
 
+    # Hardcoded for Bloom TODO remove as argument in cpp and hardcode there so hparam can be removed
     hparams["multiple_of"] = 1
+
+    vocab_size = hparams["vocab_size"]
+
     fout.write(struct.pack("i", 0x67676D6C))  # magic: ggml in hex
-    fout.write(struct.pack("i", hparams["vocab_size"]))
-    fout.write(struct.pack("i", hparams["n_positions"]))
-    fout.write(struct.pack("i", hparams["hidden_size"]))
-    fout.write(struct.pack("i", hparams["multiple_of"]))
-    fout.write(struct.pack("i", hparams["n_head"]))
-    fout.write(struct.pack("i", hparams["n_layer"]))
+    fout.write(struct.pack("i", vocab_size))
+    for key in ggml_config.STRUCT_HPARAM_KEYS:
+        fout.write(struct.pack("i", hparams[key]))
     fout.write(struct.pack("i", ftype))
 
-    for i in range(hparams["vocab_size"]):
-        text = tokenizer.decode([i]).encode("utf-8")
-        fout.write(struct.pack("i", len(text)))
-        fout.write(text)
+    if ggml_config.USE_BYTE_DECODER:
+        byte_encoder = bytes_to_unicode()
+        byte_decoder = {v: k for k, v in byte_encoder.items()}
+        encoder = tokenizer.vocab
+
+        fout.write(struct.pack("i", vocab_size))
+
+        for key in sorted(encoder, key=encoder.get):
+            text = bytearray([byte_decoder[c] for c in key])
+            fout.write(struct.pack("i", len(text)))
+            fout.write(text)
+
+    else:
+        for i in range(vocab_size):
+            text = tokenizer.decode([i]).encode("utf-8")
+            fout.write(struct.pack("i", len(text)))
+            fout.write(text)
 
     list_vars = model.state_dict()
     for name in list_vars.keys():
-        src = name
-        nn = name
-        if name != "lm_head.weight":
-            nn = nn.split(".")[1:]
-        else:
-            nn = nn.split(".")
+        print("Processing variable: " + name)
 
-        if nn[0] == "h":
-            nn[0] = "layers"
-            mapped = conv_map[".".join(nn[2:-1])]
-            name = ".".join(nn[:2] + [mapped] + nn[-1:])
-        else:
-            mapped = conv_map[".".join(nn[:-1])]
-            name = ".".join([mapped] + nn[-1:])
+        if hasattr(ggml_config, "get_cpp_name"):
+            cpp_name = ggml_config.get_cpp_name(name=name)
 
-        if "query_key_value" in src:
-            q, k, v = list_vars[src].reshape(config.n_head, 3, -1).unbind(1)
-            list_vars[src] = torch.cat([q, k, v], dim=0).reshape_as(list_vars[src])
+        if hasattr(ggml_config, "should_skip") and ggml_config.should_skip(name=cpp_name):
+            continue
 
-        print(src, " -> ", name)
-        data = list_vars[src].squeeze().numpy()
-        data = data.astype(np.float32)
+        if hasattr(ggml_config, "reshape_weights"):
+            list_vars[name] = ggml_config.reshape_weights(name=cpp_name, weights=list_vars[name], hparams=hparams)
 
-        n_dims = len(data.shape)
-        print(name, n_dims, data.shape)
+        n_dims = len(list_vars[name].shape)
+        data, ftype_cur = ggml_config.convert_dtype(name=cpp_name, data=list_vars[name], ftype=ftype, n_dims=n_dims)
 
-        # default type is fp32
-        ftype_cur = 0
-        if ftype == 1 and n_dims > 1:
-            print("  Converting to float16")
-            data = data.astype(np.float16)
-            ftype_cur = 1
+        if data.nbytes % ggml_config.GGML_MEM_ALIGN != 0:
+            description = f"Expected data (weights of {name}) to have a multiple of f{ggml_config.GGML_MEM_ALIGN} bytes, but data has {data.nbytes} bytes. Skipping to avoid memory alignment issues."
+            print(f"  {description}")
+            logger.warning(description)
+            continue
 
         # header
-        str = name.encode("utf-8")
+        str = cpp_name.encode("utf-8")
         fout.write(struct.pack("iii", n_dims, len(str), ftype_cur))
         for i in range(n_dims):
             fout.write(struct.pack("i", data.shape[n_dims - 1 - i]))
@@ -161,6 +159,7 @@ def main_export(
 
     fout.close()
 
+    print("Done. Output file: " + fname_out)
     if return_source_model:
         return model
 
