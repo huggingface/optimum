@@ -389,15 +389,11 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
     def compute_encoder_known_output_shapes(self, pixel_values: torch.FloatTensor) -> Dict[str, List[int]]:
-        print(pixel_values.shape)
-        if type(self.normalized_config.config.image_size) == int:
+        if isinstance(self.normalized_config.config.image_size, int):
             # for vit models
             encoder_sequence_length = (
-                self.normalized_config.config.image_size**2
-                * self.normalized_config.config.num_channels
-                // self.normalized_config.config.hidden_size
-                + 1  # for cls token
-            )
+                self.normalized_config.config.image_size // self.normalized_config.config.patch_size
+            ) ** 2 + 1  # plus cls token
             return {
                 "last_hidden_state": [
                     pixel_values.shape[0],  # batch_size
@@ -406,10 +402,10 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
                 ]
             }
         else:
-            # for swin and donut-swim models
+            # for donut-swim models
             encoder_sequence_length = (
-                self.normalized_config.config.image_size[0]
-                * self.normalized_config.config.image_size[1]
+                (self.normalized_config.config.image_size[0] // self.normalized_config.config.patch_size)
+                * (self.normalized_config.config.image_size[1] // self.normalized_config.config.patch_size)
                 // self.normalized_config.config.hidden_size
             )
             return {
