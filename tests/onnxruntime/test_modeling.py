@@ -3920,8 +3920,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
-    # TODO: speech_to_text should be tested
-    SUPPORTED_ARCHITECTURES = ["vision-encoder-decoder", "trocr"]
+    SUPPORTED_ARCHITECTURES = ["vision-encoder-decoder", "trocr", "donut"]
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,

@@ -99,6 +99,7 @@ MODEL_NAMES = {
     "xlm_roberta": "hf-internal-testing/tiny-xlm-roberta",
     "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
     "trocr": "microsoft/trocr-small-handwritten",
+    "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
 }
 
 SEED = 42
