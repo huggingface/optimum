@@ -1089,7 +1089,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForQuestionAnswering.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("custom or unsupported architecture", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -1946,6 +1946,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "bloom",
         "codegen",
         "gpt2",
+        "gpt_bigcode",
         "gpt_neo",
         "gpt_neox",
         "gptj",
@@ -4023,28 +4024,56 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         feature_extractor, tokenizer = self._get_preprocessors(model_id)
 
         data = self._get_sample_image()
-        features = feature_extractor(data, return_tensors="pt")
 
         start_token = "<s>"
         decoder_start_token_id = tokenizer.encode(start_token)[0]
-        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
 
-        with torch.no_grad():
-            transformers_outputs = transformers_model(**features, **decoder_inputs)
+        extra_inputs = [{}, {}]
 
-        for input_type in ["pt", "np"]:
-            features = feature_extractor(data, return_tensors=input_type)
+        if use_cache and False:
+            # TODO: the dims will fail with other models
+            fake_pkv = tuple((torch.rand(1, 4, 1, 8), torch.rand(1, 4, 1, 8)) for _ in range(5))
+            extra_inputs[1]["past_key_values"] = fake_pkv
 
-            if input_type == "np":
-                decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id}
+        for extra_inps in extra_inputs:
+            features = feature_extractor(data, return_tensors="pt")
+            decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
 
-            onnx_outputs = onnx_model(**features, **decoder_inputs)
+            with torch.no_grad():
+                transformers_outputs = transformers_model(**features, **decoder_inputs, **extra_inps)
+            for input_type in ["pt", "np"]:
+                features = feature_extractor(data, return_tensors=input_type)
 
-            self.assertTrue("logits" in onnx_outputs)
-            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+                if input_type == "np":
+                    decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id}
 
-            # Compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-3))
+                    if "past_key_values" in extra_inps:
+                        del extra_inps["past_key_values"]  # test only with pytorch
+
+                onnx_outputs = onnx_model(**features, **decoder_inputs, **extra_inps)
+
+                self.assertTrue("logits" in onnx_outputs)
+                self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+                if use_cache:
+                    self.assertEqual(
+                        len(onnx_outputs["past_key_values"]), len(transformers_outputs["past_key_values"])
+                    )
+                    self.assertEqual(
+                        len(onnx_outputs["past_key_values"][0]), len(transformers_outputs["past_key_values"][0])
+                    )
+                    for i, _ in enumerate(onnx_outputs["past_key_values"]):
+                        for j, ort_pkv in enumerate(onnx_outputs["past_key_values"][i]):
+                            trfs_pkv = transformers_outputs["past_key_values"][i][j]
+                            self.assertTrue(
+                                torch.allclose(ort_pkv, trfs_pkv, atol=1e-3),
+                                f" Maxdiff: {torch.abs(ort_pkv - trfs_pkv).max()}",
+                            )
+
+                # Compare tensor outputs
+                self.assertTrue(
+                    torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-3)
+                )
 
         gc.collect()
 

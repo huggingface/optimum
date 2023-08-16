@@ -34,9 +34,6 @@ def rename_subpackage_toc(subpackage: str, toc: Dict):
                 # if "local" is not in file, it means we have a subsection, hence the recursive call
                 rename_subpackage_toc(subpackage, [file])
 
-    # Just keep the name of the partner
-    toc[0]["title"] = toc[0]["title"].split("Optimum ")[-1]
-
 
 def rename_copy_subpackage_html_paths(subpackage: str, subpackage_path: Path, optimum_path: Path, version: str):
     """
@@ -138,6 +135,8 @@ def main():
                 subpackage_toc = yaml.safe_load(f)
             # Extend table of contents sections with the subpackage name as the parent folder
             rename_subpackage_toc(subpackage, subpackage_toc)
+            # Just keep the name of the partner in the TOC title
+            subpackage_toc[0]["title"] = subpackage_toc[0]["title"].split("Optimum ")[-1]
             if subpackage != "graphcore":
                 # Update optimum table of contents
                 base_toc.insert(1, subpackage_toc[0])

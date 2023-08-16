@@ -1,0 +1,96 @@
+# Quantization
+
+## AutoGPTQ Integration
+
+🤗 Optimum collaborated with [AutoGPTQ library](https://github.com/PanQiWei/AutoGPTQ) to provide a simple API that apply GPTQ quantization on language models.  With GPTQ quantization, you can quantize your favorite language model to 8, 6, 4 or even 2 bits. This comes without a big drop of performance and with faster inference speed. This is supported by most GPU hardwares.
+
+If you want to quantize 🤗 Transformers models with GPTQ, follow this [documentation](https://huggingface.co/docs/transformers/main_classes/quantization).
+
+To learn more about the quantization technique used in GPTQ, please refer to:
+- the [GPTQ](https://arxiv.org/pdf/2210.17323.pdf) paper
+- the [AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ) library used as the backend
+Note that the AutoGPTQ library provides more advanced usage (triton backend, fused attention, fused MLP) that are not integrated with Optimum. For now, we leverage only the CUDA kernel for GPTQ.
+
+### Requirements
+
+You need to have the following requirements installed to run the code below:
+
+- AutoGPTQ library:
+`pip install auto-gptq`
+
+- Optimum library:
+`pip install --upgrade optimum`
+
+- Install latest `transformers` library from source:
+`pip install --upgrade git+https://github.com/huggingface/transformers.git`
+
+- Install latest `accelerate` library:
+`pip install --upgrade accelerate`
+
+### Load and quantize a model
+
+The [`~optimum.gptq.GPTQQuantizer`] class is used to quantize your model. In order to quantize your model, you need to provide a few arguemnts:
+- the number of bits: `bits`
+- the dataset used to calibrate the quantization: `dataset`
+- the model sequence length used to process the dataset: `model_seqlen`
+- the block name to quantize: `block_name_to_quantize`
+
+With 🤗 Transformers integration, you don't need to pass the `block_name_to_quantize` and `model_seqlen` as we can retrieve them. However, for custom model, you need to specify them. Also, make sure that your model is converted to `torch.float16` before quantization.
+
+```py
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from optimum.gptq import GPTQQuantizer, load_quantized_model
+import torch
+model_name = "facebook/opt-125m"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
+
+quantizer = GPTQQuantizer(bits=4, dataset="c4", block_name_to_quantize = "model.decoder.layers", model_seqlen = 2048)
+quantized_model = quantizer.quantize_model(model, tokenizer)
+```
+
+<Tip warning={true}>
+GPTQ quantization only works for text model for now. Futhermore, the quantization process can take a lot of time depending on one's hardware (175B model = 4 gpu hours using NVIDIA A100). Please check on the Hugging Face Hub if there is not already a GPTQ quantized version of the model you would like to quantize.
+</Tip>
+
+### Save the model
+
+To save your model, use the save method from [`~optimum.gptq.GPTQQuantizer`] class. It will create a folder with your model state dict along with the quantization config.
+```python
+save_folder = "/path/to/save_folder/"
+quantizer.save(model,save_folder)
+```
+
+### Load quantized weights
+
+You can load your quantized weights by using the [`~optimum.gptq.load_quantized_model`] function.
+Through the Accelerate library, it is possible to load a model faster with a lower memory usage. The model needs to be initialized using empty weights, with weights loaded as a next step.
+```python
+from accelerate import init_empty_weights
+with init_empty_weights():
+    empty_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
+empty_model.tie_weights()
+quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto")
+```
+
+### Exllama kernels for faster inference
+
+For 4-bit model, you can use the exllama kernels in order to a faster inference speed. It is activated by default. If you want to change its value, you just need to pass `disable_exllama` in [`~optimum.gptq.load_quantized_model`]. In order to use these kernels, you need to have the entire model on gpus.
+
+```py
+from optimum.gptq import GPTQQuantizer, load_quantized_model
+import torch
+
+from accelerate import init_empty_weights
+with init_empty_weights():
+    empty_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
+empty_model.tie_weights()
+quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto", disable_exllama=False)
+```
+
+Note that only 4-bit models are supported with exllama kernels for now. Furthermore, it is recommended to disable the exllama kernel when you are finetuning your model with peft.
+
+#### Fine-tune a quantized model
+
+With the official support of adapters in the Hugging Face ecosystem, you can fine-tune models that have been quantized with GPTQ.
+Please have a look at [`peft`](https://github.com/huggingface/peft) library for more details.

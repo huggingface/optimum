@@ -32,7 +32,7 @@ from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
 from ..quantization_base import OptimumQuantizer
 from ..utils.save_utils import maybe_save_preprocessors
 from . import ORTQuantizableOperator
-from .configuration import CalibrationConfig, NodeName, NodeType, ORTConfig, QuantizationConfig
+from .configuration import CalibrationConfig, ORTConfig, QuantizationConfig
 from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForConditionalGeneration
@@ -167,7 +167,7 @@ class ORTQuantizer(OptimumQuantizer):
         dataset: Dataset,
         calibration_config: CalibrationConfig,
         onnx_augmented_model_name: Union[str, Path] = "augmented_model.onnx",
-        operators_to_quantize: Optional[List[NodeType]] = None,
+        operators_to_quantize: Optional[List[str]] = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
         use_gpu: bool = False,
@@ -183,7 +183,7 @@ class ORTQuantizer(OptimumQuantizer):
                 The configuration containing the parameters related to the calibration step.
             onnx_augmented_model_name (`Union[str, Path]`, defaults to `"augmented_model.onnx"`):
                 The path used to save the augmented model used to collect the quantization ranges.
-            operators_to_quantize (`Optional[List[NodeType]]`, defaults to `None`):
+            operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 List of the operators types to quantize.
             batch_size (`int`, defaults to 1):
                 The batch size to use when collecting the quantization ranges values.
@@ -221,7 +221,7 @@ class ORTQuantizer(OptimumQuantizer):
         dataset: Dataset,
         calibration_config: CalibrationConfig,
         onnx_augmented_model_name: Union[str, Path] = "augmented_model.onnx",
-        operators_to_quantize: Optional[List[NodeType]] = None,
+        operators_to_quantize: Optional[List[str]] = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
         use_gpu: bool = False,
@@ -237,7 +237,7 @@ class ORTQuantizer(OptimumQuantizer):
                 The configuration containing the parameters related to the calibration step.
             onnx_augmented_model_name (`Union[str, Path]`, defaults to `"augmented_model.onnx"`):
                 The path used to save the augmented model used to collect the quantization ranges.
-            operators_to_quantize (`Optional[List[NodeType]]`, defaults to `None`):
+            operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 List of the operators types to quantize.
             batch_size (`int`, defaults to 1):
                 The batch size to use when collecting the quantization ranges values.
@@ -266,7 +266,7 @@ class ORTQuantizer(OptimumQuantizer):
         reader = ORTCalibrationDataReader(dataset, batch_size)
         self._calibrator.collect_data(reader)
 
-    def compute_ranges(self) -> Dict[NodeName, Tuple[float, float]]:
+    def compute_ranges(self) -> Dict[str, Tuple[float, float]]:
         """
         Computes the quantization ranges.
 
@@ -286,7 +286,7 @@ class ORTQuantizer(OptimumQuantizer):
         quantization_config: QuantizationConfig,
         save_dir: Union[str, Path],
         file_suffix: Optional[str] = "quantized",
-        calibration_tensors_range: Optional[Dict[NodeName, Tuple[float, float]]] = None,
+        calibration_tensors_range: Optional[Dict[str, Tuple[float, float]]] = None,
         use_external_data_format: bool = False,
         preprocessor: Optional[QuantizationPreprocessor] = None,
     ) -> Path:
@@ -300,7 +300,7 @@ class ORTQuantizer(OptimumQuantizer):
                 The directory where the quantized model should be saved.
             file_suffix (`Optional[str]`, defaults to `"quantized"`):
                 The file_suffix used to save the quantized model.
-            calibration_tensors_range (`Optional[Dict[NodeName, Tuple[float, float]]]`, defaults to `None`):
+            calibration_tensors_range (`Optional[Dict[str, Tuple[float, float]]]`, defaults to `None`):
                 The dictionary mapping the nodes name to their quantization ranges, used and required only when applying static quantization.
             use_external_data_format (`bool`, defaults to `False`):
                 Whether to use external data format to store model which size is >= 2Gb.

@@ -21,6 +21,7 @@ from transformers.utils import is_tf_available
 
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
+    BloomDummyPastKeyValuesGenerator,
     DummyAudioInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyPastKeyValuesGenerator,
@@ -31,6 +32,7 @@ from ...utils import (
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
     DummyVisionInputGenerator,
+    GPTBigCodeDummyPastKeyValuesGenerator,
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
@@ -39,6 +41,7 @@ from ...utils import (
     NormalizedVisionConfig,
     logging,
 )
+from ...utils.normalized_config import NormalizedConfigManager
 from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .config import (
     AudioOnnxConfig,
@@ -215,27 +218,6 @@ class LlamaOnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
-class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
-    def generate(self, input_name: str, framework: str = "pt"):
-        past_key_shape = (
-            self.batch_size * self.num_attention_heads,
-            self.hidden_size // self.num_attention_heads,
-            self.sequence_length,
-        )
-        past_value_shape = (
-            self.batch_size * self.num_attention_heads,
-            self.sequence_length,
-            self.hidden_size // self.num_attention_heads,
-        )
-        return [
-            (
-                self.random_float_tensor(past_key_shape, framework=framework),
-                self.random_float_tensor(past_value_shape, framework=framework),
-            )
-            for _ in range(self.num_layers)
-        ]
-
-
 class BloomOnnxConfig(TextDecoderOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BloomDummyPastKeyValuesGenerator,
@@ -266,6 +248,35 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
                 0: "batch_size x num_heads",
                 1: decoder_sequence_name,
             }
+
+
+class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        GPTBigCodeDummyPastKeyValuesGenerator,
+    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_PKV_GENERATOR_CLASS = GPTBigCodeDummyPastKeyValuesGenerator
+    NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("gpt_bigcode")
+
+    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
+        if direction not in ["inputs", "outputs"]:
+            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+
+        if direction == "inputs":
+            decoder_sequence_name = "past_sequence_length"
+            name = "past_key_values"
+        else:
+            decoder_sequence_name = "past_sequence_length + 1"
+            name = "present"
+
+        for i in range(self._normalized_config.num_layers):
+            # No dim for `n_head` when using multi-query attention
+            inputs_or_outputs[f"{name}.{i}.key_value"] = {
+                0: "batch_size",
+                1: decoder_sequence_name,
+            }
+
+    def flatten_past_key_values(self, flattened_output, name, idx, t):
+        flattened_output[f"{name}.{idx}.key_value"] = t
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
@@ -841,6 +852,15 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
     MIN_TORCH_VERSION = version.parse("2.1")
 
+    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
+        super().__init__(config, task)
+        if task == "zero-shot-object-detection":
+            logger.warning(
+                "The batch size of this model will not be dynamic because non-maximum suppression is performed. "
+                "Make sure to export the model with the same batch size as the one you will use at inference "
+                "with `--batch_size N`."
+            )
+
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         outputs = {}
@@ -848,10 +868,10 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
             outputs["logits_per_image"] = {0: "image_batch_size", 1: "text_batch_size"}
             outputs["logits_per_text"] = {0: "text_batch_size", 1: "image_batch_size"}
         elif self.task == "zero-shot-object-detection":
-            outputs["logits"] = {0: "batch_size", 1: "num_queries"}
-            outputs["pred_boxes"] = {0: "batch_size", 1: "num_queries"}
+            outputs["logits"] = {0: "image_batch_size", 2: "num_queries"}
+            outputs["pred_boxes"] = {0: "image_batch_size", 1: "num_boxes"}
 
-        outputs["text_embeds"] = {0: "text_batch_size"}
+        outputs["text_embeds"] = {0: "text_batch_size", 1: "max_text_queries"}
         outputs["image_embeds"] = {0: "image_batch_size"}
         return outputs
 

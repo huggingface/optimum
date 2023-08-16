@@ -729,3 +729,34 @@ class DummyPix2StructInputGenerator(DummyInputGenerator):
     def generate(self, input_name: str, framework: str = "pt"):
         shape = [self.batch_size, self.max_patches, self.flattened_patch_size]
         return self.random_float_tensor(shape, framework=framework)
+
+
+class GPTBigCodeDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
+    def generate(self, input_name: str, framework: str = "pt"):
+        past_key_value_shape = (
+            self.batch_size,
+            self.sequence_length,
+            self.hidden_size // self.num_attention_heads * 2,
+        )
+        return [self.random_float_tensor(past_key_value_shape, framework=framework) for _ in range(self.num_layers)]
+
+
+class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
+    def generate(self, input_name: str, framework: str = "pt"):
+        past_key_shape = (
+            self.batch_size * self.num_attention_heads,
+            self.hidden_size // self.num_attention_heads,
+            self.sequence_length,
+        )
+        past_value_shape = (
+            self.batch_size * self.num_attention_heads,
+            self.sequence_length,
+            self.hidden_size // self.num_attention_heads,
+        )
+        return [
+            (
+                self.random_float_tensor(past_key_shape, framework=framework),
+                self.random_float_tensor(past_value_shape, framework=framework),
+            )
+            for _ in range(self.num_layers)
+        ]

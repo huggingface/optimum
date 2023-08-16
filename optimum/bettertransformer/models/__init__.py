@@ -15,10 +15,13 @@ import warnings
 
 from .attention import _llama_prepare_decoder_attention_mask
 from .decoder_models import (
+    BarkAttentionLayerBetterTransformer,
     BartAttentionLayerBetterTransformer,
     BlenderbotAttentionLayerBetterTransformer,
+    BloomAttentionLayerBetterTransformer,
     CodegenAttentionLayerBetterTransformer,
     GPT2AttentionLayerBetterTransformer,
+    GPTBigCodeAttentionLayerBetterTransformer,
     GPTJAttentionLayerBetterTransformer,
     GPTNeoAttentionLayerBetterTransformer,
     GPTNeoXAttentionLayerBetterTransformer,
@@ -48,6 +51,7 @@ from .encoder_models import (
 class BetterTransformerManager:
     MODEL_MAPPING = {
         "albert": {"AlbertLayer": AlbertLayerBetterTransformer},
+        "bark": {"BarkSelfAttention": BarkAttentionLayerBetterTransformer},
         "bart": {
             "BartEncoderLayer": BartEncoderLayerBetterTransformer,
             "BartAttention": BartAttentionLayerBetterTransformer,
@@ -55,6 +59,7 @@ class BetterTransformerManager:
         "bert": {"BertLayer": BertLayerBetterTransformer},
         "bert-generation": {"BertGenerationLayer": BertLayerBetterTransformer},
         "blenderbot": {"BlenderbotAttention": BlenderbotAttentionLayerBetterTransformer},
+        "bloom": {"BloomAttention": BloomAttentionLayerBetterTransformer},
         "camembert": {"CamembertLayer": BertLayerBetterTransformer},
         "blip-2": {"T5Attention": T5AttentionLayerBetterTransformer},
         "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
@@ -66,6 +71,7 @@ class BetterTransformerManager:
         "ernie": {"ErnieLayer": BertLayerBetterTransformer},
         "fsmt": {"EncoderLayer": FSMTEncoderLayerBetterTransformer},
         "gpt2": {"GPT2Attention": GPT2AttentionLayerBetterTransformer},
+        "gpt_bigcode": {"GPTBigCodeAttention": GPTBigCodeAttentionLayerBetterTransformer},
         "gptj": {"GPTJAttention": GPTJAttentionLayerBetterTransformer},
         "gpt_neo": {"GPTNeoSelfAttention": GPTNeoAttentionLayerBetterTransformer},
         "gpt_neox": {"GPTNeoXAttention": GPTNeoXAttentionLayerBetterTransformer},
@@ -114,6 +120,8 @@ class BetterTransformerManager:
         "clip": ["text_model"],
         # blip-2's Q-former and vision model should not be identified as the last layers of the model
         "blip-2": ["qformer.encoder.layer", "vision_model.encoder.layers"],
+        # bark.codec_model.encoder is not supported in BetterTransformer
+        "bark": ["codec_model.encoder.layers"],
     }
 
     CAN_NOT_BE_SUPPORTED = {
@@ -122,9 +130,12 @@ class BetterTransformerManager:
     }
 
     NOT_REQUIRES_NESTED_TENSOR = {
+        "bark",
         "blenderbot",
+        "bloom",
         "codegen",
         "gpt2",
+        "gpt_bigcode",
         "gptj",
         "gpt_neo",
         "gpt_neox",
@@ -137,29 +148,14 @@ class BetterTransformerManager:
     NOT_REQUIRES_STRICT_VALIDATION = {
         "blenderbot",
         "blip-2",
+        "bloom",
         "codegen",
         "gpt2",
+        "gpt_bigcode",
         "gptj",
         "gpt_neo",
         "gpt_neox",
         "llama",
-        "opt",
-        "pegasus",
-        "t5",
-    }
-
-    REQUIRES_TORCH_20 = {
-        "blenderbot",
-        "bart",
-        "codegen",
-        "gpt2",
-        "gptj",
-        "gpt_neo",
-        "gpt_neox",
-        "llama",
-        "m2m_100",
-        "marian",
-        "mbart",
         "opt",
         "pegasus",
         "t5",
@@ -208,17 +204,6 @@ class BetterTransformerManager:
                 The model type to check.
         """
         return model_type not in BetterTransformerManager.NOT_REQUIRES_STRICT_VALIDATION
-
-    @staticmethod
-    def requires_torch_20(model_type: str) -> bool:
-        """
-        Returns True if the architecture requires PyTorch 2.0 to be used with BetterTransformer.
-
-        Args:
-            model_type (`str`):
-                The model type to check.
-        """
-        return model_type in BetterTransformerManager.REQUIRES_TORCH_20
 
 
 class warn_uncompatible_save(object):
