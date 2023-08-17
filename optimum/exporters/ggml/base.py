@@ -15,7 +15,7 @@
 """ggml configuration base classes."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, Union
+from typing import Dict, Tuple, Union
 
 from numpy import ndarray
 from torch import Tensor
@@ -49,7 +49,7 @@ class GgmlConfig(ExportConfig, ABC):
 
     @staticmethod
     @abstractmethod
-    def convert_dtype(name: str, data: Union[ndarray, Tensor], ftype: int, n_dims: int) -> tuple[ndarray, int]:
+    def convert_dtype(name: str, data: Union[ndarray, Tensor], ftype: int, n_dims: int) -> Tuple[ndarray, int]:
         return data, ftype
 
 
