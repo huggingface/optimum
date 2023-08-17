@@ -549,6 +549,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
         self,
         input_ids: torch.LongTensor,
         encoder_hidden_states: torch.FloatTensor,
+        decoder_attention_mask: Optional[torch.LongTensor] = None,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
@@ -583,6 +584,9 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             outputs_to_not_bind = self.get_outputs_not_to_bind(use_merged_cache)
 
             model_inputs = [input_ids]
+
+            if "decoder_attention_mask" in self.input_names:
+                model_inputs = [decoder_attention_mask, input_ids]    
 
             if "encoder_hidden_states" in self.input_names:
                 model_inputs.append(encoder_hidden_states)
@@ -669,6 +673,10 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 onnx_inputs = {
                     "input_ids": input_ids.cpu().detach().numpy(),
                 }
+                
+                # Add the decoder_attention_mask inputs when needed
+                if "decoder_attention_mask" in self.input_names:
+                    onnx_inputs["decoder_attention_mask"] = decoder_attention_mask.cpu().detach().numpy()
 
                 # Add the encoder_attention_mask inputs when needed
                 if "encoder_attention_mask" in self.input_names:
@@ -693,6 +701,10 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 onnx_inputs = {
                     "input_ids": input_ids,
                 }
+
+                # Add the decoder_attention_mask inputs when needed
+                if "decoder_attention_mask" in self.input_names:
+                    onnx_inputs["decoder_attention_mask"] = decoder_attention_mask
 
                 # Add the encoder_attention_mask inputs when needed
                 if "encoder_attention_mask" in self.input_names:

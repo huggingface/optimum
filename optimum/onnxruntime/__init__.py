@@ -45,7 +45,7 @@ _import_structure = {
         "ORTModelForSequenceClassification",
         "ORTModelForTokenClassification",
     ],
-    "modeling_seq2seq": ["ORTModelForSeq2SeqLM", "ORTModelForSpeechSeq2Seq", "ORTModelForVision2Seq"],
+    "modeling_seq2seq": ["ORTModelForSeq2SeqLM", "ORTModelForSpeechSeq2Seq", "ORTModelForVision2Seq", "ORTModelForPix2Struct"],
     "modeling_decoder": ["ORTModelForCausalLM"],
     "optimization": ["ORTOptimizer"],
     "quantization": ["ORTQuantizer"],

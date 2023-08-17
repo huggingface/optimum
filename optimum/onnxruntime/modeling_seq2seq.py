@@ -26,7 +26,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
+from transformers.utils import is_torch_fx_proxy
 from transformers import (
+    AutoModel,
     AutoModelForSeq2SeqLM,
     AutoModelForSpeechSeq2Seq,
     AutoModelForVision2Seq,
@@ -98,6 +100,14 @@ VISION_ENCODER_INPUTS_DOCSTRING = r"""
             Features extracted from an Image. This tensor should be of shape `(batch_size, num_channels, height, width)`.
 """
 
+PIX2STRUCT_INPUTS_DOCSTRING = r"""
+    Args:
+        flattened_patches (`torch.FloatTensor` of shape `(batch_size, sequence_length, num_channels x patch_height x patch_width)`):
+            Flattened and padded pixel values.
+
+        attention_mask (`torch.FloatTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Mask to avoid performing attention on padding pixel values.
+"""
 
 DECODER_INPUTS_DOCSTRING = r"""
     Args:
@@ -132,7 +142,6 @@ SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
             `(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
 """
 
-
 SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
     Args:
         input_features (`torch.FloatTensor`):
@@ -158,6 +167,33 @@ VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
             Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, decoder_sequence_length)`.
         encoder_outputs (`torch.FloatTensor`):
             The encoder `last_hidden_state` of shape `(batch_size, encoder_sequence_length, hidden_size)`.
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*, defaults to `None`)`
+            Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
+            The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
+            `(batch_size, num_heads, decoder_sequence_length, embed_size_per_head)` and 2 additional tensors of shape
+            `(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
+"""
+
+PIX2STRUCT_ONNX_MODEL_DOCSTRING = r"""
+    Args:
+        flattened_patches (`torch.FloatTensor` of shape `(batch_size, seq_length, hidden_size)`):
+            Flattened pixel patches. the `hidden_size` is obtained by the following formula: `hidden_size` =
+            `num_channels` * `patch_size` * `patch_size`
+            The process of flattening the pixel patches is done by `Pix2StructProcessor`.
+        attention_mask (`torch.FloatTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Mask to avoid performing attention on padding token indices.
+        decoder_input_ids (`torch.LongTensor` of shape `(batch_size, target_sequence_length)`, *optional*):
+            Indices of decoder input sequence tokens in the vocabulary.
+            Pix2StructText uses the `pad_token_id` as the starting token for `decoder_input_ids` generation. If
+            `past_key_values` is used, optionally only the last `decoder_input_ids` have to be input (see
+            `past_key_values`).
+        decoder_attention_mask (`torch.BoolTensor` of shape `(batch_size, target_sequence_length)`, *optional*):
+            Default behavior: generate a tensor that ignores pad tokens in `decoder_input_ids`. Causal mask will also
+            be used by default.
+        encoder_outputs (`tuple(tuple(torch.FloatTensor)`, *optional*):
+            Tuple consists of (`last_hidden_state`, `optional`: *hidden_states*, `optional`: *attentions*)
+            `last_hidden_state` of shape `(batch_size, sequence_length, hidden_size)` is a sequence of hidden states at
+            the output of the last layer of the encoder. Used in the cross-attention of the decoder.
         past_key_values (`tuple(tuple(torch.FloatTensor), *optional*, defaults to `None`)`
             Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
             The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
@@ -378,6 +414,62 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
             outputs = self.session.run(None, onnx_inputs)
 
             last_hidden_state = outputs[self.output_names["last_hidden_state"]]
+            if use_torch:
+                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
+
+        return BaseModelOutput(last_hidden_state=last_hidden_state)
+
+
+class ORTEncoderForPix2Struct(ORTEncoder):
+    """
+    Encoder model for ONNX Runtime inference for Pix2Struct.
+
+    Args:
+        session (`ort.InferenceSession`):
+            The ONNX Runtime inference session associated to the encoder.
+    """
+    def forward(
+        self,
+        flattened_patches: torch.FloatTensor,
+        attention_mask: torch.LongTensor,
+        **kwargs,
+    ) -> BaseModelOutput:
+        use_torch = isinstance(flattened_patches, torch.Tensor)
+        self.parent_model.raise_on_numpy_input_io_binding(use_torch)
+
+        if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
+            model_inputs = (
+                [flattened_patches, attention_mask] if "attention_mask" in self.input_names else [flattened_patches]
+            )
+            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
+                self.session,
+                *model_inputs,
+                ordered_input_names=self._ordered_input_names,
+            )
+
+            io_binding.synchronize_inputs()
+            self.session.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
+        else:
+            if use_torch:
+                onnx_inputs = {"flattened_patches": flattened_patches.cpu().detach().numpy()}
+                if "attention_mask" in self.input_names:
+                    onnx_inputs["attention_mask"] = attention_mask.cpu().detach().numpy()
+            else:
+                onnx_inputs = {"flattened_patches": flattened_patches}
+                if "attention_mask" in self.input_names:
+                    onnx_inputs["attention_mask"] = attention_mask
+
+            if "attention_mask" in self.input_names:
+                if self.session.get_inputs()[1].type == "tensor(int64)":
+                    onnx_inputs["attention_mask"] = onnx_inputs["attention_mask"].astype(np.int64)
+
+            outputs = self.session.run(None, onnx_inputs)
+
+            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
+
             if use_torch:
                 last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
 
@@ -1339,6 +1431,160 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
             "decoder_input_ids": input_ids,
             "past_key_values": past_key_values,
             "encoder_outputs": encoder_outputs,
+            "head_mask": head_mask,
+            "decoder_head_mask": decoder_head_mask,
+            "cross_attn_head_mask": cross_attn_head_mask,
+            "use_cache": use_cache,
+        }
+
+    def get_encoder(self) -> ORTEncoder:
+        return self.encoder
+
+    # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
+    @staticmethod
+    def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
+        reordered_past = ()
+        for layer_past in past:
+            # Cached cross_attention states don't have to be reordered -> they are always the same
+            reordered_past += (
+                tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
+            )
+        return reordered_past
+
+    def can_generate(self):
+        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
+        return True
+
+
+class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
+    """
+    Pix2struct model with a language modeling head for ONNX Runtime inference.
+    """
+
+    auto_model_class = AutoModel
+    main_input_name = "flattened_patches"
+    # Copied from transformers.models.t5.modeling_t5.T5PreTrainedModel._shift_right with T5->Pix2Struct
+    def _shift_right(self, input_ids):
+        decoder_start_token_id = self.config.decoder_start_token_id
+        pad_token_id = self.config.pad_token_id
+
+        if decoder_start_token_id is None:
+            raise ValueError(
+                "self.model.config.decoder_start_token_id has to be defined. In Pix2Struct it is usually set to the pad_token_id."
+                "See Pix2Struct docs for more information."
+            )
+
+        # shift inputs to the right
+        if is_torch_fx_proxy(input_ids):
+            # Item assignment is not supported natively for proxies.
+            shifted_input_ids = torch.full(input_ids.shape[:-1] + (1,), decoder_start_token_id)
+            shifted_input_ids = torch.cat([shifted_input_ids, input_ids[..., :-1]], dim=-1)
+        else:
+            shifted_input_ids = input_ids.new_zeros(input_ids.shape)
+            shifted_input_ids[..., 1:] = input_ids[..., :-1].clone()
+            shifted_input_ids[..., 0] = decoder_start_token_id
+
+        if pad_token_id is None:
+            raise ValueError("self.model.config.pad_token_id has to be defined.")
+        # replace possible -100 values in labels by `pad_token_id`
+        shifted_input_ids.masked_fill_(shifted_input_ids == -100, pad_token_id)
+
+        return shifted_input_ids
+
+
+    def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
+        return ORTEncoderForPix2Struct(session, self)
+
+    # @add_start_docstrings_to_model_forward(
+    #     PIX2STRUCT_ONNX_MODEL_DOCSTRING.format("batch_size, num_channels, height, width")
+    #     + IMAGE_TO_TEXT_EXAMPLE.format(
+    #         processor_class=_IMAGE_PROCESSOER_FOR_DOC,
+    #         tokenizer_class=_TOKENIZER_FOR_DOC,
+    #         model_class="ORTModelForPix2Struct",
+    #         checkpoint="google/pix2struct-textcaps-base",
+    #     )
+    # )
+    def forward(
+        self,
+        flattened_patches: Optional[torch.FloatTensor] = None,
+        attention_mask: Optional[torch.LongTensor] = None,
+        decoder_input_ids: Optional[torch.LongTensor] = None,
+        encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        decoder_attention_mask: Optional[torch.BoolTensor] = None,
+        labels: Optional[torch.LongTensor] = None,
+        **kwargs,
+    ) -> Seq2SeqLMOutput:
+        # Encode if needed : first prediction pass
+        # Encode if needed (training, first prediction pass)
+        if encoder_outputs is None:
+            encoder_outputs = self.encoder(
+                flattened_patches=flattened_patches,
+                attention_mask=attention_mask,
+            )
+        
+        #attention_mask=attention_mask.to(torch.int64)
+        # Decode
+
+        if past_key_values is None or self.use_cache is False:
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids,
+                attention_mask=decoder_attention_mask,
+                past_key_values=past_key_values,
+                encoder_hidden_states=encoder_outputs.last_hidden_state,
+                encoder_attention_mask=attention_mask,
+                labels=labels,
+            )
+        elif self.use_merged is True:
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids[:, -1:],
+                attention_mask=decoder_attention_mask,
+                past_key_values=past_key_values,
+                encoder_hidden_states=encoder_outputs.last_hidden_state,
+                encoder_attention_mask=attention_mask,
+                labels=labels,
+            )
+        else:
+            decoder_outputs = self.decoder_with_past(
+                input_ids=decoder_input_ids[:, -1:],  # Cut decoder_input_ids if past is used
+                attention_mask=decoder_attention_mask,
+                past_key_values=past_key_values,
+                encoder_hidden_states=encoder_outputs.last_hidden_state,
+                encoder_attention_mask=attention_mask,
+                labels=labels
+            )
+
+        return Seq2SeqLMOutput(
+            loss=decoder_outputs.get("loss", None),
+            logits=decoder_outputs.logits,
+            past_key_values=decoder_outputs.past_key_values,
+        )
+
+    def prepare_inputs_for_generation(
+        self,
+        input_ids,
+        flattened_patches: Optional[torch.FloatTensor] = None,
+        attention_mask: Optional[torch.LongTensor] = None,
+        decoder_attention_mask: Optional[torch.BoolTensor] = None,
+        past_key_values=None,
+        head_mask=None,
+        decoder_head_mask=None,
+        cross_attn_head_mask=None,
+        use_cache=None,
+        encoder_outputs=None,
+        **kwargs,
+    ) -> Dict:
+
+        if decoder_attention_mask is None:
+            decoder_attention_mask = torch.ones_like(input_ids).to(input_ids.device)
+
+        return {
+            "flattened_patches": flattened_patches,
+            "decoder_input_ids": input_ids,
+            "past_key_values": past_key_values,
+            "encoder_outputs": encoder_outputs,
+            "attention_mask": attention_mask,
+            "decoder_attention_mask": decoder_attention_mask,
             "head_mask": head_mask,
             "decoder_head_mask": decoder_head_mask,
             "cross_attn_head_mask": cross_attn_head_mask,
