@@ -4119,7 +4119,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
             "test_name": test_name,
             "model_arch": model_arch,
             "use_cache": use_cache,
-            "use_io_binding": False,
         }
         self._setup(model_args)
 
@@ -4218,13 +4217,13 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         feature_extractor, tokenizer = self._get_preprocessors(model_id)
 
         data = self._get_sample_image()
-        features = feature_extractor([data] * 2, return_tensors="pt").to("cuda")
+        pixel_values = feature_extractor([data] * 2, return_tensors="pt").pixel_values.to("cuda")
 
         decoder_start_token_id = onnx_model.config.decoder.bos_token_id
-        decoder_inputs = {"decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id}
+        decoder_input_ids = torch.full((2, 1), decoder_start_token_id, dtype=torch.long).to("cuda")
 
-        onnx_outputs = onnx_model(**features, **decoder_inputs)
-        io_outputs = io_model(**features, **decoder_inputs)
+        onnx_outputs = onnx_model(pixel_values=pixel_values, decoder_input_ids=decoder_input_ids)
+        io_outputs = io_model(pixel_values=pixel_values, decoder_input_ids=decoder_input_ids)
 
         self.assertTrue("logits" in io_outputs)
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
