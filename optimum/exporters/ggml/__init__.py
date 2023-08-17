@@ -25,7 +25,6 @@ _import_structure = {
 
 if TYPE_CHECKING:
     from .base import QuantizationApproach, TFLiteQuantizationConfig, GgmlConfig  # noqa
-    from .convert import export, validate_model_outputs  # noqa
 else:
     import sys
 
