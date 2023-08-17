@@ -46,6 +46,7 @@ MODEL_NAMES = {
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta_v2": "hf-internal-testing/tiny-random-DebertaV2Model",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
+    "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "convnext": "hf-internal-testing/tiny-random-convnext",
     "detr": "hf-internal-testing/tiny-random-detr",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
@@ -99,7 +100,6 @@ MODEL_NAMES = {
     "xlm_roberta": "hf-internal-testing/tiny-xlm-roberta",
     "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
     "trocr": "microsoft/trocr-small-handwritten",
-    "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
 }
 
 SEED = 42

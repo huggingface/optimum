@@ -403,7 +403,8 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
             )
         else:
             raise ValueError(
-                f"Unsupported encoder model type {self.normalized_config.config.model_type} for VisionEncoderDecoder."
+                f"Unsupported encoder model type {self.normalized_config.config.model_type} for ORTForVisionSeq2Seq with IOBinding."
+                "Currently supported models are vit and donut-swin."
                 "Please submit a PR to add support for this model type."
             )
 
