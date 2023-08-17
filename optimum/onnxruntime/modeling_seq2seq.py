@@ -28,7 +28,7 @@ import torch
 from huggingface_hub import hf_hub_download
 from transformers.utils import is_torch_fx_proxy
 from transformers import (
-    AutoModel,
+    Pix2StructForConditionalGeneration, #Pix2struct does not support AutoModel
     AutoModelForSeq2SeqLM,
     AutoModelForSpeechSeq2Seq,
     AutoModelForVision2Seq,
@@ -1461,7 +1461,7 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
     Pix2struct model with a language modeling head for ONNX Runtime inference.
     """
 
-    auto_model_class = AutoModel
+    auto_model_class = Pix2StructForConditionalGeneration
     main_input_name = "flattened_patches"
     # Copied from transformers.models.t5.modeling_t5.T5PreTrainedModel._shift_right with T5->Pix2Struct
     def _shift_right(self, input_ids):
