@@ -15,12 +15,15 @@
 """ggml configuration base classes."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, Tuple, Union
+from typing import TYPE_CHECKING, Dict, Tuple, Union
 
 from numpy import ndarray
 from torch import Tensor
 
 from ..base import ExportConfig
+
+if TYPE_CHECKING:
+    from transformers import PretrainedConfig
 
 
 class GgmlConfig(ExportConfig, ABC):
@@ -55,5 +58,5 @@ class GgmlConfig(ExportConfig, ABC):
 
 class GgmlConfigWithPast(GgmlConfig, ABC):
     @classmethod
-    def with_past(cls, config: "PretrainedConfig", task: str = "text-generation") -> "OnnxConfigWithPast":
+    def with_past(cls, config: "PretrainedConfig", task: str = "text-generation") -> "GgmlConfigWithPast":
         return cls(config, task=task, use_past=True)

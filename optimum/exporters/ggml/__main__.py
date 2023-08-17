@@ -18,7 +18,7 @@ import os
 import struct
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import torch
 from transformers import AutoConfig, AutoTokenizer
@@ -31,6 +31,9 @@ from optimum.utils import logging
 
 logger = logging.get_logger()
 logger.setLevel(logging.INFO)
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel, TFPreTrainedModel
 
 
 def _get_submodels_and_ggml_configs(
@@ -51,7 +54,7 @@ def main_export(
     cache_dir: Optional[str] = None,
     trust_remote_code: bool = False,
     return_source_model: bool = False,
-):
+) -> Union["PreTrainedModel", "TFPreTrainedModel", None]:
     """
     Full-suite ggml export.
     """
