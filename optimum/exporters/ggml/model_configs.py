@@ -18,7 +18,7 @@ configurations.
 """
 
 import re
-from typing import Dict, Union
+from typing import Dict, Tuple, Union
 
 import numpy as np
 import torch
@@ -85,7 +85,7 @@ class BloomGgmlConfig(TextDecoderGGMLConfig):
         return weights.squeeze().numpy()
 
     @staticmethod
-    def convert_dtype(name: str, data: Union[ndarray, Tensor], ftype: int, n_dims: int) -> tuple[ndarray, int]:
+    def convert_dtype(name: str, data: Union[ndarray, Tensor], ftype: int, n_dims: int) -> Tuple[ndarray, int]:
         # default type is fp32
         if isinstance(data, Tensor):
             data = data.numpy()
@@ -195,7 +195,7 @@ class GPTBigCodeGgmlConfig(TextDecoderGGMLConfig):
         return name.endswith("attn.masked_bias") or name.endswith(".attn.bias")
 
     @staticmethod
-    def convert_dtype(name: str, data: Union[ndarray, Tensor], ftype: int, n_dims: int) -> tuple[ndarray, int]:
+    def convert_dtype(name: str, data: Union[ndarray, Tensor], ftype: int, n_dims: int) -> Tuple[ndarray, int]:
         return data.astype(np.float32), ftype  # TODO fix the fp16 option
 
         if ftype == 0:
