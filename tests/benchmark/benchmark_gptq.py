@@ -106,37 +106,14 @@ def timing_cuda(
     return np.mean(latencies)
 
 
-def memory_cuda(
+def warmup(
     model,
     input_ids: torch.Tensor,
     masks: torch.Tensor,
-    is_decoder: bool,
-    memory_tracker: MemoryTracker,
-    generation_config=None,
-):
-    with memory_tracker.track():
-        if is_decoder:
-            _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
-        else:
-            _ = model(input_ids, masks)
-
-    return memory_tracker.peak_memory
-
-
-def benchmark(
-    model,
-    input_ids: torch.Tensor,
-    masks: torch.Tensor,
-    num_batches: int,
     is_decoder: bool,
     new_tokens: int,
     pad_token_id: int,
-    memory_tracker: MemoryTracker,
 ):
-    torch.cuda.empty_cache()
-    gc.collect()
-
-    # It appears running the warmup only once is not enough to get low variance on the latency in later runs. Hence the `for i in range(2):` below.
     print("Warmup...")
     if is_decoder:
         gen_config = GenerationConfig(
@@ -157,19 +134,98 @@ def benchmark(
         _ = model(input_ids, masks)
     torch.cuda.synchronize()
 
+    return gen_config
+
+def benchmark_latency(
+    model,
+    input_ids: torch.Tensor,
+    masks: torch.Tensor,
+    num_batches: int,
+    is_decoder: bool,
+    new_tokens: int,
+    pad_token_id: int,
+    memory_tracker: MemoryTracker,
+):
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    gen_config = warmup(
+        model,
+        input_ids,
+        masks,
+        is_decoder,
+        new_tokens,
+        pad_token_id,
+    )
+
     print("Measuring latency...")
     total_time = timing_cuda(model, num_batches, input_ids, masks, is_decoder, gen_config)
-    print("Measuring peak memory...")
-    max_mem = memory_cuda(model, input_ids, masks, is_decoder, memory_tracker, gen_config)
 
-    return total_time, max_mem
+    return total_time
+
+def benchmark_memory(
+    model,
+    input_ids: torch.Tensor,
+    masks: torch.Tensor,
+    num_batches: int,
+    is_decoder: bool,
+    new_tokens: int,
+    pad_token_id: int,
+    memory_tracker: MemoryTracker,
+):
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    print("Measuring peak memory...")
+    with memory_tracker.track():
+        gen_config = warmup(
+            model,
+            input_ids,
+            masks,
+            is_decoder,
+            new_tokens,
+            pad_token_id,
+        )
+
+        if is_decoder:
+            _ = model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
+        else:
+            _ = model(input_ids, masks)
+        
+        torch.cuda.synchronize()
+    
+    memory_stats = torch.cuda.memory_stats()
+    
+    peak_allocated_torch_mb = memory_stats["allocated_bytes.all.peak"] * 1e-6
+    peak_reserved_torch_mb = memory_stats["reserved_bytes.all.peak"] * 1e-6
+
+    peak_nvml_mb = memory_tracker.peak_memory
+
+    # I am not sure whether we should substract here `inactive_split_bytes.all.peak` (not sure what it corresponds to, though it can get quite large, in the several GB).
+    peak_external_mb = peak_nvml_mb - peak_reserved_torch_mb
+    assert peak_external_mb > 0
+
+    # This formula is to confirm. We measure the actual allocated PyTorch memory, plus the additional non-PyTorch memory (as the CUDA context, CUDA extension device memory). We need to substract the PyTorch peak reserved memory since this one appears in the peak nvidia-smi/nvmlDeviceGetMemoryInfo.
+    
+    # NOTE: I verified this is only a ROUGH estimate. It may be better to use PYTORCH_NO_CUDA_MEMORY_CACHING=1 and just nvmlDeviceGetMemoryInfo.
+    # We can actually doubt whether it make sense to try to estimate when we would OOM, given that different devices, CUDA version do have
+    # a different CUDA context size.
+    peak_memory_mb = peak_allocated_torch_mb + peak_external_mb
+
+    print(f"DEBUG: peak allocated torch: {peak_allocated_torch_mb:.2f} MB")
+    print(f"DEBUG: peak nvidia-smi/nvml: {peak_nvml_mb:.2f} MB")
+    print(f"DEBUG: peak reserved torch: {peak_reserved_torch_mb:.2f} MB")
+    print(f"DEBUG: peak external: {peak_external_mb:.2f} MB")
+    print(f"DEBUG: global peak: {peak_memory_mb:.2f} MB")
+
+    return peak_memory_mb
 
 
 parser = get_parser()
 args = parser.parse_args()
 
 if args.sweep:
-    batch_sizes = [1, 4, 8, 16]
+    batch_sizes = [1, 2, 4, 8, 16]
     prompt_lengths = [512]
     new_tokens = [512]
 else:
@@ -226,6 +282,7 @@ if args.gptq:
         group_size = quantize_config_dict["group_size"]
 
         if not args.disable_exllama:
+            # Exllama kernel can handle both the act-order / no act-order cases.
             kernel = "exllama"
         elif act_order:
             kernel = "autotogptq-cuda"
@@ -251,6 +308,7 @@ torch.cuda.synchronize()
 load_end = time.time_ns()
 
 load_time = (load_end - load_start) * 1e-9
+print(f"Model load time: {load_time:.1f} s")
 
 uses_gptq = args.gptq
 print(f"Model uses GPTQ: {uses_gptq}")
@@ -270,24 +328,38 @@ else:
 file_name = file_name + ".csv"
 
 output_file = open(file_name, "w")
-output_file.write(
-    "gptq, act_order, bits, group_size, kernel, num_batches, batch_size, prompt_length, new_tokens, Load time (s), Per-token latency (ms), Throughput (tok/s), Max memory (MB)\n"
-)
+header = "gptq, act_order, bits, group_size, kernel, num_batches, batch_size, prompt_length, new_tokens, Load time (s), Per-token latency (ms), Throughput (tok/s), Max memory (MB)\n"
+output_file.write(header)
 
 latencies = {}
 throughputs = {}
 all_max_mem = {}
+print("WARNING: The reported peak memory is only a rough estimate, and can NOT be precisely relied upon to estimate an OOM limit.")
 
 for batch_size in tqdm(batch_sizes):
     for prompt_length in tqdm(prompt_lengths):
         for new_token in tqdm(new_tokens):
             print(f"---- Running: batch_size={batch_size}, prompt_length={prompt_length}, new_tokens={new_token}")
 
+            torch.cuda.empty_cache()
+            torch.cuda.reset_peak_memory_stats()
+
             input_ids = torch.randint(1, model.config.vocab_size - 1, size=(batch_size, prompt_length)).to(device)
             masks = torch.ones(batch_size, prompt_length, dtype=torch.int32).to(device)
 
             with torch.no_grad():
-                mean_latency, max_mem = benchmark(
+                max_mem = benchmark_memory(
+                    model,
+                    input_ids,
+                    masks,
+                    args.num_batches,
+                    is_decoder,
+                    new_token,
+                    tokenizer.pad_token_id,
+                    memory_tracker=memory_tracker,
+                )
+
+                mean_latency = benchmark_latency(
                     model,
                     input_ids,
                     masks,
@@ -307,27 +379,27 @@ for batch_size in tqdm(batch_sizes):
             throughputs[index] = throughput
             all_max_mem[index] = max_mem
 
-            # TODO: validate that maxmem is correct
             print(
                 f"Latency per token: {per_token_latency:.3f} ms, throughput: {throughput:.3f} tok/s, peak mem: {max_mem:.2f} MB"
             )
 
-            output_file.write(
-                "{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
-                    uses_gptq,
-                    act_order,
-                    bits,
-                    group_size,
-                    kernel,
-                    args.num_batches,
-                    batch_size,
-                    prompt_length,
-                    new_token,
-                    f"{load_time:.2f}",
-                    f"{per_token_latency:.4f}",
-                    f"{throughput:.4f}",
-                    f"{max_mem:.4f}",
-                )
+            line = "{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
+                uses_gptq,
+                act_order,
+                bits,
+                group_size,
+                kernel,
+                args.num_batches,
+                batch_size,
+                prompt_length,
+                new_token,
+                f"{load_time:.2f}",
+                f"{per_token_latency:.2f}",
+                f"{throughput:.2f}",
+                f"{max_mem:.2f}",
             )
+            print(header)
+            print(line)
+            output_file.write(line)
 
 output_file.close()
