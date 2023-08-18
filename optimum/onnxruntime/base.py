@@ -586,7 +586,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             model_inputs = [input_ids]
 
             if "decoder_attention_mask" in self.input_names:
-                model_inputs = [decoder_attention_mask, input_ids]    
+                model_inputs = [decoder_attention_mask, input_ids]
 
             if "encoder_hidden_states" in self.input_names:
                 model_inputs.append(encoder_hidden_states)
@@ -673,7 +673,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 onnx_inputs = {
                     "input_ids": input_ids.cpu().detach().numpy(),
                 }
-                
+
                 # Add the decoder_attention_mask inputs when needed
                 if "decoder_attention_mask" in self.input_names:
                     onnx_inputs["decoder_attention_mask"] = decoder_attention_mask.cpu().detach().numpy()

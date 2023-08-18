@@ -26,17 +26,17 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
-from transformers.utils import is_torch_fx_proxy
 from transformers import (
-    Pix2StructForConditionalGeneration, #Pix2struct does not support AutoModel
     AutoModelForSeq2SeqLM,
     AutoModelForSpeechSeq2Seq,
     AutoModelForVision2Seq,
     GenerationConfig,
+    Pix2StructForConditionalGeneration,  # Pix2struct does not support AutoModel
     WhisperForConditionalGeneration,
 )
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
+from transformers.utils import is_torch_fx_proxy
 
 import onnxruntime as ort
 
@@ -203,7 +203,7 @@ PIX2STRUCT_ONNX_MODEL_DOCSTRING = r"""
 
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
 _PROCESSOR_FOR_DOC = "AutoProcessor"
-_IMAGE_PROCESSOER_FOR_DOC = "AutoImageProcessor"
+_IMAGE_PROCESSER_FOR_DOC = "AutoImageProcessor"
 
 TRANSLATION_EXAMPLE = r"""
     Example of text generation:
@@ -428,6 +428,7 @@ class ORTEncoderForPix2Struct(ORTEncoder):
         session (`ort.InferenceSession`):
             The ONNX Runtime inference session associated to the encoder.
     """
+
     def forward(
         self,
         flattened_patches: torch.FloatTensor,
@@ -1369,7 +1370,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     @add_start_docstrings_to_model_forward(
         VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, num_channels, height, width")
         + IMAGE_TO_TEXT_EXAMPLE.format(
-            processor_class=_IMAGE_PROCESSOER_FOR_DOC,
+            processor_class=_IMAGE_PROCESSER_FOR_DOC,
             tokenizer_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForVision2Seq",
             checkpoint="nlpconnect/vit-gpt2-image-captioning",
@@ -1461,8 +1462,10 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
     Pix2struct model with a language modeling head for ONNX Runtime inference.
     """
 
+    # pix2struct cannot be loaded using AutoModel
     auto_model_class = Pix2StructForConditionalGeneration
     main_input_name = "flattened_patches"
+
     # Copied from transformers.models.t5.modeling_t5.T5PreTrainedModel._shift_right with T5->Pix2Struct
     def _shift_right(self, input_ids):
         decoder_start_token_id = self.config.decoder_start_token_id
@@ -1491,19 +1494,9 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
 
         return shifted_input_ids
 
-
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoderForPix2Struct(session, self)
 
-    # @add_start_docstrings_to_model_forward(
-    #     PIX2STRUCT_ONNX_MODEL_DOCSTRING.format("batch_size, num_channels, height, width")
-    #     + IMAGE_TO_TEXT_EXAMPLE.format(
-    #         processor_class=_IMAGE_PROCESSOER_FOR_DOC,
-    #         tokenizer_class=_TOKENIZER_FOR_DOC,
-    #         model_class="ORTModelForPix2Struct",
-    #         checkpoint="google/pix2struct-textcaps-base",
-    #     )
-    # )
     def forward(
         self,
         flattened_patches: Optional[torch.FloatTensor] = None,
@@ -1522,8 +1515,9 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
                 flattened_patches=flattened_patches,
                 attention_mask=attention_mask,
             )
-        
-        #attention_mask=attention_mask.to(torch.int64)
+        # work around for Unexpected input data type (tensor(float)) for attention_mask
+        # Need to be looked into
+        attention_mask = attention_mask.to(torch.int64)
         # Decode
 
         if past_key_values is None or self.use_cache is False:
@@ -1551,7 +1545,7 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
                 past_key_values=past_key_values,
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
                 encoder_attention_mask=attention_mask,
-                labels=labels
+                labels=labels,
             )
 
         return Seq2SeqLMOutput(
@@ -1574,7 +1568,6 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         encoder_outputs=None,
         **kwargs,
     ) -> Dict:
-
         if decoder_attention_mask is None:
             decoder_attention_mask = torch.ones_like(input_ids).to(input_ids.device)
 
@@ -1608,7 +1601,8 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
     def can_generate(self):
         """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
         return True
-    
+
+    # Since pix2struct cannot be loaded using AutoModel, _from_transformers() needs to be overrided
     @classmethod
     def _from_transformers(
         cls,
@@ -1632,7 +1626,7 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         if use_cache is False and use_merged is True:
             raise ValueError(
                 "The incompatible arguments use_cache=False, use_merged=True were passed to"
-                " ORTModelForConditionalGeneration.from_pretrained(). Please pass either use_cache=False,"
+                " ORTModelForPix2Struct.from_pretrained(). Please pass either use_cache=False,"
                 " use_merged=False to disable past key value caching, or use_cache=True, use_merged=False"
                 " to disable the merging of the decoder not using / using past key and value."
             )
