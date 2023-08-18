@@ -49,11 +49,12 @@ From the bencharmk, it appears that Exllama kernel is the best-in-class for GPTQ
 
 #### Batch size = 4
 
-|gptq |act_order|bits|group_size|kernel|FIELD6|Load time (s)|Per-token latency (ms)|Throughput (tok/s)|Peak memory (MB)|
-|-----|---------|----|----------|------|------|-------------|----------------------|------------------|----------------|
-|False|None     |None|None      |None  |26.0  |37.89        |105.55                |34187.22          |                |
-|True |False    |4   |128       |exllama|36.2  |54.14        |73.87                 |15518.55          |                |
-|True |False    |4   |128       |autogptq-cuda-old|36.2  |60.98        |65.59                 |15374.67          |                |
+|gptq |act_order|bits|group_size|kernel           |Load time (s)|Per-token latency (ms)|Throughput (tok/s)|Peak memory (MB)|
+|-----|---------|----|----------|-----------------|-------------|----------------------|------------------|----------------|
+|False|None     |None|None      |None             |26.0         |37.89                 |105.55            |34187.22        |
+|True |False    |4   |128       |exllama          |36.2         |54.14                 |73.87             |15518.55        |
+|True |False    |4   |128       |autogptq-cuda-old|36.2         |60.98                 |65.59             |15374.67        |
+
 
 #### Batch size = 8
 
