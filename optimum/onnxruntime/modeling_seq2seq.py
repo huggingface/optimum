@@ -978,7 +978,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModelForConditionalGeneration":
-        print("Of conditional Generation")
         if use_cache is False and use_merged is True:
             raise ValueError(
                 "The incompatible arguments use_cache=False, use_merged=True were passed to"
@@ -1530,7 +1529,7 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         if past_key_values is None or self.use_cache is False:
             decoder_outputs = self.decoder(
                 input_ids=decoder_input_ids,
-                attention_mask=decoder_attention_mask,
+                decoder_attention_mask=decoder_attention_mask,
                 past_key_values=past_key_values,
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
                 encoder_attention_mask=attention_mask,
@@ -1539,7 +1538,7 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         elif self.use_merged is True:
             decoder_outputs = self.decoder(
                 input_ids=decoder_input_ids[:, -1:],
-                attention_mask=decoder_attention_mask,
+                decoder_attention_mask=decoder_attention_mask,
                 past_key_values=past_key_values,
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
                 encoder_attention_mask=attention_mask,
@@ -1548,7 +1547,7 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         else:
             decoder_outputs = self.decoder_with_past(
                 input_ids=decoder_input_ids[:, -1:],  # Cut decoder_input_ids if past is used
-                attention_mask=decoder_attention_mask,
+                decoder_attention_mask=decoder_attention_mask,
                 past_key_values=past_key_values,
                 encoder_hidden_states=encoder_outputs.last_hidden_state,
                 encoder_attention_mask=attention_mask,
@@ -1630,7 +1629,6 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModelForPix2Struct":
-        print("Of pix2struct")
         if use_cache is False and use_merged is True:
             raise ValueError(
                 "The incompatible arguments use_cache=False, use_merged=True were passed to"
