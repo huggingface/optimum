@@ -1,18 +1,18 @@
 import argparse
+import gc
+import json
+import os
 import time
+
+import numpy as np
 import torch
+from accelerate import init_empty_weights
+from memory_tracker import MemoryTracker
 from tqdm import tqdm
 from transformers import AutoModel, AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, GenerationConfig
 
-import numpy as np
 from optimum.exporters import TasksManager
-
 from optimum.gptq import load_quantized_model
-from accelerate import init_empty_weights
-import json
-from memory_tracker import MemoryTracker
-import os
-import gc
 
 
 def get_parser():

@@ -1,8 +1,9 @@
-from multiprocessing.connection import Connection
-from multiprocessing import Pipe, Process
-from contextlib import contextmanager
 import os
 import subprocess
+from contextlib import contextmanager
+from multiprocessing import Pipe, Process
+from multiprocessing.connection import Connection
+
 
 # Adapted from optimum-benchmark, I don't trust pytorch peak memory memory info when external libs are used.
 class MemoryTracker:
