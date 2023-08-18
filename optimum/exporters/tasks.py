@@ -507,6 +507,15 @@ class TasksManager:
             onnx="FlaubertOnnxConfig",
             tflite="FlaubertTFLiteConfig",
         ),
+        "funnel": supported_tasks_mapping(
+            "feature-extraction",
+            "text-classification",
+            "token-classification",
+            "multiple-choice",
+            "fill-mask",
+            "question-answering",
+            onnx="FunnelTransformerOnnxConfig",
+        ),
         "gpt2": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",

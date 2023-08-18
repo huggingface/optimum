@@ -1310,3 +1310,8 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
 
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
+
+
+class FunnelTransformerOnnxConfig(BertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 12
+    pass

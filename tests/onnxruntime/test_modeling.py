@@ -1847,6 +1847,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
         "distilbert",
         "electra",
         "flaubert",
+        "funnel",
         "ibert",
         "mobilebert",
         "nystromformer",
