@@ -310,6 +310,38 @@ def get_stable_diffusion_models_for_export(
     return models_for_export
 
 
+def _get_submodels_for_export_sam(model, variant):
+    models_for_export = {}
+
+    if variant == "monolith":
+        models_for_export["model"] = model
+    else:
+        # We use the model patcher to patch their forward method.
+        models_for_export["vision_encoder"] = model
+        models_for_export["prompt_mask"] = model
+
+    return models_for_export
+
+
+def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "OnnxConfig"):
+    models_for_export = _get_submodels_for_export_sam(model, config.variant)
+
+    if config.variant == "monolith":
+        onnx_config = config.__class__(model.config, task=config.task)
+        models_for_export["model"] = (models_for_export["model"], onnx_config)
+    else:
+        vision_encoder_onnx_config = config.__class__(
+            model.config, task=config.task, variant=config.variant, vision_encoder=True
+        )
+        prompt_mask_onnx_config = config.__class__(
+            model.config, task=config.task, variant=config.variant, vision_encoder=False
+        )
+        models_for_export["vision_encoder"] = (models_for_export["vision_encoder"], vision_encoder_onnx_config)
+        models_for_export["prompt_mask"] = (models_for_export["prompt_mask"], prompt_mask_onnx_config)
+
+    return models_for_export
+
+
 def override_diffusers_2_0_attn_processors(model):
     for _, submodule in model.named_modules():
         if isinstance(submodule, Attention):

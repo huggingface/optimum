@@ -92,6 +92,12 @@ def parse_args_onnx(parser):
         ),
     )
     optional_group.add_argument(
+        "--variant",
+        type=str,
+        default="default",
+        help=("Select a variant of the model to export."),
+    )
+    optional_group.add_argument(
         "--framework",
         type=str,
         choices=["pt", "tf"],
@@ -232,6 +238,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             trust_remote_code=self.args.trust_remote_code,
             pad_token_id=self.args.pad_token_id,
             for_ort=self.args.for_ort,
-            use_subprocess=True,
+            use_subprocess=False,
+            _variant=self.args.variant,
             **input_shapes,
         )

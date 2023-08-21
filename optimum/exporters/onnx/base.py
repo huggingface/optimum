@@ -124,6 +124,7 @@ class OnnxConfig(ExportConfig, ABC):
     MIN_TORCH_VERSION = GLOBAL_MIN_TORCH_VERSION
     MIN_TRANSFORMERS_VERSION = GLOBAL_MIN_TRANSFORMERS_VERSION
     PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
+    VARIANTS = {"default": "The default ONNX variant."}
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
@@ -222,6 +223,24 @@ class OnnxConfig(ExportConfig, ABC):
         """
         common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
+
+    @property
+    def variant(self) -> str:
+        """
+        Dict containing the axis definition of the output tensors to provide to the model.
+
+        Returns:
+            `Dict[str, Dict[int, str]]`: A mapping of each output name to a mapping of axis position to the axes symbolic name.
+        """
+        return self._variant
+
+    @variant.setter
+    def variant(self, value: str):
+        if value == "default" and hasattr(self, "DEFAULT_VARIANT"):
+            value = self.DEFAULT_VARIANT
+        if value not in self.VARIANTS.keys():
+            raise ValueError(f"The variant {value} is not supported for the ONNX config {self.__class__.__name__}.")
+        self._variant = value
 
     def fix_dynamic_axes(
         self, model_path: "Path", device: str = "cpu", dtype: Optional[str] = None, input_shapes: Optional[Dict] = None

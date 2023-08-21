@@ -702,6 +702,36 @@ class DummyPointsGenerator(DummyInputGenerator):
         return self.random_float_tensor(shape, framework=framework)
 
 
+class DummyVisionEmbeddingsGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("image_positional_embeddings", "image_embeddings")
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        image_embedding_size: Optional[int] = None,
+        output_channels: Optional[int] = None,
+        **kwargs,
+    ):
+        self.task = task
+
+        self.batch_size = batch_size
+        self.image_embedding_size = (
+            image_embedding_size
+            if image_embedding_size is not None
+            else normalized_config.prompt_encoder_config.image_embedding_size
+        )
+        self.output_channels = (
+            output_channels if output_channels is not None else normalized_config.vision_config.output_channels
+        )
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        shape = [self.batch_size, self.output_channels, self.image_embedding_size, self.image_embedding_size]
+        # TODO: handle fp16?
+        return self.random_float_tensor(shape, framework=framework)
+
+
 class DummyPix2StructInputGenerator(DummyInputGenerator):
     """
     Generates dummy time step inputs.
