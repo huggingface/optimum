@@ -36,7 +36,6 @@ from transformers import (
 )
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
-from transformers.utils import is_torch_fx_proxy
 
 import onnxruntime as ort
 
