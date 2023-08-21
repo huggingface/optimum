@@ -1486,8 +1486,8 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
                 flattened_patches=flattened_patches,
                 attention_mask=attention_mask,
             )
-        # work around for Unexpected input data type (tensor(float)) for attention_mask
-        # Need to be looked into
+        
+        #decoder requires torch.LongTensor for attention_mask
         attention_mask = attention_mask.to(torch.int64)
         # Decode
 
