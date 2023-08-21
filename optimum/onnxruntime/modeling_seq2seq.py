@@ -1584,13 +1584,7 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
     # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
     @staticmethod
     def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
-        reordered_past = ()
-        for layer_past in past:
-            # Cached cross_attention states don't have to be reordered -> they are always the same
-            reordered_past += (
-                tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
-            )
-        return reordered_past
+        ORTModelForSeq2SeqLM._reorder_cache(past, beam_idx)
 
     def can_generate(self):
         """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
