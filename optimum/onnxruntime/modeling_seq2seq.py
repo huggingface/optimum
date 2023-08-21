@@ -1465,29 +1465,6 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
     auto_model_class = Pix2StructForConditionalGeneration
     main_input_name = "flattened_patches"
 
-    # Copied from transformers.models.t5.modeling_t5.T5PreTrainedModel._shift_right with T5->Pix2Struct
-    def _shift_right(self, input_ids):
-        decoder_start_token_id = self.config.decoder_start_token_id
-        pad_token_id = self.config.pad_token_id
-
-        if decoder_start_token_id is None:
-            raise ValueError(
-                "self.model.config.decoder_start_token_id has to be defined. In Pix2Struct it is usually set to the pad_token_id."
-                "See Pix2Struct docs for more information."
-            )
-
-        # shift inputs to the right
-        shifted_input_ids = input_ids.new_zeros(input_ids.shape)
-        shifted_input_ids[..., 1:] = input_ids[..., :-1].clone()
-        shifted_input_ids[..., 0] = decoder_start_token_id
-
-        if pad_token_id is None:
-            raise ValueError("self.model.config.pad_token_id has to be defined.")
-        # replace possible -100 values in labels by `pad_token_id`
-        shifted_input_ids.masked_fill_(shifted_input_ids == -100, pad_token_id)
-
-        return shifted_input_ids
-
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoderForPix2Struct(session, self)
 
@@ -1589,71 +1566,3 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
     def can_generate(self):
         """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
         return True
-
-    # Since pix2struct cannot be loaded using AutoModel, _from_transformers() needs to be overrided
-    @classmethod
-    def _from_transformers(
-        cls,
-        model_id: str,
-        config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
-        revision: str = "main",
-        force_download: bool = True,
-        cache_dir: Optional[str] = None,
-        subfolder: str = "",
-        local_files_only: bool = False,
-        trust_remote_code: bool = False,
-        use_cache: bool = True,
-        use_merged: bool = False,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
-        task: Optional[str] = None,
-    ) -> "ORTModelForPix2Struct":
-        if use_cache is False and use_merged is True:
-            raise ValueError(
-                "The incompatible arguments use_cache=False, use_merged=True were passed to"
-                " ORTModelForPix2Struct.from_pretrained(). Please pass either use_cache=False,"
-                " use_merged=False to disable past key value caching, or use_cache=True, use_merged=False"
-                " to disable the merging of the decoder not using / using past key and value."
-            )
-
-        if task is None:
-            task = cls._auto_model_to_task(cls.auto_model_class)
-
-            if use_cache is True:
-                task = task + "-with-past"
-
-        save_dir = TemporaryDirectory()
-        save_dir_path = Path(save_dir.name)
-
-        main_export(
-            model_name_or_path=model_id,
-            output=save_dir_path,
-            task=task,
-            do_validation=False,
-            no_post_process=not use_merged,
-            subfolder=subfolder,
-            revision=revision,
-            cache_dir=cache_dir,
-            use_auth_token=use_auth_token,
-            local_files_only=local_files_only,
-            force_download=force_download,
-            trust_remote_code=trust_remote_code,
-        )
-
-        config.save_pretrained(save_dir_path)
-        maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
-
-        return cls._from_pretrained(
-            save_dir_path,
-            config,
-            use_cache=use_cache,
-            use_merged=use_merged,
-            provider=provider,
-            session_options=session_options,
-            provider_options=provider_options,
-            use_io_binding=use_io_binding,
-            model_save_dir=save_dir,
-        )
