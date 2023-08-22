@@ -573,7 +573,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             input_ids, past_key_values, use_torch=use_torch
         )
 
-        if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
+        if self.parent_model.use_io_binding:
             known_output_shapes = self.compute_past_key_values_output_shapes(
                 input_ids,
                 encoder_hidden_states,
@@ -585,11 +585,11 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
 
             model_inputs = [input_ids]
 
-            if "decoder_attention_mask" in self.input_names:
-                model_inputs = [decoder_attention_mask, input_ids]
-
             if "encoder_hidden_states" in self.input_names:
                 model_inputs.append(encoder_hidden_states)
+
+            if "decoder_attention_mask" in self.input_names:
+                model_inputs.append(decoder_attention_mask)
 
             if "encoder_attention_mask" in self.input_names:
                 model_inputs.append(encoder_attention_mask)
@@ -597,12 +597,12 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
             if past_key_values is not None:
                 model_inputs += past_key_values
 
-            if use_cache_branch_tensor is not None:
-                model_inputs.append(use_cache_branch_tensor)
-
             if "labels" in self.input_names:
                 model_inputs.append(labels)
                 known_output_shapes.update({"loss": []})
+
+            if use_cache_branch_tensor is not None:
+                model_inputs.append(use_cache_branch_tensor)
 
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
                 self.session,
@@ -674,6 +674,10 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                     "input_ids": input_ids.cpu().detach().numpy(),
                 }
 
+                # Add the encoder_hidden_states inputs when needed
+                if "encoder_hidden_states" in self.input_names:
+                    onnx_inputs["encoder_hidden_states"] = encoder_hidden_states.cpu().detach().numpy()
+
                 # Add the decoder_attention_mask inputs when needed
                 if "decoder_attention_mask" in self.input_names:
                     onnx_inputs["decoder_attention_mask"] = decoder_attention_mask.cpu().detach().numpy()
@@ -681,10 +685,6 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 # Add the encoder_attention_mask inputs when needed
                 if "encoder_attention_mask" in self.input_names:
                     onnx_inputs["encoder_attention_mask"] = encoder_attention_mask.cpu().detach().numpy()
-
-                # Add the encoder_hidden_states inputs when needed
-                if "encoder_hidden_states" in self.input_names:
-                    onnx_inputs["encoder_hidden_states"] = encoder_hidden_states.cpu().detach().numpy()
 
                 if past_key_values is not None:
                     # Add the past_key_values to the decoder inputs
@@ -702,6 +702,10 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                     "input_ids": input_ids,
                 }
 
+                # Add the encoder_hidden_states inputs when needed
+                if "encoder_hidden_states" in self.input_names:
+                    onnx_inputs["encoder_hidden_states"] = encoder_hidden_states
+
                 # Add the decoder_attention_mask inputs when needed
                 if "decoder_attention_mask" in self.input_names:
                     onnx_inputs["decoder_attention_mask"] = decoder_attention_mask
@@ -709,10 +713,6 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
                 # Add the encoder_attention_mask inputs when needed
                 if "encoder_attention_mask" in self.input_names:
                     onnx_inputs["encoder_attention_mask"] = encoder_attention_mask
-
-                # Add the encoder_hidden_states inputs when needed
-                if "encoder_hidden_states" in self.input_names:
-                    onnx_inputs["encoder_hidden_states"] = encoder_hidden_states
 
                 if past_key_values is not None:
                     # Add the past_key_values to the decoder inputs

@@ -1473,9 +1473,9 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         flattened_patches: Optional[torch.FloatTensor] = None,
         attention_mask: Optional[torch.LongTensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
+        decoder_attention_mask: Optional[torch.BoolTensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        decoder_attention_mask: Optional[torch.BoolTensor] = None,
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
@@ -1486,11 +1486,15 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
                 flattened_patches=flattened_patches,
                 attention_mask=attention_mask,
             )
-        
-        #decoder requires torch.LongTensor for attention_mask
-        attention_mask = attention_mask.to(torch.int64)
-        # Decode
 
+        # TODO: for some reason the attention_mask for pix2struct is a float in transformers and not an int64. This messes up with the exporter
+        # hardcodes int64 input dtype for the attention mask. This workaround is quite ugly, it should be fixed rather in the ONNX exporter.
+        if isinstance(attention_mask, torch.Tensor):
+            attention_mask = attention_mask.to(torch.int64)
+        else:
+            attention_mask = attention_mask.astype(np.int64)
+
+        # Decode
         if past_key_values is None or self.use_cache is False:
             decoder_outputs = self.decoder(
                 input_ids=decoder_input_ids,

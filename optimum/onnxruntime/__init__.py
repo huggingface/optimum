@@ -109,7 +109,12 @@ if TYPE_CHECKING:
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
     )
-    from .modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
+    from .modeling_seq2seq import (
+        ORTModelForPix2Struct,
+        ORTModelForSeq2SeqLM,
+        ORTModelForSpeechSeq2Seq,
+        ORTModelForVision2Seq,
+    )
     from .optimization import ORTOptimizer
     from .quantization import ORTQuantizer
     from .trainer import ORTTrainer

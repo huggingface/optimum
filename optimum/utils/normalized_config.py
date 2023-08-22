@@ -109,6 +109,11 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         return super().__getattr__(attr_name)
 
 
+Pix2StructNormalizedTextConfig = NormalizedTextAndVisionConfig.with_args(
+    text_config="text_config", vision_config="vision_config"
+)
+
+
 class NormalizedEncoderDecoderConfig(NormalizedConfig):
     ENCODER_NORMALIZED_CONFIG_CLASS = None
     DECODER_NORMALIZED_CONFIG_CLASS = None
@@ -230,7 +235,7 @@ class NormalizedConfigManager:
         "nystromformer": NormalizedTextConfig,
         "opt": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
-        "pix2struct": NormalizedVisionConfig,
+        "pix2struct": Pix2StructNormalizedTextConfig,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
