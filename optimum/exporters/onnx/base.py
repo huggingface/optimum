@@ -227,10 +227,8 @@ class OnnxConfig(ExportConfig, ABC):
     @property
     def variant(self) -> str:
         """
-        Dict containing the axis definition of the output tensors to provide to the model.
-
-        Returns:
-            `Dict[str, Dict[int, str]]`: A mapping of each output name to a mapping of axis position to the axes symbolic name.
+        For a given ONNX config, the variant of the model to export. This property allows to define variants of a given model, in case
+        different users would like to export the model differently (with different inputs/outputs, model splitted in several ONNX or not, etc.).
         """
         return self._variant
 
