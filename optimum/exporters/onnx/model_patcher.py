@@ -48,18 +48,6 @@ def overwride_arguments(args, kwargs, forward_signature, model_kwargs):
     return args, kwargs
 
 
-"""
-def get_argument(args, kwargs, forward_signature, argument_name):
-    args = list(args)
-
-    if argument_name in forward_signature.parameters:
-        argument_index = list(forward_signature.parameters.keys()).index(argument_name)
-        return args[argument_index]
-    else:
-        return kwargs[argument_name]
-"""
-
-
 @dataclasses.dataclass
 class PatchingSpec:
     """

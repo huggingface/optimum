@@ -1226,7 +1226,7 @@ class SamOnnxConfig(OnnxConfig):
         self,
         config: "PretrainedConfig",
         task: str = "feature-extraction",
-        variant: str = "monolith",
+        variant: str = "split",
         vision_encoder: Optional[bool] = None,
     ):
         super().__init__(config, task)
