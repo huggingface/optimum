@@ -78,12 +78,10 @@ class GenerateDummy(TestCase):
     def validate_dtype_for_framework(
         self, generator: "DummyInputGenerator", input_name: str, framework: str, target_dtype: str
     ):
-        if "fp" in target_dtype:
-            generated_tenor = generator.generate(input_name=input_name, framework=framework, float_dtype=target_dtype)
-        elif "int" in target_dtype:
+        if "int" in target_dtype:
             generated_tenor = generator.generate(input_name=input_name, framework=framework, int_dtype=target_dtype)
         else:
-            raise ValueError("Cannot recognise the target data type.")
+            generated_tenor = generator.generate(input_name=input_name, framework=framework, float_dtype=target_dtype)
         dtype_funcs = {"np": DTYPE_MAPPER.np, "pt": DTYPE_MAPPER.pt, "tf": DTYPE_MAPPER.tf}
         target_dtype = dtype_funcs[framework](target_dtype)
         if generated_tenor.dtype != target_dtype:
@@ -122,8 +120,8 @@ class GenerateDummy(TestCase):
             height=224,
             width=224,
         )
-        self.validate_shape_for_all_frameworks(input_generator, "pixel_values", framework, float_dtype)
-        self.validate_shape_for_all_frameworks(input_generator, "pixel_mask", framework, int_dtype)
+        self.validate_dtype_for_framework(input_generator, "pixel_values", framework, float_dtype)
+        self.validate_dtype_for_framework(input_generator, "pixel_mask", framework, int_dtype)
 
     @parameterized.expand(
         grid_parameters(

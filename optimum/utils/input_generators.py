@@ -70,7 +70,7 @@ class DTYPE_MAPPER:
             "fp32": np.float32,
             "fp16": np.float16,
             "int64": np.int64,
-            "np": np.int32,
+            "int32": np.int32,
             "int8": np.int8,
             "bool": bool,
         }
@@ -83,7 +83,7 @@ class DTYPE_MAPPER:
             "fp16": torch.float16,
             "bf16": torch.bfloat16,
             "int64": torch.int64,
-            "np": torch.int32,
+            "int32": torch.int32,
             "int8": torch.int8,
             "bool": torch.bool,
         }
@@ -96,7 +96,7 @@ class DTYPE_MAPPER:
             "fp16": tf.float16,
             "bf16": tf.bfloat16,
             "int64": tf.int64,
-            "np": tf.int32,
+            "int32": tf.int32,
             "int8": tf.int8,
             "bool": tf.bool,
         }
