@@ -198,7 +198,7 @@ class DummyInputGenerator(ABC):
             A random tensor in the requested framework.
         """
         if framework == "pt":
-            tensor = torch.empty(shape, dtype == DTYPE_MAPPER.pt(dtype)).uniform_(min_value, max_value)
+            tensor = torch.empty(shape, dtype=DTYPE_MAPPER.pt(dtype)).uniform_(min_value, max_value)
             return tensor
         elif framework == "tf":
             return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=DTYPE_MAPPER.tf(dtype))
