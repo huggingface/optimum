@@ -236,7 +236,7 @@ class OnnxConfig(ExportConfig, ABC):
     def variant(self, value: str):
         if value == "default" and hasattr(self, "DEFAULT_VARIANT"):
             value = self.DEFAULT_VARIANT
-        if value not in self.VARIANTS.keys():
+        if value not in self.VARIANTS:
             raise ValueError(f"The variant {value} is not supported for the ONNX config {self.__class__.__name__}.")
         self._variant = value
 
