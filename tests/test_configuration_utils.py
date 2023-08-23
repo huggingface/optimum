@@ -71,7 +71,7 @@ class ConfigPushToHubTester(unittest.TestCase):
         config = FakeConfig(attribute=15)
         with tempfile.TemporaryDirectory() as tmp_dir:
             config.save_pretrained(
-                os.path.join(tmp_dir, "optimum-test-base-config"), push_to_hub=True, use_auth_token=self._token
+                os.path.join(tmp_dir, "optimum-test-base-config"), push_to_hub=True, token=self._token
             )
 
             new_config = FakeConfig.from_pretrained(f"{USER}/optimum-test-base-config")
@@ -86,7 +86,7 @@ class ConfigPushToHubTester(unittest.TestCase):
             config.save_pretrained(
                 os.path.join(tmp_dir, "optimum-test-base-config-org"),
                 push_to_hub=True,
-                use_auth_token=self._token,
+                token=self._token,
                 organization="valid_org",
             )
 

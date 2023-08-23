@@ -36,6 +36,7 @@ from transformers import (
 )
 from transformers.file_utils import add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
+from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
 
 import onnxruntime as ort
 
@@ -1195,6 +1196,37 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
 
     auto_model_class = AutoModelForSpeechSeq2Seq
     main_input_name = "input_features"
+
+    def __init__(
+        self,
+        encoder_session: ort.InferenceSession,
+        decoder_session: ort.InferenceSession,
+        config: "PretrainedConfig",
+        onnx_paths: List[str],
+        decoder_with_past_session: Optional[ort.InferenceSession] = None,
+        use_cache: bool = True,
+        use_io_binding: Optional[bool] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        preprocessors: Optional[List] = None,
+        generation_config: Optional[GenerationConfig] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            encoder_session=encoder_session,
+            decoder_session=decoder_session,
+            config=config,
+            onnx_paths=onnx_paths,
+            decoder_with_past_session=decoder_with_past_session,
+            use_cache=use_cache,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+            preprocessors=preprocessors,
+            generation_config=generation_config,
+            **kwargs,
+        )
+        # Following a breaking change in transformers that relies directly on the mapping name and not on the greedy model mapping (that can be extended), we need to hardcode the ortmodel in this dictionary. Other pipelines do not seem to have controlflow depending on the mapping name.
+        # See: https://github.com/huggingface/transformers/pull/24960/files
+        MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES["ort_speechseq2seq"] = self.__class__.__name__
 
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoderForSpeech(session, self)
