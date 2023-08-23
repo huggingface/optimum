@@ -449,6 +449,7 @@ class ORTEncoderForPix2Struct(ORTEncoder):
             The ONNX Runtime inference session associated to the encoder.
     """
 
+    @add_start_docstrings_to_model_forward(PIX2STRUCT_INPUTS_DOCSTRING)
     def forward(
         self,
         flattened_patches: torch.FloatTensor,
@@ -1490,7 +1491,7 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         return ORTEncoderForPix2Struct(session, self)
 
     @add_start_docstrings_to_model_forward(
-        PIX2STRUCT_INPUTS_DOCSTRING
+        PIX2STRUCT_ONNX_MODEL_DOCSTRING
         + PIX2STRUCT_EXAMPLE.format(
             processor_class=_PROCESSOR_FOR_DOC,
             model_class="ORTModelForPix2Struct",
