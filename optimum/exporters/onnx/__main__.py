@@ -75,7 +75,7 @@ def _get_submodels_and_onnx_configs(
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                 model=model, exporter="onnx", task=task
             )
-            onnx_config = onnx_config_constructor(model.config)
+            onnx_config = onnx_config_constructor(model.config, preprocessors=preprocessors)
 
             onnx_config.variant = _variant
             all_variants = "\n".join(

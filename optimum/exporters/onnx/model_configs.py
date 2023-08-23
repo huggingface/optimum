@@ -1382,3 +1382,59 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
 
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
+
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        dummy_inputs_generators = []
+        dummy_inputs_generators.append(self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config))
+
+        if self._preprocessors is None or len(self._preprocessors) != 2:
+            raise ValueError(
+                f"Preprocessors for pix2struct need to be available for the ONNX export to infer input static shapes. Got: {self._preprocessors}"
+            )
+
+        encoder_sequence_length = self._preprocessors[1].image_processor.max_patches
+        # A hack for DummyPix2StructInputGenerator to gain access to the preprocessors.
+        # TODO: we should probably pass preprocessors to all dummy input generators.
+        kwargs["preprocessors"] = self._preprocessors
+        for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]:
+            dummy_inputs_generators.append(
+                cls_(self.task, self._normalized_config, encoder_sequence_length=encoder_sequence_length, **kwargs)
+            )
+
+        return dummy_inputs_generators
+
+    def overwrite_shape_and_generate_input(
+        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: Dict
+    ):
+        if self._preprocessors is None or len(self._preprocessors) != 2:
+            raise ValueError(
+                f"Preprocessors for pix2struct need to be available for the ONNX export to infer input static shapes. Got: {self._preprocessors}"
+            )
+
+        # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
+        # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
+        if (
+            self.use_past is True
+            and self.use_cache_branch is not False
+            and input_name in ["decoder_input_ids", "input_ids"]
+        ):
+            sequence_length = dummy_input_gen.sequence_length
+            if "sequence_length" in input_shapes and input_shapes["sequence_length"] != 1:
+                logger.info(
+                    f"Asked a sequence length of {input_shapes['sequence_length']}, but a sequence length of 1 "
+                    f"will be used with use_past == True for `{input_name}`."
+                )
+            dummy_input_gen.sequence_length = 1
+            dummy_input = dummy_input_gen.generate(input_name, framework=framework)
+            dummy_input_gen.sequence_length = sequence_length
+        elif input_name in ["encoder_outputs", "attention_mask"]:
+            # pix2struct takes inputs whose so-called sequence length is **static** to max_patches, so we do NOT use
+            # the passed sequence_length that behaves as a dynamic shape.
+            original_seq_length = dummy_input_gen.sequence_length
+            dummy_input_gen.sequence_length = self._preprocessors[1].image_processor.max_patches
+            dummy_input = dummy_input_gen.generate(input_name, framework=framework)
+            dummy_input_gen.sequence_length = original_seq_length
+        else:
+            dummy_input = dummy_input_gen.generate(input_name, framework=framework)
+
+        return dummy_input
