@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 logger = logging.get_logger(__name__)
 
 
-def overwride_arguments(args, kwargs, forward_signature, model_kwargs):
+def override_arguments(args, kwargs, forward_signature, model_kwargs):
     args = list(args)
 
     for argument in model_kwargs:
@@ -103,7 +103,7 @@ class ModelPatcher:
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
             signature = inspect.signature(self.orig_forward)
-            args, kwargs = overwride_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
+            args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
             outputs = self.orig_forward(*args, **kwargs)
 
@@ -165,7 +165,7 @@ class Seq2SeqModelPatcher(ModelPatcher):
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
             signature = inspect.signature(self.orig_forward)
-            args, kwargs = overwride_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
+            args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
             outputs = self.orig_forward(*args, **kwargs)
 
@@ -218,7 +218,7 @@ class WavLMModelPatcher(ModelPatcher):
             # that calls https://github.com/pytorch/pytorch/blob/v2.0.0/torch/nn/functional.py#L5334
             model_kwargs["output_attentions"] = True
             signature = inspect.signature(self.orig_forward)
-            args, kwargs = overwride_arguments(args, kwargs, signature, model_kwargs=model_kwargs)
+            args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=model_kwargs)
 
             outputs = self.orig_forward(*args, **kwargs)
 

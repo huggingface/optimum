@@ -527,10 +527,12 @@ def main_export(
             logger.warning(
                 f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {output.as_posix()}"
             )
+        """
         except Exception as e:
             raise Exception(
                 f"An error occured during validation, but the model was saved nonetheless at {output.as_posix()}. Detailed error: {e}."
             )
+        """
 
 
 def main():
