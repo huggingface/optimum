@@ -72,7 +72,7 @@ def get_block_name_with_pattern(model: nn.Module):
     modules_names = [n for n, _ in model.named_modules()]
     for pattern_candidate in BLOCK_PATTERNS:
         pattern_candidate = pattern_candidate
-        if any([pattern_candidate in name for name in modules_names]):
+        if any(pattern_candidate in name for name in modules_names):
             return pattern_candidate
     raise ValueError("Block pattern could not be match. Pass `block_name_to_quantize` argument in `quantize_model`")
 
@@ -105,7 +105,7 @@ def get_device(obj: Union[torch.Tensor, nn.Module]):
 def get_seqlen(model: nn.Module):
     if hasattr(model, "config"):
         model_config = model.config.to_dict()
-        if any([k in model_config for k in SEQLEN_KEYS_TRANFORMERS]):
+        if any(k in model_config for k in SEQLEN_KEYS_TRANFORMERS):
             for key in SEQLEN_KEYS_TRANFORMERS:
                 if key in model_config:
                     return model_config[key]
