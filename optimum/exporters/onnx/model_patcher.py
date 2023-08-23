@@ -34,14 +34,19 @@ if TYPE_CHECKING:
 logger = logging.get_logger(__name__)
 
 
-def override_arguments(args, kwargs, forward_signature, model_kwargs):
+def override_arguments(args, kwargs, forward_signature, model_kwargs: Dict[str, Any]):
+    """
+    Override the args and kwargs with the argument values from model_kwargs, following the signature forward_signature corresponding to args and kwargs.
+    """
     args = list(args)
 
     for argument in model_kwargs:
         if argument in forward_signature.parameters:
             argument_index = list(forward_signature.parameters.keys()).index(argument)
-
-            args[argument_index] = model_kwargs[argument]
+            if argument in kwargs or len(args) <= argument_index:
+                kwargs[argument] = model_kwargs[argument]
+            else:
+                args[argument_index] = model_kwargs[argument]
         else:
             kwargs[argument] = model_kwargs[argument]
 
