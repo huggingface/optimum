@@ -24,7 +24,7 @@ from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
 from ...utils import DEFAULT_DUMMY_SHAPES, ONNX_WEIGHTS_NAME, logging
-from ...utils.save_utils import maybe_save_preprocessors
+from ...utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
@@ -44,7 +44,7 @@ from .utils import (
 if is_torch_available():
     import torch
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 
 if TYPE_CHECKING:
@@ -64,6 +64,7 @@ def _get_submodels_and_onnx_configs(
     custom_architecture: bool,
     _variant: str,
     fn_get_submodels: Optional[Callable] = None,
+    preprocessors: Optional[List[Any]] = None,
 ):
     is_stable_diffusion = "stable-diffusion" in task
     if not custom_architecture:
@@ -372,6 +373,11 @@ def main_export(
             possible_synonyms = ""
         logger.info(f"Automatic task detection to {task}{possible_synonyms}.")
 
+    # The preprocessors are loaded as they may be useful to export the model. Notably, some of the static input shapes may be stored in the
+    # preprocessors config.
+    preprocessors = maybe_load_preprocessors(
+        model_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code
+    )
     onnx_config, models_and_onnx_configs = _get_submodels_and_onnx_configs(
         model=model,
         task=task,
@@ -379,6 +385,7 @@ def main_export(
         custom_onnx_configs=custom_onnx_configs if custom_onnx_configs is not None else {},
         custom_architecture=custom_architecture,
         fn_get_submodels=fn_get_submodels,
+        preprocessors=preprocessors,
         _variant=_variant,
     )
 
