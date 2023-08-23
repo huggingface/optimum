@@ -115,6 +115,10 @@ class OnnxConfig(ExportConfig, ABC):
             The model configuration.
         task (`str`, defaults to `"feature-extraction"`):
             The task the model should be exported for.
+        int_dtype (`str`, defaults to `"int64"`):
+            The data type of integer tensors, could be ["int64", "int32", "int8"], default to "int64".
+        float_dtype (`str`, defaults to `"fp32"`):
+            The data type of float tensors, could be ["fp32", "fp16", "bf16"], default to "fp32".
     """
 
     NORMALIZED_CONFIG_CLASS = None
@@ -176,12 +180,20 @@ class OnnxConfig(ExportConfig, ABC):
         ),
     }
 
-    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+    ):
         if task not in self._TASK_TO_COMMON_OUTPUTS:
             raise ValueError(
                 f"{task} is not a supported task, supported tasks: {', '.join(self._TASK_TO_COMMON_OUTPUTS.keys())}"
             )
         self.task = task
+        self.int_dtype = int_dtype
+        self.float_dtype = float_dtype
 
         self._config = config
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
@@ -404,7 +416,9 @@ class OnnxConfig(ExportConfig, ABC):
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
-                    dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
+                    dummy_inputs[input_name] = dummy_input_gen.generate(
+                        input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+                    )
                     input_was_inserted = True
                     break
             if not input_was_inserted:
@@ -490,6 +504,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         self,
         config: "PretrainedConfig",
         task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -515,10 +531,16 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             )
         self.is_merged = False
         self.use_cache_branch = None
-        super().__init__(config, task=task)
+        super().__init__(config, task=task, int_dtype=int_dtype, float_dtype=float_dtype)
 
     @classmethod
-    def with_past(cls, config: "PretrainedConfig", task: str = "feature-extraction") -> "OnnxConfigWithPast":
+    def with_past(
+        cls,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+    ) -> "OnnxConfigWithPast":
         """
         Instantiates a [`~optimum.exporters.onnx.OnnxConfig`] with `use_past` attribute set to `True`.
 
@@ -527,11 +549,15 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 The underlying model's config to use when exporting to ONNX.
             task (`str`, defaults to `"feature-extraction"`):
                 The task the model should be exported for.
+            int_dtype (`str`, defaults to `"int64"`):
+                The data type of integer tensors, could be ["int64", "int32", "int8"], default to "int64".
+            float_dtype (`str`, defaults to `"fp32"`):
+                The data type of float tensors, could be ["fp32", "fp16", "bf16"], default to "fp32".
 
         Returns:
             [`~optimum.exporters.onnx.OnnxConfig`]: The onnx config with `.use_past = True`
         """
-        return cls(config, task=task, use_past=True)
+        return cls(config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, use_past=True)
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
@@ -578,10 +604,14 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                                 f"will be used with use_past == True for `{input_name}`."
                             )
                         dummy_input_gen.sequence_length = 1
-                        dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
+                        dummy_inputs[input_name] = dummy_input_gen.generate(
+                            input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+                        )
                         dummy_input_gen.sequence_length = sequence_length
                     else:
-                        dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
+                        dummy_inputs[input_name] = dummy_input_gen.generate(
+                            input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+                        )
                     input_was_inserted = True
                     break
             if not input_was_inserted:
@@ -670,7 +700,9 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             pkv_generator = self.DUMMY_PKV_GENERATOR_CLASS(
                 task=self.task, normalized_config=self._normalized_config, sequence_length=1, batch_size=batch_size
             )
-            reference_model_inputs["past_key_values"] = pkv_generator.generate("past_key_values", framework="pt")
+            reference_model_inputs["past_key_values"] = pkv_generator.generate(
+                "past_key_values", framework="pt", int_dtype=self.int_dtype, float_dtype=self.float_dtype
+            )
 
         return reference_model_inputs
 
@@ -699,6 +731,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         self,
         config: "PretrainedConfig",
         task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -707,6 +741,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         super().__init__(
             config,
             task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             use_present_in_outputs=use_present_in_outputs,
@@ -725,7 +761,11 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             self.use_present_in_outputs = True
 
     def with_behavior(
-        self, behavior: Union[str, ConfigBehavior], use_past: bool = False
+        self,
+        behavior: Union[str, ConfigBehavior],
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        use_past: bool = False,
     ) -> "OnnxSeq2SeqConfigWithPast":
         """
         Creates a copy of the current OnnxConfig but with a different `ConfigBehavior` and `use_past` value.
@@ -735,6 +775,10 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 The behavior to use for the new instance.
             use_past (`bool`, defaults to `False`):
                 Whether or not the new instance should use past.
+            int_dtype (`str`, defaults to `"int64"`):
+                The data type of integer tensors, could be ["int64", "int32", "int8"], default to "int64".
+            float_dtype (`str`, defaults to `"fp32"`):
+                The data type of float tensors, could be ["fp32", "fp16", "bf16"], default to "fp32".
 
         Returns:
             `OnnxSeq2SeqConfigWithPast`
@@ -744,6 +788,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         return self.__class__(
             self._config,
             task=self.task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
             use_past=use_past,
             behavior=behavior,
         )
@@ -925,9 +971,11 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
 
     DUMMY_EXTRA_INPUT_GENERATOR_CLASSES = (DummyLabelsGenerator,)
 
-    def __init__(self, config: OnnxConfig):
+    def __init__(self, config: OnnxConfig, int_dtype: str = "int64", float_dtype: str = "fp32"):
         self._onnx_config = config
         self.task = self._onnx_config.task
+        self.int_dtype = int_dtype
+        self.float_dtype = float_dtype
         self._normalized_config = self._onnx_config._normalized_config
         self.PATCHING_SPECS = self._onnx_config.PATCHING_SPECS
 
@@ -974,7 +1022,9 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
-                    dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
+                    dummy_inputs[input_name] = dummy_input_gen.generate(
+                        input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+                    )
                     input_was_inserted = True
                     break
             if not input_was_inserted:

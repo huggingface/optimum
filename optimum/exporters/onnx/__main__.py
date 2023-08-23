@@ -61,16 +61,20 @@ def _get_submodels_and_onnx_configs(
     monolith: bool,
     custom_onnx_configs: Dict,
     custom_architecture: bool,
+    int_dtype: str = "int64",
+    float_dtype: str = "fp32",
     fn_get_submodels: Optional[Callable] = None,
 ):
     is_stable_diffusion = "stable-diffusion" in task
     if not custom_architecture:
         if is_stable_diffusion:
             onnx_config = None
-            models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
+            models_and_onnx_configs = get_stable_diffusion_models_for_export(
+                model, int_dtype=int_dtype, float_dtype=float_dtype
+            )
         else:
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                model=model, exporter="onnx", task=task
+                model=model, exporter="onnx", task=task, int_dtype=int_dtype, float_dtype=float_dtype
             )
             onnx_config = onnx_config_constructor(model.config)
 
@@ -155,6 +159,8 @@ def main_export(
     custom_onnx_configs: Optional[Dict[str, "OnnxConfig"]] = None,
     fn_get_submodels: Optional[Callable] = None,
     use_subprocess: bool = False,
+    int_dtype: str = "int64",
+    float_dtype: str = "fp32",
     **kwargs_shapes,
 ):
     """
@@ -229,6 +235,10 @@ def main_export(
             exporting on CUDA device, where ORT does not release memory at inference session
             destruction. When set to `True`, the `main_export` call should be guarded in
             `if __name__ == "__main__":` block.
+        int_dtype (`str`, defaults to `"int64"`):
+            The data type of integer tensors, could be ["int64", "int32", "int8"], default to "int64".
+        float_dtype (`str`, defaults to `"fp32"`):
+            The data type of float tensors, could be ["fp32", "fp16", "bf16"], default to "fp32".
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -248,10 +258,14 @@ def main_export(
     if (framework == "tf" and fp16 is True) or not is_torch_available():
         raise ValueError("The --fp16 option is supported only for PyTorch.")
 
-    if fp16 is True and device == "cpu":
-        raise ValueError(
-            "The --fp16 option is supported only when exporting on GPU. Please pass the option `--device cuda`."
+    if fp16 is True:
+        logger.warning(
+            "The option --fp16 is deprecated and will be removed in a future version. Please"
+            " use `--float_dtype fp16` instead."
         )
+        float_dtype = "fp16"
+    if float_dtype == "fp16" and device == "cpu":
+        raise ValueError("The fp16 is supported only when exporting on GPU. Please pass the option `--device cuda`.")
 
     output = Path(output)
     if not output.exists():
@@ -365,6 +379,8 @@ def main_export(
         monolith=monolith,
         custom_onnx_configs=custom_onnx_configs if custom_onnx_configs is not None else {},
         custom_architecture=custom_architecture,
+        int_dtype=int_dtype,
+        float_dtype=float_dtype,
         fn_get_submodels=fn_get_submodels,
     )
 
@@ -539,6 +555,8 @@ def main():
         opset=args.opset,
         device=args.device,
         fp16=args.fp16,
+        int_dtype=args.int_dtype,
+        float_dtype=args.float_dtype,
         optimize=args.optimize,
         monolith=args.monolith,
         no_post_process=args.no_post_process,

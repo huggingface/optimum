@@ -62,6 +62,20 @@ def parse_args_onnx(parser):
         help="Use half precision during the export. PyTorch-only, requires `--device cuda`.",
     )
     optional_group.add_argument(
+        "--int_dtype",
+        type=str,
+        default="int64",
+        choices=["int64", "int32", "int8"],
+        help="The data type of integer tensors, could be int64, int32, int8, default to int64.",
+    )
+    optional_group.add_argument(
+        "--float_dtype",
+        type=str,
+        default="fp32",
+        choices=["fp32", "fp16"],
+        help="The data type of float tensors, could be fp32, fp16, default to fp32.",
+    )
+    optional_group.add_argument(
         "--optimize",
         type=str,
         default=None,

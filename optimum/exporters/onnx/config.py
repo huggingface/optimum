@@ -274,6 +274,8 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         self,
         config: "PretrainedConfig",
         task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -282,6 +284,8 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         super().__init__(
             config,
             task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             use_present_in_outputs=use_present_in_outputs,

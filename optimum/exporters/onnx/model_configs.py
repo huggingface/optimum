@@ -280,7 +280,7 @@ class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         encoder_shape = (
             self.batch_size,
             self.normalized_config.encoder_num_attention_heads,
@@ -295,10 +295,10 @@ class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
         )
         return [
             (
-                self.random_float_tensor(decoder_shape, framework=framework),
-                self.random_float_tensor(decoder_shape, framework=framework),
-                self.random_float_tensor(encoder_shape, framework=framework),
-                self.random_float_tensor(encoder_shape, framework=framework),
+                self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
             )
             for _ in range(self.normalized_config.decoder_num_layers)
         ]
@@ -375,8 +375,8 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
         self.force_eos_token_id_presence = force_eos_token_id_presence
         self.eos_token_id = normalized_config.eos_token_id
 
-    def generate(self, input_name: str, framework: str = "pt"):
-        int_tensor = super().generate(input_name, framework=framework)
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        int_tensor = super().generate(input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype)
         # This inserts EOS_TOKEN_ID at random locations along the sequence length dimension.
         if self.force_eos_token_id_presence and "input_ids" in input_name and self.task == "text-classification":
             for idx in range(self.batch_size):
@@ -1033,10 +1033,12 @@ class WavLMOnnxConfig(HubertOnnxConfig):
 
 
 class ASTDummyAudioInputGenerator(DummyAudioInputGenerator):
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = [self.batch_size, self.normalized_config.max_length, self.normalized_config.num_mel_bins]
         if input_name == "input_values":
-            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
+            return self.random_float_tensor(
+                shape, min_value=-1, max_value=1, framework=framework, float_dtype=float_dtype
+            )
         return super().generate(input_name, framework=framework)
 
 
@@ -1093,10 +1095,12 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
 
 
 class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = [self.batch_size, self.sequence_length, self.normalized_config.input_features_per_channel]
         if input_name == "input_features":
-            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
+            return self.random_float_tensor(
+                shape, min_value=-1, max_value=1, framework=framework, float_dtype=float_dtype
+            )
         return super().generate(input_name, framework=framework)
 
 
@@ -1173,12 +1177,16 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
         self,
         config: "PretrainedConfig",
         task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
     ):
-        super().__init__(config, task, use_past, use_past_in_inputs, use_present_in_outputs, behavior)
+        super().__init__(
+            config, task, int_dtype, float_dtype, use_past, use_past_in_inputs, use_present_in_outputs, behavior
+        )
 
         # TODO: Check modeling code to fix the issue with use_cache for trocr
         if config.decoder.model_type == "trocr":
@@ -1214,8 +1222,14 @@ class SamOnnxConfig(OnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyPointsGenerator)
     DEFAULT_ONNX_OPSET = 12  # einsum op not supported with opset 11
 
-    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
-        super().__init__(config, task)
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+    ):
+        super().__init__(config, task, int_dtype=int_dtype, float_dtype=float_dtype)
         self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig(self._config.vision_config)
 
     @property
