@@ -290,6 +290,7 @@ class OnnxConfig(ExportConfig, ABC):
                 input_shapes = {}
             dummy_inputs = self.generate_dummy_inputs(framework="np", **input_shapes)
             dummy_inputs = self.generate_dummy_inputs_for_validation(dummy_inputs, onnx_input_names=onnx_input_names)
+
             onnx_inputs = {}
             for name, value in dummy_inputs.items():
                 if isinstance(value, (list, tuple)):
@@ -819,10 +820,16 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length_out"}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
+        if len(t) not in [2, 4]:
+            raise ValueError(
+                "past_key_values to flatten should be of length 2 (self-attention only) or 4 (self and cross attention)."
+            )
+
         flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
         flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
-        flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
-        flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
+        if len(t) == 4:
+            flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
+            flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
 
     def patch_model_for_export(
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
@@ -1011,10 +1018,16 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         flattened_output[f"{name}.{idx}.value"] = t[1]
 
     def flatten_seq2seq_past_key_values(self, flattened_output, name, idx, t):
-        flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
-        flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
-        flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
-        flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
+        if len(t) not in [2, 4]:
+            raise ValueError(
+                "past_key_values to flatten should be of length 2 (self-attention only) or 4 (self and cross attention)."
+            )
+        if len(t) == 2:
+            flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
+            flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
+        if len(t) == 4:
+            flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
+            flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
 
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         flattened_output = {}
