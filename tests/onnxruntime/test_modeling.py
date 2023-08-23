@@ -1389,9 +1389,9 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "distilbert",
         "electra",
         "flaubert",
-        "gpt2",
-        "gpt_neo",
-        "gptj",
+        # "gpt2",  # see tasks.py
+        # "gpt_neo",  # see tasks.py
+        # "gptj",  # see tasks.py
         "ibert",
         # TODO: these two should be supported, but require image inputs not supported in ORTModel
         # "layoutlm"
@@ -1420,7 +1420,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("that is a custom or unsupported", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
