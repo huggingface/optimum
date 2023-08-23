@@ -103,8 +103,7 @@ PIX2STRUCT_INPUTS_DOCSTRING = r"""
     Args:
         flattened_patches (`torch.FloatTensor` of shape `(batch_size, sequence_length, num_channels x patch_height x patch_width)`):
             Flattened and padded pixel values.
-
-        attention_mask (`torch.FloatTensor` of shape `(batch_size, sequence_length)`, *optional*):
+        attention_mask (`torch.FloatTensor` of shape `(batch_size, sequence_length)`):
             Mask to avoid performing attention on padding pixel values.
 """
 
@@ -312,6 +311,28 @@ IMAGE_TO_TEXT_EXAMPLE = r"""
 
     >>> image_to_text = pipeline("image-to-text", model=model, tokenizer=tokenizer, feature_extractor=processor, image_processor=processor)
     >>> pred = image_to_text(image)
+    ```
+"""
+
+PIX2STRUCT_EXAMPLE = r"""
+    Example of pix2struct:
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+    >>> from PIL import Image
+    >>> import requests
+
+    >>> processor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}", export=True, use_io_binding=True)
+
+    >>> url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/tasks/ai2d-demo.jpg"
+    >>> image = Image.open(requests.get(url, stream=True).raw)
+    >>> question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
+    >>> inputs = processor(images=image, text=question, return_tensors="pt")
+
+    >>> gen_tokens = model.generate(**inputs)
+    >>> outputs = processor.batch_decode(gen_tokens, skip_special_tokens=True)
     ```
 """
 
@@ -1073,7 +1094,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         return ORTEncoder(session, self)
 
     @add_start_docstrings_to_model_forward(
-        SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
+        SEQ2SEQ_ONNX_MODEL_DOCSTRING
         + TRANSLATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForSeq2SeqLM",
@@ -1179,7 +1200,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         return ORTEncoderForSpeech(session, self)
 
     @add_start_docstrings_to_model_forward(
-        SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, feature_size, sequence_length")
+        SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING
         + AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE.format(
             processor_class=_PROCESSOR_FOR_DOC,
             model_class="ORTModelForSpeechSeq2Seq",
@@ -1367,7 +1388,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         return ORTEncoderForVisionEncoderDecoder(session, self)
 
     @add_start_docstrings_to_model_forward(
-        VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, num_channels, height, width")
+        VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING
         + IMAGE_TO_TEXT_EXAMPLE.format(
             processor_class=_IMAGE_PROCESSER_FOR_DOC,
             tokenizer_class=_TOKENIZER_FOR_DOC,
@@ -1468,6 +1489,14 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoderForPix2Struct(session, self)
 
+    @add_start_docstrings_to_model_forward(
+        PIX2STRUCT_INPUTS_DOCSTRING
+        + PIX2STRUCT_EXAMPLE.format(
+            processor_class=_PROCESSOR_FOR_DOC,
+            model_class="ORTModelForPix2Struct",
+            checkpoint="google/pix2struct-ai2d-base",
+        )
+    )
     def forward(
         self,
         flattened_patches: Optional[torch.FloatTensor] = None,
