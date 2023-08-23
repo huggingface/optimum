@@ -1213,6 +1213,7 @@ class SamOnnxConfig(OnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyPointsGenerator)
     DEFAULT_ONNX_OPSET = 12  # einsum op not supported with opset 11
+    MIN_TORCH_VERSION = version.parse("2.0.99")  # See: https://github.com/huggingface/optimum/pull/1301
 
     def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
         super().__init__(config, task)
