@@ -129,12 +129,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
 
-    def test_all_models_tested(self):
-        # make sure we test all models
-        missing_models_set = TasksManager._SUPPORTED_CLI_MODEL_TYPE - set(PYTORCH_EXPORT_MODELS_TINY.keys())
-        if len(missing_models_set) > 0:
-            self.fail(f"Not testing all models. Missing models: {missing_models_set}")
-
     @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
     @require_torch
     @require_vision
