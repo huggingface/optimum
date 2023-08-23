@@ -1235,8 +1235,9 @@ class SamOnnxConfig(OnnxConfig):
         task: str = "feature-extraction",
         variant: str = "split",
         vision_encoder: Optional[bool] = None,
+        preprocessors: Optional[List[Any]] = None,
     ):
-        super().__init__(config, task)
+        super().__init__(config, task, preprocessors=preprocessors)
         self.variant = variant
         self.vision_encoder = vision_encoder
         self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig(self._config.vision_config)
