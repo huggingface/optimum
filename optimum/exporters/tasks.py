@@ -392,13 +392,17 @@ class TasksManager:
             "feature-extraction",
             onnx="CLIPTextOnnxConfig",
         ),
+        "clip-text-with-projection": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="CLIPTextWithProjectionOnnxConfig",
+        ),
         "clip-vision-model": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPVisionOnnxConfig",
         ),
-        "clip-text-with-projection": supported_tasks_mapping(
+        "clip-vision-with-projection": supported_tasks_mapping(
             "feature-extraction",
-            onnx="CLIPTextWithProjectionOnnxConfig",
+            onnx="CLIPVisionWithProjectionOnnxConfig",
         ),
         "codegen": supported_tasks_mapping(
             "feature-extraction",
@@ -957,6 +961,7 @@ class TasksManager:
         "clip-text-model",
         "clip-text-with-projection",
         "clip-vision-model",
+        "clip-vision-with-projection",
         "trocr",
     }
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
