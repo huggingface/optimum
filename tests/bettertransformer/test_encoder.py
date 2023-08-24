@@ -65,7 +65,9 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
     def tearDown(self):
         gc.collect()
 
-    def prepare_inputs_for_class(self, model_id: str, model_type: str, batch_size: int = 2, **preprocessor_kwargs):
+    def prepare_inputs_for_class(
+        self, model_id: str, model_type: str, no_padding: bool = False, batch_size: int = 2, **preprocessor_kwargs
+    ):
         # TODO: remove the need for tokenizer
         if model_type == "markuplm":
             preprocessor = AutoProcessor.from_pretrained(model_id)
@@ -73,6 +75,8 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
             preprocessor = AutoTokenizer.from_pretrained(model_id)
         if batch_size == 1:
             texts = ["a dummy input yeah yeah!"]
+        elif no_padding:
+            texts = ["a dummy input yeah yeah!"] * batch_size
         else:
             texts = ["a dummy input yeah yeah!"] + ["and two"] * (batch_size - 1)
 
@@ -281,7 +285,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
             self.skipTest(f"{model_type} requires dataframe")
 
         model_id = MODELS_DICT[model_type]
-        self._test_logits_backward(model_id=model_id, model_type=model_type, batch_size=batch_size)
+        self._test_logits_backward(model_id=model_id, model_type=model_type, no_padding=True, batch_size=batch_size)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):

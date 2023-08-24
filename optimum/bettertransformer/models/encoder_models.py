@@ -153,6 +153,8 @@ class AlbertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             # NOTE: In PyTorch 2.0, passing an attention_mask will automatically dispatch
             # to the "math" path and will NOT use flash attention / memory-efficient attention.
             # We should support xformers / Hazy-flash / rocm-flash directly and stop relying on PyTorch to do the work.
+            if self.training:
+                attention_mask = None
             attention_out = F.scaled_dot_product_attention(
                 query,
                 key,
@@ -286,6 +288,7 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, attention_mask, *_):
+        # No check on output_attentions here as roformer relies on BertLayerBetterTransformer but does not pass output_attentions as keyword argument.
         if not self.training and not torch.is_autocast_enabled() and not torch.is_autocast_cpu_enabled():
             if hidden_states.is_nested:
                 attention_mask = None
@@ -330,6 +333,8 @@ class BertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             # NOTE: In PyTorch 2.0, passing an attention_mask will automatically dispatch
             # to the "math" path and will NOT use flash attention / memory-efficient attention.
             # We should support xformers / Hazy-flash / rocm-flash directly and stop relying on PyTorch to do the work.
+            if self.training:
+                attention_mask = None
             attention_out = F.scaled_dot_product_attention(
                 query,
                 key,
@@ -459,7 +464,10 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, attention_mask, position_bias=None, *_, **__):
+    def forward(self, hidden_states, attention_mask, output_attentions: bool, position_bias=None, *_, **__):
+        if output_attentions:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
         if not self.training and not torch.is_autocast_enabled() and not torch.is_autocast_cpu_enabled():
             if not hasattr(hidden_states, "original_shape"):
                 original_shape = hidden_states.shape
@@ -514,6 +522,8 @@ class BartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             # NOTE: In PyTorch 2.0, passing an attention_mask will automatically dispatch
             # to the "math" path and will NOT use flash attention / memory-efficient attention.
             # We should support xformers / Hazy-flash / rocm-flash directly and stop relying on PyTorch to do the work.
+            if self.training:
+                attention_mask = None
             attention_out = F.scaled_dot_product_attention(
                 query,
                 key,
@@ -649,7 +659,10 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, attention_mask, position_bias=None, *_, **__):
+    def forward(self, hidden_states, attention_mask, output_attentions: bool, position_bias=None, *_, **__):
+        if output_attentions:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
         if not self.training and not torch.is_autocast_enabled() and not torch.is_autocast_cpu_enabled():
             if not hasattr(hidden_states, "original_shape"):
                 original_shape = hidden_states.shape
@@ -711,6 +724,8 @@ class MBartEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             # NOTE: In PyTorch 2.0, passing an attention_mask will automatically dispatch
             # to the "math" path and will NOT use flash attention / memory-efficient attention.
             # We should support xformers / Hazy-flash / rocm-flash directly and stop relying on PyTorch to do the work.
+            if self.training:
+                attention_mask = None
             attention_out = F.scaled_dot_product_attention(
                 query,
                 key,
@@ -834,7 +849,10 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, attn_mask, head_mask=None, output_attentions=None, *_):
+    def forward(self, hidden_states, attn_mask, output_attentions: bool, head_mask=None, *_):
+        if output_attentions:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
         if not self.training and not torch.is_autocast_enabled() and not torch.is_autocast_cpu_enabled():
             if hidden_states.is_nested:
                 attn_mask = None
@@ -886,6 +904,8 @@ class DistilBertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             # NOTE: In PyTorch 2.0, passing an attention_mask will automatically dispatch
             # to the "math" path and will NOT use flash attention / memory-efficient attention.
             # We should support xformers / Hazy-flash / rocm-flash directly and stop relying on PyTorch to do the work.
+            if self.training:
+                attn_mask = None
             attention_out = F.scaled_dot_product_attention(
                 query,
                 key,
@@ -1009,7 +1029,10 @@ class WhisperEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, attention_mask, *_, **__):
+    def forward(self, hidden_states, attention_mask, output_attentions: bool, *_, **__):
+        if output_attentions:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
         if not self.training and not torch.is_autocast_enabled() and not torch.is_autocast_cpu_enabled():
             attention_mask = None  # attention mask seems to be always None: https://github.com/huggingface/transformers/blob/94b3f544a1f5e04b78d87a2ae32a7ac252e22e31/src/transformers/models/whisper/modeling_whisper.py#L690
 
@@ -1129,7 +1152,10 @@ class ViTLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, *_, **__):
+    def forward(self, hidden_states, output_attentions: bool, *_, **__):
+        if output_attentions:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
         if not self.training and not torch.is_autocast_enabled() and not torch.is_autocast_cpu_enabled():
             attention_mask = None
 
@@ -1249,7 +1275,10 @@ class ViltLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, *_, **__):
+    def forward(self, hidden_states, layer_head_mask, output_attentions: bool, *_, **__):
+        if output_attentions:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
         if not self.training and not torch.is_autocast_enabled() and not torch.is_autocast_cpu_enabled():
             attention_mask = None
 
@@ -1365,7 +1394,10 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Modul
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, attention_mask, **__):
+    def forward(self, hidden_states, attention_mask, output_attentions: bool, **__):
+        if output_attentions:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
         if not self.training and not torch.is_autocast_enabled() and not torch.is_autocast_cpu_enabled():
             if hidden_states.is_nested:
                 attention_mask = None
@@ -1487,7 +1519,10 @@ class FSMTEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, attention_mask, position_bias=None, *_, **__):
+    def forward(self, hidden_states, attention_mask, output_attentions: bool, position_bias=None, *_, **__):
+        if output_attentions:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
         if not self.training and not torch.is_autocast_enabled() and not torch.is_autocast_cpu_enabled():
             if not hasattr(hidden_states, "original_shape"):
                 original_shape = hidden_states.shape
@@ -1628,7 +1663,10 @@ class ProphetNetEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Mod
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, attention_mask, *_, **__):
+    def forward(self, hidden_states, attention_mask, output_attentions: bool, *_, **__):
+        if output_attentions:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
         if not self.training and not torch.is_autocast_enabled() and not torch.is_autocast_cpu_enabled():
             if not hasattr(hidden_states, "original_shape"):
                 original_shape = hidden_states.shape
@@ -1762,10 +1800,13 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
 
         self.validate_bettertransformer()
 
-    def forward(self, hidden_states, attention_mask, *_, **__):
+    def forward(self, hidden_states, attention_mask, causal_attention_mask, output_attentions: bool, *_, **__):
+        if output_attentions:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
         if not self.training and not torch.is_autocast_enabled() and not torch.is_autocast_cpu_enabled():
             # we expect attention_mask to be None in the vision model
-            if attention_mask is not None:
+            if attention_mask is not None or causal_attention_mask is not None:
                 raise ValueError(
                     "Please do not use attention masks when using `BetterTransformer` converted vision models"
                 )

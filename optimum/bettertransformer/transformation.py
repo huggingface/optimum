@@ -289,12 +289,11 @@ class BetterTransformer(object):
                 model = dispatch_model(model, hf_device_map, offload_dir=offload_dir)
 
         # See: https://github.com/pytorch/pytorch/issues/96099
-        if model_fast.config.model_type in BetterTransformerManager.DO_NOT_SUPPORT_PADDED_TRAINING:
-            logger.warning(
-                f"For decoder models (here {model_fast.config.model_type}), the BetterTransformer implementation"
-                " does not support padding during training, as the fused kernels do not support"
-                " attention masks. Beware that passing padded batched data during training may result in unexpected outputs."
-            )
+        logger.warning(
+            "The BetterTransformer implementation"
+            " does not support padding during training, as the fused kernels do not support"
+            " attention masks. Beware that passing padded batched data during training may result in unexpected outputs. Please refer to https://huggingface.co/docs/optimum/bettertransformer/overview for more details."
+        )
 
         # Overwrite the `save_pretrained` method
         # by raising an error if the user tries to save the model

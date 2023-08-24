@@ -17,7 +17,10 @@ from typing import Optional, Tuple
 import torch
 from transformers.models.llama.modeling_llama import _expand_mask as _llama_expand_mask
 from transformers.models.llama.modeling_llama import _make_causal_mask as _llama_make_causal_mask
-from transformers.models.llama.modeling_llama import apply_rotary_pos_emb
+from transformers.models.llama.modeling_llama import apply_rotary_pos_emb, repeat_kv
+
+
+# TODO (CRITICAL): Layer-wise attention scaling is broken for several archs (see a fix in gpt_bigcode_wrapped_scaled_dot_product).
 
 
 def raise_on_head_mask(head_mask: Optional[torch.Tensor]):
@@ -577,9 +580,35 @@ def llama_forward(
 
     bsz, q_len, _ = hidden_states.size()
 
-    query_states = self.q_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-    key_states = self.k_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-    value_states = self.v_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+    if self.config.pretraining_tp > 1:
+        key_value_slicing = (self.num_key_value_heads * self.head_dim) // self.config.pretraining_tp
+        query_slices = self.q_proj.weight.split((self.num_heads * self.head_dim) // self.config.pretraining_tp, dim=0)
+        key_slices = self.k_proj.weight.split(key_value_slicing, dim=0)
+        value_slices = self.v_proj.weight.split(key_value_slicing, dim=0)
+
+        query_states = [
+            torch.nn.functional.linear(hidden_states, query_slices[i]) for i in range(self.config.pretraining_tp)
+        ]
+        query_states = torch.cat(query_states, dim=-1)
+
+        key_states = [
+            torch.nn.functional.linear(hidden_states, key_slices[i]) for i in range(self.config.pretraining_tp)
+        ]
+        key_states = torch.cat(key_states, dim=-1)
+
+        value_states = [
+            torch.nn.functional.linear(hidden_states, value_slices[i]) for i in range(self.config.pretraining_tp)
+        ]
+        value_states = torch.cat(value_states, dim=-1)
+
+    else:
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
+        value_states = self.v_proj(hidden_states)
+
+    query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+    key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+    value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
 
     kv_seq_len = key_states.shape[-2]
     if past_key_value is not None:
@@ -594,6 +623,10 @@ def llama_forward(
         value_states = torch.cat([past_key_value[1], value_states], dim=2)
 
     past_key_value = (key_states, value_states) if use_cache else None
+
+    # repeat k/v heads if n_kv_heads < n_heads
+    key_states = repeat_kv(key_states, self.num_key_value_groups)
+    value_states = repeat_kv(value_states, self.num_key_value_groups)
 
     if bsz == 1 or self.training:
         # BEWARE: at this stage, attention_mask is not the same as in transformers llama
@@ -617,12 +650,243 @@ def llama_forward(
             query_states, key_states, value_states, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
         )
 
-    attn_output = attn_output.transpose(1, 2)
+    attn_output = attn_output.transpose(1, 2).contiguous()
     attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
 
-    attn_output = self.o_proj(attn_output)
+    if self.config.pretraining_tp > 1:
+        attn_output = attn_output.split(self.hidden_size // self.config.pretraining_tp, dim=2)
+        o_proj_slices = self.o_proj.weight.split(self.hidden_size // self.config.pretraining_tp, dim=1)
+        attn_output = sum(
+            [torch.nn.functional.linear(attn_output[i], o_proj_slices[i]) for i in range(self.config.pretraining_tp)]
+        )
+    else:
+        attn_output = self.o_proj(attn_output)
 
     if not output_attentions:
         attn_weights = None
 
     return attn_output, attn_weights, past_key_value
+
+
+def gpt_bigcode_wrapped_scaled_dot_product(
+    self,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attention_mask: Optional[torch.Tensor] = None,
+    head_mask: Optional[torch.Tensor] = None,
+):
+    raise_on_head_mask(head_mask)
+
+    # TODO: remove once PyTorch 2.1 is released with the scale argument to SDPA
+    if not self.scale_attn_weights:
+        query = query / self.head_dim**0.5
+
+    # MQA models: (batch_size, query_length, num_heads * head_dim)
+    # MHA models: (batch_size, num_heads, query_length, head_dim)
+    query_shape = query.shape
+    batch_size = query_shape[0]
+
+    if self.multi_query:
+        query_length = query_shape[1]
+
+        # NOTE: Maybe there is better than this?
+        query = query.view(batch_size, query_length, self.num_heads, self.head_dim).transpose(1, 2)
+    else:
+        raise NotImplementedError(
+            "BetterTransformer integration with GPT BigCode without Multi-Query Attention (MQA) has not been implemented. Please open an issue or PR at https://github.com/huggingface/optimum."
+        )
+
+    dropout_p = self.dropout_prob_attn if self.training else 0.0
+
+    # I did not find how to avoid these unsqueeze, SDPA complains otherwise as the query and key/value have a different number of dimensions.
+    key = key.unsqueeze(1)
+    value = value.unsqueeze(1)
+
+    # Although these expand are not numerically useful, PyTorch 2.0.1 and 2.1.0.dev20230805+cu118 can not dispatch to mem-efficient attention
+    # and flash attention from the shapes
+    # query = [batch_size, num_heads, query_length, head_dim]
+    # key = [batch_size, 1, past_length, head_dim]
+    # value = [batch_size, 1, past_length, head_dim]
+    # which is unfortunate. Hopefully can be changed in the future. These expand should not be too expansive as they do not do memory copy.
+    key = key.expand(-1, self.num_heads, -1, -1)
+    value = value.expand(-1, self.num_heads, -1, -1)
+
+    if batch_size == 1 or self.training:
+        if query_length > 1:
+            sdpa_result = torch.nn.functional.scaled_dot_product_attention(
+                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=True
+            )
+        else:
+            sdpa_result = torch.nn.functional.scaled_dot_product_attention(
+                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=False
+            )
+    else:
+        if attention_mask is not None:
+            mask_value = self._get_mask_value(query.device, query.dtype)
+
+            # gpt_bigcode has the bad taste to use a causal mask a
+            # [batch_size, target_length, 1, source_length] which is different from
+            # **all** other architectures and not compatible with SDPA.
+            # We could avoid this transpose by overriding the forward from GPTBigCodeModel,
+            # but it is probably not worth it.
+            attention_mask = attention_mask.transpose(1, 2)
+            attention_mask = torch.where(attention_mask, 0.0, mask_value)
+
+        sdpa_result = torch.nn.functional.scaled_dot_product_attention(
+            query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=False
+        )
+
+    if self.multi_query:
+        # (batch_size, num_heads, seq_len, head_dim) --> (batch_size, seq_len, num_heads, head_dim)
+        sdpa_result = sdpa_result.transpose(1, 2)
+
+        # Reshape is kind of expensive here (as here it does a memory copy)
+        # but I did not manage to make away without it.
+        # (batch_size, seq_len, num_heads, head_dim) --> (batch_size, seq_len, num_heads * head_dim)
+        sdpa_result = sdpa_result.reshape(query_shape)
+
+    return sdpa_result
+
+
+def gpt_bigcode_forward(
+    self,
+    hidden_states: torch.Tensor,
+    layer_past: Optional[torch.Tensor] = None,
+    attention_mask: Optional[torch.Tensor] = None,
+    head_mask: Optional[torch.Tensor] = None,
+    encoder_hidden_states: Optional[torch.Tensor] = None,
+    encoder_attention_mask: Optional[torch.Tensor] = None,
+    use_cache: Optional[bool] = False,
+    output_attentions: Optional[bool] = False,
+) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    if output_attentions is True:
+        raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
+    if encoder_hidden_states is not None:
+        if not hasattr(self, "q_attn") or not self.is_cross_attention:
+            raise ValueError(
+                "If class is used as cross attention, the weights `q_attn` have to be defined. "
+                "Please make sure to instantiate class with `GPTBigCodeAttention(..., is_cross_attention=True)`."
+            )
+
+        query = self.q_attn(hidden_states)
+        key_value = self.c_attn(encoder_hidden_states)
+        attention_mask = encoder_attention_mask
+    elif self.multi_query:
+        query, key_value = self.c_attn(hidden_states).split((self.embed_dim, 2 * self.kv_dim), dim=2)
+    else:
+        # Note: We split as (self.num_heads, 3, self.head_dim) instead of (3, self.num_heads, self.head_dim),
+        # i.e., the memory layout is not the same as GPT2.
+        # This makes the concatenation with past_key_value more efficient.
+        query, key_value = (
+            self.c_attn(hidden_states)
+            .view(*hidden_states.shape[:2], self.num_heads, 3 * self.head_dim)
+            .transpose(1, 2)
+            .split((self.head_dim, 2 * self.head_dim), dim=3)
+        )
+
+    if layer_past is not None:
+        key_value = torch.cat((layer_past, key_value), dim=-2)
+    present = key_value if use_cache else None
+
+    key, value = key_value.split((self.head_dim, self.head_dim), dim=-1)
+
+    # Difference with the transformers implementation: there is no need to transpose the key here,
+    # as SDPA expects seq_length to be at index -2
+    attn_output = self._attn(query, key, value, attention_mask, head_mask)
+
+    if not self.multi_query:
+        attn_output = attn_output.transpose(1, 2).reshape(hidden_states.shape)
+    attn_output = self.c_proj(attn_output)
+    attn_output = self.resid_dropout(attn_output)
+
+    outputs = (attn_output, present)
+
+    return outputs
+
+
+# Adapted from transformers.models.bloom.modeling_bloom.BloomAttention.forward
+def bloom_forward(
+    self,
+    hidden_states: torch.Tensor,
+    residual: torch.Tensor,
+    alibi: torch.Tensor,
+    attention_mask: torch.Tensor,
+    layer_past: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+    head_mask: Optional[torch.Tensor] = None,
+    use_cache: bool = False,
+    output_attentions: bool = False,
+):
+    raise_on_head_mask(head_mask)
+
+    if output_attentions is True:
+        raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
+    fused_qkv = self.query_key_value(hidden_states)  # [batch_size, seq_length, 3 x hidden_size]
+
+    # 3 x [batch_size, seq_length, num_heads, head_dim]
+    (query_layer, key_layer, value_layer) = self._split_heads(fused_qkv)
+
+    batch_size, q_length, _, _ = query_layer.shape
+
+    # Permute to [batch_size, num_heads, seq_length, head_dim]
+    query_layer = query_layer.transpose(1, 2)
+
+    if layer_past is not None:
+        past_key, past_value = layer_past
+        past_key = past_key.transpose(1, 2)
+
+        key_layer = key_layer.transpose(1, 2).reshape(batch_size * self.num_heads, q_length, self.head_dim)
+        value_layer = value_layer.transpose(1, 2).reshape(batch_size * self.num_heads, q_length, self.head_dim)
+
+        # concatenate along seq_length dimension
+        key_layer = torch.cat((past_key, key_layer), dim=1)
+        value_layer = torch.cat((past_value, value_layer), dim=1)
+
+        # untangle batch_size from self.num_heads
+        key_layer = key_layer.reshape(batch_size, self.num_heads, *key_layer.shape[1:])
+        value_layer = value_layer.reshape(batch_size, self.num_heads, *value_layer.shape[1:])
+    else:
+        key_layer = key_layer.transpose(1, 2)
+        value_layer = value_layer.transpose(1, 2)
+
+    alibi = alibi.reshape(batch_size, -1, *alibi.shape[1:])
+    alibi = torch.masked_fill(alibi, attention_mask, torch.finfo(alibi.dtype).min)
+
+    context_layer = torch.nn.functional.scaled_dot_product_attention(
+        query_layer,
+        key_layer,
+        value_layer,
+        attn_mask=alibi,
+        dropout_p=self.dropout_prob_attn if self.training else 0.0,
+    )
+
+    # Transform [batch_size, num_heads, seq_length, head_dim] to [batch_size, seq_length, num_heads * head_dim]
+    context_layer = context_layer.transpose(1, 2)
+    context_layer = context_layer.reshape(*context_layer.shape[:2], -1)
+
+    # aggregate results across tp ranks. See here: https://github.com/pytorch/pytorch/issues/76232
+    if self.pretraining_tp > 1 and self.slow_but_exact:
+        slices = self.hidden_size / self.pretraining_tp
+        output_tensor = torch.zeros_like(context_layer)
+        for i in range(self.pretraining_tp):
+            output_tensor = output_tensor + torch.nn.functional.linear(
+                context_layer[:, :, int(i * slices) : int((i + 1) * slices)],
+                self.dense.weight[:, int(i * slices) : int((i + 1) * slices)],
+            )
+    else:
+        output_tensor = self.dense(context_layer)
+
+    output_tensor = torch.nn.functional.dropout(output_tensor, p=self.hidden_dropout, training=self.training)
+    output_tensor = residual + output_tensor
+
+    if use_cache is True:
+        present = (
+            key_layer.reshape(-1, *key_layer.shape[2:]).transpose(1, 2),
+            value_layer.reshape(-1, *value_layer.shape[2:]),
+        )
+    else:
+        present = None
+
+    return (output_tensor, present)

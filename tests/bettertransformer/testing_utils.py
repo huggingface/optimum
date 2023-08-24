@@ -33,6 +33,7 @@ MODELS_DICT = {
     "bert-generation": "ybelkada/random-tiny-BertGenerationModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blip-2": "hf-internal-testing/tiny-random-Blip2Model",
+    "bloom": "hf-internal-testing/tiny-random-BloomModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip_text_model": "hf-internal-testing/tiny-random-clip-zero-shot-image-classification",  # with quick_gelu
     "clip": "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",  # with gelu
@@ -44,12 +45,15 @@ MODELS_DICT = {
     "ernie": "hf-internal-testing/tiny-random-ErnieModel",
     "fsmt": "hf-internal-testing/tiny-random-FSMTModel",
     "gpt2": "hf-internal-testing/tiny-random-GPT2Model",
+    # NOTE: this tiny model does not use attention_softmax_in_fp32=True (contrary to e.g. starcoder)
+    "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeForCausalLM",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "hubert": "ybelkada/hubert-tiny-random",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "llama": "fxmarty/tiny-llama-fast-tokenizer",
+    "llama-gqa": "noamwies/llama-test-gqa-with-better-transformer",
     "m2m_100": "hf-internal-testing/tiny-random-nllb",
     "marian": "fxmarty/tiny-marian",  # the other tiny ones have a too small max_position_embeddings
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
@@ -79,6 +83,7 @@ known_dropout_keys = [
     "hidden_dropout_prob",
     "classifier_dropout_prob",
     "attention_dropout",
+    "hidden_dropout",
     "dropout",
     "qa_dropout",
     "seq_classif_dropout",
@@ -219,7 +224,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
     def _test_logits(self, model_id: str, model_type: str, **preprocessor_kwargs):
         r"""
         This tests if the converted model produces the same logits
-        than the original model.
+        as the original model.
         """
         # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
         inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs)
