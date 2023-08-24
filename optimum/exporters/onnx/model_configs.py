@@ -31,6 +31,7 @@ from ...utils import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
+    DummyVisionEmbeddingsGenerator,
     DummyVisionInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
     NormalizedConfig,
@@ -53,7 +54,7 @@ from .config import (
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
-from .model_patcher import WavLMModelPatcher
+from .model_patcher import SAMModelPatcher, WavLMModelPatcher
 
 
 if TYPE_CHECKING:
@@ -1217,34 +1218,62 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
 
 class SamOnnxConfig(OnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.29.0.dev0")
+    # Since ransformers 4.32.0, SAM uses repeat_interleave op that is broken in PyTorch 2.0.1: https://github.com/pytorch/pytorch/issues/100429
+    MIN_TORCH_VERSION = version.parse("2.0.99")
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyPointsGenerator)
-    DEFAULT_ONNX_OPSET = 12  # einsum op not supported with opset 11
-    MIN_TORCH_VERSION = version.parse("2.0.99")  # See: https://github.com/huggingface/optimum/pull/1301
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyPointsGenerator, DummyVisionEmbeddingsGenerator)
+    DEFAULT_ONNX_OPSET = 13  # Opset 12 for repeat_interleave falls back on the opset 9 implem, that raises Unsupported: ONNX export of repeat_interleave in opset 9.
+    VARIANTS = {
+        "monolith": "All the SAM model components are exported as a single model.onnx.",
+        "split": "The vision encoder is exported as a separate vision_encoder.onnx, and the prompt encoder and mask decoder are exported as a prompt_encoder_mask_decoder.onnx. This allows to encoder the image only once for multiple point queries.",
+    }
+    DEFAULT_VARIANT = "split"
 
     def __init__(
-        self, config: "PretrainedConfig", task: str = "feature-extraction", preprocessors: Optional[List[Any]] = None
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        variant: str = "split",
+        vision_encoder: Optional[bool] = None,
+        preprocessors: Optional[List[Any]] = None,
     ):
         super().__init__(config, task, preprocessors=preprocessors)
+        self.variant = variant
+        self.vision_encoder = vision_encoder
         self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig(self._config.vision_config)
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        inputs = {
-            "pixel_values": {0: "batch_size"},
-            "input_points": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
-        }
-
+        if self.variant == "monolith":
+            inputs = {
+                "pixel_values": {0: "batch_size"},
+                "input_points": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
+            }
+        else:
+            if self.vision_encoder:
+                inputs = {"pixel_values": {0: "batch_size"}}
+            else:
+                inputs = {
+                    "image_positional_embeddings": {0: "batch_size"},
+                    "image_embeddings": {0: "batch_size"},
+                    "input_points": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
+                }
         return inputs
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        outputs = {
-            "iou_scores": {0: "batch_size", 1: "point_batch_size"},
-            "pred_masks": {0: "batch_size", 1: "point_batch_size"},
-        }
+        if self.variant == "split" and self.vision_encoder:
+            return {"image_embeddings": {0: "batch_size"}, "image_positional_embeddings": {0: "batch_size"}}
+        else:
+            return {
+                "iou_scores": {0: "batch_size", 1: "point_batch_size"},
+                "pred_masks": {0: "batch_size", 1: "point_batch_size"},
+            }
 
-        return outputs
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return SAMModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class Pix2StructNormalizedConfig(NormalizedSeq2SeqConfig):

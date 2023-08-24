@@ -124,6 +124,7 @@ class OnnxConfig(ExportConfig, ABC):
     MIN_TORCH_VERSION = GLOBAL_MIN_TORCH_VERSION
     MIN_TRANSFORMERS_VERSION = GLOBAL_MIN_TRANSFORMERS_VERSION
     PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
+    VARIANTS = {"default": "The default ONNX variant."}
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
@@ -226,6 +227,22 @@ class OnnxConfig(ExportConfig, ABC):
         common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
 
+    @property
+    def variant(self) -> str:
+        """
+        For a given ONNX config, the variant of the model to export. This property allows to define variants of a given model, in case
+        different users would like to export the model differently (with different inputs/outputs, model splitted in several ONNX or not, etc.).
+        """
+        return self._variant
+
+    @variant.setter
+    def variant(self, value: str):
+        if value == "default" and hasattr(self, "DEFAULT_VARIANT"):
+            value = self.DEFAULT_VARIANT
+        if value not in self.VARIANTS:
+            raise ValueError(f"The variant {value} is not supported for the ONNX config {self.__class__.__name__}.")
+        self._variant = value
+
     def fix_dynamic_axes(
         self, model_path: "Path", device: str = "cpu", dtype: Optional[str] = None, input_shapes: Optional[Dict] = None
     ):
@@ -276,6 +293,7 @@ class OnnxConfig(ExportConfig, ABC):
                 input_shapes = {}
             dummy_inputs = self.generate_dummy_inputs(framework="np", **input_shapes)
             dummy_inputs = self.generate_dummy_inputs_for_validation(dummy_inputs, onnx_input_names=onnx_input_names)
+
             onnx_inputs = {}
             for name, value in dummy_inputs.items():
                 if isinstance(value, (list, tuple)):
@@ -825,10 +843,16 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length_out"}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
+        if len(t) not in [2, 4]:
+            raise ValueError(
+                "past_key_values to flatten should be of length 2 (self-attention only) or 4 (self and cross attention)."
+            )
+
         flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
         flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
-        flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
-        flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
+        if len(t) == 4:
+            flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
+            flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
 
     def patch_model_for_export(
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
@@ -1017,10 +1041,16 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         flattened_output[f"{name}.{idx}.value"] = t[1]
 
     def flatten_seq2seq_past_key_values(self, flattened_output, name, idx, t):
-        flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
-        flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
-        flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
-        flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
+        if len(t) not in [2, 4]:
+            raise ValueError(
+                "past_key_values to flatten should be of length 2 (self-attention only) or 4 (self and cross attention)."
+            )
+        if len(t) == 2:
+            flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
+            flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
+        if len(t) == 4:
+            flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
+            flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
 
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         flattened_output = {}

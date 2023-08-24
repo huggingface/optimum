@@ -326,11 +326,12 @@ def _run_validation(
     # Some models may modify in place the inputs, hence the copy.
     copy_reference_model_inputs = copy.deepcopy(reference_model_inputs)
 
-    if is_torch_available() and isinstance(reference_model, nn.Module):
-        with torch.inference_mode():
-            ref_outputs = reference_model(**copy_reference_model_inputs, **model_kwargs)
-    else:
-        ref_outputs = reference_model(**copy_reference_model_inputs, **model_kwargs)
+    with config.patch_model_for_export(reference_model, model_kwargs=model_kwargs):
+        if is_torch_available() and isinstance(reference_model, nn.Module):
+            with torch.inference_mode():
+                ref_outputs = reference_model(**copy_reference_model_inputs)
+        else:
+            ref_outputs = reference_model(**copy_reference_model_inputs)
     ref_outputs_dict = {}
 
     # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
@@ -564,10 +565,6 @@ def export_pytorch(
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)
             dummy_inputs = tree_map(remap, dummy_inputs)
-        check_dummy_inputs_are_allowed(model, dummy_inputs)
-        inputs = config.ordered_inputs(model)
-        input_names = list(inputs.keys())
-        output_names = list(config.outputs.keys())
 
         # PyTorch deprecated the `enable_onnx_checker` and `use_external_data_format` arguments in v1.11,
         # so we check the torch version for backwards compatibility
@@ -575,6 +572,12 @@ def export_pytorch(
             raise RuntimeError("The ONNX export using the PyTorch framework is only supported for v1.11+")
         else:
             with config.patch_model_for_export(model, model_kwargs=model_kwargs):
+                check_dummy_inputs_are_allowed(model, dummy_inputs)
+
+                inputs = config.ordered_inputs(model)
+                input_names = list(inputs.keys())
+                output_names = list(config.outputs.keys())
+
                 # Export can work with named args but the dict containing named args has to be the last element of the args
                 # tuple.
                 onnx_export(
