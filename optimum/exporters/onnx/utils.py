@@ -318,7 +318,7 @@ def _get_submodels_for_export_sam(model, variant):
     else:
         # We use the model patcher to patch their forward method.
         models_for_export["vision_encoder"] = model
-        models_for_export["prompt_mask"] = model
+        models_for_export["prompt_encoder_mask_decoder"] = model
 
     return models_for_export
 
@@ -333,11 +333,14 @@ def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel
         vision_encoder_onnx_config = config.__class__(
             model.config, task=config.task, variant=config.variant, vision_encoder=True
         )
-        prompt_mask_onnx_config = config.__class__(
+        prompt_encoder_mask_decoder_onnx_config = config.__class__(
             model.config, task=config.task, variant=config.variant, vision_encoder=False
         )
         models_for_export["vision_encoder"] = (models_for_export["vision_encoder"], vision_encoder_onnx_config)
-        models_for_export["prompt_mask"] = (models_for_export["prompt_mask"], prompt_mask_onnx_config)
+        models_for_export["prompt_encoder_mask_decoder"] = (
+            models_for_export["prompt_encoder_mask_decoder"],
+            prompt_encoder_mask_decoder_onnx_config,
+        )
 
     return models_for_export
 

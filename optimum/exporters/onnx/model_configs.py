@@ -1225,7 +1225,7 @@ class SamOnnxConfig(OnnxConfig):
     DEFAULT_ONNX_OPSET = 13  # Opset 12 for repeat_interleave falls back on the opset 9 implem, that raises Unsupported: ONNX export of repeat_interleave in opset 9.
     VARIANTS = {
         "monolith": "All the SAM model components are exported as a single model.onnx.",
-        "split": "The vision encoder is exported as a separate vision_encoder.onnx, and the prompt encoder and mask decoder are exported as a prompt_mask.onnx. This allows to encoder the image only once for multiple point queries.",
+        "split": "The vision encoder is exported as a separate vision_encoder.onnx, and the prompt encoder and mask decoder are exported as a prompt_encoder_mask_decoder.onnx. This allows to encoder the image only once for multiple point queries.",
     }
     DEFAULT_VARIANT = "split"
 
