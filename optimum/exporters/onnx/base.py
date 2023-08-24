@@ -176,7 +176,9 @@ class OnnxConfig(ExportConfig, ABC):
         ),
     }
 
-    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
+    def __init__(
+        self, config: "PretrainedConfig", task: str = "feature-extraction", preprocessors: Optional[List[Any]] = None
+    ):
         if task not in self._TASK_TO_COMMON_OUTPUTS:
             raise ValueError(
                 f"{task} is not a supported task, supported tasks: {', '.join(self._TASK_TO_COMMON_OUTPUTS.keys())}"
@@ -184,6 +186,7 @@ class OnnxConfig(ExportConfig, ABC):
         self.task = task
 
         self._config = config
+        self._preprocessors = preprocessors
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
@@ -493,6 +496,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
+        preprocessors: Optional[List[Any]] = None,
     ):
         self.use_past = use_past
         if use_past_in_inputs is None:
@@ -515,10 +519,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             )
         self.is_merged = False
         self.use_cache_branch = None
-        super().__init__(config, task=task)
+        super().__init__(config, task=task, preprocessors=preprocessors)
 
     @classmethod
-    def with_past(cls, config: "PretrainedConfig", task: str = "feature-extraction") -> "OnnxConfigWithPast":
+    def with_past(
+        cls, config: "PretrainedConfig", task: str = "feature-extraction", preprocessors: Optional[List[Any]] = None
+    ) -> "OnnxConfigWithPast":
         """
         Instantiates a [`~optimum.exporters.onnx.OnnxConfig`] with `use_past` attribute set to `True`.
 
@@ -531,7 +537,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         Returns:
             [`~optimum.exporters.onnx.OnnxConfig`]: The onnx config with `.use_past = True`
         """
-        return cls(config, task=task, use_past=True)
+        return cls(config, task=task, use_past=True, preprocessors=preprocessors)
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
@@ -564,24 +570,9 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
-                    # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
-                    # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
-                    if (
-                        self.use_past is True
-                        and self.use_cache_branch is not False
-                        and input_name in ["decoder_input_ids", "input_ids"]
-                    ):
-                        sequence_length = dummy_input_gen.sequence_length
-                        if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
-                            logger.info(
-                                f"Asked a sequence length of {kwargs['sequence_length']}, but a sequence length of 1 "
-                                f"will be used with use_past == True for `{input_name}`."
-                            )
-                        dummy_input_gen.sequence_length = 1
-                        dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
-                        dummy_input_gen.sequence_length = sequence_length
-                    else:
-                        dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework=framework)
+                    dummy_inputs[input_name] = self.overwrite_shape_and_generate_input(
+                        dummy_input_gen, input_name, framework, input_shapes=kwargs
+                    )
                     input_was_inserted = True
                     break
             if not input_was_inserted:
@@ -616,6 +607,35 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             )
 
         return dummy_inputs
+
+    def overwrite_shape_and_generate_input(
+        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: Dict
+    ):
+        """
+        The shape passed to the dummy input generator may not always be correct for all of the inputs it manages. This method allows
+        to overwrite some shapes, and generate the dummy input. This should probably be refactored more elegantly.
+        """
+
+        # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
+        # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
+        if (
+            self.use_past is True
+            and self.use_cache_branch is not False
+            and input_name in ["decoder_input_ids", "input_ids"]
+        ):
+            sequence_length = dummy_input_gen.sequence_length
+            if "sequence_length" in input_shapes and input_shapes["sequence_length"] != 1:
+                logger.info(
+                    f"Asked a sequence length of {input_shapes['sequence_length']}, but a sequence length of 1 "
+                    f"will be used with use_past == True for `{input_name}`."
+                )
+            dummy_input_gen.sequence_length = 1
+            dummy_input = dummy_input_gen.generate(input_name, framework=framework)
+            dummy_input_gen.sequence_length = sequence_length
+        else:
+            dummy_input = dummy_input_gen.generate(input_name, framework=framework)
+
+        return dummy_input
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
         """
@@ -703,6 +723,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+        preprocessors: Optional[List[Any]] = None,
     ):
         super().__init__(
             config,
@@ -710,6 +731,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             use_present_in_outputs=use_present_in_outputs,
+            preprocessors=preprocessors,
         )
         self._behavior = behavior
         self.override_attributes_for_behavior()
@@ -746,6 +768,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             task=self.task,
             use_past=use_past,
             behavior=behavior,
+            preprocessors=self._preprocessors,
         )
 
     @property

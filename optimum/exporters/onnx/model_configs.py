@@ -852,8 +852,10 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
     MIN_TORCH_VERSION = version.parse("2.1")
 
-    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
-        super().__init__(config, task)
+    def __init__(
+        self, config: "PretrainedConfig", task: str = "feature-extraction", preprocessors: Optional[List[Any]] = None
+    ):
+        super().__init__(config, task, preprocessors=preprocessors)
         if task == "zero-shot-object-detection":
             logger.warning(
                 "The batch size of this model will not be dynamic because non-maximum suppression is performed. "
@@ -957,8 +959,10 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         PerceiverDummyInputGenerator,
     ) + TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
 
-    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
-        super().__init__(config, task=task)
+    def __init__(
+        self, config: "PretrainedConfig", task: str = "feature-extraction", preprocessors: Optional[List[Any]] = None
+    ):
+        super().__init__(config, task=task, preprocessors=preprocessors)
         self.is_generating_dummy_inputs = False
 
     @property
@@ -1177,8 +1181,11 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+        preprocessors: Optional[List[Any]] = None,
     ):
-        super().__init__(config, task, use_past, use_past_in_inputs, use_present_in_outputs, behavior)
+        super().__init__(
+            config, task, use_past, use_past_in_inputs, use_present_in_outputs, behavior, preprocessors=preprocessors
+        )
 
         # TODO: Check modeling code to fix the issue with use_cache for trocr
         if config.decoder.model_type == "trocr":
@@ -1213,9 +1220,12 @@ class SamOnnxConfig(OnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyPointsGenerator)
     DEFAULT_ONNX_OPSET = 12  # einsum op not supported with opset 11
+    MIN_TORCH_VERSION = version.parse("2.0.99")  # See: https://github.com/huggingface/optimum/pull/1301
 
-    def __init__(self, config: "PretrainedConfig", task: str = "feature-extraction"):
-        super().__init__(config, task)
+    def __init__(
+        self, config: "PretrainedConfig", task: str = "feature-extraction", preprocessors: Optional[List[Any]] = None
+    ):
+        super().__init__(config, task, preprocessors=preprocessors)
         self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig(self._config.vision_config)
 
     @property
@@ -1260,10 +1270,10 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
     @property
     def inputs(self):
         common_inputs = {}
-        common_inputs["attention_mask"] = {0: "batch_size", 1: "max_patches"}
+        common_inputs["attention_mask"] = {0: "batch_size"}
 
         if self._behavior is not ConfigBehavior.DECODER:
-            common_inputs["flattened_patches"] = {0: "batch_size", 1: "max_patches", 2: "patch_size"}
+            common_inputs["flattened_patches"] = {0: "batch_size"}
 
         if self._behavior is not ConfigBehavior.ENCODER:
             if self.use_past_in_inputs:
@@ -1275,11 +1285,45 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
             if self.use_past_in_inputs:
                 self.add_past_key_values(common_inputs, direction="inputs")
 
-            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "max_patches"}
+            common_inputs["encoder_outputs"] = {0: "batch_size"}
 
+            # Contrary to other seq2seq archs as t5 and bart, Pix2Struct DO make use of the decoder_attention_mask input.
             common_inputs["decoder_attention_mask"] = {0: "batch_size", 1: "past_sequence_length + 1"}
 
         return common_inputs
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self._behavior is ConfigBehavior.ENCODER:
+            common_outputs = {
+                "last_hidden_state": {0: "batch_size"}
+            }  # The last hidden state dim=1 is constant, no need for it to be dynamic.
+        else:
+            common_outputs = super(OnnxConfigWithPast, self).outputs
+
+        # Renaming the outputs axes properly.
+        for name, axes_names in common_outputs.items():
+            if self._behavior is ConfigBehavior.ENCODER or "encoder" in name:
+                sequence_name = "encoder_sequence_length"
+            else:
+                sequence_name = "decoder_sequence_length"
+
+            new_axes_names = {}
+            for axis_idx, axis_name in axes_names.items():
+                if "sequence" in axis_name:
+                    if self.use_past_in_inputs is False or self.is_merged is True:
+                        new_axes_names[axis_idx] = sequence_name
+                    else:
+                        # Trick to force it since ONNX sometimes infer a dynamic axis where it's not.
+                        new_axes_names[axis_idx] = "1"
+                else:
+                    new_axes_names[axis_idx] = axis_name
+            common_outputs[name] = new_axes_names
+
+        if self.use_present_in_outputs:
+            self.add_past_key_values(common_outputs, direction="outputs")
+
+        return common_outputs
 
     @property
     def torch_to_onnx_input_map(self) -> Dict[str, str]:
@@ -1310,3 +1354,59 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
             reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
 
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
+
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        dummy_inputs_generators = []
+        dummy_inputs_generators.append(self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config))
+
+        if self._preprocessors is None or len(self._preprocessors) != 2:
+            raise ValueError(
+                f"Preprocessors for pix2struct need to be available for the ONNX export to infer input static shapes. Got: {self._preprocessors}"
+            )
+
+        encoder_sequence_length = self._preprocessors[1].image_processor.max_patches
+        # A hack for DummyPix2StructInputGenerator to gain access to the preprocessors.
+        # TODO: we should probably pass preprocessors to all dummy input generators.
+        kwargs["preprocessors"] = self._preprocessors
+        for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]:
+            dummy_inputs_generators.append(
+                cls_(self.task, self._normalized_config, encoder_sequence_length=encoder_sequence_length, **kwargs)
+            )
+
+        return dummy_inputs_generators
+
+    def overwrite_shape_and_generate_input(
+        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: Dict
+    ):
+        if self._preprocessors is None or len(self._preprocessors) != 2:
+            raise ValueError(
+                f"Preprocessors for pix2struct need to be available for the ONNX export to infer input static shapes. Got: {self._preprocessors}"
+            )
+
+        # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
+        # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
+        if (
+            self.use_past is True
+            and self.use_cache_branch is not False
+            and input_name in ["decoder_input_ids", "input_ids"]
+        ):
+            sequence_length = dummy_input_gen.sequence_length
+            if "sequence_length" in input_shapes and input_shapes["sequence_length"] != 1:
+                logger.info(
+                    f"Asked a sequence length of {input_shapes['sequence_length']}, but a sequence length of 1 "
+                    f"will be used with use_past == True for `{input_name}`."
+                )
+            dummy_input_gen.sequence_length = 1
+            dummy_input = dummy_input_gen.generate(input_name, framework=framework)
+            dummy_input_gen.sequence_length = sequence_length
+        elif input_name in ["encoder_outputs", "attention_mask"]:
+            # pix2struct takes inputs whose so-called sequence length is **static** to max_patches, so we do NOT use
+            # the passed sequence_length that behaves as a dynamic shape.
+            original_seq_length = dummy_input_gen.sequence_length
+            dummy_input_gen.sequence_length = self._preprocessors[1].image_processor.max_patches
+            dummy_input = dummy_input_gen.generate(input_name, framework=framework)
+            dummy_input_gen.sequence_length = original_seq_length
+        else:
+            dummy_input = dummy_input_gen.generate(input_name, framework=framework)
+
+        return dummy_input
