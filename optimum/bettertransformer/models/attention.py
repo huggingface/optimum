@@ -15,10 +15,19 @@
 from typing import Optional, Tuple
 
 import torch
-from transformers.models.llama.modeling_llama import _expand_mask as _llama_expand_mask
-from transformers.models.llama.modeling_llama import _make_causal_mask as _llama_make_causal_mask
-from transformers.models.llama.modeling_llama import apply_rotary_pos_emb, repeat_kv
 
+from ...utils.import_utils import check_if_transformers_greater
+
+
+# TODO: remove once we are much higher than 4.31
+if check_if_transformers_greater("4.31"):
+    from transformers.models.llama.modeling_llama import _expand_mask as _llama_expand_mask
+    from transformers.models.llama.modeling_llama import _make_causal_mask as _llama_make_causal_mask
+    from transformers.models.llama.modeling_llama import apply_rotary_pos_emb, repeat_kv
+else:
+    from ...utils.dummy_bettertransformer_objects import _expand_mask as _llama_expand_mask
+    from ...utils.dummy_bettertransformer_objects import _make_causal_mask as _llama_make_causal_mask
+    from ...utils.dummy_bettertransformer_objects import apply_rotary_pos_emb, repeat_kv
 
 # TODO (CRITICAL): Layer-wise attention scaling is broken for several archs (see a fix in gpt_bigcode_wrapped_scaled_dot_product).
 
