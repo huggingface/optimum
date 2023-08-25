@@ -135,8 +135,8 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
     def check_inputs(
         self,
         prompt: Union[str, List[str]],
-        height: Optional[int],
-        width: Optional[int],
+        height: int,
+        width: int,
         callback_steps: int,
         negative_prompt: Optional[str] = None,
         prompt_embeds: Optional[np.ndarray] = None,
@@ -226,10 +226,10 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             prompt (`Optional[Union[str, List[str]]]`, defaults to None):
                 The prompt or prompts to guide the image generation. If not defined, one has to pass `prompt_embeds`.
                 instead.
-            height (`Optional[int]`, defaults to None):
-                The height in pixels of the generated image.
-            width (`Optional[int]`, defaults to None):
-                The width in pixels of the generated image.
+            height (`Optional[int]`, defaults to `None`):
+                The height in pixels of the generated image. If `None`, defaults to `self.unet.config.sample_size * self.vae_scale_factor`
+            width (`Optional[int]`, defaults to `None`):
+                The width in pixels of the generated image. If `None`, defaults to `self.unet.config.sample_size * self.vae_scale_factor`
             num_inference_steps (`int`, defaults to 50):
                 The number of denoising steps. More denoising steps usually lead to a higher quality image at the
                 expense of slower inference.
@@ -248,7 +248,7 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             eta (`float`, defaults to 0.0):
                 Corresponds to parameter eta (η) in the DDIM paper: https://arxiv.org/abs/2010.02502. Only applies to
                 [`schedulers.DDIMScheduler`], will be ignored for others.
-            generator (`Optional[np.random.RandomState]`, defaults to `None`)::
+            generator (`Optional[np.random.RandomState]`, defaults to `None`):
                 A np.random.RandomState to make generation deterministic.
             latents (`Optional[np.ndarray]`, defaults to `None`):
                 Pre-generated noisy latents, sampled from a Gaussian distribution, to be used as inputs for image

@@ -55,8 +55,8 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
     def check_inputs(
         self,
         prompt: Union[str, List[str]],
-        height: Optional[int],
-        width: Optional[int],
+        height: int,
+        width: int,
         callback_steps: int,
         negative_prompt: Optional[str] = None,
         prompt_embeds: Optional[np.ndarray] = None,
@@ -133,9 +133,9 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
             mask_image (`PIL.Image.Image`):
                 `Image`, or tensor representing a masked image batch which will be upscaled.
             height (`Optional[int]`, defaults to None):
-                The height in pixels of the generated image.
+                The height in pixels of the generated image. If `None`, defaults to `self.unet.config.sample_size * self.vae_scale_factor`.
             width (`Optional[int]`, defaults to None):
-                The width in pixels of the generated image.
+                The width in pixels of the generated image. If `None`, defaults to `self.unet.config.sample_size * self.vae_scale_factor`.
             num_inference_steps (`int`, defaults to 50):
                 The number of denoising steps. More denoising steps usually lead to a higher quality image at the
                 expense of slower inference.

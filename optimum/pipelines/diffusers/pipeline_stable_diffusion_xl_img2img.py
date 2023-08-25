@@ -325,7 +325,7 @@ class StableDiffusionXLImg2ImgPipelineMixin(DiffusionPipelineMixin):
             eta (`float`, defaults to 0.0):
                 Corresponds to parameter eta (η) in the DDIM paper: https://arxiv.org/abs/2010.02502. Only applies to
                 [`schedulers.DDIMScheduler`], will be ignored for others.
-            generator (`Optional[np.random.RandomState]`, defaults to `None`)::
+            generator (`Optional[np.random.RandomState]`, defaults to `None`):
                 A np.random.RandomState to make generation deterministic.
             latents (`Optional[np.ndarray]`, defaults to `None`):
                 Pre-generated noisy latents, sampled from a Gaussian distribution, to be used as inputs for image
