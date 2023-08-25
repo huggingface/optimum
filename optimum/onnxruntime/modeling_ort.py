@@ -969,7 +969,7 @@ MASKED_LM_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForMaskedLM(ORTModel):
     """
-    ONNX Model with a MaskedLMOutput for masked language modeling tasks.
+    ONNX Model with a MaskedLMOutput for masked language modeling tasks. This class officially supports albert, bert, camembert, convbert, data2vec_text, deberta, deberta_v2, distilbert, electra, flaubert, ibert, mobilebert, roberta, roformer, squeezebert, xlm, xlm_roberta.
     """
 
     auto_model_class = AutoModelForMaskedLM
@@ -1072,7 +1072,7 @@ QUESTION_ANSWERING_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForQuestionAnswering(ORTModel):
     """
-    ONNX Model with a QuestionAnsweringModelOutput for extractive question-answering tasks like SQuAD.
+    ONNX Model with a QuestionAnsweringModelOutput for extractive question-answering tasks like SQuAD. This class officially supports albert, bart, bert, camembert, convbert, data2vec_text, deberta, deberta_v2, distilbert, electra, flaubert, gptj, ibert, mbart, mobilebert, nystromformer, roberta, roformer, squeezebert, xlm, xlm_roberta.
     """
 
     auto_model_class = AutoModelForQuestionAnswering
@@ -1195,7 +1195,7 @@ SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
 class ORTModelForSequenceClassification(ORTModel):
     """
     ONNX Model with a sequence classification/regression head on top (a linear layer on top of the
-    pooled output) e.g. for GLUE tasks.
+    pooled output) e.g. for GLUE tasks. This class officially supports albert, bart, bert, camembert, convbert, data2vec_text, deberta, deberta_v2, distilbert, electra, flaubert, ibert, mbart, mobilebert, nystromformer, roberta, roformer, squeezebert, xlm, xlm_roberta.
     """
 
     auto_model_class = AutoModelForSequenceClassification
@@ -1296,7 +1296,8 @@ TOKEN_CLASSIFICATION_EXAMPLE = r"""
 class ORTModelForTokenClassification(ORTModel):
     """
     ONNX Model with a token classification head on top (a linear layer on top of the hidden-states output) e.g.
-    for Named-Entity-Recognition (NER) tasks.
+    for Named-Entity-Recognition (NER) tasks. This class officially supports albert, bert, bloom, camembert, convbert, data2vec_text, deberta, deberta_v2, distilbert, electra, flaubert, gpt2, ibert, mobilebert, roberta, roformer, squeezebert, xlm, xlm_roberta.
+
     """
 
     auto_model_class = AutoModelForTokenClassification
@@ -1394,7 +1395,7 @@ MULTIPLE_CHOICE_EXAMPLE = r"""
 class ORTModelForMultipleChoice(ORTModel):
     """
     ONNX Model with a multiple choice classification head on top (a linear layer on top of the pooled output and a
-    softmax) e.g. for RocStories/SWAG tasks.
+    softmax) e.g. for RocStories/SWAG tasks. This class officially supports albert, bert, camembert, convbert, data2vec_text, deberta_v2, distilbert, electra, flaubert, ibert, mobilebert, nystromformer, roberta, roformer, squeezebert, xlm, xlm_roberta.
     """
 
     auto_model_class = AutoModelForMultipleChoice
@@ -1499,7 +1500,7 @@ IMAGE_CLASSIFICATION_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForImageClassification(ORTModel):
     """
-    ONNX Model for image-classification tasks.
+    ONNX Model for image-classification tasks. This class officially supports beit, convnext, data2vec_vision, deit, levit, mobilenet_v1, mobilenet_v2, mobilevit, poolformer, resnet, segformer, swin, vit.
     """
 
     auto_model_class = AutoModelForImageClassification
@@ -1593,7 +1594,7 @@ SEMANTIC_SEGMENTATION_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSemanticSegmentation(ORTModel):
     """
-    ONNX Model for semantic-segmentation, with an all-MLP decode head on top e.g. for ADE20k, CityScapes.
+    ONNX Model for semantic-segmentation, with an all-MLP decode head on top e.g. for ADE20k, CityScapes. This class officially supports segformer.
     """
 
     auto_model_class = AutoModelForSemanticSegmentation
@@ -1700,7 +1701,7 @@ AUDIO_CLASSIFICATION_EXAMPLE = r"""
 class ORTModelForAudioClassification(ORTModel):
     """
     ONNX Model for audio-classification, with a sequence classification head on top (a linear layer over the pooled output) for tasks like
-    SUPERB Keyword Spotting.
+    SUPERB Keyword Spotting. This class officially supports audio_spectrogram_transformer, data2vec_audio, hubert, sew, sew_d, unispeech, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer.
     """
 
     auto_model_class = AutoModelForAudioClassification
@@ -1785,7 +1786,7 @@ CTC_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForCTC(ORTModel):
     """
-    ONNX Model with a language modeling head on top for Connectionist Temporal Classification (CTC).
+    ONNX Model with a language modeling head on top for Connectionist Temporal Classification (CTC). This class officially supports data2vec_audio, hubert, sew, sew_d, unispeech, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer.
     """
 
     auto_model_class = AutoModelForCTC
@@ -1868,7 +1869,7 @@ AUDIO_XVECTOR_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForAudioXVector(ORTModel):
     """
-    ONNX Model with an XVector feature extraction head on top for tasks like Speaker Verification.
+    ONNX Model with an XVector feature extraction head on top for tasks like Speaker Verification. This class officially supports data2vec_audio, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer.
     """
 
     auto_model_class = AutoModelForAudioXVector
@@ -1957,7 +1958,7 @@ AUDIO_FRAME_CLASSIFICATION_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForAudioFrameClassification(ORTModel):
     """
-    ONNX Model with a frame classification head on top for tasks like Speaker Diarization.
+    ONNX Model with a frame classification head on top for tasks like Speaker Diarization. This class officially supports data2vec_audio, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer.
     """
 
     auto_model_class = AutoModelForAudioFrameClassification

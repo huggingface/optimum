@@ -26,43 +26,31 @@ The following ORT classes are available for the following natural language proce
 
 ### ORTModelForCausalLM
 
-This class officially supports bloom, codegen, gpt2, gpt_bigcode, gpt_neo, gpt_neox, gptj, llama.
-
 [[autodoc]] onnxruntime.ORTModelForCausalLM
+    - forward
 
 ### ORTModelForMaskedLM
-
-This class officially supports albert, bert, camembert, convbert, data2vec_text, deberta, deberta_v2, distilbert, electra, flaubert, ibert, mobilebert, roberta, roformer, squeezebert, xlm, xlm_roberta.
 
 [[autodoc]] onnxruntime.ORTModelForMaskedLM
 
 ### ORTModelForSeq2SeqLM
 
-This class officially supports bart, blenderbot, blenderbot_small, longt5, m2m_100, marian, mbart, mt5, pegasus, t5.
-
 [[autodoc]] onnxruntime.ORTModelForSeq2SeqLM
+    - forward
 
 ### ORTModelForSequenceClassification
-
-This class officially supports albert, bart, bert, camembert, convbert, data2vec_text, deberta, deberta_v2, distilbert, electra, flaubert, ibert, mbart, mobilebert, nystromformer, roberta, roformer, squeezebert, xlm, xlm_roberta.
 
 [[autodoc]] onnxruntime.ORTModelForSequenceClassification
 
 ### ORTModelForTokenClassification
 
-This class officially supports albert, bert, bloom, camembert, convbert, data2vec_text, deberta, deberta_v2, distilbert, electra, flaubert, gpt2, ibert, mobilebert, roberta, roformer, squeezebert, xlm, xlm_roberta.
-
 [[autodoc]] onnxruntime.ORTModelForTokenClassification
 
 ### ORTModelForMultipleChoice
 
-This class officially supports albert, bert, camembert, convbert, data2vec_text, deberta_v2, distilbert, electra, flaubert, ibert, mobilebert, nystromformer, roberta, roformer, squeezebert, xlm, xlm_roberta.
-
 [[autodoc]] onnxruntime.ORTModelForMultipleChoice
 
 ### ORTModelForQuestionAnswering
-
-This class officially supports albert, bart, bert, camembert, convbert, data2vec_text, deberta, deberta_v2, distilbert, electra, flaubert, gptj, ibert, mbart, mobilebert, nystromformer, roberta, roformer, squeezebert, xlm, xlm_roberta.
 
 [[autodoc]] onnxruntime.ORTModelForQuestionAnswering
 
@@ -72,13 +60,9 @@ The following ORT classes are available for the following computer vision tasks.
 
 ### ORTModelForImageClassification
 
-This class officially supports beit, convnext, data2vec_vision, deit, levit, mobilenet_v1, mobilenet_v2, mobilevit, poolformer, resnet, segformer, swin, vit.
-
 [[autodoc]] onnxruntime.ORTModelForImageClassification
 
 ### ORTModelForSemanticSegmentation
-
-This class officially supports segformer.
 
 [[autodoc]] onnxruntime.ORTModelForSemanticSegmentation
 
@@ -88,31 +72,22 @@ The following ORT classes are available for the following audio tasks.
 
 ### ORTModelForAudioClassification
 
-This class officially supports audio_spectrogram_transformer, data2vec_audio, hubert, sew, sew_d, unispeech, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer.
-
 [[autodoc]] onnxruntime.ORTModelForAudioClassification
 
 ### ORTModelForAudioFrameClassification
-
-This class officially supports data2vec_audio, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer.
 
 [[autodoc]] onnxruntime.ORTModelForAudioFrameClassification
 
 ### ORTModelForCTC
 
-This class officially supports data2vec_audio, hubert, sew, sew_d, unispeech, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer.
-
 [[autodoc]] onnxruntime.ORTModelForCTC
 
 ### ORTModelForSpeechSeq2Seq
 
-This class officially supports whisper, speech_to_text.
-
 [[autodoc]] onnxruntime.ORTModelForSpeechSeq2Seq
+    - forward
 
 ### ORTModelForAudioXVector
-
-This class officially supports data2vec_audio, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer.
 
 [[autodoc]] onnxruntime.ORTModelForAudioXVector
 
@@ -122,15 +97,13 @@ The following ORT classes are available for the following multimodal tasks.
 
 ### ORTModelForVision2Seq
 
-This class officially supports trocr and vision-encoder-decoder.
-
 [[autodoc]] onnxruntime.ORTModelForVision2Seq
+    - forward
 
 ### ORTModelForPix2Struct
 
-This class officially supports pix2struct.
-
 [[autodoc]] onnxruntime.ORTModelForPix2Struct
+    - forward
 
 ## Custom Tasks
 
@@ -148,24 +121,25 @@ The following ORT classes are available for the following custom tasks.
 
 #### ORTStableDiffusionPipeline
 
-will this build?
-
 [[autodoc]] onnxruntime.ORTStableDiffusionPipeline
     - __call__
 
 #### ORTStableDiffusionImg2ImgPipeline
 
 [[autodoc]] onnxruntime.ORTStableDiffusionImg2ImgPipeline
+    - __call__
 
 #### ORTStableDiffusionInpaintPipeline
 
 [[autodoc]] onnxruntime.ORTStableDiffusionInpaintPipeline
-
+    - __call__
 
 #### ORTStableDiffusionXLPipeline
 
 [[autodoc]] onnxruntime.ORTStableDiffusionXLPipeline
+    - __call__
 
 #### ORTStableDiffusionXLImg2ImgPipeline
 
 [[autodoc]] onnxruntime.ORTStableDiffusionXLImg2ImgPipeline
+    - __call__
