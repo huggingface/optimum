@@ -702,6 +702,35 @@ class DummyPointsGenerator(DummyInputGenerator):
         return self.random_float_tensor(shape, framework=framework)
 
 
+class DummyVisionEmbeddingsGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("image_positional_embeddings", "image_embeddings")
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        image_embedding_size: Optional[int] = None,
+        output_channels: Optional[int] = None,
+        **kwargs,
+    ):
+        self.task = task
+
+        self.batch_size = batch_size
+        self.image_embedding_size = (
+            image_embedding_size
+            if image_embedding_size is not None
+            else normalized_config.prompt_encoder_config.image_embedding_size
+        )
+        self.output_channels = (
+            output_channels if output_channels is not None else normalized_config.vision_config.output_channels
+        )
+
+    def generate(self, input_name: str, framework: str = "pt"):
+        shape = [self.batch_size, self.output_channels, self.image_embedding_size, self.image_embedding_size]
+        return self.random_float_tensor(shape, framework=framework)
+
+
 class DummyPix2StructInputGenerator(DummyInputGenerator):
     """
     Generates dummy time step inputs.
@@ -713,18 +742,20 @@ class DummyPix2StructInputGenerator(DummyInputGenerator):
         self,
         task: str,
         normalized_config: NormalizedConfig,
+        preprocessors: List[Any],
         batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
-        patch_height: int = 16,
-        patch_width: int = 16,
-        max_patches: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
         num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
         **kwargs,
     ):
         self.task = task
 
         self.batch_size = batch_size
+
+        # looking for static shapes in Pix2StructProcessor
+        patch_height = preprocessors[1].image_processor.patch_size["height"]
+        patch_width = preprocessors[1].image_processor.patch_size["width"]
         self.flattened_patch_size = 2 + patch_height * patch_width * num_channels
-        self.max_patches = max_patches
+        self.max_patches = preprocessors[1].image_processor.max_patches
 
     def generate(self, input_name: str, framework: str = "pt"):
         shape = [self.batch_size, self.max_patches, self.flattened_patch_size]
@@ -739,3 +770,24 @@ class GPTBigCodeDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             self.hidden_size // self.num_attention_heads * 2,
         )
         return [self.random_float_tensor(past_key_value_shape, framework=framework) for _ in range(self.num_layers)]
+
+
+class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
+    def generate(self, input_name: str, framework: str = "pt"):
+        past_key_shape = (
+            self.batch_size * self.num_attention_heads,
+            self.hidden_size // self.num_attention_heads,
+            self.sequence_length,
+        )
+        past_value_shape = (
+            self.batch_size * self.num_attention_heads,
+            self.sequence_length,
+            self.hidden_size // self.num_attention_heads,
+        )
+        return [
+            (
+                self.random_float_tensor(past_key_shape, framework=framework),
+                self.random_float_tensor(past_value_shape, framework=framework),
+            )
+            for _ in range(self.num_layers)
+        ]

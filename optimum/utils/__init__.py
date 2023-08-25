@@ -42,6 +42,7 @@ from .import_utils import (
 )
 from .input_generators import (
     DEFAULT_DUMMY_SHAPES,
+    BloomDummyPastKeyValuesGenerator,
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,
@@ -54,6 +55,7 @@ from .input_generators import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
+    DummyVisionEmbeddingsGenerator,
     DummyVisionInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
 )

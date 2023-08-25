@@ -18,6 +18,7 @@ import torch.nn as nn
 from transformers.models.bark.modeling_bark import BarkSelfAttention
 from transformers.models.bart.modeling_bart import BartAttention
 from transformers.models.blenderbot.modeling_blenderbot import BlenderbotAttention
+from transformers.models.bloom.modeling_bloom import BloomAttention
 from transformers.models.codegen.modeling_codegen import CodeGenAttention
 from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
 from transformers.models.gpt_bigcode.modeling_gpt_bigcode import GPTBigCodeAttention
@@ -34,6 +35,7 @@ from transformers.models.t5.modeling_t5 import T5Attention
 from .attention import (
     bark_wrapped_scaled_dot_product,
     bart_forward,
+    bloom_forward,
     codegen_wrapped_scaled_dot_product,
     gpt2_wrapped_scaled_dot_product,
     gpt_bigcode_forward,
@@ -200,6 +202,26 @@ class BarkAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BarkSelfAt
 
     def forward(self, *args, **kwargs):
         return super().forward(*args, **kwargs)
+
+
+class BloomAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BloomAttention, nn.Module):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+        super().__init__(config)
+
+        with torch.device("meta"):
+            super(BetterTransformerBaseLayer, self).__init__(config)
+
+        self.dropout_prob_attn = config.attention_dropout
+
+        self.module_mapping = None
+        submodules = ["query_key_value", "dense", "attention_dropout"]
+        for attr in submodules:
+            setattr(self, attr, getattr(layer, attr))
+
+        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
+
+    def forward(self, *args, **kwargs):
+        return bloom_forward(self, *args, **kwargs)
 
 
 class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGenAttention, nn.Module):

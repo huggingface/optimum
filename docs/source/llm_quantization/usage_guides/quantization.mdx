@@ -2,18 +2,19 @@
 
 ## AutoGPTQ Integration
 
-🤗 Optimum collaborated with [AutoGPTQ library](https://github.com/PanQiWei/AutoGPTQ) to provide a simple API that apply GPTQ quantization on language models.  With GPTQ quantization, you can quantize your favorite language model to 8, 6, 4 or even 2 bits. This comes without a big drop of performance and with faster inference speed. This is supported by most GPU hardwares.
+🤗 Optimum collaborated with [AutoGPTQ library](https://github.com/PanQiWei/AutoGPTQ) to provide a simple API that apply GPTQ quantization on language models. With GPTQ quantization, you can quantize your favorite language model to 8, 4, 3 or even 2 bits. This comes without a big drop of performance and with faster inference speed. This is supported by most GPU hardwares.
 
-If you want to quantize 🤗 Transformers models with GPTQ, follow this [documentation](https://huggingface.co/docs/transformers/main_classes/quantization). 
+If you want to quantize 🤗 Transformers models with GPTQ, follow this [documentation](https://huggingface.co/docs/transformers/main_classes/quantization).
 
-To learn more about the quantization technique used in GPTQ, please refer to: 
+To learn more about the quantization technique used in GPTQ, please refer to:
 - the [GPTQ](https://arxiv.org/pdf/2210.17323.pdf) paper
 - the [AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ) library used as the backend
+
 Note that the AutoGPTQ library provides more advanced usage (triton backend, fused attention, fused MLP) that are not integrated with Optimum. For now, we leverage only the CUDA kernel for GPTQ.
 
 ### Requirements
 
-You need to have the following requirements installed to run the code below: 
+You need to have the following requirements installed to run the code below:
 
 - AutoGPTQ library:
 `pip install auto-gptq`
@@ -21,7 +22,7 @@ You need to have the following requirements installed to run the code below:
 - Optimum library:
 `pip install --upgrade optimum`
 
-- Install latest `transformers` library from source: 
+- Install latest `transformers` library from source:
 `pip install --upgrade git+https://github.com/huggingface/transformers.git`
 
 - Install latest `accelerate` library:
@@ -90,15 +91,7 @@ quantized_model = load_quantized_model(empty_model, save_folder=save_folder, dev
 
 Note that only 4-bit models are supported with exllama kernels for now. Furthermore, it is recommended to disable the exllama kernel when you are finetuning your model with peft.
 
-#### Fine-tune a quantized model 
+#### Fine-tune a quantized model
 
-With the official support of adapters in the Hugging Face ecosystem, you can fine-tune models that have been quantized with GPTQ. 
+With the official support of adapters in the Hugging Face ecosystem, you can fine-tune models that have been quantized with GPTQ.
 Please have a look at [`peft`](https://github.com/huggingface/peft) library for more details.
-
-### References
-
-[[autodoc]] gtpq.GPTQQuantizer
-    - all
-
-[[autodoc]] gtpq.load_quantized_model
-    - all
