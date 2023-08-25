@@ -86,8 +86,8 @@ _FEATURE_EXTRACTOR_FOR_DOC = "AutoFeatureExtractor"
 _PROCESSOR_FOR_DOC = "AutoProcessor"
 
 ONNX_MODEL_END_DOCSTRING = r"""
-    This model inherits from [`~onnxruntime.modeling_ort.ORTModel`]. Check the superclass documentation for the generic methods the
-    library implements for all its model (such as downloading or saving)
+    This model inherits from [`~onnxruntime.modeling_ort.ORTModel`], check its documentation for the generic methods the
+    library implements for all its model (such as downloading or saving).
 
     This class should be initialized using the [`onnxruntime.modeling_ort.ORTModel.from_pretrained`] method.
 """
