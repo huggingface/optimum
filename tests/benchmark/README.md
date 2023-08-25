@@ -4,6 +4,8 @@ Please refer to https://medium.com/pytorch/bettertransformer-out-of-the-box-perf
 
 # GPTQ benchmark
 
+## Generation benchmark results
+
 Run
 
 ```shell
@@ -25,8 +27,6 @@ CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-cha
 # without exllama kernel
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-chat-hf --gptq-model /path/to/Llama-2-13B-chat-GPTQ/ --sweep --num-batches 4 --gptq --task text-generation --disable-exllama
 ```
-
-## Benchmark results
 
 Here are results obtained on a single NVIDIA A100-SXM4-80GB GPU. We use a prompt length of 512, and generate exactly 512 new tokens. Each generation is repeated for 4 batches, and metrics are averaged over the number of batches and generation length.
 
@@ -75,3 +75,62 @@ From the bencharmk, it appears that Exllama kernel is the best-in-class for GPTQ
 |False|None     |None|None      |None  |26.0         |69.94                 |228.76            |53986.51        |
 |True |False    |4   |128       |exllama|36.2         |95.41                 |167.68            |34777.04        |
 |True |False    |4   |128       |autogptq-cuda-old|36.2         |192.48                |83.12             |35497.62        |
+
+
+## Prefill-only benchmark results
+
+Run
+
+```shell
+# pytorch fp16
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-chat-hf --sweep --num-batches 10 --task text-generation --prefill
+
+# exllama kernel
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-chat-hf --gptq-model ../../../Llama-2-13B-chat-GPTQ/ --sweep --num-batches 10 --gptq --task text-generation --prefill
+
+# cuda-old kernel
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-chat-hf --gptq-model ../../../Llama-2-13B-chat-GPTQ/ --sweep --num-batches 10 --gptq --task text-generation --prefill --disable-exllama
+```
+
+The benchmark below is for a prompt length of 512, measuring only the prefill step on a single NVIDIA A100-SXM4-80GB GPU. The forward is repeated 10 times. This benchmark typically corresponds to the forward during training (to the difference that here `generate` is called, which has some overhead).
+
+### Batch size = 1
+
+|gptq |act_order|bits|group_size|kernel           |prompt_length|new_tokens|Load time (s)|Per-token latency (ms)|Throughput (tok/s)|Max memory (MB)|
+|-----|---------|----|----------|-----------------|-------------|----------|-------------|----------------------|------------------|---------------|
+|False|None     |None|None      |None             |512          |1         |27.22        |96.38                 |10.38             |27999.54       |
+|True |False    |4   |128       |exllama          |512          |1         |38.35        |112.54                |8.89              |9330.89        |
+|True |False    |4   |128       |autogptq-cuda-old|512          |1         |43.94        |368.13                |2.72              |9474.19        |
+
+### Batch size = 2
+
+|gptq |act_order|bits|group_size|kernel           |prompt_length|new_tokens|Load time (s)|Per-token latency (ms)|Throughput (tok/s)|Max memory (MB)|
+|-----|---------|----|----------|-----------------|-------------|----------|-------------|----------------------|------------------|---------------|
+|False|None     |None|None      |None             |512          |1         |27.22        |169.95                |11.77             |28524.37       |
+|True |False    |4   |128       |exllama          |512          |1         |38.35        |190.44                |10.50             |9855.71        |
+|True |False    |4   |128       |autogptq-cuda-old|512          |1         |43.94        |443.80                |4.51              |9928.23        |
+
+### Batch size = 4
+
+|gptq |act_order|bits|group_size|kernel           |prompt_length|new_tokens|Load time (s)|Per-token latency (ms)|Throughput (tok/s)|Max memory (MB)|
+|-----|---------|----|----------|-----------------|-------------|----------|-------------|----------------------|------------------|---------------|
+|False|None     |None|None      |None             |512          |1         |27.22        |305.99                |13.07             |29574.01       |
+|True |False    |4   |128       |exllama          |512          |1         |38.35        |345.54                |11.58             |10905.35       |
+|True |False    |4   |128       |autogptq-cuda-old|512          |1         |43.94        |597.24                |6.70              |10838.42       |
+
+### Batch size = 8
+
+|gptq |act_order|bits|group_size|kernel           |prompt_length|new_tokens|Load time (s)|Per-token latency (ms)|Throughput (tok/s)|Max memory (MB)|
+|-----|---------|----|----------|-----------------|-------------|----------|-------------|----------------------|------------------|---------------|
+|False|None     |None|None      |None             |512          |1         |27.22        |600.47                |13.32             |31673.30       |
+|True |False    |4   |128       |exllama          |512          |1         |38.35        |659.61                |12.13             |13004.64       |
+|True |False    |4   |128       |autogptq-cuda-old|512          |1         |43.94        |909.09                |8.80              |12862.18       |
+
+### Batch size = 16
+
+|gptq |act_order|bits|group_size|kernel           |num_batches|batch_size|prompt_length|new_tokens|Load time (s)|Per-token latency (ms)|Throughput (tok/s)|Max memory (MB)|
+|-----|---------|----|----------|-----------------|-----------|----------|-------------|----------|-------------|----------------------|------------------|---------------|
+|True |False    |4   |128       |exllama          |10         |16        |512          |1         |38.35        |1280.25               |12.50             |17203.22       |
+|False|None     |None|None      |None             |10         |16        |512          |1         |27.22        |1209.07               |13.23             |35871.88       |
+|True |False    |4   |128       |autogptq-cuda-old|10         |16        |512          |1         |43.94        |1533.54               |10.43             |17060.76       |
+

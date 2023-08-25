@@ -59,6 +59,11 @@ def get_parser():
         help="",
     )
     parser.add_argument(
+        "--prefill",
+        action="store_true",
+        help="For decoder models, benchmark only the prefill step with `prompt_length`.",
+    )
+    parser.add_argument(
         "--gptq",
         action="store_true",
         help="Indicate that the model to benchmark is a GPTQ model.",
@@ -231,10 +236,13 @@ if args.sweep:
     prompt_lengths = [512]
     new_tokens = [512]
 else:
-    batch_sizes = args.batch_size
-    prompt_lengths = args.prompt_length
-    new_tokens = args.new_tokens
+    batch_sizes = [args.batch_size]
+    prompt_lengths = [args.prompt_length]
+    new_tokens = [args.new_tokens]
 
+if args.prefill:
+    print("Running the prefill benchmark: generating only one new token.")
+    new_tokens = [1]
 
 if not torch.cuda.is_available():
     raise ValueError("A cuda device is necessary to benchmark GPTQ.")
