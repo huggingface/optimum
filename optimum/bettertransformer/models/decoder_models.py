@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
-from transformers.models.bark.modeling_bark import BarkSelfAttention
 from transformers.models.bart.modeling_bart import BartAttention
 from transformers.models.blenderbot.modeling_blenderbot import BlenderbotAttention
 from transformers.models.bloom.modeling_bloom import BloomAttention
@@ -25,12 +24,25 @@ from transformers.models.gpt_bigcode.modeling_gpt_bigcode import GPTBigCodeAtten
 from transformers.models.gpt_neo.modeling_gpt_neo import GPTNeoSelfAttention
 from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXAttention
 from transformers.models.gptj.modeling_gptj import GPTJAttention
-from transformers.models.llama.modeling_llama import LlamaAttention
 from transformers.models.m2m_100.modeling_m2m_100 import M2M100Attention
 from transformers.models.marian.modeling_marian import MarianAttention
 from transformers.models.opt.modeling_opt import OPTAttention
 from transformers.models.pegasus.modeling_pegasus import PegasusAttention
 from transformers.models.t5.modeling_t5 import T5Attention
+
+from ...utils.import_utils import check_if_transformers_greater
+
+
+# TODO: remove once we are much higher than 4.31
+if check_if_transformers_greater("4.31"):
+    from transformers.models.llama.modeling_llama import LlamaAttention
+else:
+    from ...utils.dummy_bettertransformer_objects import LlamaAttention
+
+if check_if_transformers_greater("4.31"):
+    from transformers.models.bark.modeling_bark import BarkSelfAttention
+else:
+    from ...utils.dummy_bettertransformer_objects import BarkSelfAttention
 
 from .attention import (
     bark_wrapped_scaled_dot_product,
