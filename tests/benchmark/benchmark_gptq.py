@@ -9,7 +9,14 @@ import torch
 from accelerate import init_empty_weights
 from memory_tracker import MemoryTracker
 from tqdm import tqdm
-from transformers import AutoModel, AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, GenerationConfig
+from transformers import (
+    AutoModel,
+    AutoModelForCausalLM,
+    AutoModelForSeq2SeqLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    GenerationConfig,
+)
 
 from optimum.exporters import TasksManager
 from optimum.gptq import load_quantized_model
@@ -67,6 +74,11 @@ def get_parser():
         "--gptq",
         action="store_true",
         help="Indicate that the model to benchmark is a GPTQ model.",
+    )
+    parser.add_argument(
+        "--bitsandbytes",
+        action="store_true",
+        help="Indicate that the model uses bitsandbytes through transformers load_in_4bit=True.",
     )
     parser.add_argument(
         "--sweep",
@@ -311,6 +323,15 @@ if args.gptq:
         device_map="auto",
         disable_exllama=args.disable_exllama,
     )
+elif args.bitsandbytes:
+
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True, bnb_4bit_quant_type="fp4", bnb_4bit_compute_dtype=torch.float16
+    )
+
+    model = autoclass.from_pretrained(
+        args.model, quantization_config=quantization_config, device_map="auto", torch_dtype=torch.float16
+    )
 else:
     with device:
         model = autoclass.from_pretrained(args.model, torch_dtype=torch.float16)
@@ -321,7 +342,9 @@ load_time = (load_end - load_start) * 1e-9
 print(f"Model load time: {load_time:.1f} s")
 
 uses_gptq = args.gptq
+uses_bitsandbytes = args.bitsandbytes
 print(f"Model uses GPTQ: {uses_gptq}")
+print(f"Model uses bitsandbytes: {uses_bitsandbytes}")
 print(f"Using accelerate hooks: {hasattr(model, '_hf_hook')}")
 print(f"Bits: {bits}")
 print(f"group_size: {group_size}")
@@ -331,14 +354,20 @@ print(f"kernel: {kernel}")
 model = model.eval()
 
 file_name = "log_{}".format(args.model.replace("/", "-"))
-if uses_gptq:
-    file_name = file_name + "_gptq"
-else:
-    file_name = file_name + "_nogptq"
-file_name = file_name + ".csv"
 
+if uses_gptq:
+    quantization = "gptq"
+    file_name = file_name + "_gptq"
+elif uses_bitsandbytes:
+    file_name = file_name + "_bnb"
+    quantization = "bitsandbytes"
+else:
+    file_name = file_name + "_noquant"
+    quantization = None
+
+file_name = file_name + ".csv"
 output_file = open(file_name, "w")
-header = "gptq, act_order, bits, group_size, kernel, num_batches, batch_size, prompt_length, new_tokens, Load time (s), Per-token latency (ms), Throughput (tok/s), Max memory (MB)\n"
+header = "quantization, act_order, bits, group_size, kernel, num_batches, batch_size, prompt_length, new_tokens, Load time (s), Per-token latency (ms), Throughput (tok/s), Max memory (MB)\n"
 output_file.write(header)
 
 latencies = {}
@@ -396,7 +425,7 @@ for batch_size in tqdm(batch_sizes):
             )
 
             line = "{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
-                uses_gptq,
+                quantization,
                 act_order,
                 bits,
                 group_size,
