@@ -23,7 +23,7 @@ import torch
 from huggingface_hub import hf_hub_download
 from huggingface_hub.utils import EntryNotFoundError
 from transformers import AutoModelForCausalLM, GenerationConfig
-from transformers.file_utils import add_start_docstrings_to_model_forward
+from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 import onnxruntime
@@ -35,7 +35,7 @@ from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .base import ORTDecoder
 from .constants import DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN, DECODER_WITH_PAST_ONNX_FILE_PATTERN
-from .modeling_ort import ORTModel
+from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .models.bloom import bloom_convert_to_bloom_cache, bloom_convert_to_standard_cache
 from .utils import (
     ONNX_DECODER_NAME,
@@ -622,9 +622,10 @@ class ORTModelDecoder(ORTModel):
         return self
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
     """
-    ONNX model with a causal language modeling head for ONNX Runtime inference.
+    ONNX model with a causal language modeling head for ONNX Runtime inference. This class officially supports bloom, codegen, gpt2, gpt_bigcode, gpt_neo, gpt_neox, gptj, llama.
     """
 
     auto_model_class = AutoModelForCausalLM
