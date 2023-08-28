@@ -120,7 +120,13 @@ def _get_models_to_test(export_models_dict: Dict):
             # TODO: segformer task can not be automatically inferred
             # TODO: xlm-roberta model auto-infers text-generation, but we don't support it
             # TODO: perceiver auto-infers default, but we don't support it (why?)
-            if model_type not in ["segformer", "xlm-roberta", "perceiver", "vision-encoder-decoder", "encoder-decoder"]:
+            if model_type not in [
+                "segformer",
+                "xlm-roberta",
+                "perceiver",
+                "vision-encoder-decoder",
+                "encoder-decoder",
+            ]:
                 models_to_test.append(
                     (f"{model_type}_no_task", model_type, model_name, "auto", "default", False, False)
                 )

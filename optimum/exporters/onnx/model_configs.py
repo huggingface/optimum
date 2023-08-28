@@ -1440,5 +1440,6 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return dummy_input
 
+
 class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
