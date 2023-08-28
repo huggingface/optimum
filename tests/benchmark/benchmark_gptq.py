@@ -9,7 +9,14 @@ import torch
 from accelerate import init_empty_weights
 from memory_tracker import MemoryTracker
 from tqdm import tqdm
-from transformers import AutoModel, AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, GenerationConfig, BitsAndBytesConfig
+from transformers import (
+    AutoModel,
+    AutoModelForCausalLM,
+    AutoModelForSeq2SeqLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    GenerationConfig,
+)
 
 from optimum.exporters import TasksManager
 from optimum.gptq import load_quantized_model
@@ -319,12 +326,12 @@ if args.gptq:
 elif args.bitsandbytes:
 
     quantization_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="fp4",
-        bnb_4bit_compute_dtype=torch.float16
+        load_in_4bit=True, bnb_4bit_quant_type="fp4", bnb_4bit_compute_dtype=torch.float16
     )
 
-    model = autoclass.from_pretrained(args.model, quantization_config=quantization_config, device_map="auto", torch_dtype=torch.float16)
+    model = autoclass.from_pretrained(
+        args.model, quantization_config=quantization_config, device_map="auto", torch_dtype=torch.float16
+    )
 else:
     with device:
         model = autoclass.from_pretrained(args.model, torch_dtype=torch.float16)
