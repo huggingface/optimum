@@ -498,8 +498,8 @@ class TasksManager:
             tflite="ElectraTFLiteConfig",
         ),
         "encoder-decoder": supported_tasks_mapping(
-            "text-generation",
-            "text-generation-with-past",
+            "text2text-generation",
+            "text2text-generation-with-past",
             onnx="EncoderDecoderOnnxConfig",
         ),
         "flaubert": supported_tasks_mapping(

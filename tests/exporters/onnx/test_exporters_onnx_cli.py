@@ -57,7 +57,7 @@ def _get_models_to_test(export_models_dict: Dict):
 
             for model_name, tasks in model_tasks.items():
                 for task in tasks:
-                    if model_type == "encoder-decoder" and task == "seq2seq-lm-with-past":
+                    if model_type == "encoder-decoder" and task == "text2text-generation-with-past":
                         # The model uses bert as decoder and does not support past key values
                         continue
                     onnx_config_class = TasksManager.get_exporter_config_constructor(
