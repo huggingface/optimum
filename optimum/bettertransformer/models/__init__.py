@@ -13,7 +13,7 @@
 # limitations under the License.
 import warnings
 
-from .attention import _llama_prepare_decoder_attention_mask
+from ...utils.import_utils import check_if_transformers_greater
 from .decoder_models import (
     BarkAttentionLayerBetterTransformer,
     BartAttentionLayerBetterTransformer,
@@ -46,6 +46,13 @@ from .encoder_models import (
     Wav2Vec2EncoderLayerBetterTransformer,
     WhisperEncoderLayerBetterTransformer,
 )
+
+
+# TODO: remove once we are much higher than 4.31
+if check_if_transformers_greater("4.31"):
+    from .attention import _llama_prepare_decoder_attention_mask
+else:
+    from ...utils.dummy_bettertransformer_objects import _llama_prepare_decoder_attention_mask
 
 
 class BetterTransformerManager:

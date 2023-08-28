@@ -173,9 +173,17 @@ DIFFUSERS_IMPORT_ERROR = """
 diffusers`. Please note that you may need to restart your runtime after installation.
 """
 
+TRANSFORMERS_IMPORT_ERROR = """requires the transformers>={0} library but it was not found in your environment. You can install it with pip: `pip install
+-U transformers`. Please note that you may need to restart your runtime after installation.
+"""
+
 BACKENDS_MAPPING = OrderedDict(
     [
         ("diffusers", (is_diffusers_available, DIFFUSERS_IMPORT_ERROR)),
+        (
+            "transformers_431",
+            (lambda: check_if_transformers_greater("4.31"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.31")),
+        ),
     ]
 )
 

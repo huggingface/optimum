@@ -39,7 +39,7 @@ from transformers import (
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
 )
-from transformers.file_utils import add_start_docstrings, add_start_docstrings_to_model_forward
+from transformers.file_utils import add_end_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import (
     BaseModelOutput,
     CausalLMOutput,
@@ -85,16 +85,11 @@ _TOKENIZER_FOR_DOC = "AutoTokenizer"
 _FEATURE_EXTRACTOR_FOR_DOC = "AutoFeatureExtractor"
 _PROCESSOR_FOR_DOC = "AutoProcessor"
 
-ONNX_MODEL_START_DOCSTRING = r"""
+ONNX_MODEL_END_DOCSTRING = r"""
     This model inherits from [`~onnxruntime.modeling_ort.ORTModel`]. Check the superclass documentation for the generic methods the
     library implements for all its model (such as downloading or saving)
 
-    Args:
-        config (`transformers.PretrainedConfig`): [PretrainedConfig](https://huggingface.co/docs/transformers/main_classes/configuration#transformers.PretrainedConfig) is the Model configuration class with all the parameters of the model.
-            Initializing with a config file does not load the weights associated with the model, only the
-            configuration. Check out the [`~onnxruntime.modeling_ort.ORTModel.from_pretrained`] method to load the model weights.
-        model (`onnxruntime.InferenceSession`): [onnxruntime.InferenceSession](https://onnxruntime.ai/docs/api/python/api_summary.html#inferencesession) is the main class used to run a model. Check out the [`~onnxruntime.modeling_ort.ORTModel.load_model`] method for more information.
-        use_io_binding (`Optional[bool]`, defaults to `None`): Whether to use IOBinding during inference to avoid memory copy between the host and devices. Defaults to `True` if the device is CUDA, otherwise defaults to `False`.
+    This class should be initialized using the [`onnxruntime.modeling_ort.ORTModel.from_pretrained`] method.
 """
 
 ONNX_TEXT_INPUTS_DOCSTRING = r"""
@@ -863,15 +858,10 @@ FEATURE_EXTRACTION_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Onnx Model with a BaseModelOutput for feature-extraction tasks.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForFeatureExtraction(ORTModel):
     """
-    Feature Extraction model for ONNX.
+    ONNX Model for feature-extraction task.
     """
 
     auto_model_class = AutoModel
@@ -976,15 +966,10 @@ MASKED_LM_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Onnx Model with a MaskedLMOutput for masked language modeling tasks.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForMaskedLM(ORTModel):
     """
-    Masked language model for ONNX.
+    ONNX Model with a MaskedLMOutput for masked language modeling tasks.
     """
 
     auto_model_class = AutoModelForMaskedLM
@@ -1084,15 +1069,10 @@ QUESTION_ANSWERING_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Onnx Model with a QuestionAnsweringModelOutput for extractive question-answering tasks like SQuAD.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForQuestionAnswering(ORTModel):
     """
-    Question Answering model for ONNX.
+    ONNX Model with a QuestionAnsweringModelOutput for extractive question-answering tasks like SQuAD.
     """
 
     auto_model_class = AutoModelForQuestionAnswering
@@ -1211,16 +1191,11 @@ SEQUENCE_CLASSIFICATION_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Onnx Model with a sequence classification/regression head on top (a linear layer on top of the
-    pooled output) e.g. for GLUE tasks.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSequenceClassification(ORTModel):
     """
-    Sequence Classification model for ONNX.
+    ONNX Model with a sequence classification/regression head on top (a linear layer on top of the
+    pooled output) e.g. for GLUE tasks.
     """
 
     auto_model_class = AutoModelForSequenceClassification
@@ -1317,16 +1292,11 @@ TOKEN_CLASSIFICATION_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Onnx Model with a token classification head on top (a linear layer on top of the hidden-states output) e.g.
-    for Named-Entity-Recognition (NER) tasks.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForTokenClassification(ORTModel):
     """
-    Token Classification model for ONNX.
+    ONNX Model with a token classification head on top (a linear layer on top of the hidden-states output) e.g.
+    for Named-Entity-Recognition (NER) tasks.
     """
 
     auto_model_class = AutoModelForTokenClassification
@@ -1420,16 +1390,11 @@ MULTIPLE_CHOICE_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Onnx Model with a multiple choice classification head on top (a linear layer on top of the pooled output and a
-    softmax) e.g. for RocStories/SWAG tasks.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForMultipleChoice(ORTModel):
     """
-    Multiple choice model for ONNX.
+    ONNX Model with a multiple choice classification head on top (a linear layer on top of the pooled output and a
+    softmax) e.g. for RocStories/SWAG tasks.
     """
 
     auto_model_class = AutoModelForMultipleChoice
@@ -1531,15 +1496,10 @@ IMAGE_CLASSIFICATION_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Onnx Model for image-classification tasks.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForImageClassification(ORTModel):
     """
-    Image Classification model for ONNX.
+    ONNX Model for image-classification tasks.
     """
 
     auto_model_class = AutoModelForImageClassification
@@ -1630,15 +1590,10 @@ SEMANTIC_SEGMENTATION_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Onnx Model with an all-MLP decode head on top e.g. for ADE20k, CityScapes.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSemanticSegmentation(ORTModel):
     """
-    Semantic Segmentation model for ONNX.
+    ONNX Model for semantic-segmentation, with an all-MLP decode head on top e.g. for ADE20k, CityScapes.
     """
 
     auto_model_class = AutoModelForSemanticSegmentation
@@ -1741,16 +1696,11 @@ AUDIO_CLASSIFICATION_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Onnx Model with a sequence classification head on top (a linear layer over the pooled output) for tasks like
-    SUPERB Keyword Spotting.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForAudioClassification(ORTModel):
     """
-    Audio Classification model for ONNX.
+    ONNX Model for audio-classification, with a sequence classification head on top (a linear layer over the pooled output) for tasks like
+    SUPERB Keyword Spotting.
     """
 
     auto_model_class = AutoModelForAudioClassification
@@ -1832,15 +1782,10 @@ CTC_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Onnx Model with a language modeling head on top for Connectionist Temporal Classification (CTC).
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForCTC(ORTModel):
     """
-    CTC model for ONNX.
+    ONNX Model with a language modeling head on top for Connectionist Temporal Classification (CTC).
     """
 
     auto_model_class = AutoModelForCTC
@@ -1920,15 +1865,10 @@ AUDIO_XVECTOR_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Onnx Model with an XVector feature extraction head on top for tasks like Speaker Verification.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForAudioXVector(ORTModel):
     """
-    Audio XVector model for ONNX.
+    ONNX Model with an XVector feature extraction head on top for tasks like Speaker Verification.
     """
 
     auto_model_class = AutoModelForAudioXVector
@@ -2014,15 +1954,10 @@ AUDIO_FRAME_CLASSIFICATION_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    Onnx Model for with a frame classification head on top for tasks like Speaker Diarization.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForAudioFrameClassification(ORTModel):
     """
-    Audio Frame Classification model for ONNX.
+    ONNX Model with a frame classification head on top for tasks like Speaker Diarization.
     """
 
     auto_model_class = AutoModelForAudioFrameClassification
@@ -2099,15 +2034,10 @@ CUSTOM_TASKS_EXAMPLE = r"""
 """
 
 
-@add_start_docstrings(
-    """
-    ONNX Model for any custom tasks. It can be used to leverage the inference acceleration for any single-file ONNX model.
-    """,
-    ONNX_MODEL_START_DOCSTRING,
-)
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForCustomTasks(ORTModel):
     """
-    Model for any custom tasks if the ONNX model is stored in a single file.
+    ONNX Model for any custom tasks. It can be used to leverage the inference acceleration for any single-file ONNX model, that may use custom inputs and outputs.
     """
 
     @add_start_docstrings_to_model_forward(

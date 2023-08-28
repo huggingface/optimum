@@ -24,7 +24,7 @@ from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
 from ...utils import DEFAULT_DUMMY_SHAPES, ONNX_WEIGHTS_NAME, logging
-from ...utils.save_utils import maybe_save_preprocessors
+from ...utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
@@ -36,6 +36,7 @@ from .utils import (
     _get_submodels_for_export_stable_diffusion,
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
+    get_sam_models_for_export,
     get_stable_diffusion_models_for_export,
 )
 
@@ -43,7 +44,7 @@ from .utils import (
 if is_torch_available():
     import torch
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 
 if TYPE_CHECKING:
@@ -61,9 +62,11 @@ def _get_submodels_and_onnx_configs(
     monolith: bool,
     custom_onnx_configs: Dict,
     custom_architecture: bool,
+    _variant: str,
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
     fn_get_submodels: Optional[Callable] = None,
+    preprocessors: Optional[List[Any]] = None,
 ):
     is_stable_diffusion = "stable-diffusion" in task
     if not custom_architecture:
@@ -76,7 +79,13 @@ def _get_submodels_and_onnx_configs(
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                 model=model, exporter="onnx", task=task, int_dtype=int_dtype, float_dtype=float_dtype
             )
-            onnx_config = onnx_config_constructor(model.config)
+            onnx_config = onnx_config_constructor(model.config, preprocessors=preprocessors)
+
+            onnx_config.variant = _variant
+            all_variants = "\n".join(
+                [f"\t- {name}: {description}" for name, description in onnx_config.VARIANTS.items()]
+            )
+            logger.info(f"Using the export variant {onnx_config.variant}. Available variants are:\n{all_variants}")
 
             if (
                 model.config.is_encoder_decoder
@@ -86,6 +95,8 @@ def _get_submodels_and_onnx_configs(
                 models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
             elif task.startswith("text-generation") and not monolith:
                 models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
+            elif model.config.model_type == "sam":
+                models_and_onnx_configs = get_sam_models_for_export(model, onnx_config)
             else:
                 models_and_onnx_configs = {"model": (model, onnx_config)}
 
@@ -161,6 +172,7 @@ def main_export(
     use_subprocess: bool = False,
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
+    _variant: str = "default",
     **kwargs_shapes,
 ):
     """
@@ -239,6 +251,8 @@ def main_export(
             The data type of integer tensors, could be ["int64", "int32", "int8"], default to "int64".
         float_dtype (`str`, defaults to `"fp32"`):
             The data type of float tensors, could be ["fp32", "fp16", "bf16"], default to "fp32".
+        _variant (`str`, defaults to `default`):
+            Specify the variant of the ONNX export to use.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -373,6 +387,11 @@ def main_export(
             possible_synonyms = ""
         logger.info(f"Automatic task detection to {task}{possible_synonyms}.")
 
+    # The preprocessors are loaded as they may be useful to export the model. Notably, some of the static input shapes may be stored in the
+    # preprocessors config.
+    preprocessors = maybe_load_preprocessors(
+        model_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code
+    )
     onnx_config, models_and_onnx_configs = _get_submodels_and_onnx_configs(
         model=model,
         task=task,
@@ -382,6 +401,8 @@ def main_export(
         int_dtype=int_dtype,
         float_dtype=float_dtype,
         fn_get_submodels=fn_get_submodels,
+        preprocessors=preprocessors,
+        _variant=_variant,
     )
 
     if not is_stable_diffusion:

@@ -128,6 +128,7 @@ class OnnxConfig(ExportConfig, ABC):
     MIN_TORCH_VERSION = GLOBAL_MIN_TORCH_VERSION
     MIN_TRANSFORMERS_VERSION = GLOBAL_MIN_TRANSFORMERS_VERSION
     PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
+    VARIANTS = {"default": "The default ONNX variant."}
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
@@ -184,6 +185,7 @@ class OnnxConfig(ExportConfig, ABC):
         self,
         config: "PretrainedConfig",
         task: str = "feature-extraction",
+        preprocessors: Optional[List[Any]] = None,
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
     ):
@@ -196,6 +198,7 @@ class OnnxConfig(ExportConfig, ABC):
         self.float_dtype = float_dtype
 
         self._config = config
+        self._preprocessors = preprocessors
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
@@ -234,6 +237,22 @@ class OnnxConfig(ExportConfig, ABC):
         """
         common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
+
+    @property
+    def variant(self) -> str:
+        """
+        For a given ONNX config, the variant of the model to export. This property allows to define variants of a given model, in case
+        different users would like to export the model differently (with different inputs/outputs, model splitted in several ONNX or not, etc.).
+        """
+        return self._variant
+
+    @variant.setter
+    def variant(self, value: str):
+        if value == "default" and hasattr(self, "DEFAULT_VARIANT"):
+            value = self.DEFAULT_VARIANT
+        if value not in self.VARIANTS:
+            raise ValueError(f"The variant {value} is not supported for the ONNX config {self.__class__.__name__}.")
+        self._variant = value
 
     def fix_dynamic_axes(
         self, model_path: "Path", device: str = "cpu", dtype: Optional[str] = None, input_shapes: Optional[Dict] = None
@@ -285,6 +304,7 @@ class OnnxConfig(ExportConfig, ABC):
                 input_shapes = {}
             dummy_inputs = self.generate_dummy_inputs(framework="np", **input_shapes)
             dummy_inputs = self.generate_dummy_inputs_for_validation(dummy_inputs, onnx_input_names=onnx_input_names)
+
             onnx_inputs = {}
             for name, value in dummy_inputs.items():
                 if isinstance(value, (list, tuple)):
@@ -509,6 +529,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
+        preprocessors: Optional[List[Any]] = None,
     ):
         self.use_past = use_past
         if use_past_in_inputs is None:
@@ -531,7 +552,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             )
         self.is_merged = False
         self.use_cache_branch = None
-        super().__init__(config, task=task, int_dtype=int_dtype, float_dtype=float_dtype)
+        super().__init__(config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors)
 
     @classmethod
     def with_past(
@@ -540,6 +561,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         task: str = "feature-extraction",
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
+        preprocessors: Optional[List[Any]] = None,
     ) -> "OnnxConfigWithPast":
         """
         Instantiates a [`~optimum.exporters.onnx.OnnxConfig`] with `use_past` attribute set to `True`.
@@ -557,7 +579,9 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         Returns:
             [`~optimum.exporters.onnx.OnnxConfig`]: The onnx config with `.use_past = True`
         """
-        return cls(config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, use_past=True)
+        return cls(
+            config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, use_past=True, preprocessors=preprocessors
+        )
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
@@ -590,28 +614,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
-                    # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
-                    # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
-                    if (
-                        self.use_past is True
-                        and self.use_cache_branch is not False
-                        and input_name in ["decoder_input_ids", "input_ids"]
-                    ):
-                        sequence_length = dummy_input_gen.sequence_length
-                        if "sequence_length" in kwargs and kwargs["sequence_length"] != 1:
-                            logger.info(
-                                f"Asked a sequence length of {kwargs['sequence_length']}, but a sequence length of 1 "
-                                f"will be used with use_past == True for `{input_name}`."
-                            )
-                        dummy_input_gen.sequence_length = 1
-                        dummy_inputs[input_name] = dummy_input_gen.generate(
-                            input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
-                        )
-                        dummy_input_gen.sequence_length = sequence_length
-                    else:
-                        dummy_inputs[input_name] = dummy_input_gen.generate(
-                            input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
-                        )
+                    dummy_inputs[input_name] = self.overwrite_shape_and_generate_input(
+                        dummy_input_gen,
+                        input_name,
+                        framework,
+                        input_shapes=kwargs,
+                    )
                     input_was_inserted = True
                     break
             if not input_was_inserted:
@@ -646,6 +654,39 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             )
 
         return dummy_inputs
+
+    def overwrite_shape_and_generate_input(
+        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: Dict
+    ):
+        """
+        The shape passed to the dummy input generator may not always be correct for all of the inputs it manages. This method allows
+        to overwrite some shapes, and generate the dummy input. This should probably be refactored more elegantly.
+        """
+
+        # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
+        # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
+        if (
+            self.use_past is True
+            and self.use_cache_branch is not False
+            and input_name in ["decoder_input_ids", "input_ids"]
+        ):
+            sequence_length = dummy_input_gen.sequence_length
+            if "sequence_length" in input_shapes and input_shapes["sequence_length"] != 1:
+                logger.info(
+                    f"Asked a sequence length of {input_shapes['sequence_length']}, but a sequence length of 1 "
+                    f"will be used with use_past == True for `{input_name}`."
+                )
+            dummy_input_gen.sequence_length = 1
+            dummy_input = dummy_input_gen.generate(
+                input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+            )
+            dummy_input_gen.sequence_length = sequence_length
+        else:
+            dummy_input = dummy_input_gen.generate(
+                input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+            )
+
+        return dummy_input
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
         """
@@ -737,6 +778,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+        preprocessors: Optional[List[Any]] = None,
     ):
         super().__init__(
             config,
@@ -746,6 +788,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             use_present_in_outputs=use_present_in_outputs,
+            preprocessors=preprocessors,
         )
         self._behavior = behavior
         self.override_attributes_for_behavior()
@@ -792,6 +835,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             float_dtype=float_dtype,
             use_past=use_past,
             behavior=behavior,
+            preprocessors=self._preprocessors,
         )
 
     @property
@@ -848,10 +892,16 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length_out"}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
+        if len(t) not in [2, 4]:
+            raise ValueError(
+                "past_key_values to flatten should be of length 2 (self-attention only) or 4 (self and cross attention)."
+            )
+
         flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
         flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
-        flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
-        flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
+        if len(t) == 4:
+            flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
+            flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
 
     def patch_model_for_export(
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
@@ -1044,10 +1094,16 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         flattened_output[f"{name}.{idx}.value"] = t[1]
 
     def flatten_seq2seq_past_key_values(self, flattened_output, name, idx, t):
-        flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
-        flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
-        flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
-        flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
+        if len(t) not in [2, 4]:
+            raise ValueError(
+                "past_key_values to flatten should be of length 2 (self-attention only) or 4 (self and cross attention)."
+            )
+        if len(t) == 2:
+            flattened_output[f"{name}.{idx}.decoder.key"] = t[0]
+            flattened_output[f"{name}.{idx}.decoder.value"] = t[1]
+        if len(t) == 4:
+            flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
+            flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
 
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
         flattened_output = {}
