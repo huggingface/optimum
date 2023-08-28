@@ -455,7 +455,7 @@ class MPTDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
     decoder models, thus the redefinition here.
     """
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         past_key_shape = (
             self.batch_size,
             self.num_attention_heads,
@@ -470,8 +470,8 @@ class MPTDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         )
         return [
             (
-                self.random_float_tensor(past_key_shape, framework=framework),
-                self.random_float_tensor(past_value_shape, framework=framework),
+                self.random_float_tensor(past_key_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(past_value_shape, framework=framework, dtype=float_dtype),
             )
             for _ in range(self.num_layers)
         ]

@@ -278,10 +278,10 @@ def get_stable_diffusion_models_for_export(
             model=pipeline.text_encoder,
             exporter="onnx",
             task="feature-extraction",
-            int_dtype=int_dtype,
-            float_dtype=float_dtype,
         )
-        text_encoder_onnx_config = text_encoder_config_constructor(pipeline.text_encoder.config)
+        text_encoder_onnx_config = text_encoder_config_constructor(
+            pipeline.text_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
+        )
         models_for_export["text_encoder"] = (models_for_export["text_encoder"], text_encoder_onnx_config)
 
     # U-NET
@@ -290,10 +290,8 @@ def get_stable_diffusion_models_for_export(
         exporter="onnx",
         task="semantic-segmentation",
         model_type="unet",
-        int_dtype=int_dtype,
-        float_dtype=float_dtype,
     )
-    unet_onnx_config = onnx_config_constructor(pipeline.unet.config)
+    unet_onnx_config = onnx_config_constructor(pipeline.unet.config, int_dtype=int_dtype, float_dtype=float_dtype)
     models_for_export["unet"] = (models_for_export["unet"], unet_onnx_config)
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
@@ -303,10 +301,8 @@ def get_stable_diffusion_models_for_export(
         exporter="onnx",
         task="semantic-segmentation",
         model_type="vae-encoder",
-        int_dtype=int_dtype,
-        float_dtype=float_dtype,
     )
-    vae_onnx_config = vae_config_constructor(vae_encoder.config)
+    vae_onnx_config = vae_config_constructor(vae_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype)
     models_for_export["vae_encoder"] = (vae_encoder, vae_onnx_config)
 
     # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
@@ -316,10 +312,8 @@ def get_stable_diffusion_models_for_export(
         exporter="onnx",
         task="semantic-segmentation",
         model_type="vae-decoder",
-        int_dtype=int_dtype,
-        float_dtype=float_dtype,
     )
-    vae_onnx_config = vae_config_constructor(vae_decoder.config)
+    vae_onnx_config = vae_config_constructor(vae_decoder.config, int_dtype=int_dtype, float_dtype=float_dtype)
     models_for_export["vae_decoder"] = (vae_decoder, vae_onnx_config)
 
     if "text_encoder_2" in models_for_export:
@@ -328,10 +322,10 @@ def get_stable_diffusion_models_for_export(
             exporter="onnx",
             task="feature-extraction",
             model_type="clip-text-with-projection",
-            int_dtype=int_dtype,
-            float_dtype=float_dtype,
         )
-        onnx_config = onnx_config_constructor(pipeline.text_encoder_2.config)
+        onnx_config = onnx_config_constructor(
+            pipeline.text_encoder_2.config, int_dtype=int_dtype, float_dtype=float_dtype
+        )
         models_for_export["text_encoder_2"] = (models_for_export["text_encoder_2"], onnx_config)
 
     return models_for_export
