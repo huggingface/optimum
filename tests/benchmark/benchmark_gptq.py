@@ -347,22 +347,21 @@ print(f"kernel: {kernel}")
 model = model.eval()
 
 file_name = "log_{}".format(args.model.replace("/", "-"))
-if uses_gptq:
-    file_name = file_name + "_gptq"
-else:
-    file_name = file_name + "_nogptq"
-file_name = file_name + ".csv"
-
-output_file = open(file_name, "w")
-header = "quantization, act_order, bits, group_size, kernel, num_batches, batch_size, prompt_length, new_tokens, Load time (s), Per-token latency (ms), Throughput (tok/s), Max memory (MB)\n"
-output_file.write(header)
 
 if uses_gptq:
     quantization = "gptq"
+    file_name = file_name + "_gptq"
 elif uses_bitsandbytes:
+    file_name = file_name + "_bnb"
     quantization = "bitsandbytes"
 else:
+    file_name = file_name + "_noquant"
     quantization = None
+
+file_name = file_name + ".csv"
+output_file = open(file_name, "w")
+header = "quantization, act_order, bits, group_size, kernel, num_batches, batch_size, prompt_length, new_tokens, Load time (s), Per-token latency (ms), Throughput (tok/s), Max memory (MB)\n"
+output_file.write(header)
 
 latencies = {}
 throughputs = {}
