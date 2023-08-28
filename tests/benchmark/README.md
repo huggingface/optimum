@@ -44,7 +44,7 @@ Bitsandbytes uses the fp4 scheme, with the compute in fp16.
 |False|None     |None|None      |None  |26.0         |36.958                |27.058            |29152.98        |
 |True |False    |4   |128       |exllama|36.2         |33.711                |29.663            |10484.34        |
 |True |False    |4   |128       |autogptq-cuda-old|36.2         |46.44                 |21.53             |10344.62        |
-
+|bitsandbytes|None     |None|None      |None  |37.64        |52.00                 |19.23             |11018.36       |
 
 ### Batch size = 2
 
@@ -53,6 +53,7 @@ Bitsandbytes uses the fp4 scheme, with the compute in fp16.
 |False|None     |None|None      |None  |26.0         |37.35                 |53.53             |30831.09        |
 |True |False    |4   |128       |exllama|36.2         |37.25                 |53.68             |12162.43        |
 |True |False    |4   |128       |autogptq-cuda-old|36.2         |47.41                 |42.18             |12020.34        |
+|bitsandbytes|None     |None|None      |None  |37.64        |74.62                 |26.80             |12834.84       |
 
 ### Batch size = 4
 
@@ -61,7 +62,7 @@ Bitsandbytes uses the fp4 scheme, with the compute in fp16.
 |False|None     |None|None      |None             |26.0         |37.89                 |105.55            |34187.22        |
 |True |False    |4   |128       |exllama          |36.2         |54.14                 |73.87             |15518.55        |
 |True |False    |4   |128       |autogptq-cuda-old|36.2         |60.98                 |65.59             |15374.67        |
-
+|bitsandbytes|None     |None|None      |None  |37.64        |80.24                 |49.85             |16187.69       |
 
 ### Batch size = 8
 
@@ -70,6 +71,7 @@ Bitsandbytes uses the fp4 scheme, with the compute in fp16.
 |False|None     |None|None      |None  |26.0         |47.37                 |168.86            |40327.62        |
 |True |False    |4   |128       |exllama|36.2         |73.57                 |108.73            |21864.56        |
 |True |False    |4   |128       |autogptq-cuda-old|36.2         |104.44                |76.59             |20987.68        |
+|bitsandbytes|None     |None|None      |None  |37.64        |91.29                 |87.63             |22894.02       |
 
 ### Batch size = 16
 
@@ -78,7 +80,7 @@ Bitsandbytes uses the fp4 scheme, with the compute in fp16.
 |False|None     |None|None      |None  |26.0         |69.94                 |228.76            |53986.51        |
 |True |False    |4   |128       |exllama|36.2         |95.41                 |167.68            |34777.04        |
 |True |False    |4   |128       |autogptq-cuda-old|36.2         |192.48                |83.12             |35497.62        |
-
+|bitsandbytes|None     |None|None      |None  |37.64        |113.98                |140.38            |35532.37       |
 
 ## Prefill-only benchmark results
 
