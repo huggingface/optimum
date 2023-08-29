@@ -364,8 +364,8 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
         **kwargs,
     ):
         super().__init__(
-            task,
-            normalized_config,
+            task=task,
+            normalized_config=normalized_config,
             batch_size=batch_size,
             sequence_length=sequence_length,
             num_choices=num_choices,
@@ -854,9 +854,16 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     MIN_TORCH_VERSION = version.parse("2.1")
 
     def __init__(
-        self, config: "PretrainedConfig", task: str = "feature-extraction", preprocessors: Optional[List[Any]] = None
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        preprocessors: Optional[List[Any]] = None,
     ):
-        super().__init__(config, task, preprocessors=preprocessors)
+        super().__init__(
+            config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+        )
         if task == "zero-shot-object-detection":
             logger.warning(
                 "The batch size of this model will not be dynamic because non-maximum suppression is performed. "
@@ -961,9 +968,16 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
     ) + TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
 
     def __init__(
-        self, config: "PretrainedConfig", task: str = "feature-extraction", preprocessors: Optional[List[Any]] = None
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        preprocessors: Optional[List[Any]] = None,
     ):
-        super().__init__(config, task=task, preprocessors=preprocessors)
+        super().__init__(
+            config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+        )
         self.is_generating_dummy_inputs = False
 
     @property
@@ -1041,10 +1055,8 @@ class ASTDummyAudioInputGenerator(DummyAudioInputGenerator):
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = [self.batch_size, self.normalized_config.max_length, self.normalized_config.num_mel_bins]
         if input_name == "input_values":
-            return self.random_float_tensor(
-                shape, min_value=-1, max_value=1, framework=framework, float_dtype=float_dtype
-            )
-        return super().generate(input_name, framework=framework)
+            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework, dtype=float_dtype)
+        return super().generate(input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype)
 
 
 class ASTOnnxConfig(OnnxConfig):
@@ -1191,14 +1203,14 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
         preprocessors: Optional[List[Any]] = None,
     ):
         super().__init__(
-            config,
-            task,
-            int_dtype,
-            float_dtype,
-            use_past,
-            use_past_in_inputs,
-            use_present_in_outputs,
-            behavior,
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            use_present_in_outputs=use_present_in_outputs,
+            behavior=behavior,
             preprocessors=preprocessors,
         )
 
@@ -1253,7 +1265,9 @@ class SamOnnxConfig(OnnxConfig):
         vision_encoder: Optional[bool] = None,
         preprocessors: Optional[List[Any]] = None,
     ):
-        super().__init__(config, task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors)
+        super().__init__(
+            config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+        )
         self.variant = variant
         self.vision_encoder = vision_encoder
         self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig(self._config.vision_config)

@@ -283,7 +283,7 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         preprocessors: Optional[List[Any]] = None,
     ):
         super().__init__(
-            config,
+            config=config,
             task=task,
             int_dtype=int_dtype,
             float_dtype=float_dtype,

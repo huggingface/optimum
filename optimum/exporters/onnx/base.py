@@ -552,7 +552,9 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             )
         self.is_merged = False
         self.use_cache_branch = None
-        super().__init__(config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors)
+        super().__init__(
+            config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+        )
 
     @classmethod
     def with_past(
@@ -781,7 +783,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         preprocessors: Optional[List[Any]] = None,
     ):
         super().__init__(
-            config,
+            config=config,
             task=task,
             int_dtype=int_dtype,
             float_dtype=float_dtype,
