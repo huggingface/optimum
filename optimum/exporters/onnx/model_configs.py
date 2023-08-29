@@ -954,8 +954,10 @@ class Data2VecAudioOnnxConfig(AudioOnnxConfig):
 
 
 class PerceiverDummyInputGenerator(DummyVisionInputGenerator):
-    def generate(self, input_name: str, framework: str = "pt"):
-        input_ = super().generate(input_name, framework)
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        input_ = super().generate(
+            input_name=input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
+        )
         # if input_name == "pixel_values":
         #     input_ = input_[None, :]
         return input_
@@ -1115,9 +1117,7 @@ class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = [self.batch_size, self.sequence_length, self.normalized_config.input_features_per_channel]
         if input_name == "input_features":
-            return self.random_float_tensor(
-                shape, min_value=-1, max_value=1, framework=framework, float_dtype=float_dtype
-            )
+            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework, dtype=float_dtype)
         return super().generate(input_name, framework=framework)
 
 
