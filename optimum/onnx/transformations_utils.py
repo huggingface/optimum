@@ -189,7 +189,7 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
                             dims_dummy_output.append(dim)
 
                     logger.info(
-                        f"Addind a constant output for {model_output_1.name} of shape {dims_dummy_output} in model2."
+                        f"Adding a constant output for {model_output_1.name} of shape {dims_dummy_output} in model2."
                     )
                     value = onnx.helper.make_tensor(
                         name="const_tensor", data_type=data_type, dims=dims_dummy_output, vals=[]
