@@ -27,12 +27,13 @@ from transformers.testing_utils import require_torch, require_torch_gpu, require
 from optimum.exporters.error_utils import MinimumVersionError
 from optimum.exporters.onnx.__main__ import main_export
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
+from optimum.utils.testing_utils import require_diffusers
 
 
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
-from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY
+from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY, PYTORCH_STABLE_DIFFUSION_MODEL
 
 
 def _get_models_to_test(export_models_dict: Dict):
@@ -56,39 +57,70 @@ def _get_models_to_test(export_models_dict: Dict):
 
             for model_name, tasks in model_tasks.items():
                 for task in tasks:
-                    models_to_test.append((f"{model_type}_{task}", model_type, model_name, task, False, False))
+                    onnx_config_class = TasksManager.get_exporter_config_constructor(
+                        "onnx", task=task, model_type=model_type
+                    )
 
-                    # -with-past and monolith cases are absurd, so we don't test them as not supported
-                    if any(
-                        task == ort_special_task
-                        for ort_special_task in [
-                            "text-generation",
-                            "text2text-generation",
-                            "automatic-speech-recognition",
-                            "image-to-text",
-                        ]
-                    ):
+                    # Refer to https://github.com/huggingface/optimum/blob/0b08a1fd19005b7334aa923433b3544bd2b11ff2/optimum/exporters/tasks.py#L65
+                    if hasattr(onnx_config_class.func, "__self__"):
+                        variants = onnx_config_class.func.__self__.VARIANTS
+                    else:
+                        variants = onnx_config_class.func.VARIANTS
+
+                    for variant in variants.keys():
                         models_to_test.append(
-                            (f"{model_type}_{task}_monolith", model_type, model_name, task, True, False)
+                            (f"{model_type}_{task}_{variant}", model_type, model_name, task, variant, False, False)
                         )
 
-                    # For other tasks, we don't test --no-post-process as there is none anyway
-                    if task in [
-                        "feature-extraction-with-past",
-                        "text-generation-with-past",
-                        "automatic-speech-recognition-with-past",
-                        "image-to-text-with-past",
-                        "text2text-generation-with-past",
-                    ]:
-                        models_to_test.append(
-                            (f"{model_type}_{task}_no_postprocess", model_type, model_name, task, False, True)
-                        )
+                        # -with-past and monolith cases are absurd, so we don't test them as not supported
+                        if any(
+                            task == ort_special_task
+                            for ort_special_task in [
+                                "text-generation",
+                                "text2text-generation",
+                                "automatic-speech-recognition",
+                                "image-to-text",
+                            ]
+                        ):
+                            models_to_test.append(
+                                (
+                                    f"{model_type}_{task}_monolith_{variant}",
+                                    model_type,
+                                    model_name,
+                                    task,
+                                    variant,
+                                    True,
+                                    False,
+                                )
+                            )
+
+                        # For other tasks, we don't test --no-post-process as there is none anyway
+                        if task in [
+                            "feature-extraction-with-past",
+                            "text-generation-with-past",
+                            "automatic-speech-recognition-with-past",
+                            "image-to-text-with-past",
+                            "text2text-generation-with-past",
+                        ]:
+                            models_to_test.append(
+                                (
+                                    f"{model_type}_{task}_no_postprocess_{variant}",
+                                    model_type,
+                                    model_name,
+                                    task,
+                                    variant,
+                                    False,
+                                    True,
+                                )
+                            )
 
             # TODO: segformer task can not be automatically inferred
             # TODO: xlm-roberta model auto-infers text-generation, but we don't support it
             # TODO: perceiver auto-infers default, but we don't support it (why?)
             if model_type not in ["segformer", "xlm-roberta", "perceiver", "vision-encoder-decoder"]:
-                models_to_test.append((f"{model_type}_no_task", model_type, model_name, "auto", False, False))
+                models_to_test.append(
+                    (f"{model_type}_no_task", model_type, model_name, "auto", "default", False, False)
+                )
 
         return sorted(models_to_test)
     else:
@@ -112,6 +144,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         optimization_level: Optional[str] = None,
         device: str = "cpu",
         fp16: bool = False,
+        variant: str = "default",
     ):
         with TemporaryDirectory() as tmpdir:
             try:
@@ -124,21 +157,48 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     optimize=optimization_level,
                     monolith=monolith,
                     no_post_process=no_post_process,
+                    _variant=variant,
                 )
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
 
-    def test_all_models_tested(self):
-        # make sure we test all models
-        missing_models_set = TasksManager._SUPPORTED_CLI_MODEL_TYPE - set(PYTORCH_EXPORT_MODELS_TINY.keys())
-        if len(missing_models_set) > 0:
-            self.fail(f"Not testing all models. Missing models: {missing_models_set}")
+    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @require_torch
+    @require_vision
+    @require_diffusers
+    def test_exporters_cli_pytorch_cpu_stable_diffusion(self, model_type: str, model_name: str):
+        self._onnx_export(model_name, model_type)
+
+    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @require_torch_gpu
+    @require_vision
+    @require_diffusers
+    @slow
+    @pytest.mark.run_slow
+    def test_exporters_cli_pytorch_gpu_stable_diffusion(self, model_type: str, model_name: str):
+        self._onnx_export(model_name, model_type, device="cuda")
+
+    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @require_torch_gpu
+    @require_vision
+    @require_diffusers
+    @slow
+    @pytest.mark.run_slow
+    def test_exporters_cli_fp16_stable_diffusion(self, model_type: str, model_name: str):
+        self._onnx_export(model_name, model_type, device="cuda", fp16=True)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
     def test_exporters_cli_pytorch_cpu(
-        self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
     ):
         # TODO: re-enable those tests
         # Failing due to https://github.com/huggingface/transformers/pull/22212
@@ -146,20 +206,31 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         # masked-im models use MaskedImageModelingOutput
         if model_type in ["vit", "deit"] and task == "masked-im":
             self.skipTest("Temporarily disabled upon transformers 4.28 release")
-        self._onnx_export(model_name, task, monolith, no_post_process)
+        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_vision
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_exporters_cli_pytorch_gpu(
-        self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
     ):
-        # TODO: disable due to a bug in PyTorch: https://github.com/pytorch/pytorch/issues/95377
+        # TODO: refer to https://github.com/pytorch/pytorch/issues/95377
         if model_type == "yolos":
             self.skipTest("Export on cuda device fails for yolos due to a bug in PyTorch")
 
-        self._onnx_export(model_name, task, monolith, no_post_process, device="cuda")
+        # TODO: refer to https://github.com/pytorch/pytorch/issues/107591
+        if model_type == "sam":
+            self.skipTest("sam export on cuda is not supported due to a bug in PyTorch")
+
+        self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", variant=variant)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
@@ -167,11 +238,20 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @slow
     @pytest.mark.run_slow
     def test_exporters_cli_pytorch_with_optimization(
-        self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
     ):
         for optimization_level in ["O1", "O2", "O3"]:
             try:
-                self._onnx_export(model_name, task, monolith, no_post_process, optimization_level=optimization_level)
+                self._onnx_export(
+                    model_name, task, monolith, no_post_process, optimization_level=optimization_level, variant=variant
+                )
             except NotImplementedError as e:
                 if "Tried to use ORTOptimizer for the model type" in str(
                     e
@@ -187,14 +267,27 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @pytest.mark.gpu_test
     @pytest.mark.run_slow
     def test_exporters_cli_pytorch_with_O4_optimization(
-        self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
     ):
-        # TODO: disable due to a bug in PyTorch: https://github.com/pytorch/pytorch/issues/95377
+        # TODO: refer to https://github.com/pytorch/pytorch/issues/95377
         if model_type == "yolos":
             self.skipTest("Export on cuda device fails for yolos due to a bug in PyTorch")
 
+        # TODO: refer to https://github.com/pytorch/pytorch/issues/107591
+        if model_type == "sam":
+            self.skipTest("sam export on cuda is not supported due to a bug in PyTorch")
+
         try:
-            self._onnx_export(model_name, task, monolith, no_post_process, optimization_level="O4", device="cuda")
+            self._onnx_export(
+                model_name, task, monolith, no_post_process, optimization_level="O4", device="cuda", variant=variant
+            )
         except NotImplementedError as e:
             if "Tried to use ORTOptimizer for the model type" in str(
                 e
@@ -267,6 +360,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         # TODO: refer to https://github.com/pytorch/pytorch/issues/95377
         if model_type == "yolos":
             self.skipTest("yolos export on fp16 not supported due to a pytorch bug")
+
+        # TODO: refer to https://github.com/pytorch/pytorch/issues/107591
+        if model_type == "sam":
+            self.skipTest("sam export on cuda is not supported due to a pytorch bug")
 
         # TODO: refer to https://huggingface.slack.com/archives/C014N4749J9/p1677245766278129
         if model_type == "deberta":

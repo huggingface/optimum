@@ -57,6 +57,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
+    "gpt-bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt-neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt-neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
@@ -95,7 +96,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
-    "sam": "fxmarty/sam-vit-tiny-random",
+    # "sam": "fxmarty/sam-vit-tiny-random",  # TODO: re-enable once PyTorch 2.1 is released, see https://github.com/huggingface/optimum/pull/1301
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
@@ -239,5 +240,6 @@ TENSORFLOW_EXPORT_MODELS = {
 }
 
 PYTORCH_STABLE_DIFFUSION_MODEL = {
-    ("hf-internal-testing/tiny-stable-diffusion-torch"),
+    "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
+    "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
 }

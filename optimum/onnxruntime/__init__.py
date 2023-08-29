@@ -45,7 +45,12 @@ _import_structure = {
         "ORTModelForSequenceClassification",
         "ORTModelForTokenClassification",
     ],
-    "modeling_seq2seq": ["ORTModelForSeq2SeqLM", "ORTModelForSpeechSeq2Seq", "ORTModelForVision2Seq"],
+    "modeling_seq2seq": [
+        "ORTModelForSeq2SeqLM",
+        "ORTModelForSpeechSeq2Seq",
+        "ORTModelForVision2Seq",
+        "ORTModelForPix2Struct",
+    ],
     "modeling_decoder": ["ORTModelForCausalLM"],
     "optimization": ["ORTOptimizer"],
     "quantization": ["ORTQuantizer"],
@@ -71,12 +76,16 @@ except OptionalDependencyNotAvailable:
         "ORTStableDiffusionPipeline",
         "ORTStableDiffusionImg2ImgPipeline",
         "ORTStableDiffusionInpaintPipeline",
+        "ORTStableDiffusionXLPipeline",
+        "ORTStableDiffusionXLImg2ImgPipeline",
     ]
 else:
     _import_structure["modeling_diffusion"] = [
         "ORTStableDiffusionPipeline",
         "ORTStableDiffusionImg2ImgPipeline",
         "ORTStableDiffusionInpaintPipeline",
+        "ORTStableDiffusionXLPipeline",
+        "ORTStableDiffusionXLImg2ImgPipeline",
     ]
 
 
@@ -100,7 +109,12 @@ if TYPE_CHECKING:
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
     )
-    from .modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
+    from .modeling_seq2seq import (
+        ORTModelForPix2Struct,
+        ORTModelForSeq2SeqLM,
+        ORTModelForSpeechSeq2Seq,
+        ORTModelForVision2Seq,
+    )
     from .optimization import ORTOptimizer
     from .quantization import ORTQuantizer
     from .trainer import ORTTrainer
@@ -124,12 +138,16 @@ if TYPE_CHECKING:
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
+            ORTStableDiffusionXLImg2ImgPipeline,
+            ORTStableDiffusionXLPipeline,
         )
     else:
         from .modeling_diffusion import (
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
+            ORTStableDiffusionXLImg2ImgPipeline,
+            ORTStableDiffusionXLPipeline,
         )
 else:
     import sys

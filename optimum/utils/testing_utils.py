@@ -23,9 +23,8 @@ from collections.abc import MutableMapping
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
 import torch
-from packaging.version import parse
 
-from . import is_accelerate_available, is_diffusers_available
+from . import is_accelerate_available, is_auto_gptq_available, is_diffusers_available
 
 
 # Used to test the hub
@@ -56,16 +55,18 @@ def require_accelerate(test_case):
     return unittest.skipUnless(is_accelerate_available(), "test requires accelerate")(test_case)
 
 
+def require_auto_gptq(test_case):
+    """
+    Decorator marking a test that requires auto-gptq. These tests are skipped when auto-gptq isn't installed.
+    """
+    return unittest.skipUnless(is_auto_gptq_available(), "test requires auto-gptq")(test_case)
+
+
 def require_torch_gpu(test_case):
     """Decorator marking a test that requires CUDA and PyTorch."""
     torch_device = "cuda" if torch.cuda.is_available() else "cpu"
 
     return unittest.skipUnless(torch_device == "cuda", "test requires CUDA")(test_case)
-
-
-def require_torch_20(test_case):
-    """Decorator marking a test that requires torch>=2.0."""
-    return unittest.skipUnless(parse(torch.__version__) > parse("1.14"), "test requires torch>=2.0")(test_case)
 
 
 def require_hf_token(test_case):

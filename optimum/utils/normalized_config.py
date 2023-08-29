@@ -30,7 +30,7 @@ class NormalizedConfig:
     """
 
     def __init__(self, config: Union[PretrainedConfig, Dict], allow_new: bool = False, **kwargs):
-        self.config = config if isinstance(config, PretrainedConfig) else PretrainedConfig.from_dict(config)
+        self.config = config
         for key, value in kwargs.items():
             if allow_new or hasattr(self, key.upper()):
                 setattr(self, key.upper(), value)
@@ -109,6 +109,11 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         return super().__getattr__(attr_name)
 
 
+Pix2StructNormalizedTextConfig = NormalizedTextAndVisionConfig.with_args(
+    text_config="text_config", vision_config="vision_config"
+)
+
+
 class NormalizedEncoderDecoderConfig(NormalizedConfig):
     ENCODER_NORMALIZED_CONFIG_CLASS = None
     DECODER_NORMALIZED_CONFIG_CLASS = None
@@ -139,6 +144,9 @@ T5LikeNormalizedTextConfig = NormalizedTextConfig.with_args(
 )
 MPTNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
+)
+GPTBigCodeNormalizedTextConfig = NormalizedTextConfig.with_args(
+    num_attention_heads="n_head", hidden_size="n_embd", num_layers="n_layer"
 )
 
 WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
@@ -213,6 +221,7 @@ class NormalizedConfigManager:
         "donut-swin": NormalizedVisionConfig,
         "electra": NormalizedTextConfig,
         "gpt2": GPT2LikeNormalizedTextConfig,
+        "gpt-bigcode": GPT2LikeNormalizedTextConfig,
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
         "gpt_neox": NormalizedTextConfig,
         "llama": NormalizedTextConfig,
@@ -226,7 +235,7 @@ class NormalizedConfigManager:
         "nystromformer": NormalizedTextConfig,
         "opt": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
-        "pix2struct": NormalizedVisionConfig,
+        "pix2struct": Pix2StructNormalizedTextConfig,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
@@ -241,6 +250,7 @@ class NormalizedConfigManager:
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
         "mpt": MPTNormalizedTextConfig,
+        "gpt_bigcode": GPTBigCodeNormalizedTextConfig,
     }
 
     @classmethod

@@ -171,6 +171,7 @@ class TasksManager:
             "audio-xvector": "AutoModelForAudioXVector",
             "image-to-text": "AutoModelForVision2Seq",
             "stable-diffusion": "StableDiffusionPipeline",
+            "stable-diffusion-xl": "StableDiffusionXLImg2ImgPipeline",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
@@ -232,6 +233,16 @@ class TasksManager:
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
     }
 
+    # TODO: why feature-extraction-with-past is here?
+    _ENCODER_DECODER_TASKS = (
+        "text2text-generation",
+        "automatic-speech-recognition",
+        "image-to-text",
+        "feature-extraction-with-past",
+        "visual-question-answering",
+        "document-question-answering",
+    )
+
     _TASKS_TO_LIBRARY = {
         "conversational": "transformers",
         "document-question-answering": "transformers",
@@ -257,6 +268,7 @@ class TasksManager:
         "image-to-text": "transformers",
         "sentence-similarity": "transformers",
         "stable-diffusion": "diffusers",
+        "stable-diffusion-xl": "diffusers",
         "summarization": "transformers",
         "visual-question-answering": "transformers",
         "zero-shot-classification": "transformers",
@@ -380,6 +392,10 @@ class TasksManager:
             "feature-extraction",
             onnx="CLIPTextOnnxConfig",
         ),
+        "clip-text-with-projection": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="CLIPTextWithProjectionOnnxConfig",
+        ),
         "codegen": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -496,9 +512,18 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            "text-classification",
+            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             "token-classification",
             onnx="GPT2OnnxConfig",
+        ),
+        "gpt-bigcode": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            # "text-classification",  # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
+            "token-classification",
+            onnx="GPTBigCodeOnnxConfig",
         ),
         "gptj": supported_tasks_mapping(
             "feature-extraction",
@@ -506,7 +531,7 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "question-answering",
-            "text-classification",
+            # "text-classification",  # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="GPTJOnnxConfig",
         ),
         "gpt-neo": supported_tasks_mapping(
@@ -514,7 +539,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            "text-classification",
+            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="GPTNeoOnnxConfig",
         ),
         "gpt-neox": supported_tasks_mapping(
@@ -694,7 +719,7 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "question-answering",
-            "text-classification",
+            # "text-classification",  # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="OPTOnnxConfig",
         ),
         "llama": supported_tasks_mapping(
@@ -702,7 +727,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            "text-classification",
+            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="LlamaOnnxConfig",
         ),
         "pegasus": supported_tasks_mapping(
@@ -766,7 +791,7 @@ class TasksManager:
             tflite="RoFormerTFLiteConfig",
         ),
         "sam": supported_tasks_mapping(
-            "mask-generation",
+            "feature-extraction",
             onnx="SamOnnxConfig",
         ),
         "segformer": supported_tasks_mapping(
@@ -926,7 +951,14 @@ class TasksManager:
             onnx="YolosOnnxConfig",
         ),
     }
-    _UNSUPPORTED_CLI_MODEL_TYPE = {"unet", "vae-encoder", "vae-decoder", "clip-text-model", "trocr"}
+    _UNSUPPORTED_CLI_MODEL_TYPE = {
+        "unet",
+        "vae-encoder",
+        "vae-decoder",
+        "clip-text-model",
+        "clip-text-with-projection",
+        "trocr",
+    }
     _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @classmethod
@@ -1001,7 +1033,7 @@ class TasksManager:
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet. "
-                f"Only {TasksManager._SUPPORTED_CLI_MODEL_TYPE} are supported. "
+                f"Only {TasksManager._SUPPORTED_MODEL_TYPE} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
         elif exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
@@ -1222,7 +1254,9 @@ class TasksManager:
             framework = "pt"
         elif any(is_tf_weight_file):
             framework = "tf"
-        elif "model_index.json" in all_files and any(file.endswith(Path(WEIGHTS_NAME).suffix) for file in all_files):
+        elif "model_index.json" in all_files and any(
+            file.endswith((pt_weight_extension, safe_weight_extension)) for file in all_files
+        ):
             # stable diffusion case
             framework = "pt"
         else:
@@ -1266,7 +1300,7 @@ class TasksManager:
                 (
                     target_name.startswith("Auto"),
                     target_name.startswith("TFAuto"),
-                    target_name == "StableDiffusionPipeline",
+                    "StableDiffusion" in target_name,
                 )
             ):
                 if target_name == auto_cls_name:
@@ -1309,8 +1343,10 @@ class TasksManager:
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             if model_info.library_name == "diffusers":
                 # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
-                if "stable-diffusion" in model_info.tags:
-                    inferred_task_name = "stable-diffusion"
+                for task in ("stable-diffusion-xl", "stable-diffusion"):
+                    if task in model_info.tags:
+                        inferred_task_name = task
+                        break
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
                 # conversational is not a supported task per se, just an alias that may map to
@@ -1471,7 +1507,11 @@ class TasksManager:
                 elif device is None:
                     device = torch.device("cpu")
 
-                if version.parse(torch.__version__) >= version.parse("2.0"):
+                # TODO : fix EulerDiscreteScheduler loading to enable for SD models
+                if (
+                    version.parse(torch.__version__) >= version.parse("2.0")
+                    and TasksManager._TASKS_TO_LIBRARY[task.replace("-with-past", "")] != "diffusers"
+                ):
                     with device:
                         # Initialize directly in the requested device, to save allocation time. Especially useful for large
                         # models to initialize on cuda device.

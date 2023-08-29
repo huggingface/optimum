@@ -171,7 +171,7 @@ def load_bettertransformer(
     load_feature_extractor=None,
     SUPPORTED_TASKS=None,
     subfolder: str = "",
-    use_auth_token: Optional[Union[bool, str]] = None,
+    token: Optional[Union[bool, str]] = None,
     revision: str = "main",
     model_kwargs: Optional[Dict[str, Any]] = None,
     config: AutoConfig = None,
@@ -218,7 +218,7 @@ def load_ort_pipeline(
     load_feature_extractor,
     SUPPORTED_TASKS,
     subfolder: str = "",
-    use_auth_token: Optional[Union[bool, str]] = None,
+    token: Optional[Union[bool, str]] = None,
     revision: str = "main",
     model_kwargs: Optional[Dict[str, Any]] = None,
     config: AutoConfig = None,
@@ -246,7 +246,7 @@ def load_ort_pipeline(
             pattern,
             glob_pattern="**/*.onnx",
             subfolder=subfolder,
-            use_auth_token=use_auth_token,
+            use_auth_token=token,
             revision=revision,
         )
         export = len(onnx_files) == 0
@@ -292,7 +292,7 @@ def pipeline(
     tokenizer: Optional[Union[str, PreTrainedTokenizer]] = None,
     feature_extractor: Optional[Union[str, PreTrainedFeatureExtractor]] = None,
     use_fast: bool = True,
-    use_auth_token: Optional[Union[str, bool]] = None,
+    token: Optional[Union[str, bool]] = None,
     accelerator: Optional[str] = "ort",
     revision: Optional[str] = None,
     trust_remote_code: Optional[bool] = None,
@@ -315,7 +315,7 @@ def pipeline(
     # copied from transformers.pipelines.__init__.py
     hub_kwargs = {
         "revision": revision,
-        "use_auth_token": use_auth_token,
+        "token": token,
         "trust_remote_code": trust_remote_code,
         "_commit_hash": None,
     }
@@ -364,6 +364,7 @@ def pipeline(
         SUPPORTED_TASKS=supported_tasks,
         config=config,
         hub_kwargs=hub_kwargs,
+        token=token,
         *model_kwargs,
         **kwargs,
     )
@@ -379,6 +380,5 @@ def pipeline(
         tokenizer=tokenizer,
         feature_extractor=feature_extractor,
         use_fast=use_fast,
-        use_auth_token=use_auth_token,
         **kwargs,
     )

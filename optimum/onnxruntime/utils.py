@@ -53,6 +53,8 @@ _ORT_TO_NP_TYPE = {
     "tensor(double)": np.float64,
 }
 
+MULTI_QUERY_ATTN_MODELS = {"gpt_bigcode"}
+
 
 def _is_gpu_available():
     """
@@ -109,6 +111,7 @@ class ORTConfigManager:
         "distilbert": "bert",
         "electra": "bert",
         "gpt2": "gpt2",
+        "gpt_bigcode": "gpt2",
         "gpt_neo": "gpt2",
         "gpt_neox": "gpt2",
         "gptj": "gpt2",
@@ -173,15 +176,14 @@ def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
     return OnnxConfigWithLoss(onnx_config)
 
 
-def get_device_for_provider(provider: str) -> torch.device:
+def get_device_for_provider(provider: str, provider_options: Dict) -> torch.device:
     """
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
-    return (
-        torch.device("cuda:0")
-        if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]
-        else torch.device("cpu")
-    )
+    if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
+        return torch.device(f"cuda:{provider_options['device_id']}")
+    else:
+        return torch.device("cpu")
 
 
 def get_provider_for_device(device: torch.device) -> str:

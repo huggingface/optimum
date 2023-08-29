@@ -17,8 +17,8 @@
 import copy
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
-import packaging
 import torch
+from packaging import version
 from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import (
@@ -65,7 +65,7 @@ if TYPE_CHECKING:
         from diffusers import ModelMixin, StableDiffusionPipeline
 
 
-def check_onnxruntime_requirements(minimum_version: packaging.version.Version):
+def check_onnxruntime_requirements(minimum_version: version.Version):
     """
     Checks that ONNX Runtime is installed and if version is recent enough.
 
@@ -85,13 +85,96 @@ def check_onnxruntime_requirements(minimum_version: packaging.version.Version):
             " and relaunch the conversion."
         )
 
-    ort_version = packaging.version.parse(onnxruntime.__version__)
+    ort_version = version.parse(onnxruntime.__version__)
     if ort_version < ORT_QUANTIZE_MINIMUM_VERSION:
         raise ImportError(
             f"We found an older version of ONNX Runtime ({onnxruntime.__version__}) "
             f"but we require the version to be >= {minimum_version} to enable all the conversions options.\n"
             "Please update ONNX Runtime by running `pip install --upgrade onnxruntime`"
         )
+
+
+def _get_submodels_for_export_stable_diffusion(
+    pipeline: "StableDiffusionPipeline",
+) -> Dict[str, Union["PreTrainedModel", "ModelMixin"]]:
+    """
+    Returns the components of a Stable Diffusion model.
+    """
+    from diffusers import StableDiffusionXLImg2ImgPipeline
+
+    models_for_export = {}
+    if isinstance(pipeline, StableDiffusionXLImg2ImgPipeline):
+        projection_dim = pipeline.text_encoder_2.config.projection_dim
+    else:
+        projection_dim = pipeline.text_encoder.config.projection_dim
+
+    # Text encoder
+    if pipeline.text_encoder is not None:
+        if isinstance(pipeline, StableDiffusionXLImg2ImgPipeline):
+            pipeline.text_encoder.config.output_hidden_states = True
+        models_for_export["text_encoder"] = pipeline.text_encoder
+
+    # U-NET
+    # PyTorch does not support the ONNX export of torch.nn.functional.scaled_dot_product_attention
+    pipeline.unet.set_attn_processor(AttnProcessor())
+    pipeline.unet.config.text_encoder_projection_dim = projection_dim
+    # The U-NET time_ids inputs shapes depends on the value of `requires_aesthetics_score`
+    # https://github.com/huggingface/diffusers/blob/v0.18.2/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl_img2img.py#L571
+    pipeline.unet.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
+    models_for_export["unet"] = pipeline.unet
+
+    # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
+    vae_encoder = copy.deepcopy(pipeline.vae)
+    if not version.parse(torch.__version__) >= version.parse("2.1.0"):
+        vae_encoder = override_diffusers_2_0_attn_processors(vae_encoder)
+    vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample)["latent_dist"].sample()}
+    models_for_export["vae_encoder"] = vae_encoder
+
+    # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
+    vae_decoder = copy.deepcopy(pipeline.vae)
+    if not version.parse(torch.__version__) >= version.parse("2.1.0"):
+        vae_decoder = override_diffusers_2_0_attn_processors(vae_decoder)
+    vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
+    models_for_export["vae_decoder"] = vae_decoder
+
+    text_encoder_2 = getattr(pipeline, "text_encoder_2", None)
+    if text_encoder_2 is not None:
+        text_encoder_2.config.output_hidden_states = True
+        models_for_export["text_encoder_2"] = text_encoder_2
+
+    return models_for_export
+
+
+def _get_submodels_for_export_decoder(
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], use_past: bool
+) -> Dict[str, Union["PreTrainedModel", "TFPreTrainedModel"]]:
+    """
+    Returns the decoder part of the model.
+    """
+    models_for_export = {}
+
+    models_for_export[ONNX_DECODER_NAME] = model
+    if use_past:
+        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = model
+
+    return models_for_export
+
+
+def _get_submodels_for_export_encoder_decoder(
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], use_past: bool
+) -> Dict[str, Union["PreTrainedModel", "TFPreTrainedModel"]]:
+    """
+    Returns the encoder and decoder parts of the model.
+    """
+    models_for_export = {}
+
+    encoder_model = model.get_encoder()
+    models_for_export[ONNX_ENCODER_NAME] = encoder_model
+    models_for_export[ONNX_DECODER_NAME] = model
+    if use_past:
+        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = model
+
+    return models_for_export
 
 
 def get_encoder_decoder_models_for_export(
@@ -110,18 +193,20 @@ def get_encoder_decoder_models_for_export(
         `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
         onnx configs for the encoder and decoder parts of the model.
     """
-    models_for_export = {}
+    models_for_export = _get_submodels_for_export_encoder_decoder(model, use_past=config.use_past)
 
-    encoder_model = model.get_encoder()
     encoder_onnx_config = config.with_behavior("encoder")
-    models_for_export[ONNX_ENCODER_NAME] = (encoder_model, encoder_onnx_config)
+    models_for_export[ONNX_ENCODER_NAME] = (models_for_export[ONNX_ENCODER_NAME], encoder_onnx_config)
 
     decoder_onnx_config = config.with_behavior("decoder", use_past=False)
-    models_for_export[ONNX_DECODER_NAME] = (model, decoder_onnx_config)
+    models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], decoder_onnx_config)
 
     if config.use_past:
         decoder_onnx_config_with_past = config.with_behavior("decoder", use_past=True)
-        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (model, decoder_onnx_config_with_past)
+        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
+            models_for_export[ONNX_DECODER_WITH_PAST_NAME],
+            decoder_onnx_config_with_past,
+        )
 
     return models_for_export
 
@@ -148,16 +233,19 @@ def get_decoder_models_for_export(
         `Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]: A Dict containing the model and
         onnx configs for the encoder and decoder parts of the model.
     """
-    models_for_export = {}
+    models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past)
 
     onnx_config = config.__class__(
         model.config, task=config.task, use_past_in_inputs=False, use_present_in_outputs=True
     )
-    models_for_export[ONNX_DECODER_NAME] = (model, onnx_config)
+    models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], onnx_config)
 
     if config.use_past:
         onnx_config_with_past = config.__class__(model.config, task=config.task, use_past=True)
-        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (model, onnx_config_with_past)
+        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
+            models_for_export[ONNX_DECODER_WITH_PAST_NAME],
+            onnx_config_with_past,
+        )
 
     return models_for_export
 
@@ -176,30 +264,25 @@ def get_stable_diffusion_models_for_export(
         `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
         onnx configs for the different components of the model.
     """
-    models_for_export = {}
+    models_for_export = _get_submodels_for_export_stable_diffusion(pipeline)
 
     # Text encoder
-    text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
-        model=pipeline.text_encoder, exporter="onnx", task="feature-extraction"
-    )
-    text_encoder_onnx_config = text_encoder_config_constructor(pipeline.text_encoder.config)
-    models_for_export["text_encoder"] = (pipeline.text_encoder, text_encoder_onnx_config)
+    if "text_encoder" in models_for_export:
+        text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=pipeline.text_encoder, exporter="onnx", task="feature-extraction"
+        )
+        text_encoder_onnx_config = text_encoder_config_constructor(pipeline.text_encoder.config)
+        models_for_export["text_encoder"] = (models_for_export["text_encoder"], text_encoder_onnx_config)
 
     # U-NET
     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
         model=pipeline.unet, exporter="onnx", task="semantic-segmentation", model_type="unet"
     )
     unet_onnx_config = onnx_config_constructor(pipeline.unet.config)
-
-    # PyTorch does not support the ONNX export of torch.nn.functional.scaled_dot_product_attention
-    pipeline.unet.set_attn_processor(AttnProcessor())
-    models_for_export["unet"] = (pipeline.unet, unet_onnx_config)
+    models_for_export["unet"] = (models_for_export["unet"], unet_onnx_config)
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
-    vae_encoder = copy.deepcopy(pipeline.vae)
-    if not packaging.version.parse(torch.__version__) >= packaging.version.parse("2.1.0"):
-        vae_encoder = override_diffusers_2_0_attn_processors(vae_encoder)
-    vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample)["latent_dist"].sample()}
+    vae_encoder = models_for_export["vae_encoder"]
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_encoder, exporter="onnx", task="semantic-segmentation", model_type="vae-encoder"
     )
@@ -207,15 +290,57 @@ def get_stable_diffusion_models_for_export(
     models_for_export["vae_encoder"] = (vae_encoder, vae_onnx_config)
 
     # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
-    vae_decoder = copy.deepcopy(pipeline.vae)
-    if not packaging.version.parse(torch.__version__) >= packaging.version.parse("2.1.0"):
-        vae_decoder = override_diffusers_2_0_attn_processors(vae_decoder)
-    vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
+    vae_decoder = models_for_export["vae_decoder"]
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_decoder, exporter="onnx", task="semantic-segmentation", model_type="vae-decoder"
     )
     vae_onnx_config = vae_config_constructor(vae_decoder.config)
     models_for_export["vae_decoder"] = (vae_decoder, vae_onnx_config)
+
+    if "text_encoder_2" in models_for_export:
+        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=pipeline.text_encoder_2,
+            exporter="onnx",
+            task="feature-extraction",
+            model_type="clip-text-with-projection",
+        )
+        onnx_config = onnx_config_constructor(pipeline.text_encoder_2.config)
+        models_for_export["text_encoder_2"] = (models_for_export["text_encoder_2"], onnx_config)
+
+    return models_for_export
+
+
+def _get_submodels_for_export_sam(model, variant):
+    models_for_export = {}
+
+    if variant == "monolith":
+        models_for_export["model"] = model
+    else:
+        # We use the model patcher to patch their forward method.
+        models_for_export["vision_encoder"] = model
+        models_for_export["prompt_encoder_mask_decoder"] = model
+
+    return models_for_export
+
+
+def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "OnnxConfig"):
+    models_for_export = _get_submodels_for_export_sam(model, config.variant)
+
+    if config.variant == "monolith":
+        onnx_config = config.__class__(model.config, task=config.task)
+        models_for_export["model"] = (models_for_export["model"], onnx_config)
+    else:
+        vision_encoder_onnx_config = config.__class__(
+            model.config, task=config.task, variant=config.variant, vision_encoder=True
+        )
+        prompt_encoder_mask_decoder_onnx_config = config.__class__(
+            model.config, task=config.task, variant=config.variant, vision_encoder=False
+        )
+        models_for_export["vision_encoder"] = (models_for_export["vision_encoder"], vision_encoder_onnx_config)
+        models_for_export["prompt_encoder_mask_decoder"] = (
+            models_for_export["prompt_encoder_mask_decoder"],
+            prompt_encoder_mask_decoder_onnx_config,
+        )
 
     return models_for_export
 
