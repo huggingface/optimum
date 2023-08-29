@@ -34,7 +34,7 @@ from transformers import (
     Pix2StructForConditionalGeneration,  # Pix2struct does not support AutoModel
     WhisperForConditionalGeneration,
 )
-from transformers.file_utils import add_start_docstrings_to_model_forward
+from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
 
@@ -53,7 +53,7 @@ from .constants import (
     DECODER_WITH_PAST_ONNX_FILE_PATTERN,
     ENCODER_ONNX_FILE_PATTERN,
 )
-from .modeling_ort import ORTModel
+from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
@@ -1084,9 +1084,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         return False
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     """
-    Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
+    Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports bart, blenderbot, blenderbot_small, longt5, m2m_100, marian, mbart, mt5, pegasus, t5.
     """
 
     auto_model_class = AutoModelForSeq2SeqLM
@@ -1190,9 +1191,10 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         return True
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     """
-    Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
+    Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper, speech_to_text.
     """
 
     auto_model_class = AutoModelForSpeechSeq2Seq
@@ -1368,9 +1370,10 @@ class _ORTModelForWhisper(
         return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     """
-    VisionEncoderDecoder Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
+    VisionEncoderDecoder Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports trocr and vision-encoder-decoder.
     """
 
     auto_model_class = AutoModelForVision2Seq
@@ -1510,9 +1513,10 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         return True
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
     """
-    Pix2struct model with a language modeling head for ONNX Runtime inference.
+    Pix2struct model with a language modeling head for ONNX Runtime inference. This class officially supports pix2struct.
     """
 
     # pix2struct cannot be loaded using AutoModel
