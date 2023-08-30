@@ -172,8 +172,6 @@ def main_export(
     custom_onnx_configs: Optional[Dict[str, "OnnxConfig"]] = None,
     fn_get_submodels: Optional[Callable] = None,
     use_subprocess: bool = False,
-    int_dtype: str = "int64",
-    float_dtype: str = "fp32",
     _variant: str = "default",
     **kwargs_shapes,
 ):
@@ -249,10 +247,6 @@ def main_export(
             exporting on CUDA device, where ORT does not release memory at inference session
             destruction. When set to `True`, the `main_export` call should be guarded in
             `if __name__ == "__main__":` block.
-        int_dtype (`str`, defaults to `"int64"`):
-            The data type of integer tensors, could be ["int64", "int32", "int8"], default to "int64".
-        float_dtype (`str`, defaults to `"fp32"`):
-            The data type of float tensors, could be ["fp32", "fp16", "bf16"], default to "fp32".
         _variant (`str`, defaults to `default`):
             Specify the variant of the ONNX export to use.
         **kwargs_shapes (`Dict`):
@@ -274,14 +268,14 @@ def main_export(
     if (framework == "tf" and fp16 is True) or not is_torch_available():
         raise ValueError("The --fp16 option is supported only for PyTorch.")
 
-    if fp16 is True:
-        logger.warning(
-            "The option --fp16 is deprecated and will be removed in a future version. Please"
-            " use `--float_dtype fp16` instead."
+    int_dtype = "int64"
+    if fp16 is True and device == "cpu":
+        raise ValueError(
+            "FP16 export n is supported only when exporting on GPU. Please pass the option `--device cuda`."
         )
         float_dtype = "fp16"
-    if float_dtype == "fp16" and device == "cpu":
-        raise ValueError("The fp16 is supported only when exporting on GPU. Please pass the option `--device cuda`.")
+    else:
+        float_dtype = "fp32"
 
     output = Path(output)
     if not output.exists():
@@ -578,8 +572,6 @@ def main():
         opset=args.opset,
         device=args.device,
         fp16=args.fp16,
-        int_dtype=args.int_dtype,
-        float_dtype=args.float_dtype,
         optimize=args.optimize,
         monolith=args.monolith,
         no_post_process=args.no_post_process,
