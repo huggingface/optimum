@@ -132,11 +132,11 @@ class DummyInputGenerator(ABC):
         Args:
             input_name (`str`):
                 The name of the input to generate.
-            framework (`str`, *optional*, defaults to `"pt"`):
+            framework (`str`, defaults to `"pt"`):
                 The requested framework.
-            int_dtype (`str`, *optional*, defaults to `"int64"`):
+            int_dtype (`str`, defaults to `"int64"`):
                 The dtypes of generated integer tensors.
-            float_dtype (`str`, *optional*, defaults to `"fp32"`):
+            float_dtype (`str`, defaults to `"fp32"`):
                 The dtypes of generated float tensors.
 
         Returns:
@@ -157,11 +157,11 @@ class DummyInputGenerator(ABC):
                 The shape of the random tensor.
             max_value (`int`):
                 The maximum value allowed.
-            min_value (`int`, *optional*, defaults to 0):
+            min_value (`int`, defaults to 0):
                 The minimum value allowed.
-            framework (`str`, *optional*, defaults to `"pt"`):
+            framework (`str`, defaults to `"pt"`):
                 The requested framework.
-            dtype (`str`, *optional*, defaults to `"int64"`):
+            dtype (`str`, defaults to `"int64"`):
                 The dtype of the generated integer tensor. Could be "int64", "int32", "int8".
 
         Returns:
@@ -185,13 +185,13 @@ class DummyInputGenerator(ABC):
         Args:
             shape (`List[int]`):
                 The shape of the random tensor.
-            min_value (`float`, *optional*, defaults to 0):
+            min_value (`float`, defaults to 0):
                 The minimum value allowed.
-            max_value (`float`, *optional*, defaults to 1):
+            max_value (`float`, defaults to 1):
                 The maximum value allowed.
-            framework (`str`, *optional*, defaults to `"pt"`):
+            framework (`str`, defaults to `"pt"`):
                 The requested framework.
-            dtype (`str`, *optional*, defaults to `"fp32"`):
+            dtype (`str`, defaults to `"fp32"`):
                 The dtype of the generated float tensor. Could be "fp32", "fp16", "bf16".
 
         Returns:
@@ -216,11 +216,11 @@ class DummyInputGenerator(ABC):
         Args:
             shape (`List[int]`):
                 The shape of the constant tensor.
-            value (`Union[int, float]`, *optional*, defaults to 1):
+            value (`Union[int, float]`, defaults to 1):
                 The value to fill the constant tensor with.
-            dtype (`Any`, *optional*):
+            dtype (`Optional[Any]`, defaults to `None`):
                 The dtype of the constant tensor.
-            framework (`str`, *optional*, defaults to `"pt"`):
+            framework (`str`, defaults to `"pt"`):
                 The requested framework.
 
         Returns:
@@ -287,13 +287,13 @@ class DummyInputGenerator(ABC):
                 The tensor to pad.
             dim (`int`):
                 The dimension along which to pad.
-            desired_length (`int`, *optional*):
+            desired_length (`Optional[int]`, defaults to `None`):
                 The desired length along the dimension after padding.
-            padding_length (`int`, *optional*):
+            padding_length (`Optional[int]`, defaults to `None`):
                 The length to pad along the dimension.
-            value (`Union[int, float]`, *optional*, defaults to 1):
+            value (`Union[int, float]`, defaults to 1):
                 The value to use for padding.
-            dtype (`Any`, *optional*):
+            dtype (`Optional[Any]`, defaults to `None`):
                 The dtype of the padding.
 
         Returns:
