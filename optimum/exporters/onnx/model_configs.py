@@ -281,7 +281,7 @@ class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         encoder_shape = (
             self.batch_size,
             self.normalized_config.encoder_num_attention_heads,
@@ -296,10 +296,10 @@ class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
         )
         return [
             (
-                self.random_float_tensor(decoder_shape, framework=framework),
-                self.random_float_tensor(decoder_shape, framework=framework),
-                self.random_float_tensor(encoder_shape, framework=framework),
-                self.random_float_tensor(encoder_shape, framework=framework),
+                self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
             )
             for _ in range(self.normalized_config.decoder_num_layers)
         ]
@@ -364,8 +364,8 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
         **kwargs,
     ):
         super().__init__(
-            task,
-            normalized_config,
+            task=task,
+            normalized_config=normalized_config,
             batch_size=batch_size,
             sequence_length=sequence_length,
             num_choices=num_choices,
@@ -376,8 +376,8 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
         self.force_eos_token_id_presence = force_eos_token_id_presence
         self.eos_token_id = normalized_config.eos_token_id
 
-    def generate(self, input_name: str, framework: str = "pt"):
-        int_tensor = super().generate(input_name, framework=framework)
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        int_tensor = super().generate(input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype)
         # This inserts EOS_TOKEN_ID at random locations along the sequence length dimension.
         if self.force_eos_token_id_presence and "input_ids" in input_name and self.task == "text-classification":
             for idx in range(self.batch_size):
@@ -854,9 +854,16 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     MIN_TORCH_VERSION = version.parse("2.1")
 
     def __init__(
-        self, config: "PretrainedConfig", task: str = "feature-extraction", preprocessors: Optional[List[Any]] = None
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        preprocessors: Optional[List[Any]] = None,
     ):
-        super().__init__(config, task, preprocessors=preprocessors)
+        super().__init__(
+            config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+        )
         if task == "zero-shot-object-detection":
             logger.warning(
                 "The batch size of this model will not be dynamic because non-maximum suppression is performed. "
@@ -947,8 +954,10 @@ class Data2VecAudioOnnxConfig(AudioOnnxConfig):
 
 
 class PerceiverDummyInputGenerator(DummyVisionInputGenerator):
-    def generate(self, input_name: str, framework: str = "pt"):
-        input_ = super().generate(input_name, framework)
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        input_ = super().generate(
+            input_name=input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
+        )
         # if input_name == "pixel_values":
         #     input_ = input_[None, :]
         return input_
@@ -961,9 +970,16 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
     ) + TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
 
     def __init__(
-        self, config: "PretrainedConfig", task: str = "feature-extraction", preprocessors: Optional[List[Any]] = None
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        preprocessors: Optional[List[Any]] = None,
     ):
-        super().__init__(config, task=task, preprocessors=preprocessors)
+        super().__init__(
+            config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+        )
         self.is_generating_dummy_inputs = False
 
     @property
@@ -1038,11 +1054,11 @@ class WavLMOnnxConfig(HubertOnnxConfig):
 
 
 class ASTDummyAudioInputGenerator(DummyAudioInputGenerator):
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = [self.batch_size, self.normalized_config.max_length, self.normalized_config.num_mel_bins]
         if input_name == "input_values":
-            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
-        return super().generate(input_name, framework=framework)
+            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework, dtype=float_dtype)
+        return super().generate(input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype)
 
 
 class ASTOnnxConfig(OnnxConfig):
@@ -1098,10 +1114,10 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
 
 
 class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = [self.batch_size, self.sequence_length, self.normalized_config.input_features_per_channel]
         if input_name == "input_features":
-            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
+            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework, dtype=float_dtype)
         return super().generate(input_name, framework=framework)
 
 
@@ -1178,6 +1194,8 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
         self,
         config: "PretrainedConfig",
         task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -1185,7 +1203,15 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderOnnxConfig):
         preprocessors: Optional[List[Any]] = None,
     ):
         super().__init__(
-            config, task, use_past, use_past_in_inputs, use_present_in_outputs, behavior, preprocessors=preprocessors
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            use_present_in_outputs=use_present_in_outputs,
+            behavior=behavior,
+            preprocessors=preprocessors,
         )
 
         # TODO: Check modeling code to fix the issue with use_cache for trocr
@@ -1233,11 +1259,15 @@ class SamOnnxConfig(OnnxConfig):
         self,
         config: "PretrainedConfig",
         task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
         variant: str = "split",
         vision_encoder: Optional[bool] = None,
         preprocessors: Optional[List[Any]] = None,
     ):
-        super().__init__(config, task, preprocessors=preprocessors)
+        super().__init__(
+            config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+        )
         self.variant = variant
         self.vision_encoder = vision_encoder
         self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig(self._config.vision_config)
@@ -1426,16 +1456,22 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
                     f"will be used with use_past == True for `{input_name}`."
                 )
             dummy_input_gen.sequence_length = 1
-            dummy_input = dummy_input_gen.generate(input_name, framework=framework)
+            dummy_input = dummy_input_gen.generate(
+                input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+            )
             dummy_input_gen.sequence_length = sequence_length
         elif input_name in ["encoder_outputs", "attention_mask"]:
             # pix2struct takes inputs whose so-called sequence length is **static** to max_patches, so we do NOT use
             # the passed sequence_length that behaves as a dynamic shape.
             original_seq_length = dummy_input_gen.sequence_length
             dummy_input_gen.sequence_length = self._preprocessors[1].image_processor.max_patches
-            dummy_input = dummy_input_gen.generate(input_name, framework=framework)
+            dummy_input = dummy_input_gen.generate(
+                input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+            )
             dummy_input_gen.sequence_length = original_seq_length
         else:
-            dummy_input = dummy_input_gen.generate(input_name, framework=framework)
+            dummy_input = dummy_input_gen.generate(
+                input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+            )
 
         return dummy_input

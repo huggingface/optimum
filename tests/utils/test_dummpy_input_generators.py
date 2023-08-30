@@ -22,7 +22,7 @@ from parameterized import parameterized
 from transformers import AutoConfig
 from transformers.utils import is_tf_available
 
-from optimum.utils import DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
+from optimum.utils import DTYPE_MAPPER, DummyAudioInputGenerator, DummyTextInputGenerator, DummyVisionInputGenerator
 from optimum.utils.normalized_config import NormalizedConfigManager
 from optimum.utils.testing_utils import grid_parameters
 
@@ -75,11 +75,53 @@ class GenerateDummy(TestCase):
                 f"{generated_shape}"
             )
 
+    def validate_dtype_for_framework(
+        self, generator: "DummyInputGenerator", input_name: str, framework: str, target_dtype: str
+    ):
+        if "int" in target_dtype:
+            generated_tenor = generator.generate(input_name=input_name, framework=framework, int_dtype=target_dtype)
+        else:
+            generated_tenor = generator.generate(input_name=input_name, framework=framework, float_dtype=target_dtype)
+        dtype_funcs = {"np": DTYPE_MAPPER.np, "pt": DTYPE_MAPPER.pt, "tf": DTYPE_MAPPER.tf}
+        target_dtype = dtype_funcs[framework](target_dtype)
+        if generated_tenor.dtype != target_dtype:
+            raise ValueError(
+                f"{input_name} dtype is wrong for framework = {framework}. Expected {target_dtype} but got "
+                f"{generated_tenor.dtype}"
+            )
+
     def validate_shape_for_all_frameworks(
         self, generator: "DummyInputGenerator", input_name: str, target_shape: Tuple[int, ...]
     ):
         for framework in self._FRAMEWORK_TO_SHAPE_CLS:
             self.validate_shape_for_framework(generator, input_name, framework, target_shape)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_name": VISION_MODELS.values(),
+                "framework": ["pt"],
+                "int_dtype": ["int64", "int32", "int8"],
+                "float_dtype": ["fp32", "fp16", "bf16"],
+            }
+        )
+    )
+    def test_generated_tensor_dtype(
+        self, test_name: str, model_name: str, framework: str, int_dtype: str, float_dtype: str
+    ):
+        config = AutoConfig.from_pretrained(model_name)
+        normalized_config_class = NormalizedConfigManager.get_normalized_config_class(config.model_type)
+        normalized_config = normalized_config_class(config)
+        input_generator = DummyVisionInputGenerator(
+            task="image-classification",
+            normalized_config=normalized_config,
+            batch_size=2,
+            num_channels=3,
+            height=224,
+            width=224,
+        )
+        self.validate_dtype_for_framework(input_generator, "pixel_values", framework, float_dtype)
+        self.validate_dtype_for_framework(input_generator, "pixel_mask", framework, int_dtype)
 
     @parameterized.expand(
         grid_parameters(

@@ -274,6 +274,8 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         self,
         config: "PretrainedConfig",
         task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -281,8 +283,10 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         preprocessors: Optional[List[Any]] = None,
     ):
         super().__init__(
-            config,
+            config=config,
             task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             use_present_in_outputs=use_present_in_outputs,
@@ -298,7 +302,9 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                 exporter="onnx", task="feature-extraction", model_type=config.encoder.model_type
             )
-            self._encoder_onnx_config = encoder_onnx_config_constructor(config.encoder, preprocessors=preprocessors)
+            self._encoder_onnx_config = encoder_onnx_config_constructor(
+                config.encoder, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+            )
             self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = self._encoder_onnx_config._normalized_config
 
         if self._behavior is not ConfigBehavior.ENCODER:
@@ -319,7 +325,7 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 )
 
             self._decoder_onnx_config = decoder_onnx_config_constructor(
-                config.decoder, preprocessors=preprocessors, **kwargs
+                config.decoder, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors, **kwargs
             )
             if issubclass(decoder_onnx_config_constructor.func, OnnxSeq2SeqConfigWithPast):
                 self._decoder_onnx_config = self._decoder_onnx_config.with_behavior(
