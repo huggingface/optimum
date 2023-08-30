@@ -22,7 +22,7 @@ from testing_utils import MODELS_DICT, BetterTransformersTestMixin
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
-from optimum.utils.testing_utils import grid_parameters, require_torch_20, require_torch_gpu
+from optimum.utils.testing_utils import grid_parameters, require_torch_gpu
 
 
 class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
@@ -55,10 +55,25 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     def tearDown(self):
         gc.collect()
 
-    def prepare_inputs_for_class(self, model_id, model_type, **preprocessor_kwargs):
+    def prepare_inputs_for_class(
+        self, model_id: str, model_type: str, no_padding: bool = False, batch_size: int = 2, **preprocessor_kwargs
+    ):
         tokenizer = AutoTokenizer.from_pretrained(model_id)
+
         padding = preprocessor_kwargs.pop("padding", True)
-        inputs = tokenizer(["a dummy input", "and two"], return_tensors="pt", padding=padding, **preprocessor_kwargs)
+        if padding == "max_length":
+            max_length = 25
+        else:
+            max_length = None
+
+        if batch_size == 1:
+            texts = ["a dummy input yeah!"]
+        elif no_padding:
+            texts = ["a dummy input yeah!"] * batch_size
+        else:
+            texts = ["a dummy input yeah!"] + ["and two"] * (batch_size - 1)
+
+        inputs = tokenizer(texts, return_tensors="pt", padding=padding, max_length=max_length, **preprocessor_kwargs)
         inputs["decoder_input_ids"] = inputs["input_ids"]  # just a hack for m2m100
         return inputs
 
@@ -70,40 +85,36 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
             }
         )
     )
-    def test_logits_without_cache(self, test_name: str, model_type: str, padding, max_length=20):
-        self._skip_on_torch_version(model_type)
+    def test_logits_without_cache(self, test_name: str, model_type: str, padding):
         model_id = MODELS_DICT[model_type]
-        self._test_logits(model_id, model_type=model_type, padding=padding, max_length=max_length)
+        self._test_logits(model_id, model_type=model_type, padding=padding)
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_autocast(self, model_type: str):
-        self._skip_on_torch_version(model_type)
-        model_id = MODELS_DICT[model_type]
-        self._test_raise_autocast(model_id, model_type=model_type)
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_type": SUPPORTED_ARCH,
+                "batch_size": [1, 3],
+            }
+        )
+    )
+    def test_logits_backward(self, test_name: str, model_type: str, batch_size: int):
+        if model_type in ["fsmt", "prophetnet"]:
+            self.skipTest(f"Training support not implemented for {model_type}")
 
-    @parameterized.expand(SUPPORTED_ARCH)
-    def test_raise_train(self, model_type: str):
-        self._skip_on_torch_version(model_type)
         model_id = MODELS_DICT[model_type]
-        if model_type not in ["blenderbot", "pegasus", "t5"]:
-            self._test_raise_train(model_id, model_type=model_type)
-        else:
-            self._test_train_decoder(model_id, model_type=model_type)
+        self._test_logits_backward(model_id, model_type=model_type, no_padding=True, batch_size=batch_size)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
         model_id = MODELS_DICT[model_type]
         self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
         model_id = MODELS_DICT[model_type]
         self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    @require_torch_20
     def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
         model_id = MODELS_DICT[model_type]
         self._test_invert_model_logits(
@@ -122,8 +133,6 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_fp16_inference(self, test_name: str, model_type: str, use_to_operator: bool):
-        self._skip_on_torch_version(model_type)
-
         # TODO: fix in transformers
         if model_type == "fsmt":
             self.skipTest("fsmt is broken is transformers when loaded through torch_dtype=torch.float16")
@@ -137,7 +146,6 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         grid_parameters({"model_type": SUPPORTED_ARCH, "batch_size": [1, 3], "padding": [True, "max_length"]})
     )
     def test_generation(self, test_name: str, model_type: str, batch_size: int, padding: str):
-        self._skip_on_torch_version(model_type)
         if batch_size == 1 and padding == "max_length":
             self.skipTest("batch_size=1 + padding='max_length' is unsupported")
 

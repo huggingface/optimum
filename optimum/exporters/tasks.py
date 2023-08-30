@@ -512,9 +512,18 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            "text-classification",
+            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             "token-classification",
             onnx="GPT2OnnxConfig",
+        ),
+        "gpt-bigcode": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            # "text-classification",  # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
+            "token-classification",
+            onnx="GPTBigCodeOnnxConfig",
         ),
         "gptj": supported_tasks_mapping(
             "feature-extraction",
@@ -522,7 +531,7 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "question-answering",
-            "text-classification",
+            # "text-classification",  # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="GPTJOnnxConfig",
         ),
         "gpt-neo": supported_tasks_mapping(
@@ -530,7 +539,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            "text-classification",
+            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="GPTNeoOnnxConfig",
         ),
         "gpt-neox": supported_tasks_mapping(
@@ -705,7 +714,7 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "question-answering",
-            "text-classification",
+            # "text-classification",  # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="OPTOnnxConfig",
         ),
         "llama": supported_tasks_mapping(
@@ -713,7 +722,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            "text-classification",
+            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="LlamaOnnxConfig",
         ),
         "pegasus": supported_tasks_mapping(
@@ -1240,7 +1249,9 @@ class TasksManager:
             framework = "pt"
         elif any(is_tf_weight_file):
             framework = "tf"
-        elif "model_index.json" in all_files and any(file.endswith(Path(WEIGHTS_NAME).suffix) for file in all_files):
+        elif "model_index.json" in all_files and any(
+            file.endswith((pt_weight_extension, safe_weight_extension)) for file in all_files
+        ):
             # stable diffusion case
             framework = "pt"
         else:

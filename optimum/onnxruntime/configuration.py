@@ -26,6 +26,7 @@ from packaging.version import Version, parse
 from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibraterBase, CalibrationMethod, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.calibrate import create_calibrator
+from onnxruntime.quantization.registry import IntegerOpsRegistry, QDQRegistry, QLinearOpsRegistry
 from onnxruntime.transformers.fusion_options import FusionOptions
 
 from ..configuration_utils import BaseConfig
@@ -34,11 +35,13 @@ from ..utils import logging
 
 logger = logging.get_logger(__name__)
 
-NodeName = NodeType = str
-
 # This value is used to indicate ORT which axis it should use to quantize an operator "per-channel"
 ORT_DEFAULT_CHANNEL_FOR_OPERATORS = {"MatMul": 1}
-ORT_FULLY_CONNECTED_OPERATORS = ["MatMul", "Add"]
+
+# Reference: https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/python/tools/quantization/registry.py
+ORT_DEFAULT_OPS_DYNAMIC_QUANTIZATION = list(IntegerOpsRegistry.keys())
+ORT_DEFAULT_OPS_STATIC_QUANTIZATION_QDQ = list(QDQRegistry.keys())
+ORT_DEFAULT_OPS_STATIC_QUANTIZATION_QOPS = list(QLinearOpsRegistry.keys())
 
 
 @dataclass
@@ -88,7 +91,7 @@ class CalibrationConfig:
     def create_calibrator(
         self,
         onnx_model_path: Union[str, os.PathLike, Path],
-        operators_to_quantize: Optional[List[NodeType]],
+        operators_to_quantize: Optional[List[str]],
         use_external_data_format: bool = False,
         force_symmetric_range: bool = False,
         augmented_model_name: str = "augmented_model.onnx",
@@ -248,12 +251,12 @@ class QuantizationConfig:
             accuracy while making the quantized model heavier.
         reduce_range (`bool`, defaults to `False`):
             Whether to use reduce-range 7-bits integers instead of 8-bits integers.
-        nodes_to_quantize (`list`):
+        nodes_to_quantize (`List[str]`, defaults to `[]`):
             List of the nodes names to quantize.
-        nodes_to_exclude (`list`):
+        nodes_to_exclude (`List[str]`, defaults to `[]`):
             List of the nodes names to exclude when applying quantization.
-        operators_to_quantize (`list`, defaults to `["MatMul", "Add"]`):
-            List of the operators types to quantize.
+        operators_to_quantize (`List[str]`):
+            List of the operators types to quantize. Defaults to all quantizable operators for the given quantization mode and format.
         qdq_add_pair_to_weight (`bool`, defaults to `False`):
             By default, floating-point weights are quantized and feed to solely inserted DeQuantizeLinear node.
             If set to True, the floating-point weights will remain and both QuantizeLinear / DeQuantizeLinear nodes
@@ -275,9 +278,9 @@ class QuantizationConfig:
     weights_symmetric: bool = True
     per_channel: bool = False
     reduce_range: bool = False
-    nodes_to_quantize: List[NodeName] = field(default_factory=list)
-    nodes_to_exclude: List[NodeName] = field(default_factory=list)
-    operators_to_quantize: List[NodeType] = field(default_factory=list)
+    nodes_to_quantize: List[str] = field(default_factory=list)
+    nodes_to_exclude: List[str] = field(default_factory=list)
+    operators_to_quantize: List[str] = field(default_factory=list)
     qdq_add_pair_to_weight: bool = False
     qdq_dedicated_pair: bool = False
     qdq_op_type_per_channel_support_to_axis: Dict[str, int] = field(
@@ -287,6 +290,13 @@ class QuantizationConfig:
     def __post_init__(self):
         ensure_valid_mode_or_raise(self.is_static, self.mode)
         ensure_valid_data_type_or_raise(self.is_static, self.activations_dtype, self.weights_dtype)
+
+        # If needed, dynamically set operators_to_quantize default.
+        if len(self.operators_to_quantize) == 0:
+            _, _, operators_to_quantize = default_quantization_parameters(
+                self.is_static, self.format, self.mode, self.operators_to_quantize
+            )
+            self.operators_to_quantize = operators_to_quantize
 
     @staticmethod
     def quantization_type_str(activations_dtype: QuantType, weights_dtype: QuantType) -> str:
@@ -345,15 +355,26 @@ def ensure_valid_data_type_or_raise(
 
 
 def default_quantization_parameters(
-    is_static: bool, format: Optional[QuantFormat] = None, mode: Optional[QuantizationMode] = None
-) -> Tuple[QuantFormat, QuantizationMode]:
+    is_static: bool,
+    format: Optional[QuantFormat] = None,
+    mode: Optional[QuantizationMode] = None,
+    operators_to_quantize: Optional[List[str]] = None,
+) -> Tuple[QuantFormat, QuantizationMode, List[str]]:
     if format is None:
         format = QuantFormat.QDQ if is_static else QuantFormat.QOperator
 
     if mode is None:
         mode = QuantizationMode.QLinearOps if is_static else QuantizationMode.IntegerOps
 
-    return format, mode
+    if operators_to_quantize is None or len(operators_to_quantize) == 0:
+        if is_static and format == QuantFormat.QDQ:
+            operators_to_quantize = ORT_DEFAULT_OPS_STATIC_QUANTIZATION_QDQ
+        elif is_static and mode == QuantizationMode.QLinearOps:
+            operators_to_quantize = ORT_DEFAULT_OPS_STATIC_QUANTIZATION_QOPS
+        elif not is_static and mode == QuantizationMode.IntegerOps:
+            operators_to_quantize = ORT_DEFAULT_OPS_DYNAMIC_QUANTIZATION
+
+    return format, mode, operators_to_quantize
 
 
 class AutoQuantizationConfig:
@@ -363,9 +384,9 @@ class AutoQuantizationConfig:
         use_symmetric_activations: bool = False,
         use_symmetric_weights: bool = True,
         per_channel: bool = True,
-        nodes_to_quantize: Optional[List[NodeName]] = None,
-        nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS,
+        nodes_to_quantize: Optional[List[str]] = None,
+        nodes_to_exclude: Optional[List[str]] = None,
+        operators_to_quantize: Optional[List[str]] = None,
     ):
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for ARM64.
@@ -380,14 +401,16 @@ class AutoQuantizationConfig:
             per_channel (`bool`, defaults to `True`):
                 Whether we should quantize per-channel (also known as "per-row"). Enabling this can
                 increase overall accuracy while making the quantized model heavier.
-            nodes_to_quantize (`Optional[List[NodeName]]`, defaults to `None`):
+            nodes_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to quantize. If `None`, all nodes being operators from `operators_to_quantize` will be quantized.
-            nodes_to_exclude (`Optional[List[NodeName]]`, defaults to `None`):
+            nodes_to_exclude (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to exclude from quantization.
-            operators_to_quantize (`List[NodeName]`, defaults to `["MatMul", "Add"]`):
-                Type of nodes to perform quantization on.
+            operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
+                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode = default_quantization_parameters(is_static)
+        format, mode, operators_to_quantize = default_quantization_parameters(
+            is_static, operators_to_quantize=operators_to_quantize
+        )
 
         # u8/s8 is faster (than u8/u8) on lower-end ARM64 and identical on higher-end ARM64,
         # so let's use u8/s8 by default
@@ -413,9 +436,9 @@ class AutoQuantizationConfig:
         use_symmetric_weights: bool = True,
         per_channel: bool = True,
         reduce_range: bool = False,
-        nodes_to_quantize: Optional[List[NodeName]] = None,
-        nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS,
+        nodes_to_quantize: Optional[List[str]] = None,
+        nodes_to_exclude: Optional[List[str]] = None,
+        operators_to_quantize: Optional[List[str]] = None,
     ) -> QuantizationConfig:
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX2 instruction set.
@@ -436,14 +459,16 @@ class AutoQuantizationConfig:
                 accuracy drop is significant, to try with reduced range (reduce_range = True).
                 Intel's CPUs using AVX512 (non VNNI) can suffer from saturation issue when invoking
                 the VPMADDUBSW instruction. To counter this, one should use 7-bits rather than 8-bits integers.
-            nodes_to_quantize (`Optional[List[NodeName]]`, defaults to `None`):
+            nodes_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to quantize. If `None`, all nodes being operators from `operators_to_quantize` will be quantized.
-            nodes_to_exclude (`Optional[List[NodeName]]`, defaults to `None`):
+            nodes_to_exclude (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to exclude from quantization.
-            operators_to_quantize (`List[NodeName]`, defaults to `["MatMul", "Add"]`):
-                Type of nodes to perform quantization on.
+            operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
+                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode = default_quantization_parameters(is_static)
+        format, mode, operators_to_quantize = default_quantization_parameters(
+            is_static, operators_to_quantize=operators_to_quantize
+        )
 
         return QuantizationConfig(
             is_static=is_static,
@@ -467,9 +492,9 @@ class AutoQuantizationConfig:
         use_symmetric_weights: bool = True,
         per_channel: bool = True,
         reduce_range: bool = False,
-        nodes_to_quantize: Optional[List[NodeName]] = None,
-        nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS,
+        nodes_to_quantize: Optional[List[str]] = None,
+        nodes_to_exclude: Optional[List[str]] = None,
+        operators_to_quantize: Optional[List[str]] = None,
     ) -> QuantizationConfig:
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX512 instruction set.
@@ -490,14 +515,16 @@ class AutoQuantizationConfig:
                 accuracy drop is significant, to try with reduced range (reduce_range = True).
                 Intel's CPUs using AVX512 (non VNNI) can suffer from saturation issue when invoking
                 the VPMADDUBSW instruction. To counter this, one should use 7-bits rather than 8-bits integers.
-            nodes_to_quantize (`Optional[List[NodeName]]`, defaults to `None`):
+            nodes_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to quantize. If `None`, all nodes being operators from `operators_to_quantize` will be quantized.
-            nodes_to_exclude (`Optional[List[NodeName]]`, defaults to `None`):
+            nodes_to_exclude (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to exclude from quantization.
-            operators_to_quantize (`List[NodeName]`, defaults to `["MatMul", "Add"]`):
-                Type of nodes to perform quantization on.
+            operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
+                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode = default_quantization_parameters(is_static)
+        format, mode, operators_to_quantize = default_quantization_parameters(
+            is_static, operators_to_quantize=operators_to_quantize
+        )
 
         return QuantizationConfig(
             is_static=is_static,
@@ -520,9 +547,9 @@ class AutoQuantizationConfig:
         use_symmetric_activations: bool = False,
         use_symmetric_weights: bool = True,
         per_channel: bool = True,
-        nodes_to_quantize: Optional[List[NodeName]] = None,
-        nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS,
+        nodes_to_quantize: Optional[List[str]] = None,
+        nodes_to_exclude: Optional[List[str]] = None,
+        operators_to_quantize: Optional[List[str]] = None,
     ) -> QuantizationConfig:
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX512-VNNI instruction set.
@@ -545,14 +572,16 @@ class AutoQuantizationConfig:
             per_channel (`bool`, defaults to `True`):
                 Whether we should quantize per-channel (also known as "per-row"). Enabling this can
                 increase overall accuracy while making the quantized model heavier.
-            nodes_to_quantize (`Optional[List[NodeName]]`, defaults to `None`):
+            nodes_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to quantize. If `None`, all nodes being operators from `operators_to_quantize` will be quantized.
-            nodes_to_exclude (`Optional[List[NodeName]]`, defaults to `None`):
+            nodes_to_exclude (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to exclude from quantization.
-            operators_to_quantize (`List[NodeName]`, defaults to `["MatMul", "Add"]`):
-                Type of nodes to perform quantization on.
+            operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
+                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode = default_quantization_parameters(is_static)
+        format, mode, operators_to_quantize = default_quantization_parameters(
+            is_static, operators_to_quantize=operators_to_quantize
+        )
 
         return QuantizationConfig(
             is_static=is_static,
@@ -572,9 +601,9 @@ class AutoQuantizationConfig:
     @staticmethod
     def tensorrt(
         per_channel: bool = True,
-        nodes_to_quantize: Optional[List[NodeName]] = None,
-        nodes_to_exclude: Optional[List[NodeName]] = None,
-        operators_to_quantize: List[NodeName] = ORT_FULLY_CONNECTED_OPERATORS,
+        nodes_to_quantize: Optional[List[str]] = None,
+        nodes_to_exclude: Optional[List[str]] = None,
+        operators_to_quantize: Optional[List[str]] = None,
     ) -> QuantizationConfig:
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for TensorRT static quantization, targetting NVIDIA GPUs.
@@ -583,14 +612,16 @@ class AutoQuantizationConfig:
             per_channel (`bool`, defaults to `True`):
                 Whether we should quantize per-channel (also known as "per-row"). Enabling this can
                 increase overall accuracy while making the quantized model heavier.
-            nodes_to_quantize (`Optional[List[NodeName]]`, defaults to `None`):
+            nodes_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to quantize. If `None`, all nodes being operators from `operators_to_quantize` will be quantized.
-            nodes_to_exclude (`Optional[List[NodeName]]`, defaults to `None`):
+            nodes_to_exclude (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to exclude from quantization.
-            operators_to_quantize (`List[NodeName]`, defaults to `["MatMul", "Add"]`):
-                Type of nodes to perform quantization on.
+            operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
+                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode = default_quantization_parameters(is_static=True)
+        format, mode, operators_to_quantize = default_quantization_parameters(
+            is_static=True, operators_to_quantize=operators_to_quantize
+        )
 
         return QuantizationConfig(
             is_static=True,

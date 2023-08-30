@@ -2,7 +2,7 @@ name: Upload PR Documentation
 
 on:
   workflow_run:
-    workflows: ["Build PR Documentation"]
+    workflows: ["Build PR documentation"]
     types:
       - completed
 
