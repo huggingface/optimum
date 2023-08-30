@@ -270,7 +270,7 @@ def main_export(
 
     if fp16 is True and device == "cpu":
         raise ValueError(
-            "FP16 export n is supported only when exporting on GPU. Please pass the option `--device cuda`."
+            "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
         )
         float_dtype = "fp16"
     else:
