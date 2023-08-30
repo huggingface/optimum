@@ -268,7 +268,6 @@ def main_export(
     if (framework == "tf" and fp16 is True) or not is_torch_available():
         raise ValueError("The --fp16 option is supported only for PyTorch.")
 
-    int_dtype = "int64"
     if fp16 is True and device == "cpu":
         raise ValueError(
             "FP16 export n is supported only when exporting on GPU. Please pass the option `--device cuda`."
@@ -394,7 +393,6 @@ def main_export(
         monolith=monolith,
         custom_onnx_configs=custom_onnx_configs if custom_onnx_configs is not None else {},
         custom_architecture=custom_architecture,
-        int_dtype=int_dtype,
         float_dtype=float_dtype,
         fn_get_submodels=fn_get_submodels,
         preprocessors=preprocessors,
