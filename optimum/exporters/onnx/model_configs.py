@@ -219,6 +219,13 @@ class LlamaOnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
+class MPTOnnxConfig(TextDecoderOnnxConfig):
+    DEFAULT_ONNX_OPSET = 13
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
+    )
+
+
 class BloomOnnxConfig(TextDecoderOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BloomDummyPastKeyValuesGenerator,
