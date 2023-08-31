@@ -147,13 +147,22 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
             save_path = Path(save_path).as_posix()
             onnx.save(model, save_path)
     elif save_path is not None:
+        # path/to/model.onnx
         save_path = Path(save_path).as_posix()
+
+        external_file_name = os.path.basename(save_path) + "_data"
+        # path/to/model.onnx_data
+        external_path = os.path.join(os.path.dirname(save_path), external_file_name)
+        if save_path.endswith(".onnx") and os.path.isfile(save_path):
+            os.remove(save_path)
+        if os.path.isfile(external_path):
+            os.remove(external_path)
         onnx.save(
             model,
             save_path,
             save_as_external_data=True,
             all_tensors_to_one_file=True,
-            location=os.path.basename(save_path) + "_data",
+            location=external_file_name,
         )
         try:
             onnx.checker.check_model(save_path)
