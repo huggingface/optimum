@@ -14,14 +14,18 @@
 
 import hashlib
 from collections import defaultdict
-from typing import DefaultDict, Dict, List, Set, Tuple
+from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Set, Tuple
 
 import numpy as np
 
 import onnx
 from onnx import ModelProto, ValueInfoProto, numpy_helper
 
-from ..utils import logging
+
+if TYPE_CHECKING:
+    import torch.nn as nn
+
+from ..utils import logging, recurse_getattr
 
 
 logger = logging.get_logger()
@@ -312,3 +316,180 @@ def cast_int64_tensorproto_to_int32(initializer: onnx.TensorProto, cast: bool = 
 
     initializer.CopyFrom(tensor)
     initializer.name = original_name
+
+
+def _get_weights_to_tie(tied_params, torch_model: "nn.Module") -> Tuple[List[List[str]]]:
+    """
+    Find tied weights in the PyTorch model `model`, and separate them in tied weights
+    for which an untying strategy exists and do not exist.
+    """
+    SUPPORTED_DEDUPLICATION_OPS = ("Embedding", "Linear")
+    tied_groups_to_tie = []
+    tied_groups_ignored = []
+    for params in tied_params:
+        skip_group = False
+        for param_name in params:
+            module_name = ".".join(param_name.split(".")[:-1])
+
+            module = recurse_getattr(torch_model, module_name)
+
+            if module.__class__.__name__ not in SUPPORTED_DEDUPLICATION_OPS:
+                skip_group = True
+            if len(params) != 2:
+                skip_group = 2
+
+        if skip_group:
+            tied_groups_ignored.append(params)
+        else:
+            tied_groups_to_tie.append(params)
+
+    return tied_groups_to_tie, tied_groups_ignored
+
+
+def _find_matching_initializers(
+    tied_params: List[List[str]], model: ModelProto, initializer_name_to_idx: Dict[str, int]
+):
+    """
+    From the torch parameter names in `tied_params`, find the matching initializers
+    in the ONNX model.
+
+    Args:
+        tied_params (`List[List[str]]`):
+            A list of groups of parameters that are tied, i.e. shared. For them,
+            the torch module share the same pointer.
+        model (`ModelProto`):
+            The model in which the initializers should be looked for.
+        initializer_name_to_idx (`Dict[str, int]`):
+            A mapping from the model initializer name to their indices in model.graph.initializer, to ease the search.
+
+    Returns:
+        tied_groups_map (`Dict[Tuple[str], List[Dict[str, Any]]]`):
+            A mapping from a tied weight group to the list of tied parameters torch name and potentially matching initializers (several in case it could not be exactly found).
+    """
+    tied_groups_map = {}
+    for params in tied_params:
+        torch_to_initializer = []
+        for param_name in params:
+            # To find which initializer correspond to a torch parameter, we first look for
+            # exactly matching initializer name.
+            identical_initializer = False
+            if param_name in initializer_name_to_idx.keys():
+                torch_to_initializer.append({"param_name": param_name, "initializer_name": {param_name}})
+                identical_initializer = True
+
+            # If not found (e.g. "lm_head.weight"), we greedily search for all initializers from potentially matching node names (e.g. "lm_head").
+            # This greedy approach may found more initializers than wanted.
+            if not identical_initializer:
+                module_name = ".".join(param_name.split(".")[:-1])
+                candidate_inputs = []
+                candidate_node_idxs = []
+                for i, node in enumerate(model.graph.node):
+                    if module_name in node.name:
+                        candidate_node_idxs.append(i)
+
+                for node_idx in candidate_node_idxs:
+                    candidate_inputs.extend(model.graph.node[node_idx].input)
+                torch_to_initializer_param = set()
+                for input_name in candidate_inputs:
+                    if input_name in initializer_name_to_idx.keys():
+                        torch_to_initializer_param.add(input_name)
+
+                if len(torch_to_initializer_param) == 0:
+                    logger.warning(
+                        f"Could not find ONNX initializer for torch parameter {param_name}. {param_name} will not be checked for deduplication."
+                    )
+
+                torch_to_initializer.append({"param_name": param_name, "initializer_name": torch_to_initializer_param})
+
+        intersect = torch_to_initializer[0]["initializer_name"]
+        for i in range(1, len(params)):
+            intersect = intersect.intersection(torch_to_initializer[i]["initializer_name"])
+
+        if len(intersect) == 0:
+            logger.warning("Found different candidate ONNX initializers (likely duplicate) for the tied weights:")
+            for torch_to_onnx_map in torch_to_initializer:
+                logger.warning(f"\t{torch_to_onnx_map['param_name']}: {torch_to_onnx_map['initializer_name']}")
+
+            if any(len(torch_to_onnx_map["initializer_name"]) != 1 for torch_to_onnx_map in torch_to_initializer):
+                logger.warning(
+                    f"Could not find unique initializers corresponding to the torch tied parameters {params}. Deduplication will be skipped for this group of weights although it should be done. Please open an issue in Optimum repository."
+                )
+                continue
+
+        tied_groups_map[tuple(params)] = torch_to_initializer
+    return tied_groups_map
+
+
+def _remove_duplicate_initializers(
+    model: ModelProto,
+    tied_groups_to_tie: List[List[str]],
+    tied_groups_map: Dict[Tuple[str], List[Dict[str, Any]]],
+    initializer_name_to_idx: Dict[str, int],
+):
+    """
+    Removes the duplicate initializers from the ONNX model based on the information in tied_groups_map i.e. of which ONNX initializers correspond to a single torch parameter.
+    """
+    for params in tied_groups_to_tie:
+        torch_to_initializer = tied_groups_map[tuple(params)]
+
+        # We use the first index initializer as the reference for deduplication
+        ref_initializer_name = next(iter(torch_to_initializer[0]["initializer_name"]))
+        ref_initializer_idx = initializer_name_to_idx[ref_initializer_name]
+        ref_initializer = model.graph.initializer[ref_initializer_idx]
+        ref_type = ref_initializer.data_type
+        ref_data = numpy_helper.to_array(ref_initializer)
+
+        for i in range(1, len(torch_to_initializer)):
+            initializer_name = next(iter(torch_to_initializer[i]["initializer_name"]))
+            initializer_idx = initializer_name_to_idx[initializer_name]
+            initializer = model.graph.initializer[initializer_idx]
+            initializer_type = initializer.data_type
+            initializer_data = numpy_helper.to_array(initializer)
+
+            if ref_type == initializer_type and np.array_equal(ref_data, initializer_data):
+                # The duplicate initializer are exactly identical
+                logger.info(f"Removing duplicate initializer {initializer_name}...")
+
+                # Change initializer to the reference initializer
+                for node in model.graph.node:
+                    if initializer_name in node.input:
+                        input_idx = list(node.input).index(initializer_name)
+                        node.input[input_idx] = ref_initializer_name
+
+                # Remove old initializer
+                model.graph.initializer.pop(initializer_idx)
+            elif ref_type == initializer_type and np.array_equal(ref_data.T, initializer_data):
+                # The duplicate initializer is the ref transposed
+                logger.info(f"Removing duplicate initializer {initializer_name}...")
+
+                # Add transpose node at the correct position to keep the topological order
+                transpose_output_name = f"{ref_initializer_name}_transposed"
+                transpose_node_name = f"Transpose_{len(model.graph.node) + 1}"
+
+                minimum_node_idx = len(model.graph.node)
+                for node_idx, node in enumerate(model.graph.node):
+                    if initializer_name in node.input:
+                        minimum_node_idx = node_idx
+                        break
+
+                transpose_node = onnx.helper.make_node(
+                    "Transpose",
+                    name=transpose_node_name,
+                    inputs=[ref_initializer_name],
+                    outputs=[transpose_output_name],
+                )
+                model.graph.node.insert(minimum_node_idx, transpose_node)
+
+                # Change initializer to transpose output
+                for node in model.graph.node:
+                    if initializer_name in node.input:
+                        input_idx = list(node.input).index(initializer_name)
+                        node.input[input_idx] = transpose_output_name
+
+                # Remove old initializer
+                model.graph.initializer.pop(initializer_idx)
+            else:
+                logger.warning(
+                    f"No deduplication implementation for {initializer_name} although it should be deduplicated. Please open an issue in Optimum repository."
+                )
+    return model

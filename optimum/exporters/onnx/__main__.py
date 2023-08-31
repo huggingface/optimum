@@ -445,7 +445,7 @@ def main_export(
                 f" referring to `optimum.exporters.tasks.TaskManager`'s `_TASKS_TO_AUTOMODELS`."
             )
 
-        onnx_files_subpaths = None
+        onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
     else:
         # save the subcomponent configuration
         for model_name in models_and_onnx_configs:
@@ -488,8 +488,6 @@ def main_export(
     if optimize is not None:
         from ...onnxruntime import AutoOptimizationConfig, ORTOptimizer
 
-        if onnx_files_subpaths is None:
-            onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
         optimizer = ORTOptimizer.from_pretrained(output, file_names=onnx_files_subpaths)
 
         optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=optimize)
