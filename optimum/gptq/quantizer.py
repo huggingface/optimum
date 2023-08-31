@@ -129,6 +129,7 @@ class GPTQQuantizer(object):
         self.pad_token_id = pad_token_id
         self.disable_exllama = disable_exllama
         self.max_input_length = max_input_length
+        self.quant_method = QuantizationMethod.GPTQ
 
         if self.bits not in [2, 3, 4, 8]:
             raise ValueError("only support quantize to [2,3,4,8] bits.")
@@ -443,6 +444,12 @@ class GPTQQuantizer(object):
             if device == torch.device("cpu") or (has_device_map and any(d in devices for d in ["cpu", "disk"])):
                 logger.warning(
                     "Found modules on cpu/disk. Using Exllama backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
+                )
+                self.disable_exllama = True
+            elif self.desc_act:
+                logger.warning(
+                    "Using Exllama backend with act_order will reorder the weights offline, thus you will not be able to save the model with the right weights."
+                    "Setting `disable_exllama=True`. You should only use Exllama backend with act_order for inference. "
                 )
                 self.disable_exllama = True
         # Step 4: Pack the model at the end (Replacing the layers)
