@@ -104,13 +104,14 @@ def is_diffusers_available():
 
 def is_auto_gptq_available():
     if _auto_gptq_available:
-        version_autogptq = packaging.version.parse(importlib_metadata.version('auto_gptq'))
+        version_autogptq = packaging.version.parse(importlib_metadata.version("auto_gptq"))
         if AUTOGPTQ_MINIMUM_VERSION <= version_autogptq:
             return True
         else:
             raise ImportError(
-            f"Found an incompatible version of auto-gptq. Found version {version_autogptq}, but only {AUTOGPTQ_MINIMUM_VERSION} and above are supported"
-        )
+                f"Found an incompatible version of auto-gptq. Found version {version_autogptq}, but only {AUTOGPTQ_MINIMUM_VERSION} and above are supported"
+            )
+
 
 @contextmanager
 def check_if_pytorch_greater(target_version: str, message: str):
