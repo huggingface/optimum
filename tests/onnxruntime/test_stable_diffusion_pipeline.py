@@ -326,12 +326,12 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
         inputs["image"] = load_image(
             "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
             "/in_paint/overture-creations-5sI6fQgYIuo.png"
-        ).resize((64, 64))
+        ).resize((width, height))
 
         inputs["mask_image"] = load_image(
             "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
             "/in_paint/overture-creations-5sI6fQgYIuo_mask.png"
-        ).resize((64, 64))
+        ).resize((width, height))
 
         return inputs
 
@@ -360,7 +360,7 @@ class ORTStableDiffusionXLImg2ImgPipelineTest(ORTModelTestMixin):
         inputs["image"] = load_image(
             "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
             "/in_paint/overture-creations-5sI6fQgYIuo.png"
-        ).resize((height, width))
+        ).resize((width, height))
 
         inputs["strength"] = 0.75
         return inputs

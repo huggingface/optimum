@@ -95,56 +95,61 @@ class OptimumVaeImageProcessor(VaeImageProcessor):
         Preprocess the image input. Accepted formats are PIL images, NumPy arrays or PyTorch tensors.
         """
         supported_formats = (PIL.Image.Image, np.ndarray, torch.Tensor)
+        # Expand the missing dimension for 3-dimensional pytorch tensor or numpy array that represents grayscale image
+        if self.config.do_convert_grayscale and isinstance(image, (torch.Tensor, np.ndarray)) and image.ndim == 3:
+            if isinstance(image, torch.Tensor):
+                # if image is a pytorch tensor could have 2 possible shapes:
+                #    1. batch x height x width: we should insert the channel dimension at position 1
+                #    2. channnel x height x width: we should insert batch dimension at position 0,
+                #       however, since both channel and batch dimension has same size 1, it is same to insert at position 1
+                #    for simplicity, we insert a dimension of size 1 at position 1 for both cases
+                image = image.unsqueeze(1)
+            else:
+                # if it is a numpy array, it could have 2 possible shapes:
+                #   1. batch x height x width: insert channel dimension on last position
+                #   2. height x width x channel: insert batch dimension on first position
+                if image.shape[-1] == 1:
+                    image = np.expand_dims(image, axis=0)
+                else:
+                    image = np.expand_dims(image, axis=-1)
+
         if isinstance(image, supported_formats):
             image = [image]
         elif not (isinstance(image, list) and all(isinstance(i, supported_formats) for i in image)):
             raise ValueError(
                 f"Input is in incorrect format: {[type(i) for i in image]}. Currently, we only support {', '.join(supported_formats)}"
             )
-
         if isinstance(image[0], PIL.Image.Image):
             if self.config.do_convert_rgb:
                 image = [self.convert_to_rgb(i) for i in image]
+            elif self.config.do_convert_grayscale:
+                image = [self.convert_to_grayscale(i) for i in image]
             if self.config.do_resize:
+                height, width = self.get_height_width(image[0], height, width)
                 image = [self.resize(i, height, width) for i in image]
-            image = self.pil_to_numpy(image)
-
-        elif isinstance(image[0], np.ndarray):
+            image = self.pil_to_numpy(image).transpose(0, 3, 1, 2)
+        else:
+            # torch input already has correct shape
+            if isinstance(image[0], torch.Tensor):
+                image = [self.pt_to_numpy(elem) for elem in image]
+            # fix shape np input
+            else:
+                image = [elem.transpose(0, 3, 1, 2) for elem in image]
+            # batch x height x width or batch x channnel x height x width
             image = np.concatenate(image, axis=0) if image[0].ndim == 4 else np.stack(image, axis=0)
-            _, _, height, width = image.shape
-            if self.config.do_resize and (
-                height % self.config.vae_scale_factor != 0 or width % self.config.vae_scale_factor != 0
-            ):
-                raise ValueError(
-                    f"Currently we only support resizing for PIL image - please resize your numpy array to be divisible by {self.config.vae_scale_factor}"
-                    f"currently the sizes are {height} and {width}. You can also pass a PIL image instead to use resize option in VAEImageProcessor"
-                )
-
-        elif isinstance(image[0], torch.Tensor):
-            image = (
-                torch.cat(image, axis=0).cpu().numpy()
-                if image[0].ndim == 4
-                else torch.stack(image, axis=0).cpu().numpy()
-            )
-            _, channel, height, width = image.shape
             # don't need any preprocess if the image is latents
-            if channel == 4:
+            if image.shape[1] == 4:
                 return image
 
-            if self.config.do_resize and (
-                height % self.config.vae_scale_factor != 0 or width % self.config.vae_scale_factor != 0
-            ):
-                raise ValueError(
-                    f"Currently we only support resizing for PIL image - please resize your tensor to be divisible by {self.config.vae_scale_factor}"
-                    f"currently the sizes are {height} and {width}. You can also pass a PIL image instead to use resize option in VAEImageProcessor"
-                )
+            if self.config.do_resize:
+                height, width = self.get_height_width(image, height, width)
+                image = self.resize(image, height, width)
 
         # expected range [0,1], normalize to [-1,1]
         do_normalize = self.config.do_normalize
-
-        if image.min() < 0:
+        if image.min() < 0 and do_normalize:
             warnings.warn(
-                "Passing `image` as tensor with value range in [-1,1] is deprecated. The expected value range for image tensor is [0,1] "
+                "Passing `image` as torch tensor with value range in [-1,1] is deprecated. The expected value range for image tensor is [0,1] "
                 f"when passing as pytorch tensor or numpy Array. You passed `image` with value range [{image.min()},{image.max()}]",
                 FutureWarning,
             )
@@ -152,6 +157,9 @@ class OptimumVaeImageProcessor(VaeImageProcessor):
 
         if do_normalize:
             image = self.normalize(image)
+
+        if self.config.do_binarize:
+            image = self.binarize(image)
 
         return image
 
@@ -183,10 +191,54 @@ class OptimumVaeImageProcessor(VaeImageProcessor):
         image = np.stack(
             [self.denormalize(image[i]) if do_denormalize[i] else image[i] for i in range(image.shape[0])], axis=0
         )
-        image = image.transpose((0, 2, 3, 1))
-
-        if output_type == "np":
-            return image
-
         if output_type == "pil":
-            return self.numpy_to_pil(image)
+            image = self.numpy_to_pil(image)
+
+        return image
+
+    def get_height_width(
+        self,
+        image: [PIL.Image.Image, np.ndarray],
+        height: Optional[int] = None,
+        width: Optional[int] = None,
+    ):
+        """
+        This function return the height and width that are downscaled to the next integer multiple of
+        `vae_scale_factor`.
+
+        Args:
+            image(`PIL.Image.Image`, `np.ndarray`):
+                The image input, can be a PIL image, numpy array or pytorch tensor. if it is a numpy array, should have
+                shape `[batch, height, width]` or `[batch, height, width, channel]` if it is a pytorch tensor, should
+                have shape `[batch, channel, height, width]`.
+            height (`int`, *optional*, defaults to `None`):
+                The height in preprocessed image. If `None`, will use the height of `image` input.
+            width (`int`, *optional*`, defaults to `None`):
+                The width in preprocessed. If `None`, will use the width of the `image` input.
+        """
+        height = height or (image.height if isinstance(image, PIL.Image.Image) else image.shape[-2])
+        width = width or (image.width if isinstance(image, PIL.Image.Image) else image.shape[-1])
+        # resize to integer multiple of vae_scale_factor
+        width, height = (x - x % self.config.vae_scale_factor for x in (width, height))
+        return height, width
+
+    # Adapted from diffusers.VaeImageProcessor.numpy_to_pt
+    @staticmethod
+    def numpy_to_pt(images: np.ndarray) -> torch.FloatTensor:
+        """
+        Convert a NumPy image to a PyTorch tensor.
+        """
+        if images.ndim == 3:
+            images = images[..., None]
+
+        images = torch.from_numpy(images)
+        return images
+
+    # Adapted from diffusers.VaeImageProcessor.pt_to_numpy
+    @staticmethod
+    def pt_to_numpy(images: torch.FloatTensor) -> np.ndarray:
+        """
+        Convert a PyTorch tensor to a NumPy image.
+        """
+        images = images.cpu().float().numpy()
+        return images
