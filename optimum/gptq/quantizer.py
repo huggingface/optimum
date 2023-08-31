@@ -42,6 +42,7 @@ if is_accelerate_available():
 
 if is_auto_gptq_available():
     from auto_gptq.modeling._utils import autogptq_post_init
+    from auto_gptq import exllama_set_max_input_length
     from auto_gptq.quantization import GPTQ
     from auto_gptq.utils.import_utils import dynamically_import_QuantLinear
 
@@ -69,6 +70,7 @@ class GPTQQuantizer(object):
         batch_size: int = 1,
         pad_token_id: Optional[int] = None,
         disable_exllama: bool = False,
+        max_input_length: Optional[int] = None,
         *args,
         **kwargs,
     ):
@@ -107,6 +109,9 @@ class GPTQQuantizer(object):
                 The pad token id. Needed to prepare the dataset when `batch_size` > 1.
             disable_exllama (`bool`, defaults to `False`):
                 Whether to use exllama backend. Only works with `bits` = 4.
+            max_input_length (`Optional[int]`, defaults to `None`):
+                The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
+                It is specific to the exllama backend with act-order. 
         """
 
         self.bits = bits
@@ -123,6 +128,7 @@ class GPTQQuantizer(object):
         self.batch_size = batch_size
         self.pad_token_id = pad_token_id
         self.disable_exllama = disable_exllama
+        self.max_input_length = max_input_length
 
         if self.bits not in [2, 3, 4, 8]:
             raise ValueError("only support quantize to [2,3,4,8] bits.")
@@ -470,8 +476,11 @@ class GPTQQuantizer(object):
                     "Found modules on cpu/disk. Using Exllama backend requires all the modules to be on GPU."
                     "You can deactivate exllama backend by setting `disable_exllama=True` in the quantization config object"
                 )
-
-        return autogptq_post_init(model, use_act_order=self.desc_act)
+        model.quantize_config.desc_act = self.desc_act
+        model = autogptq_post_init(model, use_act_order=self.desc_act)
+        if self.desc_act and not self.disable_exllama:
+            model = exllama_set_max_input_length(model,self.max_input_length)
+        return model
 
     def pack_model(
         self,
@@ -540,7 +549,6 @@ class GPTQQuantizer(object):
             )
 
         os.makedirs(save_dir, exist_ok=True)
-        model = model.to("cpu")
         # save model and config
         accelerator = Accelerator()
         accelerator.save_model(model, save_dir, max_shard_size=max_shard_size, safe_serialization=safe_serialization)
@@ -560,6 +568,7 @@ def load_quantized_model(
     offload_buffers: Optional[str] = None,
     offload_state_dict: bool = False,
     disable_exllama: bool = False,
+    max_input_length: Optional[int] = None, 
 ):
     """
     Load quantized weights from the save_folder into the converted model and dispatch the weights according to the device_map.
@@ -593,7 +602,10 @@ def load_quantized_model(
             the weight of the CPU state dict + the biggest shard does not fit. Will default to `True` if the device map
             picked contains `"disk"` values.
         disable_exllama (`bool`, defaults to `False`):
-                Whether to use exllama backend. Only works with `bits` = 4.
+            Whether to use exllama backend. Only works with `bits` = 4.
+        max_input_length (`Optional[int]`, defaults to `None`):
+            The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
+            It is specific to the exllama backend with act-order.
 
     Returns:
         `nn.Module`: The quantized model
@@ -615,6 +627,7 @@ def load_quantized_model(
         quantize_config_dict = json.load(f)
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
     quantizer.disable_exllama = disable_exllama
+    quantizer.max_input_length = max_input_length
 
     model = quantizer.convert_model(model)
 
