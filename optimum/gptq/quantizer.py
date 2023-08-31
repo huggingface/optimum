@@ -483,9 +483,12 @@ class GPTQQuantizer(object):
                     "Found modules on cpu/disk. Using Exllama backend requires all the modules to be on GPU."
                     "You can deactivate exllama backend by setting `disable_exllama=True` in the quantization config object"
                 )
+        class StoreAttr(object):
+            pass
+        model.quantize_config = StoreAttr()
         model.quantize_config.desc_act = self.desc_act
         model = autogptq_post_init(model, use_act_order=self.desc_act)
-        if self.desc_act and not self.disable_exllama:
+        if self.desc_act and not self.disable_exllama and not (self.max_input_length is None):
             model = exllama_set_max_input_length(model,self.max_input_length)
         return model
 
