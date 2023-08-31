@@ -255,9 +255,9 @@ def get_dataset(
         "ptb": get_ptb,
         "ptb-new": get_ptb_new,
     }
-    if split not in ["train", "test"]:
+    if split not in ["train", "validation"]:
         raise ValueError(f"The split need to be 'train' or 'validation' but found {split}")
     if dataset_name not in get_dataset_map:
         raise ValueError(f"Expected a value in {list(get_dataset_map.keys())} but found {dataset_name}")
     get_dataset_fn = get_dataset_map[dataset_name]
-    return get_dataset_fn(tokenizer=tokenizer, nsamples=nsamples, seqlen=seqlen)
+    return get_dataset_fn(tokenizer=tokenizer, nsamples=nsamples, seqlen=seqlen, split=split)
