@@ -62,13 +62,6 @@ from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
 from transformers.dependency_versions_check import dep_version_check
-from transformers.file_utils import (
-    is_apex_available,
-    is_peft_available,
-    is_sagemaker_dp_enabled,
-    is_sagemaker_mp_enabled,
-    is_torch_tpu_available,
-)
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
 from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
@@ -102,6 +95,13 @@ from transformers.trainer_utils import (
     speed_metrics,
 )
 from transformers.training_args import ParallelMode
+from transformers.utils import (
+    is_apex_available,
+    is_peft_available,
+    is_sagemaker_dp_enabled,
+    is_sagemaker_mp_enabled,
+    is_torch_tpu_available,
+)
 
 from ..exporters import TasksManager
 from ..exporters.onnx import OnnxConfigWithPast, export, export_models, get_decoder_models_for_export
@@ -621,8 +621,6 @@ class ORTTrainer(Trainer):
         if delay_optimizer_creation:
             if use_accelerator_prepare:
                 self.model = self.accelerator.prepare(self.model)
-            if use_accelerator_prepare:
-                self.model = self.accelerator.prepare(self.model)
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
         # prepare using `accelerator` prepare
@@ -753,7 +751,7 @@ class ORTTrainer(Trainer):
                 self._past = None
 
             steps_in_epoch = (
-                len(train_dataloader)
+                len(epoch_iterator)
                 if len_dataloader is not None
                 else args.max_steps * args.gradient_accumulation_steps
             )
@@ -765,13 +763,13 @@ class ORTTrainer(Trainer):
             rng_to_sync = False
             steps_skipped = 0
             if steps_trained_in_current_epoch > 0:
-                skip_first_batches(epoch_iterator, steps_trained_in_current_epoch)
+                epoch_iterator = skip_first_batches(epoch_iterator, steps_trained_in_current_epoch)
                 steps_skipped = steps_trained_in_current_epoch
                 steps_trained_in_current_epoch = 0
                 rng_to_sync = True
 
             step = -1
-            for step, inputs in enumerate(train_dataloader):
+            for step, inputs in enumerate(epoch_iterator):
                 total_batched_samples += 1
                 if rng_to_sync:
                     self._load_rng_state(resume_from_checkpoint)
