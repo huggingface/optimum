@@ -50,7 +50,7 @@ MODEL_NAMES = {
     "detr": "hf-internal-testing/tiny-random-detr",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
-    "encoder-decoder": "patrickvonplaten/bert2bert_cnn_daily_mail",
+    "encoder-decoder": "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",

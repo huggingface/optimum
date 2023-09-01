@@ -3098,8 +3098,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
-        if model_arch == "encoder-decoder":
-            use_cache = False
+        if model_arch == "encoder-decoder" and use_cache is True:
+            self.skipTest("encoder-decoder model type with use_cache=True is not supported for bert as a decoder")
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
 
@@ -3123,6 +3123,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
+        if model_arch == "encoder-decoder":
+            self.skipTest("encoder-decoder model type with use_merged=True is not supported for bert as a decoder")
+
         if "text2text-generation-with-past" not in TasksManager.get_supported_tasks_for_model_type(
             model_arch.replace("_", "-"), exporter="onnx"
         ):
@@ -3142,6 +3145,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
+        if model_arch == "encoder-decoder":
+            self.skipTest("encoder-decoder model type with use_merged=True is not supported for bert as a decoder")
+
         model_id = MODEL_NAMES[model_arch]
         task = "text2text-generation-with-past"
 
@@ -3168,7 +3174,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         if model_arch == "encoder-decoder" and use_cache is True:
-            self.skipTest("encoder-decoder model type with use_cache=True is not supported")
+            self.skipTest("encoder-decoder model type with use_cache=True is not supported for bert as a decoder")
+
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
 
@@ -3207,6 +3214,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer("This is a sample output", return_tensors="pt")
         decoder_start_token_id = transformers_model.config.decoder_start_token_id if model_arch != "mbart" else 2
+        if model_arch == "encoder-decoder":
+            decoder_start_token_id = tokenizer.cls_token_id
+
         decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
 
         with torch.no_grad():
@@ -3231,7 +3241,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_pipeline_text_generation(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         if model_arch == "encoder-decoder" and use_cache is True:
-            self.skipTest("encoder-decoder model type with use_cache=True is not supported")
+            self.skipTest("encoder-decoder model type with use_cache=True is not supported for bert as a decoder")
 
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -3249,24 +3259,28 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForSeq2SeqLM.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
         tokenizer = get_preprocessor(model_id)
 
+        decoder_start_token_id = onnx_model.config.decoder_start_token_id if model_arch != "mbart" else 2
+        if model_arch == "encoder-decoder":
+            decoder_start_token_id = tokenizer.cls_token_id
+
         # Text2Text generation
         pipe = pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "This is a test"
-        outputs = pipe(text)
+        outputs = pipe(text, decoder_start_token_id=decoder_start_token_id)
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["generated_text"], str)
 
         # Summarization
         pipe = pipeline("summarization", model=onnx_model, tokenizer=tokenizer)
         text = "This is a test"
-        outputs = pipe(text)
+        outputs = pipe(text, decoder_start_token_id=decoder_start_token_id)
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["summary_text"], str)
 
         # Translation
         pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
         text = "This is a test"
-        outputs = pipe(text)
+        outputs = pipe(text, decoder_start_token_id=decoder_start_token_id)
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["translation_text"], str)
 
@@ -3413,6 +3427,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
+        if model_arch == "encoder-decoder" and use_cache is True:
+            self.skipTest("encoder-decoder model type with use_cache=True is not supported for bert as a decoder")
         model_args = {
             "test_name": test_name + "_True",
             "model_arch": model_arch,
