@@ -98,14 +98,14 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         ],
         onnx_files_subpaths: List[str],
     ):
+        models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(
+            path, models_and_onnx_configs, onnx_files_subpaths
+        )
+
         # Attempt to merge only if the decoder-only was exported separately without/with past
         if self.use_past is True and len(models_and_onnx_configs) == 2:
-            if onnx_files_subpaths is not None:
-                decoder_path = Path(path, onnx_files_subpaths[0])
-                decoder_with_past_path = Path(path, onnx_files_subpaths[1])
-            else:
-                decoder_path = Path(path, ONNX_DECODER_NAME + ".onnx")
-                decoder_with_past_path = Path(path, ONNX_DECODER_WITH_PAST_NAME + ".onnx")
+            decoder_path = Path(path, onnx_files_subpaths[0])
+            decoder_with_past_path = Path(path, onnx_files_subpaths[1])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
             try:
                 merge_decoders(
