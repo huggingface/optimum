@@ -601,9 +601,11 @@ class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
 
         if add_watermarker:
             from ..pipelines.diffusers.watermark import StableDiffusionXLWatermarker
+
             self.watermark = StableDiffusionXLWatermarker()
         else:
             self.watermark = None
+
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLPipelineMixin):

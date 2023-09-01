@@ -185,12 +185,15 @@ class ORTStableDiffusionImg2ImgPipelineTest(ORTStableDiffusionPipelineBase):
             inputs.pop("output_type")
             for output_type in ["np", "pil", "latent"]:
                 outputs = pipeline(**inputs, output_type=output_type).images
-                if output_type=="pil":
+                if output_type == "pil":
                     self.assertEqual((len(outputs), outputs[0].height, outputs[0].width), (batch_size, height, width))
-                elif output_type=="np":
+                elif output_type == "np":
                     self.assertEqual(outputs.shape, (batch_size, height, width, 3))
                 else:
-                    self.assertEqual(outputs.shape, (batch_size, 4, height // pipeline.vae_scale_factor, width // pipeline.vae_scale_factor))
+                    self.assertEqual(
+                        outputs.shape,
+                        (batch_size, 4, height // pipeline.vae_scale_factor, width // pipeline.vae_scale_factor),
+                    )
 
     def generate_inputs(self, height=128, width=128, batch_size=1, input_type="np"):
         inputs = _generate_inputs(batch_size=batch_size)
