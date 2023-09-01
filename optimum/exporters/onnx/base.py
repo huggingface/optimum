@@ -523,11 +523,10 @@ class OnnxConfig(ExportConfig, ABC):
         if is_torch_available() and isinstance(models_and_onnx_configs[first_key][0], nn.Module):
             if is_accelerate_available():
                 logger.info("Deduplicating shared (tied) weights...")
-                keys = list(models_and_onnx_configs.keys())
-                for i, subpath in enumerate(onnx_files_subpaths):
+                for subpath, key in zip(onnx_files_subpaths, models_and_onnx_configs):
                     onnx_model = onnx.load(os.path.join(path, subpath))
 
-                    torch_model = models_and_onnx_configs[keys[i]][0]
+                    torch_model = models_and_onnx_configs[key][0]
                     tied_params = find_tied_parameters(torch_model)
                     remove_duplicate_weights_from_tied_info(
                         onnx_model, torch_model, tied_params, save_path=os.path.join(path, subpath)
