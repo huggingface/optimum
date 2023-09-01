@@ -339,9 +339,6 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
 
         image = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
 
-        if output_type == "pil":
-            image = self.numpy_to_pil(image)
-
         if not return_dict:
             return (image, has_nsfw_concept)
 

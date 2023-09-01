@@ -485,11 +485,10 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
             image = np.concatenate(
                 [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
             )
-            image = self.watermark.apply_watermark(image)
+            # apply watermark if available
+            if self.watermark is not None:
+                image = self.watermark.apply_watermark(image)
             image = self.image_processor.postprocess(image, output_type=output_type)
-
-        if output_type == "pil":
-            image = self.numpy_to_pil(image)
 
         if not return_dict:
             return (image,)

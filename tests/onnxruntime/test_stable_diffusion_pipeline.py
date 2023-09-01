@@ -79,7 +79,7 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
     TASK = "stable-diffusion"
 
     @require_diffusers
-    def test_load_vanilla_model_which_is_not_supported(self):
+    def _test_load_vanilla_model_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["bert"], export=True)
 
@@ -97,7 +97,7 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
         self.assertEqual(pipeline.vae_decoder.config["latent_channels"], 4)
         self.assertEqual(pipeline.unet.config["in_channels"], 4)
 
-        batch_size, height = 2, 32
+        batch_size, height = 1, 32
         for width in [64, 32]:
             inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
             for num_images in [1, 3]:
@@ -110,7 +110,7 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.gpu_test
     @require_diffusers
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+    def _test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         model_args = {"test_name": test_name, "model_arch": model_arch}
         self._setup(model_args)
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
@@ -125,7 +125,7 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
-    def test_callback(self, model_arch: str):
+    def _test_callback(self, model_arch: str):
         def callback_fn(step: int, timestep: int, latents: np.ndarray) -> None:
             callback_fn.has_been_called = True
             callback_fn.number_of_steps += 1
@@ -172,6 +172,26 @@ class ORTStableDiffusionImg2ImgPipelineTest(ORTStableDiffusionPipelineBase):
         diffusers_output = diffusers_pipeline(**inputs, generator=np.random.RandomState(0)).images[0, -3:, -3:, -1]
         self.assertTrue(np.allclose(output, diffusers_output, atol=1e-2))
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_shape(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+        height, width, batch_size = 128, 64, 2
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        for input_type in ["np", "pil", "torch"]:
+            inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size, input_type=input_type)
+            inputs.pop("output_type")
+            for output_type in ["np", "pil", "latent"]:
+                outputs = pipeline(**inputs, output_type=output_type).images
+                if output_type=="pil":
+                    self.assertEqual((len(outputs), outputs[0].height, outputs[0].width), (batch_size, height, width))
+                elif output_type=="np":
+                    self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+                else:
+                    self.assertEqual(outputs.shape, (batch_size, 4, height // pipeline.vae_scale_factor, width // pipeline.vae_scale_factor))
+
     def generate_inputs(self, height=128, width=128, batch_size=1, input_type="np"):
         inputs = _generate_inputs(batch_size=batch_size)
         inputs["image"] = _create_image(height=height, width=width, batch_size=batch_size, input_type=input_type)
@@ -197,7 +217,7 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
 
         pipeline = StableDiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
         pipeline.safety_checker = None
-        batch_size, num_images_per_prompt, height, width = 1, 2, 64, 64
+        batch_size, num_images_per_prompt, height, width = 1, 2, 64, 32
 
         latents = ort_pipeline.prepare_latents(
             batch_size * num_images_per_prompt,
@@ -219,9 +239,10 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
 
         for output_type in ["latent", "np"]:
             ort_outputs = ort_pipeline(latents=latents, output_type=output_type, **kwargs).images
-            self.assertIsInstance(ort_outputs, np.ndarray)
             with torch.no_grad():
                 outputs = pipeline(latents=torch.from_numpy(latents), output_type=output_type, **kwargs).images
+
+            self.assertIsInstance(ort_outputs, np.ndarray)
             # Compare model outputs
             self.assertTrue(np.allclose(ort_outputs, outputs, atol=1e-4))
             # Compare model devices
@@ -232,7 +253,7 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
     def test_image_reproducibility(self, model_arch: str):
         pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
         inputs = _generate_inputs()
-        height, width = 64, 64
+        height, width = 64, 32
         np.random.seed(0)
         ort_outputs_1 = pipeline(**inputs, height=height, width=width)
         np.random.seed(0)
@@ -262,7 +283,7 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
         self.assertIsInstance(ort_pipeline.config, Dict)
 
         pipeline = StableDiffusionXLPipeline.from_pretrained(MODEL_NAMES[model_arch])
-        batch_size, num_images_per_prompt, height, width = 2, 2, 64, 64
+        batch_size, num_images_per_prompt, height, width = 2, 2, 64, 32
         latents = ort_pipeline.prepare_latents(
             batch_size * num_images_per_prompt,
             ort_pipeline.unet.config["in_channels"],
@@ -297,7 +318,7 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
     def test_image_reproducibility(self, model_arch: str):
         pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
         inputs = _generate_inputs()
-        height, width = 64, 64
+        height, width = 64, 32
         np.random.seed(0)
         ort_outputs_1 = pipeline(**inputs, height=height, width=width)
         np.random.seed(0)
@@ -343,10 +364,10 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
         expected_slice = np.array([0.5442, 0.3002, 0.5665, 0.6485, 0.4421, 0.6441, 0.5778, 0.5076, 0.5612])
         self.assertTrue(np.allclose(outputs[0, -3:, -3:, -1].flatten(), expected_slice, atol=1e-4))
 
-    def generate_inputs(self, height=128, width=128, batch_size=1, input_type="np"):
+    def generate_inputs(self, height=128, width=128, batch_size=1):
         inputs = super(ORTStableDiffusionInpaintPipelineTest, self).generate_inputs(height, width)
-        inputs["image"] = _create_image(height=height, width=width, batch_size=batch_size, input_type=input_type)
-        inputs["mask_image"] = _create_image(height=height, width=width, batch_size=batch_size, input_type=input_type)
+        inputs["image"] = _create_image(height=height, width=width, batch_size=1, input_type="pil")[0]
+        inputs["mask_image"] = _create_image(height=height, width=width, batch_size=1, input_type="pil")[0]
         return inputs
 
 

@@ -31,7 +31,7 @@ from diffusers import (
     StableDiffusionXLImg2ImgPipeline,
 )
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
-from diffusers.utils import CONFIG_NAME
+from diffusers.utils import CONFIG_NAME, is_invisible_watermark_available
 from huggingface_hub import snapshot_download
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
 from transformers.file_utils import add_end_docstrings
@@ -581,6 +581,7 @@ class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
         tokenizer_2: Optional[CLIPTokenizer] = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        add_watermarker: Optional[bool] = None,
     ):
         super().__init__(
             vae_decoder_session=vae_decoder_session,
@@ -596,12 +597,13 @@ class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
         )
+        add_watermarker = add_watermarker if add_watermarker is not None else is_invisible_watermark_available()
 
-        # additional invisible-watermark dependency for SD XL
-        from ..pipelines.diffusers.watermark import StableDiffusionXLWatermarker
-
-        self.watermark = StableDiffusionXLWatermarker()
-
+        if add_watermarker:
+            from ..pipelines.diffusers.watermark import StableDiffusionXLWatermarker
+            self.watermark = StableDiffusionXLWatermarker()
+        else:
+            self.watermark = None
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLPipelineMixin):
