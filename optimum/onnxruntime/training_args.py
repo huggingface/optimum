@@ -42,6 +42,7 @@ from transformers.utils import (
     is_torch_tf32_available,
     logging,
 )
+from transformers.utils.generic import strtobool
 
 
 if is_torch_available():
@@ -289,6 +290,7 @@ class ORTTrainingArguments(TrainingArguments):
                         " otherwise."
                     )
                     torch.backends.cuda.matmul.allow_tf32 = True
+                    torch.backends.cudnn.allow_tf32 = True
             else:
                 logger.warning(
                     "The speedups for torchdynamo mostly come wih GPU Ampere or higher and which is not detected here."
@@ -297,12 +299,23 @@ class ORTTrainingArguments(TrainingArguments):
             if self.tf32:
                 if is_torch_tf32_available():
                     torch.backends.cuda.matmul.allow_tf32 = True
+                    torch.backends.cudnn.allow_tf32 = True
                 else:
                     raise ValueError("--tf32 requires Ampere or a newer GPU arch, cuda>=11 and torch>=1.7")
             else:
                 if is_torch_tf32_available():
                     torch.backends.cuda.matmul.allow_tf32 = False
+                    torch.backends.cudnn.allow_tf32 = False
                 # no need to assert on else
+
+        # if training args is specified, it will override the one specified in the accelerate config
+        if self.half_precision_backend != "apex" and len(self.sharded_ddp) == 0:
+            mixed_precision_dtype = os.environ.get("ACCELERATE_MIXED_PRECISION", "no")
+            if self.fp16:
+                mixed_precision_dtype = "fp16"
+            elif self.bf16:
+                mixed_precision_dtype = "bf16"
+            os.environ["ACCELERATE_MIXED_PRECISION"] = mixed_precision_dtype
 
         if self.report_to is None:
             logger.info(
@@ -365,44 +378,44 @@ class ORTTrainingArguments(TrainingArguments):
             self.fsdp_config = {}
 
         if isinstance(self.fsdp_config, str):
+            if len(self.fsdp) == 0:
+                warnings.warn("`--fsdp_config` is useful only when `--fsdp` is specified.")
             with io.open(self.fsdp_config, "r", encoding="utf-8") as f:
                 self.fsdp_config = json.load(f)
+                for k, v in self.fsdp_config.items():
+                    if k.startswith("fsdp_"):
+                        self.fsdp_config[k.replace("fsdp_", "")] = v
+                        del self.fsdp_config[k]
 
         if self.fsdp_min_num_params > 0:
             warnings.warn("using `--fsdp_min_num_params` is deprecated. Use fsdp_config instead ", FutureWarning)
 
-        self.fsdp_config["fsdp_min_num_params"] = max(
-            self.fsdp_config.get("fsdp_min_num_params", 0), self.fsdp_min_num_params
-        )
+        self.fsdp_config["min_num_params"] = max(self.fsdp_config.get("min_num_params", 0), self.fsdp_min_num_params)
 
-        # if fsdp_config["fsdp_transformer_layer_cls_to_wrap"] is specified as a string, convert it to a list with a single object
-        if isinstance(self.fsdp_config.get("fsdp_transformer_layer_cls_to_wrap", None), str):
-            self.fsdp_config["fsdp_transformer_layer_cls_to_wrap"] = [
-                self.fsdp_config["fsdp_transformer_layer_cls_to_wrap"]
-            ]
+        # if fsdp_config["transformer_layer_cls_to_wrap"] is specified as a string, convert it to a list with a single object
+        if isinstance(self.fsdp_config.get("transformer_layer_cls_to_wrap", None), str):
+            self.fsdp_config["transformer_layer_cls_to_wrap"] = [self.fsdp_config["transformer_layer_cls_to_wrap"]]
 
         if self.fsdp_transformer_layer_cls_to_wrap is not None:
             warnings.warn(
                 "using `--fsdp_transformer_layer_cls_to_wrap` is deprecated. Use fsdp_config instead ", FutureWarning
             )
-            self.fsdp_config["fsdp_transformer_layer_cls_to_wrap"] = self.fsdp_config.get(
-                "fsdp_transformer_layer_cls_to_wrap", []
+            self.fsdp_config["transformer_layer_cls_to_wrap"] = self.fsdp_config.get(
+                "transformer_layer_cls_to_wrap", []
             ) + [self.fsdp_transformer_layer_cls_to_wrap]
 
-        if len(self.fsdp) == 0 and self.fsdp_config["fsdp_min_num_params"] > 0:
-            warnings.warn("`--fsdp_min_num_params` is useful only when `--fsdp` is specified.")
+        if len(self.fsdp) == 0 and self.fsdp_config["min_num_params"] > 0:
+            warnings.warn("`min_num_params` is useful only when `--fsdp` is specified.")
 
-        if len(self.fsdp) == 0 and self.fsdp_config.get("fsdp_transformer_layer_cls_to_wrap", None) is not None:
-            warnings.warn("`--fsdp_transformer_layer_cls_to_wrap` is useful only when `--fsdp` is specified.")
+        if len(self.fsdp) == 0 and self.fsdp_config.get("transformer_layer_cls_to_wrap", None) is not None:
+            warnings.warn("`transformer_layer_cls_to_wrap` is useful only when `--fsdp` is specified.")
 
         if (
             len(self.fsdp) > 0
-            and self.fsdp_config["fsdp_min_num_params"] > 0
-            and self.fsdp_config.get("fsdp_transformer_layer_cls_to_wrap", None) is not None
+            and self.fsdp_config["min_num_params"] > 0
+            and self.fsdp_config.get("transformer_layer_cls_to_wrap", None) is not None
         ):
-            raise ValueError(
-                "`--fsdp_min_num_params` and `--fsdp_transformer_layer_cls_to_wrap` are mutually exclusive."
-            )
+            raise ValueError("`min_num_params` and `transformer_layer_cls_to_wrap` are mutually exclusive.")
         self.fsdp_config["xla"] = self.fsdp_config.get("xla", False)
         self.fsdp_config["xla_fsdp_grad_ckpt"] = self.fsdp_config.get("xla_fsdp_grad_ckpt", False)
         if self.fsdp_config["xla"]:
@@ -428,23 +441,29 @@ class ORTTrainingArguments(TrainingArguments):
                 FSDP_SHARDING_STRATEGY,
             )
 
+            prefix = "FSDP_"
             for fsdp_option in self.fsdp:
                 if fsdp_option.upper() in FSDP_SHARDING_STRATEGY:
                     # set environment variable for FSDP sharding strategy
-                    os.environ["FSDP_SHARDING_STRATEGY"] = str(FSDP_SHARDING_STRATEGY.index(fsdp_option.upper()) + 1)
+                    os.environ[f"{prefix}SHARDING_STRATEGY"] = str(
+                        FSDP_SHARDING_STRATEGY.index(fsdp_option.upper()) + 1
+                    )
                 elif fsdp_option == FSDPOption.OFFLOAD:
-                    os.environ["FSDP_OFFLOAD_PARAMS"] = "true"
+                    os.environ[f"{prefix}OFFLOAD_PARAMS"] = "true"
                 elif fsdp_option == FSDPOption.AUTO_WRAP:
-                    if self.fsdp_config["fsdp_min_num_params"] > 0:
-                        os.environ["FSDP_MIN_NUM_PARAMS"] = str(self.fsdp_config["fsdp_min_num_params"])
-                        os.environ["FSDP_AUTO_WRAP_POLICY"] = FSDP_AUTO_WRAP_POLICY[1]
-                    elif self.fsdp_config.get("fsdp_transformer_layer_cls_to_wrap", None) is not None:
-                        os.environ["FSDP_TRANSFORMER_CLS_TO_WRAP"] = ",".join(
-                            self.fsdp_config["fsdp_transformer_layer_cls_to_wrap"]
+                    os.environ[f"{prefix}AUTO_WRAP_POLICY"] = FSDP_AUTO_WRAP_POLICY[0]
+                    if self.fsdp_config["min_num_params"] > 0:
+                        os.environ[f"{prefix}MIN_NUM_PARAMS"] = str(self.fsdp_config["min_num_params"])
+                        os.environ[f"{prefix}AUTO_WRAP_POLICY"] = FSDP_AUTO_WRAP_POLICY[1]
+                    elif self.fsdp_config.get("transformer_layer_cls_to_wrap", None) is not None:
+                        os.environ[f"{prefix}TRANSFORMER_CLS_TO_WRAP"] = ",".join(
+                            self.fsdp_config["transformer_layer_cls_to_wrap"]
                         )
-                        os.environ["FSDP_AUTO_WRAP_POLICY"] = FSDP_AUTO_WRAP_POLICY[0]
             prefetch_policy = self.fsdp_config.get("fsdp_backward_prefetch", "NO_PREFETCH")
-            os.environ["FSDP_BACKWARD_PREFETCH"] = prefetch_policy.upper()
+            os.environ[f"{prefix}BACKWARD_PREFETCH"] = prefetch_policy.upper()
+            os.environ[f"{prefix}FORWARD_PREFETCH"] = self.fsdp_config.get("forward_prefect", "false")
+            os.environ[f"{prefix}SYNC_MODULE_STATES"] = self.fsdp_config.get("sync_module_states", "true")
+            os.environ[f"{prefix}USE_ORIG_PARAMS"] = self.fsdp_config.get("use_orig_params", "false")
 
         if self.tpu_metrics_debug:
             warnings.warn(
@@ -479,6 +498,14 @@ class ORTTrainingArguments(TrainingArguments):
 
             os.environ["ACCELERATE_USE_DEEPSPEED"] = "true"
             self.deepspeed_plugin = DeepSpeedPlugin(hf_ds_config=self.hf_deepspeed_config)
+        elif strtobool(os.environ.get("ACCELERATE_USE_DEEPSPEED", "false")):
+            # Accelerate DeepSpeed Plugin
+            from accelerate.utils import DeepSpeedPlugin
+
+            self.deepspeed_plugin = DeepSpeedPlugin()
+            mixed_precision = os.environ.get("ACCELERATE_MIXED_PRECISION", "no")
+            self.deepspeed_plugin.set_mixed_precision(mixed_precision)
+            self.deepspeed_plugin.set_deepspeed_weakref()
 
         if self.push_to_hub_token is not None:
             warnings.warn(
@@ -515,19 +542,5 @@ class ORTTrainingArguments(TrainingArguments):
                 FutureWarning,
             )
 
-        # if training args is specified, it will override the one specified in the accelerate config
-        if self.half_precision_backend != "apex" and len(self.sharded_ddp) == 0:
-            mixed_precision_dtype = os.environ.get("ACCELERATE_MIXED_PRECISION", "no")
-            if self.fp16:
-                mixed_precision_dtype = "fp16"
-            elif self.bf16:
-                mixed_precision_dtype = "bf16"
-            os.environ["ACCELERATE_MIXED_PRECISION"] = mixed_precision_dtype
-
-        if self.use_module_with_loss is True:
-            logger.info(
-                "Using ModuleWithLoss Wrapper."
-                "loss will be computed during training loop and it will save memory peak "
-            )
-        else:
-            logger.info("Not Using ModuleWithLoss Wrapper.")
+        # Finally set the `TrainingArguments` to be immutable
+        self._frozen = True
