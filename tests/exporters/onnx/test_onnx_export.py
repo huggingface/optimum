@@ -573,7 +573,7 @@ class OnnxCustomExport(TestCase):
                 custom_onnx_configs=custom_onnx_configs,
                 no_post_process=True,
                 fn_get_submodels=fn_get_submodels,
-                opset=14
+                opset=14,
             )
 
     def test_custom_export_trust_remote_error(self):
@@ -587,6 +587,7 @@ class OnnxCustomExport(TestCase):
                     task="text-generation-with-past",
                     trust_remote_code=True,
                     no_post_process=True,
+                    opset=14,
                 )
 
         self.assertIn("custom or unsupported architecture", str(context.exception))
