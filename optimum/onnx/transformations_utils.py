@@ -318,10 +318,11 @@ def cast_int64_tensorproto_to_int32(initializer: onnx.TensorProto, cast: bool = 
     initializer.name = original_name
 
 
-def _get_weights_to_tie(tied_params, torch_model: "nn.Module") -> Tuple[List[List[str]]]:
+def _get_weights_to_tie(tied_params: List[List[str]], torch_model: "nn.Module") -> Tuple[List[List[str]]]:
     """
-    Find tied weights in the PyTorch model `model`, and separate them in tied weights
-    for which an untying strategy exists and do not exist.
+    Separates tied weights from the torch_model in groups for which a tying implementation is (and is not) available.
+
+    Currently, only Embedding and Linear weight sharing the same data can be tied.
     """
     SUPPORTED_DEDUPLICATION_OPS = ("Embedding", "Linear")
     tied_groups_to_tie = []
@@ -335,7 +336,7 @@ def _get_weights_to_tie(tied_params, torch_model: "nn.Module") -> Tuple[List[Lis
             if module.__class__.__name__ not in SUPPORTED_DEDUPLICATION_OPS:
                 skip_group = True
             if len(params) != 2:
-                skip_group = 2
+                skip_group = True
 
         if skip_group:
             tied_groups_ignored.append(params)

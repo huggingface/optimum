@@ -522,7 +522,7 @@ class OnnxConfig(ExportConfig, ABC):
         first_key = next(iter(models_and_onnx_configs))
         if is_torch_available() and isinstance(models_and_onnx_configs[first_key][0], nn.Module):
             if is_accelerate_available():
-                print("Deduplicating shared (tied) weights...")
+                logger.info("Deduplicating shared (tied) weights...")
                 keys = list(models_and_onnx_configs.keys())
                 for i, subpath in enumerate(onnx_files_subpaths):
                     onnx_model = onnx.load(os.path.join(path, subpath))

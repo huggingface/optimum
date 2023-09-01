@@ -77,6 +77,8 @@ def remove_duplicate_weights_from_tied_info(
     Args:
         onnx_model (`onnx.ModelProto`):
             The ONNX model for which to tie potentially duplicate initializers.
+        torch_model (`nn.Module`):
+            The PyTorch model corresponding to the ONNX one.
         tied_params (`List[List[str]]`):
             A list of groups of torch parameters that are tied, i.e. shared. For them,
             the torch module shares the same pointer.
