@@ -76,7 +76,7 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
         "stable-diffusion",
     ]
     ORTMODEL_CLASS = ORTStableDiffusionPipeline
-    TASK = "stable-diffusion"
+    TASK = "text-to-image"
 
     @require_diffusers
     def _test_load_vanilla_model_which_is_not_supported(self):
@@ -138,6 +138,39 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
         self.assertTrue(callback_fn.has_been_called)
         self.assertEqual(callback_fn.number_of_steps, inputs["num_inference_steps"])
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_shape(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+        height, width, batch_size = 128, 64, 1
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        if self.TASK == "image-to-image":
+            input_types = ["np", "pil", "torch"]
+        elif self.TASK == "text-to-image":
+            input_types = ["np"]
+        else:
+            input_types = ["pil"]
+
+        for input_type in input_types:
+            if self.TASK == "image-to-image":
+                inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size, input_type=input_type)
+            else:
+                inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+            for output_type in ["np", "pil", "latent"]:
+                inputs["output_type"] = output_type
+                outputs = pipeline(**inputs).images
+                if output_type == "pil":
+                    self.assertEqual((len(outputs), outputs[0].height, outputs[0].width), (batch_size, height, width))
+                elif output_type == "np":
+                    self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+                else:
+                    self.assertEqual(
+                        outputs.shape,
+                        (batch_size, 4, height // pipeline.vae_scale_factor, width // pipeline.vae_scale_factor),
+                    )
+
     def generate_inputs(self, height=128, width=128, batch_size=1):
         inputs = _generate_inputs(batch_size=batch_size)
         inputs["height"] = height
@@ -150,6 +183,7 @@ class ORTStableDiffusionImg2ImgPipelineTest(ORTStableDiffusionPipelineBase):
         "stable-diffusion",
     ]
     ORTMODEL_CLASS = ORTStableDiffusionImg2ImgPipeline
+    TASK = "image-to-image"
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -172,29 +206,6 @@ class ORTStableDiffusionImg2ImgPipelineTest(ORTStableDiffusionPipelineBase):
         diffusers_output = diffusers_pipeline(**inputs, generator=np.random.RandomState(0)).images[0, -3:, -3:, -1]
         self.assertTrue(np.allclose(output, diffusers_output, atol=1e-2))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    @require_diffusers
-    def test_shape(self, model_arch: str):
-        model_args = {"test_name": model_arch, "model_arch": model_arch}
-        self._setup(model_args)
-        height, width, batch_size = 128, 64, 2
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-
-        for input_type in ["np", "pil", "torch"]:
-            inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size, input_type=input_type)
-            inputs.pop("output_type")
-            for output_type in ["np", "pil", "latent"]:
-                outputs = pipeline(**inputs, output_type=output_type).images
-                if output_type == "pil":
-                    self.assertEqual((len(outputs), outputs[0].height, outputs[0].width), (batch_size, height, width))
-                elif output_type == "np":
-                    self.assertEqual(outputs.shape, (batch_size, height, width, 3))
-                else:
-                    self.assertEqual(
-                        outputs.shape,
-                        (batch_size, 4, height // pipeline.vae_scale_factor, width // pipeline.vae_scale_factor),
-                    )
-
     def generate_inputs(self, height=128, width=128, batch_size=1, input_type="np"):
         inputs = _generate_inputs(batch_size=batch_size)
         inputs["image"] = _create_image(height=height, width=width, batch_size=batch_size, input_type=input_type)
@@ -207,6 +218,7 @@ class ORTStableDiffusionPipelineTest(unittest.TestCase):
         "stable-diffusion",
     ]
     ORTMODEL_CLASS = ORTStableDiffusionPipeline
+    TASK = "text-to-image"
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -272,7 +284,7 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
         "stable-diffusion-xl",
     ]
     ORTMODEL_CLASS = ORTStableDiffusionXLPipeline
-    TASK = "stable-diffusion-xl"
+    TASK = "text-to-image"
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -336,6 +348,7 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
         "stable-diffusion",
     ]
     ORTMODEL_CLASS = ORTStableDiffusionInpaintPipeline
+    TASK = "inpainting"
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -379,7 +392,7 @@ class ORTStableDiffusionXLImg2ImgPipelineTest(ORTModelTestMixin):
         "stable-diffusion-xl",
     ]
     ORTMODEL_CLASS = ORTStableDiffusionXLImg2ImgPipeline
-    TASK = "stable-diffusion-xl"
+    TASK = "image-to-image"
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
