@@ -577,7 +577,7 @@ class OnnxCustomExport(TestCase):
             )
 
     def test_custom_export_trust_remote_error(self):
-        model_id = "fxmarty/tiny-mpt-random-remote-code"
+        model_id = "mohitsha/tiny-ernie-random-remote-code"
 
         with self.assertRaises(ValueError) as context:
             with TemporaryDirectory() as tmpdirname:
@@ -587,7 +587,6 @@ class OnnxCustomExport(TestCase):
                     task="text-generation-with-past",
                     trust_remote_code=True,
                     no_post_process=True,
-                    opset=14,
                 )
 
         self.assertIn("custom or unsupported architecture", str(context.exception))
