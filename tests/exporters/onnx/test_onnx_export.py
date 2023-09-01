@@ -573,6 +573,7 @@ class OnnxCustomExport(TestCase):
                 custom_onnx_configs=custom_onnx_configs,
                 no_post_process=True,
                 fn_get_submodels=fn_get_submodels,
+                opset=14
             )
 
     def test_custom_export_trust_remote_error(self):
