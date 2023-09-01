@@ -22,13 +22,13 @@ from onnx import ModelProto
 from ..utils import logging
 from .transformations_utils import (
     _create_name_sharing_dict,
+    _deduplicate_gather_matmul,
     _deduplicated_cross_model_initializers,
     _find_duplicate_initializers,
     _find_matching_initializers,
     _get_all_inputs,
     _get_onnx_opset,
     _get_weights_to_tie,
-    _remove_duplicate_initializers,
     _remove_redundant_initializers,
     _replace_input_names,
     _unify_onnx_outputs,
@@ -89,9 +89,7 @@ def remove_duplicate_weights_from_tied_info(
 
     tied_groups_map = _find_matching_initializers(tied_params, onnx_model, initializer_name_to_idx)
 
-    onnx_model = _remove_duplicate_initializers(
-        onnx_model, tied_groups_to_tie, tied_groups_map, initializer_name_to_idx
-    )
+    onnx_model = _deduplicate_gather_matmul(onnx_model, tied_groups_to_tie, tied_groups_map, initializer_name_to_idx)
     check_and_save_model(onnx_model, save_path=save_path)
 
     return onnx_model
