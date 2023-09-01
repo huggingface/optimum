@@ -52,6 +52,7 @@ else:
 
 # isort: on
 
+import huggingface_hub.utils as hf_hub_utils
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -63,11 +64,13 @@ from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is
 from transformers.dependency_versions_check import dep_version_check
 from transformers.file_utils import (
     is_apex_available,
+    is_peft_available,
     is_sagemaker_dp_enabled,
     is_sagemaker_mp_enabled,
     is_torch_tpu_available,
 )
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
+from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
 from transformers.trainer_callback import TrainerCallback, TrainerState
@@ -137,6 +140,9 @@ if is_fairscale_available():
     dep_version_check("fairscale")
     from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
     from fairscale.optim import OSS
+
+if is_peft_available():
+    from peft import PeftModel
 
 if TYPE_CHECKING:
     import optuna
@@ -447,7 +453,12 @@ class ORTTrainer(Trainer):
             if resume_from_checkpoint is None:
                 raise ValueError(f"No valid checkpoint found in output directory ({args.output_dir})")
 
-        if resume_from_checkpoint is not None and not is_sagemaker_mp_enabled() and args.deepspeed is None:
+        if (
+            resume_from_checkpoint is not None
+            and not is_sagemaker_mp_enabled()
+            and not self.is_deepspeed_enabled
+            and not self.is_fsdp_enabled
+        ):
             self._load_from_checkpoint(resume_from_checkpoint)
 
         # If model was re-initialized, put it on the right device and update self.model_wrapped
@@ -459,12 +470,25 @@ class ORTTrainer(Trainer):
         inner_training_loop = find_executable_batch_size(
             self._inner_training_loop, self._train_batch_size, args.auto_find_batch_size
         )
-        return inner_training_loop(
-            args=args,
-            resume_from_checkpoint=resume_from_checkpoint,
-            trial=trial,
-            ignore_keys_for_eval=ignore_keys_for_eval,
-        )
+        if args.push_to_hub:
+            try:
+                # Disable progress bars when uploading models during checkpoints to avoid polluting stdout
+                hf_hub_utils.disable_progress_bars()
+                return inner_training_loop(
+                    args=args,
+                    resume_from_checkpoint=resume_from_checkpoint,
+                    trial=trial,
+                    ignore_keys_for_eval=ignore_keys_for_eval,
+                )
+            finally:
+                hf_hub_utils.enable_progress_bars()
+        else:
+            return inner_training_loop(
+                args=args,
+                resume_from_checkpoint=resume_from_checkpoint,
+                trial=trial,
+                ignore_keys_for_eval=ignore_keys_for_eval,
+            )
 
     def _inner_training_loop(
         self, batch_size=None, args=None, resume_from_checkpoint=None, trial=None, ignore_keys_for_eval=None
@@ -513,14 +537,6 @@ class ORTTrainer(Trainer):
                 "args.max_steps must be set to a positive value if dataloader does not have a length, was"
                 f" {args.max_steps}"
             )
-
-        # Compute absolute values for logging, eval, and save if given as ratio
-        if args.logging_steps and args.logging_steps < 1:
-            args.logging_steps = math.ceil(max_steps * args.logging_steps)
-        if args.eval_steps and args.eval_steps < 1:
-            args.eval_steps = math.ceil(max_steps * args.eval_steps)
-        if args.save_steps and args.save_steps < 1:
-            args.save_steps = math.ceil(max_steps * args.save_steps)
 
         if DebugOption.UNDERFLOW_OVERFLOW in self.args.debug:
             if self.args.n_gpu > 1:
@@ -571,13 +587,30 @@ class ORTTrainer(Trainer):
         self.state = TrainerState()
         self.state.is_hyper_param_search = trial is not None
 
+        # Compute absolute values for logging, eval, and save if given as ratio
+        if args.logging_steps is not None:
+            if args.logging_steps < 1:
+                self.state.logging_steps = math.ceil(max_steps * args.logging_steps)
+            else:
+                self.state.logging_steps = args.logging_steps
+        if args.eval_steps is not None:
+            if args.eval_steps < 1:
+                self.state.eval_steps = math.ceil(max_steps * args.eval_steps)
+            else:
+                self.state.eval_steps = args.eval_steps
+        if args.save_steps is not None:
+            if args.save_steps < 1:
+                self.state.save_steps = math.ceil(max_steps * args.save_steps)
+            else:
+                self.state.save_steps = args.save_steps
+
         # Activate gradient checkpointing if needed
         if args.gradient_checkpointing:
             self.model.gradient_checkpointing_enable()
 
         model = self._wrap_model(self.model_wrapped)  # Wrap unless the ORTModule is already wrapped, eg. wrap DDP
 
-        if is_sagemaker_mp_enabled() and resume_from_checkpoint is not None:
+        if (is_sagemaker_mp_enabled() or self.is_fsdp_enabled) and resume_from_checkpoint is not None:
             self._load_from_checkpoint(resume_from_checkpoint, model)
 
         # as the model is wrapped, don't use `accelerator.prepare`
@@ -586,6 +619,8 @@ class ORTTrainer(Trainer):
         use_accelerator_prepare = True if model is self.model else False
 
         if delay_optimizer_creation:
+            if use_accelerator_prepare:
+                self.model = self.accelerator.prepare(self.model)
             if use_accelerator_prepare:
                 self.model = self.accelerator.prepare(self.model)
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
@@ -893,11 +928,14 @@ class ORTTrainer(Trainer):
         # Delete the last checkpoint when save_total_limit=1 if it's different from the best checkpoint and process allowed to save.
         if self.args.should_save and self.state.best_model_checkpoint is not None and self.args.save_total_limit == 1:
             for checkpoint in checkpoints_sorted:
-                if checkpoint != self.state.best_model_checkpoint:
+                if not os.path.samefile(checkpoint, self.state.best_model_checkpoint):
                     logger.info(f"Deleting older checkpoint [{checkpoint}] due to args.save_total_limit")
                     shutil.rmtree(checkpoint)
 
         self.control = self.callback_handler.on_train_end(args, self.state, self.control)
+
+        # Wait for the checkpoint to be uploaded.
+        self._finish_current_push()
 
         return TrainOutput(self.state.global_step, train_loss, metrics)
 
@@ -1177,7 +1215,8 @@ class ORTTrainer(Trainer):
             loss, logits, labels = self.prediction_step_ort(
                 ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
             )
-            inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
+            main_input_name = getattr(self.model, "main_input_name", "input_ids")
+            inputs_decode = self._prepare_input(inputs[main_input_name]) if args.include_inputs_for_metrics else None
 
             # Update containers on host
             if loss is not None:
@@ -1291,6 +1330,10 @@ class ORTTrainer(Trainer):
 
         return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)
 
+    #
+    # Deprecated code
+    #
+
     def prediction_loop_ort(
         self,
         dataloader: DataLoader,
@@ -1389,7 +1432,8 @@ class ORTTrainer(Trainer):
             loss, logits, labels = self.prediction_step_ort(
                 ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
             )
-            inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
+            main_input_name = getattr(self.model, "main_input_name", "input_ids")
+            inputs_decode = self._prepare_input(inputs[main_input_name]) if args.include_inputs_for_metrics else None
 
             if loss is not None:
                 losses = loss.repeat(batch_size)
@@ -1561,7 +1605,11 @@ class ORTTrainer(Trainer):
             self._past = outputs[self.args.past_index]
 
         if labels is not None:
-            if "text-generation" in self.feature:
+            if is_peft_available() and isinstance(model, PeftModel):
+                model_name = unwrap_model(model.base_model)._get_name()
+            else:
+                model_name = unwrap_model(model)._get_name()
+            if model_name in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.values():
                 loss = self.label_smoother(outputs, labels, shift_labels=True)
             else:
                 loss = self.label_smoother(outputs, labels)
@@ -1714,18 +1762,24 @@ class ORTTrainer(Trainer):
 
             auto_wrap_policy = None
             auto_wrapper_callable = None
-            if self.args.fsdp_config["fsdp_min_num_params"] > 0:
+            default_transformer_cls_names_to_wrap = getattr(model, "_no_split_modules", None)
+            fsdp_transformer_layer_cls_to_wrap = self.args.fsdp_config.get(
+                "transformer_layer_cls_to_wrap", default_transformer_cls_names_to_wrap
+            )
+
+            if self.args.fsdp_config["min_num_params"] > 0:
                 auto_wrap_policy = functools.partial(
-                    size_based_auto_wrap_policy, min_num_params=self.args.fsdp_config["fsdp_min_num_params"]
+                    size_based_auto_wrap_policy, min_num_params=self.args.fsdp_config["min_num_params"]
                 )
-            elif self.args.fsdp_config.get("fsdp_transformer_layer_cls_to_wrap", None) is not None:
+            elif fsdp_transformer_layer_cls_to_wrap is not None:
                 transformer_cls_to_wrap = set()
-                for layer_class in self.args.fsdp_config["fsdp_transformer_layer_cls_to_wrap"]:
+                for layer_class in fsdp_transformer_layer_cls_to_wrap:
                     transformer_cls = get_module_class_from_name(model, layer_class)
                     if transformer_cls is None:
                         raise Exception("Could not find the transformer layer class to wrap in the model.")
                     else:
                         transformer_cls_to_wrap.add(transformer_cls)
+
                 auto_wrap_policy = functools.partial(
                     transformer_auto_wrap_policy,
                     # Transformer layer class to wrap
