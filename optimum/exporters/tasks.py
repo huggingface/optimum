@@ -497,6 +497,11 @@ class TasksManager:
             onnx="ElectraOnnxConfig",
             tflite="ElectraTFLiteConfig",
         ),
+        "encoder-decoder": supported_tasks_mapping(
+            "text2text-generation",
+            "text2text-generation-with-past",
+            onnx="EncoderDecoderOnnxConfig",
+        ),
         "flaubert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",

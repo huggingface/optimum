@@ -220,6 +220,7 @@ class NormalizedConfigManager:
         "distilbert": NormalizedTextConfig.with_args(num_attention_heads="n_heads", hidden_size="dim"),
         "donut-swin": NormalizedVisionConfig,
         "electra": NormalizedTextConfig,
+        "encoder-decoder": NormalizedEncoderDecoderConfig,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt-bigcode": GPT2LikeNormalizedTextConfig,
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
