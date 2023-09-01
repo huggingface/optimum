@@ -287,8 +287,6 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
             image = np.concatenate(
                 [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
             )
-            image = np.clip(image / 2 + 0.5, 0, 1)
-            image = image.transpose((0, 2, 3, 1))
             image, has_nsfw_concept = self.run_safety_checker(image)
 
         if has_nsfw_concept is None:

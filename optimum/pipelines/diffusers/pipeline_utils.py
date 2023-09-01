@@ -95,6 +95,7 @@ class OptimumVaeImageProcessor(VaeImageProcessor):
         Preprocess the image input. Accepted formats are PIL images, NumPy arrays or PyTorch tensors.
         """
         supported_formats = (PIL.Image.Image, np.ndarray, torch.Tensor)
+
         # Expand the missing dimension for 3-dimensional pytorch tensor or numpy array that represents grayscale image
         if self.config.do_convert_grayscale and isinstance(image, (torch.Tensor, np.ndarray)) and image.ndim == 3:
             if isinstance(image, torch.Tensor):
@@ -127,16 +128,13 @@ class OptimumVaeImageProcessor(VaeImageProcessor):
             if self.config.do_resize:
                 height, width = self.get_height_width(image[0], height, width)
                 image = [self.resize(i, height, width) for i in image]
-            image = self.pil_to_numpy(image).transpose(0, 3, 1, 2)
+            image = self.reshape(self.pil_to_numpy(image))
         else:
-            # torch input already has correct shape
             if isinstance(image[0], torch.Tensor):
                 image = [self.pt_to_numpy(elem) for elem in image]
-            # fix shape np input
+                image = np.concatenate(image, axis=0) if image[0].ndim == 4 else np.stack(image, axis=0)
             else:
-                image = [elem.transpose(0, 3, 1, 2) for elem in image]
-            # batch x height x width or batch x channnel x height x width
-            image = np.concatenate(image, axis=0) if image[0].ndim == 4 else np.stack(image, axis=0)
+                image = self.reshape(np.concatenate(image, axis=0) if image[0].ndim == 4 else np.stack(image, axis=0))
             # don't need any preprocess if the image is latents
             if image.shape[1] == 4:
                 return image
@@ -191,6 +189,9 @@ class OptimumVaeImageProcessor(VaeImageProcessor):
         image = np.stack(
             [self.denormalize(image[i]) if do_denormalize[i] else image[i] for i in range(image.shape[0])], axis=0
         )
+
+        image = image.transpose((0, 2, 3, 1))
+
         if output_type == "pil":
             image = self.numpy_to_pil(image)
 
@@ -242,3 +243,13 @@ class OptimumVaeImageProcessor(VaeImageProcessor):
         """
         images = images.cpu().float().numpy()
         return images
+
+    @staticmethod
+    def reshape(images: np.ndarray) -> np.ndarray:
+        """
+        Reshape inputs to expected shape.
+        """
+        if images.ndim == 3:
+            images = images[..., None]
+
+        return images.transpose(0, 3, 1, 2)
