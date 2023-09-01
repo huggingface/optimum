@@ -83,13 +83,17 @@ def remove_duplicate_weights_from_tied_info(
             A list of groups of torch parameters that are tied, i.e. shared. For them,
             the torch module shares the same pointer.
     """
-    tied_groups_to_tie, tied_groups_ignored = _get_weights_to_tie(tied_params, torch_model)
+    tied_params_with_op, tied_groups_to_tie, tied_groups_ignored = _get_weights_to_tie(tied_params, torch_model)
+
+    logger.info(
+        f"The groups of weights {tied_groups_ignored} will not be tied as either already tied or tying is not implemented."
+    )
 
     initializer_name_to_idx = {}
     for idx, initializer in enumerate(onnx_model.graph.initializer):
         initializer_name_to_idx[initializer.name] = idx
 
-    tied_groups_map = _find_matching_initializers(tied_params, onnx_model, initializer_name_to_idx)
+    tied_groups_map = _find_matching_initializers(tied_params_with_op, onnx_model, initializer_name_to_idx)
 
     onnx_model = _deduplicate_gather_matmul(onnx_model, tied_groups_to_tie, tied_groups_map, initializer_name_to_idx)
     check_and_save_model(onnx_model, save_path=save_path)

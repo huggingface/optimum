@@ -325,9 +325,11 @@ def _get_weights_to_tie(tied_params: List[List[str]], torch_model: "nn.Module") 
     Currently, only Embedding and Linear weight sharing the same data can be tied.
     """
     SUPPORTED_DEDUPLICATION_OPS = ("Embedding", "Linear")
+    tied_params_with_op = []
     tied_groups_to_tie = []
     tied_groups_ignored = []
     for params in tied_params:
+        tied_params_with_op.append({})
         skip_group = False
         for param_name in params:
             module_name = ".".join(param_name.split(".")[:-1])
@@ -338,25 +340,27 @@ def _get_weights_to_tie(tied_params: List[List[str]], torch_model: "nn.Module") 
             if len(params) != 2:
                 skip_group = True
 
+            tied_params_with_op[-1][param_name] = module.__class__.__name__
+
         if skip_group:
             tied_groups_ignored.append(params)
         else:
             tied_groups_to_tie.append(params)
 
-    return tied_groups_to_tie, tied_groups_ignored
+    return tied_params_with_op, tied_groups_to_tie, tied_groups_ignored
 
 
 def _find_matching_initializers(
-    tied_params: List[List[str]], model: ModelProto, initializer_name_to_idx: Dict[str, int]
+    tied_params_with_op: List[Dict[str, str]], model: ModelProto, initializer_name_to_idx: Dict[str, int]
 ):
     """
     From the torch parameter names in `tied_params`, find the matching initializers
     in the ONNX model.
 
     Args:
-        tied_params (`List[List[str]]`):
+        tied_params_with_op (`List[Dict[str, str]]`):
             A list of groups of parameters that are tied, i.e. shared. For them,
-            the torch module share the same pointer.
+            the torch module share the same pointer. The dictionary points to what type of nn.Module the parameter belongs to (e.g. `Linear`).
         model (`ModelProto`):
             The model in which the initializers should be looked for.
         initializer_name_to_idx (`Dict[str, int]`):
@@ -367,9 +371,9 @@ def _find_matching_initializers(
             A mapping from a tied weight group to the list of tied parameters torch name and potentially matching initializers (several in case it could not be exactly found).
     """
     tied_groups_map = {}
-    for params in tied_params:
+    for params in tied_params_with_op:
         torch_to_initializer = []
-        for param_name in params:
+        for param_name, torch_op_name in params.items():
             # To find which initializer correspond to a torch parameter, we first look for
             # exactly matching initializer name.
             identical_initializer = False
@@ -388,10 +392,17 @@ def _find_matching_initializers(
                 )
                 identical_initializer = True
 
-            # If not found (e.g. "lm_head.weight"), we greedily search for all initializers from potentially matching node names (e.g. "lm_head").
+            # If not found (e.g. "lm_head.weight"), we greedily search for all initializers from potentially matching node names (e.g. "lm_head"),
+            # or e.g. for predictions.decoder.weight search any of *predictions/decoder*
             # This greedy approach may found more initializers than wanted.
             if not identical_initializer:
-                module_name = ".".join(param_name.split(".")[:-1])
+                module_name = "/".join(param_name.split(".")[:-1])
+
+                if param_name.endswith("weight") and torch_op_name == "Linear":
+                    module_name += "/MatMul"
+                elif param_name.endswith("bias") and torch_op_name == "Linear":
+                    module_name += "/Add"
+
                 candidate_inputs = {}
                 candidate_node_idxs = []
                 for i, node in enumerate(model.graph.node):
