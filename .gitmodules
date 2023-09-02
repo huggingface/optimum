@@ -1,0 +1,3 @@
+[submodule "optimum/exporters/ggml/src/ggml.cpp"]
+	path = optimum/exporters/ggml/src/ggml.cpp
+	url = https://github.com/ggerganov/ggml
