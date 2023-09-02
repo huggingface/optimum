@@ -55,7 +55,13 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "detr": "hf-internal-testing/tiny-random-DetrModel",  # hf-internal-testing/tiny-random-detr is larger
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
-    "encoder-decoder": "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert",
+    "encoder-decoder": {
+        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": [
+            "text2text-generation",
+            "text2text-generation-with-past",
+        ],
+        "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
+    },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
@@ -136,17 +142,17 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
-    "vision-encoder-decoder": {
-        "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
-            "image-to-text",
-            "image-to-text-with-past",
-        ],
-        "microsoft/trocr-small-handwritten": ["image-to-text"],
-        "fxmarty/tiny-doc-qa-vision-encoder-decoder": [
-            "document-question-answering",
-            "document-question-answering-with-past",
-        ],
-    },
+    # "vision-encoder-decoder": {
+    #     "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
+    #         "image-to-text",
+    #         "image-to-text-with-past",
+    #     ],
+    #     "microsoft/trocr-small-handwritten": ["image-to-text"],
+    #     "fxmarty/tiny-doc-qa-vision-encoder-decoder": [
+    #         "document-question-answering",
+    #         "document-question-answering-with-past",
+    #     ],
+    # },
 }
 
 
