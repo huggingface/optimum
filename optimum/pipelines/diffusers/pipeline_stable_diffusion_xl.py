@@ -158,7 +158,7 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
                 # Here we concatenate the unconditional and text embeddings into a single batch
                 # to avoid doing two forward passes
                 negative_prompt_embeds_list.append(negative_prompt_embeds)
-            negative_prompt_embeds = np.concatenate(negative_prompt_embeds, axis=-1)
+            negative_prompt_embeds = np.concatenate(negative_prompt_embeds_list, axis=-1)
 
         pooled_prompt_embeds = np.repeat(pooled_prompt_embeds, num_images_per_prompt, axis=0)
         negative_pooled_prompt_embeds = np.repeat(negative_pooled_prompt_embeds, num_images_per_prompt, axis=0)
