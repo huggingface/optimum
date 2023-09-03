@@ -141,17 +141,17 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
-    # "vision-encoder-decoder": {
-    #     "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
-    #         "image-to-text",
-    #         "image-to-text-with-past",
-    #     ],
-    #     "microsoft/trocr-small-handwritten": ["image-to-text"],
-    #     "fxmarty/tiny-doc-qa-vision-encoder-decoder": [
-    #         "document-question-answering",
-    #         "document-question-answering-with-past",
-    #     ],
-    # },
+    "vision-encoder-decoder": {
+        "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
+            "image-to-text",
+            "image-to-text-with-past",
+        ],
+        "microsoft/trocr-small-handwritten": ["image-to-text"],
+        "fxmarty/tiny-doc-qa-vision-encoder-decoder": [
+            "document-question-answering",
+            "document-question-answering-with-past",
+        ],
+    },
 }
 
 
