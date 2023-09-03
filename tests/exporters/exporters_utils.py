@@ -58,7 +58,6 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "encoder-decoder": {
         "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": [
             "text2text-generation",
-            "text2text-generation-with-past",
         ],
         "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
     },
