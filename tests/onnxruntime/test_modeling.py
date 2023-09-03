@@ -3097,10 +3097,6 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
         return onnx_model_dir
 
-    def _load_model(self, model_id, model_arch, test_name, use_cache):
-        onnx_model_dir = self._get_onnx_model_dir(model_id, model_arch, test_name)
-        return ORTModelForSeq2SeqLM.from_pretrained(onnx_model_dir, use_cache=use_cache)
-
     def test_inference_old_onnx_model(self):
         model = ORTModelForSeq2SeqLM.from_pretrained("optimum/t5-small")
 
@@ -3130,7 +3126,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             ):
                 continue
 
-            model = self._load_model(model_id, model_arch, test_name, use_cache)
+            onnx_model_dir = self._get_onnx_model_dir(model_id, model_arch, test_name)
+            model = ORTModelForSeq2SeqLM.from_pretrained(onnx_model_dir, use_cache=use_cache)
+
             tokenizer = get_preprocessor(model_id)
             text = "This is a sample output"
             tokens = tokenizer(text, return_tensors="pt")
@@ -3233,8 +3231,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 continue
 
             onnx_model_dir = self._get_onnx_model_dir(model_id, model_arch, test_name)
-
-            onnx_model = self._load_model(model_id, model_arch, test_name, use_cache)
+            onnx_model = ORTModelForSeq2SeqLM.from_pretrained(onnx_model_dir, use_cache=use_cache)
 
             self.assertIsInstance(onnx_model.encoder, ORTEncoder)
             if use_merged is False:
@@ -3309,7 +3306,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 # The model with use_cache=True is not supported for bert as a decoder")
                 continue
 
-            onnx_model = self._load_model(model_id, model_arch, test_name, use_cache)
+            onnx_model_dir = self._get_onnx_model_dir(model_id, model_arch, test_name)
+            onnx_model = ORTModelForSeq2SeqLM.from_pretrained(onnx_model_dir, use_cache=use_cache)
 
             tokenizer = get_preprocessor(model_id)
 
@@ -3377,7 +3375,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 # The model with use_cache=True is not supported for bert as a decoder"
                 continue
 
-            onnx_model = self._load_model(model_id, model_arch, test_name, use_cache)
+            onnx_model_dir = self._get_onnx_model_dir(model_id, model_arch, test_name)
+            onnx_model = ORTModelForSeq2SeqLM.from_pretrained(onnx_model_dir, use_cache=use_cache)
 
             tokenizer = get_preprocessor(model_id)
             pipe = pipeline(
