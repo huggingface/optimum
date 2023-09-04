@@ -597,9 +597,15 @@ class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
         )
+
         add_watermarker = add_watermarker if add_watermarker is not None else is_invisible_watermark_available()
 
         if add_watermarker:
+            if not is_invisible_watermark_available():
+                raise ImportError(
+                    "`add_watermarker` requires invisible-watermark to be installed, which can be installed with `pip install invisible-watermark`."
+                )
+
             from ..pipelines.diffusers.watermark import StableDiffusionXLWatermarker
 
             self.watermark = StableDiffusionXLWatermarker()
