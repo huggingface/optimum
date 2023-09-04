@@ -20,6 +20,7 @@ from .decoder_models import (
     BlenderbotAttentionLayerBetterTransformer,
     BloomAttentionLayerBetterTransformer,
     CodegenAttentionLayerBetterTransformer,
+    FalconAttentionLayerBetterTransformer,
     GPT2AttentionLayerBetterTransformer,
     GPTBigCodeAttentionLayerBetterTransformer,
     GPTJAttentionLayerBetterTransformer,
@@ -77,6 +78,7 @@ class BetterTransformerManager:
         "electra": {"ElectraLayer": BertLayerBetterTransformer},
         "ernie": {"ErnieLayer": BertLayerBetterTransformer},
         "fsmt": {"EncoderLayer": FSMTEncoderLayerBetterTransformer},
+        "falcon": {"FalconAttention": FalconAttentionLayerBetterTransformer},
         "gpt2": {"GPT2Attention": GPT2AttentionLayerBetterTransformer},
         "gpt_bigcode": {"GPTBigCodeAttention": GPTBigCodeAttentionLayerBetterTransformer},
         "gptj": {"GPTJAttention": GPTJAttentionLayerBetterTransformer},
@@ -150,6 +152,7 @@ class BetterTransformerManager:
         "opt",
         "pegasus",
         "t5",
+        "falcon",
     }
 
     NOT_REQUIRES_STRICT_VALIDATION = {
@@ -166,6 +169,7 @@ class BetterTransformerManager:
         "opt",
         "pegasus",
         "t5",
+        "falcon",
     }
 
     @staticmethod
