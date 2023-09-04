@@ -63,6 +63,46 @@ DEFAULT_DUMMY_SHAPES = {
 }
 
 
+class DTYPE_MAPPER:
+    @classmethod
+    def np(cls, dtype):
+        mapping = {
+            "fp32": np.float32,
+            "fp16": np.float16,
+            "int64": np.int64,
+            "int32": np.int32,
+            "int8": np.int8,
+            "bool": bool,
+        }
+        return mapping[dtype]
+
+    @classmethod
+    def pt(cls, dtype):
+        mapping = {
+            "fp32": torch.float32,
+            "fp16": torch.float16,
+            "bf16": torch.bfloat16,
+            "int64": torch.int64,
+            "int32": torch.int32,
+            "int8": torch.int8,
+            "bool": torch.bool,
+        }
+        return mapping[dtype]
+
+    @classmethod
+    def tf(cls, dtype):
+        mapping = {
+            "fp32": tf.float32,
+            "fp16": tf.float16,
+            "bf16": tf.bfloat16,
+            "int64": tf.int64,
+            "int32": tf.int32,
+            "int8": tf.int8,
+            "bool": tf.bool,
+        }
+        return mapping[dtype]
+
+
 class DummyInputGenerator(ABC):
     """
     Generates dummy inputs for the supported input names, in the requested framework.
@@ -85,15 +125,19 @@ class DummyInputGenerator(ABC):
         return any(input_name.startswith(supported_input_name) for supported_input_name in self.SUPPORTED_INPUT_NAMES)
 
     @abstractmethod
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         """
         Generates the dummy input matching `input_name` for the requested framework.
 
         Args:
             input_name (`str`):
                 The name of the input to generate.
-            framework (`str`, *optional*, defaults to `"pt"`):
+            framework (`str`, defaults to `"pt"`):
                 The requested framework.
+            int_dtype (`str`, defaults to `"int64"`):
+                The dtypes of generated integer tensors.
+            float_dtype (`str`, defaults to `"fp32"`):
+                The dtypes of generated float tensors.
 
         Returns:
             A tensor in the requested framework of the input.
@@ -102,7 +146,9 @@ class DummyInputGenerator(ABC):
 
     @staticmethod
     @check_framework_is_available
-    def random_int_tensor(shape: List[int], max_value: int, min_value: int = 0, framework: str = "pt"):
+    def random_int_tensor(
+        shape: List[int], max_value: int, min_value: int = 0, framework: str = "pt", dtype: str = "int64"
+    ):
         """
         Generates a tensor of random integers in the [min_value, max_value) range.
 
@@ -111,47 +157,53 @@ class DummyInputGenerator(ABC):
                 The shape of the random tensor.
             max_value (`int`):
                 The maximum value allowed.
-            min_value (`int`, *optional*, defaults to 0):
+            min_value (`int`, defaults to 0):
                 The minimum value allowed.
-            framework (`str`, *optional*, defaults to `"pt"`):
+            framework (`str`, defaults to `"pt"`):
                 The requested framework.
+            dtype (`str`, defaults to `"int64"`):
+                The dtype of the generated integer tensor. Could be "int64", "int32", "int8".
 
         Returns:
             A random tensor in the requested framework.
         """
         if framework == "pt":
-            return torch.randint(low=min_value, high=max_value, size=shape)
+            return torch.randint(low=min_value, high=max_value, size=shape, dtype=DTYPE_MAPPER.pt(dtype))
         elif framework == "tf":
-            return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=tf.int64)
+            return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=DTYPE_MAPPER.tf(dtype))
         else:
-            return np.random.randint(min_value, high=max_value, size=shape, dtype=np.int64)
+            return np.random.randint(min_value, high=max_value, size=shape, dtype=DTYPE_MAPPER.np(dtype))
 
     @staticmethod
     @check_framework_is_available
-    def random_float_tensor(shape: List[int], min_value: float = 0, max_value: float = 1, framework: str = "pt"):
+    def random_float_tensor(
+        shape: List[int], min_value: float = 0, max_value: float = 1, framework: str = "pt", dtype: str = "fp32"
+    ):
         """
         Generates a tensor of random floats in the [min_value, max_value) range.
 
         Args:
             shape (`List[int]`):
                 The shape of the random tensor.
-            min_value (`float`, *optional*, defaults to 0):
+            min_value (`float`, defaults to 0):
                 The minimum value allowed.
-            max_value (`float`, *optional*, defaults to 1):
+            max_value (`float`, defaults to 1):
                 The maximum value allowed.
-            framework (`str`, *optional*, defaults to `"pt"`):
+            framework (`str`, defaults to `"pt"`):
                 The requested framework.
+            dtype (`str`, defaults to `"fp32"`):
+                The dtype of the generated float tensor. Could be "fp32", "fp16", "bf16".
 
         Returns:
             A random tensor in the requested framework.
         """
         if framework == "pt":
-            tensor = torch.empty(shape, dtype=torch.float32).uniform_(min_value, max_value)
+            tensor = torch.empty(shape, dtype=DTYPE_MAPPER.pt(dtype)).uniform_(min_value, max_value)
             return tensor
         elif framework == "tf":
-            return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=tf.float32)
+            return tf.random.uniform(shape, minval=min_value, maxval=max_value, dtype=DTYPE_MAPPER.tf(dtype))
         else:
-            return np.random.uniform(low=min_value, high=max_value, size=shape).astype(np.float32)
+            return np.random.uniform(low=min_value, high=max_value, size=shape).astype(DTYPE_MAPPER.np(dtype))
 
     @staticmethod
     @check_framework_is_available
@@ -164,11 +216,11 @@ class DummyInputGenerator(ABC):
         Args:
             shape (`List[int]`):
                 The shape of the constant tensor.
-            value (`Union[int, float]`, *optional*, defaults to 1):
+            value (`Union[int, float]`, defaults to 1):
                 The value to fill the constant tensor with.
-            dtype (`Any`, *optional*):
+            dtype (`Optional[Any]`, defaults to `None`):
                 The dtype of the constant tensor.
-            framework (`str`, *optional*, defaults to `"pt"`):
+            framework (`str`, defaults to `"pt"`):
                 The requested framework.
 
         Returns:
@@ -235,13 +287,13 @@ class DummyInputGenerator(ABC):
                 The tensor to pad.
             dim (`int`):
                 The dimension along which to pad.
-            desired_length (`int`, *optional*):
+            desired_length (`Optional[int]`, defaults to `None`):
                 The desired length along the dimension after padding.
-            padding_length (`int`, *optional*):
+            padding_length (`Optional[int]`, defaults to `None`):
                 The length to pad along the dimension.
-            value (`Union[int, float]`, *optional*, defaults to 1):
+            value (`Union[int, float]`, defaults to 1):
                 The value to use for padding.
-            dtype (`Any`, *optional*):
+            dtype (`Optional[Any]`, defaults to `None`):
                 The dtype of the padding.
 
         Returns:
@@ -304,13 +356,13 @@ class DummyTextInputGenerator(DummyInputGenerator):
         else:
             self.num_choices = num_choices
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         min_value = 0
         max_value = 2 if input_name != "input_ids" else self.vocab_size
         shape = [self.batch_size, self.sequence_length]
         if self.task == "multiple-choice":
             shape = [self.batch_size, self.num_choices, self.sequence_length]
-        return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework)
+        return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework, dtype=int_dtype)
 
 
 class DummyDecoderTextInputGenerator(DummyTextInputGenerator):
@@ -357,7 +409,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
 
         self.hidden_size = normalized_config.hidden_size
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name in ["encoder_outputs", "encoder_hidden_states"]:
             return (
                 self.random_float_tensor(
@@ -365,11 +417,12 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
                     min_value=0,
                     max_value=1,
                     framework=framework,
+                    dtype=float_dtype,
                 ),
                 None,
                 None,
             )
-        return super().generate(input_name, framework=framework)
+        return super().generate(input_name, framework=framework, int_dtype=int_dtype)
 
 
 class DummyPastKeyValuesGenerator(DummyInputGenerator):
@@ -403,7 +456,7 @@ class DummyPastKeyValuesGenerator(DummyInputGenerator):
         else:
             self.sequence_length = sequence_length
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = (
             self.batch_size,
             self.num_attention_heads,
@@ -412,8 +465,8 @@ class DummyPastKeyValuesGenerator(DummyInputGenerator):
         )
         return [
             (
-                self.random_float_tensor(shape, framework=framework),
-                self.random_float_tensor(shape, framework=framework),
+                self.random_float_tensor(shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(shape, framework=framework, dtype=float_dtype),
             )
             for _ in range(self.num_layers)
         ]
@@ -452,7 +505,7 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
             self.sequence_length if encoder_sequence_length is None else encoder_sequence_length
         )
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         encoder_shape = (
             self.batch_size,
             self.normalized_config.encoder_num_attention_heads,
@@ -467,10 +520,10 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         )
         return [
             (
-                self.random_float_tensor(decoder_shape, framework=framework),
-                self.random_float_tensor(decoder_shape, framework=framework),
-                self.random_float_tensor(encoder_shape, framework=framework),
-                self.random_float_tensor(encoder_shape, framework=framework),
+                self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
             )
             for _ in range(self.normalized_config.decoder_num_layers)
         ]
@@ -507,12 +560,13 @@ class DummyBboxInputGenerator(DummyInputGenerator):
         else:
             self.sequence_length = sequence_length
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         return self.random_int_tensor(
             [self.batch_size, self.sequence_length, 4],
             # TODO: find out why this fails with the commented code.
             1,  # self.max_2d_position_embeddings - 1,
             framework=framework,
+            dtype=int_dtype,
         )
 
 
@@ -554,14 +608,19 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         self.batch_size = batch_size
         self.height, self.width = self.image_size
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name == "pixel_mask":
             return self.random_int_tensor(
-                shape=[self.batch_size, self.height, self.width], max_value=1, framework=framework
+                shape=[self.batch_size, self.height, self.width],
+                max_value=1,
+                framework=framework,
+                dtype=int_dtype,
             )
         else:
             return self.random_float_tensor(
-                shape=[self.batch_size, self.num_channels, self.height, self.width], framework=framework
+                shape=[self.batch_size, self.num_channels, self.height, self.width],
+                framework=framework,
+                dtype=float_dtype,
             )
 
 
@@ -586,10 +645,14 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         self.batch_size = batch_size
         self.sequence_length = audio_sequence_length
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name == "input_values":  # raw waveform
             return self.random_float_tensor(
-                shape=[self.batch_size, self.sequence_length], min_value=-1, max_value=1, framework=framework
+                shape=[self.batch_size, self.sequence_length],
+                min_value=-1,
+                max_value=1,
+                framework=framework,
+                dtype=float_dtype,
             )
         else:
             return self.random_float_tensor(
@@ -597,6 +660,7 @@ class DummyAudioInputGenerator(DummyInputGenerator):
                 min_value=-1,
                 max_value=1,
                 framework=framework,
+                dtype=float_dtype,
             )
 
 
@@ -629,14 +693,14 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
         else:
             self.batch_size = batch_size
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = [self.batch_size]
 
         if input_name == "timestep":
-            return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework)
+            return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=int_dtype)
 
         shape.append(self.text_encoder_projection_dim if input_name == "text_embeds" else self.time_ids)
-        return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework)
+        return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=float_dtype)
 
 
 class DummyLabelsGenerator(DummyInputGenerator):
@@ -665,14 +729,14 @@ class DummyLabelsGenerator(DummyInputGenerator):
         self.sequence_length = kwargs.get("sequence_length", None)
         self.num_labels = kwargs.get("num_labels", None)
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         max_value = self.num_labels if self.num_labels is not None else 0
         if self.sequence_length is None:
             shape = [self.batch_size]
         else:
             shape = [self.batch_size, self.sequence_length]
 
-        return self.random_int_tensor(shape, max_value=max_value, framework=framework)
+        return self.random_int_tensor(shape, max_value=max_value, framework=framework, dtype=int_dtype)
 
 
 class DummyPointsGenerator(DummyInputGenerator):
@@ -697,9 +761,9 @@ class DummyPointsGenerator(DummyInputGenerator):
         self.point_batch_size = point_batch_size
         self.nb_points_per_image = nb_points_per_image
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = [self.batch_size, self.point_batch_size, self.nb_points_per_image, 2]
-        return self.random_float_tensor(shape, framework=framework)
+        return self.random_float_tensor(shape, framework=framework, dtype=float_dtype)
 
 
 class DummyVisionEmbeddingsGenerator(DummyInputGenerator):
@@ -757,23 +821,26 @@ class DummyPix2StructInputGenerator(DummyInputGenerator):
         self.flattened_patch_size = 2 + patch_height * patch_width * num_channels
         self.max_patches = preprocessors[1].image_processor.max_patches
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = [self.batch_size, self.max_patches, self.flattened_patch_size]
-        return self.random_float_tensor(shape, framework=framework)
+        return self.random_float_tensor(shape, framework=framework, dtype=float_dtype)
 
 
 class GPTBigCodeDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         past_key_value_shape = (
             self.batch_size,
             self.sequence_length,
             self.hidden_size // self.num_attention_heads * 2,
         )
-        return [self.random_float_tensor(past_key_value_shape, framework=framework) for _ in range(self.num_layers)]
+        return [
+            self.random_float_tensor(past_key_value_shape, framework=framework, dtype=float_dtype)
+            for _ in range(self.num_layers)
+        ]
 
 
 class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         past_key_shape = (
             self.batch_size * self.num_attention_heads,
             self.hidden_size // self.num_attention_heads,
@@ -786,8 +853,34 @@ class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         )
         return [
             (
-                self.random_float_tensor(past_key_shape, framework=framework),
-                self.random_float_tensor(past_value_shape, framework=framework),
+                self.random_float_tensor(past_key_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(past_value_shape, framework=framework, dtype=float_dtype),
+            )
+            for _ in range(self.num_layers)
+        ]
+
+
+class FalconDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        self.num_kv_heads = 1
+        head_dim = self.hidden_size // self.num_attention_heads
+
+        past_key_shape = (
+            self.batch_size,
+            self.num_kv_heads,
+            self.sequence_length,
+            head_dim,
+        )
+        past_value_shape = (
+            self.batch_size,
+            self.num_kv_heads,
+            self.sequence_length,
+            head_dim,
+        )
+        return [
+            (
+                self.random_float_tensor(past_key_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(past_value_shape, framework=framework, dtype=float_dtype),
             )
             for _ in range(self.num_layers)
         ]

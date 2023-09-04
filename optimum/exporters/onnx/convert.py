@@ -38,7 +38,7 @@ from ...utils import (
 )
 from ..error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
 from .base import OnnxConfig
-from .utils import PickableInferenceSession, recursive_to_device, recursive_to_dtype
+from .utils import PickableInferenceSession, recursive_to_device
 
 
 if is_torch_available():
@@ -319,9 +319,6 @@ def _run_validation(
 
         for key, value in reference_model_inputs.items():
             reference_model_inputs[key] = recursive_to_device(value=value, device=device)
-            reference_model_inputs[key] = recursive_to_dtype(
-                value=reference_model_inputs[key], dtype=dtype, start_dtype=torch.float32
-            )
 
     # Some models may modify in place the inputs, hence the copy.
     copy_reference_model_inputs = copy.deepcopy(reference_model_inputs)
@@ -354,15 +351,6 @@ def _run_validation(
     reference_ort_inputs = config.generate_dummy_inputs_for_validation(
         reference_model_inputs, onnx_input_names=onnx_input_names
     )
-
-    # generate_dummy_inputs_for_validation may add inputs (e.g. past_key_values) that are by
-    # default on torch.float32 dtype. Thus, to run validation of fp16 model, these inputs need
-    # to be casted as well.
-    if is_torch_available() and isinstance(reference_model, nn.Module):
-        for key, value in reference_ort_inputs.items():
-            reference_ort_inputs[key] = recursive_to_dtype(
-                value=reference_ort_inputs[key], dtype=dtype, start_dtype=torch.float32
-            )
 
     # We flatten potential collection of inputs (i.e. past_keys)
     onnx_inputs = {}
@@ -557,8 +545,6 @@ def export_pytorch(
         def remap(value):
             if isinstance(value, torch.Tensor):
                 value = value.to(device)
-            if isinstance(value, torch.Tensor) and value.dtype == torch.float32:
-                value = value.to(dtype=dtype)
 
             return value
 

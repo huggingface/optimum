@@ -899,3 +899,97 @@ def bloom_forward(
         present = None
 
     return (output_tensor, present)
+
+
+def falcon_forward(
+    self,
+    hidden_states: torch.Tensor,
+    alibi: Optional[torch.Tensor],
+    attention_mask: torch.Tensor,
+    layer_past: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+    head_mask: Optional[torch.Tensor] = None,
+    use_cache: bool = False,
+    output_attentions: bool = False,
+):
+    fused_qkv = self.query_key_value(hidden_states)  # [batch_size, seq_length, 3 x hidden_size]
+    num_kv_heads = self.num_heads if self.new_decoder_architecture else self.num_kv_heads
+    # 3 x [batch_size, seq_length, num_heads, head_dim]
+    (query_layer, key_layer, value_layer) = self._split_heads(fused_qkv)
+
+    if output_attentions is True:
+        raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
+    batch_size, query_length, _, _ = query_layer.shape
+
+    query_layer = query_layer.transpose(1, 2).reshape(batch_size * self.num_heads, query_length, self.head_dim)
+    key_layer = key_layer.transpose(1, 2).reshape(
+        batch_size * num_kv_heads,
+        query_length,
+        self.head_dim,
+    )
+    value_layer = value_layer.transpose(1, 2).reshape(batch_size * num_kv_heads, query_length, self.head_dim)
+
+    past_kv_length = 0 if layer_past is None else layer_past[0].shape[1]
+    query_layer, key_layer = self.maybe_rotary(query_layer, key_layer, past_kv_length)
+
+    if layer_past is not None:
+        past_key, past_value = layer_past
+        # concatenate along seq_length dimension:
+        #  - key: [batch_size * self.num_heads, kv_length, head_dim]
+        #  - value: [batch_size * self.num_heads, kv_length, head_dim]
+        key_layer = torch.cat((past_key, key_layer), dim=1)
+        value_layer = torch.cat((past_value, value_layer), dim=1)
+
+    if use_cache is True:
+        present = (key_layer, value_layer)
+    else:
+        present = None
+
+    attention_mask_float = (attention_mask * 1.0).masked_fill(attention_mask, float("-1e9")).to(query_layer.dtype)
+
+    query_layer_ = query_layer.reshape(batch_size, self.num_heads, -1, self.head_dim)
+    key_layer_ = key_layer.reshape(batch_size, num_kv_heads, -1, self.head_dim)
+    value_layer_ = value_layer.reshape(batch_size, num_kv_heads, -1, self.head_dim)
+
+    if alibi is None:
+        if batch_size == 1 or self.training:
+            if query_length > 1:
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    query_layer_, key_layer_, value_layer_, attn_mask=None, dropout_p=0.0, is_causal=True
+                )
+            else:
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    query_layer_, key_layer_, value_layer_, attn_mask=None, dropout_p=0.0, is_causal=False
+                )
+        else:
+            attn_output = torch.nn.functional.scaled_dot_product_attention(
+                query_layer_, key_layer_, value_layer_, attention_mask_float, 0.0, is_causal=False
+            )
+
+        attn_output = attn_output.view(batch_size, self.num_heads, query_length, self.head_dim)
+        attn_output = attn_output.permute(0, 2, 1, 3)
+        attn_output = attn_output.reshape(batch_size, query_length, self.num_heads * self.head_dim)
+
+        output_tensor = self.dense(attn_output)
+
+        return output_tensor, present
+
+    else:
+        alibi = alibi.reshape(batch_size, -1, *alibi.shape[1:])
+        alibi = torch.masked_fill(alibi, attention_mask, torch.finfo(alibi.dtype).min)
+
+        context_layer = torch.nn.functional.scaled_dot_product_attention(
+            query_layer,
+            key_layer,
+            value_layer,
+            attn_mask=alibi,
+            dropout_p=self.attention_dropout if self.training else 0.0,
+        )
+        context_layer = context_layer.transpose(1, 2)
+
+        # change view [batch_size, q_length, num_heads * head_dim]
+        context_layer = self._merge_heads(context_layer)
+
+        output_tensor = self.dense(context_layer)
+
+        return output_tensor, present

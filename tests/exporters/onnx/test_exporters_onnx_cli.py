@@ -57,6 +57,9 @@ def _get_models_to_test(export_models_dict: Dict):
 
             for model_name, tasks in model_tasks.items():
                 for task in tasks:
+                    if model_type == "encoder-decoder" and task == "text2text-generation-with-past":
+                        # The model uses bert as decoder and does not support past key values
+                        continue
                     onnx_config_class = TasksManager.get_exporter_config_constructor(
                         "onnx", task=task, model_type=model_type
                     )
@@ -117,7 +120,13 @@ def _get_models_to_test(export_models_dict: Dict):
             # TODO: segformer task can not be automatically inferred
             # TODO: xlm-roberta model auto-infers text-generation, but we don't support it
             # TODO: perceiver auto-infers default, but we don't support it (why?)
-            if model_type not in ["segformer", "xlm-roberta", "perceiver", "vision-encoder-decoder"]:
+            # TODO: encoder-decoder auto-infers text3text-generation, but it uses bert as decoder and does not support past key values
+            if model_type not in [
+                "segformer",
+                "xlm-roberta",
+                "perceiver",
+                "encoder-decoder",
+            ]:
                 models_to_test.append(
                     (f"{model_type}_no_task", model_type, model_name, "auto", "default", False, False)
                 )

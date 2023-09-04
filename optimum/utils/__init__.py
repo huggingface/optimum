@@ -42,6 +42,7 @@ from .import_utils import (
 )
 from .input_generators import (
     DEFAULT_DUMMY_SHAPES,
+    DTYPE_MAPPER,
     BloomDummyPastKeyValuesGenerator,
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
@@ -57,6 +58,7 @@ from .input_generators import (
     DummyTimestepInputGenerator,
     DummyVisionEmbeddingsGenerator,
     DummyVisionInputGenerator,
+    FalconDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr

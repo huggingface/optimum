@@ -161,6 +161,10 @@ def _get_models_to_test(export_models_dict: Dict):
 
             for model_name, tasks in model_tasks.items():
                 for task in tasks:
+                    if model_type == "encoder-decoder" and task == "seq2seq-lm-with-past":
+                        # The model uses bert as decoder and does not support past key values
+                        continue
+
                     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                         model_type=model_type, exporter="onnx", task=task, model_name=model_name
                     )
@@ -455,7 +459,7 @@ class MPTDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
     decoder models, thus the redefinition here.
     """
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         past_key_shape = (
             self.batch_size,
             self.num_attention_heads,
@@ -470,8 +474,8 @@ class MPTDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         )
         return [
             (
-                self.random_float_tensor(past_key_shape, framework=framework),
-                self.random_float_tensor(past_value_shape, framework=framework),
+                self.random_float_tensor(past_key_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(past_value_shape, framework=framework, dtype=float_dtype),
             )
             for _ in range(self.num_layers)
         ]
@@ -573,10 +577,11 @@ class OnnxCustomExport(TestCase):
                 custom_onnx_configs=custom_onnx_configs,
                 no_post_process=True,
                 fn_get_submodels=fn_get_submodels,
+                opset=14,
             )
 
     def test_custom_export_trust_remote_error(self):
-        model_id = "fxmarty/tiny-mpt-random-remote-code"
+        model_id = "mohitsha/tiny-ernie-random-remote-code"
 
         with self.assertRaises(ValueError) as context:
             with TemporaryDirectory() as tmpdirname:

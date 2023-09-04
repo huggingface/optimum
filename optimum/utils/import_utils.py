@@ -35,6 +35,7 @@ else:
 TORCH_MINIMUM_VERSION = packaging.version.parse("1.11.0")
 TRANSFORMERS_MINIMUM_VERSION = packaging.version.parse("4.25.0")
 DIFFUSERS_MINIMUM_VERSION = packaging.version.parse("0.18.0")
+AUTOGPTQ_MINIMUM_VERSION = packaging.version.parse("0.4.2")
 
 
 # This is the minimal required version to support some ONNX Runtime features
@@ -102,7 +103,14 @@ def is_diffusers_available():
 
 
 def is_auto_gptq_available():
-    return _auto_gptq_available
+    if _auto_gptq_available:
+        version_autogptq = packaging.version.parse(importlib_metadata.version("auto_gptq"))
+        if AUTOGPTQ_MINIMUM_VERSION <= version_autogptq:
+            return True
+        else:
+            raise ImportError(
+                f"Found an incompatible version of auto-gptq. Found version {version_autogptq}, but only {AUTOGPTQ_MINIMUM_VERSION} and above are supported"
+            )
 
 
 @contextmanager
@@ -183,6 +191,10 @@ BACKENDS_MAPPING = OrderedDict(
         (
             "transformers_431",
             (lambda: check_if_transformers_greater("4.31"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.31")),
+        ),
+        (
+            "transformers_432",
+            (lambda: check_if_transformers_greater("4.32"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.32")),
         ),
     ]
 )

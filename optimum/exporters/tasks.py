@@ -497,6 +497,11 @@ class TasksManager:
             onnx="ElectraOnnxConfig",
             tflite="ElectraTFLiteConfig",
         ),
+        "encoder-decoder": supported_tasks_mapping(
+            "text2text-generation",
+            "text2text-generation-with-past",
+            onnx="EncoderDecoderOnnxConfig",
+        ),
         "flaubert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -679,6 +684,11 @@ class TasksManager:
             "question-answering",
             onnx="MPNetOnnxConfig",
             tflite="MPNetTFLiteConfig",
+        ),
+        "mpt": supported_tasks_mapping(
+            "text-generation",
+            "text-generation-with-past",
+            onnx="MPTOnnxConfig",
         ),
         "mt5": supported_tasks_mapping(
             "feature-extraction",

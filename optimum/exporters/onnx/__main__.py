@@ -63,6 +63,8 @@ def _get_submodels_and_onnx_configs(
     custom_onnx_configs: Dict,
     custom_architecture: bool,
     _variant: str,
+    int_dtype: str = "int64",
+    float_dtype: str = "fp32",
     fn_get_submodels: Optional[Callable] = None,
     preprocessors: Optional[List[Any]] = None,
 ):
@@ -70,12 +72,16 @@ def _get_submodels_and_onnx_configs(
     if not custom_architecture:
         if is_stable_diffusion:
             onnx_config = None
-            models_and_onnx_configs = get_stable_diffusion_models_for_export(model)
+            models_and_onnx_configs = get_stable_diffusion_models_for_export(
+                model, int_dtype=int_dtype, float_dtype=float_dtype
+            )
         else:
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                 model=model, exporter="onnx", task=task
             )
-            onnx_config = onnx_config_constructor(model.config, preprocessors=preprocessors)
+            onnx_config = onnx_config_constructor(
+                model.config, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+            )
 
             onnx_config.variant = _variant
             all_variants = "\n".join(
@@ -264,8 +270,11 @@ def main_export(
 
     if fp16 is True and device == "cpu":
         raise ValueError(
-            "The --fp16 option is supported only when exporting on GPU. Please pass the option `--device cuda`."
+            "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
         )
+        float_dtype = "fp16"
+    else:
+        float_dtype = "fp32"
 
     output = Path(output)
     if not output.exists():
@@ -384,6 +393,7 @@ def main_export(
         monolith=monolith,
         custom_onnx_configs=custom_onnx_configs if custom_onnx_configs is not None else {},
         custom_architecture=custom_architecture,
+        float_dtype=float_dtype,
         fn_get_submodels=fn_get_submodels,
         preprocessors=preprocessors,
         _variant=_variant,
@@ -435,7 +445,7 @@ def main_export(
                 f" referring to `optimum.exporters.tasks.TaskManager`'s `_TASKS_TO_AUTOMODELS`."
             )
 
-        onnx_files_subpaths = None
+        onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
     else:
         # save the subcomponent configuration
         for model_name in models_and_onnx_configs:
@@ -478,8 +488,6 @@ def main_export(
     if optimize is not None:
         from ...onnxruntime import AutoOptimizationConfig, ORTOptimizer
 
-        if onnx_files_subpaths is None:
-            onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
         optimizer = ORTOptimizer.from_pretrained(output, file_names=onnx_files_subpaths)
 
         optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=optimize)

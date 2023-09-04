@@ -98,14 +98,14 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         ],
         onnx_files_subpaths: List[str],
     ):
+        models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(
+            path, models_and_onnx_configs, onnx_files_subpaths
+        )
+
         # Attempt to merge only if the decoder-only was exported separately without/with past
         if self.use_past is True and len(models_and_onnx_configs) == 2:
-            if onnx_files_subpaths is not None:
-                decoder_path = Path(path, onnx_files_subpaths[0])
-                decoder_with_past_path = Path(path, onnx_files_subpaths[1])
-            else:
-                decoder_path = Path(path, ONNX_DECODER_NAME + ".onnx")
-                decoder_with_past_path = Path(path, ONNX_DECODER_WITH_PAST_NAME + ".onnx")
+            decoder_path = Path(path, onnx_files_subpaths[0])
+            decoder_with_past_path = Path(path, onnx_files_subpaths[1])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
             try:
                 merge_decoders(
@@ -267,13 +267,15 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return {}
 
 
-class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
+class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
 
     def __init__(
         self,
         config: "PretrainedConfig",
         task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: Optional[bool] = None,
         use_present_in_outputs: Optional[bool] = None,
@@ -281,8 +283,10 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
         preprocessors: Optional[List[Any]] = None,
     ):
         super().__init__(
-            config,
+            config=config,
             task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             use_present_in_outputs=use_present_in_outputs,
@@ -298,7 +302,9 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
             encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                 exporter="onnx", task="feature-extraction", model_type=config.encoder.model_type
             )
-            self._encoder_onnx_config = encoder_onnx_config_constructor(config.encoder, preprocessors=preprocessors)
+            self._encoder_onnx_config = encoder_onnx_config_constructor(
+                config.encoder, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+            )
             self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = self._encoder_onnx_config._normalized_config
 
         if self._behavior is not ConfigBehavior.ENCODER:
@@ -319,7 +325,7 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 )
 
             self._decoder_onnx_config = decoder_onnx_config_constructor(
-                config.decoder, preprocessors=preprocessors, **kwargs
+                config.decoder, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors, **kwargs
             )
             if issubclass(decoder_onnx_config_constructor.func, OnnxSeq2SeqConfigWithPast):
                 self._decoder_onnx_config = self._decoder_onnx_config.with_behavior(
@@ -340,6 +346,34 @@ class EncoderDecoderOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 )
 
             self.DUMMY_INPUT_GENERATOR_CLASSES += self._past_key_values_generator
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = {}
+        if self._behavior is not ConfigBehavior.DECODER:
+            common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            # TODO: it is likely this pop() is unwanted as we then always hit
+            # https://github.com/huggingface/transformers/blob/v4.26.0/src/transformers/models/t5/modeling_t5.py#L965-L969
+            common_inputs.pop("attention_mask")
+
+            if self.use_past_in_inputs:
+                # TODO: validate the axis name for attention_mask
+                # common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
+                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        return common_inputs
 
     @property
     def torch_to_onnx_input_map(self) -> Dict[str, str]:
