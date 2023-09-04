@@ -21,6 +21,7 @@ import PIL
 import torch
 from diffusers import ConfigMixin
 from diffusers.image_processor import VaeImageProcessor as DiffusersVaeImageProcessor
+from diffusers.utils.pil_utils import PIL_INTERPOLATION
 from PIL import Image
 from tqdm.auto import tqdm
 
@@ -259,3 +260,23 @@ class VaeImageProcessor(DiffusersVaeImageProcessor):
             images = images[..., None]
 
         return images.transpose(0, 3, 1, 2)
+
+    # TODO : remove after diffusers v0.21.0 release
+    def resize(
+        self,
+        image: [PIL.Image.Image, np.ndarray, torch.Tensor],
+        height: Optional[int] = None,
+        width: Optional[int] = None,
+    ) -> [PIL.Image.Image, np.ndarray, torch.Tensor]:
+        """
+        Resize image.
+        """
+        if isinstance(image, PIL.Image.Image):
+            image = image.resize((width, height), resample=PIL_INTERPOLATION[self.config.resample])
+        elif isinstance(image, torch.Tensor):
+            image = torch.nn.functional.interpolate(image, size=(height, width))
+        elif isinstance(image, np.ndarray):
+            image = self.numpy_to_pt(image)
+            image = torch.nn.functional.interpolate(image, size=(height, width))
+            image = self.pt_to_numpy(image)
+        return image
