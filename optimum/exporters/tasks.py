@@ -504,6 +504,11 @@ class TasksManager:
             onnx="ElectraOnnxConfig",
             tflite="ElectraTFLiteConfig",
         ),
+        "encoder-decoder": supported_tasks_mapping(
+            "text2text-generation",
+            "text2text-generation-with-past",
+            onnx="EncoderDecoderOnnxConfig",
+        ),
         "flaubert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -519,7 +524,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            "text-classification",
+            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             "token-classification",
             onnx="GPT2OnnxConfig",
         ),
@@ -528,7 +533,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            "text-classification",
+            # "text-classification",  # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             "token-classification",
             onnx="GPTBigCodeOnnxConfig",
         ),
@@ -538,7 +543,7 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "question-answering",
-            "text-classification",
+            # "text-classification",  # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="GPTJOnnxConfig",
         ),
         "gpt-neo": supported_tasks_mapping(
@@ -546,7 +551,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            "text-classification",
+            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="GPTNeoOnnxConfig",
         ),
         "gpt-neox": supported_tasks_mapping(
@@ -687,6 +692,11 @@ class TasksManager:
             onnx="MPNetOnnxConfig",
             tflite="MPNetTFLiteConfig",
         ),
+        "mpt": supported_tasks_mapping(
+            "text-generation",
+            "text-generation-with-past",
+            onnx="MPTOnnxConfig",
+        ),
         "mt5": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -721,7 +731,7 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "question-answering",
-            "text-classification",
+            # "text-classification",  # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="OPTOnnxConfig",
         ),
         "llama": supported_tasks_mapping(
@@ -729,7 +739,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            "text-classification",
+            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="LlamaOnnxConfig",
         ),
         "pegasus": supported_tasks_mapping(

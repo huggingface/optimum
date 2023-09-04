@@ -252,6 +252,8 @@ def get_decoder_models_for_export(
 
 def get_stable_diffusion_models_for_export(
     pipeline: "StableDiffusionPipeline",
+    int_dtype: str = "int64",
+    float_dtype: str = "fp32",
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]]:
     """
     Returns the components of a Stable Diffusion model and their subsequent onnx configs.
@@ -259,6 +261,10 @@ def get_stable_diffusion_models_for_export(
     Args:
         pipeline ([`StableDiffusionPipeline`]):
             The model to export.
+        int_dtype (`str`, defaults to `"int64"`):
+            The data type of integer tensors, could be ["int64", "int32", "int8"], default to "int64".
+        float_dtype (`str`, defaults to `"fp32"`):
+            The data type of float tensors, could be ["fp32", "fp16", "bf16"], default to "fp32".
 
     Returns:
         `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
@@ -269,32 +275,45 @@ def get_stable_diffusion_models_for_export(
     # Text encoder
     if "text_encoder" in models_for_export:
         text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
-            model=pipeline.text_encoder, exporter="onnx", task="feature-extraction"
+            model=pipeline.text_encoder,
+            exporter="onnx",
+            task="feature-extraction",
         )
-        text_encoder_onnx_config = text_encoder_config_constructor(pipeline.text_encoder.config)
+        text_encoder_onnx_config = text_encoder_config_constructor(
+            pipeline.text_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
+        )
         models_for_export["text_encoder"] = (models_for_export["text_encoder"], text_encoder_onnx_config)
 
     # U-NET
     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-        model=pipeline.unet, exporter="onnx", task="semantic-segmentation", model_type="unet"
+        model=pipeline.unet,
+        exporter="onnx",
+        task="semantic-segmentation",
+        model_type="unet",
     )
-    unet_onnx_config = onnx_config_constructor(pipeline.unet.config)
+    unet_onnx_config = onnx_config_constructor(pipeline.unet.config, int_dtype=int_dtype, float_dtype=float_dtype)
     models_for_export["unet"] = (models_for_export["unet"], unet_onnx_config)
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
     vae_encoder = models_for_export["vae_encoder"]
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
-        model=vae_encoder, exporter="onnx", task="semantic-segmentation", model_type="vae-encoder"
+        model=vae_encoder,
+        exporter="onnx",
+        task="semantic-segmentation",
+        model_type="vae-encoder",
     )
-    vae_onnx_config = vae_config_constructor(vae_encoder.config)
+    vae_onnx_config = vae_config_constructor(vae_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype)
     models_for_export["vae_encoder"] = (vae_encoder, vae_onnx_config)
 
     # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
     vae_decoder = models_for_export["vae_decoder"]
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
-        model=vae_decoder, exporter="onnx", task="semantic-segmentation", model_type="vae-decoder"
+        model=vae_decoder,
+        exporter="onnx",
+        task="semantic-segmentation",
+        model_type="vae-decoder",
     )
-    vae_onnx_config = vae_config_constructor(vae_decoder.config)
+    vae_onnx_config = vae_config_constructor(vae_decoder.config, int_dtype=int_dtype, float_dtype=float_dtype)
     models_for_export["vae_decoder"] = (vae_decoder, vae_onnx_config)
 
     if "text_encoder_2" in models_for_export:
@@ -304,8 +323,45 @@ def get_stable_diffusion_models_for_export(
             task="feature-extraction",
             model_type="clip-text-with-projection",
         )
-        onnx_config = onnx_config_constructor(pipeline.text_encoder_2.config)
+        onnx_config = onnx_config_constructor(
+            pipeline.text_encoder_2.config, int_dtype=int_dtype, float_dtype=float_dtype
+        )
         models_for_export["text_encoder_2"] = (models_for_export["text_encoder_2"], onnx_config)
+
+    return models_for_export
+
+
+def _get_submodels_for_export_sam(model, variant):
+    models_for_export = {}
+
+    if variant == "monolith":
+        models_for_export["model"] = model
+    else:
+        # We use the model patcher to patch their forward method.
+        models_for_export["vision_encoder"] = model
+        models_for_export["prompt_encoder_mask_decoder"] = model
+
+    return models_for_export
+
+
+def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "OnnxConfig"):
+    models_for_export = _get_submodels_for_export_sam(model, config.variant)
+
+    if config.variant == "monolith":
+        onnx_config = config.__class__(model.config, task=config.task)
+        models_for_export["model"] = (models_for_export["model"], onnx_config)
+    else:
+        vision_encoder_onnx_config = config.__class__(
+            model.config, task=config.task, variant=config.variant, vision_encoder=True
+        )
+        prompt_encoder_mask_decoder_onnx_config = config.__class__(
+            model.config, task=config.task, variant=config.variant, vision_encoder=False
+        )
+        models_for_export["vision_encoder"] = (models_for_export["vision_encoder"], vision_encoder_onnx_config)
+        models_for_export["prompt_encoder_mask_decoder"] = (
+            models_for_export["prompt_encoder_mask_decoder"],
+            prompt_encoder_mask_decoder_onnx_config,
+        )
 
     return models_for_export
 

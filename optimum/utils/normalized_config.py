@@ -109,6 +109,11 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
         return super().__getattr__(attr_name)
 
 
+Pix2StructNormalizedTextConfig = NormalizedTextAndVisionConfig.with_args(
+    text_config="text_config", vision_config="vision_config"
+)
+
+
 class NormalizedEncoderDecoderConfig(NormalizedConfig):
     ENCODER_NORMALIZED_CONFIG_CLASS = None
     DECODER_NORMALIZED_CONFIG_CLASS = None
@@ -206,6 +211,7 @@ class NormalizedConfigManager:
         "blenderbot": BartLikeNormalizedTextConfig,
         "blenderbot_small": BartLikeNormalizedTextConfig,
         "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
+        "falcon": NormalizedTextConfig.with_args(num_layers="num_hidden_layers", num_attention_heads="num_kv_heads"),
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "cvt": NormalizedVisionConfig,
@@ -215,6 +221,7 @@ class NormalizedConfigManager:
         "distilbert": NormalizedTextConfig.with_args(num_attention_heads="n_heads", hidden_size="dim"),
         "donut-swin": NormalizedVisionConfig,
         "electra": NormalizedTextConfig,
+        "encoder-decoder": NormalizedEncoderDecoderConfig,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt-bigcode": GPT2LikeNormalizedTextConfig,
         "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
@@ -230,7 +237,7 @@ class NormalizedConfigManager:
         "nystromformer": NormalizedTextConfig,
         "opt": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
-        "pix2struct": NormalizedVisionConfig,
+        "pix2struct": Pix2StructNormalizedTextConfig,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,

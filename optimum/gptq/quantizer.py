@@ -41,6 +41,7 @@ if is_accelerate_available():
     from accelerate.hooks import remove_hook_from_module
 
 if is_auto_gptq_available():
+    from auto_gptq import exllama_set_max_input_length
     from auto_gptq.modeling._utils import autogptq_post_init
     from auto_gptq.quantization import GPTQ
     from auto_gptq.utils.import_utils import dynamically_import_QuantLinear
@@ -58,8 +59,8 @@ class GPTQQuantizer(object):
         bits: int,
         dataset: Optional[Union[List[str], str]] = None,
         group_size: int = 128,
-        damp_percent: float = 0.01,
-        desc_act: bool = True,
+        damp_percent: float = 0.1,
+        desc_act: bool = False,
         sym: bool = True,
         true_sequential: bool = True,
         use_cuda_fp16: bool = False,
@@ -69,6 +70,7 @@ class GPTQQuantizer(object):
         batch_size: int = 1,
         pad_token_id: Optional[int] = None,
         disable_exllama: bool = False,
+        max_input_length: Optional[int] = None,
         *args,
         **kwargs,
     ):
@@ -81,9 +83,9 @@ class GPTQQuantizer(object):
                 in GPTQ paper ['wikitext2','c4','c4-new','ptb','ptb-new'].
             group_size (int, defaults to 128):
                 The group size to use for quantization. Recommended value is 128 and -1 uses per-column quantization.
-            damp_percent (`float`, defaults to `0.01`):
-                The percent of the average Hessian diagonal to use for dampening, recommended value is 0.01.
-            desc_act (`bool`, defaults to `True`):
+            damp_percent (`float`, defaults to `0.1`):
+                The percent of the average Hessian diagonal to use for dampening, recommended value is 0.1.
+            desc_act (`bool`, defaults to `False`):
                 Whether to quantize columns in order of decreasing activation size.
                 Setting it to False can significantly speed up inference but the perplexity may become slightly worse.
                 Also known as act-order.
@@ -107,6 +109,9 @@ class GPTQQuantizer(object):
                 The pad token id. Needed to prepare the dataset when `batch_size` > 1.
             disable_exllama (`bool`, defaults to `False`):
                 Whether to use exllama backend. Only works with `bits` = 4.
+            max_input_length (`Optional[int]`, defaults to `None`):
+                The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
+                It is specific to the exllama backend with act-order.
         """
 
         self.bits = bits
@@ -123,9 +128,11 @@ class GPTQQuantizer(object):
         self.batch_size = batch_size
         self.pad_token_id = pad_token_id
         self.disable_exllama = disable_exllama
+        self.max_input_length = max_input_length
+        self.quant_method = QuantizationMethod.GPTQ
 
-        if self.bits not in [2, 4, 6, 8]:
-            raise ValueError("only support quantize to [2,4,6,8] bits.")
+        if self.bits not in [2, 3, 4, 8]:
+            raise ValueError("only support quantize to [2,3,4,8] bits.")
         if self.group_size != -1 and self.group_size <= 0:
             raise ValueError("group_size must be greater than 0 or equal to -1")
         if not (0 < self.damp_percent < 1):
@@ -439,6 +446,12 @@ class GPTQQuantizer(object):
                     "Found modules on cpu/disk. Using Exllama backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
                 )
                 self.disable_exllama = True
+            elif self.desc_act:
+                logger.warning(
+                    "Using Exllama backend with act_order will reorder the weights offline, thus you will not be able to save the model with the right weights."
+                    "Setting `disable_exllama=True`. You should only use Exllama backend with act_order for inference. "
+                )
+                self.disable_exllama = True
         # Step 4: Pack the model at the end (Replacing the layers)
         self.pack_model(model=model, quantizers=quantizers)
 
@@ -471,7 +484,15 @@ class GPTQQuantizer(object):
                     "You can deactivate exllama backend by setting `disable_exllama=True` in the quantization config object"
                 )
 
-        return autogptq_post_init(model, use_act_order=self.desc_act)
+        class StoreAttr(object):
+            pass
+
+        model.quantize_config = StoreAttr()
+        model.quantize_config.desc_act = self.desc_act
+        model = autogptq_post_init(model, use_act_order=self.desc_act)
+        if self.desc_act and not self.disable_exllama and self.max_input_length is not None:
+            model = exllama_set_max_input_length(model, self.max_input_length)
+        return model
 
     def pack_model(
         self,
@@ -540,7 +561,6 @@ class GPTQQuantizer(object):
             )
 
         os.makedirs(save_dir, exist_ok=True)
-        model = model.to("cpu")
         # save model and config
         accelerator = Accelerator()
         accelerator.save_model(model, save_dir, max_shard_size=max_shard_size, safe_serialization=safe_serialization)
@@ -560,6 +580,7 @@ def load_quantized_model(
     offload_buffers: Optional[str] = None,
     offload_state_dict: bool = False,
     disable_exllama: bool = False,
+    max_input_length: Optional[int] = None,
 ):
     """
     Load quantized weights from the save_folder into the converted model and dispatch the weights according to the device_map.
@@ -593,7 +614,10 @@ def load_quantized_model(
             the weight of the CPU state dict + the biggest shard does not fit. Will default to `True` if the device map
             picked contains `"disk"` values.
         disable_exllama (`bool`, defaults to `False`):
-                Whether to use exllama backend. Only works with `bits` = 4.
+            Whether to use exllama backend. Only works with `bits` = 4.
+        max_input_length (`Optional[int]`, defaults to `None`):
+            The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
+            It is specific to the exllama backend with act-order.
 
     Returns:
         `nn.Module`: The quantized model
@@ -615,6 +639,7 @@ def load_quantized_model(
         quantize_config_dict = json.load(f)
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
     quantizer.disable_exllama = disable_exllama
+    quantizer.max_input_length = max_input_length
 
     model = quantizer.convert_model(model)
 

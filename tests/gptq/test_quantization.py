@@ -18,7 +18,7 @@ import unittest
 
 import torch
 from parameterized import parameterized
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from transformers.testing_utils import slow
 
 from optimum.gptq import GPTQQuantizer, load_quantized_model
@@ -35,7 +35,9 @@ class GPTQTest(unittest.TestCase):
     input_text = "Hello my name is"
     EXPECTED_OUTPUTS = set()
     EXPECTED_OUTPUTS.add("Hello my name is John and I am a professional photographer. I")
+    EXPECTED_OUTPUTS.add("Hello my name is John, I am a professional photographer and I")
     EXPECTED_OUTPUTS.add("Hello my name is John and I am a very good looking man.")
+    EXPECTED_OUTPUTS.add("Hello my name is John, I am a student in the University of")
 
     # this seems a little small considering that we are doing 4bit quant but we have a small model and ww don't quantize the embeddings
     EXPECTED_RELATIVE_DIFFERENCE = 1.664253062
@@ -126,14 +128,89 @@ class GPTQTest(unittest.TestCase):
             self.quantizer.save(self.quantized_model, tmpdirname)
             self.quantized_model.config.save_pretrained(tmpdirname)
             with init_empty_weights():
-                empty_model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype=torch.float16)
+                empty_model = AutoModelForCausalLM.from_config(
+                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
+                )
             empty_model.tie_weights()
-            quantized_model_from_saved = load_quantized_model(empty_model, save_folder=tmpdirname, device_map={"": 0})
+            quantized_model_from_saved = load_quantized_model(
+                empty_model, save_folder=tmpdirname, device_map={"": 0}, disable_exllama=self.disable_exllama
+            )
             self.check_inference_correctness(quantized_model_from_saved)
 
 
 class GPTQTestExllama(GPTQTest):
     disable_exllama = False
+    EXPECTED_OUTPUTS = set()
+    EXPECTED_OUTPUTS.add("Hello my name is John, I am a professional photographer and I")
+    EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
+    EXPECTED_OUTPUTS.add("Hello my name is John, I am a student in the University of")
+
+
+class GPTQTestActOrder(GPTQTest):
+    EXPECTED_OUTPUTS = set()
+    EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
+    EXPECTED_OUTPUTS.add("Hello my name is jessie and i am a very sweet and")
+    EXPECTED_OUTPUTS.add("Hello my name is nathalie, I am a young girl from")
+
+    disable_exllama = True
+    desc_act = True
+
+    def test_generate_quality(self):
+        # act_order don't work with qlinear_cuda kernel
+        pass
+
+    def test_serialization(self):
+        # act_order don't work with qlinear_cuda kernel
+        pass
+
+    def test_exllama_serialization(self):
+        """
+        Test the serialization of the model and the loading of the quantized weights with exllama kernel
+        """
+        from accelerate import init_empty_weights
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            self.quantizer.save(self.quantized_model, tmpdirname)
+            self.quantized_model.config.save_pretrained(tmpdirname)
+            with init_empty_weights():
+                empty_model = AutoModelForCausalLM.from_config(
+                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
+                )
+            empty_model.tie_weights()
+            quantized_model_from_saved = load_quantized_model(
+                empty_model, save_folder=tmpdirname, device_map={"": 0}, disable_exllama=False
+            )
+            self.check_inference_correctness(quantized_model_from_saved)
+
+    def test_exllama_max_input_length(self):
+        """
+        Test if the max_input_length works with exllama + act_order
+        """
+        from accelerate import init_empty_weights
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            self.quantizer.save(self.quantized_model, tmpdirname)
+            self.quantized_model.config.save_pretrained(tmpdirname)
+            with init_empty_weights():
+                empty_model = AutoModelForCausalLM.from_config(
+                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
+                )
+            empty_model.tie_weights()
+            quantized_model_from_saved = load_quantized_model(
+                empty_model, save_folder=tmpdirname, device_map={"": 0}, disable_exllama=False, max_input_length=4028
+            )
+
+            prompt = "I am in Paris and" * 1000
+            inp = self.tokenizer(prompt, return_tensors="pt").to(0)
+            self.assertTrue(inp["input_ids"].shape[1] > 4028)
+            with self.assertRaises(RuntimeError) as cm:
+                quantized_model_from_saved.generate(**inp, num_beams=1, min_new_tokens=3, max_new_tokens=3)
+                self.assertTrue("temp_state buffer is too small" in str(cm.exception))
+
+            prompt = "I am in Paris and" * 500
+            inp = self.tokenizer(prompt, return_tensors="pt").to(0)
+            self.assertTrue(inp["input_ids"].shape[1] < 4028)
+            quantized_model_from_saved.generate(**inp, num_beams=1, min_new_tokens=3, max_new_tokens=3)
 
 
 class GPTQUtilsTest(unittest.TestCase):

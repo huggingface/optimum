@@ -22,6 +22,7 @@ _import_structure = {
         "merge_decoders",
         "remove_duplicate_weights",
         "replace_atenops_to_gather",
+        "remove_duplicate_weights_from_tied_info",
     ],
 }
 
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
         cast_slice_nodes_inputs_to_int32,
         merge_decoders,
         remove_duplicate_weights,
+        remove_duplicate_weights_from_tied_info,
         replace_atenops_to_gather,
     )
 else:
