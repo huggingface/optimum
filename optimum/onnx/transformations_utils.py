@@ -447,7 +447,7 @@ def _find_matching_initializers(
 
             # There may be some parameters in a tied group that are not present in the ONNX. That is for example the case in encoder-decoder
             # models where a tied parameter as model.encoder.embed_tokens.weight is detected even for the decoder model.
-            for index in not_found:
+            for index in not_found[::-1]:
                 del torch_to_initializer[index]
 
             if any(len(torch_to_onnx_map["initializer_name"]) > 1 for torch_to_onnx_map in torch_to_initializer):
