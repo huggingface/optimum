@@ -29,6 +29,8 @@ from parameterized import parameterized
 from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
+from diffusers.image_processor import VaeImageProcessor as DiffusersVaeImageProcessor
+
 from optimum.onnxruntime import ORTStableDiffusionPipeline
 from optimum.onnxruntime.modeling_diffusion import (
     ORTModelTextEncoder,
@@ -40,11 +42,10 @@ from optimum.onnxruntime.modeling_diffusion import (
     ORTStableDiffusionXLImg2ImgPipeline,
     ORTStableDiffusionXLPipeline,
 )
-from optimum.utils import logging
+from optimum.pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
+import PIL
 
-
-logger = logging.get_logger()
 
 
 def _generate_inputs(batch_size=1):
@@ -65,10 +66,19 @@ def _create_image(height=128, width=128, batch_size=1, channel=3, input_type="pi
         ).resize((width, height))
     elif input_type == "np":
         image = np.random.rand(height, width, channel)
-    elif input_type == "torch":
+    elif input_type == "pt":
         image = torch.rand((channel, height, width))
 
     return [image] * batch_size
+
+
+def to_np(image):
+    if isinstance(image[0], PIL.Image.Image):
+        return np.stack([np.array(i) for i in image], axis=0)
+    elif isinstance(image, torch.Tensor):
+        return image.cpu().numpy().transpose(0, 2, 3, 1)
+    return image
+
 
 
 class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
@@ -147,7 +157,7 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
         if self.TASK == "image-to-image":
-            input_types = ["np", "pil", "torch"]
+            input_types = ["np", "pil", "pt"]
         elif self.TASK == "text-to-image":
             input_types = ["np"]
         else:
@@ -417,3 +427,39 @@ class ORTStableDiffusionXLImg2ImgPipelineTest(ORTModelTestMixin):
         inputs["image"] = _create_image(height=height, width=width, batch_size=batch_size, input_type=input_type)
         inputs["strength"] = 0.75
         return inputs
+
+
+class ImageProcessorTest(unittest.TestCase):
+
+    def test_vae_image_processor_pt(self):
+        image_processor = VaeImageProcessor(do_resize=False, do_normalize=True)
+        input_pt =  torch.stack(_create_image(height=8, width=8, batch_size=1, input_type="pt"))
+        input_np = to_np(input_pt)
+
+        for output_type in ["np", "pil"]:
+            out = image_processor.postprocess(image_processor.preprocess(input_pt), output_type=output_type)
+            out_np = to_np(out)
+            in_np = (input_np * 255).round() if output_type == "pil" else input_np
+            self.assertTrue(np.allclose(in_np, out_np, atol=1e-6))
+
+    def test_vae_image_processor_np(self):
+        image_processor = VaeImageProcessor(do_resize=False, do_normalize=True)
+        input_np = np.stack(_create_image(height=8, width=8, input_type="np"))
+        for output_type in ["np", "pil"]:
+            out = image_processor.postprocess(image_processor.preprocess(input_np), output_type=output_type)
+            out_np = to_np(out)
+            in_np = (input_np * 255).round() if output_type == "pil" else input_np
+            self.assertTrue(np.allclose(in_np, out_np, atol=1e-6))
+
+
+    def test_vae_image_processor_pil(self):
+        image_processor = VaeImageProcessor(do_resize=False, do_normalize=True)
+        input_pil = _create_image(height=8, width=8, batch_size=1, input_type="pil")
+
+        for output_type in ["np", "pil"]:
+            out = image_processor.postprocess(image_processor.preprocess(input_pil), output_type=output_type)
+            for i, o in zip(input_pil, out):
+                in_np = np.array(i)
+                out_np = to_np(out) if output_type == "pil" else (to_np(out) * 255).round()
+                self.assertTrue(np.allclose(in_np, out_np, atol=1e-6))
+

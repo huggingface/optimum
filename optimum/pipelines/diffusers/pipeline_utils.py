@@ -96,8 +96,9 @@ class VaeImageProcessor(DiffusersVaeImageProcessor):
         """
         supported_formats = (PIL.Image.Image, np.ndarray, torch.Tensor)
 
+        do_convert_grayscale = getattr(self.config, "do_convert_grayscale", False)
         # Expand the missing dimension for 3-dimensional pytorch tensor or numpy array that represents grayscale image
-        if self.config.do_convert_grayscale and isinstance(image, (torch.Tensor, np.ndarray)) and image.ndim == 3:
+        if do_convert_grayscale and isinstance(image, (torch.Tensor, np.ndarray)) and image.ndim == 3:
             if isinstance(image, torch.Tensor):
                 # if image is a pytorch tensor could have 2 possible shapes:
                 #    1. batch x height x width: we should insert the channel dimension at position 1
@@ -120,10 +121,11 @@ class VaeImageProcessor(DiffusersVaeImageProcessor):
             raise ValueError(
                 f"Input is in incorrect format: {[type(i) for i in image]}. Currently, we only support {', '.join(supported_formats)}"
             )
+
         if isinstance(image[0], PIL.Image.Image):
             if self.config.do_convert_rgb:
                 image = [self.convert_to_rgb(i) for i in image]
-            elif self.config.do_convert_grayscale:
+            elif do_convert_grayscale:
                 image = [self.convert_to_grayscale(i) for i in image]
             if self.config.do_resize:
                 height, width = self.get_height_width(image[0], height, width)
@@ -135,6 +137,10 @@ class VaeImageProcessor(DiffusersVaeImageProcessor):
                 image = np.concatenate(image, axis=0) if image[0].ndim == 4 else np.stack(image, axis=0)
             else:
                 image = self.reshape(np.concatenate(image, axis=0) if image[0].ndim == 4 else np.stack(image, axis=0))
+
+            if do_convert_grayscale and image.ndim == 3:
+                image = np.expand_dims(image, 1)
+
             # don't need any preprocess if the image is latents
             if image.shape[1] == 4:
                 return image
@@ -156,7 +162,7 @@ class VaeImageProcessor(DiffusersVaeImageProcessor):
         if do_normalize:
             image = self.normalize(image)
 
-        if self.config.do_binarize:
+        if getattr(self.config, "do_binarize", False):
             image = self.binarize(image)
 
         return image
