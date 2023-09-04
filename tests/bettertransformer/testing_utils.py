@@ -34,7 +34,6 @@ MODELS_DICT = {
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blip-2": "hf-internal-testing/tiny-random-Blip2Model",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
-    "falcon": "Rocketknight1/tiny-random-falcon-7b",
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip_text_model": "hf-internal-testing/tiny-random-clip-zero-shot-image-classification",  # with quick_gelu
     "clip": "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",  # with gelu
@@ -44,6 +43,7 @@ MODELS_DICT = {
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "ernie": "hf-internal-testing/tiny-random-ErnieModel",
+    "falcon": "Rocketknight1/tiny-random-falcon-7b",
     "fsmt": "hf-internal-testing/tiny-random-FSMTModel",
     "gpt2": "hf-internal-testing/tiny-random-GPT2Model",
     # NOTE: this tiny model does not use attention_softmax_in_fp32=True (contrary to e.g. starcoder)

@@ -916,6 +916,9 @@ def falcon_forward(
     # 3 x [batch_size, seq_length, num_heads, head_dim]
     (query_layer, key_layer, value_layer) = self._split_heads(fused_qkv)
 
+    if output_attentions is True:
+        raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
     batch_size, query_length, _, _ = query_layer.shape
 
     query_layer = query_layer.transpose(1, 2).reshape(batch_size * self.num_heads, query_length, self.head_dim)
@@ -949,9 +952,19 @@ def falcon_forward(
     value_layer_ = value_layer.reshape(batch_size, num_kv_heads, -1, self.head_dim)
 
     if alibi is None:
-        attn_output = torch.nn.functional.scaled_dot_product_attention(
-            query_layer_, key_layer_, value_layer_, attention_mask_float, 0.0, is_causal=False
-        )
+        if batch_size == 1 or self.training:
+            if query_length > 1:
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    query_layer_, key_layer_, value_layer_, attn_mask=None, dropout_p=0.0, is_causal=True
+                )
+            else:
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    query_layer_, key_layer_, value_layer_, attn_mask=None, dropout_p=0.0, is_causal=False
+                )
+        else:
+            attn_output = torch.nn.functional.scaled_dot_product_attention(
+                query_layer_, key_layer_, value_layer_, attention_mask_float, 0.0, is_causal=False
+            )
 
         attn_output = attn_output.view(batch_size, self.num_heads, query_length, self.head_dim)
         attn_output = attn_output.permute(0, 2, 1, 3)

@@ -41,9 +41,9 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         "gptj",
         "gpt_neo",
         "gpt_neox",
+        "falcon",
         "llama",
         "opt",
-        "falcon",
     ]
 
     FULL_GRID = {

@@ -19,7 +19,6 @@ from transformers.models.bart.modeling_bart import BartAttention
 from transformers.models.blenderbot.modeling_blenderbot import BlenderbotAttention
 from transformers.models.bloom.modeling_bloom import BloomAttention
 from transformers.models.codegen.modeling_codegen import CodeGenAttention
-from transformers.models.falcon.modeling_falcon import FalconAttention
 from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
 from transformers.models.gpt_bigcode.modeling_gpt_bigcode import GPTBigCodeAttention
 from transformers.models.gpt_neo.modeling_gpt_neo import GPTNeoSelfAttention
@@ -44,6 +43,12 @@ if check_if_transformers_greater("4.31"):
     from transformers.models.bark.modeling_bark import BarkSelfAttention
 else:
     from ...utils.dummy_bettertransformer_objects import BarkSelfAttention
+
+if check_if_transformers_greater("4.32"):
+    from transformers.models.falcon.modeling_falcon import FalconAttention
+else:
+    from ...utils.dummy_bettertransformer_objects import FalconAttention
+
 
 from .attention import (
     bark_wrapped_scaled_dot_product,
