@@ -293,7 +293,6 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
         self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
         self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
 
-
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_negative_prompt(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -321,7 +320,6 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
         np.random.seed(0)
         image_slice_2 = pipeline(**inputs).images[0, -3:, -3:, -1]
         self.assertTrue(np.allclose(image_slice_1, image_slice_2, atol=1e-4))
-
 
 
 class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
