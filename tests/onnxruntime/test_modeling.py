@@ -3957,8 +3957,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
-    # TODO: speech_to_text should be tested
-    SUPPORTED_ARCHITECTURES = ["vision-encoder-decoder", "trocr"]
+    SUPPORTED_ARCHITECTURES = ["vision-encoder-decoder", "trocr", "donut"]
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
@@ -4157,7 +4156,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
             "test_name": test_name,
             "model_arch": model_arch,
             "use_cache": use_cache,
-            "use_io_binding": False,
         }
         self._setup(model_args)
 
@@ -4224,6 +4222,93 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
                 f"With pkv latency: {with_pkv_timer.elapsed:.3f} ms, without pkv latency: {without_pkv_timer.elapsed:.3f} ms,"
                 f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
             )
+
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+    )
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to(
+            "cuda"
+        )
+        io_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
+            "cuda"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
+        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+
+        data = self._get_sample_image()
+        pixel_values = feature_extractor([data] * 2, return_tensors="pt").pixel_values.to("cuda")
+
+        decoder_start_token_id = onnx_model.config.decoder.bos_token_id
+        decoder_input_ids = torch.full((2, 1), decoder_start_token_id, dtype=torch.long).to("cuda")
+
+        onnx_outputs = onnx_model(pixel_values=pixel_values, decoder_input_ids=decoder_input_ids)
+        io_outputs = io_model(pixel_values=pixel_values, decoder_input_ids=decoder_input_ids)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+
+        gc.collect()
+
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+    )
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    def test_compare_generation_to_io_binding(
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
+    ):
+        if use_cache is False and use_merged is True:
+            self.skipTest("use_cache=False, use_merged=True are uncompatible")
+
+        model_args = {
+            "test_name": test_name,
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to(
+            "cuda"
+        )
+        io_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
+            "cuda"
+        )
+
+        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+
+        data = self._get_sample_image()
+        features = feature_extractor(data, return_tensors="pt").to("cuda")
+
+        onnx_outputs = onnx_model.generate(**features, num_beams=5)
+        io_outputs = io_model.generate(**features, num_beams=5)
+
+        # compare tensor outputs
+        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+
+        gc.collect()
 
 
 class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):

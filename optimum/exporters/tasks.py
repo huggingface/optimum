@@ -481,6 +481,13 @@ class TasksManager:
             onnx="DistilBertOnnxConfig",
             tflite="DistilBertTFLiteConfig",
         ),
+        "donut": supported_tasks_mapping(
+            "image-to-text",
+            "image-to-text-with-past",
+            "document-question-answering",
+            "document-question-answering-with-past",
+            onnx="VisionEncoderDecoderOnnxConfig",
+        ),
         "donut-swin": supported_tasks_mapping(
             "feature-extraction",
             onnx="DonutSwinOnnxConfig",
