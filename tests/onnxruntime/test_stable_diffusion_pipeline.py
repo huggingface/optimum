@@ -294,6 +294,36 @@ class ORTStableDiffusionXLPipelineTest(ORTModelTestMixin):
         self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
 
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_negative_prompt(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        height, width = 64, 32
+        inputs = self.generate_inputs(height=height, width=width)
+        negative_prompt = ["This is a negative prompt"]
+        np.random.seed(0)
+        image_slice_1 = pipeline(**inputs, negative_prompt=negative_prompt).images[0, -3:, -3:, -1]
+        prompt = inputs.pop("prompt")
+        embeds = []
+        for p in [prompt, negative_prompt]:
+            text_inputs = pipeline.tokenizer(
+                p,
+                padding="max_length",
+                max_length=pipeline.tokenizer.model_max_length,
+                truncation=True,
+                return_tensors="np",
+            )
+            text_inputs = text_inputs["input_ids"].astype(pipeline.text_encoder.input_dtype.get("input_ids", np.int32))
+            embeds.append(pipeline.text_encoder(text_inputs)[0])
+
+        inputs["prompt_embeds"], inputs["negative_prompt_embeds"] = embeds
+        np.random.seed(0)
+        image_slice_2 = pipeline(**inputs).images[0, -3:, -3:, -1]
+        self.assertTrue(np.allclose(image_slice_1, image_slice_2, atol=1e-4))
+
+
+
 class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
     SUPPORTED_ARCHITECTURES = [
         "stable-diffusion",
