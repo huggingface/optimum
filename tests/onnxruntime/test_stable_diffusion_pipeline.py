@@ -79,7 +79,7 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
     TASK = "text-to-image"
 
     @require_diffusers
-    def _test_load_vanilla_model_which_is_not_supported(self):
+    def test_load_vanilla_model_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["bert"], export=True)
 
@@ -110,7 +110,7 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.gpu_test
     @require_diffusers
-    def _test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         model_args = {"test_name": test_name, "model_arch": model_arch}
         self._setup(model_args)
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
@@ -125,7 +125,7 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
-    def _test_callback(self, model_arch: str):
+    def test_callback(self, model_arch: str):
         def callback_fn(step: int, timestep: int, latents: np.ndarray) -> None:
             callback_fn.has_been_called = True
             callback_fn.number_of_steps += 1
