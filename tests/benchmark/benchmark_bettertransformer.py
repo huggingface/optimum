@@ -1,14 +1,13 @@
 import argparse
 
-import numpy as np
-import pandas as pd
 import torch
 from tqdm import tqdm
 from transformers import AutoModel, AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, GenerationConfig
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.exporters import TasksManager
-
+import numpy as np
+import pandas as pd
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -60,7 +59,11 @@ def get_parser():
         "--use-mask",
         action="store_true",
     )
-    parser.add_argument("--is_decoder", action="store_true", help="Benchmark the generate method.")
+    parser.add_argument(
+        "--is_decoder",
+        action="store_true",
+        help="Benchmark the generate method."
+    )
     parser.add_argument(
         "--sweep",
         action="store_true",
@@ -312,4 +315,4 @@ if __name__ == "__main__":
     output_file.close()
     print("RESULTS:")
     df = pd.read_csv(output_name)
-    print(df.to_markdown())
+    print(df.to_markdown(index=False))
