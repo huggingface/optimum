@@ -858,3 +858,29 @@ class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             )
             for _ in range(self.num_layers)
         ]
+
+
+class FalconDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        self.num_kv_heads = 1
+        head_dim = self.hidden_size // self.num_attention_heads
+
+        past_key_shape = (
+            self.batch_size,
+            self.num_kv_heads,
+            self.sequence_length,
+            head_dim,
+        )
+        past_value_shape = (
+            self.batch_size,
+            self.num_kv_heads,
+            self.sequence_length,
+            head_dim,
+        )
+        return [
+            (
+                self.random_float_tensor(past_key_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(past_value_shape, framework=framework, dtype=float_dtype),
+            )
+            for _ in range(self.num_layers)
+        ]

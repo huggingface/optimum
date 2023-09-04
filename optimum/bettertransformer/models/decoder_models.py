@@ -44,11 +44,18 @@ if check_if_transformers_greater("4.31"):
 else:
     from ...utils.dummy_bettertransformer_objects import BarkSelfAttention
 
+if check_if_transformers_greater("4.32"):
+    from transformers.models.falcon.modeling_falcon import FalconAttention
+else:
+    from ...utils.dummy_bettertransformer_objects import FalconAttention
+
+
 from .attention import (
     bark_wrapped_scaled_dot_product,
     bart_forward,
     bloom_forward,
     codegen_wrapped_scaled_dot_product,
+    falcon_forward,
     gpt2_wrapped_scaled_dot_product,
     gpt_bigcode_forward,
     gpt_bigcode_wrapped_scaled_dot_product,
@@ -234,6 +241,26 @@ class BloomAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BloomAtte
 
     def forward(self, *args, **kwargs):
         return bloom_forward(self, *args, **kwargs)
+
+
+class FalconAttentionLayerBetterTransformer(BetterTransformerBaseLayer, FalconAttention, nn.Module):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+        super().__init__(config)
+
+        with torch.device("meta"):
+            super(BetterTransformerBaseLayer, self).__init__(config)
+
+        self.dropout_prob_attn = config.attention_dropout
+
+        self.module_mapping = None
+        submodules = ["query_key_value", "dense", "attention_dropout", "maybe_rotary"]
+        for attr in submodules:
+            setattr(self, attr, getattr(layer, attr))
+
+        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
+
+    def forward(self, *args, **kwargs):
+        return falcon_forward(self, *args, **kwargs)
 
 
 class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGenAttention, nn.Module):
