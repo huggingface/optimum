@@ -24,6 +24,7 @@ REQUIRED_PKGS = [
 ]
 
 TESTS_REQUIRE = [
+    "accelerate",
     "pytest",
     "requests",
     "parameterized",
