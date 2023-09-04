@@ -13,13 +13,14 @@
 # limitations under the License.
 import warnings
 
-from .attention import _llama_prepare_decoder_attention_mask
+from ...utils.import_utils import check_if_transformers_greater
 from .decoder_models import (
     BarkAttentionLayerBetterTransformer,
     BartAttentionLayerBetterTransformer,
     BlenderbotAttentionLayerBetterTransformer,
     BloomAttentionLayerBetterTransformer,
     CodegenAttentionLayerBetterTransformer,
+    FalconAttentionLayerBetterTransformer,
     GPT2AttentionLayerBetterTransformer,
     GPTBigCodeAttentionLayerBetterTransformer,
     GPTJAttentionLayerBetterTransformer,
@@ -48,6 +49,13 @@ from .encoder_models import (
 )
 
 
+# TODO: remove once we are much higher than 4.31
+if check_if_transformers_greater("4.31"):
+    from .attention import _llama_prepare_decoder_attention_mask
+else:
+    from ...utils.dummy_bettertransformer_objects import _llama_prepare_decoder_attention_mask
+
+
 class BetterTransformerManager:
     MODEL_MAPPING = {
         "albert": {"AlbertLayer": AlbertLayerBetterTransformer},
@@ -70,6 +78,7 @@ class BetterTransformerManager:
         "electra": {"ElectraLayer": BertLayerBetterTransformer},
         "ernie": {"ErnieLayer": BertLayerBetterTransformer},
         "fsmt": {"EncoderLayer": FSMTEncoderLayerBetterTransformer},
+        "falcon": {"FalconAttention": FalconAttentionLayerBetterTransformer},
         "gpt2": {"GPT2Attention": GPT2AttentionLayerBetterTransformer},
         "gpt_bigcode": {"GPTBigCodeAttention": GPTBigCodeAttentionLayerBetterTransformer},
         "gptj": {"GPTJAttention": GPTJAttentionLayerBetterTransformer},
@@ -143,6 +152,7 @@ class BetterTransformerManager:
         "opt",
         "pegasus",
         "t5",
+        "falcon",
     }
 
     NOT_REQUIRES_STRICT_VALIDATION = {
@@ -159,6 +169,7 @@ class BetterTransformerManager:
         "opt",
         "pegasus",
         "t5",
+        "falcon",
     }
 
     @staticmethod
