@@ -607,6 +607,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             preprocessors=preprocessors,
         )
         self.config = config
+        self.name_or_path = config.name_or_path
 
         self.onnx_paths = onnx_paths
         self.use_cache = use_cache
