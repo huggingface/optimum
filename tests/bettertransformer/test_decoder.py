@@ -25,6 +25,7 @@ from optimum.bettertransformer import BetterTransformer
 from optimum.utils import (
     BloomDummyPastKeyValuesGenerator,
     DummyPastKeyValuesGenerator,
+    FalconDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
     NormalizedConfigManager,
 )
@@ -32,7 +33,18 @@ from optimum.utils.testing_utils import grid_parameters, require_accelerate, req
 
 
 class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCase):
-    SUPPORTED_ARCH = ["bloom", "codegen", "gpt2", "gpt_bigcode", "gptj", "gpt_neo", "gpt_neox", "llama", "opt"]
+    SUPPORTED_ARCH = [
+        "bloom",
+        "codegen",
+        "gpt2",
+        "gpt_bigcode",
+        "gptj",
+        "gpt_neo",
+        "gpt_neox",
+        "llama",
+        "opt",
+        "falcon",
+    ]
 
     FULL_GRID = {
         "model_type": SUPPORTED_ARCH,
@@ -133,12 +145,15 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
             pkv_generator_class = GPTBigCodeDummyPastKeyValuesGenerator
         elif model_type == "bloom":
             pkv_generator_class = BloomDummyPastKeyValuesGenerator
+        elif model_type == "falcon":
+            pkv_generator_class = FalconDummyPastKeyValuesGenerator
         else:
             pkv_generator_class = DummyPastKeyValuesGenerator
 
         pkv_generator = pkv_generator_class(
             task="", normalized_config=normalized_config, batch_size=batch_size, sequence_length=seq_length
         )
+
         past_key_values = pkv_generator.generate(input_name="past_key_values")
 
         result_vanilla = model(input_ids=input_ids, attention_mask=attention_mask, past_key_values=past_key_values)

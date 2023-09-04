@@ -937,8 +937,7 @@ def falcon_forward(
         key_layer = torch.cat((past_key, key_layer), dim=1)
         value_layer = torch.cat((past_value, value_layer), dim=1)
 
-    _, kv_length, _ = key_layer.shape
-    if use_cache:
+    if use_cache is True:
         present = (key_layer, value_layer)
     else:
         present = None
