@@ -20,7 +20,7 @@ import numpy as np
 import PIL
 import torch
 from diffusers import ConfigMixin
-from diffusers.image_processor import VaeImageProcessor
+from diffusers.image_processor import VaeImageProcessor as DiffusersVaeImageProcessor
 from PIL import Image
 from tqdm.auto import tqdm
 
@@ -75,7 +75,7 @@ def rescale_noise_cfg(noise_cfg, noise_pred_text, guidance_rescale=0.0):
     return noise_cfg
 
 
-class OptimumVaeImageProcessor(VaeImageProcessor):
+class VaeImageProcessor(DiffusersVaeImageProcessor):
     # Adapted from diffusers.VaeImageProcessor.denormalize
     @staticmethod
     def denormalize(images: np.ndarray):

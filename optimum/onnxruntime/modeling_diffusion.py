@@ -45,7 +45,7 @@ from ..pipelines.diffusers.pipeline_stable_diffusion_img2img import StableDiffus
 from ..pipelines.diffusers.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl import StableDiffusionXLPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipelineMixin
-from ..pipelines.diffusers.pipeline_utils import OptimumVaeImageProcessor
+from ..pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from ..utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
@@ -172,7 +172,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         else:
             self.vae_scale_factor = 8
 
-        self.image_processor = OptimumVaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
+        self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
 
     @staticmethod
     def load_model(
