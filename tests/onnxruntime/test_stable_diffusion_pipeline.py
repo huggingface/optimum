@@ -17,6 +17,7 @@ import unittest
 from typing import Dict
 
 import numpy as np
+import PIL
 import pytest
 import torch
 from diffusers import (
@@ -28,8 +29,6 @@ from diffusers.utils import floats_tensor, load_image
 from parameterized import parameterized
 from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
-
-from diffusers.image_processor import VaeImageProcessor as DiffusersVaeImageProcessor
 
 from optimum.onnxruntime import ORTStableDiffusionPipeline
 from optimum.onnxruntime.modeling_diffusion import (
@@ -44,8 +43,6 @@ from optimum.onnxruntime.modeling_diffusion import (
 )
 from optimum.pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
-import PIL
-
 
 
 def _generate_inputs(batch_size=1):
@@ -78,7 +75,6 @@ def to_np(image):
     elif isinstance(image, torch.Tensor):
         return image.cpu().numpy().transpose(0, 2, 3, 1)
     return image
-
 
 
 class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
@@ -430,10 +426,9 @@ class ORTStableDiffusionXLImg2ImgPipelineTest(ORTModelTestMixin):
 
 
 class ImageProcessorTest(unittest.TestCase):
-
     def test_vae_image_processor_pt(self):
         image_processor = VaeImageProcessor(do_resize=False, do_normalize=True)
-        input_pt =  torch.stack(_create_image(height=8, width=8, batch_size=1, input_type="pt"))
+        input_pt = torch.stack(_create_image(height=8, width=8, batch_size=1, input_type="pt"))
         input_np = to_np(input_pt)
 
         for output_type in ["np", "pil"]:
@@ -451,7 +446,6 @@ class ImageProcessorTest(unittest.TestCase):
             in_np = (input_np * 255).round() if output_type == "pil" else input_np
             self.assertTrue(np.allclose(in_np, out_np, atol=1e-6))
 
-
     def test_vae_image_processor_pil(self):
         image_processor = VaeImageProcessor(do_resize=False, do_normalize=True)
         input_pil = _create_image(height=8, width=8, batch_size=1, input_type="pil")
@@ -462,4 +456,3 @@ class ImageProcessorTest(unittest.TestCase):
                 in_np = np.array(i)
                 out_np = to_np(out) if output_type == "pil" else (to_np(out) * 255).round()
                 self.assertTrue(np.allclose(in_np, out_np, atol=1e-6))
-
