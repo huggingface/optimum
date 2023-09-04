@@ -337,8 +337,6 @@ def _get_weights_to_tie(tied_params: List[List[str]], torch_model: "nn.Module") 
             module = recurse_getattr(torch_model, module_name)
             if module.__class__.__name__ not in SUPPORTED_DEDUPLICATION_OPS:
                 skip_group = True
-            if len(params) != 2:
-                skip_group = True
 
             tied_params_with_op[-1][param_name] = module.__class__.__name__
 
@@ -439,10 +437,20 @@ def _find_matching_initializers(
 
         if len(intersect) == 0:
             logger.warning("Found different candidate ONNX initializers (likely duplicate) for the tied weights:")
-            for torch_to_onnx_map in torch_to_initializer:
-                logger.warning(f"\t{torch_to_onnx_map['param_name']}: {torch_to_onnx_map['initializer_name']}")
+            not_found = []
+            for i, torch_to_onnx_map in enumerate(torch_to_initializer):
+                warn_string = f"\t{torch_to_onnx_map['param_name']}: {torch_to_onnx_map['initializer_name']}"
+                if len(torch_to_onnx_map["initializer_name"]) == 0:
+                    not_found.append(i)
+                    warn_string += " --> ignored (may be a parameter from a part of the model not exported)"
+                logger.warning(warn_string)
 
-            if any(len(torch_to_onnx_map["initializer_name"]) != 1 for torch_to_onnx_map in torch_to_initializer):
+            # There may be some parameters in a tied group that are not present in the ONNX. That is for example the case in encoder-decoder
+            # models where a tied parameter as model.encoder.embed_tokens.weight is detected even for the decoder model.
+            for index in not_found:
+                del torch_to_initializer[index]
+
+            if any(len(torch_to_onnx_map["initializer_name"]) > 1 for torch_to_onnx_map in torch_to_initializer):
                 logger.warning(
                     f"Could not find unique initializers corresponding to the torch tied parameters {params}. Deduplication will be skipped for this group of weights although it should be done. Please open an issue in Optimum repository."
                 )
@@ -481,7 +489,7 @@ def _deduplicate_gather_matmul(
 
         if ref_idx is None:
             logger.warning(
-                f"Could not deduplicate initializers corresponding to the torch tied parameters {params} as an initializer used only by Gather nodes could not found. Skipping deduplication."
+                f"Could not deduplicate initializers corresponding to the torch tied parameters {params} as an initializer used only by Gather nodes could not be found. Skipping deduplication."
             )
             continue
 
@@ -500,6 +508,10 @@ def _deduplicate_gather_matmul(
             initializer = model.graph.initializer[initializer_idx]
             initializer_type = initializer.data_type
             initializer_data = numpy_helper.to_array(initializer)
+
+            # Several torch parameters may correspond to the same initializer.
+            if initializer_name == ref_initializer_name:
+                continue
 
             if ref_type == initializer_type and np.array_equal(ref_data, initializer_data):
                 # The duplicate initializer are exactly identical

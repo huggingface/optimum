@@ -85,9 +85,10 @@ def remove_duplicate_weights_from_tied_info(
     """
     tied_params_with_op, tied_groups_to_tie, tied_groups_ignored = _get_weights_to_tie(tied_params, torch_model)
 
-    logger.info(
-        f"The groups of weights {tied_groups_ignored} will not be tied as either already tied or tying is not implemented."
-    )
+    if len(tied_groups_ignored) >= 1:
+        logger.info(
+            f"The groups of weights {tied_groups_ignored} will not be tied as either already tied or tying is not implemented."
+        )
 
     initializer_name_to_idx = {}
     for idx, initializer in enumerate(onnx_model.graph.initializer):
@@ -259,6 +260,7 @@ def merge_decoders(
         outputs=decoder.graph.output,
         initializer=decoder_initializers,
     )
+
     with_past_branch = onnx.helper.make_graph(
         nodes=decoder_with_past.graph.node,
         name="with_past",
