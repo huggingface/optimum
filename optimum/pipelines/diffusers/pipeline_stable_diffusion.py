@@ -380,32 +380,33 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             image = latents
             has_nsfw_concept = None
         else:
-            latents = 1 / self.vae_decoder.config.get("scaling_factor", 0.18215) * latents
+            latents /= self.vae_decoder.config.get("scaling_factor", 0.18215)
             # it seems likes there is a strange result for using half-precision vae decoder if batchsize>1
             image = np.concatenate(
                 [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
             )
-            # TODO: add image_processor
-            image = np.clip(image / 2 + 0.5, 0, 1)
-            image = image.transpose((0, 2, 3, 1))
             image, has_nsfw_concept = self.run_safety_checker(image)
 
-        if output_type == "pil":
-            image = self.numpy_to_pil(image)
+        if has_nsfw_concept is None:
+            do_denormalize = [True] * image.shape[0]
+        else:
+            do_denormalize = [not has_nsfw for has_nsfw in has_nsfw_concept]
+
+        image = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
 
         if not return_dict:
             return (image, has_nsfw_concept)
 
         return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=has_nsfw_concept)
 
-    def run_safety_checker(self, image):
+    def run_safety_checker(self, image: np.ndarray):
         if self.safety_checker is None:
             has_nsfw_concept = None
         else:
+            feature_extractor_input = self.image_processor.numpy_to_pil(image)
             safety_checker_input = self.feature_extractor(
-                self.numpy_to_pil(image), return_tensors="np"
+                feature_extractor_input, return_tensors="np"
             ).pixel_values.astype(image.dtype)
-
             images, has_nsfw_concept = [], []
             for i in range(image.shape[0]):
                 image_i, has_nsfw_concept_i = self.safety_checker(
