@@ -31,7 +31,7 @@ from diffusers import (
     StableDiffusionXLImg2ImgPipeline,
 )
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
-from diffusers.utils import CONFIG_NAME
+from diffusers.utils import CONFIG_NAME, is_invisible_watermark_available
 from huggingface_hub import snapshot_download
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
 from transformers.file_utils import add_end_docstrings
@@ -45,6 +45,7 @@ from ..pipelines.diffusers.pipeline_stable_diffusion_img2img import StableDiffus
 from ..pipelines.diffusers.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl import StableDiffusionXLPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipelineMixin
+from ..pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from ..utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
@@ -170,6 +171,8 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             self.vae_scale_factor = 2 ** (len(self.vae_decoder.config["block_out_channels"]) - 1)
         else:
             self.vae_scale_factor = 8
+
+        self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
 
     @staticmethod
     def load_model(
@@ -578,6 +581,7 @@ class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
         tokenizer_2: Optional[CLIPTokenizer] = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        add_watermarker: Optional[bool] = None,
     ):
         super().__init__(
             vae_decoder_session=vae_decoder_session,
@@ -594,10 +598,19 @@ class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
             model_save_dir=model_save_dir,
         )
 
-        # additional invisible-watermark dependency for SD XL
-        from ..pipelines.diffusers.watermark import StableDiffusionXLWatermarker
+        add_watermarker = add_watermarker if add_watermarker is not None else is_invisible_watermark_available()
 
-        self.watermark = StableDiffusionXLWatermarker()
+        if add_watermarker:
+            if not is_invisible_watermark_available():
+                raise ImportError(
+                    "`add_watermarker` requires invisible-watermark to be installed, which can be installed with `pip install invisible-watermark`."
+                )
+
+            from ..pipelines.diffusers.watermark import StableDiffusionXLWatermarker
+
+            self.watermark = StableDiffusionXLWatermarker()
+        else:
+            self.watermark = None
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
