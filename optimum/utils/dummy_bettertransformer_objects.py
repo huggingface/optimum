@@ -15,6 +15,13 @@ class BarkSelfAttention(metaclass=DummyObject):
         requires_backends(self, ["transformers_431"])
 
 
+class FalconAttention(metaclass=DummyObject):
+    _backends = ["transformers_432"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["transformers_432"])
+
+
 def _llama_prepare_decoder_attention_mask(*args, **kwargs):
     requires_backends(_llama_prepare_decoder_attention_mask, ["transformers_431"])
 
