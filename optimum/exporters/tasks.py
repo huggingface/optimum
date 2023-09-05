@@ -149,6 +149,7 @@ class TasksManager:
     # TF model loaders
     _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {}
     _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {}
+
     if is_torch_available():
         # Refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
         # In case the same task (pipeline tag) may map to several loading classes, we use a tuple and the
@@ -157,7 +158,7 @@ class TasksManager:
         # TODO: having several tasks pointing to the same auto-model class is bug prone to auto-detect the
         # task in a Hub repo that has no pipeline_tag, and no transformersInfo.pipeline_tag, as we then rely on
         # on transformersInfo["auto_model"] and this dictionary.
-        _TASKS_TO_AUTOMODELS = {
+        _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
             "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
@@ -178,14 +179,13 @@ class TasksManager:
             "audio-frame-classification": "AutoModelForAudioFrameClassification",
             "audio-xvector": "AutoModelForAudioXVector",
             "image-to-text": "AutoModelForVision2Seq",
-            "stable-diffusion": "StableDiffusionPipeline",
-            "stable-diffusion-xl": "StableDiffusionXLImg2ImgPipeline",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
 
         _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
             "stable-diffusion": "StableDiffusionPipeline",
+            "stable-diffusion-xl": "StableDiffusionXLImg2ImgPipeline",
         }
 
         _TIMM_TASKS_TO_MODEL_LOADERS = {
@@ -252,11 +252,12 @@ class TasksManager:
     _LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP = {
         "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
         "diffusers": get_model_loaders_to_tasks(_DIFFUSERS_TASKS_TO_MODEL_LOADERS),
-        "timm": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
+        "timm": get_model_loaders_to_tasks(_TIMM_TASKS_TO_MODEL_LOADERS),
     }
     _LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP = {
         "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS),
     }
+
     _CUSTOM_CLASSES = {
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
         ("pt", "pix2struct", "visual-question-answering"): ("transformers", "Pix2StructForConditionalGeneration"),
@@ -274,40 +275,6 @@ class TasksManager:
         "visual-question-answering",
         "document-question-answering",
     )
-
-    _TASKS_TO_LIBRARY = {
-        "conversational": "transformers",
-        "document-question-answering": "transformers",
-        "feature-extraction": "transformers",
-        "fill-mask": "transformers",
-        "text-generation": "transformers",
-        "text2text-generation": "transformers",
-        "text-classification": "transformers",
-        "token-classification": "transformers",
-        "translation": "transformers",
-        "multiple-choice": "transformers",
-        "object-detection": "transformers",
-        "question-answering": "transformers",
-        "image-classification": "transformers",
-        "image-segmentation": "transformers",
-        "mask-generation": "transformers",
-        "masked-im": "transformers",
-        "semantic-segmentation": "transformers",
-        "automatic-speech-recognition": "transformers",
-        "audio-classification": "transformers",
-        "audio-frame-classification": "transformers",
-        "audio-xvector": "transformers",
-        "image-to-text": "transformers",
-        "sentence-similarity": "transformers",
-        "stable-diffusion": "diffusers",
-        "stable-diffusion-xl": "diffusers",
-        "summarization": "transformers",
-        "visual-question-answering": "transformers",
-        "zero-shot-classification": "transformers",
-        "zero-shot-image-classification": "transformers",
-        "zero-shot-object-detection": "transformers",
-        "timm-image-classification": "timm",
-    }
 
     # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
@@ -1154,7 +1121,8 @@ class TasksManager:
                 parameter is useful for example for "automatic-speech-recognition", that may map to
                 AutoModelForSpeechSeq2Seq or to AutoModelForCTC.
             library (`Optional[str]`, defaults to `None`):
-                The library name of the model.
+                 The library name of the model.
+
         Returns:
             The AutoModel class corresponding to the task.
         """
@@ -1343,13 +1311,13 @@ class TasksManager:
             raise ValueError("Either a model or a model class must be provided, but none were given here.")
         target_name = model.__class__.__name__ if model is not None else model_class.__name__
         task_name = None
+        iterable = ()
         if library_name in cls._LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP:
             iterable = (cls._LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP[library_name].items(),)
         if library_name in cls._LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP:
             iterable += (cls._LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP[library_name].items(),)
         pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
         tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
-
         for auto_cls_name, task in itertools.chain.from_iterable(iterable):
             if any(
                 (
@@ -1382,11 +1350,7 @@ class TasksManager:
 
     @classmethod
     def _infer_task_from_model_name_or_path(
-        cls,
-        model_name_or_path: str,
-        subfolder: str = "",
-        revision: Optional[str] = None,
-        library_name: Optional[str] = "transformers",
+        cls, model_name_or_path: str, subfolder: str = "", revision: Optional[str] = None
     ) -> str:
         inferred_task_name = None
         is_local = os.path.isdir(os.path.join(model_name_or_path, subfolder))
@@ -1406,6 +1370,8 @@ class TasksManager:
                     if task in model_info.tags:
                         inferred_task_name = task
                         break
+            elif model_info.library_name == "timm":
+                inferred_task_name = "image-classification"
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
                 # conversational is not a supported task per se, just an alias that may map to
@@ -1420,9 +1386,13 @@ class TasksManager:
                         # transformersInfo does not always have a pipeline_tag attribute
                         class_name_prefix = ""
                         if is_torch_available():
-                            tasks_to_automodels = TasksManager._TASKS_TO_AUTOMODELS
+                            tasks_to_automodels = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP[
+                                model_info.library_name
+                            ]
                         else:
-                            tasks_to_automodels = TasksManager._TASKS_TO_TF_AUTOMODELS
+                            tasks_to_automodels = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP[
+                                model_info.library_name
+                            ]
                             class_name_prefix = "TF"
 
                         auto_model_class_name = transformers_info["auto_model"]
@@ -1458,7 +1428,7 @@ class TasksManager:
             revision (`Optional[str]`, *optional*, defaults to `None`):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
             library_name (Optional[str]`, *optional*, defaults to `transformers`):
-                Library name of the model
+                 Library name of the model
         Returns:
             `str`: The task name automatically detected from the model repo.
         """
@@ -1466,9 +1436,7 @@ class TasksManager:
         is_tf_pretrained_model = is_tf_available() and isinstance(model, TFPreTrainedModel)
         task = None
         if isinstance(model, str):
-            task = cls._infer_task_from_model_name_or_path(
-                model, subfolder=subfolder, revision=revision, library_name=library_name
-            )
+            task = cls._infer_task_from_model_name_or_path(model, subfolder=subfolder, revision=revision)
         elif is_torch_pretrained_model or is_tf_pretrained_model:
             task = cls._infer_task_from_model_or_model_class(model=model, library_name=library_name)
         elif inspect.isclass(model):
@@ -1570,6 +1538,7 @@ class TasksManager:
             # Update model_type for model
             with open(config_path) as fp:
                 model_type = json.load(fp)["architecture"]
+
             setattr(model.config, "model_type", model_type)
 
     @staticmethod
@@ -1648,7 +1617,7 @@ class TasksManager:
         model_class_name = None
         kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
 
-        if TasksManager._TASKS_TO_LIBRARY[task.replace("-with-past", "")] == "transformers":
+        if library_name == "transformers":
             config = AutoConfig.from_pretrained(model_name_or_path, **kwargs)
             model_type = config.model_type.replace("_", "-")
             # TODO: if automatic-speech-recognition is passed as task, it may map to several
@@ -1660,8 +1629,13 @@ class TasksManager:
                     model_class_name = config.architectures[0]
 
         model_class = TasksManager.get_model_class_for_task(
-            task, framework, model_type=model_type, model_class_name=model_class_name, library=library_name
+            task, framework, model_type=model_type, model_class_name=model_class_name, library_name=library_name
         )
+
+        if library_name == "timm":
+            model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
+            TasksManager.patch_model_for_export(model_name_or_path, model, subfolder, revision)
+            return model
 
         try:
             if framework == "pt":
@@ -1673,10 +1647,7 @@ class TasksManager:
                     device = torch.device("cpu")
 
                 # TODO : fix EulerDiscreteScheduler loading to enable for SD models
-                if (
-                    version.parse(torch.__version__) >= version.parse("2.0")
-                    and TasksManager._TASKS_TO_LIBRARY[task.replace("-with-past", "")] != "diffusers"
-                ):
+                if version.parse(torch.__version__) >= version.parse("2.0") and library_name != "diffusers":
                     with device:
                         # Initialize directly in the requested device, to save allocation time. Especially useful for large
                         # models to initialize on cuda device.
@@ -1694,18 +1665,6 @@ class TasksManager:
                 logger.info("Loading PyTorch model in TensorFlow before exporting.")
                 kwargs["from_pt"] = True
                 model = model_class.from_pretrained(model_name_or_path, **kwargs)
-            except OSError:
-                if framework == "pt":
-                    logger.info("Loading TensorFlow model in PyTorch before exporting.")
-                    kwargs["from_tf"] = True
-                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
-                else:
-                    logger.info("Loading PyTorch model in TensorFlow before exporting.")
-                    kwargs["from_pt"] = True
-                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
-
-        TasksManager.patch_model_for_export(model_name_or_path, model, subfolder, revision)
-
         return model
 
     @staticmethod

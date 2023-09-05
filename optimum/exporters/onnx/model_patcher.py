@@ -119,14 +119,21 @@ class ModelPatcher:
             # is of type tensor. By default, it is assumed that the output names mentioned in the ONNX config
             # match the outputs in order.
             filterd_outputs = {}
-            for name, value in outputs.items():
-                onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
-                if (
-                    onnx_output_name in config.outputs
-                    or (allow_past_in_outputs and name.startswith("past_key_values"))
-                    or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
-                ):
-                    filterd_outputs[name] = value
+            if isinstance(outputs, dict):
+                for name, value in outputs.items():
+                    onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
+                    if (
+                        onnx_output_name in config.outputs
+                        or (allow_past_in_outputs and name.startswith("past_key_values"))
+                        or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
+                    ):
+                        filterd_outputs[name] = value
+            elif isinstance(outputs, (list, tuple)):
+                outputs_list = list(config.outputs.keys())
+                dict(zip(outputs_list, outputs))
+            else:
+                name = list(config.outputs.keys())[0]
+                filterd_outputs[name] = outputs
             return filterd_outputs
 
         self.patched_forward = patched_forward
