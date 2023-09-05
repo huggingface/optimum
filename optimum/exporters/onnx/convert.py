@@ -332,23 +332,8 @@ def _run_validation(
             ref_outputs = reference_model(**copy_reference_model_inputs)
     ref_outputs_dict = {}
 
-    # This code block handles different cases of the ref_outputs input to align it with the expected
-    # format of outputs. It is common for the output type of a model to vary, such as tensor, list,
-    # tuple, etc. For Transformers models, the output is encapsulated in a ModelOutput object that
-    # contains the output names of the model. In the case of Timm classification models, the output
-    # is of type tensor. By default, it is assumed that the output names mentioned in the ONNX config
-    # match the outputs in order.
-    if isinstance(ref_outputs, dict):
-        outputs = ref_outputs.items()
-    elif isinstance(ref_outputs, (list, tuple)):
-        outputs = zip(list(config.outputs.keys()), ref_outputs)
-    else:
-        name = list(config.outputs.keys())[0]
-        ref_outputs_dict[name] = ref_outputs
-        outputs = []
-
     # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
-    for name, value in outputs:
+    for name, value in ref_outputs.items():
         # Overwriting the output name as "present" since it is the name used for the ONNX outputs
         # ("past_key_values" being taken for the ONNX inputs)
         if name == "past_key_values":
@@ -356,11 +341,9 @@ def _run_validation(
         if isinstance(value, (list, tuple)):
             onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
             value = config.flatten_output_collection_property(onnx_output_name, value)
-
-        if not isinstance(outputs, dict):
-            ref_outputs_dict[name] = value
-        else:
             ref_outputs_dict.update(value)
+        else:
+            ref_outputs_dict[name] = value
 
     onnx_input_names = [inp.name for inp in session.get_inputs()]
 
