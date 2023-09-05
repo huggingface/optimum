@@ -1629,7 +1629,7 @@ class TasksManager:
                     model_class_name = config.architectures[0]
 
         model_class = TasksManager.get_model_class_for_task(
-            task, framework, model_type=model_type, model_class_name=model_class_name, library_name=library_name
+            task, framework, model_type=model_type, model_class_name=model_class_name, library=library_name
         )
 
         if library_name == "timm":
