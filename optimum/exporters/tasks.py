@@ -1303,7 +1303,6 @@ class TasksManager:
         cls,
         model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None,
         model_class: Optional[Type] = None,
-        library_name: Optional[str] = "transformers",
     ) -> str:
         if model is not None and model_class is not None:
             raise ValueError("Either a model or a model class must be provided, but both were given here.")
@@ -1312,10 +1311,11 @@ class TasksManager:
         target_name = model.__class__.__name__ if model is not None else model_class.__name__
         task_name = None
         iterable = ()
-        if library_name in cls._LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP:
-            iterable = (cls._LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP[library_name].items(),)
-        if library_name in cls._LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP:
-            iterable += (cls._LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP[library_name].items(),)
+        for _, model_loader in cls._LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP.items():
+            iterable += (model_loader.items(),)
+        for _, model_loader in cls._LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP.items():
+            iterable += (model_loader.items(),)
+
         pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
         tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
         for auto_cls_name, task in itertools.chain.from_iterable(iterable):
@@ -1413,7 +1413,6 @@ class TasksManager:
         model: Union[str, "PreTrainedModel", "TFPreTrainedModel", Type],
         subfolder: str = "",
         revision: Optional[str] = None,
-        library_name: str = "transformers",
     ) -> str:
         """
         Infers the task from the model repo.
@@ -1427,8 +1426,6 @@ class TasksManager:
                 Face Hub, you can specify the subfolder name here.
             revision (`Optional[str]`, *optional*, defaults to `None`):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
-            library_name (Optional[str]`, *optional*, defaults to `transformers`):
-                 Library name of the model
         Returns:
             `str`: The task name automatically detected from the model repo.
         """
@@ -1438,9 +1435,9 @@ class TasksManager:
         if isinstance(model, str):
             task = cls._infer_task_from_model_name_or_path(model, subfolder=subfolder, revision=revision)
         elif is_torch_pretrained_model or is_tf_pretrained_model:
-            task = cls._infer_task_from_model_or_model_class(model=model, library_name=library_name)
+            task = cls._infer_task_from_model_or_model_class(model=model)
         elif inspect.isclass(model):
-            task = cls._infer_task_from_model_or_model_class(model_class=model, library_name=library_name)
+            task = cls._infer_task_from_model_or_model_class(model_class=model)
 
         if task is None:
             raise ValueError(f"Could not infer the task from {model}.")
