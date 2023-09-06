@@ -198,7 +198,14 @@ def get_encoder_decoder_models_for_export(
     encoder_onnx_config = config.with_behavior("encoder")
     models_for_export[ONNX_ENCODER_NAME] = (models_for_export[ONNX_ENCODER_NAME], encoder_onnx_config)
 
-    decoder_onnx_config = config.with_behavior("decoder", use_past=False)
+    if config.use_past:
+        use_present_in_outputs = True
+    else:
+        use_present_in_outputs = False
+
+    decoder_onnx_config = config.with_behavior(
+        "decoder", use_past=False, use_present_in_outputs=use_present_in_outputs
+    )
     models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], decoder_onnx_config)
 
     if config.use_past:
@@ -235,8 +242,13 @@ def get_decoder_models_for_export(
     """
     models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past)
 
+    if config.use_past:
+        use_present_in_outputs = True
+    else:
+        use_present_in_outputs = False
+
     onnx_config = config.__class__(
-        model.config, task=config.task, use_past_in_inputs=False, use_present_in_outputs=True
+        model.config, task=config.task, use_past_in_inputs=False, use_present_in_outputs=use_present_in_outputs
     )
     models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], onnx_config)
 

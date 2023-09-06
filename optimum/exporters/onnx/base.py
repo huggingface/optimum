@@ -821,17 +821,16 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             preprocessors=preprocessors,
         )
         self._behavior = behavior
-        self.override_attributes_for_behavior()
 
-    def override_attributes_for_behavior(self):
-        """Override this to specify custom attribute change for a given behavior."""
+        # Override this to specify custom attribute change for a given behavior.
         if self._behavior is ConfigBehavior.ENCODER:
             self.task = "feature-extraction"
             self.use_past_in_inputs = False
             self.use_present_in_outputs = False
         if self._behavior is ConfigBehavior.DECODER:
             self.use_past_in_inputs = self.use_past
-            self.use_present_in_outputs = True
+            if use_present_in_outputs is None:
+                self.use_present_in_outputs = True
 
     def with_behavior(
         self,
@@ -839,6 +838,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         use_past: bool = False,
+        use_present_in_outputs: Optional[bool] = None,
     ) -> "OnnxSeq2SeqConfigWithPast":
         """
         Creates a copy of the current OnnxConfig but with a different `ConfigBehavior` and `use_past` value.
@@ -866,6 +866,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past=use_past,
             behavior=behavior,
             preprocessors=self._preprocessors,
+            use_present_in_outputs=use_present_in_outputs,
         )
 
     @property
