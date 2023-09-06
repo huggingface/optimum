@@ -1187,38 +1187,11 @@ class TasksManager:
             return getattr(loaded_library, model_class_name)
 
     @staticmethod
-    def determine_framework(
+    def get_model_files(
         model_name_or_path: Union[str, Path],
         subfolder: str = "",
-        framework: Optional[str] = None,
         cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
-    ) -> str:
-        """
-        Determines the framework to use for the export.
-
-        The priority is in the following order:
-            1. User input via `framework`.
-            2. If local checkpoint is provided, use the same framework as the checkpoint.
-            3. If model repo, try to infer the framework from the cache if available, else from the Hub.
-            4. If could not infer, use available framework in environment, with priority given to PyTorch.
-
-        Args:
-            model_name_or_path (`Union[str, Path]`):
-                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
-                containing a model.
-            subfolder (`str`, *optional*, defaults to `""`):
-                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
-                Face Hub, you can specify the subfolder name here.
-            framework (`Optional[str]`, *optional*):
-                The framework to use for the export. See above for priority if none provided.
-
-        Returns:
-            `str`: The framework to use for the export.
-
-        """
-        if framework is not None:
-            return framework
-
+    ):
         request_exception = None
         full_model_path = Path(model_name_or_path) / subfolder
         if full_model_path.is_dir():
@@ -1251,6 +1224,43 @@ class TasksManager:
                         for dirpath, _, filenames in os.walk(cached_path)
                         for file in filenames
                     ]
+
+        return all_files, request_exception
+
+    @staticmethod
+    def determine_framework(
+        model_name_or_path: Union[str, Path],
+        subfolder: str = "",
+        framework: Optional[str] = None,
+        cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
+    ) -> str:
+        """
+        Determines the framework to use for the export.
+
+        The priority is in the following order:
+            1. User input via `framework`.
+            2. If local checkpoint is provided, use the same framework as the checkpoint.
+            3. If model repo, try to infer the framework from the cache if available, else from the Hub.
+            4. If could not infer, use available framework in environment, with priority given to PyTorch.
+
+        Args:
+            model_name_or_path (`Union[str, Path]`):
+                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
+                containing a model.
+            subfolder (`str`, *optional*, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            framework (`Optional[str]`, *optional*):
+                The framework to use for the export. See above for priority if none provided.
+
+        Returns:
+            `str`: The framework to use for the export.
+
+        """
+        if framework is not None:
+            return framework
+
+        all_files, request_exception = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
 
         pt_weight_name = Path(WEIGHTS_NAME).stem
         pt_weight_extension = Path(WEIGHTS_NAME).suffix
@@ -1450,6 +1460,7 @@ class TasksManager:
         model_name_or_path: str,
         subfolder: str = "",
         revision: Optional[str] = None,
+        cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
     ):
         """
         Infers the library from the model repo.
@@ -1470,22 +1481,37 @@ class TasksManager:
         library_name = None
 
         full_model_path = Path(model_name_or_path) / subfolder
-        if full_model_path.is_dir():
-            all_files = list(full_model_path.glob("**/*"))
+
+        if not full_model_path.is_dir():
+            model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
+            library_name = getattr(model_info, "library_name", None)
+
+        if library_name is None:
+            all_files, _ = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
+
             if "model_index.json" in all_files:
                 library_name = "diffusers"
-            if "config.json" in all_files:
-                with open("config.json") as fp:
-                    cfg = json.load(fp)
+            elif "config.json" in all_files:
+                config_path = full_model_path / "config.json"
 
-                if "pretrained_cfg" in cfg:
+                if not full_model_path.is_dir():
+                    config_path = huggingface_hub.hf_hub_download(
+                        model_name_or_path, "config.json", subfolder=subfolder, revision=revision
+                    )
+
+                model_config = PretrainedConfig.from_json_file(config_path)
+
+                if hasattr(model_config, "pretrained_cfg"):
                     library_name = "timm"
-                elif "_diffusers_version" in cfg:
+                elif hasattr(model_config, "_diffusers_version"):
                     library_name = "diffusers"
                 else:
                     library_name = "transformers"
-        else:
-            library_name = huggingface_hub.model_info(model_name_or_path, revision=revision).library_name
+
+        if library_name is None:
+            ValueError(
+                "The library_name could not be automatically inferred. If using the command-line, please provide the argument --library (transformers,diffusers,timm)!"
+            )
 
         return library_name
 
