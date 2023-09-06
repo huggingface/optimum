@@ -48,6 +48,7 @@ _pydantic_available = importlib.util.find_spec("pydantic") is not None
 _accelerate_available = importlib.util.find_spec("accelerate") is not None
 _diffusers_available = importlib.util.find_spec("diffusers") is not None
 _auto_gptq_available = importlib.util.find_spec("auto_gptq") is not None
+_timm_available = importlib.util.find_spec("diffusers") is not None
 
 torch_version = None
 if is_torch_available():
@@ -100,6 +101,10 @@ def is_accelerate_available():
 
 def is_diffusers_available():
     return _diffusers_available
+
+
+def is_timm_available():
+    return _timm_available
 
 
 def is_auto_gptq_available():

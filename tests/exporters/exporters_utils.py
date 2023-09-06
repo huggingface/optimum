@@ -95,12 +95,6 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
-    "resnext26ts": "timm/resnext26ts.ra2_in1k",
-    "resnext50-32x4d": "timm/resnext50_32x4d.tv2_in1k",
-    "resnext50d-32x4d": "timm/resnext50d_32x4d.bt_in1k",
-    "resnext101-32x4d": "timm/resnext101_32x4d.gluon_in1k",
-    "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
-    "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
     # "sam": "fxmarty/sam-vit-tiny-random",  # TODO: re-enable once PyTorch 2.1 is released, see https://github.com/huggingface/optimum/pull/1301
@@ -256,4 +250,13 @@ TENSORFLOW_EXPORT_MODELS = {
 PYTORCH_STABLE_DIFFUSION_MODEL = {
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
+}
+
+PYTORCH_TIMM_MODEL = {
+    "resnext26ts": "timm/resnext26ts.ra2_in1k",
+    "resnext50-32x4d": "timm/resnext50_32x4d.tv2_in1k",
+    "resnext50d-32x4d": "timm/resnext50d_32x4d.bt_in1k",
+    "resnext101-32x4d": "timm/resnext101_32x4d.gluon_in1k",
+    "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
+    "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
 }
