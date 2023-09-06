@@ -173,6 +173,7 @@ def main_export(
     fn_get_submodels: Optional[Callable] = None,
     use_subprocess: bool = False,
     _variant: str = "default",
+    library_name: Optional[str] = None,
     **kwargs_shapes,
 ):
     """
@@ -249,6 +250,9 @@ def main_export(
             `if __name__ == "__main__":` block.
         _variant (`str`, defaults to `default`):
             Specify the variant of the ONNX export to use.
+        library_name (`Optional[str]`, defaults to `None`):
+            The library of the model(`"tansformers"` or `"diffusers"` or `"timm"`). If not provided, will attempt to automatically detect
+            the library name for the checkpoint.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -290,6 +294,9 @@ def main_export(
     task = TasksManager.map_from_synonym(task)
 
     framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
+    library_name = TasksManager.infer_library_from_model(
+        model_name_or_path, subfolder=subfolder, library_name=library_name
+    )
 
     # get the shapes to be used to generate dummy inputs
     input_shapes = {}
@@ -325,6 +332,7 @@ def main_export(
         framework=framework,
         torch_dtype=torch_dtype,
         device=device,
+        library_name=library_name,
     )
 
     custom_architecture = False
@@ -577,6 +585,7 @@ def main():
         trust_remote_code=args.trust_remote_code,
         pad_token_id=args.pad_token_id,
         for_ort=args.for_ort,
+        library_name=args.library_name,
         **input_shapes,
     )
 

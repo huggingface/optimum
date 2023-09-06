@@ -1461,6 +1461,7 @@ class TasksManager:
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
+        library_name: str = None,
     ):
         """
         Infers the library from the model repo.
@@ -1474,11 +1475,15 @@ class TasksManager:
                 Face Hub, you can specify the subfolder name here.
             revision (`Optional[str]`, *optional*, defaults to `None`):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
-
+            cache_dir (`Optional[str]`, *optional*):
+                Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            library_name (`Optional[str]`, *optional*):
+                 The library name of the model.
         Returns:
             `str`: The library name automatically detected from the model repo.
         """
-        library_name = None
+        if library_name is not None:
+            return library_name
 
         full_model_path = Path(model_name_or_path) / subfolder
 
@@ -1522,6 +1527,8 @@ class TasksManager:
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
         subfolder: str = "",
         revision: Optional[str] = None,
+        cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
+        library_name: str = None,
     ):
         """
         Updates the model for export. This function is suitable to make required changes to the models from different
@@ -1538,8 +1545,14 @@ class TasksManager:
                 Face Hub, you can specify the subfolder name here.
             revision (`Optional[str]`, *optional*, defaults to `None`):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+            cache_dir (`Optional[str]`, *optional*):
+                Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            library_name (`Optional[str]`, *optional*)::
+                 The library name of the model.
         """
-        library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
+        library_name = TasksManager.infer_library_from_model(
+            model_name_or_path, subfolder, revision, cache_dir, library_name
+        )
 
         full_model_path = Path(model_name_or_path) / subfolder
         is_local = full_model_path.is_dir()
@@ -1596,6 +1609,7 @@ class TasksManager:
         cache_dir: Optional[str] = None,
         torch_dtype: Optional["torch.dtype"] = None,
         device: Optional[Union["torch.device", str]] = None,
+        library_name: str = None,
         **model_kwargs,
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
         """
@@ -1623,6 +1637,9 @@ class TasksManager:
                 Device to initialize the model on. PyTorch-only argument. For PyTorch, defaults to "cpu".
             model_kwargs (`Dict[str, Any]`, *optional*):
                 Keyword arguments to pass to the model `.from_pretrained()` method.
+            library_name (`Optional[str]`, *optional*):
+                 The library name of the model. See `TasksManager.infer_library_from_model` for the priority should
+                none be provided.
 
         Returns:
             The instance of the model.
@@ -1634,7 +1651,9 @@ class TasksManager:
         if task == "auto":
             task = TasksManager.infer_task_from_model(model_name_or_path, subfolder=subfolder, revision=revision)
 
-        library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
+        library_name = TasksManager.infer_library_from_model(
+            model_name_or_path, subfolder, revision, cache_dir, library_name
+        )
 
         model_type = None
         model_class_name = None
@@ -1657,7 +1676,9 @@ class TasksManager:
 
         if library_name == "timm":
             model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
-            TasksManager.standardize_model_attributes(model_name_or_path, model, subfolder, revision)
+            TasksManager.standardize_model_attributes(
+                model_name_or_path, model, subfolder, revision, cache_dir, library_name
+            )
             return model
 
         try:
