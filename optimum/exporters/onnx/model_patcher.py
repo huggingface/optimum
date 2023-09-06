@@ -132,6 +132,15 @@ class ModelPatcher:
                 outputs_list = list(config.outputs.keys())
                 dict(zip(outputs_list, outputs))
             else:
+                if len(config.outputs) > 1:
+                    num_outputs = len(config.outputs)
+                    outputs_str = ", ".join(config.outputs.keys())
+                    raise ValueError(
+                        f"config.outputs should have only one outputs, but it has {num_outputs} keys: {outputs_str}"
+                    )
+                else:
+                    name = list(config.outputs.keys())[0]
+                    filterd_outputs[name] = outputs
                 name = list(config.outputs.keys())[0]
                 filterd_outputs[name] = outputs
             return filterd_outputs

@@ -1103,7 +1103,7 @@ class TasksManager:
         framework: str = "pt",
         model_type: Optional[str] = None,
         model_class_name: Optional[str] = None,
-        library: Optional[str] = "transformers",
+        library: str = "transformers",
     ) -> Type:
         """
         Attempts to retrieve an AutoModel class from a task name.
@@ -1120,7 +1120,7 @@ class TasksManager:
                 A model class name, allowing to override the default class that would be detected for the task. This
                 parameter is useful for example for "automatic-speech-recognition", that may map to
                 AutoModelForSpeechSeq2Seq or to AutoModelForCTC.
-            library (`Optional[str]`, defaults to `None`):
+            library (`str`, defaults to `transformers`):
                  The library name of the model.
 
         Returns:
@@ -1434,7 +1434,7 @@ class TasksManager:
             subfolder (`str`, *optional*, defaults to `""`):
                 In case the model files are located inside a subfolder of the model directory / repo on the Hugging
                 Face Hub, you can specify the subfolder name here.
-            revision (`Optional[str]`, *optional*, defaults to `None`):
+            revision (`Optional[str]`,  defaults to `None`):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
         Returns:
             `str`: The task name automatically detected from the model repo.
@@ -1516,7 +1516,7 @@ class TasksManager:
         return library_name
 
     @classmethod
-    def patch_model_for_export(
+    def standardize_model_attributes(
         cls,
         model_name_or_path: Union[str, Path],
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
@@ -1657,7 +1657,7 @@ class TasksManager:
 
         if library_name == "timm":
             model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
-            TasksManager.patch_model_for_export(model_name_or_path, model, subfolder, revision)
+            TasksManager.standardize_model_attributes(model_name_or_path, model, subfolder, revision)
             return model
 
         try:
