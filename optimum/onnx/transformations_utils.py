@@ -325,9 +325,11 @@ def _get_weights_to_tie(tied_params: List[List[str]], torch_model: "nn.Module") 
     Currently, only Embedding and Linear weight sharing the same data can be tied.
     """
     SUPPORTED_DEDUPLICATION_OPS = ("Embedding", "Linear")
+    tied_params_with_op = []
     tied_groups_to_tie = []
     tied_groups_ignored = []
     for params in tied_params:
+        tied_params_with_op.append({})
         skip_group = False
         for param_name in params:
             module_name = ".".join(param_name.split(".")[:-1])
@@ -335,28 +337,28 @@ def _get_weights_to_tie(tied_params: List[List[str]], torch_model: "nn.Module") 
             module = recurse_getattr(torch_model, module_name)
             if module.__class__.__name__ not in SUPPORTED_DEDUPLICATION_OPS:
                 skip_group = True
-            if len(params) != 2:
-                skip_group = True
+
+            tied_params_with_op[-1][param_name] = module.__class__.__name__
 
         if skip_group:
             tied_groups_ignored.append(params)
         else:
             tied_groups_to_tie.append(params)
 
-    return tied_groups_to_tie, tied_groups_ignored
+    return tied_params_with_op, tied_groups_to_tie, tied_groups_ignored
 
 
 def _find_matching_initializers(
-    tied_params: List[List[str]], model: ModelProto, initializer_name_to_idx: Dict[str, int]
+    tied_params_with_op: List[Dict[str, str]], model: ModelProto, initializer_name_to_idx: Dict[str, int]
 ):
     """
     From the torch parameter names in `tied_params`, find the matching initializers
     in the ONNX model.
 
     Args:
-        tied_params (`List[List[str]]`):
+        tied_params_with_op (`List[Dict[str, str]]`):
             A list of groups of parameters that are tied, i.e. shared. For them,
-            the torch module share the same pointer.
+            the torch module share the same pointer. The dictionary points to what type of nn.Module the parameter belongs to (e.g. `Linear`).
         model (`ModelProto`):
             The model in which the initializers should be looked for.
         initializer_name_to_idx (`Dict[str, int]`):
@@ -367,9 +369,9 @@ def _find_matching_initializers(
             A mapping from a tied weight group to the list of tied parameters torch name and potentially matching initializers (several in case it could not be exactly found).
     """
     tied_groups_map = {}
-    for params in tied_params:
+    for params in tied_params_with_op:
         torch_to_initializer = []
-        for param_name in params:
+        for param_name, torch_op_name in params.items():
             # To find which initializer correspond to a torch parameter, we first look for
             # exactly matching initializer name.
             identical_initializer = False
@@ -388,10 +390,17 @@ def _find_matching_initializers(
                 )
                 identical_initializer = True
 
-            # If not found (e.g. "lm_head.weight"), we greedily search for all initializers from potentially matching node names (e.g. "lm_head").
+            # If not found (e.g. "lm_head.weight"), we greedily search for all initializers from potentially matching node names (e.g. "lm_head"),
+            # or e.g. for predictions.decoder.weight search any of *predictions/decoder*
             # This greedy approach may found more initializers than wanted.
             if not identical_initializer:
-                module_name = ".".join(param_name.split(".")[:-1])
+                module_name = "/".join(param_name.split(".")[:-1])
+
+                if param_name.endswith("weight") and torch_op_name == "Linear":
+                    module_name += "/MatMul"
+                elif param_name.endswith("bias") and torch_op_name == "Linear":
+                    module_name += "/Add"
+
                 candidate_inputs = {}
                 candidate_node_idxs = []
                 for i, node in enumerate(model.graph.node):
@@ -428,10 +437,20 @@ def _find_matching_initializers(
 
         if len(intersect) == 0:
             logger.warning("Found different candidate ONNX initializers (likely duplicate) for the tied weights:")
-            for torch_to_onnx_map in torch_to_initializer:
-                logger.warning(f"\t{torch_to_onnx_map['param_name']}: {torch_to_onnx_map['initializer_name']}")
+            not_found = []
+            for i, torch_to_onnx_map in enumerate(torch_to_initializer):
+                warn_string = f"\t{torch_to_onnx_map['param_name']}: {torch_to_onnx_map['initializer_name']}"
+                if len(torch_to_onnx_map["initializer_name"]) == 0:
+                    not_found.append(i)
+                    warn_string += " --> ignored (may be a parameter from a part of the model not exported)"
+                logger.warning(warn_string)
 
-            if any(len(torch_to_onnx_map["initializer_name"]) != 1 for torch_to_onnx_map in torch_to_initializer):
+            # There may be some parameters in a tied group that are not present in the ONNX. That is for example the case in encoder-decoder
+            # models where a tied parameter as model.encoder.embed_tokens.weight is detected even for the decoder model.
+            for index in not_found[::-1]:
+                del torch_to_initializer[index]
+
+            if any(len(torch_to_onnx_map["initializer_name"]) > 1 for torch_to_onnx_map in torch_to_initializer):
                 logger.warning(
                     f"Could not find unique initializers corresponding to the torch tied parameters {params}. Deduplication will be skipped for this group of weights although it should be done. Please open an issue in Optimum repository."
                 )
@@ -470,7 +489,7 @@ def _deduplicate_gather_matmul(
 
         if ref_idx is None:
             logger.warning(
-                f"Could not deduplicate initializers corresponding to the torch tied parameters {params} as an initializer used only by Gather nodes could not found. Skipping deduplication."
+                f"Could not deduplicate initializers corresponding to the torch tied parameters {params} as an initializer used only by Gather nodes could not be found. Skipping deduplication."
             )
             continue
 
@@ -489,6 +508,10 @@ def _deduplicate_gather_matmul(
             initializer = model.graph.initializer[initializer_idx]
             initializer_type = initializer.data_type
             initializer_data = numpy_helper.to_array(initializer)
+
+            # Several torch parameters may correspond to the same initializer.
+            if initializer_name == ref_initializer_name:
+                continue
 
             if ref_type == initializer_type and np.array_equal(ref_data, initializer_data):
                 # The duplicate initializer are exactly identical

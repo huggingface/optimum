@@ -83,13 +83,18 @@ def remove_duplicate_weights_from_tied_info(
             A list of groups of torch parameters that are tied, i.e. shared. For them,
             the torch module shares the same pointer.
     """
-    tied_groups_to_tie, tied_groups_ignored = _get_weights_to_tie(tied_params, torch_model)
+    tied_params_with_op, tied_groups_to_tie, tied_groups_ignored = _get_weights_to_tie(tied_params, torch_model)
+
+    if len(tied_groups_ignored) >= 1:
+        logger.info(
+            f"The groups of weights {tied_groups_ignored} will not be tied as either already tied or tying is not implemented."
+        )
 
     initializer_name_to_idx = {}
     for idx, initializer in enumerate(onnx_model.graph.initializer):
         initializer_name_to_idx[initializer.name] = idx
 
-    tied_groups_map = _find_matching_initializers(tied_params, onnx_model, initializer_name_to_idx)
+    tied_groups_map = _find_matching_initializers(tied_params_with_op, onnx_model, initializer_name_to_idx)
 
     onnx_model = _deduplicate_gather_matmul(onnx_model, tied_groups_to_tie, tied_groups_map, initializer_name_to_idx)
     check_and_save_model(onnx_model, save_path=save_path)
@@ -141,10 +146,17 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
                 raise e
         if save_path:
             # Overwrite.
-            save_path = str(save_path)
+            save_path = Path(save_path).as_posix()
+            external_file_name = os.path.basename(save_path) + "_data"
+            # path/to/model.onnx_data
+            external_path = os.path.join(os.path.dirname(save_path), external_file_name)
+
             if save_path.endswith(".onnx") and os.path.isfile(save_path):
                 os.remove(save_path)
-            save_path = Path(save_path).as_posix()
+            if os.path.isfile(external_path):
+                # The new model may be below the maximum protobuf size, overwritting a model that was larger. Hence this os.remove.
+                os.remove(external_path)
+
             onnx.save(model, save_path)
     elif save_path is not None:
         # path/to/model.onnx
@@ -153,10 +165,12 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
         external_file_name = os.path.basename(save_path) + "_data"
         # path/to/model.onnx_data
         external_path = os.path.join(os.path.dirname(save_path), external_file_name)
+
         if save_path.endswith(".onnx") and os.path.isfile(save_path):
             os.remove(save_path)
         if os.path.isfile(external_path):
             os.remove(external_path)
+
         onnx.save(
             model,
             save_path,
@@ -255,6 +269,7 @@ def merge_decoders(
         outputs=decoder.graph.output,
         initializer=decoder_initializers,
     )
+
     with_past_branch = onnx.helper.make_graph(
         nodes=decoder_with_past.graph.node,
         name="with_past",

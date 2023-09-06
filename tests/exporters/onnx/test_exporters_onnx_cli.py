@@ -315,7 +315,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 task += "-with-past"
 
             subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-random-t5 --task {task} {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-random-t5 --task {task} {tmpdirname} --no-post-process",
                 shell=True,
                 check=True,
             )
