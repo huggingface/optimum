@@ -1,6 +1,7 @@
-name: Exporters ONNX CLI / Python - Test
+name: Exporters ONNX CLI Timm / Python - Test
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
 

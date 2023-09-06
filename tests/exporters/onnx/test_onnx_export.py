@@ -349,7 +349,11 @@ class OnnxExportTestCase(TestCase):
 
     def test_all_models_tested(self):
         # make sure we test all models
-        missing_models_set = TasksManager._SUPPORTED_CLI_MODEL_TYPE - set(PYTORCH_EXPORT_MODELS_TINY.keys())
+        missing_models_set = (
+            TasksManager._SUPPORTED_CLI_MODEL_TYPE
+            - set(PYTORCH_EXPORT_MODELS_TINY.keys())
+            - set(PYTORCH_TIMM_MODEL.keys())
+        )
         assert "sam" in missing_models_set  # See exporters_utils.py
         if len(missing_models_set) > 1:
             self.fail(f"Not testing all models. Missing models: {missing_models_set}")
