@@ -1247,7 +1247,7 @@ class TasksManager:
             model_name_or_path (`Union[str, Path]`):
                 Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
                 containing a model.
-            subfolder (`str`, *optional*, defaults to `""`):
+            subfolder (`str`, defaults to `""`):
                 In case the model files are located inside a subfolder of the model directory / repo on the Hugging
                 Face Hub, you can specify the subfolder name here.
             framework (`Optional[str]`, *optional*):
@@ -1469,7 +1469,7 @@ class TasksManager:
             model_name_or_path (`str`):
                 The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
                 instance of a model, or a model class.
-            subfolder (`str`, *optional*, defaults to `""`):
+            subfolder (`str`, defaults to `""`):
                 In case the model files are located inside a subfolder of the model directory / repo on the Hugging
                 Face Hub, you can specify the subfolder name here.
             revision (`Optional[str]`, *optional*, defaults to `None`):
@@ -1533,7 +1533,7 @@ class TasksManager:
                 containing a model.
             model (`Union[PreTrainedModel, TFPreTrainedModel]`):
                 The instance of the model.
-            subfolder (`str`, *optional*, defaults to `""`):
+            subfolder (`str`, defaults to `""`):
                 In case the model files are located inside a subfolder of the model directory / repo on the Hugging
                 Face Hub, you can specify the subfolder name here.
             revision (`Optional[str]`, *optional*, defaults to `None`):
@@ -1607,7 +1607,7 @@ class TasksManager:
             model_name_or_path (`Union[str, Path]`):
                 Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
                 containing a model.
-            subfolder (`str`, *optional*, defaults to `""`):
+            subfolder (`str`, defaults to `""`):
                 In case the model files are located inside a subfolder of the model directory / repo on the Hugging
                 Face Hub, you can specify the subfolder name here.
             revision (`Optional[str]`, *optional*):
