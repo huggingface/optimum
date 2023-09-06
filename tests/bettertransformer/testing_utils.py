@@ -59,6 +59,7 @@ MODELS_DICT = {
     "marian": "fxmarty/tiny-marian",  # the other tiny ones have a too small max_position_embeddings
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "hf-internal-testing/tiny-random-mbart",
+    "musicgen": "hf-internal-testing/tiny-random-MusicgenForConditionalGeneration",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "prophetnet": "hirotasoshu/tiny-random-prophetnet",  # the other tiny ones have a too small max_position_embeddings

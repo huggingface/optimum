@@ -12,6 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
+import inspect
+import tempfile
 import unittest
 
 import numpy as np
@@ -19,10 +22,10 @@ import pytest
 import torch
 from parameterized import parameterized
 from testing_utils import MODELS_DICT, BetterTransformersTestMixin
-from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor, set_seed
+from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor, MusicgenForConditionalGeneration, set_seed
 
 from optimum.bettertransformer import BetterTransformer
-from optimum.utils.testing_utils import grid_parameters, require_torch_gpu
+from optimum.utils.testing_utils import flatten_dict, grid_parameters, require_torch_gpu
 
 
 ALL_AUDIO_MODELS_TO_TEST = [
@@ -31,6 +34,7 @@ ALL_AUDIO_MODELS_TO_TEST = [
     "ybelkada/hubert-tiny-random",
     "ybelkada/tiny-wav2vec2-stable-ln",
     "ylacombe/bark-small",
+    "hf-internal-testing/tiny-random-MusicgenForConditionalGeneration",
 ]
 
 
@@ -170,6 +174,318 @@ class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase)
     def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
         model_id = MODELS_DICT[model_type]
         self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
+
+
+class BetterTransformersMusicgenTest(BetterTransformersTestMixin, unittest.TestCase):
+    r"""
+    Testing suite for MusicGen - tests all the tests defined in `BetterTransformersTestMixin`
+    Since MusicGen is a text-to-audio model, it is preferable to define its own testing class.
+    """
+    SUPPORTED_ARCH = ["musicgen"]
+
+    FULL_GRID = {
+        "model_type": SUPPORTED_ARCH,
+        "keep_original_model": [False],
+    }
+
+    def prepare_inputs_for_class(self, model_id, model_type, batch_size=1, **kwargs):
+        text = ["techno music"] + ["90s hip-hop"] * (batch_size - 1)
+        processor = AutoProcessor.from_pretrained(model_id)
+        input_dict = processor(text, **kwargs)
+        return input_dict
+
+    @require_torch_gpu
+    def _test_fp16_inference(
+        self, model_id: str, model_type: str, automodel_class, use_to_operator=False, **preprocessor_kwargs
+    ):
+        r"""
+        This tests if the converted model runs fine under fp16.
+        """
+        # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
+        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs).to(0)
+
+        torch.manual_seed(0)
+        if not use_to_operator:
+            hf_random_model = automodel_class.from_pretrained(model_id, torch_dtype=torch.float16).to(0)
+            converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=False)
+
+            # MusicGen does not support deepcopy, hence we make an external copy here
+            hf_random_model = automodel_class.from_pretrained(model_id, torch_dtype=torch.float16).to(0)
+        else:
+            hf_random_model = automodel_class.from_pretrained(model_id).to(0)
+            converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=False)
+
+            # MusicGen does not support deepcopy, hence we make an external copy here
+            hf_random_model = automodel_class.from_pretrained(model_id, torch_dtype=torch.float16).to(0)
+
+            hf_random_model = hf_random_model.to(torch.float16)
+            converted_model = converted_model.to(torch.float16)
+
+        self.assertFalse(
+            hasattr(hf_random_model, "use_bettertransformer"),
+            f"The model {hf_random_model.__class__.__name__} has been converted to a `fast` model by mistake.",
+        )
+
+        length = 50
+        with torch.no_grad():
+            r"""
+            Make sure the models are in eval mode! Make also sure that the original model
+            has not been converted to a fast model. The check is done above.
+            """
+            torch.manual_seed(0)
+            output_hf = hf_random_model.generate(**inputs, min_length=length, max_length=length)
+
+            torch.manual_seed(0)
+            output_bt = converted_model.generate(**inputs, min_length=length, max_length=length)
+
+            self.assertTrue(
+                torch.allclose(output_hf, output_bt),
+                f"Maxdiff: {(output_hf - output_bt).abs().max()}",
+            )
+
+    def _test_logits(self, model_id: str, model_type: str, automodel_class, **preprocessor_kwargs):
+        r"""
+        This tests if the converted model produces the same logits as the original model.
+        """
+        # The first row of the attention mask needs to be all ones -> check: https://github.com/pytorch/pytorch/blob/19171a21ee8a9cc1a811ac46d3abd975f0b6fc3b/test/test_nn.py#L5283
+        inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs)
+
+        torch.manual_seed(0)
+        hf_random_model = automodel_class.from_pretrained(model_id).eval()
+        random_config = hf_random_model.config
+
+        torch.manual_seed(0)
+        converted_model = BetterTransformer.transform(hf_random_model, keep_original_model=False)
+
+        # MusicGen does not support deepcopy, hence we make an external copy here
+        hf_random_model = automodel_class.from_pretrained(model_id).eval()
+
+        self.assertFalse(hf_random_model.training)
+        self.assertFalse(converted_model.training)
+        self.assertFalse(
+            hasattr(hf_random_model, "use_bettertransformer"),
+            f"The model {hf_random_model.__class__.__name__} has been converted to a `fast` model by mistake.",
+        )
+
+        with torch.no_grad():
+            r"""
+            Make sure the models are in eval mode! Make also sure that the original model
+            has not been converted to a fast model. The check is done above.
+            """
+            torch.manual_seed(0)
+            hf_hidden_states = hf_random_model(**inputs)[0]
+
+            torch.manual_seed(0)
+            bt_hidden_states = converted_model(**inputs)[0]
+
+            if "quick_gelu" in flatten_dict(random_config.to_dict()).values():
+                # Since `quick_gelu` is a rather slightly modified version of `GeLU` we expect a discrepency.
+                tol = 3e-1
+            elif "gelu_new" in flatten_dict(random_config.to_dict()).values():
+                # Since `gelu_new` is a slightly modified version of `GeLU` we expect a small
+                # discrepency.
+                tol = 4e-2
+            else:
+                tol = 2e-3
+
+            if hasattr(self, "compare_outputs"):
+                self.compare_outputs(
+                    model_type,
+                    hf_hidden_states,
+                    bt_hidden_states,
+                    atol=tol,
+                    model_name=hf_random_model.__class__.__name__,
+                )
+            elif "attention_mask" in inputs:
+                for i, attention_mask in enumerate(inputs["attention_mask"]):
+                    length = torch.argwhere(attention_mask != 0).max().item()
+                    self.assert_equal(
+                        tensor1=hf_hidden_states[i, : length + 1, :],
+                        tensor2=bt_hidden_states[i, : length + 1, :],
+                        atol=tol,
+                        model_name=hf_random_model.__class__.__name__,
+                    )
+            else:
+                self.assert_equal(
+                    tensor1=hf_hidden_states[:, :3, :],
+                    tensor2=bt_hidden_states[:, :3, :],
+                    atol=tol,
+                    model_name=hf_random_model.__class__.__name__,
+                )
+
+    def _test_invert_modules(self, model_id, automodel_class, keep_original_model=False):
+        r"""
+        Test that the inverse converted model and hf model have the same modules
+        """
+        hf_model = automodel_class.from_pretrained(model_id)
+        hf_modules = list(hf_model.modules())
+
+        bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+        bt_model = BetterTransformer.reverse(bt_model)
+
+        bt_modules = list(bt_model.modules())
+
+        self.assertEqual(len(hf_modules), len(bt_modules))
+        for hf_module, bt_module in zip(hf_modules, bt_modules):
+            # check the modules have the same signature and code
+            # for the `forward` and `__init__` methods
+            # as those are the only functions we change
+            self.assertEqual(inspect.signature(hf_module.forward), inspect.signature(bt_module.forward))
+            self.assertEqual(inspect.signature(hf_module.__init__), inspect.signature(bt_module.__init__))
+
+            self.assertEqual(inspect.getsource(hf_module.forward), inspect.getsource(bt_module.forward))
+            self.assertEqual(inspect.getsource(hf_module.__init__), inspect.getsource(bt_module.__init__))
+
+    def _test_save_load_invertible(self, model_id, automodel_class, keep_original_model=True):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            hf_model = automodel_class.from_pretrained(model_id).eval()
+            hf_model_state_dict = copy.deepcopy(hf_model.state_dict())
+
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+
+            bt_model = BetterTransformer.reverse(bt_model)
+
+            for name, param in bt_model.named_parameters():
+                self.assertFalse(param.device.type == "meta", f"Parameter {name} is on the meta device.")
+
+            bt_model.save_pretrained(tmpdirname)
+
+            bt_model_from_load = automodel_class.from_pretrained(tmpdirname)
+
+            self.assertEqual(
+                set(bt_model.state_dict().keys()),
+                set(bt_model_from_load.state_dict().keys()),
+            )
+
+            self.assertEqual(
+                hf_model_state_dict.keys(),
+                set(bt_model_from_load.state_dict().keys()),
+            )
+
+            for key in bt_model.state_dict().keys():
+                self.assertTrue(
+                    torch.allclose(
+                        bt_model.state_dict()[key],
+                        bt_model_from_load.state_dict()[key],
+                    )
+                )
+
+                self.assertTrue(
+                    torch.allclose(
+                        hf_model_state_dict[key],
+                        bt_model_from_load.state_dict()[key],
+                    )
+                )
+
+    def _test_invert_model_logits(
+        self, model_id: str, model_type: str, automodel_class, keep_original_model=True, **preprocessor_kwargs
+    ):
+        r"""
+        Test that the inverse converted model and hf model have the same logits
+        """
+        inputs = self.prepare_inputs_for_class(model_id, model_type=model_type, **preprocessor_kwargs)
+
+        hf_model = automodel_class.from_pretrained(model_id)
+        hf_model = hf_model.eval()
+
+        with torch.inference_mode():
+            torch.manual_seed(42)
+            output_hf = hf_model(**inputs)
+
+            bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
+            bt_model = BetterTransformer.reverse(bt_model)
+
+            torch.manual_seed(42)
+            output_bt = bt_model(**inputs)
+
+        for i in range(len(output_bt)):
+            if isinstance(output_bt[i], torch.Tensor):
+                self.assertTrue(
+                    torch.allclose(output_bt[i], output_hf[i], atol=1e-4),
+                    f" Maxdiff: {(output_bt[i] - output_hf[i]).abs().max()}",
+                )
+            elif isinstance(output_bt[i], tuple):
+                flattened_output_bt = [out for j in range(len(output_bt[i])) for out in output_bt[i][j]]
+                flattened_output_hf = [out for j in range(len(output_hf[i])) for out in output_hf[i][j]]
+                for j in range(len(flattened_output_bt)):
+                    if isinstance(flattened_output_bt[j], torch.Tensor):
+                        self.assertTrue(
+                            torch.allclose(flattened_output_bt[j], flattened_output_hf[j], atol=1e-4),
+                            f" Maxdiff: {(flattened_output_bt[j] - flattened_output_hf[j]).abs().max()}",
+                        )
+                    elif isinstance(flattened_output_bt[j], tuple):
+                        for k in range(len(flattened_output_bt[j])):
+                            self.assertTrue(
+                                torch.allclose(flattened_output_bt[j][k], flattened_output_hf[j][k], atol=1e-4),
+                                f" Maxdiff: {(flattened_output_bt[j][k] - flattened_output_hf[j][k]).abs().max()}",
+                            )
+
+    @pytest.mark.fp16
+    @require_torch_gpu
+    @pytest.mark.gpu_test
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_type": SUPPORTED_ARCH,
+                "use_to_operator": [True, False],
+                "batch_size": [1, 2],
+            }
+        )
+    )
+    def test_fp16_inference(self, test_name: str, model_type: str, use_to_operator: bool, batch_size: int):
+        model_id = MODELS_DICT[model_type]
+        self._test_fp16_inference(
+            model_id,
+            model_type=model_type,
+            use_to_operator=use_to_operator,
+            automodel_class=MusicgenForConditionalGeneration,
+            batch_size=batch_size,
+            return_tensors="pt",
+            padding=True,
+        )
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_logits(self, test_name: str, model_type: str):
+        model_id = MODELS_DICT[model_type]
+        import ipdb
+
+        ipdb.set_trace()
+        self._test_logits(
+            model_id,
+            model_type=model_type,
+            automodel_class=MusicgenForConditionalGeneration,
+            return_tensors="pt",
+            padding=True,
+        )
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_invert_modules(self, test_name: str, model_type: str, keep_original_model: bool):
+        model_id = MODELS_DICT[model_type]
+        self._test_invert_modules(
+            model_id,
+            automodel_class=MusicgenForConditionalGeneration,
+            keep_original_model=keep_original_model,
+        )
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model: bool):
+        model_id = MODELS_DICT[model_type]
+        self._test_save_load_invertible(
+            model_id,
+            automodel_class=MusicgenForConditionalGeneration,
+            keep_original_model=keep_original_model,
+        )
+
+    @parameterized.expand(grid_parameters(FULL_GRID))
+    def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model: bool):
+        model_id = MODELS_DICT[model_type]
+        self._test_invert_model_logits(
+            model_id,
+            automodel_class=MusicgenForConditionalGeneration,
+            keep_original_model=keep_original_model,
+            return_tensors="pt",
+            padding=True,
+        )
 
 
 class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCase):
