@@ -568,7 +568,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        if self.use_past is False:
+        if not self.use_past_in_inputs:
             common_outputs = super().outputs
         # In the other cases, the sequence_length axis is not dynamic, always of length 1
         elif self.task == "feature-extraction":

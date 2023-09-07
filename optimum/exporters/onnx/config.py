@@ -276,7 +276,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         use_past: bool = False,
-        use_past_in_inputs: Optional[bool] = None,
+        use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: Optional[List[Any]] = None,
     ):
