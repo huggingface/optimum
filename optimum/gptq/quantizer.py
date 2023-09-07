@@ -586,7 +586,7 @@ def load_quantized_model(
     Load quantized weights from the save_folder into the converted model and dispatch the weights according to the device_map.
 
     Args:
-        model (`nn.Module | transformers.PreTrainedModel`):
+        model (`nn.Module`):
             The model can be enpty or not.
         save_folder (`str`):
             Directory to which to load the weights.
