@@ -503,10 +503,13 @@ class ORTStableDiffusionXLPanoramaPipelineTest(ORTModelTestMixin):
         self.assertIsInstance(ort_pipeline.unet, ORTModelUnet)
         self.assertIsInstance(ort_pipeline.config, Dict)
 
+        # TODO: this should default to something reasonable
+        ort_pipeline.set_window_size(64, 16)
+
         # this should render a very tall/wide image, but there is no other XL panorama pipeline to use for reference
         pipeline = StableDiffusionXLPipeline.from_pretrained(MODEL_NAMES[model_arch])
         batch_size, num_images_per_prompt, height, width = 2, 2, 64, 32
-        latents = ort_pipeline.prepare_latents(
+        latents = ort_pipeline.prepare_latents_text2img(
             batch_size * num_images_per_prompt,
             ort_pipeline.unet.config["in_channels"],
             height,
@@ -539,6 +542,8 @@ class ORTStableDiffusionXLPanoramaPipelineTest(ORTModelTestMixin):
     @require_diffusers
     def test_image_reproducibility(self, model_arch: str):
         pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
+        pipeline.set_window_size(64, 16)
+
         inputs = _generate_inputs()
         height, width = 64, 32
         np.random.seed(0)
