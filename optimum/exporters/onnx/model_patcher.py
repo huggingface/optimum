@@ -188,7 +188,8 @@ class Seq2SeqModelPatcher(ModelPatcher):
                             filterd_outputs[name] = value
                     else:
                         if self.real_config._behavior == "monolith" or (
-                            self.real_config._behavior == "decoder" and not self.real_config.use_past_in_inputs
+                            self.real_config._behavior == "decoder"
+                            and (self.real_config.is_merged or not self.real_config.use_past_in_inputs)
                         ):
                             filterd_outputs[name] = value
                         elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
