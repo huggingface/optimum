@@ -23,7 +23,6 @@ from torch import nn
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 from transformers.pytorch_utils import Conv1D
-from transformers.utils import CONFIG_NAME
 from transformers.utils.quantization_config import QuantizationMethod
 
 from ..utils import is_accelerate_available, is_auto_gptq_available
@@ -587,7 +586,7 @@ def load_quantized_model(
     Load quantized weights from the save_folder into the converted model and dispatch the weights according to the device_map.
 
     Args:
-        model (`nn.Module`):
+        model (`nn.Module | transformers.PreTrainedModel`):
             The model can be enpty or not.
         save_folder (`str`):
             Directory to which to load the weights.
@@ -636,13 +635,9 @@ def load_quantized_model(
         device_map = {"": torch.cuda.current_device()}
         logger.info("The device_map was not initialized." "Setting device_map to `{'':torch.cuda.current_device()}`.")
 
-    # this branch is to add support for loading quantization_config from config.json
-    if os.path.exists(os.path.join(save_folder, CONFIG_NAME)):
-        with open(os.path.join(save_folder, CONFIG_NAME), "r", encoding="utf-8") as f:
-            try:
-                quantize_config_dict = json.loads(f)["quantization_config"]
-            except KeyError:
-                raise RuntimeError("The config.json does not contain 'quantization_config' key.") from None
+    # this branch will check if model is from huggingface
+    if hasattr(model, "config") and hasattr(model.config, "quantization_config"):
+        quantize_config_dict = model.config.quantization_config.to_dict()
     else:
         with open(os.path.join(save_folder, quant_config_name), "r", encoding="utf-8") as f:
             quantize_config_dict = json.load(f)
