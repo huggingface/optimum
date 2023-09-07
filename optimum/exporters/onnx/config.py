@@ -326,7 +326,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             )
             if issubclass(decoder_onnx_config_constructor.func, OnnxSeq2SeqConfigWithPast):
                 self._decoder_onnx_config = self._decoder_onnx_config.with_behavior(
-                    self._behavior, use_past=kwargs["use_past"]
+                    self._behavior, use_past=kwargs["use_past"], use_past_in_inputs=use_past_in_inputs
                 )
 
             self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
