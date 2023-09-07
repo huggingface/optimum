@@ -406,6 +406,16 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return {}
 
+    def rename_ambiguous_inputs(self, inputs) -> Dict[str, Dict[int, str]]:
+        """
+        Updates the input names of the model to export.
+        Override the function when the model input names are ambiguous or too generic.
+
+        Returns:
+            `Dict[str, Dict[int, str]]`: Updated inputs.
+        """
+        return inputs
+
     def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> Dict[str, Dict[int, str]]:
         """
         Re-orders the inputs using the model forward pass signature.
@@ -418,6 +428,7 @@ class OnnxConfig(ExportConfig, ABC):
             `Dict[str, Dict[int, str]]`: The properly ordered inputs.
         """
         inputs = self.inputs
+        inputs = self.rename_ambiguous_inputs(inputs)
 
         ordered_inputs = {}
         if hasattr(model, "forward"):

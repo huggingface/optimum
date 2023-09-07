@@ -112,15 +112,37 @@ class ModelPatcher:
 
             outputs = self.orig_forward(*args, **kwargs)
 
+            # This code block handles different cases of the filterd_outputs input to align it with the expected
+            # format of outputs. It is common for the output type of a model to vary, such as tensor, list,
+            # tuple, etc. For Transformers models, the output is encapsulated in a ModelOutput object that
+            # contains the output names of the model. In the case of Timm classification models, the output
+            # is of type tensor. By default, it is assumed that the output names mentioned in the ONNX config
+            # match the outputs in order.
             filterd_outputs = {}
-            for name, value in outputs.items():
-                onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
-                if (
-                    onnx_output_name in config.outputs
-                    or (allow_past_in_outputs and name.startswith("past_key_values"))
-                    or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
-                ):
-                    filterd_outputs[name] = value
+            if isinstance(outputs, dict):
+                for name, value in outputs.items():
+                    onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
+                    if (
+                        onnx_output_name in config.outputs
+                        or (allow_past_in_outputs and name.startswith("past_key_values"))
+                        or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
+                    ):
+                        filterd_outputs[name] = value
+            elif isinstance(outputs, (list, tuple)):
+                outputs_list = list(config.outputs.keys())
+                dict(zip(outputs_list, outputs))
+            else:
+                if len(config.outputs) > 1:
+                    num_outputs = len(config.outputs)
+                    outputs_str = ", ".join(config.outputs.keys())
+                    raise ValueError(
+                        f"config.outputs should have only one outputs, but it has {num_outputs} keys: {outputs_str}"
+                    )
+                else:
+                    name = list(config.outputs.keys())[0]
+                    filterd_outputs[name] = outputs
+                name = list(config.outputs.keys())[0]
+                filterd_outputs[name] = outputs
             return filterd_outputs
 
         self.patched_forward = patched_forward

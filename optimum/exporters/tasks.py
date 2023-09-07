@@ -17,6 +17,7 @@
 import importlib
 import inspect
 import itertools
+import json
 import os
 from functools import partial
 from pathlib import Path
@@ -119,19 +120,19 @@ def supported_tasks_mapping(
     return mapping
 
 
-def get_automodels_to_tasks(tasks_to_automodel: Dict[str, Union[str, Tuple[str]]]) -> Dict[str, str]:
+def get_model_loaders_to_tasks(tasks_to_model_loaders: Dict[str, Union[str, Tuple[str]]]) -> Dict[str, str]:
     """
-    Reverses tasks_to_automodel while flattening the case where the same task maps to several
+    Reverses tasks_to_model_loaders while flattening the case where the same task maps to several
     auto classes (e.g. automatic-speech-recognition).
     """
-    automodels_to_tasks = {}
-    for task, automodels in tasks_to_automodel.items():
-        if isinstance(automodels, str):
-            automodels_to_tasks[automodels] = task
+    model_loaders_to_tasks = {}
+    for task, model_loaders in tasks_to_model_loaders.items():
+        if isinstance(model_loaders, str):
+            model_loaders_to_tasks[model_loaders] = task
         else:
-            automodels_to_tasks.update({automodel_name: task for automodel_name in automodels})
+            model_loaders_to_tasks.update({model_loader_name: task for model_loader_name in model_loaders})
 
-    return automodels_to_tasks
+    return model_loaders_to_tasks
 
 
 class TasksManager:
@@ -139,8 +140,16 @@ class TasksManager:
     Handles the `task name -> model class` and `architecture -> configuration` mappings.
     """
 
-    _TASKS_TO_AUTOMODELS = {}
-    _TASKS_TO_TF_AUTOMODELS = {}
+    # Torch model loaders
+    _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {}
+    _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {}
+    _TIMM_TASKS_TO_MODEL_LOADERS = {}
+    _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {}
+
+    # TF model loaders
+    _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {}
+    _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {}
+
     if is_torch_available():
         # Refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
         # In case the same task (pipeline tag) may map to several loading classes, we use a tuple and the
@@ -149,7 +158,7 @@ class TasksManager:
         # TODO: having several tasks pointing to the same auto-model class is bug prone to auto-detect the
         # task in a Hub repo that has no pipeline_tag, and no transformersInfo.pipeline_tag, as we then rely on
         # on transformersInfo["auto_model"] and this dictionary.
-        _TASKS_TO_AUTOMODELS = {
+        _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
             "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
@@ -170,13 +179,27 @@ class TasksManager:
             "audio-frame-classification": "AutoModelForAudioFrameClassification",
             "audio-xvector": "AutoModelForAudioXVector",
             "image-to-text": "AutoModelForVision2Seq",
-            "stable-diffusion": "StableDiffusionPipeline",
-            "stable-diffusion-xl": "StableDiffusionXLImg2ImgPipeline",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
+
+        _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
+            "stable-diffusion": "StableDiffusionPipeline",
+            "stable-diffusion-xl": "StableDiffusionXLImg2ImgPipeline",
+        }
+
+        _TIMM_TASKS_TO_MODEL_LOADERS = {
+            "image-classification": "create_model",
+        }
+
+        _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {
+            "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
+            "diffusers": _DIFFUSERS_TASKS_TO_MODEL_LOADERS,
+            "timm": _TIMM_TASKS_TO_MODEL_LOADERS,
+        }
+
     if is_tf_available():
-        _TASKS_TO_TF_AUTOMODELS = {
+        _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {
             "conversational": ("TFAutoModelForCausalLM", "TFAutoModelForSeq2SeqLM"),
             "document-question-answering": "TFAutoModelForDocumentQuestionAnswering",
             "feature-extraction": "TFAutoModel",
@@ -201,6 +224,10 @@ class TasksManager:
             "zero-shot-object-detection": "TFAutoModelForZeroShotObjectDetection",
         }
 
+        _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {
+            "transformers": _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS,
+        }
+
     _SYNONYM_TASK_MAP = {
         "sequence-classification": "text-classification",
         "causal-lm": "text-generation",
@@ -221,9 +248,15 @@ class TasksManager:
         "zero-shot-classification": "text-classification",
     }
 
-    # Reverse dictionaries str -> str, where several automodels may map to the same task
-    _AUTOMODELS_TO_TASKS = get_automodels_to_tasks(_TASKS_TO_AUTOMODELS)
-    _TF_AUTOMODELS_TO_TASKS = get_automodels_to_tasks(_TASKS_TO_TF_AUTOMODELS)
+    # Reverse dictionaries str -> str, where several model loaders may map to the same task
+    _LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP = {
+        "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
+        "diffusers": get_model_loaders_to_tasks(_DIFFUSERS_TASKS_TO_MODEL_LOADERS),
+        "timm": get_model_loaders_to_tasks(_TIMM_TASKS_TO_MODEL_LOADERS),
+    }
+    _LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP = {
+        "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS),
+    }
 
     _CUSTOM_CLASSES = {
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
@@ -242,39 +275,6 @@ class TasksManager:
         "visual-question-answering",
         "document-question-answering",
     )
-
-    _TASKS_TO_LIBRARY = {
-        "conversational": "transformers",
-        "document-question-answering": "transformers",
-        "feature-extraction": "transformers",
-        "fill-mask": "transformers",
-        "text-generation": "transformers",
-        "text2text-generation": "transformers",
-        "text-classification": "transformers",
-        "token-classification": "transformers",
-        "translation": "transformers",
-        "multiple-choice": "transformers",
-        "object-detection": "transformers",
-        "question-answering": "transformers",
-        "image-classification": "transformers",
-        "image-segmentation": "transformers",
-        "mask-generation": "transformers",
-        "masked-im": "transformers",
-        "semantic-segmentation": "transformers",
-        "automatic-speech-recognition": "transformers",
-        "audio-classification": "transformers",
-        "audio-frame-classification": "transformers",
-        "audio-xvector": "transformers",
-        "image-to-text": "transformers",
-        "sentence-similarity": "transformers",
-        "stable-diffusion": "diffusers",
-        "stable-diffusion-xl": "diffusers",
-        "summarization": "transformers",
-        "visual-question-answering": "transformers",
-        "zero-shot-classification": "transformers",
-        "zero-shot-image-classification": "transformers",
-        "zero-shot-object-detection": "transformers",
-    }
 
     # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
@@ -777,6 +777,12 @@ class TasksManager:
         "resnet": supported_tasks_mapping(
             "feature-extraction", "image-classification", onnx="ResNetOnnxConfig", tflite="ResNetTFLiteConfig"
         ),
+        "resnext26ts": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "resnext50-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "resnext50d-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNext50d_32x4dOnnxConfig"),
+        "resnext101-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "resnext101-32x8d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "resnext101-64x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
         "roberta": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -1005,8 +1011,8 @@ class TasksManager:
                 mapping = cls._SUPPORTED_MODEL_TYPE.get(model_type, {})
                 mapping_backend = mapping.get(backend, {})
                 for task in supported_tasks:
-                    if task not in cls._TASKS_TO_LIBRARY:
-                        known_tasks = ", ".join(cls._TASKS_TO_LIBRARY.keys())
+                    if task not in cls.get_all_tasks():
+                        known_tasks = ", ".join(cls.get_all_tasks())
                         raise ValueError(
                             f'The TasksManager does not know the task called "{task}", known tasks: {known_tasks}.'
                         )
@@ -1100,7 +1106,11 @@ class TasksManager:
 
     @staticmethod
     def get_model_class_for_task(
-        task: str, framework: str = "pt", model_type: Optional[str] = None, model_class_name: Optional[str] = None
+        task: str,
+        framework: str = "pt",
+        model_type: Optional[str] = None,
+        model_class_name: Optional[str] = None,
+        library: str = "transformers",
     ) -> Type:
         """
         Attempts to retrieve an AutoModel class from a task name.
@@ -1117,6 +1127,8 @@ class TasksManager:
                 A model class name, allowing to override the default class that would be detected for the task. This
                 parameter is useful for example for "automatic-speech-recognition", that may map to
                 AutoModelForSpeechSeq2Seq or to AutoModelForCTC.
+            library (`str`, defaults to `transformers`):
+                 The library name of the model.
 
         Returns:
             The AutoModel class corresponding to the task.
@@ -1133,34 +1145,33 @@ class TasksManager:
             return getattr(loaded_library, class_name)
         else:
             if framework == "pt":
-                tasks_to_automodel = TasksManager._TASKS_TO_AUTOMODELS
+                tasks_to_model_loader = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP[library]
             else:
-                tasks_to_automodel = TasksManager._TASKS_TO_TF_AUTOMODELS
+                tasks_to_model_loader = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP[library]
 
-            library = TasksManager._TASKS_TO_LIBRARY[task]
             loaded_library = importlib.import_module(library)
 
             if model_class_name is None:
-                if task not in tasks_to_automodel:
+                if task not in tasks_to_model_loader:
                     raise KeyError(
                         f"Unknown task: {task}. Possible values are: "
-                        + ", ".join([f"`{key}` for {tasks_to_automodel[key]}" for key in tasks_to_automodel])
+                        + ", ".join([f"`{key}` for {tasks_to_model_loader[key]}" for key in tasks_to_model_loader])
                     )
 
-                if isinstance(tasks_to_automodel[task], str):
-                    model_class_name = tasks_to_automodel[task]
+                if isinstance(tasks_to_model_loader[task], str):
+                    model_class_name = tasks_to_model_loader[task]
                 else:
                     # automatic-speech-recognition case, which may map to several auto class
                     if library == "transformers":
                         if model_type is None:
                             logger.warning(
                                 f"No model type passed for the task {task}, that may be mapped to several loading"
-                                f" classes ({tasks_to_automodel[task]}). Defaulting to {tasks_to_automodel[task][0]}"
+                                f" classes ({tasks_to_model_loader[task]}). Defaulting to {tasks_to_model_loader[task][0]}"
                                 " to load the model."
                             )
-                            model_class_name = tasks_to_automodel[task][0]
+                            model_class_name = tasks_to_model_loader[task][0]
                         else:
-                            for autoclass_name in tasks_to_automodel[task]:
+                            for autoclass_name in tasks_to_model_loader[task]:
                                 module = getattr(loaded_library, autoclass_name)
                                 # TODO: we must really get rid of this - and _ mess
                                 if (
@@ -1172,49 +1183,22 @@ class TasksManager:
 
                             if model_class_name is None:
                                 raise ValueError(
-                                    f"Unrecognized configuration classes {tasks_to_automodel[task]} do not match"
+                                    f"Unrecognized configuration classes {tasks_to_model_loader[task]} do not match"
                                     f" with the model type {model_type} and task {task}."
                                 )
                     else:
                         raise NotImplementedError(
-                            "For library other than transformers, the _TASKS_TO_AUTOMODELS mapping should be one to one."
+                            "For library other than transformers, the _TASKS_TO_MODEL_LOADER mapping should be one to one."
                         )
 
             return getattr(loaded_library, model_class_name)
 
     @staticmethod
-    def determine_framework(
+    def get_model_files(
         model_name_or_path: Union[str, Path],
         subfolder: str = "",
-        framework: Optional[str] = None,
         cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
-    ) -> str:
-        """
-        Determines the framework to use for the export.
-
-        The priority is in the following order:
-            1. User input via `framework`.
-            2. If local checkpoint is provided, use the same framework as the checkpoint.
-            3. If model repo, try to infer the framework from the cache if available, else from the Hub.
-            4. If could not infer, use available framework in environment, with priority given to PyTorch.
-
-        Args:
-            model_name_or_path (`Union[str, Path]`):
-                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
-                containing a model.
-            subfolder (`str`, *optional*, defaults to `""`):
-                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
-                Face Hub, you can specify the subfolder name here.
-            framework (`Optional[str]`, *optional*):
-                The framework to use for the export. See above for priority if none provided.
-
-        Returns:
-            `str`: The framework to use for the export.
-
-        """
-        if framework is not None:
-            return framework
-
+    ):
         request_exception = None
         full_model_path = Path(model_name_or_path) / subfolder
         if full_model_path.is_dir():
@@ -1247,6 +1231,43 @@ class TasksManager:
                         for dirpath, _, filenames in os.walk(cached_path)
                         for file in filenames
                     ]
+
+        return all_files, request_exception
+
+    @staticmethod
+    def determine_framework(
+        model_name_or_path: Union[str, Path],
+        subfolder: str = "",
+        framework: Optional[str] = None,
+        cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
+    ) -> str:
+        """
+        Determines the framework to use for the export.
+
+        The priority is in the following order:
+            1. User input via `framework`.
+            2. If local checkpoint is provided, use the same framework as the checkpoint.
+            3. If model repo, try to infer the framework from the cache if available, else from the Hub.
+            4. If could not infer, use available framework in environment, with priority given to PyTorch.
+
+        Args:
+            model_name_or_path (`Union[str, Path]`):
+                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
+                containing a model.
+            subfolder (`str`, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            framework (`Optional[str]`, *optional*):
+                The framework to use for the export. See above for priority if none provided.
+
+        Returns:
+            `str`: The framework to use for the export.
+
+        """
+        if framework is not None:
+            return framework
+
+        all_files, request_exception = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
 
         pt_weight_name = Path(WEIGHTS_NAME).stem
         pt_weight_extension = Path(WEIGHTS_NAME).suffix
@@ -1296,7 +1317,9 @@ class TasksManager:
 
     @classmethod
     def _infer_task_from_model_or_model_class(
-        cls, model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None, model_class: Optional[Type] = None
+        cls,
+        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None,
+        model_class: Optional[Type] = None,
     ) -> str:
         if model is not None and model_class is not None:
             raise ValueError("Either a model or a model class must be provided, but both were given here.")
@@ -1304,7 +1327,12 @@ class TasksManager:
             raise ValueError("Either a model or a model class must be provided, but none were given here.")
         target_name = model.__class__.__name__ if model is not None else model_class.__name__
         task_name = None
-        iterable = (cls._AUTOMODELS_TO_TASKS.items(), cls._TF_AUTOMODELS_TO_TASKS.items())
+        iterable = ()
+        for _, model_loader in cls._LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP.items():
+            iterable += (model_loader.items(),)
+        for _, model_loader in cls._LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP.items():
+            iterable += (model_loader.items(),)
+
         pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
         tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
         for auto_cls_name, task in itertools.chain.from_iterable(iterable):
@@ -1359,6 +1387,8 @@ class TasksManager:
                     if task in model_info.tags:
                         inferred_task_name = task
                         break
+            elif model_info.library_name == "timm":
+                inferred_task_name = "image-classification"
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
                 # conversational is not a supported task per se, just an alias that may map to
@@ -1373,9 +1403,13 @@ class TasksManager:
                         # transformersInfo does not always have a pipeline_tag attribute
                         class_name_prefix = ""
                         if is_torch_available():
-                            tasks_to_automodels = TasksManager._TASKS_TO_AUTOMODELS
+                            tasks_to_automodels = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP[
+                                model_info.library_name
+                            ]
                         else:
-                            tasks_to_automodels = TasksManager._TASKS_TO_TF_AUTOMODELS
+                            tasks_to_automodels = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP[
+                                model_info.library_name
+                            ]
                             class_name_prefix = "TF"
 
                         auto_model_class_name = transformers_info["auto_model"]
@@ -1407,9 +1441,8 @@ class TasksManager:
             subfolder (`str`, *optional*, defaults to `""`):
                 In case the model files are located inside a subfolder of the model directory / repo on the Hugging
                 Face Hub, you can specify the subfolder name here.
-            revision (`Optional[str]`, *optional*):
+            revision (`Optional[str]`,  defaults to `None`):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
-
         Returns:
             `str`: The task name automatically detected from the model repo.
         """
@@ -1428,6 +1461,129 @@ class TasksManager:
 
         return task
 
+    @classmethod
+    def infer_library_from_model(
+        cls,
+        model_name_or_path: str,
+        subfolder: str = "",
+        revision: Optional[str] = None,
+        cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
+        library_name: str = None,
+    ):
+        """
+        Infers the library from the model repo.
+
+        Args:
+            model_name_or_path (`str`):
+                The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
+                instance of a model, or a model class.
+            subfolder (`str`, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            revision (`Optional[str]`, *optional*, defaults to `None`):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+            cache_dir (`Optional[str]`, *optional*):
+                Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            library_name (`Optional[str]`, *optional*):
+                 The library name of the model.
+        Returns:
+            `str`: The library name automatically detected from the model repo.
+        """
+        if library_name is not None:
+            return library_name
+
+        full_model_path = Path(model_name_or_path) / subfolder
+
+        if not full_model_path.is_dir():
+            model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
+            library_name = getattr(model_info, "library_name", None)
+
+        if library_name is None:
+            all_files, _ = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
+
+            if "model_index.json" in all_files:
+                library_name = "diffusers"
+            elif "config.json" in all_files:
+                config_path = full_model_path / "config.json"
+
+                if not full_model_path.is_dir():
+                    config_path = huggingface_hub.hf_hub_download(
+                        model_name_or_path, "config.json", subfolder=subfolder, revision=revision
+                    )
+
+                model_config = PretrainedConfig.from_json_file(config_path)
+
+                if hasattr(model_config, "pretrained_cfg"):
+                    library_name = "timm"
+                elif hasattr(model_config, "_diffusers_version"):
+                    library_name = "diffusers"
+                else:
+                    library_name = "transformers"
+
+        if library_name is None:
+            ValueError(
+                "The library_name could not be automatically inferred. If using the command-line, please provide the argument --library (transformers,diffusers,timm)!"
+            )
+
+        return library_name
+
+    @classmethod
+    def standardize_model_attributes(
+        cls,
+        model_name_or_path: Union[str, Path],
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        subfolder: str = "",
+        revision: Optional[str] = None,
+        cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
+        library_name: str = None,
+    ):
+        """
+        Updates the model for export. This function is suitable to make required changes to the models from different
+        libraries to follow transformers style.
+
+        Args:
+            model_name_or_path (`Union[str, Path]`):
+                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
+                containing a model.
+            model (`Union[PreTrainedModel, TFPreTrainedModel]`):
+                The instance of the model.
+            subfolder (`str`, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            revision (`Optional[str]`, *optional*, defaults to `None`):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+            cache_dir (`Optional[str]`, *optional*):
+                Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            library_name (`Optional[str]`, *optional*)::
+                 The library name of the model.
+        """
+        library_name = TasksManager.infer_library_from_model(
+            model_name_or_path, subfolder, revision, cache_dir, library_name
+        )
+
+        full_model_path = Path(model_name_or_path) / subfolder
+        is_local = full_model_path.is_dir()
+
+        if library_name == "timm":
+            # Retrieve model config
+            config_path = full_model_path / "config.json"
+
+            if not is_local:
+                config_path = huggingface_hub.hf_hub_download(
+                    model_name_or_path, "config.json", subfolder=subfolder, revision=revision
+                )
+
+            model_config = PretrainedConfig.from_json_file(config_path)
+
+            # Set config as in transformers
+            setattr(model, "config", model_config)
+
+            # Update model_type for model
+            with open(config_path) as fp:
+                model_type = json.load(fp)["architecture"]
+
+            setattr(model.config, "model_type", model_type)
+
     @staticmethod
     def get_all_tasks():
         """
@@ -1438,9 +1594,16 @@ class TasksManager:
         """
         tasks = []
         if is_torch_available():
-            tasks = list(TasksManager._TASKS_TO_AUTOMODELS.keys())
+            mapping = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP
         else:
-            tasks = list(TasksManager._TASKS_TO_TF_AUTOMODELS)
+            mapping = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP
+
+        tasks = []
+        for d in mapping.values():
+            tasks += list(d.keys())
+
+        tasks = list(set(tasks))
+
         return tasks
 
     @staticmethod
@@ -1453,6 +1616,7 @@ class TasksManager:
         cache_dir: Optional[str] = None,
         torch_dtype: Optional["torch.dtype"] = None,
         device: Optional[Union["torch.device", str]] = None,
+        library_name: str = None,
         **model_kwargs,
     ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
         """
@@ -1464,7 +1628,7 @@ class TasksManager:
             model_name_or_path (`Union[str, Path]`):
                 Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
                 containing a model.
-            subfolder (`str`, *optional*, defaults to `""`):
+            subfolder (`str`, defaults to `""`):
                 In case the model files are located inside a subfolder of the model directory / repo on the Hugging
                 Face Hub, you can specify the subfolder name here.
             revision (`Optional[str]`, *optional*):
@@ -1480,6 +1644,9 @@ class TasksManager:
                 Device to initialize the model on. PyTorch-only argument. For PyTorch, defaults to "cpu".
             model_kwargs (`Dict[str, Any]`, *optional*):
                 Keyword arguments to pass to the model `.from_pretrained()` method.
+            library_name (`Optional[str]`, *optional*):
+                 The library name of the model. See `TasksManager.infer_library_from_model` for the priority should
+                none be provided.
 
         Returns:
             The instance of the model.
@@ -1491,11 +1658,15 @@ class TasksManager:
         if task == "auto":
             task = TasksManager.infer_task_from_model(model_name_or_path, subfolder=subfolder, revision=revision)
 
+        library_name = TasksManager.infer_library_from_model(
+            model_name_or_path, subfolder, revision, cache_dir, library_name
+        )
+
         model_type = None
         model_class_name = None
         kwargs = {"subfolder": subfolder, "revision": revision, "cache_dir": cache_dir, **model_kwargs}
 
-        if TasksManager._TASKS_TO_LIBRARY[task.replace("-with-past", "")] == "transformers":
+        if library_name == "transformers":
             config = AutoConfig.from_pretrained(model_name_or_path, **kwargs)
             model_type = config.model_type.replace("_", "-")
             # TODO: if automatic-speech-recognition is passed as task, it may map to several
@@ -1507,8 +1678,15 @@ class TasksManager:
                     model_class_name = config.architectures[0]
 
         model_class = TasksManager.get_model_class_for_task(
-            task, framework, model_type=model_type, model_class_name=model_class_name
+            task, framework, model_type=model_type, model_class_name=model_class_name, library=library_name
         )
+
+        if library_name == "timm":
+            model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
+            TasksManager.standardize_model_attributes(
+                model_name_or_path, model, subfolder, revision, cache_dir, library_name
+            )
+            return model
 
         try:
             if framework == "pt":
@@ -1520,10 +1698,7 @@ class TasksManager:
                     device = torch.device("cpu")
 
                 # TODO : fix EulerDiscreteScheduler loading to enable for SD models
-                if (
-                    version.parse(torch.__version__) >= version.parse("2.0")
-                    and TasksManager._TASKS_TO_LIBRARY[task.replace("-with-past", "")] != "diffusers"
-                ):
+                if version.parse(torch.__version__) >= version.parse("2.0") and library_name != "diffusers":
                     with device:
                         # Initialize directly in the requested device, to save allocation time. Especially useful for large
                         # models to initialize on cuda device.

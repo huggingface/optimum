@@ -207,6 +207,12 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "regnet": "facebook/regnet-y-040",
     "resnet": "microsoft/resnet-50",
+    "resnext26ts": "timm/resnext26ts.ra2_in1k",
+    "resnext50-32x4d": "timm/resnext50_32x4d.tv2_in1k",
+    "resnext50d-32x4d": "timm/resnext50d_32x4d.bt_in1k",
+    "resnext101-32x4d": "timm/resnext101_32x4d.gluon_in1k",
+    "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
+    "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
     "roberta": "roberta-base",
     "roformer": "junnyu/roformer_chinese_base",
     "sam": "facebook/sam-vit-base",
@@ -245,4 +251,13 @@ TENSORFLOW_EXPORT_MODELS = {
 PYTORCH_STABLE_DIFFUSION_MODEL = {
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
+}
+
+PYTORCH_TIMM_MODEL = {
+    "resnext26ts": "timm/resnext26ts.ra2_in1k",
+    "resnext50-32x4d": "timm/resnext50_32x4d.tv2_in1k",
+    "resnext50d-32x4d": "timm/resnext50d_32x4d.bt_in1k",
+    "resnext101-32x4d": "timm/resnext101_32x4d.gluon_in1k",
+    "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
+    "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
 }
