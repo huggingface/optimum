@@ -7,8 +7,8 @@ import PIL
 import torch
 from diffusers.pipelines.stable_diffusion_xl import StableDiffusionXLPipelineOutput
 
-from optimum.pipelines.diffusers.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipelineMixin
-from optimum.pipelines.diffusers.pipeline_utils import preprocess, rescale_noise_cfg
+from .pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipelineMixin
+from .pipeline_utils import rescale_noise_cfg
 
 
 logger = logging.getLogger(__name__)
@@ -228,7 +228,7 @@ class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMix
         # 1. Check inputs. Raise error if not correct
         self.check_inputs(
             prompt,
-            1.0,
+            1.0,  # TODO: handle txt2img validation correctly
             callback_steps,
             negative_prompt,
             prompt_embeds,
@@ -516,7 +516,7 @@ class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMix
         )
 
         # 3. Preprocess image
-        image = preprocess(image)
+        image = self.image_processor.preprocess(image)
 
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps)
@@ -628,13 +628,10 @@ class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMix
             image = np.concatenate(
                 [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
             )
-            image = self.watermark.apply_watermark(image)
-
-            # TODO: add image_processor
-            image = np.clip(image / 2 + 0.5, 0, 1).transpose((0, 2, 3, 1))
-
-        if output_type == "pil":
-            image = self.numpy_to_pil(image)
+            # apply watermark if available
+            if self.watermark is not None:
+                image = self.watermark.apply_watermark(image)
+            image = self.image_processor.postprocess(image, output_type=output_type)
 
         if not return_dict:
             return (image,)
