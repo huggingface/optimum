@@ -598,22 +598,16 @@ class ORTModelTiledVaeWrapper(object):
 
     def blend_v(self, a, b, blend_extent):
         for y in range(min(a.shape[2], b.shape[2], blend_extent)):
-            b[:, :, y, :] = a[:, :, -blend_extent + y, :] * (1 - y / blend_extent) + b[
-                :, :, y, :
-            ] * (y / blend_extent)
+            b[:, :, y, :] = a[:, :, -blend_extent + y, :] * (1 - y / blend_extent) + b[:, :, y, :] * (y / blend_extent)
         return b
 
     def blend_h(self, a, b, blend_extent):
         for x in range(min(a.shape[3], b.shape[3], blend_extent)):
-            b[:, :, :, x] = a[:, :, :, -blend_extent + x] * (1 - x / blend_extent) + b[
-                :, :, :, x
-            ] * (x / blend_extent)
+            b[:, :, :, x] = a[:, :, :, -blend_extent + x] * (1 - x / blend_extent) + b[:, :, :, x] * (x / blend_extent)
         return b
 
     @torch.no_grad()
-    def tiled_encode(
-        self, x: torch.FloatTensor, return_dict: bool = True
-    ) -> AutoencoderKLOutput:
+    def tiled_encode(self, x: torch.FloatTensor, return_dict: bool = True) -> AutoencoderKLOutput:
         r"""Encode a batch of images using a tiled encoder.
         Args:
         When this option is enabled, the VAE will split the input tensor into tiles to compute encoding in several
@@ -665,9 +659,7 @@ class ORTModelTiledVaeWrapper(object):
         return AutoencoderKLOutput(latent_dist=moments)
 
     @torch.no_grad()
-    def tiled_decode(
-        self, z: torch.FloatTensor, return_dict: bool = True
-    ) -> Union[DecoderOutput, torch.FloatTensor]:
+    def tiled_decode(self, z: torch.FloatTensor, return_dict: bool = True) -> Union[DecoderOutput, torch.FloatTensor]:
         r"""Decode a batch of images using a tiled decoder.
         Args:
         When this option is enabled, the VAE will split the input tensor into tiles to compute decoding in several
@@ -722,7 +714,6 @@ class ORTModelTiledVaeWrapper(object):
             return (dec,)
 
         return DecoderOutput(sample=dec)
-
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)

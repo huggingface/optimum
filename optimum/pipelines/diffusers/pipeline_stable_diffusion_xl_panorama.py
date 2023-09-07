@@ -1,13 +1,15 @@
-from optimum.onnxruntime.modeling_diffusion import ORTStableDiffusionXLPipelineBase
-from optimum.pipelines.diffusers.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipelineMixin
-from optimum.pipelines.diffusers.pipeline_utils import preprocess, rescale_noise_cfg
-from diffusers.pipelines.stable_diffusion_xl import StableDiffusionXLPipelineOutput
+import inspect
 import logging
-from typing import Any, Optional, List, Union, Tuple, Callable, Dict
-import torch
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import PIL
-import inspect
+import torch
+from diffusers.pipelines.stable_diffusion_xl import StableDiffusionXLPipelineOutput
+
+from optimum.pipelines.diffusers.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipelineMixin
+from optimum.pipelines.diffusers.pipeline_utils import preprocess, rescale_noise_cfg
+
 
 logger = logging.getLogger(__name__)
 
@@ -18,22 +20,20 @@ DEFAULT_STRIDE = 16
 
 class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMixin):
     def __init__(
-            self,
-            *args,
-            window: int = DEFAULT_WINDOW,
-            stride: int = DEFAULT_STRIDE,
-            **kwargs,
+        self,
+        *args,
+        window: int = DEFAULT_WINDOW,
+        stride: int = DEFAULT_STRIDE,
+        **kwargs,
     ):
         super().__init__(self, *args, **kwargs)
 
         self.window = window
         self.stride = stride
 
-
     def set_window_size(self, window: int, stride: int):
         self.window = window
         self.stride = stride
-
 
     def get_views(self, panorama_height, panorama_width, window_size, stride):
         # Here, we define the mappings F_i (see Eq. 7 in the MultiDiffusion paper https://arxiv.org/abs/2302.08113)
@@ -59,7 +59,6 @@ class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMix
             views.append((h_start, h_end, w_start, w_end))
 
         return views
-
 
     # Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
     def prepare_latents_img2img(self, image, timestep, batch_size, num_images_per_prompt, dtype, generator=None):
@@ -88,9 +87,10 @@ class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMix
         )
         return init_latents.numpy()
 
-
     # Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
-    def prepare_latents_text2img(self, batch_size, num_channels_latents, height, width, dtype, generator, latents=None):
+    def prepare_latents_text2img(
+        self, batch_size, num_channels_latents, height, width, dtype, generator, latents=None
+    ):
         shape = (batch_size, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
         if isinstance(generator, list) and len(generator) != batch_size:
             raise ValueError(
@@ -108,7 +108,6 @@ class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMix
 
         return latents
 
-
     # Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_extra_step_kwargs
     def prepare_extra_step_kwargs(self, generator, eta):
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
@@ -123,7 +122,6 @@ class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMix
             extra_step_kwargs["eta"] = eta
 
         return extra_step_kwargs
-
 
     # Adapted from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl.StableDiffusionXLPipeline.__call__
     def text2img(
@@ -318,7 +316,9 @@ class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMix
                 latents_for_view = latents[:, :, h_start:h_end, w_start:w_end]
 
                 # expand the latents if we are doing classifier free guidance
-                latent_model_input = np.concatenate([latents_for_view] * 2) if do_classifier_free_guidance else latents_for_view
+                latent_model_input = (
+                    np.concatenate([latents_for_view] * 2) if do_classifier_free_guidance else latents_for_view
+                )
                 latent_model_input = self.scheduler.scale_model_input(torch.from_numpy(latent_model_input), t)
                 latent_model_input = latent_model_input.cpu().numpy()
 
@@ -378,7 +378,6 @@ class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMix
             return (image,)
 
         return StableDiffusionXLPipelineOutput(images=image)
-
 
     # Adapted from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl.StableDiffusionXLPipeline.__call__
     def img2img(
@@ -579,7 +578,9 @@ class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMix
                 latents_for_view = latents[:, :, h_start:h_end, w_start:w_end]
 
                 # expand the latents if we are doing classifier free guidance
-                latent_model_input = np.concatenate([latents_for_view] * 2) if do_classifier_free_guidance else latents_for_view
+                latent_model_input = (
+                    np.concatenate([latents_for_view] * 2) if do_classifier_free_guidance else latents_for_view
+                )
                 latent_model_input = self.scheduler.scale_model_input(torch.from_numpy(latent_model_input), t)
                 latent_model_input = latent_model_input.cpu().numpy()
 
@@ -640,17 +641,13 @@ class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMix
 
         return StableDiffusionXLPipelineOutput(images=image)
 
-
     def __call__(
         self,
         *args,
         **kwargs,
     ):
         if "image" in kwargs or (
-            len(args) > 1
-            and (
-                isinstance(args[1], np.ndarray) or isinstance(args[1], PIL.Image.Image)
-            )
+            len(args) > 1 and (isinstance(args[1], np.ndarray) or isinstance(args[1], PIL.Image.Image))
         ):
             logger.debug("running img2img panorama XL pipeline")
             return self.img2img(*args, **kwargs)
