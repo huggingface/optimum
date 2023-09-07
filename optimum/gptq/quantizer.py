@@ -643,7 +643,9 @@ def load_quantized_model(
             with open(os.path.join(save_folder, quant_config_name), "r", encoding="utf-8") as f:
                 quantize_config_dict = json.load(f)
     except Exception as err:
-        raise ValueError(f"Failed to load quantization config from {save_folder} (lookup for traceback): {err}\nTip: If the save directory is saved from a transformers.PreTrainedModel, make sure that `config.json` contains a 'quantization_config' key.") from err
+        raise ValueError(
+            f"Failed to load quantization config from {save_folder} (lookup for traceback): {err}\nTip: If the save directory is saved from a transformers.PreTrainedModel, make sure that `config.json` contains a 'quantization_config' key."
+        ) from err
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
     quantizer.disable_exllama = disable_exllama
     quantizer.max_input_length = max_input_length
