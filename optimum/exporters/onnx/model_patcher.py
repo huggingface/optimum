@@ -101,9 +101,8 @@ class ModelPatcher:
             self.real_config = config._onnx_config
         else:
             self.real_config = config
-        allow_past_in_outputs = (
-            hasattr(self.real_config, "use_present_in_outputs") and self.real_config.use_present_in_outputs
-        )
+
+        allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
 
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
@@ -158,9 +157,7 @@ class Seq2SeqModelPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        allow_past_in_outputs = (
-            hasattr(self.real_config, "use_present_in_outputs") and self.real_config.use_present_in_outputs
-        )
+        allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
 
         # use_cache is by default set to False with pix2struct, so we need to set it to
         # True to export with past key value
@@ -174,7 +171,7 @@ class Seq2SeqModelPatcher(ModelPatcher):
 
             outputs = self.orig_forward(*args, **kwargs)
 
-            # Filter out cross attention past key values
+            # Filter out cross attention past key values output from the decoder using KV cache, as they are constants.
             filterd_outputs = {}
             for name, value in outputs.items():
                 onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
@@ -191,10 +188,11 @@ class Seq2SeqModelPatcher(ModelPatcher):
                             filterd_outputs[name] = value
                     else:
                         if self.real_config._behavior == "monolith" or (
-                            self.real_config._behavior == "decoder" and self.real_config.use_past is False
+                            self.real_config._behavior == "decoder" and not self.real_config.use_past_in_inputs
                         ):
                             filterd_outputs[name] = value
-                        elif self.real_config._behavior == "decoder" and self.real_config.use_past is True:
+                        elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
+                            # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
                             filterd_outputs[name] = tuple([v[:2] for v in value])
 
             return filterd_outputs
@@ -211,9 +209,7 @@ class WavLMModelPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        allow_past_in_outputs = (
-            hasattr(self.real_config, "use_present_in_outputs") and self.real_config.use_present_in_outputs
-        )
+        allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
 
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):

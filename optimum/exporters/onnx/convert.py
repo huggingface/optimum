@@ -322,6 +322,12 @@ def _run_validation(
 
     # Some models may modify in place the inputs, hence the copy.
     copy_reference_model_inputs = copy.deepcopy(reference_model_inputs)
+    
+    print("-----")
+    for name, inp in copy_reference_model_inputs.items():
+        print(name, inp.shape if isinstance(inp, torch.Tensor) else type(inp))
+        if isinstance(inp, list):
+            print("   ", name, type(inp[0]), inp[0][0].shape)
 
     with config.patch_model_for_export(reference_model, model_kwargs=model_kwargs):
         if is_torch_available() and isinstance(reference_model, nn.Module):
