@@ -39,6 +39,7 @@ from optimum.onnxruntime.modeling_diffusion import (
     ORTStableDiffusionImg2ImgPipeline,
     ORTStableDiffusionInpaintPipeline,
     ORTStableDiffusionXLImg2ImgPipeline,
+    ORTStableDiffusionXLPanoramaPipeline,
     ORTStableDiffusionXLPipeline,
 )
 from optimum.pipelines.diffusers.pipeline_utils import VaeImageProcessor
@@ -482,3 +483,68 @@ class ImageProcessorTest(unittest.TestCase):
                 in_np = np.array(i)
                 out_np = to_np(out) if output_type == "pil" else (to_np(out) * 255).round()
                 self.assertTrue(np.allclose(in_np, out_np, atol=1e-6))
+
+
+class ORTStableDiffusionXLPanoramaPipelineTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = [
+        "stable-diffusion-xl",
+    ]
+    ORTMODEL_CLASS = ORTStableDiffusionXLPanoramaPipeline
+    TASK = "text-to-image"
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_compare_to_diffusers(self, model_arch: str):
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
+        self.assertIsInstance(ort_pipeline.text_encoder, ORTModelTextEncoder)
+        self.assertIsInstance(ort_pipeline.text_encoder_2, ORTModelTextEncoder)
+        self.assertIsInstance(ort_pipeline.vae_decoder, ORTModelVaeDecoder)
+        self.assertIsInstance(ort_pipeline.vae_encoder, ORTModelVaeEncoder)
+        self.assertIsInstance(ort_pipeline.unet, ORTModelUnet)
+        self.assertIsInstance(ort_pipeline.config, Dict)
+
+        # this should render a very tall/wide image, but there is no other XL panorama pipeline to use for reference
+        pipeline = StableDiffusionXLPipeline.from_pretrained(MODEL_NAMES[model_arch])
+        batch_size, num_images_per_prompt, height, width = 2, 2, 64, 32
+        latents = ort_pipeline.prepare_latents(
+            batch_size * num_images_per_prompt,
+            ort_pipeline.unet.config["in_channels"],
+            height,
+            width,
+            dtype=np.float32,
+            generator=np.random.RandomState(0),
+        )
+
+        kwargs = {
+            "prompt": ["sailing ship in storm by Leonardo da Vinci"] * batch_size,
+            "num_inference_steps": 1,
+            "num_images_per_prompt": num_images_per_prompt,
+            "height": height,
+            "width": width,
+            "guidance_rescale": 0.1,
+        }
+
+        for output_type in ["latent", "np"]:
+            ort_outputs = ort_pipeline(latents=latents, output_type=output_type, **kwargs).images
+            self.assertIsInstance(ort_outputs, np.ndarray)
+            with torch.no_grad():
+                outputs = pipeline(latents=torch.from_numpy(latents), output_type=output_type, **kwargs).images
+
+            # Compare model outputs
+            self.assertTrue(np.allclose(ort_outputs, outputs, atol=1e-4))
+            # Compare model devices
+            self.assertEqual(pipeline.device, ort_pipeline.device)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_image_reproducibility(self, model_arch: str):
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
+        inputs = _generate_inputs()
+        height, width = 64, 32
+        np.random.seed(0)
+        ort_outputs_1 = pipeline(**inputs, height=height, width=width)
+        np.random.seed(0)
+        ort_outputs_2 = pipeline(**inputs, height=height, width=width)
+        ort_outputs_3 = pipeline(**inputs, height=height, width=width)
+        self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
+        self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))

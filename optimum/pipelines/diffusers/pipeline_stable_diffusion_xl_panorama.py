@@ -657,8 +657,3 @@ class StableDiffusionXLPanoramaPipelineMixin(StableDiffusionXLImg2ImgPipelineMix
         else:
             logger.debug("running txt2img panorama XL pipeline")
             return self.text2img(*args, **kwargs)
-
-
-class ORTStableDiffusionXLPanoramaPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLPanoramaPipelineMixin):
-    def __call__(self, *args, **kwargs):
-        return StableDiffusionXLPanoramaPipelineMixin.__call__(self, *args, **kwargs)

@@ -48,6 +48,7 @@ from ..pipelines.diffusers.pipeline_stable_diffusion_img2img import StableDiffus
 from ..pipelines.diffusers.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl import StableDiffusionXLPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipelineMixin
+from ..pipelines.diffusers.pipeline_stable_diffusion_xl_panorama import StableDiffusionXLPanoramaPipelineMixin
 from ..pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from ..utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
@@ -816,3 +817,8 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTStableDiffusionXLPipelineBase, Stab
     """
 
     __call__ = StableDiffusionXLImg2ImgPipelineMixin.__call__
+
+
+class ORTStableDiffusionXLPanoramaPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLPanoramaPipelineMixin):
+    def __call__(self, *args, **kwargs):
+        return StableDiffusionXLPanoramaPipelineMixin.__call__(self, *args, **kwargs)
