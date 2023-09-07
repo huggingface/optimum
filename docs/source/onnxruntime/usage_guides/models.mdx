@@ -248,3 +248,26 @@ image = refiner(prompt=prompt, image=image[None, :]).images[0]
 image.save("sailing_ship.png")
 ```
 
+
+### Panorama
+
+Here is an example of how you can use the SDXL panorama pipeline with the tiled VAE to render images that would
+otherwise be too large to fit into VRAM:
+
+```python
+from optimum.onnxruntime import ORTStableDiffusionXLPanoramaPipeline
+
+model_id = "stabilityai/stable-diffusion-xl-base-1.0"
+pipeline = ORTStableDiffusionXLPipeline.from_pretrained(model_id)
+
+# patch pipeline with tiled VAE
+pipeline.vae_decoder = ORTModelTiledVaeWrapper(pipeline.vae_decoder, True, 64, 0.5)
+pipeline.vae_encoder = ORTModelTiledVaeWrapper(pipeline.vae_encoder, False, 64, 0.5)
+
+# run txt2img
+prompt = "sailing ship in storm by Leonardo da Vinci"
+image = pipeline(prompt).images[0]
+
+# you can use the same cached pipeline for img2img
+image = pipeline(prompt, image=image, strength=0.5).images[0]
+```
