@@ -32,7 +32,17 @@ VALIDATE_EXPORT_ON_SHAPES_FAST = {
 PYTORCH_EXPORT_MODELS_TINY = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
     "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
-    "bert": "hf-internal-testing/tiny-random-BertModel",
+    "bert": {
+        "hf-internal-testing/tiny-random-BertModel": [
+            "feature-extraction",
+            "fill-mask",
+            "text-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+        ],
+        "nreimers/BERT-Tiny_L-2_H-128_A-2": ["feature-extraction"],
+    },
     "bart": "hf-internal-testing/tiny-random-bart",
     # "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
     # "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
