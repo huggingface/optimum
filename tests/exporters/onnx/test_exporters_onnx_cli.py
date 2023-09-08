@@ -419,7 +419,14 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @slow
     @pytest.mark.run_slow
     def test_export_on_fp16(
-        self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
     ):
         # TODO: refer to https://github.com/pytorch/pytorch/issues/95377
         if model_type == "yolos":
@@ -446,7 +453,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         if model_type == "ibert":
             self.skipTest("ibert can not be supported in fp16")
 
-        self._onnx_export(model_name, task, monolith, no_post_process, fp16=True)
+        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, fp16=True, device="cuda")
 
     @parameterized.expand(
         [
