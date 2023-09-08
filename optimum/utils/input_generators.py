@@ -588,16 +588,18 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         normalized_config: NormalizedVisionConfig,
         batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
         num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
-        width: int = DEFAULT_DUMMY_SHAPES["width"],
-        height: int = DEFAULT_DUMMY_SHAPES["height"],
+        height: Optional[int] = None,
+        width: Optional[int] = None,
         **kwargs,
     ):
         self.task = task
         # Some vision models can take any input sizes, in this case we use the values provided as parameters.
-        if normalized_config.has_attribute("image_size"):
+        if height is not None and width is not None:
+            self.image_size = (height, width)
+        elif normalized_config.has_attribute("image_size"):
             self.image_size = normalized_config.image_size
         else:
-            self.image_size = (height, width)
+            self.image_size = (DEFAULT_DUMMY_SHAPES["height"], DEFAULT_DUMMY_SHAPES["width"])
         if normalized_config.has_attribute("num_channels"):
             self.num_channels = normalized_config.num_channels
         else:
