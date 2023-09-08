@@ -24,7 +24,7 @@ from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
 import torch
 
-from . import is_accelerate_available, is_diffusers_available
+from . import is_accelerate_available, is_auto_gptq_available, is_diffusers_available, is_timm_available
 
 
 # Used to test the hub
@@ -53,6 +53,13 @@ def require_accelerate(test_case):
     Decorator marking a test that requires accelerate. These tests are skipped when accelerate isn't installed.
     """
     return unittest.skipUnless(is_accelerate_available(), "test requires accelerate")(test_case)
+
+
+def require_auto_gptq(test_case):
+    """
+    Decorator marking a test that requires auto-gptq. These tests are skipped when auto-gptq isn't installed.
+    """
+    return unittest.skipUnless(is_auto_gptq_available(), "test requires auto-gptq")(test_case)
 
 
 def require_torch_gpu(test_case):
@@ -113,6 +120,10 @@ def require_ort_training(test_case):
 
 def require_diffusers(test_case):
     return unittest.skipUnless(is_diffusers_available(), "test requires diffusers")(test_case)
+
+
+def require_timm(test_case):
+    return unittest.skipUnless(is_timm_available(), "test requires timm")(test_case)
 
 
 def grid_parameters(

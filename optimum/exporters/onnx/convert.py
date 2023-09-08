@@ -38,7 +38,7 @@ from ...utils import (
 )
 from ..error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
 from .base import OnnxConfig
-from .utils import PickableInferenceSession, recursive_to_device, recursive_to_dtype
+from .utils import PickableInferenceSession, recursive_to_device
 
 
 if is_torch_available():
@@ -268,6 +268,7 @@ def _run_validation(
     if input_shapes is None:
         input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
     reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
+    reference_model_inputs = config.rename_ambiguous_inputs(reference_model_inputs)
 
     # Create ONNX Runtime session
     session_options = SessionOptions()
@@ -319,18 +320,16 @@ def _run_validation(
 
         for key, value in reference_model_inputs.items():
             reference_model_inputs[key] = recursive_to_device(value=value, device=device)
-            reference_model_inputs[key] = recursive_to_dtype(
-                value=reference_model_inputs[key], dtype=dtype, start_dtype=torch.float32
-            )
 
     # Some models may modify in place the inputs, hence the copy.
     copy_reference_model_inputs = copy.deepcopy(reference_model_inputs)
 
-    if is_torch_available() and isinstance(reference_model, nn.Module):
-        with torch.inference_mode():
-            ref_outputs = reference_model(**copy_reference_model_inputs, **model_kwargs)
-    else:
-        ref_outputs = reference_model(**copy_reference_model_inputs, **model_kwargs)
+    with config.patch_model_for_export(reference_model, model_kwargs=model_kwargs):
+        if is_torch_available() and isinstance(reference_model, nn.Module):
+            with torch.inference_mode():
+                ref_outputs = reference_model(**copy_reference_model_inputs)
+        else:
+            ref_outputs = reference_model(**copy_reference_model_inputs)
     ref_outputs_dict = {}
 
     # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
@@ -353,15 +352,6 @@ def _run_validation(
     reference_ort_inputs = config.generate_dummy_inputs_for_validation(
         reference_model_inputs, onnx_input_names=onnx_input_names
     )
-
-    # generate_dummy_inputs_for_validation may add inputs (e.g. past_key_values) that are by
-    # default on torch.float32 dtype. Thus, to run validation of fp16 model, these inputs need
-    # to be casted as well.
-    if is_torch_available() and isinstance(reference_model, nn.Module):
-        for key, value in reference_ort_inputs.items():
-            reference_ort_inputs[key] = recursive_to_dtype(
-                value=reference_ort_inputs[key], dtype=dtype, start_dtype=torch.float32
-            )
 
     # We flatten potential collection of inputs (i.e. past_keys)
     onnx_inputs = {}
@@ -556,18 +546,14 @@ def export_pytorch(
         def remap(value):
             if isinstance(value, torch.Tensor):
                 value = value.to(device)
-            if isinstance(value, torch.Tensor) and value.dtype == torch.float32:
-                value = value.to(dtype=dtype)
 
             return value
 
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)
             dummy_inputs = tree_map(remap, dummy_inputs)
-        check_dummy_inputs_are_allowed(model, dummy_inputs)
-        inputs = config.ordered_inputs(model)
-        input_names = list(inputs.keys())
-        output_names = list(config.outputs.keys())
+
+        dummy_inputs = config.rename_ambiguous_inputs(dummy_inputs)
 
         # PyTorch deprecated the `enable_onnx_checker` and `use_external_data_format` arguments in v1.11,
         # so we check the torch version for backwards compatibility
@@ -575,6 +561,12 @@ def export_pytorch(
             raise RuntimeError("The ONNX export using the PyTorch framework is only supported for v1.11+")
         else:
             with config.patch_model_for_export(model, model_kwargs=model_kwargs):
+                check_dummy_inputs_are_allowed(model, dummy_inputs)
+
+                inputs = config.ordered_inputs(model)
+                input_names = list(inputs.keys())
+                output_names = list(config.outputs.keys())
+
                 # Export can work with named args but the dict containing named args has to be the last element of the args
                 # tuple.
                 onnx_export(

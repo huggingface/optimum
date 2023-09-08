@@ -138,7 +138,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
         quantized_model = onnx_load(output_dir.joinpath("decoder_model_merged_quantized.onnx"))
         num_quantized_matmul = 0
         for initializer in quantized_model.graph.initializer:
-            if "MatMul" in initializer.name and "quantized" in initializer.name:
+            if "weight" in initializer.name and "quantized" in initializer.name:
                 num_quantized_matmul += 1
 
         self.assertTrue(num_quantized_matmul > 0)

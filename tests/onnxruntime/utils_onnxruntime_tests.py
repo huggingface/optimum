@@ -39,6 +39,7 @@ MODEL_NAMES = {
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
+    "convnext": "hf-internal-testing/tiny-random-convnext",
     "codegen": "hf-internal-testing/tiny-random-CodeGenModel",
     "data2vec_text": "hf-internal-testing/tiny-random-Data2VecTextModel",
     "data2vec_vision": "hf-internal-testing/tiny-random-Data2VecVisionModel",
@@ -46,10 +47,16 @@ MODEL_NAMES = {
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta_v2": "hf-internal-testing/tiny-random-DebertaV2Model",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
-    "convnext": "hf-internal-testing/tiny-random-convnext",
+    "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "detr": "hf-internal-testing/tiny-random-detr",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
+    "encoder-decoder": {
+        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": [
+            "text2text-generation",
+        ],
+        "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
+    },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
@@ -57,6 +64,7 @@ MODEL_NAMES = {
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
+    "hubert": "hf-internal-testing/tiny-random-HubertModel",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
@@ -70,35 +78,36 @@ MODEL_NAMES = {
     "mobilenet_v1": "google/mobilenet_v1_0.75_192",
     "mobilenet_v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
+    "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
+    "pix2struct": "fxmarty/pix2struct-tiny-random",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
+    "sew": "hf-internal-testing/tiny-random-SEWModel",
+    "sew_d": "hf-internal-testing/tiny-random-SEWDModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
+    "speech_to_text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "t5": "hf-internal-testing/tiny-random-t5",
+    "trocr": "microsoft/trocr-small-handwritten",
+    "unispeech": "hf-internal-testing/tiny-random-unispeech",
+    "unispeech_sat": "hf-internal-testing/tiny-random-UnispeechSatModel",
+    "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
     "vit": "hf-internal-testing/tiny-random-vit",
-    "yolos": "hf-internal-testing/tiny-random-YolosModel",
     "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
-    "hubert": "hf-internal-testing/tiny-random-HubertModel",
     "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
     "wavlm": "hf-internal-testing/tiny-random-WavlmModel",
-    "sew": "hf-internal-testing/tiny-random-SEWModel",
-    "sew_d": "hf-internal-testing/tiny-random-SEWDModel",
-    "speech_to_text": "hf-internal-testing/tiny-random-Speech2TextModel",
-    "unispeech": "hf-internal-testing/tiny-random-unispeech",
-    "unispeech_sat": "hf-internal-testing/tiny-random-UnispeechSatModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm_roberta": "hf-internal-testing/tiny-xlm-roberta",
-    "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
-    "trocr": "microsoft/trocr-small-handwritten",
+    "yolos": "hf-internal-testing/tiny-random-YolosModel",
 }
 
 SEED = 42
@@ -134,22 +143,49 @@ class ORTModelTestMixin(unittest.TestCase):
         ):
             self.skipTest("Unsupported export case")
 
+        model_ids = MODEL_NAMES[model_arch]
+        if isinstance(model_ids, dict):
+            model_ids = list(model_ids.keys())
+        else:
+            model_ids = [model_ids]
+
         if model_arch_and_params not in self.onnx_model_dirs:
+            self.onnx_model_dirs[model_arch_and_params] = {}
+
             # model_args will contain kwargs to pass to ORTModel.from_pretrained()
             model_args.pop("test_name")
             model_args.pop("model_arch")
 
-            model_id = (
-                self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
-            )
-            set_seed(SEED)
-            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, use_io_binding=False, export=True)
+            for idx, model_id in enumerate(model_ids):
+                if model_arch == "encoder-decoder" and task not in MODEL_NAMES[model_arch][model_id]:
+                    # The model with use_cache=True is not supported for bert as a decoder")
+                    continue
 
-            model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{self.TASK}_")
-            onnx_model.save_pretrained(model_dir)
-            self.onnx_model_dirs[model_arch_and_params] = model_dir
+                if model_arch in self.ARCH_MODEL_MAP:
+                    if isinstance(MODEL_NAMES[model_arch], dict):
+                        model_id = list(self.ARCH_MODEL_MAP[model_arch].keys())[idx]
+                    else:
+                        model_id = self.ARCH_MODEL_MAP[model_arch]
+
+                set_seed(SEED)
+                onnx_model = self.ORTMODEL_CLASS.from_pretrained(
+                    model_id, **model_args, use_io_binding=False, export=True
+                )
+
+                model_dir = tempfile.mkdtemp(
+                    prefix=f"{model_arch_and_params}_{self.TASK}_{model_id.replace('/', '_')}"
+                )
+                onnx_model.save_pretrained(model_dir)
+                if isinstance(MODEL_NAMES[model_arch], dict):
+                    self.onnx_model_dirs[model_arch_and_params][model_id] = model_dir
+                else:
+                    self.onnx_model_dirs[model_arch_and_params] = model_dir
 
     @classmethod
     def tearDownClass(cls):
         for _, dir_path in cls.onnx_model_dirs.items():
-            shutil.rmtree(dir_path)
+            if isinstance(dir_path, dict):
+                for _, sec_dir_path in dir_path.items():
+                    shutil.rmtree(sec_dir_path)
+            else:
+                shutil.rmtree(dir_path)

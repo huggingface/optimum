@@ -24,6 +24,7 @@ REQUIRED_PKGS = [
 ]
 
 TESTS_REQUIRE = [
+    "accelerate",
     "pytest",
     "requests",
     "parameterized",
@@ -55,17 +56,18 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
+        "accelerate",  # ORTTrainer requires it.
     ],
     "exporters": ["onnx", "onnxruntime", "timm"],
     "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
-    "exporters-tf": ["tensorflow>=2.4", "tf2onnx", "onnx", "onnxruntime", "timm", "h5py", "numpy<1.24.0"],
+    "exporters-tf": ["tensorflow>=2.4,<=2.12.1", "tf2onnx", "onnx", "onnxruntime", "timm", "h5py", "numpy<1.24.0"],
     "diffusers": ["diffusers"],
     "intel": "optimum-intel>=1.10.1",
     "openvino": "optimum-intel[openvino]>=1.10.1",
     "nncf": "optimum-intel[nncf]>=1.10.1",
     "neural-compressor": "optimum-intel[neural-compressor]>=1.9.2",
     "graphcore": "optimum-graphcore",
-    "habana": ["transformers<4.29.0", "optimum-habana"],
+    "habana": "optimum-habana",
     "neuron": "optimum-neuron[neuron]",
     "neuronx": "optimum-neuron[neuronx]",
     "furiosa": "optimum-furiosa",
@@ -73,6 +75,7 @@ EXTRAS_REQUIRE = {
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
     "benchmark": BENCHMARK_REQUIRE,
+    "doc-build": ["accelerate"],
 }
 
 setup(

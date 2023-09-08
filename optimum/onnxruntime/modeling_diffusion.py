@@ -31,9 +31,10 @@ from diffusers import (
     StableDiffusionXLImg2ImgPipeline,
 )
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
-from diffusers.utils import CONFIG_NAME
+from diffusers.utils import CONFIG_NAME, is_invisible_watermark_available
 from huggingface_hub import snapshot_download
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
+from transformers.file_utils import add_end_docstrings
 
 import onnxruntime as ort
 
@@ -44,6 +45,7 @@ from ..pipelines.diffusers.pipeline_stable_diffusion_img2img import StableDiffus
 from ..pipelines.diffusers.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl import StableDiffusionXLPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipelineMixin
+from ..pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from ..utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
@@ -51,7 +53,7 @@ from ..utils import (
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
 )
-from .modeling_ort import ORTModel
+from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
     _ORT_TO_NP_TYPE,
     ONNX_WEIGHTS_NAME,
@@ -169,6 +171,8 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             self.vae_scale_factor = 2 ** (len(self.vae_decoder.config["block_out_channels"]) - 1)
         else:
             self.vae_scale_factor = 8
+
+        self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
 
     @staticmethod
     def load_model(
@@ -288,6 +292,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         patterns = set(config.keys())
         sub_models_to_load = patterns.intersection({"feature_extractor", "tokenizer", "tokenizer_2", "scheduler"})
 
+        print("GO HERE")
         if not os.path.isdir(model_id):
             patterns.update({"vae_encoder", "vae_decoder"})
             allow_patterns = {os.path.join(k, "*") for k in patterns if not k.startswith("_")}
@@ -441,6 +446,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
 
     @classmethod
     def _load_config(cls, config_name_or_path: Union[str, os.PathLike], **kwargs):
+        print("cls here", cls)
         return cls.load_config(config_name_or_path, **kwargs)
 
     def _save_config(self, save_directory):
@@ -531,19 +537,31 @@ class ORTModelVaeEncoder(_ORTDiffusionModelPart):
         return outputs
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionPipeline(ORTStableDiffusionPipelineBase, StableDiffusionPipelineMixin):
-    def __call__(self, *args, **kwargs):
-        return StableDiffusionPipelineMixin.__call__(self, *args, **kwargs)
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline).
+    """
+
+    __call__ = StableDiffusionPipelineMixin.__call__
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionImg2ImgPipeline(ORTStableDiffusionPipelineBase, StableDiffusionImg2ImgPipelineMixin):
-    def __call__(self, *args, **kwargs):
-        return StableDiffusionImg2ImgPipelineMixin.__call__(self, *args, **kwargs)
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline).
+    """
+
+    __call__ = StableDiffusionImg2ImgPipelineMixin.__call__
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionInpaintPipeline(ORTStableDiffusionPipelineBase, StableDiffusionInpaintPipelineMixin):
-    def __call__(self, *args, **kwargs):
-        return StableDiffusionInpaintPipelineMixin.__call__(self, *args, **kwargs)
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline).
+    """
+
+    __call__ = StableDiffusionInpaintPipelineMixin.__call__
 
 
 class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
@@ -563,6 +581,7 @@ class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
         tokenizer_2: Optional[CLIPTokenizer] = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        add_watermarker: Optional[bool] = None,
     ):
         super().__init__(
             vae_decoder_session=vae_decoder_session,
@@ -579,17 +598,34 @@ class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
             model_save_dir=model_save_dir,
         )
 
-        # additional invisible-watermark dependency for SD XL
-        from ..pipelines.diffusers.watermark import StableDiffusionXLWatermarker
+        add_watermarker = add_watermarker if add_watermarker is not None else is_invisible_watermark_available()
 
-        self.watermark = StableDiffusionXLWatermarker()
+        if add_watermarker:
+            if not is_invisible_watermark_available():
+                raise ImportError(
+                    "`add_watermarker` requires invisible-watermark to be installed, which can be installed with `pip install invisible-watermark`."
+                )
+
+            from ..pipelines.diffusers.watermark import StableDiffusionXLWatermarker
+
+            self.watermark = StableDiffusionXLWatermarker()
+        else:
+            self.watermark = None
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLPipelineMixin):
-    def __call__(self, *args, **kwargs):
-        return StableDiffusionXLPipelineMixin.__call__(self, *args, **kwargs)
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLPipeline).
+    """
+
+    __call__ = StableDiffusionXLPipelineMixin.__call__
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionXLImg2ImgPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLImg2ImgPipelineMixin):
-    def __call__(self, *args, **kwargs):
-        return StableDiffusionXLImg2ImgPipelineMixin.__call__(self, *args, **kwargs)
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLImg2ImgPipeline).
+    """
+
+    __call__ = StableDiffusionXLImg2ImgPipelineMixin.__call__

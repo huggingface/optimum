@@ -15,26 +15,50 @@ from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
-from transformers.models.bark.modeling_bark import BarkSelfAttention
 from transformers.models.bart.modeling_bart import BartAttention
 from transformers.models.blenderbot.modeling_blenderbot import BlenderbotAttention
+from transformers.models.bloom.modeling_bloom import BloomAttention
 from transformers.models.codegen.modeling_codegen import CodeGenAttention
 from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
+from transformers.models.gpt_bigcode.modeling_gpt_bigcode import GPTBigCodeAttention
 from transformers.models.gpt_neo.modeling_gpt_neo import GPTNeoSelfAttention
 from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXAttention
 from transformers.models.gptj.modeling_gptj import GPTJAttention
-from transformers.models.llama.modeling_llama import LlamaAttention
 from transformers.models.m2m_100.modeling_m2m_100 import M2M100Attention
 from transformers.models.marian.modeling_marian import MarianAttention
 from transformers.models.opt.modeling_opt import OPTAttention
 from transformers.models.pegasus.modeling_pegasus import PegasusAttention
 from transformers.models.t5.modeling_t5 import T5Attention
 
+from ...utils.import_utils import check_if_transformers_greater
+
+
+# TODO: remove once we are much higher than 4.31
+if check_if_transformers_greater("4.31"):
+    from transformers.models.llama.modeling_llama import LlamaAttention
+else:
+    from ...utils.dummy_bettertransformer_objects import LlamaAttention
+
+if check_if_transformers_greater("4.31"):
+    from transformers.models.bark.modeling_bark import BarkSelfAttention
+else:
+    from ...utils.dummy_bettertransformer_objects import BarkSelfAttention
+
+if check_if_transformers_greater("4.32"):
+    from transformers.models.falcon.modeling_falcon import FalconAttention
+else:
+    from ...utils.dummy_bettertransformer_objects import FalconAttention
+
+
 from .attention import (
     bark_wrapped_scaled_dot_product,
     bart_forward,
+    bloom_forward,
     codegen_wrapped_scaled_dot_product,
+    falcon_forward,
     gpt2_wrapped_scaled_dot_product,
+    gpt_bigcode_forward,
+    gpt_bigcode_wrapped_scaled_dot_product,
     gpt_neo_wrapped_scaled_dot_product,
     llama_forward,
     opt_forward,
@@ -199,6 +223,46 @@ class BarkAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BarkSelfAt
         return super().forward(*args, **kwargs)
 
 
+class BloomAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BloomAttention, nn.Module):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+        super().__init__(config)
+
+        with torch.device("meta"):
+            super(BetterTransformerBaseLayer, self).__init__(config)
+
+        self.dropout_prob_attn = config.attention_dropout
+
+        self.module_mapping = None
+        submodules = ["query_key_value", "dense", "attention_dropout"]
+        for attr in submodules:
+            setattr(self, attr, getattr(layer, attr))
+
+        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
+
+    def forward(self, *args, **kwargs):
+        return bloom_forward(self, *args, **kwargs)
+
+
+class FalconAttentionLayerBetterTransformer(BetterTransformerBaseLayer, FalconAttention, nn.Module):
+    def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
+        super().__init__(config)
+
+        with torch.device("meta"):
+            super(BetterTransformerBaseLayer, self).__init__(config)
+
+        self.dropout_prob_attn = config.attention_dropout
+
+        self.module_mapping = None
+        submodules = ["query_key_value", "dense", "attention_dropout", "maybe_rotary"]
+        for attr in submodules:
+            setattr(self, attr, getattr(layer, attr))
+
+        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
+
+    def forward(self, *args, **kwargs):
+        return falcon_forward(self, *args, **kwargs)
+
+
 class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGenAttention, nn.Module):
     _attn = codegen_wrapped_scaled_dot_product
 
@@ -360,3 +424,26 @@ class LlamaAttentionLayerBetterTransformer(BetterTransformerBaseLayer, LlamaAtte
 
     def forward(self, *args, **kwargs):
         return llama_forward(self, *args, **kwargs)
+
+
+class GPTBigCodeAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTBigCodeAttention):
+    _attn = gpt_bigcode_wrapped_scaled_dot_product
+
+    def __init__(self, layer: nn.Module, config: "PretrainedConfig"):
+        with torch.device("meta"):
+            super(BetterTransformerBaseLayer, self).__init__(config, layer.is_cross_attention, layer.layer_idx)
+
+        self.module_mapping = None
+        submodules = ["c_attn", "c_proj"]
+
+        if layer.is_cross_attention:
+            submodules.append("q_attn")
+
+        for attr in submodules:
+            setattr(self, attr, getattr(layer, attr))
+
+        self.original_layers_mapping = {submodule: submodule for submodule in submodules}
+        self.dropout_prob_attn = config.attn_pdrop
+
+    def forward(self, *args, **kwargs):
+        return gpt_bigcode_forward(self, *args, **kwargs)

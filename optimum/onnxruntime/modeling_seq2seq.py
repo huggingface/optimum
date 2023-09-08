@@ -31,10 +31,12 @@ from transformers import (
     AutoModelForSpeechSeq2Seq,
     AutoModelForVision2Seq,
     GenerationConfig,
+    Pix2StructForConditionalGeneration,  # Pix2struct does not support AutoModel
     WhisperForConditionalGeneration,
 )
-from transformers.file_utils import add_start_docstrings_to_model_forward
+from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
+from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
 
 import onnxruntime as ort
 
@@ -51,7 +53,7 @@ from .constants import (
     DECODER_WITH_PAST_ONNX_FILE_PATTERN,
     ENCODER_ONNX_FILE_PATTERN,
 )
-from .modeling_ort import ORTModel
+from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
@@ -98,6 +100,13 @@ VISION_ENCODER_INPUTS_DOCSTRING = r"""
             Features extracted from an Image. This tensor should be of shape `(batch_size, num_channels, height, width)`.
 """
 
+PIX2STRUCT_INPUTS_DOCSTRING = r"""
+    Args:
+        flattened_patches (`torch.FloatTensor` of shape `(batch_size, sequence_length, num_channels x patch_height x patch_width)`):
+            Flattened and padded pixel values.
+        attention_mask (`torch.FloatTensor` of shape `(batch_size, sequence_length)`):
+            Mask to avoid performing attention on padding pixel values.
+"""
 
 DECODER_INPUTS_DOCSTRING = r"""
     Args:
@@ -132,7 +141,6 @@ SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
             `(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
 """
 
-
 SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
     Args:
         input_features (`torch.FloatTensor`):
@@ -165,9 +173,36 @@ VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
             `(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
 """
 
+PIX2STRUCT_ONNX_MODEL_DOCSTRING = r"""
+    Args:
+        flattened_patches (`torch.FloatTensor` of shape `(batch_size, seq_length, hidden_size)`):
+            Flattened pixel patches. the `hidden_size` is obtained by the following formula: `hidden_size` =
+            `num_channels` * `patch_size` * `patch_size`
+            The process of flattening the pixel patches is done by `Pix2StructProcessor`.
+        attention_mask (`torch.FloatTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Mask to avoid performing attention on padding token indices.
+        decoder_input_ids (`torch.LongTensor` of shape `(batch_size, target_sequence_length)`, *optional*):
+            Indices of decoder input sequence tokens in the vocabulary.
+            Pix2StructText uses the `pad_token_id` as the starting token for `decoder_input_ids` generation. If
+            `past_key_values` is used, optionally only the last `decoder_input_ids` have to be input (see
+            `past_key_values`).
+        decoder_attention_mask (`torch.BoolTensor` of shape `(batch_size, target_sequence_length)`, *optional*):
+            Default behavior: generate a tensor that ignores pad tokens in `decoder_input_ids`. Causal mask will also
+            be used by default.
+        encoder_outputs (`tuple(tuple(torch.FloatTensor)`, *optional*):
+            Tuple consists of (`last_hidden_state`, `optional`: *hidden_states*, `optional`: *attentions*)
+            `last_hidden_state` of shape `(batch_size, sequence_length, hidden_size)` is a sequence of hidden states at
+            the output of the last layer of the encoder. Used in the cross-attention of the decoder.
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*, defaults to `None`)`
+            Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
+            The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
+            `(batch_size, num_heads, decoder_sequence_length, embed_size_per_head)` and 2 additional tensors of shape
+            `(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
+"""
+
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
 _PROCESSOR_FOR_DOC = "AutoProcessor"
-_IMAGE_PROCESSOER_FOR_DOC = "AutoImageProcessor"
+_IMAGE_PROCESSER_FOR_DOC = "AutoImageProcessor"
 
 TRANSLATION_EXAMPLE = r"""
     Example of text generation:
@@ -280,6 +315,28 @@ IMAGE_TO_TEXT_EXAMPLE = r"""
     ```
 """
 
+PIX2STRUCT_EXAMPLE = r"""
+    Example of pix2struct:
+
+    ```python
+    >>> from transformers import {processor_class}
+    >>> from optimum.onnxruntime import {model_class}
+    >>> from PIL import Image
+    >>> import requests
+
+    >>> processor = {processor_class}.from_pretrained("{checkpoint}")
+    >>> model = {model_class}.from_pretrained("{checkpoint}", export=True, use_io_binding=True)
+
+    >>> url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/tasks/ai2d-demo.jpg"
+    >>> image = Image.open(requests.get(url, stream=True).raw)
+    >>> question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
+    >>> inputs = processor(images=image, text=question, return_tensors="pt")
+
+    >>> gen_tokens = model.generate(**inputs)
+    >>> outputs = processor.batch_decode(gen_tokens, skip_special_tokens=True)
+    ```
+"""
+
 
 class ORTEncoderForSpeech(ORTEncoder):
     """
@@ -360,8 +417,13 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
 
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
+            known_output_shapes = self.compute_encoder_known_output_shapes(pixel_values)
+
             io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session, pixel_values, ordered_input_names=self._ordered_input_names
+                self.session,
+                pixel_values,
+                known_output_shapes=known_output_shapes,
+                ordered_input_names=self._ordered_input_names,
             )
 
             io_binding.synchronize_inputs()
@@ -378,6 +440,92 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
             outputs = self.session.run(None, onnx_inputs)
 
             last_hidden_state = outputs[self.output_names["last_hidden_state"]]
+            if use_torch:
+                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
+
+        return BaseModelOutput(last_hidden_state=last_hidden_state)
+
+    def compute_encoder_known_output_shapes(self, pixel_values: torch.FloatTensor) -> Dict[str, List[int]]:
+        if self.normalized_config.model_type == "vit":
+            # for vit models
+            encoder_sequence_length = (
+                self.normalized_config.image_size // self.normalized_config.config.patch_size
+            ) ** 2 + 1  # plus cls token
+        elif self.normalized_config.config.model_type == "donut-swin":
+            # for donut-swin models
+            encoder_sequence_length = (
+                self.normalized_config.config.image_size[0]
+                * self.normalized_config.config.image_size[1]
+                // self.normalized_config.config.hidden_size
+            )
+        else:
+            raise ValueError(
+                f"Unsupported encoder model type {self.normalized_config.config.model_type} for ORTForVisionSeq2Seq with IOBinding."
+                "Currently supported models are vit and donut-swin."
+                "Please submit a PR to add support for this model type."
+            )
+
+        return {
+            "last_hidden_state": [
+                pixel_values.shape[0],  # batch_size
+                encoder_sequence_length,  # encoder_sequence_length
+                self.normalized_config.config.hidden_size,  # hidden_size
+            ]
+        }
+
+
+class ORTEncoderForPix2Struct(ORTEncoder):
+    """
+    Encoder model for ONNX Runtime inference for Pix2Struct.
+
+    Args:
+        session (`ort.InferenceSession`):
+            The ONNX Runtime inference session associated to the encoder.
+    """
+
+    @add_start_docstrings_to_model_forward(PIX2STRUCT_INPUTS_DOCSTRING)
+    def forward(
+        self,
+        flattened_patches: torch.FloatTensor,
+        attention_mask: torch.LongTensor,
+        **kwargs,
+    ) -> BaseModelOutput:
+        use_torch = isinstance(flattened_patches, torch.Tensor)
+        self.parent_model.raise_on_numpy_input_io_binding(use_torch)
+
+        if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
+            model_inputs = (
+                [flattened_patches, attention_mask] if "attention_mask" in self.input_names else [flattened_patches]
+            )
+            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
+                self.session,
+                *model_inputs,
+                ordered_input_names=self._ordered_input_names,
+            )
+
+            io_binding.synchronize_inputs()
+            self.session.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
+        else:
+            if use_torch:
+                onnx_inputs = {"flattened_patches": flattened_patches.cpu().detach().numpy()}
+                if "attention_mask" in self.input_names:
+                    onnx_inputs["attention_mask"] = attention_mask.cpu().detach().numpy()
+            else:
+                onnx_inputs = {"flattened_patches": flattened_patches}
+                if "attention_mask" in self.input_names:
+                    onnx_inputs["attention_mask"] = attention_mask
+
+            if "attention_mask" in self.input_names:
+                if self.session.get_inputs()[1].type == "tensor(int64)":
+                    onnx_inputs["attention_mask"] = onnx_inputs["attention_mask"].astype(np.int64)
+
+            outputs = self.session.run(None, onnx_inputs)
+
+            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
+
             if use_torch:
                 last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
 
@@ -492,6 +640,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             preprocessors=preprocessors,
         )
         self.config = config
+        self.name_or_path = config.name_or_path
 
         self.onnx_paths = onnx_paths
         self.use_cache = use_cache
@@ -969,19 +1118,62 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         return False
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     """
-    Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
+    Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports bart, blenderbot, blenderbot_small, longt5, m2m_100, marian, mbart, mt5, pegasus, t5.
     """
 
     auto_model_class = AutoModelForSeq2SeqLM
     main_input_name = "input_ids"
 
+    def __init__(
+        self,
+        encoder_session: ort.InferenceSession,
+        decoder_session: ort.InferenceSession,
+        config: "PretrainedConfig",
+        onnx_paths: List[str],
+        decoder_with_past_session: Optional[ort.InferenceSession] = None,
+        use_cache: bool = True,
+        use_io_binding: Optional[bool] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        preprocessors: Optional[List] = None,
+        generation_config: Optional[GenerationConfig] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            encoder_session,
+            decoder_session,
+            config,
+            onnx_paths,
+            decoder_with_past_session,
+            use_cache,
+            use_io_binding,
+            model_save_dir,
+            preprocessors,
+            generation_config,
+            **kwargs,
+        )
+
+        if config.model_type == "encoder-decoder":
+            self.encoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
+                config.encoder.model_type
+            )(config.encoder)
+
+            self.decoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
+                config.decoder.model_type
+            )(config.decoder)
+
+            if self.decoder_with_past is not None:
+                self.decoder_with_past.normalized_config = NormalizedConfigManager.get_normalized_config_class(
+                    config.decoder.model_type
+                )(config.decoder)
+
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoder(session, self)
 
     @add_start_docstrings_to_model_forward(
-        SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
+        SEQ2SEQ_ONNX_MODEL_DOCSTRING
         + TRANSLATION_EXAMPLE.format(
             processor_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForSeq2SeqLM",
@@ -1038,6 +1230,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         input_ids,
         past_key_values=None,
         attention_mask=None,
+        token_type_ids=None,
         head_mask=None,
         decoder_head_mask=None,
         cross_attn_head_mask=None,
@@ -1075,19 +1268,51 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         return True
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     """
-    Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
+    Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper, speech_to_text.
     """
 
     auto_model_class = AutoModelForSpeechSeq2Seq
     main_input_name = "input_features"
 
+    def __init__(
+        self,
+        encoder_session: ort.InferenceSession,
+        decoder_session: ort.InferenceSession,
+        config: "PretrainedConfig",
+        onnx_paths: List[str],
+        decoder_with_past_session: Optional[ort.InferenceSession] = None,
+        use_cache: bool = True,
+        use_io_binding: Optional[bool] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        preprocessors: Optional[List] = None,
+        generation_config: Optional[GenerationConfig] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            encoder_session=encoder_session,
+            decoder_session=decoder_session,
+            config=config,
+            onnx_paths=onnx_paths,
+            decoder_with_past_session=decoder_with_past_session,
+            use_cache=use_cache,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+            preprocessors=preprocessors,
+            generation_config=generation_config,
+            **kwargs,
+        )
+        # Following a breaking change in transformers that relies directly on the mapping name and not on the greedy model mapping (that can be extended), we need to hardcode the ortmodel in this dictionary. Other pipelines do not seem to have controlflow depending on the mapping name.
+        # See: https://github.com/huggingface/transformers/pull/24960/files
+        MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES["ort_speechseq2seq"] = self.__class__.__name__
+
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoderForSpeech(session, self)
 
     @add_start_docstrings_to_model_forward(
-        SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, feature_size, sequence_length")
+        SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING
         + AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE.format(
             processor_class=_PROCESSOR_FOR_DOC,
             model_class="ORTModelForSpeechSeq2Seq",
@@ -1222,9 +1447,10 @@ class _ORTModelForWhisper(
         return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     """
-    VisionEncoderDecoder Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
+    VisionEncoderDecoder Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports trocr and vision-encoder-decoder.
     """
 
     auto_model_class = AutoModelForVision2Seq
@@ -1275,9 +1501,9 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         return ORTEncoderForVisionEncoderDecoder(session, self)
 
     @add_start_docstrings_to_model_forward(
-        VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING.format("batch_size, num_channels, height, width")
+        VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING
         + IMAGE_TO_TEXT_EXAMPLE.format(
-            processor_class=_IMAGE_PROCESSOER_FOR_DOC,
+            processor_class=_IMAGE_PROCESSER_FOR_DOC,
             tokenizer_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForVision2Seq",
             checkpoint="nlpconnect/vit-gpt2-image-captioning",
@@ -1358,6 +1584,131 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
                 tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
             )
         return reordered_past
+
+    def can_generate(self):
+        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
+        return True
+
+
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
+    """
+    Pix2struct model with a language modeling head for ONNX Runtime inference. This class officially supports pix2struct.
+    """
+
+    # pix2struct cannot be loaded using AutoModel
+    auto_model_class = Pix2StructForConditionalGeneration
+    main_input_name = "flattened_patches"
+
+    def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
+        return ORTEncoderForPix2Struct(session, self)
+
+    @add_start_docstrings_to_model_forward(
+        PIX2STRUCT_ONNX_MODEL_DOCSTRING
+        + PIX2STRUCT_EXAMPLE.format(
+            processor_class=_PROCESSOR_FOR_DOC,
+            model_class="ORTModelForPix2Struct",
+            checkpoint="google/pix2struct-ai2d-base",
+        )
+    )
+    def forward(
+        self,
+        flattened_patches: Optional[torch.FloatTensor] = None,
+        attention_mask: Optional[torch.LongTensor] = None,
+        decoder_input_ids: Optional[torch.LongTensor] = None,
+        decoder_attention_mask: Optional[torch.BoolTensor] = None,
+        encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        labels: Optional[torch.LongTensor] = None,
+        **kwargs,
+    ) -> Seq2SeqLMOutput:
+        # Encode if needed : first prediction pass
+        # Encode if needed (training, first prediction pass)
+        if encoder_outputs is None:
+            encoder_outputs = self.encoder(
+                flattened_patches=flattened_patches,
+                attention_mask=attention_mask,
+            )
+
+        # TODO: for some reason the attention_mask for pix2struct is a float in transformers and not an int64. This messes up with the exporter
+        # hardcodes int64 input dtype for the attention mask. This workaround is quite ugly, it should be fixed rather in the ONNX exporter.
+        if isinstance(attention_mask, torch.Tensor):
+            attention_mask = attention_mask.to(torch.int64)
+        else:
+            attention_mask = attention_mask.astype(np.int64)
+
+        # Decode
+        if past_key_values is None or self.use_cache is False:
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids,
+                decoder_attention_mask=decoder_attention_mask,
+                past_key_values=past_key_values,
+                encoder_hidden_states=encoder_outputs.last_hidden_state,
+                encoder_attention_mask=attention_mask,
+                labels=labels,
+            )
+        elif self.use_merged is True:
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids[:, -1:],
+                decoder_attention_mask=decoder_attention_mask,
+                past_key_values=past_key_values,
+                encoder_hidden_states=encoder_outputs.last_hidden_state,
+                encoder_attention_mask=attention_mask,
+                labels=labels,
+            )
+        else:
+            decoder_outputs = self.decoder_with_past(
+                input_ids=decoder_input_ids[:, -1:],  # Cut decoder_input_ids if past is used
+                decoder_attention_mask=decoder_attention_mask,
+                past_key_values=past_key_values,
+                encoder_hidden_states=encoder_outputs.last_hidden_state,
+                encoder_attention_mask=attention_mask,
+                labels=labels,
+            )
+
+        return Seq2SeqLMOutput(
+            loss=decoder_outputs.get("loss", None),
+            logits=decoder_outputs.logits,
+            past_key_values=decoder_outputs.past_key_values,
+        )
+
+    def prepare_inputs_for_generation(
+        self,
+        input_ids,
+        flattened_patches: Optional[torch.FloatTensor] = None,
+        attention_mask: Optional[torch.LongTensor] = None,
+        decoder_attention_mask: Optional[torch.BoolTensor] = None,
+        past_key_values=None,
+        head_mask=None,
+        decoder_head_mask=None,
+        cross_attn_head_mask=None,
+        use_cache=None,
+        encoder_outputs=None,
+        **kwargs,
+    ) -> Dict:
+        if decoder_attention_mask is None:
+            decoder_attention_mask = torch.ones_like(input_ids).to(input_ids.device)
+
+        return {
+            "flattened_patches": flattened_patches,
+            "decoder_input_ids": input_ids,
+            "past_key_values": past_key_values,
+            "encoder_outputs": encoder_outputs,
+            "attention_mask": attention_mask,
+            "decoder_attention_mask": decoder_attention_mask,
+            "head_mask": head_mask,
+            "decoder_head_mask": decoder_head_mask,
+            "cross_attn_head_mask": cross_attn_head_mask,
+            "use_cache": use_cache,
+        }
+
+    def get_encoder(self) -> ORTEncoder:
+        return self.encoder
+
+    # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
+    @staticmethod
+    def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
+        ORTModelForSeq2SeqLM._reorder_cache(past, beam_idx)
 
     def can_generate(self):
         """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""

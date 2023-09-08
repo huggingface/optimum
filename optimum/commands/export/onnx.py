@@ -41,7 +41,7 @@ def parse_args_onnx(parser):
         default="auto",
         help=(
             "The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend on the model, but are among:"
-            f" {str(list(TasksManager._TASKS_TO_AUTOMODELS.keys()))}. For decoder models, use `xxx-with-past` to export the model using past key values in the decoder."
+            f" {str(TasksManager.get_all_tasks())}. For decoder models, use `xxx-with-past` to export the model using past key values in the decoder."
         ),
     )
     optional_group.add_argument(
@@ -90,6 +90,12 @@ def parse_args_onnx(parser):
             "Allows to disable any post-processing done by default on the exported ONNX models. For example, the merging of decoder"
             " and decoder-with-past models into a single ONNX model file to reduce memory usage."
         ),
+    )
+    optional_group.add_argument(
+        "--variant",
+        type=str,
+        default="default",
+        help=("Select a variant of the model to export."),
     )
     optional_group.add_argument(
         "--framework",
@@ -197,6 +203,13 @@ def parse_args_onnx(parser):
         default=DEFAULT_DUMMY_SHAPES["nb_points_per_image"],
         help="For Segment Anything. It corresponds to the number of points per segmentation masks.",
     )
+    optional_group.add_argument(
+        "--library_name",
+        type=str,
+        choices=["transformers", "diffusers", "timm"],
+        default=None,
+        help=("The library on the model." " If not provided, will attempt to infer the local checkpoint's library"),
+    )
 
     # deprecated argument
     parser.add_argument("--for-ort", action="store_true", help=argparse.SUPPRESS)
@@ -233,5 +246,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             pad_token_id=self.args.pad_token_id,
             for_ort=self.args.for_ort,
             use_subprocess=True,
+            _variant=self.args.variant,
+            library_name=self.args.library_name,
             **input_shapes,
         )

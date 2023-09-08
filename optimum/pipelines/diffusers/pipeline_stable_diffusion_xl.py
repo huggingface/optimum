@@ -158,7 +158,7 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
                 # Here we concatenate the unconditional and text embeddings into a single batch
                 # to avoid doing two forward passes
                 negative_prompt_embeds_list.append(negative_prompt_embeds)
-            negative_prompt_embeds = np.concatenate(negative_prompt_embeds, axis=-1)
+            negative_prompt_embeds = np.concatenate(negative_prompt_embeds_list, axis=-1)
 
         pooled_prompt_embeds = np.repeat(pooled_prompt_embeds, num_images_per_prompt, axis=0)
         negative_pooled_prompt_embeds = np.repeat(negative_pooled_prompt_embeds, num_images_per_prompt, axis=0)
@@ -480,18 +480,15 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
         if output_type == "latent":
             image = latents
         else:
-            latents = latents / self.vae_decoder.config.get("scaling_factor", 0.18215)
+            latents /= self.vae_decoder.config.get("scaling_factor", 0.18215)
             # it seems likes there is a strange result for using half-precision vae decoder if batchsize>1
             image = np.concatenate(
                 [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
             )
-            image = self.watermark.apply_watermark(image)
-
-            # TODO: add image_processor
-            image = np.clip(image / 2 + 0.5, 0, 1).transpose((0, 2, 3, 1))
-
-        if output_type == "pil":
-            image = self.numpy_to_pil(image)
+            # apply watermark if available
+            if self.watermark is not None:
+                image = self.watermark.apply_watermark(image)
+            image = self.image_processor.postprocess(image, output_type=output_type)
 
         if not return_dict:
             return (image,)

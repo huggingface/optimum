@@ -13,13 +13,16 @@
 # limitations under the License.
 import warnings
 
-from .attention import _llama_prepare_decoder_attention_mask
+from ...utils.import_utils import check_if_transformers_greater
 from .decoder_models import (
     BarkAttentionLayerBetterTransformer,
     BartAttentionLayerBetterTransformer,
     BlenderbotAttentionLayerBetterTransformer,
+    BloomAttentionLayerBetterTransformer,
     CodegenAttentionLayerBetterTransformer,
+    FalconAttentionLayerBetterTransformer,
     GPT2AttentionLayerBetterTransformer,
+    GPTBigCodeAttentionLayerBetterTransformer,
     GPTJAttentionLayerBetterTransformer,
     GPTNeoAttentionLayerBetterTransformer,
     GPTNeoXAttentionLayerBetterTransformer,
@@ -46,6 +49,13 @@ from .encoder_models import (
 )
 
 
+# TODO: remove once we are much higher than 4.31
+if check_if_transformers_greater("4.31"):
+    from .attention import _llama_prepare_decoder_attention_mask
+else:
+    from ...utils.dummy_bettertransformer_objects import _llama_prepare_decoder_attention_mask
+
+
 class BetterTransformerManager:
     MODEL_MAPPING = {
         "albert": {"AlbertLayer": AlbertLayerBetterTransformer},
@@ -57,6 +67,7 @@ class BetterTransformerManager:
         "bert": {"BertLayer": BertLayerBetterTransformer},
         "bert-generation": {"BertGenerationLayer": BertLayerBetterTransformer},
         "blenderbot": {"BlenderbotAttention": BlenderbotAttentionLayerBetterTransformer},
+        "bloom": {"BloomAttention": BloomAttentionLayerBetterTransformer},
         "camembert": {"CamembertLayer": BertLayerBetterTransformer},
         "blip-2": {"T5Attention": T5AttentionLayerBetterTransformer},
         "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
@@ -67,7 +78,9 @@ class BetterTransformerManager:
         "electra": {"ElectraLayer": BertLayerBetterTransformer},
         "ernie": {"ErnieLayer": BertLayerBetterTransformer},
         "fsmt": {"EncoderLayer": FSMTEncoderLayerBetterTransformer},
+        "falcon": {"FalconAttention": FalconAttentionLayerBetterTransformer},
         "gpt2": {"GPT2Attention": GPT2AttentionLayerBetterTransformer},
+        "gpt_bigcode": {"GPTBigCodeAttention": GPTBigCodeAttentionLayerBetterTransformer},
         "gptj": {"GPTJAttention": GPTJAttentionLayerBetterTransformer},
         "gpt_neo": {"GPTNeoSelfAttention": GPTNeoAttentionLayerBetterTransformer},
         "gpt_neox": {"GPTNeoXAttention": GPTNeoXAttentionLayerBetterTransformer},
@@ -128,8 +141,10 @@ class BetterTransformerManager:
     NOT_REQUIRES_NESTED_TENSOR = {
         "bark",
         "blenderbot",
+        "bloom",
         "codegen",
         "gpt2",
+        "gpt_bigcode",
         "gptj",
         "gpt_neo",
         "gpt_neox",
@@ -137,13 +152,16 @@ class BetterTransformerManager:
         "opt",
         "pegasus",
         "t5",
+        "falcon",
     }
 
     NOT_REQUIRES_STRICT_VALIDATION = {
         "blenderbot",
         "blip-2",
+        "bloom",
         "codegen",
         "gpt2",
+        "gpt_bigcode",
         "gptj",
         "gpt_neo",
         "gpt_neox",
@@ -151,19 +169,7 @@ class BetterTransformerManager:
         "opt",
         "pegasus",
         "t5",
-    }
-
-    DO_NOT_SUPPORT_PADDED_TRAINING = {
-        "blenderbot",
-        "codegen",
-        "gpt2",
-        "gptj",
-        "gpt_neo",
-        "gpt_neox",
-        "llama",
-        "opt",
-        "pegasus",
-        "t5",
+        "falcon",
     }
 
     @staticmethod

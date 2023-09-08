@@ -42,6 +42,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
+    "convnext": "hf-internal-testing/tiny-random-convnext",
     "codegen": "hf-internal-testing/tiny-random-CodeGenModel",
     "cvt": "hf-internal-testing/tiny-random-CvTModel",
     "data2vec-text": "hf-internal-testing/tiny-random-Data2VecTextModel",
@@ -50,11 +51,17 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
+    "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel",
-    "convnext": "hf-internal-testing/tiny-random-convnext",
     "detr": "hf-internal-testing/tiny-random-DetrModel",  # hf-internal-testing/tiny-random-detr is larger
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
+    "encoder-decoder": {
+        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": [
+            "text2text-generation",
+        ],
+        "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
+    },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
@@ -79,6 +86,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mobilenet-v1": "google/mobilenet_v1_0.75_192",
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
+    "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
@@ -95,7 +103,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
-    "sam": "fxmarty/sam-vit-tiny-random",
+    # "sam": "fxmarty/sam-vit-tiny-random",  # TODO: re-enable once PyTorch 2.1 is released, see https://github.com/huggingface/optimum/pull/1301
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
@@ -161,6 +169,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "camembert": "camembert-base",
     "clip": "openai/clip-vit-base-patch32",
     "convbert": "YituTech/conv-bert-base",
+    "convnext": "facebook/convnext-tiny-224",
     "codegen": "hf-internal-testing/tiny-random-CodeGenModel",  # Not using Salesforce/codegen-350M-multi because it takes too much time for testing.
     "data2vec-text": "facebook/data2vec-text-base",
     "data2vec-vision": "facebook/data2vec-vision-base",
@@ -168,10 +177,10 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",  # Not using microsoft/deberta-base because it takes too much time for testing.
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",  # Not using microsoft/deberta-v2-xlarge because it takes too much time for testing.
     "deit": "facebook/deit-small-patch16-224",
-    "convnext": "facebook/convnext-tiny-224",
     "detr": "hf-internal-testing/tiny-random-detr",  # Not using facebook/detr-resnet-50 because it takes too much time for testing.
     "distilbert": "distilbert-base-cased",
     "electra": "google/electra-base-generator",
+    "encoder-decoder": "patrickvonplaten/bert2bert_cnn_daily_mail",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",  # TODO
     "gpt2": "gpt2",
     "gpt-neo": "EleutherAI/gpt-neo-125M",
@@ -194,6 +203,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     # "mobilenet_v1": "google/mobilenet_v1_0.75_192",
     # "mobilenet_v2": "google/mobilenet_v2_0.35_96",
     "mobilevit": "apple/mobilevit-small",
+    "mpt": "mosaicml/mpt-7b",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "owlvit": "google/owlvit-base-patch32",
@@ -202,6 +212,12 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "regnet": "facebook/regnet-y-040",
     "resnet": "microsoft/resnet-50",
+    "resnext26ts": "timm/resnext26ts.ra2_in1k",
+    "resnext50-32x4d": "timm/resnext50_32x4d.tv2_in1k",
+    "resnext50d-32x4d": "timm/resnext50d_32x4d.bt_in1k",
+    "resnext101-32x4d": "timm/resnext101_32x4d.gluon_in1k",
+    "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
+    "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
     "roberta": "roberta-base",
     "roformer": "junnyu/roformer_chinese_base",
     "sam": "facebook/sam-vit-base",
@@ -240,4 +256,13 @@ TENSORFLOW_EXPORT_MODELS = {
 PYTORCH_STABLE_DIFFUSION_MODEL = {
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
+}
+
+PYTORCH_TIMM_MODEL = {
+    "resnext26ts": "timm/resnext26ts.ra2_in1k",
+    "resnext50-32x4d": "timm/resnext50_32x4d.tv2_in1k",
+    "resnext50d-32x4d": "timm/resnext50d_32x4d.bt_in1k",
+    "resnext101-32x4d": "timm/resnext101_32x4d.gluon_in1k",
+    "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
+    "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
 }

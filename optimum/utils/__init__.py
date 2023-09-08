@@ -31,16 +31,20 @@ from .import_utils import (
     check_if_pytorch_greater,
     check_if_transformers_greater,
     is_accelerate_available,
+    is_auto_gptq_available,
     is_diffusers_available,
     is_onnx_available,
     is_onnxruntime_available,
     is_pydantic_available,
+    is_timm_available,
     is_torch_onnx_support_available,
     require_numpy_strictly_lower,
     torch_version,
 )
 from .input_generators import (
     DEFAULT_DUMMY_SHAPES,
+    DTYPE_MAPPER,
+    BloomDummyPastKeyValuesGenerator,
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
     DummyDecoderTextInputGenerator,
@@ -53,7 +57,10 @@ from .input_generators import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
+    DummyVisionEmbeddingsGenerator,
     DummyVisionInputGenerator,
+    FalconDummyPastKeyValuesGenerator,
+    GPTBigCodeDummyPastKeyValuesGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr
 from .normalized_config import (

@@ -55,10 +55,25 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
     def tearDown(self):
         gc.collect()
 
-    def prepare_inputs_for_class(self, model_id, model_type, **preprocessor_kwargs):
+    def prepare_inputs_for_class(
+        self, model_id: str, model_type: str, no_padding: bool = False, batch_size: int = 2, **preprocessor_kwargs
+    ):
         tokenizer = AutoTokenizer.from_pretrained(model_id)
+
         padding = preprocessor_kwargs.pop("padding", True)
-        inputs = tokenizer(["a dummy input", "and two"], return_tensors="pt", padding=padding, **preprocessor_kwargs)
+        if padding == "max_length":
+            max_length = 25
+        else:
+            max_length = None
+
+        if batch_size == 1:
+            texts = ["a dummy input yeah!"]
+        elif no_padding:
+            texts = ["a dummy input yeah!"] * batch_size
+        else:
+            texts = ["a dummy input yeah!"] + ["and two"] * (batch_size - 1)
+
+        inputs = tokenizer(texts, return_tensors="pt", padding=padding, max_length=max_length, **preprocessor_kwargs)
         inputs["decoder_input_ids"] = inputs["input_ids"]  # just a hack for m2m100
         return inputs
 
@@ -70,24 +85,24 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
             }
         )
     )
-    def test_logits_without_cache(self, test_name: str, model_type: str, padding, max_length=20):
+    def test_logits_without_cache(self, test_name: str, model_type: str, padding):
         model_id = MODELS_DICT[model_type]
-        self._test_logits(model_id, model_type=model_type, padding=padding, max_length=max_length)
+        self._test_logits(model_id, model_type=model_type, padding=padding)
 
     @parameterized.expand(
         grid_parameters(
             {
                 "model_type": SUPPORTED_ARCH,
-                "padding": ["max_length", True],
+                "batch_size": [1, 3],
             }
         )
     )
-    def test_logits_backward(self, test_name: str, model_type: str, padding, max_length=20):
+    def test_logits_backward(self, test_name: str, model_type: str, batch_size: int):
         if model_type in ["fsmt", "prophetnet"]:
             self.skipTest(f"Training support not implemented for {model_type}")
 
         model_id = MODELS_DICT[model_type]
-        self._test_logits_backward(model_id, model_type=model_type, padding=padding, max_length=max_length)
+        self._test_logits_backward(model_id, model_type=model_type, no_padding=True, batch_size=batch_size)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
