@@ -292,7 +292,6 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         patterns = set(config.keys())
         sub_models_to_load = patterns.intersection({"feature_extractor", "tokenizer", "tokenizer_2", "scheduler"})
 
-        print("GO HERE")
         if not os.path.isdir(model_id):
             patterns.update({"vae_encoder", "vae_decoder"})
             allow_patterns = {os.path.join(k, "*") for k in patterns if not k.startswith("_")}
@@ -446,7 +445,6 @@ class ORTStableDiffusionPipelineBase(ORTModel):
 
     @classmethod
     def _load_config(cls, config_name_or_path: Union[str, os.PathLike], **kwargs):
-        print("cls here", cls)
         return cls.load_config(config_name_or_path, **kwargs)
 
     def _save_config(self, save_directory):
