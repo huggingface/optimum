@@ -17,9 +17,9 @@
 
 from typing import List
 
-from ...utils.normalized_config import NormalizedConfigManager
+from ...utils.normalized_config import NormalizedConfigManager, NormalizedTextConfig
 from .base import QuantizationApproach
-from .config import TextEncoderTFliteConfig, VisionTFLiteConfig
+from .config import TextAndVisionTFLiteConfig, TextEncoderTFliteConfig, VisionTFLiteConfig
 
 
 class BertTFLiteConfig(TextEncoderTFliteConfig):
@@ -124,3 +124,15 @@ class ResNetTFLiteConfig(VisionTFLiteConfig):
     @property
     def inputs(self) -> List[str]:
         return ["pixel_values"]
+
+
+class LayoutLMv3TFLiteConfig(TextAndVisionTFLiteConfig):
+    SUPPORTED_QUANTIZATION_APPROACHES = (QuantizationApproach.INT8_DYNAMIC, QuantizationApproach.FP16)
+
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        allow_new=True, MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings", image_size="input_size"
+    )
+
+    @property
+    def inputs(self) -> List[str]:
+        return ["input_ids", "attention_mask", "bbox", "pixel_values"]

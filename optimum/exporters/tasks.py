@@ -700,6 +700,7 @@ class TasksManager:
             "text-classification",
             "token-classification",
             onnx="LayoutLMv3OnnxConfig",
+            tflite="LayoutLMv3TFLiteConfig",
         ),
         "lilt": supported_tasks_mapping(
             "feature-extraction",
