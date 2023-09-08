@@ -635,8 +635,17 @@ def load_quantized_model(
         device_map = {"": torch.cuda.current_device()}
         logger.info("The device_map was not initialized." "Setting device_map to `{'':torch.cuda.current_device()}`.")
 
-    with open(os.path.join(save_folder, quant_config_name), "r", encoding="utf-8") as f:
-        quantize_config_dict = json.load(f)
+    # this branch will check if model is from huggingface
+    try:
+        if hasattr(model, "config") and hasattr(model.config, "quantization_config"):
+            quantize_config_dict = model.config.quantization_config.to_dict()
+        else:
+            with open(os.path.join(save_folder, quant_config_name), "r", encoding="utf-8") as f:
+                quantize_config_dict = json.load(f)
+    except Exception as err:
+        raise ValueError(
+            f"Failed to load quantization config from {save_folder} (lookup for traceback): {err}\nTip: If the save directory is saved from a transformers.PreTrainedModel, make sure that `config.json` contains a 'quantization_config' key."
+        ) from err
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
     quantizer.disable_exllama = disable_exllama
     quantizer.max_input_length = max_input_length
