@@ -1525,6 +1525,9 @@ class TasksManager:
                 "The library_name could not be automatically inferred. If using the command-line, please provide the argument --library (transformers,diffusers,timm)!"
             )
 
+        if library_name == "sentence-transformers":
+            return "transformers"
+
         return library_name
 
     @classmethod
