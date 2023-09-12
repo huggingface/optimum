@@ -847,8 +847,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def with_behavior(
         self,
         behavior: Union[str, ConfigBehavior],
-        int_dtype: str = "int64",
-        float_dtype: str = "fp32",
         use_past: bool = False,
     ) -> "OnnxSeq2SeqConfigWithPast":
         """
@@ -859,10 +857,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 The behavior to use for the new instance.
             use_past (`bool`, defaults to `False`):
                 Whether or not the new instance should use past.
-            int_dtype (`str`, defaults to `"int64"`):
-                The data type of integer tensors, could be ["int64", "int32", "int8"], default to "int64".
-            float_dtype (`str`, defaults to `"fp32"`):
-                The data type of float tensors, could be ["fp32", "fp16", "bf16"], default to "fp32".
 
         Returns:
             `OnnxSeq2SeqConfigWithPast`
@@ -872,8 +866,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         return self.__class__(
             self._config,
             task=self.task,
-            int_dtype=int_dtype,
-            float_dtype=float_dtype,
+            int_dtype=self.int_dtype,
+            float_dtype=self.float_dtype,
             use_past=use_past,
             behavior=behavior,
             preprocessors=self._preprocessors,

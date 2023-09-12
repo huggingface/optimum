@@ -272,10 +272,11 @@ def main_export(
     if (framework == "tf" and fp16 is True) or not is_torch_available():
         raise ValueError("The --fp16 option is supported only for PyTorch.")
 
-    if fp16 is True and device == "cpu":
-        raise ValueError(
-            "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
-        )
+    if fp16:
+        if device == "cpu":
+            raise ValueError(
+                "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
+            )
         float_dtype = "fp16"
     else:
         float_dtype = "fp32"
