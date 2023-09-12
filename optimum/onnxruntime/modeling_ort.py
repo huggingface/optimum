@@ -754,13 +754,20 @@ class ORTModel(OptimizedModel):
             name = ordered_input_names[idx]
             tensor = tensor.contiguous()
             input_name_to_shape[name] = tensor.shape
+
+            data_ptr = tensor.data_ptr()
+            if "past" in name and data_ptr == 0:
+                # During first generation, sequence_length can be 0 when use_cache=True, which results in data_ptr to also be 0.
+                # To keep compatibility with IO binding, we pass the data pointer of input_ids instead. This will have no impact because past_key_values will not be used during the first generation.
+                data_ptr = model_inputs[0].data_ptr()
+
             io_binding.bind_input(
                 name,
                 tensor.device.type,
                 IOBindingHelper.get_device_index(self.device),
                 name_to_np_type[name],
                 tuple(tensor.shape),
-                tensor.data_ptr(),
+                data_ptr,
             )
         dimensions = {}
         for input_ in model.get_inputs():
