@@ -357,17 +357,18 @@ class ORTDecoder(ORTModelPart):
                 past_key_values=past_key_values,
             )
 
-            # TODO: fix transformers generate to have contiguous input_ids here already
-            # For an unknown reason, calling `contiguous()` here is necessary to not have errors
+            # TODO: fix transformers generate to have contiguous input_ids, position_ids here already
+            # Calling `contiguous()` here is necessary to not have errors
             # on CPU EP with batch size > 1, despite it being also called in _prepare_io_binding.
-            # I suspect the reason is the contiguous python list that messes something up?
+            # I suspect the garbage collector to somehow negate `tensor = tensor.contiguous()`
+            # in modeling_ort.py, which is then never assigned anywhere.
             model_inputs = [input_ids.contiguous()]
 
             if "attention_mask" in self.input_names:
                 model_inputs.append(attention_mask)
 
             if "position_ids" in self.input_names:
-                model_inputs.append(position_ids)
+                model_inputs.append(position_ids.contiguous())
 
             if past_key_values is not None:
                 model_inputs += past_key_values

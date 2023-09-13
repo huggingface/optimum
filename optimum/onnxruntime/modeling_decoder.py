@@ -720,8 +720,15 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         **kwargs,
     ):
         if config.model_type == "bloom":
-            return super()._from_pretrained(model_id, config, init_cls=ORTBloomForCausalLM, **kwargs)
-        return super()._from_pretrained(model_id, config, init_cls=ORTModelForCausalLM, **kwargs)
+            init_cls = ORTBloomForCausalLM
+        elif config.model_type == "mpt":
+            init_cls = ORTMPTForCausalLM
+        elif config.model_type == "opt":
+            init_cls = ORTOPTForCausalLM
+        else:
+            init_cls = ORTModelForCausalLM
+
+        return super()._from_pretrained(model_id, config, init_cls=init_cls, **kwargs)
 
 
 class ORTBloomForCausalLM(ORTModelForCausalLM):
@@ -761,3 +768,33 @@ class ORTBloomForCausalLM(ORTModelForCausalLM):
             for layer_past in standardized_past
         )
         return bloom_convert_to_bloom_cache(reordered_past)
+
+
+class ORTOPTForCausalLM(ORTModelForCausalLM):
+    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
+    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
+        attention_mask = kwargs.get("attention_mask", None)  # input_ids.new_ones(input_ids.shape)
+        use_cache = kwargs.get("use_cache", None)
+
+        return {
+            "input_ids": input_ids,
+            "past_key_values": past_key_values,
+            "use_cache": use_cache,
+            "position_ids": None,
+            "attention_mask": attention_mask,
+        }
+
+
+class ORTMPTForCausalLM(ORTModelForCausalLM):
+    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
+    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
+        attention_mask = kwargs.get("attention_mask", None)  # input_ids.new_ones(input_ids.shape)
+        use_cache = kwargs.get("use_cache", None)
+
+        return {
+            "input_ids": input_ids,
+            "past_key_values": past_key_values,
+            "use_cache": use_cache,
+            "position_ids": None,
+            "attention_mask": attention_mask,
+        }
