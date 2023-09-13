@@ -1164,6 +1164,11 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
                 config.decoder.model_type
             )(config.decoder)
 
+            if self.decoder_with_past is not None:
+                self.decoder_with_past.normalized_config = NormalizedConfigManager.get_normalized_config_class(
+                    config.decoder.model_type
+                )(config.decoder)
+
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoder(session, self)
 

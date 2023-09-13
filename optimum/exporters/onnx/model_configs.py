@@ -651,6 +651,25 @@ class DonutSwinOnnxConfig(ViTOnnxConfig):
     pass
 
 
+class TimmResNextOnnxConfig(ViTOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-3
+
+    def rename_ambiguous_inputs(self, inputs):
+        #  The input name in the model signature is `x, hence the export input name is updated.
+        model_inputs = {}
+        model_inputs["x"] = inputs["pixel_values"]
+
+        return model_inputs
+
+
+class TimmResNext50d_32x4dOnnxConfig(TimmResNextOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-3
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"pixel_values": {0: "batch_size"}}
+
+
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     TEXT_CONFIG = "text_config"
     VISION_CONFIG = "vision_config"

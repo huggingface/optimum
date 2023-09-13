@@ -173,6 +173,7 @@ def main_export(
     fn_get_submodels: Optional[Callable] = None,
     use_subprocess: bool = False,
     _variant: str = "default",
+    library_name: Optional[str] = None,
     **kwargs_shapes,
 ):
     """
@@ -242,13 +243,16 @@ def main_export(
         fn_get_submodels (`Optional[Callable]`, defaults to `None`):
             Experimental usage: Override the default submodels that are used at the export. This is
             especially useful when exporting a custom architecture that needs to split the ONNX (e.g. encoder-decoder). If unspecified with custom models, optimum will try to use the default submodels used for the given task, with no guarantee of success.
-        use_subprocess (`bool`):
+        use_subprocess (`bool`, defaults to `False`):
             Do the ONNX exported model validation in subprocesses. This is especially useful when
             exporting on CUDA device, where ORT does not release memory at inference session
             destruction. When set to `True`, the `main_export` call should be guarded in
             `if __name__ == "__main__":` block.
         _variant (`str`, defaults to `default`):
             Specify the variant of the ONNX export to use.
+        library_name (`Optional[str]`, defaults to `None`):
+            The library of the model(`"tansformers"` or `"diffusers"` or `"timm"`). If not provided, will attempt to automatically detect
+            the library name for the checkpoint.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -268,10 +272,11 @@ def main_export(
     if (framework == "tf" and fp16 is True) or not is_torch_available():
         raise ValueError("The --fp16 option is supported only for PyTorch.")
 
-    if fp16 is True and device == "cpu":
-        raise ValueError(
-            "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
-        )
+    if fp16:
+        if device == "cpu":
+            raise ValueError(
+                "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
+            )
         float_dtype = "fp16"
     else:
         float_dtype = "fp32"
@@ -290,6 +295,9 @@ def main_export(
     task = TasksManager.map_from_synonym(task)
 
     framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
+    library_name = TasksManager.infer_library_from_model(
+        model_name_or_path, subfolder=subfolder, library_name=library_name
+    )
 
     # get the shapes to be used to generate dummy inputs
     input_shapes = {}
@@ -325,6 +333,7 @@ def main_export(
         framework=framework,
         torch_dtype=torch_dtype,
         device=device,
+        library_name=library_name,
     )
 
     custom_architecture = False
@@ -442,7 +451,7 @@ def main_export(
             raise ValueError(
                 f"model.config.is_encoder_decoder is True and task is `{task}`, which are incompatible. If the task was auto-inferred, please fill a bug report"
                 f"at https://github.com/huggingface/optimum, if --task was explicitely passed, make sure you selected the right task for the model,"
-                f" referring to `optimum.exporters.tasks.TaskManager`'s `_TASKS_TO_AUTOMODELS`."
+                f" referring to `optimum.exporters.tasks.TaskManager`'s `_TRANSFORMERS_TASKS_TO_MODEL_LOADERS`."
             )
 
         onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
@@ -517,6 +526,10 @@ def main_export(
         # TODO: fix "Cowardly refusing to serialize non-leaf tensor" error for wav2vec2-conformer
         use_subprocess = False
 
+    if device == "cpu":
+        # Using multiprocessing for validation is useful only on CUDA EP that leaks memory.
+        use_subprocess = False
+
     if do_validation is True:
         try:
             validate_models_outputs(
@@ -577,6 +590,7 @@ def main():
         trust_remote_code=args.trust_remote_code,
         pad_token_id=args.pad_token_id,
         for_ort=args.for_ort,
+        library_name=args.library_name,
         **input_shapes,
     )
 

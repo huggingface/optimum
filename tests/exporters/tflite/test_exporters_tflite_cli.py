@@ -55,7 +55,11 @@ def _get_models_to_test(export_models_dict: Dict):
                 tasks = list(task_config_mapping.keys())
                 model_tasks = {model_names_tasks: tasks}
             else:
-                n_tested_tasks = sum(len(tasks) for tasks in model_names_tasks.values())
+                unique_tasks = set()
+                for tasks in model_names_tasks.values():
+                    for task in tasks:
+                        unique_tasks.add(task)
+                n_tested_tasks = len(unique_tasks)
                 if n_tested_tasks != len(task_config_mapping):
                     raise ValueError(f"Not all tasks are tested for {model_type}.")
                 model_tasks = model_names_tasks  # possibly, test different tasks on different models

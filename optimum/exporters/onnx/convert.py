@@ -54,9 +54,6 @@ if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
 
 
-mp.set_start_method("spawn", force=True)
-
-
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
@@ -217,6 +214,9 @@ def validate_model_outputs(
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
     if use_subprocess:
+        # InferenceSession do not support the fork start method with some EP: https://github.com/microsoft/onnxruntime/issues/7846
+        mp.set_start_method("spawn", force=True)
+
         io_process = ValidationProcess(
             config, reference_model, onnx_model, onnx_named_outputs, atol, input_shapes, device, dtype, model_kwargs
         )
@@ -268,6 +268,7 @@ def _run_validation(
     if input_shapes is None:
         input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
     reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
+    reference_model_inputs = config.rename_ambiguous_inputs(reference_model_inputs)
 
     # Create ONNX Runtime session
     session_options = SessionOptions()
@@ -551,6 +552,8 @@ def export_pytorch(
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)
             dummy_inputs = tree_map(remap, dummy_inputs)
+
+        dummy_inputs = config.rename_ambiguous_inputs(dummy_inputs)
 
         # PyTorch deprecated the `enable_onnx_checker` and `use_external_data_format` arguments in v1.11,
         # so we check the torch version for backwards compatibility

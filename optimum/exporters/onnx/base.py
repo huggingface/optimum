@@ -406,6 +406,16 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return {}
 
+    def rename_ambiguous_inputs(self, inputs) -> Dict[str, Dict[int, str]]:
+        """
+        Updates the input names of the model to export.
+        Override the function when the model input names are ambiguous or too generic.
+
+        Returns:
+            `Dict[str, Dict[int, str]]`: Updated inputs.
+        """
+        return inputs
+
     def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> Dict[str, Dict[int, str]]:
         """
         Re-orders the inputs using the model forward pass signature.
@@ -778,8 +788,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def with_behavior(
         self,
         behavior: Union[str, ConfigBehavior],
-        int_dtype: str = "int64",
-        float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: bool = False,
     ) -> "OnnxSeq2SeqConfigWithPast":
@@ -789,10 +797,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         Args:
             behavior ([`ConfigBehavior`]):
                 The behavior to use for the new instance.
-            int_dtype (`str`, defaults to `"int64"`):
-                The data type of integer tensors, could be ["int64", "int32", "int8"], default to "int64".
-            float_dtype (`str`, defaults to `"fp32"`):
-                The data type of float tensors, could be ["fp32", "fp16", "bf16"], default to "fp32".
             use_past (`bool`, defaults to `False`):
                 Whether or not the ONNX config to instantiate is for a model using KV cache.
             use_past_in_inputs (`bool`, defaults to `False`):
@@ -806,8 +810,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         return self.__class__(
             self._config,
             task=self.task,
-            int_dtype=int_dtype,
-            float_dtype=float_dtype,
+            int_dtype=self.int_dtype,
+            float_dtype=self.float_dtype,
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,

@@ -40,11 +40,12 @@ from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
 from optimum.utils import ONNX_WEIGHTS_NAME, DummyPastKeyValuesGenerator, NormalizedTextConfig
-from optimum.utils.testing_utils import grid_parameters, require_diffusers
+from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_timm
 
 from ..exporters_utils import (
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_STABLE_DIFFUSION_MODEL,
+    PYTORCH_TIMM_MODEL,
     TENSORFLOW_EXPORT_MODELS,
     VALIDATE_EXPORT_ON_SHAPES_SLOW,
 )
@@ -167,9 +168,16 @@ class OnnxExportTestCase(TestCase):
         monolith: bool,
         device="cpu",
     ):
-        config = AutoConfig.from_pretrained(model_name)
-        model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
-        model = model_class.from_config(config)
+        library_name = TasksManager.infer_library_from_model(model_name)
+
+        if library_name == "timm":
+            model_class = TasksManager.get_model_class_for_task(task, library=library_name)
+            model = model_class(f"hf_hub:{model_name}", pretrained=True, exportable=True)
+            TasksManager.standardize_model_attributes(model_name, model, library_name=library_name)
+        else:
+            config = AutoConfig.from_pretrained(model_name)
+            model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
+            model = model_class.from_config(config)
 
         # Dynamic axes aren't supported for YOLO-like models. This means they cannot be exported to ONNX on CUDA devices.
         # See: https://github.com/ultralytics/yolov5/pull/8378
@@ -292,7 +300,11 @@ class OnnxExportTestCase(TestCase):
 
     def test_all_models_tested(self):
         # make sure we test all models
-        missing_models_set = TasksManager._SUPPORTED_CLI_MODEL_TYPE - set(PYTORCH_EXPORT_MODELS_TINY.keys())
+        missing_models_set = (
+            TasksManager._SUPPORTED_CLI_MODEL_TYPE
+            - set(PYTORCH_EXPORT_MODELS_TINY.keys())
+            - set(PYTORCH_TIMM_MODEL.keys())
+        )
         assert "sam" in missing_models_set  # See exporters_utils.py
         if len(missing_models_set) > 1:
             self.fail(f"Not testing all models. Missing models: {missing_models_set}")
@@ -377,6 +389,61 @@ class OnnxExportTestCase(TestCase):
     @pytest.mark.gpu_test
     def test_pytorch_export_for_stable_diffusion_models_cuda(self, model_type, model_name):
         self._onnx_export_sd(model_type, model_name, device="cuda")
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @require_torch
+    @require_vision
+    @require_timm
+    @pytest.mark.run_slow
+    @pytest.mark.timm_test
+    @slow
+    def test_pytorch_export_for_timm_on_cpu(
+        self,
+        test_name,
+        name,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        monolith: bool,
+    ):
+        self._onnx_export(
+            test_name,
+            name,
+            model_name,
+            task,
+            onnx_config_class_constructor,
+            shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
+            monolith=monolith,
+        )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @require_torch
+    @require_vision
+    @require_timm
+    @require_torch_gpu
+    @slow
+    @pytest.mark.timm_test
+    @pytest.mark.run_slow
+    @pytest.mark.gpu_test
+    def test_pytorch_export_for_timm_on_cuda(
+        self,
+        test_name,
+        name,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        monolith: bool,
+    ):
+        self._onnx_export(
+            test_name,
+            name,
+            model_name,
+            task,
+            onnx_config_class_constructor,
+            device="cuda",
+            shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
+            monolith=monolith,
+        )
 
 
 class CustomWhisperOnnxConfig(WhisperOnnxConfig):
