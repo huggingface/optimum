@@ -243,7 +243,7 @@ def main_export(
         fn_get_submodels (`Optional[Callable]`, defaults to `None`):
             Experimental usage: Override the default submodels that are used at the export. This is
             especially useful when exporting a custom architecture that needs to split the ONNX (e.g. encoder-decoder). If unspecified with custom models, optimum will try to use the default submodels used for the given task, with no guarantee of success.
-        use_subprocess (`bool`):
+        use_subprocess (`bool`, defaults to `False`):
             Do the ONNX exported model validation in subprocesses. This is especially useful when
             exporting on CUDA device, where ORT does not release memory at inference session
             destruction. When set to `True`, the `main_export` call should be guarded in
@@ -524,6 +524,10 @@ def main_export(
     elif model.config.model_type in UNPICKABLE_ARCHS:
         # Pickling is bugged for nn.utils.weight_norm: https://github.com/pytorch/pytorch/issues/102983
         # TODO: fix "Cowardly refusing to serialize non-leaf tensor" error for wav2vec2-conformer
+        use_subprocess = False
+
+    if device == "cpu":
+        # Using multiprocessing for validation is useful only on CUDA EP that leaks memory.
         use_subprocess = False
 
     if do_validation is True:
