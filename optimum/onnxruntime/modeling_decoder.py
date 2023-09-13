@@ -903,7 +903,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         decoder_with_past_file_name = kwargs.pop("decoder_with_past_file_name", None)
 
         file_name = file_name or (decoder_with_past_file_name if use_cache else decoder_file_name)
-
         if file_name is None:
             decoder_path = None
             # We use `is not False` here to include two cases: use_merged = None (in which case we auto-detect it),
@@ -1017,7 +1016,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "subfolder": subfolder,
             "local_files_only": local_files_only,
             "force_download": force_download,
+            "trust_remote_code" : trust_remote_code,
         }
+
         model = TasksManager.get_model_from_task(task, model_id, **model_kwargs)
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
         onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
