@@ -27,13 +27,13 @@ from transformers.testing_utils import require_torch, require_torch_gpu, require
 from optimum.exporters.error_utils import MinimumVersionError
 from optimum.exporters.onnx.__main__ import main_export
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
-from optimum.utils.testing_utils import require_diffusers
+from optimum.utils.testing_utils import require_diffusers, require_timm
 
 
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
-from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY, PYTORCH_STABLE_DIFFUSION_MODEL
+from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY, PYTORCH_STABLE_DIFFUSION_MODEL, PYTORCH_TIMM_MODEL
 
 
 def _get_models_to_test(export_models_dict: Dict):
@@ -196,6 +196,61 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_fp16_stable_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda", fp16=True)
 
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @require_torch
+    @require_vision
+    @require_timm
+    @pytest.mark.timm_test
+    def test_exporters_cli_pytorch_cpu_timm(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @require_torch_gpu
+    @require_vision
+    @require_timm
+    @slow
+    @pytest.mark.timm_test
+    @pytest.mark.run_slow
+    def test_exporters_cli_pytorch_gpu_timm(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", variant=variant)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @require_torch_gpu
+    @require_vision
+    @require_timm
+    @slow
+    @pytest.mark.timm_test
+    @pytest.mark.run_slow
+    def test_exporters_cli_fp16_timm(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", fp16=True)
+
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
@@ -315,7 +370,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 task += "-with-past"
 
             subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-random-t5 --task {task} {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-random-t5 --task {task} {tmpdirname} --no-post-process",
                 shell=True,
                 check=True,
             )
@@ -364,7 +419,14 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @slow
     @pytest.mark.run_slow
     def test_export_on_fp16(
-        self, test_name: str, model_type: str, model_name: str, task: str, monolith: bool, no_post_process: bool
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
     ):
         # TODO: refer to https://github.com/pytorch/pytorch/issues/95377
         if model_type == "yolos":
@@ -391,7 +453,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         if model_type == "ibert":
             self.skipTest("ibert can not be supported in fp16")
 
-        self._onnx_export(model_name, task, monolith, no_post_process, fp16=True)
+        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, fp16=True, device="cuda")
 
     @parameterized.expand(
         [

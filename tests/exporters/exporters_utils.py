@@ -32,7 +32,17 @@ VALIDATE_EXPORT_ON_SHAPES_FAST = {
 PYTORCH_EXPORT_MODELS_TINY = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
     "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
-    "bert": "hf-internal-testing/tiny-random-BertModel",
+    "bert": {
+        "hf-internal-testing/tiny-random-BertModel": [
+            "feature-extraction",
+            "fill-mask",
+            "text-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+        ],
+        "nreimers/BERT-Tiny_L-2_H-128_A-2": ["feature-extraction"],
+    },
     "bart": "hf-internal-testing/tiny-random-bart",
     # "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
     # "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
@@ -51,11 +61,17 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
+    "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel",
     "detr": "hf-internal-testing/tiny-random-DetrModel",  # hf-internal-testing/tiny-random-detr is larger
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
-    "encoder-decoder": "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert",
+    "encoder-decoder": {
+        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": [
+            "text2text-generation",
+        ],
+        "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
+    },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
@@ -206,6 +222,12 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "regnet": "facebook/regnet-y-040",
     "resnet": "microsoft/resnet-50",
+    "resnext26ts": "timm/resnext26ts.ra2_in1k",
+    "resnext50-32x4d": "timm/resnext50_32x4d.tv2_in1k",
+    "resnext50d-32x4d": "timm/resnext50d_32x4d.bt_in1k",
+    "resnext101-32x4d": "timm/resnext101_32x4d.gluon_in1k",
+    "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
+    "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
     "roberta": "roberta-base",
     "roformer": "junnyu/roformer_chinese_base",
     "sam": "facebook/sam-vit-base",
@@ -244,4 +266,13 @@ TENSORFLOW_EXPORT_MODELS = {
 PYTORCH_STABLE_DIFFUSION_MODEL = {
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
+}
+
+PYTORCH_TIMM_MODEL = {
+    "resnext26ts": "timm/resnext26ts.ra2_in1k",
+    "resnext50-32x4d": "timm/resnext50_32x4d.tv2_in1k",
+    "resnext50d-32x4d": "timm/resnext50d_32x4d.bt_in1k",
+    "resnext101-32x4d": "timm/resnext101_32x4d.gluon_in1k",
+    "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
+    "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
 }

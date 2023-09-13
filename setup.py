@@ -24,6 +24,7 @@ REQUIRED_PKGS = [
 ]
 
 TESTS_REQUIRE = [
+    "accelerate",
     "pytest",
     "requests",
     "parameterized",
@@ -61,10 +62,10 @@ EXTRAS_REQUIRE = {
     "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
     "exporters-tf": ["tensorflow>=2.4,<=2.12.1", "tf2onnx", "onnx", "onnxruntime", "timm", "h5py", "numpy<1.24.0"],
     "diffusers": ["diffusers"],
-    "intel": "optimum-intel>=1.10.1",
-    "openvino": "optimum-intel[openvino]>=1.10.1",
-    "nncf": "optimum-intel[nncf]>=1.10.1",
-    "neural-compressor": "optimum-intel[neural-compressor]>=1.9.2",
+    "intel": "optimum-intel>=1.11.0",
+    "openvino": "optimum-intel[openvino]>=1.11.0",
+    "nncf": "optimum-intel[nncf]>=1.11.0",
+    "neural-compressor": "optimum-intel[neural-compressor]>=1.11.0",
     "graphcore": "optimum-graphcore",
     "habana": "optimum-habana",
     "neuron": "optimum-neuron[neuron]",

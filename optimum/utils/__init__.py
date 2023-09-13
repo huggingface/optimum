@@ -36,6 +36,7 @@ from .import_utils import (
     is_onnx_available,
     is_onnxruntime_available,
     is_pydantic_available,
+    is_timm_available,
     is_torch_onnx_support_available,
     require_numpy_strictly_lower,
     torch_version,
@@ -58,6 +59,7 @@ from .input_generators import (
     DummyTimestepInputGenerator,
     DummyVisionEmbeddingsGenerator,
     DummyVisionInputGenerator,
+    FalconDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr

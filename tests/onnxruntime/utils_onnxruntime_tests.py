@@ -47,10 +47,16 @@ MODEL_NAMES = {
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta_v2": "hf-internal-testing/tiny-random-DebertaV2Model",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
+    "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "detr": "hf-internal-testing/tiny-random-detr",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
-    "encoder-decoder": "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert",
+    "encoder-decoder": {
+        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": [
+            "text2text-generation",
+        ],
+        "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
+    },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
@@ -137,22 +143,49 @@ class ORTModelTestMixin(unittest.TestCase):
         ):
             self.skipTest("Unsupported export case")
 
+        model_ids = MODEL_NAMES[model_arch]
+        if isinstance(model_ids, dict):
+            model_ids = list(model_ids.keys())
+        else:
+            model_ids = [model_ids]
+
         if model_arch_and_params not in self.onnx_model_dirs:
+            self.onnx_model_dirs[model_arch_and_params] = {}
+
             # model_args will contain kwargs to pass to ORTModel.from_pretrained()
             model_args.pop("test_name")
             model_args.pop("model_arch")
 
-            model_id = (
-                self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
-            )
-            set_seed(SEED)
-            onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, **model_args, use_io_binding=False, export=True)
+            for idx, model_id in enumerate(model_ids):
+                if model_arch == "encoder-decoder" and task not in MODEL_NAMES[model_arch][model_id]:
+                    # The model with use_cache=True is not supported for bert as a decoder")
+                    continue
 
-            model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{self.TASK}_")
-            onnx_model.save_pretrained(model_dir)
-            self.onnx_model_dirs[model_arch_and_params] = model_dir
+                if model_arch in self.ARCH_MODEL_MAP:
+                    if isinstance(MODEL_NAMES[model_arch], dict):
+                        model_id = list(self.ARCH_MODEL_MAP[model_arch].keys())[idx]
+                    else:
+                        model_id = self.ARCH_MODEL_MAP[model_arch]
+
+                set_seed(SEED)
+                onnx_model = self.ORTMODEL_CLASS.from_pretrained(
+                    model_id, **model_args, use_io_binding=False, export=True
+                )
+
+                model_dir = tempfile.mkdtemp(
+                    prefix=f"{model_arch_and_params}_{self.TASK}_{model_id.replace('/', '_')}"
+                )
+                onnx_model.save_pretrained(model_dir)
+                if isinstance(MODEL_NAMES[model_arch], dict):
+                    self.onnx_model_dirs[model_arch_and_params][model_id] = model_dir
+                else:
+                    self.onnx_model_dirs[model_arch_and_params] = model_dir
 
     @classmethod
     def tearDownClass(cls):
         for _, dir_path in cls.onnx_model_dirs.items():
-            shutil.rmtree(dir_path)
+            if isinstance(dir_path, dict):
+                for _, sec_dir_path in dir_path.items():
+                    shutil.rmtree(sec_dir_path)
+            else:
+                shutil.rmtree(dir_path)

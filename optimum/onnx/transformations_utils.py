@@ -14,14 +14,18 @@
 
 import hashlib
 from collections import defaultdict
-from typing import DefaultDict, Dict, List, Set, Tuple
+from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Set, Tuple
 
 import numpy as np
 
 import onnx
 from onnx import ModelProto, ValueInfoProto, numpy_helper
 
-from ..utils import logging
+
+if TYPE_CHECKING:
+    import torch.nn as nn
+
+from ..utils import logging, recurse_getattr
 
 
 logger = logging.get_logger()
@@ -312,3 +316,247 @@ def cast_int64_tensorproto_to_int32(initializer: onnx.TensorProto, cast: bool = 
 
     initializer.CopyFrom(tensor)
     initializer.name = original_name
+
+
+def _get_weights_to_tie(tied_params: List[List[str]], torch_model: "nn.Module") -> Tuple[List[List[str]]]:
+    """
+    Separates tied weights from the torch_model in groups for which a tying implementation is (and is not) available.
+
+    Currently, only Embedding and Linear weight sharing the same data can be tied.
+    """
+    SUPPORTED_DEDUPLICATION_OPS = ("Embedding", "Linear")
+    tied_params_with_op = []
+    tied_groups_to_tie = []
+    tied_groups_ignored = []
+    for params in tied_params:
+        tied_params_with_op.append({})
+        skip_group = False
+        for param_name in params:
+            module_name = ".".join(param_name.split(".")[:-1])
+
+            module = recurse_getattr(torch_model, module_name)
+            if module.__class__.__name__ not in SUPPORTED_DEDUPLICATION_OPS:
+                skip_group = True
+
+            tied_params_with_op[-1][param_name] = module.__class__.__name__
+
+        if skip_group:
+            tied_groups_ignored.append(params)
+        else:
+            tied_groups_to_tie.append(params)
+
+    return tied_params_with_op, tied_groups_to_tie, tied_groups_ignored
+
+
+def _find_matching_initializers(
+    tied_params_with_op: List[Dict[str, str]], model: ModelProto, initializer_name_to_idx: Dict[str, int]
+):
+    """
+    From the torch parameter names in `tied_params`, find the matching initializers
+    in the ONNX model.
+
+    Args:
+        tied_params_with_op (`List[Dict[str, str]]`):
+            A list of groups of parameters that are tied, i.e. shared. For them,
+            the torch module share the same pointer. The dictionary points to what type of nn.Module the parameter belongs to (e.g. `Linear`).
+        model (`ModelProto`):
+            The model in which the initializers should be looked for.
+        initializer_name_to_idx (`Dict[str, int]`):
+            A mapping from the model initializer name to their indices in model.graph.initializer, to ease the search.
+
+    Returns:
+        tied_groups_map (`Dict[Tuple[str], List[Dict[str, Any]]]`):
+            A mapping from a tied weight group to the list of tied parameters torch name and potentially matching initializers (several in case it could not be exactly found).
+    """
+    tied_groups_map = {}
+    for params in tied_params_with_op:
+        torch_to_initializer = []
+        for param_name, torch_op_name in params.items():
+            # To find which initializer correspond to a torch parameter, we first look for
+            # exactly matching initializer name.
+            identical_initializer = False
+            if param_name in initializer_name_to_idx.keys():
+                nodes_containing_initializer = set()
+                for node in model.graph.node:
+                    if param_name in node.input:
+                        nodes_containing_initializer.add(node.name)
+
+                torch_to_initializer.append(
+                    {
+                        "param_name": param_name,
+                        "initializer_name": {param_name},
+                        "nodes_containing_initializer": nodes_containing_initializer,
+                    }
+                )
+                identical_initializer = True
+
+            # If not found (e.g. "lm_head.weight"), we greedily search for all initializers from potentially matching node names (e.g. "lm_head"),
+            # or e.g. for predictions.decoder.weight search any of *predictions/decoder*
+            # This greedy approach may found more initializers than wanted.
+            if not identical_initializer:
+                module_name = "/".join(param_name.split(".")[:-1])
+
+                if param_name.endswith("weight") and torch_op_name == "Linear":
+                    module_name += "/MatMul"
+                elif param_name.endswith("bias") and torch_op_name == "Linear":
+                    module_name += "/Add"
+
+                candidate_inputs = {}
+                candidate_node_idxs = []
+                for i, node in enumerate(model.graph.node):
+                    if module_name in node.name:
+                        candidate_node_idxs.append(i)
+
+                for node_idx in candidate_node_idxs:
+                    node_name = model.graph.node[node_idx].name
+                    candidate_inputs[node_name] = list(model.graph.node[node_idx].input)
+                torch_to_initializer_param = set()
+                nodes_containing_initializer = set()
+                for node_name, input_names in candidate_inputs.items():
+                    for input_name in input_names:
+                        if input_name in initializer_name_to_idx.keys():
+                            torch_to_initializer_param.add(input_name)
+                            nodes_containing_initializer.add(node_name)
+
+                if len(torch_to_initializer_param) == 0:
+                    logger.warning(
+                        f"Could not find ONNX initializer for torch parameter {param_name}. {param_name} will not be checked for deduplication."
+                    )
+
+                torch_to_initializer.append(
+                    {
+                        "param_name": param_name,
+                        "initializer_name": torch_to_initializer_param,
+                        "nodes_containing_initializer": nodes_containing_initializer,
+                    }
+                )
+
+        intersect = torch_to_initializer[0]["initializer_name"]
+        for i in range(1, len(params)):
+            intersect = intersect.intersection(torch_to_initializer[i]["initializer_name"])
+
+        if len(intersect) == 0:
+            logger.warning("Found different candidate ONNX initializers (likely duplicate) for the tied weights:")
+            not_found = []
+            for i, torch_to_onnx_map in enumerate(torch_to_initializer):
+                warn_string = f"\t{torch_to_onnx_map['param_name']}: {torch_to_onnx_map['initializer_name']}"
+                if len(torch_to_onnx_map["initializer_name"]) == 0:
+                    not_found.append(i)
+                    warn_string += " --> ignored (may be a parameter from a part of the model not exported)"
+                logger.warning(warn_string)
+
+            # There may be some parameters in a tied group that are not present in the ONNX. That is for example the case in encoder-decoder
+            # models where a tied parameter as model.encoder.embed_tokens.weight is detected even for the decoder model.
+            for index in not_found[::-1]:
+                del torch_to_initializer[index]
+
+            if any(len(torch_to_onnx_map["initializer_name"]) > 1 for torch_to_onnx_map in torch_to_initializer):
+                logger.warning(
+                    f"Could not find unique initializers corresponding to the torch tied parameters {params}. Deduplication will be skipped for this group of weights although it should be done. Please open an issue in Optimum repository."
+                )
+                continue
+
+        tied_groups_map[tuple(params)] = torch_to_initializer
+    return tied_groups_map
+
+
+def _deduplicate_gather_matmul(
+    model: ModelProto,
+    tied_groups_to_tie: List[List[str]],
+    tied_groups_map: Dict[Tuple[str], List[Dict[str, Any]]],
+    initializer_name_to_idx: Dict[str, int],
+):
+    """
+    Removes the duplicate initializers for Gather and MatMul from the ONNX model based on the information in tied_groups_map i.e. of which ONNX initializers correspond to a single torch parameter.
+    """
+    node_name_to_idx = {}
+    for idx, node in enumerate(model.graph.node):
+        node_name_to_idx[node.name] = idx
+
+    for params in tied_groups_to_tie:
+        torch_to_initializer = tied_groups_map[tuple(params)]
+
+        # ONNX Runtime quantization behaves bad with Transpose -> Gather. Thus, we take as reference the Gather node, and rather edit MatMul nodes.
+        ref_idx = None
+        for i in range(len(torch_to_initializer)):
+            ops_using_initializer = set()
+            for node_name in torch_to_initializer[i]["nodes_containing_initializer"]:
+                ops_using_initializer.add(model.graph.node[node_name_to_idx[node_name]].op_type)
+
+            if ops_using_initializer == {"Gather"}:
+                ref_idx = i
+                break
+
+        if ref_idx is None:
+            logger.warning(
+                f"Could not deduplicate initializers corresponding to the torch tied parameters {params} as an initializer used only by Gather nodes could not be found. Skipping deduplication."
+            )
+            continue
+
+        ref_initializer_name = next(iter(torch_to_initializer[ref_idx]["initializer_name"]))
+        ref_initializer_idx = initializer_name_to_idx[ref_initializer_name]
+        ref_initializer = model.graph.initializer[ref_initializer_idx]
+        ref_type = ref_initializer.data_type
+        ref_data = numpy_helper.to_array(ref_initializer)
+
+        for i in range(len(torch_to_initializer)):
+            if i == ref_idx:
+                continue
+
+            initializer_name = next(iter(torch_to_initializer[i]["initializer_name"]))
+            initializer_idx = initializer_name_to_idx[initializer_name]
+            initializer = model.graph.initializer[initializer_idx]
+            initializer_type = initializer.data_type
+            initializer_data = numpy_helper.to_array(initializer)
+
+            # Several torch parameters may correspond to the same initializer.
+            if initializer_name == ref_initializer_name:
+                continue
+
+            if ref_type == initializer_type and np.array_equal(ref_data, initializer_data):
+                # The duplicate initializer are exactly identical
+                logger.info(f"Removing duplicate initializer {initializer_name}...")
+
+                # Change initializer to the reference initializer
+                for node in model.graph.node:
+                    if initializer_name in node.input:
+                        input_idx = list(node.input).index(initializer_name)
+                        node.input[input_idx] = ref_initializer_name
+
+                # Remove old initializer
+                model.graph.initializer.pop(initializer_idx)
+            elif ref_type == initializer_type and np.array_equal(ref_data.T, initializer_data):
+                # The duplicate initializer is the ref transposed
+                logger.info(f"Removing duplicate initializer {initializer_name}...")
+
+                # Add transpose node at the correct position to keep the topological order
+                transpose_output_name = f"{ref_initializer_name}_transposed"
+                transpose_node_name = f"Transpose_{len(model.graph.node) + 1}"
+
+                minimum_node_idx = len(model.graph.node)
+                for node_idx, node in enumerate(model.graph.node):
+                    if initializer_name in node.input:
+                        minimum_node_idx = node_idx
+                        break
+
+                transpose_node = onnx.helper.make_node(
+                    "Transpose",
+                    name=transpose_node_name,
+                    inputs=[ref_initializer_name],
+                    outputs=[transpose_output_name],
+                )
+                model.graph.node.insert(minimum_node_idx, transpose_node)
+
+                # Change initializer to transpose output
+                for node in model.graph.node:
+                    if initializer_name in node.input:
+                        input_idx = list(node.input).index(initializer_name)
+                        node.input[input_idx] = transpose_output_name
+
+                # Remove old initializer
+                model.graph.initializer.pop(initializer_idx)
+            else:
+                logger.warning(
+                    f"No deduplication implementation for {initializer_name} although it should be deduplicated. Please open an issue in Optimum repository."
+                )
+    return model

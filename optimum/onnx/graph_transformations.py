@@ -14,7 +14,7 @@
 import copy
 import os
 from pathlib import Path
-from typing import Optional, Union
+from typing import TYPE_CHECKING, List, Optional, Union
 
 import onnx
 from onnx import ModelProto
@@ -22,15 +22,22 @@ from onnx import ModelProto
 from ..utils import logging
 from .transformations_utils import (
     _create_name_sharing_dict,
+    _deduplicate_gather_matmul,
     _deduplicated_cross_model_initializers,
     _find_duplicate_initializers,
+    _find_matching_initializers,
     _get_all_inputs,
     _get_onnx_opset,
+    _get_weights_to_tie,
     _remove_redundant_initializers,
     _replace_input_names,
     _unify_onnx_outputs,
     cast_int64_tensorproto_to_int32,
 )
+
+
+if TYPE_CHECKING:
+    import torch.nn as nn
 
 
 logger = logging.get_logger()
@@ -40,6 +47,8 @@ def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelP
     """
     Finds and removes duplicate weights in a model by keeping only unique weights, and make the duplicate values point
     to them.
+
+    This function only removes duplicate weights that are exactly identical (e.g., not transposed).
 
     Args:
         model (`onnx.ModelProto`): The model to remove duplicates from.
@@ -57,6 +66,40 @@ def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelP
     _remove_redundant_initializers(models=[model], name_sharing_dict=name_sharing_dict)
 
     return model
+
+
+def remove_duplicate_weights_from_tied_info(
+    onnx_model: ModelProto, torch_model: "nn.Module", tied_params: List[List[str]], save_path: str
+):
+    """
+    Tries to remove potential duplicate ONNX initializers from the tied information in tied_params.
+
+    Args:
+        onnx_model (`onnx.ModelProto`):
+            The ONNX model for which to tie potentially duplicate initializers.
+        torch_model (`nn.Module`):
+            The PyTorch model corresponding to the ONNX one.
+        tied_params (`List[List[str]]`):
+            A list of groups of torch parameters that are tied, i.e. shared. For them,
+            the torch module shares the same pointer.
+    """
+    tied_params_with_op, tied_groups_to_tie, tied_groups_ignored = _get_weights_to_tie(tied_params, torch_model)
+
+    if len(tied_groups_ignored) >= 1:
+        logger.info(
+            f"The groups of weights {tied_groups_ignored} will not be tied as either already tied or tying is not implemented."
+        )
+
+    initializer_name_to_idx = {}
+    for idx, initializer in enumerate(onnx_model.graph.initializer):
+        initializer_name_to_idx[initializer.name] = idx
+
+    tied_groups_map = _find_matching_initializers(tied_params_with_op, onnx_model, initializer_name_to_idx)
+
+    onnx_model = _deduplicate_gather_matmul(onnx_model, tied_groups_to_tie, tied_groups_map, initializer_name_to_idx)
+    check_and_save_model(onnx_model, save_path=save_path)
+
+    return onnx_model
 
 
 def replace_atenops_to_gather(model: ModelProto) -> ModelProto:
@@ -87,6 +130,63 @@ def replace_atenops_to_gather(model: ModelProto) -> ModelProto:
 
     onnx.checker.check_model(model)
     return model
+
+
+def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, Path]]):
+    # for large models, a path must be provided instead of a ModelProto:
+    # https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#checking-a-large-onnx-model-2gb
+    if model.ByteSize() < onnx.checker.MAXIMUM_PROTOBUF:
+        # For the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
+        try:
+            onnx.checker.check_model(model)
+        except Exception as e:
+            if "No Op registered for" in str(e):
+                pass
+            else:
+                raise e
+        if save_path:
+            # Overwrite.
+            save_path = Path(save_path).as_posix()
+            external_file_name = os.path.basename(save_path) + "_data"
+            # path/to/model.onnx_data
+            external_path = os.path.join(os.path.dirname(save_path), external_file_name)
+
+            if save_path.endswith(".onnx") and os.path.isfile(save_path):
+                os.remove(save_path)
+            if os.path.isfile(external_path):
+                # The new model may be below the maximum protobuf size, overwritting a model that was larger. Hence this os.remove.
+                os.remove(external_path)
+
+            onnx.save(model, save_path)
+    elif save_path is not None:
+        # path/to/model.onnx
+        save_path = Path(save_path).as_posix()
+
+        external_file_name = os.path.basename(save_path) + "_data"
+        # path/to/model.onnx_data
+        external_path = os.path.join(os.path.dirname(save_path), external_file_name)
+
+        if save_path.endswith(".onnx") and os.path.isfile(save_path):
+            os.remove(save_path)
+        if os.path.isfile(external_path):
+            os.remove(external_path)
+
+        onnx.save(
+            model,
+            save_path,
+            save_as_external_data=True,
+            all_tensors_to_one_file=True,
+            location=external_file_name,
+        )
+        try:
+            onnx.checker.check_model(save_path)
+        except Exception as e:
+            if "No Op registered for" in str(e):
+                pass
+            else:
+                raise e
+    else:
+        logger.info("Merged ONNX model exceeds 2GB, the model will not be checked without `save_path` given.")
 
 
 def merge_decoders(
@@ -169,6 +269,7 @@ def merge_decoders(
         outputs=decoder.graph.output,
         initializer=decoder_initializers,
     )
+
     with_past_branch = onnx.helper.make_graph(
         nodes=decoder_with_past.graph.node,
         name="with_past",
@@ -209,38 +310,7 @@ def merge_decoders(
 
     merged_model = onnx.helper.make_model(merged_graph, producer_name=producer_name, opset_imports=opset_imports)
 
-    # for large models, a path must be provided instead of a ModelProto:
-    # https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#checking-a-large-onnx-model-2gb
-    if merged_model.ByteSize() < onnx.checker.MAXIMUM_PROTOBUF:
-        # For the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
-        try:
-            onnx.checker.check_model(merged_model)
-        except Exception as e:
-            if "No Op registered for" in str(e):
-                pass
-            else:
-                raise e
-        if save_path:
-            save_path = Path(save_path).as_posix()
-            onnx.save(merged_model, save_path)
-    elif save_path is not None:
-        save_path = Path(save_path).as_posix()
-        onnx.save(
-            merged_model,
-            save_path,
-            save_as_external_data=True,
-            all_tensors_to_one_file=True,
-            location=os.path.basename(save_path) + "_data",
-        )
-        try:
-            onnx.checker.check_model(save_path)
-        except Exception as e:
-            if "No Op registered for" in str(e):
-                pass
-            else:
-                raise e
-    else:
-        logger.info("Merged ONNX model exceeds 2GB, the model will not be checked without `save_path` given.")
+    check_and_save_model(merged_model, save_path=save_path)
 
     return merged_model
 

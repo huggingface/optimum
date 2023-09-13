@@ -19,6 +19,7 @@ import enum
 import gc
 import inspect
 import itertools
+import os
 import re
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -26,7 +27,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
-from transformers.utils import is_torch_available
+import onnx
+from transformers.utils import is_accelerate_available, is_torch_available
+
+from ...onnx import remove_duplicate_weights_from_tied_info
+
+
+if is_torch_available():
+    import torch.nn as nn
 
 from ...onnx import merge_decoders
 from ...utils import (
@@ -42,9 +50,12 @@ from ...utils import TRANSFORMERS_MINIMUM_VERSION as GLOBAL_MIN_TRANSFORMERS_VER
 from ...utils.doc import add_dynamic_docstring
 from ...utils.import_utils import check_if_transformers_greater, is_onnx_available, is_onnxruntime_available
 from ..base import ExportConfig
-from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
+from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import ModelPatcher, Seq2SeqModelPatcher
 
+
+if is_accelerate_available():
+    from accelerate.utils import find_tied_parameters
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
@@ -395,6 +406,16 @@ class OnnxConfig(ExportConfig, ABC):
         """
         return {}
 
+    def rename_ambiguous_inputs(self, inputs) -> Dict[str, Dict[int, str]]:
+        """
+        Updates the input names of the model to export.
+        Override the function when the model input names are ambiguous or too generic.
+
+        Returns:
+            `Dict[str, Dict[int, str]]`: Updated inputs.
+        """
+        return inputs
+
     def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> Dict[str, Dict[int, str]]:
         """
         Re-orders the inputs using the model forward pass signature.
@@ -407,6 +428,7 @@ class OnnxConfig(ExportConfig, ABC):
             `Dict[str, Dict[int, str]]`: The properly ordered inputs.
         """
         inputs = self.inputs
+        inputs = self.rename_ambiguous_inputs(inputs)
 
         ordered_inputs = {}
         if hasattr(model, "forward"):
@@ -505,9 +527,26 @@ class OnnxConfig(ExportConfig, ABC):
             models_and_onnx_configs (`Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]]`):
                 A dictionnary containing the models t apply post-processing on, and their corresponding ONNX configuration.
             onnx_files_subpaths (`List[str]`):
-            The relative paths from the export directory to the ONNX files to do post-processing on. The order must be the same as*
-            the order of submodels in the ordered dict `models_and_onnx_configs`.
+                The relative paths from the export directory to the ONNX files to do post-processing on. The order must be the same as
+                the order of submodels in the ordered dict `models_and_onnx_configs`.
         """
+        first_key = next(iter(models_and_onnx_configs))
+        if is_torch_available() and isinstance(models_and_onnx_configs[first_key][0], nn.Module):
+            if is_accelerate_available():
+                logger.info("Deduplicating shared (tied) weights...")
+                for subpath, key in zip(onnx_files_subpaths, models_and_onnx_configs):
+                    onnx_model = onnx.load(os.path.join(path, subpath))
+
+                    torch_model = models_and_onnx_configs[key][0]
+                    tied_params = find_tied_parameters(torch_model)
+                    remove_duplicate_weights_from_tied_info(
+                        onnx_model, torch_model, tied_params, save_path=os.path.join(path, subpath)
+                    )
+            else:
+                logger.warning(
+                    "Weight deduplication check in the ONNX export requires accelerate. Please install accelerate to run it."
+                )
+
         return models_and_onnx_configs, onnx_files_subpaths
 
 
@@ -808,8 +847,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def with_behavior(
         self,
         behavior: Union[str, ConfigBehavior],
-        int_dtype: str = "int64",
-        float_dtype: str = "fp32",
         use_past: bool = False,
     ) -> "OnnxSeq2SeqConfigWithPast":
         """
@@ -820,10 +857,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 The behavior to use for the new instance.
             use_past (`bool`, defaults to `False`):
                 Whether or not the new instance should use past.
-            int_dtype (`str`, defaults to `"int64"`):
-                The data type of integer tensors, could be ["int64", "int32", "int8"], default to "int64".
-            float_dtype (`str`, defaults to `"fp32"`):
-                The data type of float tensors, could be ["fp32", "fp16", "bf16"], default to "fp32".
 
         Returns:
             `OnnxSeq2SeqConfigWithPast`
@@ -833,8 +866,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         return self.__class__(
             self._config,
             task=self.task,
-            int_dtype=int_dtype,
-            float_dtype=float_dtype,
+            int_dtype=self.int_dtype,
+            float_dtype=self.float_dtype,
             use_past=use_past,
             behavior=behavior,
             preprocessors=self._preprocessors,
@@ -918,14 +951,14 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         ],
         onnx_files_subpaths: List[str],
     ):
+        models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(
+            path, models_and_onnx_configs, onnx_files_subpaths
+        )
+
         # Attempt to merge only if the decoder was exported without/with past
         if self.use_past is True and len(models_and_onnx_configs) == 3:
-            if onnx_files_subpaths is not None:
-                decoder_path = Path(path, onnx_files_subpaths[1])
-                decoder_with_past_path = Path(path, onnx_files_subpaths[2])
-            else:
-                decoder_path = Path(path, ONNX_DECODER_NAME + ".onnx")
-                decoder_with_past_path = Path(path, ONNX_DECODER_WITH_PAST_NAME + ".onnx")
+            decoder_path = Path(path, onnx_files_subpaths[1])
+            decoder_with_past_path = Path(path, onnx_files_subpaths[2])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
             try:
                 # The decoder with past does not output the cross attention past key values as they are constant,
@@ -940,10 +973,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 raise Exception(f"Unable to merge decoders. Detailed error: {e}")
 
             # In order to do the validation of the two branches on the same file
-            if onnx_files_subpaths is not None:
-                encoder_path = onnx_files_subpaths[0]
-            else:
-                encoder_path = ONNX_ENCODER_NAME + ".onnx"
+            encoder_path = onnx_files_subpaths[0]
 
             onnx_files_subpaths = [encoder_path, decoder_merged_path.name, decoder_merged_path.name]
 

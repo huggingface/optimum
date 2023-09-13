@@ -268,6 +268,7 @@ def _run_validation(
     if input_shapes is None:
         input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
     reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
+    reference_model_inputs = config.rename_ambiguous_inputs(reference_model_inputs)
 
     # Create ONNX Runtime session
     session_options = SessionOptions()
@@ -551,6 +552,8 @@ def export_pytorch(
         if device.type == "cuda" and torch.cuda.is_available():
             model.to(device)
             dummy_inputs = tree_map(remap, dummy_inputs)
+
+        dummy_inputs = config.rename_ambiguous_inputs(dummy_inputs)
 
         # PyTorch deprecated the `enable_onnx_checker` and `use_external_data_format` arguments in v1.11,
         # so we check the torch version for backwards compatibility

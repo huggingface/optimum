@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import inspect
-import logging
 from typing import Callable, List, Optional, Union
 
 import numpy as np
@@ -23,10 +22,6 @@ from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.utils import deprecate
 
 from .pipeline_stable_diffusion import StableDiffusionPipelineMixin
-from .pipeline_utils import preprocess
-
-
-logger = logging.getLogger(__name__)
 
 
 class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
@@ -178,7 +173,7 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
         # set timesteps
         self.scheduler.set_timesteps(num_inference_steps)
 
-        image = preprocess(image)
+        image = self.image_processor.preprocess(image)
 
         # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
         # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
@@ -287,17 +282,19 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
             image = latents
             has_nsfw_concept = None
         else:
-            latents = 1 / scaling_factor * latents
+            latents /= scaling_factor
             # it seems likes there is a strange result for using half-precision vae decoder if batchsize>1
             image = np.concatenate(
                 [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
             )
-            image = np.clip(image / 2 + 0.5, 0, 1)
-            image = image.transpose((0, 2, 3, 1))
             image, has_nsfw_concept = self.run_safety_checker(image)
 
-        if output_type == "pil":
-            image = self.numpy_to_pil(image)
+        if has_nsfw_concept is None:
+            do_denormalize = [True] * image.shape[0]
+        else:
+            do_denormalize = [not has_nsfw for has_nsfw in has_nsfw_concept]
+
+        image = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
 
         if not return_dict:
             return (image, has_nsfw_concept)
