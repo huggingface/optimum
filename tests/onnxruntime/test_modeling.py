@@ -834,7 +834,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, export=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
-
     @parameterized.expand([(False,), (True,)])
     def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
