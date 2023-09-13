@@ -834,33 +834,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, export=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
-    @parameterized.expand([(False,), (True,)])
-    def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
-            model = ORTModelForCausalLM.from_pretrained(
-                MODEL_NAMES["gpt2"],
-                use_cache=use_cache,
-                export=True,
-                use_merged=False,
-                use_io_binding=False,
-            )
-            model.save_pretrained(tmpdirname)
-
-            # verify external data is exported
-            folder_contents = os.listdir(tmpdirname)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME + "_data" in folder_contents)
-
-            if use_cache:
-                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
-
-            # verify loading from local folder works
-            model = ORTModelForCausalLM.from_pretrained(
-                tmpdirname, use_cache=use_cache, export=False, use_io_binding=False
-            )
-            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @parameterized.expand([(False,), (True,)])
     def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
