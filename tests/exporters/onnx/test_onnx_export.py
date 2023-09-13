@@ -18,7 +18,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict
 from unittest import TestCase
-from unittest.mock import patch
 
 import onnx
 import pytest
@@ -90,54 +89,6 @@ class OnnxConfigTestCase(TestCase):
     """
 
     # TODO: insert relevant tests here.
-
-
-class OnnxConfigWithPastTestCase(TestCase):
-    """
-    Cover the tests for model which have use_cache task (i.e. "with_past" for ONNX)
-    """
-
-    SUPPORTED_WITH_PAST_CONFIGS = ()
-
-    @patch.multiple(OnnxConfigWithPast, __abstractmethods__=set())
-    def test_use_past(self):
-        """
-        Ensures the use_past variable is correctly being set.
-        """
-        for name, config in OnnxConfigWithPastTestCase.SUPPORTED_WITH_PAST_CONFIGS:
-            with self.subTest(name):
-                self.assertFalse(
-                    OnnxConfigWithPast(config()).use_past,
-                    "OnnxConfigWithPast should not use_past",
-                )
-
-                self.assertTrue(
-                    OnnxConfigWithPast.with_past(config()).use_past,
-                    "OnnxConfigWithPast should use_past",
-                )
-
-    @patch.multiple(OnnxConfigWithPast, __abstractmethods__=set())
-    def test_values_override(self):
-        """
-        Ensures the use_past variable correctly set the `use_cache` value in model's configuration.
-        """
-        for name, config in OnnxConfigWithPastTestCase.SUPPORTED_WITH_PAST_CONFIGS:
-            with self.subTest(name):
-                # Without past
-                onnx_config_default = OnnxConfigWithPast(config())
-                self.assertIsNotNone(onnx_config_default.values_override, "values_override should not be None")
-                self.assertIn("use_cache", onnx_config_default.values_override, "use_cache should be present")
-                self.assertFalse(
-                    onnx_config_default.values_override["use_cache"], "use_cache should be False if not using past"
-                )
-
-                # With past
-                onnx_config_default = OnnxConfigWithPast.with_past(config())
-                self.assertIsNotNone(onnx_config_default.values_override, "values_override should not be None")
-                self.assertIn("use_cache", onnx_config_default.values_override, "use_cache should be present")
-                self.assertTrue(
-                    onnx_config_default.values_override["use_cache"], "use_cache should be False if not using past"
-                )
 
 
 def _get_models_to_test(export_models_dict: Dict):
@@ -625,8 +576,8 @@ class OnnxCustomExport(TestCase):
         onnx_config = CustomMPTOnnxConfig(
             config=config,
             task="text-generation",
+            use_past=True,
             use_past_in_inputs=False,
-            use_present_in_outputs=True,
         )
         onnx_config_with_past = CustomMPTOnnxConfig(config, task="text-generation", use_past=True)
 
