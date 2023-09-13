@@ -428,6 +428,7 @@ class OnnxConfig(ExportConfig, ABC):
             `Dict[str, Dict[int, str]]`: The properly ordered inputs.
         """
         inputs = self.inputs
+        inputs = self.rename_ambiguous_inputs(inputs)
 
         ordered_inputs = {}
         if hasattr(model, "forward"):
