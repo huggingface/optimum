@@ -683,7 +683,6 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         attention_mask = kwargs.get("attention_mask", None)  # input_ids.new_ones(input_ids.shape)
         use_cache = kwargs.get("use_cache", None)
 
-        # TODO: this is not relevant for bloom, mpt, opt! We should probably inherit and have ORTBloomModelForCausalLM, ORTMPTModelForCausalLM, ORTOPTModelForCausalLM (initialized from ORTModelForCausalLM)
         position_ids = kwargs.get("position_ids", None)
         if attention_mask is not None and position_ids is None:
             # create position_ids on the fly for batch generation
