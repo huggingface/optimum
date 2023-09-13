@@ -882,7 +882,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
             self.assertFalse(use_cache ^ model.use_cache)
 
             # verify loading from local folder works
-            model = ORTModelForCausalLM.from_pretrained(tmpdirname, use_cache=use_cache, export=False, use_io_binding=False)
+            model = ORTModelForCausalLM.from_pretrained(
+                tmpdirname, use_cache=use_cache, export=False, use_io_binding=False
+            )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @parameterized.expand([(False,), (True,)])
@@ -2066,7 +2068,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
             self.assertTrue(ONNX_DECODER_MERGED_NAME not in folder_contents)
 
-
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
@@ -2091,7 +2092,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertTrue(ONNX_DECODER_NAME not in folder_contents)
             self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
             self.assertTrue(ONNX_WEIGHTS_NAME not in folder_contents)
-
 
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
@@ -2126,7 +2126,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         transformers_model = AutoModelForCausalLM.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(   
+        tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
             return_token_type_ids=False if model_arch == "llama" else None,
@@ -2143,7 +2143,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
 
         gc.collect()
-
 
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
@@ -2308,7 +2307,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                 f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
             )
 
-
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {
@@ -2348,7 +2346,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         outputs_model_merged = model_merged.generate(**tokens)
 
         self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
-
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
