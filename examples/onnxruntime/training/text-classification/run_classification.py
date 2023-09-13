@@ -27,9 +27,9 @@ from typing import List, Optional
 import datasets
 import evaluate
 import numpy as np
-from datasets import Value, load_dataset
-
 import transformers
+from datasets import Value, load_dataset
+from peft import LoraConfig, TaskType, get_peft_model
 from transformers import (
     AutoConfig,
     AutoModelForSequenceClassification,
@@ -46,8 +46,6 @@ from transformers.utils.versions import require_version
 
 from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
 
-from peft import TaskType, get_peft_model
-from peft import LoraConfig
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.34.0.dev0")
