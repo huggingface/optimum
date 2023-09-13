@@ -177,6 +177,20 @@ class GPT2OnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
     @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = super().inputs
+
+        # Decoders based on GPT2 require a position_ids input to avoid
+        # generating wrong position_ids in the model itself:
+        # https://github.com/huggingface/transformers/blob/v4.33.1/src/transformers/models/gpt2/modeling_gpt2.py#L802
+        if self.use_past_in_inputs:
+            common_inputs["position_ids"] = {0: "batch_size"}
+        else:
+            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+
+        return common_inputs
+
+    @property
     def values_override(self) -> Optional[Dict[str, Any]]:
         pad_value_override = {}
         if not getattr(self._config, "pad_token_id", None):
@@ -203,13 +217,36 @@ class GPTNeoOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = super().inputs
+
+        # Refer to GPT2OnnxConfig inputs comment.
+        if self.use_past_in_inputs:
+            common_inputs["position_ids"] = {0: "batch_size"}
+        else:
+            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+        return common_inputs
+
 
 class GPTNeoXOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = super().inputs
+
+        # Refer to GPT2OnnxConfig inputs comment.
+        if self.use_past_in_inputs:
+            common_inputs["position_ids"] = {0: "batch_size"}
+        else:
+            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+        return common_inputs
+
 
 class OPTOnnxConfig(TextDecoderOnnxConfig):
+    # OPT does not require position_ids input.
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
@@ -218,8 +255,20 @@ class LlamaOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = super().inputs
+
+        # Refer to GPT2OnnxConfig inputs comment.
+        if self.use_past_in_inputs:
+            common_inputs["position_ids"] = {0: "batch_size"}
+        else:
+            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+        return common_inputs
+
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):
+    # MPT does not require position_ids input.
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
@@ -227,6 +276,7 @@ class MPTOnnxConfig(TextDecoderOnnxConfig):
 
 
 class BloomOnnxConfig(TextDecoderOnnxConfig):
+    # Bloom does not require position_ids input.
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BloomDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
@@ -285,6 +335,17 @@ class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.key_value"] = t
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = super().inputs
+
+        # Refer to GPT2OnnxConfig inputs comment.
+        if self.use_past_in_inputs:
+            common_inputs["position_ids"] = {0: "batch_size"}
+        else:
+            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+        return common_inputs
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):

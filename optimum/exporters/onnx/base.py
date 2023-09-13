@@ -664,7 +664,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             self.use_past
             and self.use_past_in_inputs
             and self.use_cache_branch is not False
-            and input_name in ["decoder_input_ids", "input_ids"]
+            and input_name in ["decoder_input_ids", "input_ids", "position_ids"]
         ):
             sequence_length = dummy_input_gen.sequence_length
             # Use a sequence length of 1 when the KV cache is already populated.

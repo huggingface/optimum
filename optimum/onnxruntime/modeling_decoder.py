@@ -644,6 +644,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.FloatTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        position_ids: Optional[torch.LongTensor] = None,
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
@@ -652,6 +653,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 past_key_values=past_key_values,
+                position_ids=position_ids,
                 labels=labels,
             )
         elif self.use_merged is True:
@@ -659,6 +661,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
                 input_ids=input_ids[:, -1:],
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
+                position_ids=position_ids,
             )
         else:
             outputs = self.decoder_with_past(
@@ -666,6 +669,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
                 labels=labels,
+                position_ids=position_ids,
             )
 
         return CausalLMOutputWithCrossAttentions(
@@ -679,11 +683,20 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         attention_mask = kwargs.get("attention_mask", None)  # input_ids.new_ones(input_ids.shape)
         use_cache = kwargs.get("use_cache", None)
 
+        # TODO: this is not relevant for bloom, mpt, opt! We should probably inherit and have ORTBloomModelForCausalLM, ORTMPTModelForCausalLM, ORTOPTModelForCausalLM (initialized from ORTModelForCausalLM)
+        position_ids = kwargs.get("position_ids", None)
+        if attention_mask is not None and position_ids is None:
+            # create position_ids on the fly for batch generation
+            position_ids = attention_mask.long().cumsum(-1) - 1
+            position_ids.masked_fill_(attention_mask == 0, 1)
+            if past_key_values:
+                position_ids = position_ids[:, -1].unsqueeze(-1)
+
         return {
             "input_ids": input_ids,
             "past_key_values": past_key_values,
             "use_cache": use_cache,
-            "position_ids": None,
+            "position_ids": position_ids,
             "attention_mask": attention_mask,
         }
 
