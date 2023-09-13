@@ -1021,7 +1021,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         model = TasksManager.get_model_from_task(task, model_id, **model_kwargs)
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
-        onnx_config = onnx_config_constructor(model.config, use_past=use_cache)
+        onnx_config = onnx_config_constructor(model.config, use_past=use_cache, use_past_in_inputs=use_cache)
 
         # TODO : create ModelPatcher to patch each architecture
         if config.model_type in {"bloom", "mpt"}:
