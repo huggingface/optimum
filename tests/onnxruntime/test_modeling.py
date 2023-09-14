@@ -1043,6 +1043,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         inputs = tokenizer("My name is", return_tensors="pt")
 
+        input_shape = inputs["input_ids"].shape
+        inputs["position_ids"] = (
+            torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).view(-1, input_shape[-1])
+        )
+
         with torch.inference_mode():
             pt_logits = pt_model(**inputs).logits
 
