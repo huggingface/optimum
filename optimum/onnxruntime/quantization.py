@@ -33,7 +33,6 @@ from ..quantization_base import OptimumQuantizer
 from ..utils.save_utils import maybe_save_preprocessors
 from . import ORTQuantizableOperator
 from .configuration import CalibrationConfig, ORTConfig, QuantizationConfig
-from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForConditionalGeneration
 from .preprocessors import QuantizationPreprocessor
