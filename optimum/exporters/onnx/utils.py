@@ -247,26 +247,24 @@ def get_decoder_models_for_export(
     """
     models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past)
 
+    onnx_kwargs = {"task": config.task, "float_dtype": config.float_dtype, "int_dtype": config.int_dtype}
+    if model.config.model_type.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
+        onnx_kwargs["no_position_ids"] = config.no_position_ids
+
     onnx_config = config.__class__(
         model.config,
-        task=config.task,
         use_past=config.use_past,
         use_past_in_inputs=False,
-        float_dtype=config.float_dtype,
-        int_dtype=config.int_dtype,
-        no_position_ids=config.no_position_ids,
+        **onnx_kwargs,
     )
     models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], onnx_config)
 
     if config.use_past:
         onnx_config_with_past = config.__class__(
             model.config,
-            task=config.task,
             use_past=True,
             use_past_in_inputs=True,
-            float_dtype=config.float_dtype,
-            int_dtype=config.int_dtype,
-            no_position_ids=config.no_position_ids,
+            **onnx_kwargs,
         )
         models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
             models_for_export[ONNX_DECODER_WITH_PAST_NAME],

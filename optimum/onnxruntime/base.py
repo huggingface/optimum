@@ -368,6 +368,8 @@ class ORTDecoder(ORTModelPart):
                 model_inputs.append(attention_mask)
 
             if "position_ids" in self.input_names:
+                if position_ids is None:
+                    raise ValueError("position_ids was not passed but is a required input for this ONNX model.")
                 model_inputs.append(position_ids.contiguous())
 
             if past_key_values is not None:
@@ -427,6 +429,8 @@ class ORTDecoder(ORTModelPart):
                         onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
 
                 if "position_ids" in self.input_names:
+                    if position_ids is None:
+                        raise ValueError("position_ids was not passed but is a required input for this ONNX model.")
                     onnx_inputs["position_ids"] = position_ids.cpu().detach().numpy()
 
                 if "labels" in self.input_names:
@@ -446,6 +450,8 @@ class ORTDecoder(ORTModelPart):
                         onnx_inputs[input_name] = past_key_value
 
                 if "position_ids" in self.input_names:
+                    if position_ids is None:
+                        raise ValueError("position_ids was not passed but is a required input for this ONNX model.")
                     onnx_inputs["position_ids"] = position_ids
 
                 if "labels" in self.input_names:

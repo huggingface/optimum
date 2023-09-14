@@ -82,7 +82,7 @@ def _get_submodels_and_onnx_configs(
                 model=model, exporter="onnx", task=task
             )
             onnx_config_kwargs = {}
-            if task.startswith("text-generation"):
+            if task.startswith("text-generation") and no_position_ids:
                 onnx_config_kwargs["no_position_ids"] = no_position_ids
 
             onnx_config = onnx_config_constructor(
