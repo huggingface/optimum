@@ -257,6 +257,10 @@ class ModelArguments:
         default=False,
         metadata={"help": "Will enable to load a pretrained model whose head dimensions are different."},
     )
+    use_peft: bool = field(
+        default=False,
+        metadata={"help": "Will enable to parameter-efficient fine-tuning."},
+    )
 
 
 def get_label_list(raw_dataset, split="train") -> List[str]:
@@ -526,9 +530,12 @@ def main():
     )
     model.config.pad_token_id = model.config.eos_token_id
 
-    peft_config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=2, lora_alpha=32, lora_dropout=0.1)
-    model = get_peft_model(model, peft_config)
-    model.to(training_args.device)
+    if model_args.use_peft:
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM, inference_mode=False, r=2, lora_alpha=32, lora_dropout=0.1
+        )
+        model = get_peft_model(model, peft_config)
+        model.to(training_args.device)
 
     # Padding strategy
     if data_args.pad_to_max_length:
