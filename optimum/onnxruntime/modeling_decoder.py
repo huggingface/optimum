@@ -883,8 +883,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModelForCausalLM":
-        # model_path = Path(model_id)
-
         # We do not implement the logic for use_cache=False, use_merged=True
         if use_cache is False:
             if use_merged is True:
