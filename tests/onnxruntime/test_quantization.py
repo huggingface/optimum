@@ -33,7 +33,6 @@ from optimum.onnxruntime import (
     ORTQuantizer,
     QuantizationConfig,
 )
-
 from optimum.utils.testing_utils import grid_parameters
 
 
