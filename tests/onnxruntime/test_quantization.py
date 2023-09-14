@@ -117,25 +117,19 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
         # with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_dir = tempfile.mkdtemp()
         output_dir = Path(tmp_dir)
-        model = ORTModelForCausalLM.from_pretrained(
-            "hf-internal-testing/tiny-random-gpt2", export=True, use_merged=True
-        )
+        model = ORTModelForCausalLM.from_pretrained("hf-internal-testing/tiny-random-gpt2", export=True)
 
         self.assertTrue(model.use_merged)
         model.save_pretrained(tmp_dir)
 
         quantizer = ORTQuantizer.from_pretrained(model)
-        quantizer.quantize(
-            save_dir=output_dir,
-            quantization_config=qconfig,
-        )
-
+        quantizer.quantize(save_dir=output_dir, quantization_config=qconfig)
         expected_ort_config = ORTConfig(quantization=qconfig)
         ort_config = ORTConfig.from_pretrained(tmp_dir)
         # Verify the ORTConfig was correctly created and saved
         self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
 
-        quantized_model = onnx_load(output_dir.joinpath("decoder_model_merged_quantized.onnx"))
+        quantized_model = onnx_load(output_dir.joinpath("model_quantized.onnx"))
         num_quantized_matmul = 0
         for initializer in quantized_model.graph.initializer:
             if "weight" in initializer.name and "quantized" in initializer.name:

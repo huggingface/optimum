@@ -662,11 +662,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if generation_config is None:
             generation_config = GenerationConfig.from_model_config(config)
         self.generation_config = generation_config
-
-        # TODO : deprecate
         self.onnx_paths = [self.model_path]
-
-        # TODO : deprecate
         self.use_merged = "use_cache_branch" in self.inputs_names
 
         self.use_fp16 = False
@@ -1023,7 +1019,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
         onnx_config = onnx_config_constructor(model.config, use_past=use_cache, use_past_in_inputs=use_cache)
 
-        # TODO : create ModelPatcher to patch each architecture
         if config.model_type in {"bloom", "mpt"}:
             model.transformer._prepare_attn_mask = _prepare_attn_mask
         elif config.model_type == "llama":
