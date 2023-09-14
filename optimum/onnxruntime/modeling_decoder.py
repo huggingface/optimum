@@ -28,7 +28,7 @@ from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 import onnxruntime
 
-from ..exporters.onnx import main_export
+from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from ..onnx.utils import _get_external_data_paths
 from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
@@ -228,6 +228,13 @@ class ORTModelDecoder(ORTModel):
         self.decoder = ORTDecoder(decoder_session, self)
         self.decoder_model_path = Path(decoder_session._model_path)
         self.decoder_model_name = self.decoder_model_path.name
+
+        # Reference: https://github.com/huggingface/optimum/pull/1381
+        model_type = config.model_type.replace("_", "-")
+        if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.decoder.input_names:
+            logger.warning(
+                f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although this input is required for batched generation for the architecture {model_type}. We strongly encourage to re-export the model with optimum>=1.14 for position_ids and batched inference support."
+            )
 
         self.decoder_with_past = None
         self.decoder_with_past_model_path = None

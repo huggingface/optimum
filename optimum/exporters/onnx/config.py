@@ -66,6 +66,29 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = DummyPastKeyValuesGenerator
 
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        use_past: bool = False,
+        use_past_in_inputs: bool = False,
+        preprocessors: Optional[List[Any]] = None,
+        no_position_ids: bool = False,
+    ):
+        super().__init__(
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            preprocessors=preprocessors,
+        )
+        # TODO: remove no_position_ids once optimum is sufficiently above 1.13
+        self.no_position_ids = no_position_ids
+
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         if self.use_past_in_inputs:

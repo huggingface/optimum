@@ -31,6 +31,7 @@ from .base import OnnxConfigWithPast
 from .constants import UNPICKABLE_ARCHS
 from .convert import export_models, validate_models_outputs
 from .utils import (
+    MODEL_TYPES_REQUIRING_POSITION_IDS,
     _get_submodels_for_export_decoder,
     _get_submodels_for_export_encoder_decoder,
     _get_submodels_for_export_stable_diffusion,
@@ -67,6 +68,7 @@ def _get_submodels_and_onnx_configs(
     float_dtype: str = "fp32",
     fn_get_submodels: Optional[Callable] = None,
     preprocessors: Optional[List[Any]] = None,
+    no_position_ids: bool = False,
 ):
     is_stable_diffusion = "stable-diffusion" in task
     if not custom_architecture:
@@ -79,8 +81,16 @@ def _get_submodels_and_onnx_configs(
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                 model=model, exporter="onnx", task=task
             )
+            onnx_config_kwargs = {}
+            if task.startswith("text-generation"):
+                onnx_config_kwargs["no_position_ids"] = no_position_ids
+
             onnx_config = onnx_config_constructor(
-                model.config, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+                model.config,
+                int_dtype=int_dtype,
+                float_dtype=float_dtype,
+                preprocessors=preprocessors,
+                **onnx_config_kwargs,
             )
 
             onnx_config.variant = _variant
@@ -174,6 +184,7 @@ def main_export(
     use_subprocess: bool = False,
     _variant: str = "default",
     library_name: Optional[str] = None,
+    no_position_ids: bool = False,
     **kwargs_shapes,
 ):
     """
@@ -253,6 +264,8 @@ def main_export(
         library_name (`Optional[str]`, defaults to `None`):
             The library of the model(`"tansformers"` or `"diffusers"` or `"timm"`). If not provided, will attempt to automatically detect
             the library name for the checkpoint.
+        no_position_ids (`bool`, defaults to `False`):
+            Disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -340,6 +353,11 @@ def main_export(
     is_stable_diffusion = "stable-diffusion" in task
     model_type = "stable-diffusion" if is_stable_diffusion else model.config.model_type.replace("_", "-")
 
+    if no_position_ids and model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and task.startswith("text-generation"):
+        logger.warning(
+            f"no_position_ids=True was specified in the ONNX export, although the model {model_name_or_path} (model type {model_type}) requires position_ids for batched inference. Passing `no_position_ids=True` is strongly discouraged, and this option will be removed in a future release. Reference: https://github.com/huggingface/optimum/pull/1381"
+        )
+
     if not is_stable_diffusion:
         if model_type in TasksManager._UNSUPPORTED_CLI_MODEL_TYPE:
             raise ValueError(
@@ -406,6 +424,7 @@ def main_export(
         fn_get_submodels=fn_get_submodels,
         preprocessors=preprocessors,
         _variant=_variant,
+        no_position_ids=no_position_ids,
     )
 
     if not is_stable_diffusion:

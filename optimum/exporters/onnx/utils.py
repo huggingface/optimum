@@ -65,6 +65,18 @@ if TYPE_CHECKING:
         from diffusers import ModelMixin, StableDiffusionPipeline
 
 
+MODEL_TYPES_REQUIRING_POSITION_IDS = {
+    "codegen",
+    "gpt2",
+    "gpt-bigcode",
+    "gpt-neo",
+    "gpt-neox",
+    "gptj",
+    "imagegpt",
+    "llama",
+}
+
+
 def check_onnxruntime_requirements(minimum_version: version.Version):
     """
     Checks that ONNX Runtime is installed and if version is recent enough.
@@ -242,6 +254,7 @@ def get_decoder_models_for_export(
         use_past_in_inputs=False,
         float_dtype=config.float_dtype,
         int_dtype=config.int_dtype,
+        no_position_ids=config.no_position_ids,
     )
     models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], onnx_config)
 
@@ -253,6 +266,7 @@ def get_decoder_models_for_export(
             use_past_in_inputs=True,
             float_dtype=config.float_dtype,
             int_dtype=config.int_dtype,
+            no_position_ids=config.no_position_ids,
         )
         models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
             models_for_export[ONNX_DECODER_WITH_PAST_NAME],

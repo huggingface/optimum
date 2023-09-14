@@ -183,10 +183,11 @@ class GPT2OnnxConfig(TextDecoderOnnxConfig):
         # Decoders based on GPT2 require a position_ids input to avoid
         # generating wrong position_ids in the model itself:
         # https://github.com/huggingface/transformers/blob/v4.33.1/src/transformers/models/gpt2/modeling_gpt2.py#L802
-        if self.use_past_in_inputs:
-            common_inputs["position_ids"] = {0: "batch_size"}
-        else:
-            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+        if not self.no_position_ids:
+            if self.use_past_in_inputs:
+                common_inputs["position_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_inputs
 
@@ -222,10 +223,11 @@ class GPTNeoOnnxConfig(TextDecoderOnnxConfig):
         common_inputs = super().inputs
 
         # Refer to GPT2OnnxConfig inputs comment.
-        if self.use_past_in_inputs:
-            common_inputs["position_ids"] = {0: "batch_size"}
-        else:
-            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+        if not self.no_position_ids:
+            if self.use_past_in_inputs:
+                common_inputs["position_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
         return common_inputs
 
 
@@ -238,10 +240,11 @@ class GPTNeoXOnnxConfig(TextDecoderOnnxConfig):
         common_inputs = super().inputs
 
         # Refer to GPT2OnnxConfig inputs comment.
-        if self.use_past_in_inputs:
-            common_inputs["position_ids"] = {0: "batch_size"}
-        else:
-            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+        if not self.no_position_ids:
+            if self.use_past_in_inputs:
+                common_inputs["position_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
         return common_inputs
 
 
@@ -260,10 +263,11 @@ class LlamaOnnxConfig(TextDecoderOnnxConfig):
         common_inputs = super().inputs
 
         # Refer to GPT2OnnxConfig inputs comment.
-        if self.use_past_in_inputs:
-            common_inputs["position_ids"] = {0: "batch_size"}
-        else:
-            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+        if not self.no_position_ids:
+            if self.use_past_in_inputs:
+                common_inputs["position_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
         return common_inputs
 
 
@@ -341,10 +345,11 @@ class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
         common_inputs = super().inputs
 
         # Refer to GPT2OnnxConfig inputs comment.
-        if self.use_past_in_inputs:
-            common_inputs["position_ids"] = {0: "batch_size"}
-        else:
-            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+        if not self.no_position_ids:
+            if self.use_past_in_inputs:
+                common_inputs["position_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
         return common_inputs
 
 
