@@ -46,6 +46,7 @@ torchrun --nproc_per_node=NUM_GPUS_YOU_HAVE run_classification.py \
     --learning_rate 2e-5 \
     --num_train_epochs 1 \
     --deepspeed zero_stage_2.json \
+    --use_peft \
     --output_dir /tmp/ort-llama-2/
 ```
 
