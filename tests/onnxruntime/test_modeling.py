@@ -63,7 +63,7 @@ from transformers.testing_utils import get_gpu_count, require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
 from optimum.exporters import TasksManager
-from optimum.exporters.onnx import main_export
+from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import (
     ONNX_DECODER_MERGED_NAME,
@@ -2110,9 +2110,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokens = tokenizer(
             "This is a sample output",
             return_tensors="pt",
-            return_token_type_ids=False if model_arch == "llama" else None,
         )
-        onnx_outputs = onnx_model(**tokens)
+        position_ids = None
+        if model_arch.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
+            input_shape = tokens["input_ids"].shape
+            position_ids = torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).view(-1, input_shape[-1])
+        onnx_outputs = onnx_model(**tokens, position_ids=position_ids)
 
         self.assertTrue("logits" in onnx_outputs)
         self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
@@ -2122,6 +2125,27 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+
+        # Compare batched generation.
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+        tokenizer.padding_side = "left"
+        tokens = tokenizer(["Today is a nice day and I am longer", "This is me"], return_tensors="pt", padding=True)
+        onnx_model.generation_config.eos_token_id = None
+        transformers_model.generation_config.eos_token_id = None
+        onnx_model.config.eos_token_id = None
+        transformers_model.config.eos_token_id = None
+
+        print("onnx_model.generation_config.eos_token_id", onnx_model.generation_config.eos_token_id)
+        onnx_outputs = onnx_model.generate(
+            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30, eos_token_id=None
+        )
+        transformers_outputs = transformers_model.generate(
+            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30, eos_token_id=None
+        )
+
+        print("onnx_outputs", onnx_outputs)
+        print("transformers_outputs", transformers_outputs)
+        self.assertTrue(torch.allclose(onnx_outputs, transformers_outputs))
 
         gc.collect()
 
