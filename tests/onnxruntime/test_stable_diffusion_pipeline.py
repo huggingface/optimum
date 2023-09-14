@@ -25,7 +25,8 @@ from diffusers import (
     StableDiffusionPipeline,
     StableDiffusionXLPipeline,
 )
-from diffusers.utils import floats_tensor, load_image
+from diffusers.utils import load_image
+from diffusers.utils.testing_utils import floats_tensor
 from parameterized import parameterized
 from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
