@@ -20,6 +20,8 @@ from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
+import onnx
+import onnxruntime
 import torch
 from huggingface_hub import hf_hub_download
 from huggingface_hub.utils import EntryNotFoundError
@@ -27,9 +29,6 @@ from onnx.tools import update_model_dims
 from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithPast
-
-import onnx
-import onnxruntime
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export, main_export
