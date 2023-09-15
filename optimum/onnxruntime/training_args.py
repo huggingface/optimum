@@ -382,10 +382,10 @@ class ORTTrainingArguments(TrainingArguments):
                 warnings.warn("`--fsdp_config` is useful only when `--fsdp` is specified.")
             with io.open(self.fsdp_config, "r", encoding="utf-8") as f:
                 self.fsdp_config = json.load(f)
-                for k, v in self.fsdp_config.items():
+                for k in list(self.fsdp_config.keys()):
                     if k.startswith("fsdp_"):
-                        self.fsdp_config[k.replace("fsdp_", "")] = v
-                        del self.fsdp_config[k]
+                        v = self.fsdp_config.pop(k)
+                        self.fsdp_config[k[5:]] = v
 
         if self.fsdp_min_num_params > 0:
             warnings.warn("using `--fsdp_min_num_params` is deprecated. Use fsdp_config instead ", FutureWarning)
@@ -486,7 +486,9 @@ class ORTTrainingArguments(TrainingArguments):
         if self.deepspeed:
             # - must be run very last in arg parsing, since it will use a lot of these settings.
             # - must be run before the model is created.
-            from transformers.deepspeed import HfTrainerDeepSpeedConfig
+            if not is_accelerate_available():
+                raise ValueError("--deepspeed requires Accelerate to be installed: `pip install accelerate`.")
+            from transformers.integrations.deepspeed import HfTrainerDeepSpeedConfig
 
             # will be used later by the Trainer
             # note: leave self.deepspeed unmodified in case a user relies on it not to be modified)
@@ -541,6 +543,3 @@ class ORTTrainingArguments(TrainingArguments):
                 f"{self.hub_model_id}).",
                 FutureWarning,
             )
-
-        # Finally set the `TrainingArguments` to be immutable
-        self._frozen = True
