@@ -922,12 +922,14 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                         )
                     use_merged = False
 
-            exclude_decoder = r"(.*)?((?<!(decoder)).)model*?\.onnx"  # decoder|with_past|merged
             if use_merged is False:
                 # exclude decoder file for first iteration
                 decoder_path = ORTModelForCausalLM.infer_onnx_filename(
                     model_id,
-                    [exclude_decoder, DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN],
+                    [
+                        r"^((?!decoder).)*.onnx",
+                        DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN,
+                    ],
                     "file_name",
                     subfolder=subfolder,
                     use_auth_token=use_auth_token,
@@ -935,9 +937,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 )
                 file_name = decoder_path.name
 
-            regular_file_names = ORTModelForCausalLM._generate_regular_names_for_filename(
-                ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME
-            )
+            regular_file_names = []
+            for regular_file_name in [
+                ONNX_WEIGHTS_NAME,
+                ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME,
+            ]:
+                regular_file_names += ORTModelForCausalLM._generate_regular_names_for_filename(regular_file_name)
+
             if file_name not in regular_file_names:
                 logger.warning(
                     f"The ONNX file {file_name} is not a regular name used in optimum.onnxruntime that are {regular_file_names}, the "

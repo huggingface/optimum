@@ -99,10 +99,8 @@ class ORTOptimizer:
                     onnx_model_path.append(model_or_path.decoder_with_past_model_path)
             elif isinstance(model_or_path, ORTModelForCausalLM) and model_or_path.use_merged:
                 raise NotImplementedError(
-                    "ORTOptimizer does not support ORTModelForCausalLM models that use a single ONNX for both the without/with past cases."
-                    " Please pass an ORTModelForCausalLM that uses a separate ONNX for each without/with past cases. This can be done"
-                    " by using `ORTModelForCausalLM.from_pretrained(..., export=True, use_merged=False)`, or by"
-                    " using the option `--no-post-process` in the optimum-cli ONNX export tool."
+                    "ORTOptimizer does not support ORTModelForCausalLM models when without/with past models are merged."
+                    " Please re-export your model. This can be done by using `ORTModelForCausalLM.from_pretrained(..., export=True, use_merged=False)`"
                 )
             else:
                 onnx_model_path.append(model_or_path.model_path)
