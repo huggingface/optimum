@@ -342,11 +342,11 @@ class ORTTrainer(Trainer):
         if feature is None:
             try:
                 self.feature = TasksManager.infer_task_from_model(args.model)
-            except KeyError as e:
-                pass  
+            except KeyError:
+                pass
         else:
             self.feature = feature
-            
+
         self.onnx_model_path = onnx_model_path
         self.exported_with_loss = False
         if self.args.local_rank:

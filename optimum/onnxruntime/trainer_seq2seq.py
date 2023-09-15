@@ -81,7 +81,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         """
 
         gen_kwargs = gen_kwargs.copy()
-        
+
         # Use legacy argument setting if a) the option is not explicitly passed; and b) the argument is set in the
         # training args
         if (
@@ -592,7 +592,7 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         # removed in https://github.com/huggingface/transformers/blob/98d88b23f54e5a23e741833f1e973fdf600cc2c5/src/transformers/generation/utils.py#L1183
         if self.model.generation_config._from_model_config:
             self.model.generation_config._from_model_config = False
-        
+
         # Retrieves GenerationConfig from model.generation_config
         gen_config = self.model.generation_config
         # in case the batch is shorter than max length, the output should be padded
