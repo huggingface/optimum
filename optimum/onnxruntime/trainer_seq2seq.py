@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from packaging import version
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from transformers.deepspeed import is_deepspeed_zero3_enabled
@@ -38,7 +39,7 @@ from transformers.trainer_utils import (
     denumpify_detensorize,
     has_length,
 )
-from transformers.utils import logging
+from transformers.utils import is_accelerate_available, logging
 
 from ..exporters import TasksManager
 from ..exporters.onnx import export
@@ -47,6 +48,9 @@ from .modeling_seq2seq import ORTModelForSeq2SeqLM
 from .trainer import ORTTrainer
 from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME, wrap_onnx_config_for_loss
 
+
+if is_accelerate_available():
+    from accelerate import __version__ as accelerate_version
 
 logger = logging.get_logger(__name__)
 

@@ -57,7 +57,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, RandomSampler
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
@@ -72,6 +72,7 @@ from transformers.trainer_pt_utils import (
     IterableDatasetShard,
     SequentialDistributedSampler,
     find_batch_size,
+    get_dataloader_sampler,
     get_model_param_count,
     get_module_class_from_name,
     get_parameter_names,
@@ -757,7 +758,7 @@ class ORTTrainer(Trainer):
             for epoch in range(epochs_trained):
                 sampler = get_dataloader_sampler(train_dataloader)
                 is_random_sampler = isinstance(sampler, RandomSampler)
-                if is_torch_less_than_1_11 or not is_random_sampler:
+                if not is_random_sampler:
                     # We just need to begin an iteration to create the randomization of the sampler.
                     for _ in train_dataloader:
                         break

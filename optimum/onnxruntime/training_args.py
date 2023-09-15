@@ -35,6 +35,7 @@ from transformers.training_args import OptimizerNames, default_logdir, logger
 from transformers.utils import (
     ExplicitEnum,
     get_full_repo_name,
+    is_accelerate_available,
     is_safetensors_available,
     is_torch_available,
     is_torch_bf16_cpu_available,
