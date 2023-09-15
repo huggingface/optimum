@@ -66,6 +66,10 @@ We observe the gain of ONNX Runtime compared to PyTorch as follow:
 | ------------------------- | ------- | ---------- |
 | meta-llama/Llama-2-7b-hf  | 8.83%   | 9.68%      |
 
+#### DeepSpeed
+
+[zero_stage_2.json](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/text-classification/zero_stage_2.json) is an example DeepSpeed config file to enable Stage-2 parameter sharing for training meta-llama/Llama-2-7b. More information can be found at [DeepSpeed's official repo](https://github.com/microsoft/DeepSpeed).
+
 ## GLUE Tasks
 
 By running the script [`run_glue.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/text-classification/run_glue.py),
