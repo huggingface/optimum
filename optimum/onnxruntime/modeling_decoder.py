@@ -50,6 +50,8 @@ from .utils import (
     validate_provider_availability,
 )
 
+import onnx
+from onnx.tools import update_model_dims
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
@@ -770,11 +772,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if use_cache_branch is not None:
                 inputs["use_cache_branch"] = use_cache_branch.cpu().detach().numpy() if use_torch else use_cache_branch
 
-            for output in self.model.get_outputs():
-                if output.name == "logits" and output.shape[1] == 1:
-                    # TODO : modify the static graph
-                    raise ValueError("The model needs to be re-exported or set use_cache=False.")
-
             outputs = self.model.run(None, inputs)
 
             if self.use_cache:
@@ -954,7 +951,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     f"{cls.__name__} might not behave as expected."
                 )
 
-        model = super()._from_pretrained(
+        ort_model = super()._from_pretrained(
             model_id,
             config,
             use_auth_token=use_auth_token,
@@ -972,15 +969,31 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             **kwargs,
         )
 
-        if use_cache ^ model.use_cache:
+        if use_cache ^ ort_model.use_cache:
             raise ValueError(
-                f"`use_cache` was set to `{use_cache}` but the loaded model only supports `use_cache={model.use_cache}`. "
-                f"Please load your current model with `use_cache={model.use_cache}` or export the original model "
+                f"`use_cache` was set to `{use_cache}` but the loaded model only supports `use_cache={ort_model.use_cache}`. "
+                f"Please load your current model with `use_cache={ort_model.use_cache}` or export the original model "
                 f"once again with `use_cache={use_cache}` when calling the `from_pretrained` method. "
                 "To export your model, simply set `export=True`."
             )
 
-        return model
+        # Since  v1.7.0 decoder with past models have fixed sequence length of 1
+        # To keep these models compatible we set this dimension to dynamic
+        input_dims = {inputs.name: inputs.shape for inputs in ort_model.model.get_inputs()}
+        # TODO : refactorize ORTModel.from_pretrained to not re-create inference session a second time
+        if input_dims["input_ids"][1] == 1:
+            model_path = ort_model.model_path
+            input_dims["input_ids"][1] = "sequence_length"
+            output_dims = {output.name: output.shape for output in ort_model.model.get_outputs()}
+            output_dims["logits"][1] = "sequence_length"
+            static_model = onnx.load(model_path)
+            updated_model = update_model_dims.update_inputs_outputs_dims(static_model, input_dims, output_dims)
+            onnx.save(updated_model, model_path)
+            ort_model.model = ORTModel.load_model(
+                model_path, provider=provider, session_options=session_options, provider_options=provider_options
+            )
+
+        return ort_model
 
     @classmethod
     def _from_transformers(
