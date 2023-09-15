@@ -21,11 +21,11 @@ import PIL
 import pytest
 import torch
 from diffusers import (
+    DDIMScheduler,
     OnnxStableDiffusionImg2ImgPipeline,
     StableDiffusionPanoramaPipeline,
     StableDiffusionPipeline,
     StableDiffusionXLPipeline,
-    DDIMScheduler,
 )
 from diffusers.utils import load_image
 from diffusers.utils.testing_utils import floats_tensor
@@ -537,7 +537,7 @@ class ORTStableDiffusionPanoramaPipelineTest(unittest.TestCase):
 
             self.assertIsInstance(ort_outputs, np.ndarray)
             # Compare model outputs
-            self.assertTrue(np.allclose(ort_outputs, outputs, atol=1)) # TODO: find out why this is so large
+            self.assertTrue(np.allclose(ort_outputs, outputs, atol=1))  # TODO: find out why this is so large
             # Compare model devices
             self.assertEqual(pipeline.device, ort_pipeline.device)
 
