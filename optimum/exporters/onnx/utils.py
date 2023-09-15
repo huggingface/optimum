@@ -29,6 +29,8 @@ from ...utils import (
     logging,
 )
 from ...utils.import_utils import _diffusers_version
+from ...utils.modeling_utils import _prepare_attn_mask, _prepare_decoder_attention_mask
+
 from ..tasks import TasksManager
 from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
@@ -146,16 +148,28 @@ def _get_submodels_for_export_stable_diffusion(
 
 
 def _get_submodels_for_export_decoder(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], use_past: bool
+    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    use_past: bool,
+    legacy: bool = False,
 ) -> Dict[str, Union["PreTrainedModel", "TFPreTrainedModel"]]:
     """
     Returns the decoder part of the model.
     """
     models_for_export = {}
 
-    models_for_export[ONNX_DECODER_NAME] = model
-    if use_past:
-        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = model
+    if legacy:
+        models_for_export[ONNX_DECODER_NAME] = model
+        if use_past:
+            models_for_export[ONNX_DECODER_WITH_PAST_NAME] = model
+    else:
+        if model.config.model_type in {"bloom", "mpt"}:
+            model.transformer._prepare_attn_mask = _prepare_attn_mask
+        elif model.config.model_type == "llama":
+            model.model._prepare_decoder_attention_mask = _prepare_decoder_attention_mask
+        elif model.config.model_type in ("blenderbot-small", "blenderbot", "opt", "pegasus", "bart"):
+            model.model.decoder._prepare_decoder_attention_mask = _prepare_decoder_attention_mask
+
+        models_for_export["model"] = model
 
     return models_for_export
 
@@ -214,6 +228,7 @@ def get_encoder_decoder_models_for_export(
 def get_decoder_models_for_export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
     config: "OnnxConfig",
+    legacy: bool = False,
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "OnnxConfig"]]:
     """
     Returns two versions of the decoder that can be used together to perform fast generation:
@@ -233,31 +248,43 @@ def get_decoder_models_for_export(
         `Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]: A Dict containing the model and
         onnx configs for the encoder and decoder parts of the model.
     """
+
     models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past)
 
-    onnx_config = config.__class__(
-        model.config,
-        task=config.task,
-        use_past=config.use_past,
-        use_past_in_inputs=False,
-        float_dtype=config.float_dtype,
-        int_dtype=config.int_dtype,
-    )
-    models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], onnx_config)
-
-    if config.use_past:
-        onnx_config_with_past = config.__class__(
+    if legacy:
+        onnx_config = config.__class__(
             model.config,
             task=config.task,
-            use_past=True,
-            use_past_in_inputs=True,
+            use_past=config.use_past,
+            use_past_in_inputs=False,
             float_dtype=config.float_dtype,
             int_dtype=config.int_dtype,
         )
-        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
-            models_for_export[ONNX_DECODER_WITH_PAST_NAME],
-            onnx_config_with_past,
+        models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], onnx_config)
+
+        if config.use_past:
+            onnx_config_with_past = config.__class__(
+                model.config,
+                task=config.task,
+                use_past=True,
+                use_past_in_inputs=True,
+                float_dtype=config.float_dtype,
+                int_dtype=config.int_dtype,
+            )
+            models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
+                models_for_export[ONNX_DECODER_WITH_PAST_NAME],
+                onnx_config_with_past,
+            )
+    else:
+        onnx_config = config.__class__(
+            model.config,
+            task=config.task,
+            use_past=config.use_past,
+            use_past_in_inputs=config.use_past,
+            float_dtype=config.float_dtype,
+            int_dtype=config.int_dtype,
         )
+        models_for_export["model"] = (models_for_export["model"], onnx_config)
 
     return models_for_export
 

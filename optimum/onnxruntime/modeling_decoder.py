@@ -1024,33 +1024,27 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
 
+            if use_cache:
+                task += "-with-past"
+
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
-        model_kwargs = {
-            "revision": revision,
-            "use_auth_token": use_auth_token,
-            "cache_dir": cache_dir,
-            "subfolder": subfolder,
-            "local_files_only": local_files_only,
-            "force_download": force_download,
-            "trust_remote_code": trust_remote_code,
-        }
 
-        model = TasksManager.get_model_from_task(task, model_id, **model_kwargs)
-        onnx_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="onnx", task=task)
-        onnx_config = onnx_config_constructor(model.config, use_past=use_cache, use_past_in_inputs=use_cache)
+        main_export(
+            model_name_or_path=model_id,
+            output=save_dir_path,
+            task=task,
+            do_validation=False,
+            no_post_process=False,
+            subfolder=subfolder,
+            revision=revision,
+            cache_dir=cache_dir,
+            use_auth_token=use_auth_token,
+            local_files_only=local_files_only,
+            force_download=force_download,
+            trust_remote_code=trust_remote_code,
+        )
 
-        if config.model_type in {"bloom", "mpt"}:
-            model.transformer._prepare_attn_mask = _prepare_attn_mask
-        elif config.model_type == "llama":
-            model.model._prepare_decoder_attention_mask = _prepare_decoder_attention_mask
-        elif config.model_type in ("blenderbot-small", "blenderbot", "opt", "pegasus", "bart"):
-            model.model.decoder._prepare_decoder_attention_mask = _prepare_decoder_attention_mask
-
-        # Export the model to the ONNX format
-        export(model=model, config=onnx_config, output=save_dir_path / file_name)
-
-        # TODO : use main_export
         config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
