@@ -583,7 +583,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         self.assertTrue(ort_model.use_cache)
 
         with self.assertRaises(NotImplementedError) as cm:
-            optimizer = ORTOptimizer.from_pretrained(ort_model)
+            ORTOptimizer.from_pretrained(ort_model)
 
         self.assertTrue(
             "ORTOptimizer does not support ORTModelForCausalLM models when without/with past models are merged"
