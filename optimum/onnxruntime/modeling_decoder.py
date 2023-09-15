@@ -685,8 +685,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         attention_mask: Optional[torch.FloatTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
+        use_cache_branch: None = None,
         **kwargs,
     ) -> CausalLMOutputWithPast:
+        # adding use_cache_branch in the signature here is just a hack for IO Binding
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -767,6 +769,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
             if use_cache_branch is not None:
                 inputs["use_cache_branch"] = use_cache_branch.cpu().detach().numpy() if use_torch else use_cache_branch
+
+            for output in self.model.get_outputs():
+                if output.name == "logits" and output.shape[1] == 1:
+                    # TODO : modify the static graph
+                    raise ValueError("The model needs to be re-exported or set use_cache=False.")
 
             outputs = self.model.run(None, inputs)
 
@@ -938,11 +945,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 file_name = decoder_path.name
 
             regular_file_names = []
-            for regular_file_name in [
-                ONNX_WEIGHTS_NAME,
-                ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME,
-            ]:
-                regular_file_names += ORTModelForCausalLM._generate_regular_names_for_filename(regular_file_name)
+            for name in [ONNX_WEIGHTS_NAME, ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME]:
+                regular_file_names += ORTModelForCausalLM._generate_regular_names_for_filename(name)
 
             if file_name not in regular_file_names:
                 logger.warning(

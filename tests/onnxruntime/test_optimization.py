@@ -578,7 +578,6 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
                 use_io_binding=use_io_binding,
             )
 
-
     def test_merged_optimization(self):
         ort_model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge")
         self.assertTrue(ort_model.use_cache)
@@ -586,4 +585,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         with self.assertRaises(NotImplementedError) as cm:
             optimizer = ORTOptimizer.from_pretrained(ort_model)
 
-        self.assertTrue("ORTOptimizer does not support ORTModelForCausalLM models when without/with past models are merged" in str(cm.exception))
+        self.assertTrue(
+            "ORTOptimizer does not support ORTModelForCausalLM models when without/with past models are merged"
+            in str(cm.exception)
+        )
