@@ -22,7 +22,7 @@ from diffusers.pipelines.onnx_utils import ORT_TO_NP_TYPE
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.utils import PIL_INTERPOLATION, deprecate, logging
 
-from optimum.pipelines.diffusers.pipeline_stable_diffusion import StableDiffusionPipelineMixin
+from .pipeline_utils import DiffusionPipelineMixin
 
 
 logger = logging.get_logger(__name__)
@@ -75,7 +75,7 @@ def prepare_mask_and_masked_image(image, mask, latents_shape):
     return mask, masked_image
 
 
-class StableDiffusionPanoramaPipelineMixin(StableDiffusionPipelineMixin):
+class StableDiffusionPanoramaPipelineMixin(DiffusionPipelineMixin):
     def _encode_prompt(
         self,
         prompt: Union[str, List[str]],
@@ -225,6 +225,25 @@ class StableDiffusionPanoramaPipelineMixin(StableDiffusionPipelineMixin):
                     f" got: `prompt_embeds` {prompt_embeds.shape} != `negative_prompt_embeds`"
                     f" {negative_prompt_embeds.shape}."
                 )
+
+    # Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
+    def prepare_latents(self, batch_size, num_channels_latents, height, width, dtype, generator, latents=None):
+        shape = (batch_size, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
+        if isinstance(generator, list) and len(generator) != batch_size:
+            raise ValueError(
+                f"You have passed a list of generators of length {len(generator)}, but requested an effective batch"
+                f" size of {batch_size}. Make sure the batch size matches the length of the generators."
+            )
+
+        if latents is None:
+            latents = generator.randn(*shape).astype(dtype)
+        elif latents.shape != shape:
+            raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {shape}")
+
+        # scale the initial noise by the standard deviation required by the scheduler
+        latents = latents * np.float64(self.scheduler.init_noise_sigma)
+
+        return latents
 
     def get_views(self, panorama_height, panorama_width, window_size, stride):
         # Here, we define the mappings F_i (see Eq. 7 in the MultiDiffusion paper https://arxiv.org/abs/2302.08113)
