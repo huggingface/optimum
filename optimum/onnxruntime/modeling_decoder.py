@@ -23,10 +23,12 @@ import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
 from huggingface_hub.utils import EntryNotFoundError
+from onnx.tools import update_model_dims
 from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
+import onnx
 import onnxruntime
 
 from ..exporters import TasksManager
@@ -50,8 +52,6 @@ from .utils import (
     validate_provider_availability,
 )
 
-import onnx
-from onnx.tools import update_model_dims
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
