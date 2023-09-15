@@ -216,6 +216,49 @@ class ORTQuantizer(OptimumQuantizer):
         )
         return self.compute_ranges()
 
+    def apply_smooth_quant(
+        self,
+        dataset: Dataset,
+        save_dir: Union[str, Path],
+        quantization_config: QuantizationConfig,
+        onnx_sq_model_name: Union[str, Path] = "sq_model.onnx",
+        use_external_data_format: bool = False,
+        batch_size: int = 1,
+    ):
+        import importlib
+
+        try:
+            importlib.import_module("neural_compressor.adaptor.ox_utils.smooth_quant")
+        except Exception as e:
+            logging.error(f"{e}.")
+            raise RuntimeError("neural-compressor is not correctly installed. Please check your environment.") from e
+
+        import copy
+
+        import onnx
+        from neural_compressor.adaptor.ox_utils.smooth_quant import ORTSmoothQuant
+
+        model = onnx.load(Path(self.onnx_model_path).as_posix())
+
+        def inc_dataloader():
+            calibration_data_reader = ORTCalibrationDataReader(dataset, batch_size)
+            for data in calibration_data_reader:
+                # d = data["input_features"]
+                # from pdb import set_trace; set_trace()
+                yield data, None
+
+        orig_nodes = [i.name for i in model.graph.node]
+        dataloader = inc_dataloader()
+        sq = ORTSmoothQuant(self.onnx_model_path.as_posix(), dataloader, quantization_config.reduce_range)
+        del dataloader
+        model = sq.transform(quantization_config.SmoothQuantAlpha, quantization_config.SmoothQuantFolding, op_types=['MatMul']).model
+        quantization_config.nodes_to_exclude.extend([i.name for i in model.graph.node if i.name not in orig_nodes])
+
+        LOGGER.info(f"Saving smooth model at: {save_dir} (external data format: " f"{use_external_data_format})")
+        model_input = Path(save_dir).joinpath(onnx_sq_model_name).as_posix()
+        onnx.save_model(model, model_input, save_as_external_data=use_external_data_format)
+        self.onnx_model_path = Path(model_input)
+
     def partial_fit(
         self,
         dataset: Dataset,

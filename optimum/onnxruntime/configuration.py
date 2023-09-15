@@ -286,6 +286,9 @@ class QuantizationConfig:
     qdq_op_type_per_channel_support_to_axis: Dict[str, int] = field(
         default_factory=lambda: ORT_DEFAULT_CHANNEL_FOR_OPERATORS
     )
+    SmoothQuant: bool = False
+    SmoothQuantAlpha: float = 0.5
+    SmoothQuantFolding: bool = True
 
     def __post_init__(self):
         ensure_valid_mode_or_raise(self.is_static, self.mode)
