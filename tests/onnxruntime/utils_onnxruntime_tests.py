@@ -57,6 +57,7 @@ MODEL_NAMES = {
         ],
         "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
     },
+    "falcon": "fxmarty/really-tiny-falcon-testing",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",

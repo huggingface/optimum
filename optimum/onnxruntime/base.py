@@ -150,6 +150,8 @@ class ORTDecoder(ORTModelPart):
         else:
             self.use_past = False
 
+        self.use_cache = self.parent_model.use_cache
+
         self.use_fp16 = False
         for inp in session.get_inputs():
             if "past_key_values" in inp.name and inp.type == "tensor(float16)":
@@ -196,6 +198,12 @@ class ORTDecoder(ORTModelPart):
             ):
                 self.value_sequence_length_idx = -1
 
+            # Some architectures fuse the key cache and value cache.
+            if self.parent_model.config.model_type == "gpt_bigcode":
+                self.fuse_kv = True
+            else:
+                self.fuse_kv = False
+
     def prepare_inputs_for_merged(
         self,
         input_ids: Union[None, torch.LongTensor, np.ndarray],
@@ -214,6 +222,7 @@ class ORTDecoder(ORTModelPart):
             use_cache_branch = use_cache_branch.to(self.device)
 
         # Generate dummy past for the first forward if uses a merged decoder
+        # TODO: the controlflow here is ugly and should be removed in favor of class inheritance.
         if self.parent_model.use_merged and past_key_values is None:
             batch_size = input_ids.shape[0]
             num_attention_heads = self.normalized_config.num_attention_heads
@@ -236,13 +245,28 @@ class ORTDecoder(ORTModelPart):
                     key_or_value for _ in range(len(self.key_value_input_names) // 2) for key_or_value in [key, value]
                 )
             elif self.parent_model.config.model_type in MULTI_QUERY_ATTN_MODELS:
-                shape_key_and_value = (batch_size, 1, embed_size_per_head * 2)
-                key_and_value = constructor.zeros(shape_key_and_value, dtype=dtype)
+                if self.fuse_kv:
+                    shape_key_and_value = (batch_size, 1, embed_size_per_head * 2)
+                    key_and_value = constructor.zeros(shape_key_and_value, dtype=dtype)
 
-                if use_torch is True:
-                    key_and_value = key_and_value.to(self.device)
+                    if use_torch is True:
+                        key_and_value = key_and_value.to(self.device)
 
-                past_key_values = tuple(key_and_value for _ in range(len(self.key_value_input_names)))
+                    past_key_values = tuple(key_and_value for _ in range(len(self.key_value_input_names)))
+                else:
+                    shape_key_and_value = (batch_size, 1, embed_size_per_head)
+                    key = constructor.zeros(shape_key_and_value, dtype=dtype)
+                    value = constructor.zeros(shape_key_and_value, dtype=dtype)
+
+                    if use_torch is True:
+                        key = key.to(self.device)
+                        value = value.to(self.device)
+
+                    past_key_values = tuple(
+                        key_or_value
+                        for _ in range(len(self.key_value_input_names) // 2)
+                        for key_or_value in [key, value]
+                    )
             else:
                 shape = (batch_size, num_attention_heads, 1, embed_size_per_head)
                 key_or_value = constructor.zeros(shape, dtype=dtype)
@@ -318,7 +342,9 @@ class ORTDecoder(ORTModelPart):
         if past_key_values is not None and use_cache_branch is not False:
             sequence_length += past_key_values[0].size(-2)
 
-        key_and_value_shape = (batch_size, sequence_length, embed_size_per_head * 2)
+        # TODO: this controlflow should be eliminated by inheritance.
+        kv_fuse_factor = 2 if self.fuse_kv else 1
+        key_and_value_shape = (batch_size, sequence_length, embed_size_per_head * kv_fuse_factor)
 
         return {name: key_and_value_shape for name in self.key_value_output_names}
 
@@ -390,16 +416,19 @@ class ORTDecoder(ORTModelPart):
                 io_binding.synchronize_outputs()
 
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer(2)
-            past_key_values = ()
-            for name in self.key_value_output_names:
-                past_key_values += (output_buffers[name].view(output_shapes[name]),)
+            if self.use_cache:
+                past_key_values = ()
+                for name in self.key_value_output_names:
+                    past_key_values += (output_buffers[name].view(output_shapes[name]),)
 
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to 2 (self-attention key and value per decoder layer)
-            if self.parent_model.config.model_type not in MULTI_QUERY_ATTN_MODELS:
-                num_pkv = 2
-                past_key_values = tuple(
-                    past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv)
-                )
+                # Tuple of tuple of length `n_layers`, with each tuple of length equal to 2 (self-attention key and value per decoder layer)
+                if self.parent_model.config.model_type not in MULTI_QUERY_ATTN_MODELS:
+                    num_pkv = 2
+                    past_key_values = tuple(
+                        past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv)
+                    )
+            else:
+                past_key_values = None
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
 
@@ -444,18 +473,21 @@ class ORTDecoder(ORTModelPart):
             outputs = self.session.run(None, onnx_inputs)
 
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 for the self-attention)
-            past_key_values = tuple(
-                torch.from_numpy(outputs[self.output_names[key]]).to(self.device)
-                for key in self.key_value_output_names
-            )
-
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
-            # per decoder layer
-            if self.parent_model.config.model_type not in MULTI_QUERY_ATTN_MODELS:
-                num_pkv = 2
+            if self.use_cache:
                 past_key_values = tuple(
-                    past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv)
+                    torch.from_numpy(outputs[self.output_names[key]]).to(self.device)
+                    for key in self.key_value_output_names
                 )
+
+                # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
+                # per decoder layer
+                if self.parent_model.config.model_type not in MULTI_QUERY_ATTN_MODELS:
+                    num_pkv = 2
+                    past_key_values = tuple(
+                        past_key_values[i : i + num_pkv] for i in range(0, len(past_key_values), num_pkv)
+                    )
+            else:
+                past_key_values = None
 
             logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
 

@@ -34,6 +34,7 @@ from ...utils import (
     DummyVisionEmbeddingsGenerator,
     DummyVisionInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
+    MultiQueryPastKeyValuesGenerator,
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
@@ -54,7 +55,7 @@ from .config import (
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
-from .model_patcher import SAMModelPatcher, WavLMModelPatcher
+from .model_patcher import FalconModelPatcher, SAMModelPatcher, WavLMModelPatcher
 
 
 if TYPE_CHECKING:
@@ -234,9 +235,6 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
-        """
-        Refer to OnnxConfigWithPast in base.py
-        """
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
@@ -285,6 +283,69 @@ class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.key_value"] = t
+
+
+class FalconOnnxConfig(TextDecoderOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        MultiQueryPastKeyValuesGenerator,
+    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DEFAULT_ONNX_OPSET = 14  # Falcon uses aten::triu that requires opset>=14
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    DUMMY_PKV_GENERATOR_CLASS = MultiQueryPastKeyValuesGenerator
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        use_past: bool = False,
+        use_past_in_inputs: bool = False,
+        preprocessors: Optional[List[Any]] = None,
+    ):
+        super().__init__(
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            preprocessors=preprocessors,
+        )
+        # For some reason Falcon config.num_kv_heads can not be trusted, see modeling_falcon.py in transformers
+        self._normalized_config.num_kv_heads = (
+            self._normalized_config.num_kv_heads
+            if (self._normalized_config.new_decoder_architecture or not self._normalized_config.multi_query)
+            else 1
+        )
+
+    # we need to set output_attentions=True in the model input to avoid calling
+    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return FalconModelPatcher(self, model, model_kwargs=model_kwargs)
+
+    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
+        if direction not in ["inputs", "outputs"]:
+            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+
+        if direction == "inputs":
+            decoder_sequence_name = "past_sequence_length"
+            name = "past_key_values"
+        else:
+            decoder_sequence_name = "past_sequence_length + 1"
+            name = "present"
+
+        for i in range(self._normalized_config.num_layers):
+            inputs_or_outputs[f"{name}.{i}.key"] = {
+                0: "batch_size x num_heads",
+                1: decoder_sequence_name,
+            }
+            inputs_or_outputs[f"{name}.{i}.value"] = {
+                0: "batch_size x num_heads",
+                1: decoder_sequence_name,
+            }
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):

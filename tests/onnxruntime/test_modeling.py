@@ -1947,6 +1947,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "bloom",
         "codegen",
+        "falcon",
         "gpt2",
         "gpt_bigcode",
         "gpt_neo",
