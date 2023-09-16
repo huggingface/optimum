@@ -267,6 +267,18 @@ class QuantizationConfig:
         qdq_op_type_per_channel_support_to_axis (`Dict[str, int]`):
             Set the channel axis for a specific operator type. Effective only when per channel quantization is
             supported and `per_channel` is set to True.
+        smooth_quant (`bool`, defaults to `False`) :
+            Default is False. If enabled, SmoothQuant algorithm will be applied before quantization to do
+            fake input channel quantization.
+        smooth_quant_alpha (`float`, defaults to `0.5`) :
+            Default is 0.5. It only works if SmoothQuant is True. It controls the difficulty of weight
+            and activation quantization. A larger alpha value could be used on models with more significant
+            activation outliers to migrate more quantization difficulty to weights.
+        smooth_quant_folding (`bool`, defaults to `True`) :
+            It only works if SmoothQuant is True. If enabled, inserted Mul ops during
+            SmoothQuant will be folded into the previous op if the previous op is foldable.
+        smooth_quant_op_types (`List[str]`, defaults to `[]`):
+            The op types to be smooth quantized
     """
 
     is_static: bool
@@ -396,7 +408,6 @@ class AutoQuantizationConfig:
         nodes_to_quantize: Optional[List[str]] = None,
         nodes_to_exclude: Optional[List[str]] = None,
         operators_to_quantize: Optional[List[str]] = None,
-        smooth_quant_op_types: Optional[List[str]] = None,
     ):
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for ARM64.
@@ -450,7 +461,6 @@ class AutoQuantizationConfig:
         nodes_to_quantize: Optional[List[str]] = None,
         nodes_to_exclude: Optional[List[str]] = None,
         operators_to_quantize: Optional[List[str]] = None,
-        smooth_quant_op_types: Optional[List[str]] = None,
     ) -> QuantizationConfig:
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX2 instruction set.
@@ -508,7 +518,6 @@ class AutoQuantizationConfig:
         nodes_to_quantize: Optional[List[str]] = None,
         nodes_to_exclude: Optional[List[str]] = None,
         operators_to_quantize: Optional[List[str]] = None,
-        smooth_quant_op_types: Optional[List[str]] = None,
     ) -> QuantizationConfig:
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX512 instruction set.
@@ -565,7 +574,6 @@ class AutoQuantizationConfig:
         nodes_to_quantize: Optional[List[str]] = None,
         nodes_to_exclude: Optional[List[str]] = None,
         operators_to_quantize: Optional[List[str]] = None,
-        smooth_quant_op_types: Optional[List[str]] = None,
     ) -> QuantizationConfig:
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX512-VNNI instruction set.

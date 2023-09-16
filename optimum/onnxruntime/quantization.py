@@ -232,7 +232,9 @@ class ORTQuantizer(OptimumQuantizer):
             importlib.import_module("neural_compressor.adaptor.ox_utils.smooth_quant")
         except Exception as e:
             logging.error(f"{e}.")
-            raise RuntimeError("neural-compressor is not correctly installed. Please check your environment.") from e
+            raise RuntimeError("Neural-compressor is required for SmoothQuant. Please install the library") from e
+
+        import copy
 
         import onnx
         from neural_compressor.adaptor.ox_utils.smooth_quant import ORTSmoothQuant
@@ -242,13 +244,14 @@ class ORTQuantizer(OptimumQuantizer):
         os.makedirs(save_dir, exist_ok=True)
 
         def inc_dataloader():
-            calibration_data_reader = ORTCalibrationDataReader(dataset, batch_size)
+            calibration_data_reader = ORTCalibrationDataReader(copy.deepcopy(dataset), batch_size)
             for data in calibration_data_reader:
                 yield data, None
 
         orig_nodes = [i.name for i in model.graph.node]
         dataloader = inc_dataloader()
         sq = ORTSmoothQuant(self.onnx_model_path.as_posix(), dataloader, quantization_config.reduce_range)
+        del dataloader
         model = sq.transform(
             quantization_config.smooth_quant_alpha,
             quantization_config.smooth_quant_folding,
