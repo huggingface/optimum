@@ -278,7 +278,7 @@ class QuantizationConfig:
             It only works if SmoothQuant is True. If enabled, inserted Mul ops during
             SmoothQuant will be folded into the previous op if the previous op is foldable.
         smooth_quant_op_types (`List[str]`, defaults to `[]`):
-            The op types to be smooth quantized
+            The op types to be smooth quantized. Defaults to ["Gemm", "Conv", "MatMul", "FusedConv"].
     """
 
     is_static: bool
