@@ -95,6 +95,7 @@ class ORTQuantizer(OptimumQuantizer):
                 The configuration of the model.
         """
         super().__init__()
+        self.orig_onnx_model_path = onnx_model_path
         self.onnx_model_path = onnx_model_path
         self.config = config
         if self.config is None:
@@ -233,25 +234,26 @@ class ORTQuantizer(OptimumQuantizer):
             logging.error(f"{e}.")
             raise RuntimeError("neural-compressor is not correctly installed. Please check your environment.") from e
 
-        import copy
-
         import onnx
         from neural_compressor.adaptor.ox_utils.smooth_quant import ORTSmoothQuant
 
         model = onnx.load(Path(self.onnx_model_path).as_posix())
 
+        os.makedirs(save_dir, exist_ok=True)
+
         def inc_dataloader():
             calibration_data_reader = ORTCalibrationDataReader(dataset, batch_size)
             for data in calibration_data_reader:
-                # d = data["input_features"]
-                # from pdb import set_trace; set_trace()
                 yield data, None
 
         orig_nodes = [i.name for i in model.graph.node]
         dataloader = inc_dataloader()
         sq = ORTSmoothQuant(self.onnx_model_path.as_posix(), dataloader, quantization_config.reduce_range)
-        del dataloader
-        model = sq.transform(quantization_config.SmoothQuantAlpha, quantization_config.SmoothQuantFolding, op_types=['MatMul']).model
+        model = sq.transform(
+            quantization_config.smooth_quant_alpha,
+            quantization_config.smooth_quant_folding,
+            op_types=quantization_config.smooth_quant_op_types,
+        ).model
         quantization_config.nodes_to_exclude.extend([i.name for i in model.graph.node if i.name not in orig_nodes])
 
         LOGGER.info(f"Saving smooth model at: {save_dir} (external data format: " f"{use_external_data_format})")
@@ -459,7 +461,7 @@ class ORTQuantizer(OptimumQuantizer):
         quantizer.quantize_model()
 
         suffix = f"_{file_suffix}" if file_suffix else ""
-        quantized_model_path = save_dir.joinpath(f"{self.onnx_model_path.stem}{suffix}").with_suffix(".onnx")
+        quantized_model_path = save_dir.joinpath(f"{self.orig_onnx_model_path.stem}{suffix}").with_suffix(".onnx")
         LOGGER.info(f"Saving quantized model at: {save_dir} (external data format: " f"{use_external_data_format})")
         quantizer.model.save_model_to_file(quantized_model_path.as_posix(), use_external_data_format)
 
@@ -470,7 +472,7 @@ class ORTQuantizer(OptimumQuantizer):
         if self.config is not None:
             self.config.save_pretrained(save_dir)
 
-        maybe_save_preprocessors(self.onnx_model_path.parent, save_dir)
+        maybe_save_preprocessors(self.orig_onnx_model_path.parent, save_dir)
 
         return Path(save_dir)
 

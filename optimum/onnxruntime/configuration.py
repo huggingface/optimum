@@ -286,9 +286,10 @@ class QuantizationConfig:
     qdq_op_type_per_channel_support_to_axis: Dict[str, int] = field(
         default_factory=lambda: ORT_DEFAULT_CHANNEL_FOR_OPERATORS
     )
-    SmoothQuant: bool = False
-    SmoothQuantAlpha: float = 0.5
-    SmoothQuantFolding: bool = True
+    smooth_quant: bool = False
+    smooth_quant_alpha: float = 0.5
+    smooth_quant_folding: bool = True
+    smooth_quant_op_types: bool = field(default_factory=list)
 
     def __post_init__(self):
         ensure_valid_mode_or_raise(self.is_static, self.mode)
@@ -296,10 +297,11 @@ class QuantizationConfig:
 
         # If needed, dynamically set operators_to_quantize default.
         if len(self.operators_to_quantize) == 0:
-            _, _, operators_to_quantize = default_quantization_parameters(
-                self.is_static, self.format, self.mode, self.operators_to_quantize
+            _, _, operators_to_quantize, smooth_quant_op_types = default_quantization_parameters(
+                self.is_static, self.format, self.mode, self.operators_to_quantize, self.smooth_quant_op_types
             )
             self.operators_to_quantize = operators_to_quantize
+            self.smooth_quant_op_types = smooth_quant_op_types
 
     @staticmethod
     def quantization_type_str(activations_dtype: QuantType, weights_dtype: QuantType) -> str:
@@ -362,6 +364,7 @@ def default_quantization_parameters(
     format: Optional[QuantFormat] = None,
     mode: Optional[QuantizationMode] = None,
     operators_to_quantize: Optional[List[str]] = None,
+    smooth_quant_op_types: Optional[List[str]] = None,
 ) -> Tuple[QuantFormat, QuantizationMode, List[str]]:
     if format is None:
         format = QuantFormat.QDQ if is_static else QuantFormat.QOperator
@@ -377,7 +380,10 @@ def default_quantization_parameters(
         elif not is_static and mode == QuantizationMode.IntegerOps:
             operators_to_quantize = ORT_DEFAULT_OPS_DYNAMIC_QUANTIZATION
 
-    return format, mode, operators_to_quantize
+    if smooth_quant_op_types is None or len(smooth_quant_op_types) == 0:
+        smooth_quant_op_types = ["Gemm", "Conv", "MatMul", "FusedConv"]
+
+    return format, mode, operators_to_quantize, smooth_quant_op_types
 
 
 class AutoQuantizationConfig:
@@ -390,6 +396,7 @@ class AutoQuantizationConfig:
         nodes_to_quantize: Optional[List[str]] = None,
         nodes_to_exclude: Optional[List[str]] = None,
         operators_to_quantize: Optional[List[str]] = None,
+        smooth_quant_op_types: Optional[List[str]] = None,
     ):
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for ARM64.
@@ -411,7 +418,7 @@ class AutoQuantizationConfig:
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode, operators_to_quantize = default_quantization_parameters(
+        format, mode, operators_to_quantize, smooth_quant_op_types = default_quantization_parameters(
             is_static, operators_to_quantize=operators_to_quantize
         )
 
@@ -430,6 +437,7 @@ class AutoQuantizationConfig:
             nodes_to_quantize=nodes_to_quantize or [],
             nodes_to_exclude=nodes_to_exclude or [],
             operators_to_quantize=operators_to_quantize,
+            smooth_quant_op_types=smooth_quant_op_types,
         )
 
     @staticmethod
@@ -442,6 +450,7 @@ class AutoQuantizationConfig:
         nodes_to_quantize: Optional[List[str]] = None,
         nodes_to_exclude: Optional[List[str]] = None,
         operators_to_quantize: Optional[List[str]] = None,
+        smooth_quant_op_types: Optional[List[str]] = None,
     ) -> QuantizationConfig:
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX2 instruction set.
@@ -469,7 +478,7 @@ class AutoQuantizationConfig:
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode, operators_to_quantize = default_quantization_parameters(
+        format, mode, operators_to_quantize, smooth_quant_op_types = default_quantization_parameters(
             is_static, operators_to_quantize=operators_to_quantize
         )
 
@@ -486,6 +495,7 @@ class AutoQuantizationConfig:
             nodes_to_quantize=nodes_to_quantize or [],
             nodes_to_exclude=nodes_to_exclude or [],
             operators_to_quantize=operators_to_quantize,
+            smooth_quant_op_types=smooth_quant_op_types,
         )
 
     @staticmethod
@@ -498,6 +508,7 @@ class AutoQuantizationConfig:
         nodes_to_quantize: Optional[List[str]] = None,
         nodes_to_exclude: Optional[List[str]] = None,
         operators_to_quantize: Optional[List[str]] = None,
+        smooth_quant_op_types: Optional[List[str]] = None,
     ) -> QuantizationConfig:
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX512 instruction set.
@@ -525,7 +536,7 @@ class AutoQuantizationConfig:
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode, operators_to_quantize = default_quantization_parameters(
+        format, mode, operators_to_quantize, smooth_quant_op_types = default_quantization_parameters(
             is_static, operators_to_quantize=operators_to_quantize
         )
 
@@ -542,6 +553,7 @@ class AutoQuantizationConfig:
             nodes_to_quantize=nodes_to_quantize or [],
             nodes_to_exclude=nodes_to_exclude or [],
             operators_to_quantize=operators_to_quantize,
+            smooth_quant_op_types=smooth_quant_op_types,
         )
 
     @staticmethod
@@ -553,6 +565,7 @@ class AutoQuantizationConfig:
         nodes_to_quantize: Optional[List[str]] = None,
         nodes_to_exclude: Optional[List[str]] = None,
         operators_to_quantize: Optional[List[str]] = None,
+        smooth_quant_op_types: Optional[List[str]] = None,
     ) -> QuantizationConfig:
         """
         Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX512-VNNI instruction set.
@@ -582,7 +595,7 @@ class AutoQuantizationConfig:
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode, operators_to_quantize = default_quantization_parameters(
+        format, mode, operators_to_quantize, smooth_quant_op_types = default_quantization_parameters(
             is_static, operators_to_quantize=operators_to_quantize
         )
 
@@ -599,6 +612,7 @@ class AutoQuantizationConfig:
             nodes_to_quantize=nodes_to_quantize or [],
             nodes_to_exclude=nodes_to_exclude or [],
             operators_to_quantize=operators_to_quantize,
+            smooth_quant_op_types=smooth_quant_op_types,
         )
 
     @staticmethod
@@ -622,7 +636,7 @@ class AutoQuantizationConfig:
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
         """
-        format, mode, operators_to_quantize = default_quantization_parameters(
+        format, mode, operators_to_quantize, smooth_quant_op_types = default_quantization_parameters(
             is_static=True, operators_to_quantize=operators_to_quantize
         )
 
