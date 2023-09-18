@@ -129,6 +129,20 @@ def parse_args_onnx(parser):
             " it."
         ),
     )
+    optional_group.add_argument(
+        "--library-name",
+        type=str,
+        choices=["transformers", "diffusers", "timm"],
+        default=None,
+        help=("The library on the model." " If not provided, will attempt to infer the local checkpoint's library"),
+    )
+    optional_group.add_argument(
+        "--no-position-ids",
+        action="store_true",
+        help=(
+            "Disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum."
+        ),
+    )
 
     input_group = parser.add_argument_group(
         "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input)."
@@ -204,13 +218,6 @@ def parse_args_onnx(parser):
         help="For Segment Anything. It corresponds to the number of points per segmentation masks.",
     )
     optional_group.add_argument(
-        "--library_name",
-        type=str,
-        choices=["transformers", "diffusers", "timm"],
-        default=None,
-        help=("The library on the model." " If not provided, will attempt to infer the local checkpoint's library"),
-    )
-    optional_group.add_argument(
         "--legacy",
         action="store_true",
         help=("Export decoder only models in two (without + with past) model as a single ONNX file."),
@@ -253,6 +260,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             use_subprocess=True,
             _variant=self.args.variant,
             library_name=self.args.library_name,
+            no_position_ids=self.args.no_position_ids,
             legacy=self.args.legacy,
             **input_shapes,
         )

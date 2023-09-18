@@ -741,7 +741,6 @@ class ORTModel(OptimizedModel):
         Returns:
             `Tuple[ort.IOBinding, Dict[str, Tuple[int]], Dict[str, torch.Tensor]`: The IOBinding object, a dictionary
             containing the shape of each output, and another one pointing to the buffers containing the outputs data.
-
         """
         io_binding = model.io_binding()
 
