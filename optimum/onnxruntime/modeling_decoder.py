@@ -1036,6 +1036,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             task=task,
             do_validation=False,
             no_post_process=False,
+            legacy=False,
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,

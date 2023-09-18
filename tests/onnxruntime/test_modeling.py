@@ -2049,7 +2049,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.skipTest("Unsupported export case")
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            main_export(model_id, tmpdir, task=task)
+            main_export(model_id, tmpdir, task=task, legacy=True)
 
             model = ORTModelForCausalLM.from_pretrained(tmpdir)
 
