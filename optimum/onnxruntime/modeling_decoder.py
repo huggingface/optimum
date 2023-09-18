@@ -1033,7 +1033,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             output=save_dir_path,
             task=task,
             do_validation=False,
-            no_post_process=False,
+            no_post_process=True,
             legacy=False,
             subfolder=subfolder,
             revision=revision,
