@@ -650,6 +650,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         generation_config: Optional[GenerationConfig] = None,
+        use_cache: Optional[bool] = None,
         **kwargs,
     ):
         if use_io_binding is None:
@@ -677,6 +678,16 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if inp.name == "past_key_values" and inp.type == "tensor(float16)":
                 self.use_fp16 = True
                 break
+
+        if use_cache ^ self.use_cache:
+            raise ValueError(
+                f"`use_cache` was set to `{use_cache}` but the loaded model only supports `use_cache={self.use_cache}`. "
+                f"Please load your current model with `use_cache={self.use_cache}` or export the original model "
+                f"once again with `use_cache={use_cache}` when calling the `from_pretrained` method. "
+                "To export your model, simply set `export=True`."
+            )
+
+
 
     @add_start_docstrings_to_model_forward(
         CAUSALLM_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
@@ -729,7 +740,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if "attention_mask" in self.inputs_names:
                 model_inputs.append(attention_mask)
 
-            if "position_ids" in self.input_names:
+            if "position_ids" in self.inputs_names:
                 if position_ids is None:
                     raise ValueError("position_ids was not passed but is a required input for this ONNX model.")
                 model_inputs.append(position_ids.contiguous())
@@ -778,7 +789,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if "labels" in self.inputs_names:
                 inputs["labels"] = labels.cpu().detach().numpy() if use_torch else labels
 
-            if "position_ids" in self.input_names:
+            if "position_ids" in self.inputs_names:
                 if position_ids is None:
                     raise ValueError("position_ids was not passed but is a required input for this ONNX model.")
                 onnx_inputs["position_ids"] = position_ids.cpu().detach().numpy() if use_torch else position_ids
@@ -906,6 +917,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModelForCausalLM":
+
+
+        model_path = Path(model_id)
+
         # We do not implement the logic for use_cache=False, use_merged=True
         if use_cache is False:
             if use_merged is True:
@@ -970,51 +985,87 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     f"{cls.__name__} might not behave as expected."
                 )
 
+        if config.model_type == "bloom":
+            init_cls = ORTBloomForCausalLM
+        elif config.model_type == "mpt":
+            init_cls = ORTMPTForCausalLM
+        elif config.model_type == "opt":
+            init_cls = ORTOPTForCausalLM
+        else:
+            init_cls = ORTModelForCausalLM
 
-        # TODo : add init_cls
-        ort_model = super()._from_pretrained(
-            model_id,
-            config,
-            use_auth_token=use_auth_token,
-            revision=revision,
-            force_download=force_download,
-            cache_dir=cache_dir,
-            file_name=file_name,
-            subfolder=subfolder,
-            use_cache=use_cache,
-            provider=provider,
-            session_options=session_options,
-            provider_options=provider_options,
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
-            **kwargs,
-        )
+        ##################################################################################################
 
-        if use_cache ^ ort_model.use_cache:
-            raise ValueError(
-                f"`use_cache` was set to `{use_cache}` but the loaded model only supports `use_cache={ort_model.use_cache}`. "
-                f"Please load your current model with `use_cache={ort_model.use_cache}` or export the original model "
-                f"once again with `use_cache={use_cache}` when calling the `from_pretrained` method. "
-                "To export your model, simply set `export=True`."
+        preprocessors = None
+        if model_path.is_dir():
+            model_cache_path = model_path / file_name
+            new_model_save_dir = model_path
+            preprocessors = maybe_load_preprocessors(model_id)
+        else:
+            model_cache_path = hf_hub_download(
+                repo_id=model_id,
+                filename=file_name,
+                subfolder=subfolder,
+                use_auth_token=use_auth_token,
+                revision=revision,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                local_files_only=local_files_only,
             )
+
+            # try download external data
+            try:
+                hf_hub_download(
+                    repo_id=model_id,
+                    subfolder=subfolder,
+                    filename=file_name + "_data",
+                    use_auth_token=use_auth_token,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
+                )
+            except EntryNotFoundError:
+                # model doesn't use external data
+                pass
+            new_model_save_dir = Path(model_cache_path).parent
+            preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)
+
+        # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
+        # instead of the path only.
+        if model_save_dir is None:
+            model_save_dir = new_model_save_dir
+
+        ##################################################################################################
 
         # Since  v1.7.0 decoder with past models have fixed sequence length of 1
         # To keep these models compatible we set this dimension to dynamic
-        input_dims = {inputs.name: inputs.shape for inputs in ort_model.model.get_inputs()}
-        # TODO : refactorize ORTModel.from_pretrained to not re-create inference session a second time
+        onnx_model = onnx.load(model_cache_path)
+        input_dims = {node.name: [dim.dim_value or dim.dim_param for dim in node.type.tensor_type.shape.dim] for node in onnx_model.graph.input}
         if input_dims["input_ids"][1] == 1:
-            model_path = ort_model.model_path
             input_dims["input_ids"][1] = "sequence_length"
-            output_dims = {output.name: output.shape for output in ort_model.model.get_outputs()}
+            output_dims = {node.name: [dim.dim_value or dim.dim_param for dim in node.type.tensor_type.shape.dim] for node in onnx_model.graph.output}
             output_dims["logits"][1] = "sequence_length"
-            static_model = onnx.load(model_path)
+            static_model = onnx.load(model_cache_path)
             updated_model = update_model_dims.update_inputs_outputs_dims(static_model, input_dims, output_dims)
-            onnx.save(updated_model, model_path)
-            ort_model.model = ORTModel.load_model(
-                model_path, provider=provider, session_options=session_options, provider_options=provider_options
-            )
+            onnx.save(updated_model, model_cache_path)
 
-        return ort_model
+        model = ORTModel.load_model(
+            model_cache_path,
+            provider=provider,
+            session_options=session_options,
+            provider_options=provider_options,
+        )
+
+        return init_cls(
+            model=model,
+            config=config,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+            preprocessors=preprocessors,
+            use_cache=use_cache
+        )
+
 
     @classmethod
     def _from_transformers(
