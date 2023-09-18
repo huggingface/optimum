@@ -32,11 +32,10 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 import onnxruntime
 
 from ..exporters import TasksManager
-from ..exporters.onnx import export, main_export
+from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
-from ..utils.modeling_utils import _prepare_attn_mask, _prepare_decoder_attention_mask
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .base import ORTDecoder
 from .constants import DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN, DECODER_WITH_PAST_ONNX_FILE_PATTERN
