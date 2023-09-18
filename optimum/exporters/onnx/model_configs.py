@@ -50,6 +50,7 @@ from .config import (
     EncoderDecoderBaseOnnxConfig,
     TextAndVisionOnnxConfig,
     TextDecoderOnnxConfig,
+    TextDecoderWithPositionIdsOnnxConfig,
     TextEncoderOnnxConfig,
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
@@ -172,7 +173,7 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
     pass
 
 
-class GPT2OnnxConfig(TextDecoderOnnxConfig):
+class GPT2OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
@@ -199,27 +200,29 @@ class ImageGPTOnnxConfig(GPT2OnnxConfig):
     pass
 
 
-class GPTNeoOnnxConfig(TextDecoderOnnxConfig):
+class GPTNeoOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
 
-class GPTNeoXOnnxConfig(TextDecoderOnnxConfig):
+class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
 class OPTOnnxConfig(TextDecoderOnnxConfig):
+    # OPT does not require position_ids input.
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
-class LlamaOnnxConfig(TextDecoderOnnxConfig):
+class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):
+    # MPT does not require position_ids input.
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
@@ -227,6 +230,7 @@ class MPTOnnxConfig(TextDecoderOnnxConfig):
 
 
 class BloomOnnxConfig(TextDecoderOnnxConfig):
+    # Bloom does not require position_ids input.
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BloomDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
@@ -258,7 +262,7 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
             }
 
 
-class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
+class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         GPTBigCodeDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES

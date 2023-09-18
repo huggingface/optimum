@@ -28,7 +28,7 @@ from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 import onnxruntime
 
-from ..exporters.onnx import main_export
+from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from ..onnx.utils import _get_external_data_paths
 from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
@@ -228,6 +228,13 @@ class ORTModelDecoder(ORTModel):
         self.decoder = ORTDecoder(decoder_session, self)
         self.decoder_model_path = Path(decoder_session._model_path)
         self.decoder_model_name = self.decoder_model_path.name
+
+        # Reference: https://github.com/huggingface/optimum/pull/1381
+        model_type = config.model_type.replace("_", "-")
+        if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.decoder.input_names:
+            logger.warning(
+                f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although this input is required for batched generation for the architecture {model_type}. We strongly encourage to re-export the model with optimum>=1.14 for position_ids and batched inference support."
+            )
 
         self.decoder_with_past = None
         self.decoder_with_past_model_path = None
@@ -644,6 +651,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.FloatTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        position_ids: Optional[torch.LongTensor] = None,
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> CausalLMOutputWithCrossAttentions:
@@ -652,6 +660,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 past_key_values=past_key_values,
+                position_ids=position_ids,
                 labels=labels,
             )
         elif self.use_merged is True:
@@ -659,6 +668,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
                 input_ids=input_ids[:, -1:],
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
+                position_ids=position_ids,
             )
         else:
             outputs = self.decoder_with_past(
@@ -666,6 +676,7 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
                 past_key_values=past_key_values,
                 attention_mask=attention_mask,
                 labels=labels,
+                position_ids=position_ids,
             )
 
         return CausalLMOutputWithCrossAttentions(
@@ -676,14 +687,22 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
         # if model is used as a decoder in encoder-decoder model, the decoder attention mask is created on the fly
 
-        attention_mask = kwargs.get("attention_mask", None)  # input_ids.new_ones(input_ids.shape)
+        attention_mask = kwargs.get("attention_mask", None)
         use_cache = kwargs.get("use_cache", None)
+
+        position_ids = kwargs.get("position_ids", None)
+        if attention_mask is not None and position_ids is None:
+            # create position_ids on the fly for batch generation
+            position_ids = attention_mask.long().cumsum(-1) - 1
+            position_ids.masked_fill_(attention_mask == 0, 1)
+            if past_key_values:
+                position_ids = position_ids[:, -1].unsqueeze(-1)
 
         return {
             "input_ids": input_ids,
             "past_key_values": past_key_values,
             "use_cache": use_cache,
-            "position_ids": None,
+            "position_ids": position_ids,
             "attention_mask": attention_mask,
         }
 
@@ -707,8 +726,15 @@ class ORTModelForCausalLM(ORTModelDecoder, GenerationMixin):
         **kwargs,
     ):
         if config.model_type == "bloom":
-            return super()._from_pretrained(model_id, config, init_cls=ORTBloomForCausalLM, **kwargs)
-        return super()._from_pretrained(model_id, config, init_cls=ORTModelForCausalLM, **kwargs)
+            init_cls = ORTBloomForCausalLM
+        elif config.model_type == "mpt":
+            init_cls = ORTMPTForCausalLM
+        elif config.model_type == "opt":
+            init_cls = ORTOPTForCausalLM
+        else:
+            init_cls = ORTModelForCausalLM
+
+        return super()._from_pretrained(model_id, config, init_cls=init_cls, **kwargs)
 
 
 class ORTBloomForCausalLM(ORTModelForCausalLM):
@@ -748,3 +774,33 @@ class ORTBloomForCausalLM(ORTModelForCausalLM):
             for layer_past in standardized_past
         )
         return bloom_convert_to_bloom_cache(reordered_past)
+
+
+class ORTOPTForCausalLM(ORTModelForCausalLM):
+    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
+    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
+        attention_mask = kwargs.get("attention_mask", None)
+        use_cache = kwargs.get("use_cache", None)
+
+        return {
+            "input_ids": input_ids,
+            "past_key_values": past_key_values,
+            "use_cache": use_cache,
+            "position_ids": None,
+            "attention_mask": attention_mask,
+        }
+
+
+class ORTMPTForCausalLM(ORTModelForCausalLM):
+    # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
+    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
+        attention_mask = kwargs.get("attention_mask", None)
+        use_cache = kwargs.get("use_cache", None)
+
+        return {
+            "input_ids": input_ids,
+            "past_key_values": past_key_values,
+            "use_cache": use_cache,
+            "position_ids": None,
+            "attention_mask": attention_mask,
+        }
