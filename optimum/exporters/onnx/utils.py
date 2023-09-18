@@ -249,7 +249,7 @@ def get_decoder_models_for_export(
         onnx configs for the encoder and decoder parts of the model.
     """
 
-    models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past)
+    models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past, legacy=legacy)
 
     if legacy:
         onnx_config = config.__class__(

@@ -14,6 +14,7 @@
 # limitations under the License.
 import gc
 import os
+from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict
@@ -529,8 +530,8 @@ class CustomMPTOnnxConfig(TextDecoderOnnxConfig):
             inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 2: decoder_sequence_name}
 
 
-def fn_get_submodels_custom(model):
-    return {"decoder_model": model, "decoder_with_past_model": model}
+def fn_get_submodels_custom(model, legacy=False):
+    return {"decoder_model": model, "decoder_with_past_model": model} if legacy else {"model": model}
 
 
 class OnnxCustomExport(TestCase):
@@ -568,11 +569,12 @@ class OnnxCustomExport(TestCase):
             assert "decoder_attentions.0" in output_names
             assert "cross_attentions.0" in output_names
 
-    @parameterized.expand([(None,), (fn_get_submodels_custom,)])
-    def test_custom_export_trust_remote(self, fn_get_submodels):
+    @parameterized.expand(
+        grid_parameters({"fn_get_submodels": [None, fn_get_submodels_custom], "legacy": [True, False]})
+    )
+    def test_custom_export_trust_remote(self, test_name, fn_get_submodels, legacy):
         model_id = "fxmarty/tiny-mpt-random-remote-code"
         config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
-
         onnx_config = CustomMPTOnnxConfig(
             config=config,
             task="text-generation",
@@ -581,10 +583,15 @@ class OnnxCustomExport(TestCase):
         )
         onnx_config_with_past = CustomMPTOnnxConfig(config, task="text-generation", use_past=True)
 
-        custom_onnx_configs = {
-            "decoder_model": onnx_config,
-            "decoder_with_past_model": onnx_config_with_past,
-        }
+        if legacy:
+            custom_onnx_configs = {
+                "decoder_model": onnx_config,
+                "decoder_with_past_model": onnx_config_with_past,
+            }
+        else:
+            custom_onnx_configs = {
+                "model": onnx_config_with_past,
+            }
 
         with TemporaryDirectory() as tmpdirname:
             main_export(
@@ -594,7 +601,8 @@ class OnnxCustomExport(TestCase):
                 trust_remote_code=True,
                 custom_onnx_configs=custom_onnx_configs,
                 no_post_process=True,
-                fn_get_submodels=fn_get_submodels,
+                fn_get_submodels=partial(fn_get_submodels, legacy=legacy) if fn_get_submodels else None,
+                legacy=legacy,
                 opset=14,
             )
 

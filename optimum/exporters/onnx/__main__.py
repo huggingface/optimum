@@ -67,6 +67,7 @@ def _get_submodels_and_onnx_configs(
     float_dtype: str = "fp32",
     fn_get_submodels: Optional[Callable] = None,
     preprocessors: Optional[List[Any]] = None,
+    legacy: bool = False,
 ):
     is_stable_diffusion = "stable-diffusion" in task
     if not custom_architecture:
@@ -96,7 +97,7 @@ def _get_submodels_and_onnx_configs(
             ):
                 models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
             elif task.startswith("text-generation") and not monolith:
-                models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
+                models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config, legacy=legacy)
             elif model.config.model_type == "sam":
                 models_and_onnx_configs = get_sam_models_for_export(model, onnx_config)
             else:
@@ -174,6 +175,7 @@ def main_export(
     use_subprocess: bool = False,
     _variant: str = "default",
     library_name: Optional[str] = None,
+    legacy: bool = False,
     **kwargs_shapes,
 ):
     """
@@ -406,6 +408,7 @@ def main_export(
         fn_get_submodels=fn_get_submodels,
         preprocessors=preprocessors,
         _variant=_variant,
+        legacy=legacy,
     )
 
     if not is_stable_diffusion:
@@ -591,6 +594,7 @@ def main():
         pad_token_id=args.pad_token_id,
         for_ort=args.for_ort,
         library_name=args.library_name,
+        legacy=args.legacy,
         **input_shapes,
     )
 

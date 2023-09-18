@@ -210,6 +210,11 @@ def parse_args_onnx(parser):
         default=None,
         help=("The library on the model." " If not provided, will attempt to infer the local checkpoint's library"),
     )
+    optional_group.add_argument(
+        "--legacy",
+        action="store_true",
+        help=("Export decoder only models in two (without + with past) model as a single ONNX file."),
+    )
 
     # deprecated argument
     parser.add_argument("--for-ort", action="store_true", help=argparse.SUPPRESS)
@@ -248,5 +253,6 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             use_subprocess=True,
             _variant=self.args.variant,
             library_name=self.args.library_name,
+            legacy=self.args.legacy,
             **input_shapes,
         )
