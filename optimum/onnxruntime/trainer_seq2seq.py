@@ -51,6 +51,10 @@ from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_
 
 if is_accelerate_available():
     from accelerate import __version__ as accelerate_version
+else:
+    raise ImportError(
+        "The package `accelerate` is required to use the ORTTrainer. Please install it following https://huggingface.co/docs/accelerate/basic_tutorials/install."
+    )
 
 logger = logging.get_logger(__name__)
 
