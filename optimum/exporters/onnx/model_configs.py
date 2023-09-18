@@ -50,6 +50,7 @@ from .config import (
     EncoderDecoderBaseOnnxConfig,
     TextAndVisionOnnxConfig,
     TextDecoderOnnxConfig,
+    TextDecoderWithPositionIdsOnnxConfig,
     TextEncoderOnnxConfig,
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
@@ -172,24 +173,9 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
     pass
 
 
-class GPT2OnnxConfig(TextDecoderOnnxConfig):
+class GPT2OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
-
-    @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = super().inputs
-
-        # Decoders based on GPT2 require a position_ids input to avoid
-        # generating wrong position_ids in the model itself:
-        # https://github.com/huggingface/transformers/blob/v4.33.1/src/transformers/models/gpt2/modeling_gpt2.py#L802
-        if not self.no_position_ids and self.task == "text-generation":
-            if self.use_past_in_inputs:
-                common_inputs["position_ids"] = {0: "batch_size"}
-            else:
-                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
-
-        return common_inputs
 
     @property
     def values_override(self) -> Optional[Dict[str, Any]]:
@@ -214,38 +200,14 @@ class ImageGPTOnnxConfig(GPT2OnnxConfig):
     pass
 
 
-class GPTNeoOnnxConfig(TextDecoderOnnxConfig):
+class GPTNeoOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
-    @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = super().inputs
 
-        # Refer to GPT2OnnxConfig inputs comment.
-        if not self.no_position_ids and self.task == "text-generation":
-            if self.use_past_in_inputs:
-                common_inputs["position_ids"] = {0: "batch_size"}
-            else:
-                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
-        return common_inputs
-
-
-class GPTNeoXOnnxConfig(TextDecoderOnnxConfig):
+class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-
-    @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = super().inputs
-
-        # Refer to GPT2OnnxConfig inputs comment.
-        if not self.no_position_ids and self.task == "text-generation":
-            if self.use_past_in_inputs:
-                common_inputs["position_ids"] = {0: "batch_size"}
-            else:
-                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
-        return common_inputs
 
 
 class OPTOnnxConfig(TextDecoderOnnxConfig):
@@ -254,21 +216,9 @@ class OPTOnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
-class LlamaOnnxConfig(TextDecoderOnnxConfig):
+class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-
-    @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = super().inputs
-
-        # Refer to GPT2OnnxConfig inputs comment.
-        if not self.no_position_ids and self.task == "text-generation":
-            if self.use_past_in_inputs:
-                common_inputs["position_ids"] = {0: "batch_size"}
-            else:
-                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
-        return common_inputs
 
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):
@@ -312,7 +262,7 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
             }
 
 
-class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
+class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         GPTBigCodeDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
@@ -339,18 +289,6 @@ class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.key_value"] = t
-
-    @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = super().inputs
-
-        # Refer to GPT2OnnxConfig inputs comment.
-        if not self.no_position_ids and self.task == "text-generation":
-            if self.use_past_in_inputs:
-                common_inputs["position_ids"] = {0: "batch_size"}
-            else:
-                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
-        return common_inputs
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):

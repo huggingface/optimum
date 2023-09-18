@@ -155,6 +155,23 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         return models_and_onnx_configs, onnx_files_subpaths
 
 
+class TextDecoderWithPositionIdsOnnxConfig(TextDecoderOnnxConfig):
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = super().inputs
+
+        # Decoders based on GPT2 require a position_ids input to avoid
+        # generating wrong position_ids in the model itself:
+        # https://github.com/huggingface/transformers/blob/v4.33.1/src/transformers/models/gpt2/modeling_gpt2.py#L802
+        if not self.no_position_ids and self.task == "text-generation":
+            if self.use_past_in_inputs:
+                common_inputs["position_ids"] = {0: "batch_size"}
+            else:
+                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+
+        return common_inputs
+
+
 class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
     """
     Handles encoder-decoder-based text architectures.
