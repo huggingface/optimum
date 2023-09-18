@@ -31,7 +31,6 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 
 import onnxruntime
 
-from ..exporters import TasksManager
 from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
