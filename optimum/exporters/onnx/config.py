@@ -164,10 +164,7 @@ class TextDecoderWithPositionIdsOnnxConfig(TextDecoderOnnxConfig):
         # generating wrong position_ids in the model itself:
         # https://github.com/huggingface/transformers/blob/v4.33.1/src/transformers/models/gpt2/modeling_gpt2.py#L802
         if not self.no_position_ids and self.task == "text-generation":
-            if self.use_past_in_inputs:
-                common_inputs["position_ids"] = {0: "batch_size"}
-            else:
-                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_inputs
 
