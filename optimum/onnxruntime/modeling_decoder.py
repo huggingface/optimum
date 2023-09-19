@@ -789,7 +789,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if "position_ids" in self.inputs_names:
                 if position_ids is None:
                     raise ValueError("position_ids was not passed but is a required input for this ONNX model.")
-                onnx_inputs["position_ids"] = position_ids.cpu().detach().numpy() if use_torch else position_ids
+                inputs["position_ids"] = position_ids.cpu().detach().numpy() if use_torch else position_ids
 
             # Add the past_key_values to the decoder inputs
             if past_key_values is not None:
