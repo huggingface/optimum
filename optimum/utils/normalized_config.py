@@ -254,7 +254,7 @@ class NormalizedConfigManager:
         "mpt": MPTNormalizedTextConfig,
         "gpt_bigcode": GPTBigCodeNormalizedTextConfig,
         "mixformer-sequential": GPTBigCodeNormalizedTextConfig,
-        "baichuan": NormalizedTextConfig 
+        "baichuan": NormalizedTextConfig,
     }
 
     @classmethod
