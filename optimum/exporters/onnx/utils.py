@@ -30,7 +30,6 @@ from ...utils import (
 )
 from ...utils.import_utils import _diffusers_version
 from ...utils.modeling_utils import _prepare_attn_mask, _prepare_decoder_attention_mask
-
 from ..tasks import TasksManager
 from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
