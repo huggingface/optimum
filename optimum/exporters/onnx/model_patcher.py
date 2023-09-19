@@ -16,9 +16,10 @@ import dataclasses
 import functools
 import inspect
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
-from ...utils.modeling_utils import _prepare_attn_mask, _prepare_decoder_attention_mask
 
 from transformers.utils import is_torch_available
+
+from ...utils.modeling_utils import _prepare_attn_mask, _prepare_decoder_attention_mask
 
 
 if is_torch_available():
