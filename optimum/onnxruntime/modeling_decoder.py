@@ -32,7 +32,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 import onnxruntime
 
 from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
-from ..onnx.utils import _get_external_data_paths
+from ..onnx.utils import _get_external_data_paths, check_model_uses_external_data
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
@@ -49,7 +49,7 @@ from .utils import (
     parse_device,
     validate_provider_availability,
 )
-from ..onnx.utils import check_model_uses_external_data
+
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
