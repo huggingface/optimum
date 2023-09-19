@@ -345,6 +345,9 @@ class SAMModelPatcher(ModelPatcher):
         self.patched_forward = patched_forward
 
 
+
+
+
 class BloomModelPatcher(ModelPatcher):
     def __init__(
         self,
@@ -360,10 +363,12 @@ class BloomModelPatcher(ModelPatcher):
         if self.real_config.task == "text-generation" and self.real_config.use_past:
             setattr(self._model.transformer, "_prepare_attn_mask", _prepare_attn_mask)
 
+
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
         if self.real_config.task == "text-generation" and self.real_config.use_past:
             setattr(self._model.transformer, "_prepare_attn_mask", self.orig_prepare_attn_mask)
+
 
 
 class MPTModelPatcher(BloomModelPatcher):
@@ -426,3 +431,5 @@ class PegasusModelPatcher(OPTModelPatcher):
 
 class BartModelPatcher(OPTModelPatcher):
     pass
+
+

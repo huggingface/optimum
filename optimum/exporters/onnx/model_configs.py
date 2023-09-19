@@ -56,16 +56,13 @@ from .config import (
     VisionOnnxConfig,
 )
 from .model_patcher import (
+    BartModelPatcher,
+    BloomModelPatcher,
+    LlamaModelPatcher,
+    MPTModelPatcher,
+    OPTModelPatcher,
     SAMModelPatcher,
     WavLMModelPatcher,
-    BloomModelPatcher,
-    MPTModelPatcher,
-    BartModelPatcher,
-    PegasusModelPatcher,
-    BlenderbotModelPatcher,
-    BlenderbotSmallModelPatcher,
-    OPTModelPatcher,
-    LlamaModelPatcher,
 )
 
 
