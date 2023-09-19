@@ -16,6 +16,7 @@ import dataclasses
 import functools
 import inspect
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
+from ...utils.modeling_utils import _prepare_attn_mask, _prepare_decoder_attention_mask
 
 from transformers.utils import is_torch_available
 
@@ -342,3 +343,86 @@ class SAMModelPatcher(ModelPatcher):
                         return {"iou_scores": iou_predictions, "pred_masks": low_res_masks}
 
         self.patched_forward = patched_forward
+
+
+class BloomModelPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+        self.orig_prepare_attn_mask = getattr(self._model.transformer, "_prepare_attn_mask")
+
+    def __enter__(self):
+        super().__enter__()
+        if self.real_config.task == "text-generation" and self.real_config.use_past:
+            setattr(self._model.transformer, "_prepare_attn_mask", _prepare_attn_mask)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+        if self.real_config.task == "text-generation" and self.real_config.use_past:
+            setattr(self._model.transformer, "_prepare_attn_mask", self.orig_prepare_attn_mask)
+
+
+class MPTModelPatcher(BloomModelPatcher):
+    pass
+
+
+class LlamaModelPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+        self.orig_prepare_attn_mask = getattr(self._model.model, "_prepare_decoder_attention_mask")
+
+    def __enter__(self):
+        super().__enter__()
+        if self.real_config.task == "text-generation" and self.real_config.use_past:
+            setattr(self._model.model, "_prepare_decoder_attention_mask", _prepare_decoder_attention_mask)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+        if self.real_config.task == "text-generation" and self.real_config.use_past:
+            setattr(self._model.model, "_prepare_decoder_attention_mask", self.orig_prepare_attn_mask)
+
+
+class OPTModelPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+        self.orig_prepare_attn_mask = getattr(self._model.model.decoder, "_prepare_decoder_attention_mask")
+
+    def __enter__(self):
+        super().__enter__()
+        if self.real_config.task == "text-generation" and self.real_config.use_past:
+            setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", _prepare_decoder_attention_mask)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+        if self.real_config.task == "text-generation" and self.real_config.use_past:
+            setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", self.orig_prepare_attn_mask)
+
+
+class BlenderbotSmallModelPatcher(OPTModelPatcher):
+    pass
+
+
+class BlenderbotModelPatcher(OPTModelPatcher):
+    pass
+
+
+class PegasusModelPatcher(OPTModelPatcher):
+    pass
+
+
+class BartModelPatcher(OPTModelPatcher):
+    pass

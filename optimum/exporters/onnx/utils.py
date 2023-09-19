@@ -166,18 +166,7 @@ def _get_submodels_for_export_decoder(
     """
     Returns the decoder part of the model.
     """
-    models_for_export = {}
-
-    if not legacy or use_past:
-        # fix causal lm generation for inputs of sequence length 1
-        if model.config.model_type in {"bloom", "mpt"}:
-            model.transformer._prepare_attn_mask = _prepare_attn_mask
-        elif model.config.model_type == "llama":
-            model.model._prepare_decoder_attention_mask = _prepare_decoder_attention_mask
-        elif model.config.model_type in {"blenderbot-small", "blenderbot", "opt", "pegasus", "bart"}:
-            model.model.decoder._prepare_decoder_attention_mask = _prepare_decoder_attention_mask
-
-    models_for_export[ONNX_DECODER_NAME if legacy else "model"] = model
+    models_for_export = {ONNX_DECODER_NAME if legacy else "model": model}
 
     if legacy and use_past:
         models_for_export[ONNX_DECODER_WITH_PAST_NAME] = model
