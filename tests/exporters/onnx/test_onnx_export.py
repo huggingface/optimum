@@ -570,7 +570,7 @@ class OnnxCustomExport(TestCase):
             assert "cross_attentions.0" in output_names
 
     @parameterized.expand(
-        grid_parameters({"fn_get_submodels": [None, fn_get_submodels_custom], "legacy": [True, False]})
+        grid_parameters({"fn_get_submodels": (None, fn_get_submodels_custom), "legacy": (True, False)})
     )
     def test_custom_export_trust_remote(self, test_name, fn_get_submodels, legacy):
         model_id = "fxmarty/tiny-mpt-random-remote-code"
