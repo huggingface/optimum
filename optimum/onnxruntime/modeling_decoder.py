@@ -1023,7 +1023,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             except EntryNotFoundError:
                 # model doesn't use external data
                 pass
-            new_model_save_dir = Path(model_cache_path).parent
+            model_cache_path = Path(model_cache_path)
+            new_model_save_dir = model_cache_path.parent
             preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)
 
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
