@@ -253,6 +253,8 @@ class NormalizedConfigManager:
         "yolos": NormalizedVisionConfig,
         "mpt": MPTNormalizedTextConfig,
         "gpt_bigcode": GPTBigCodeNormalizedTextConfig,
+        "mixformer-sequential": GPTBigCodeNormalizedTextConfig,
+        "baichuan": NormalizedTextConfig 
     }
 
     @classmethod
