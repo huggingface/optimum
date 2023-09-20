@@ -402,7 +402,11 @@ class BartModelPatcher(Seq2SeqModelPatcher):
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
-        self.patch = self.real_config.task == "text-generation" and self.real_config.use_past and self.real_config._behavior == "decoder"
+        self.patch = (
+            self.real_config.task == "text-generation"
+            and self.real_config.use_past
+            and self.real_config._behavior == "decoder"
+        )
         if self.patch:
             self.orig_prepare_attn_mask = getattr(self._model.model.decoder, "_prepare_decoder_attention_mask")
 
@@ -440,7 +444,6 @@ class OPTModelPatcher(ModelPatcher):
             setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", self.orig_prepare_attn_mask)
 
 
-
 class MPTModelPatcher(BloomModelPatcher):
     pass
 
@@ -455,4 +458,3 @@ class BlenderbotModelPatcher(BartModelPatcher):
 
 class PegasusModelPatcher(BartModelPatcher):
     pass
-
