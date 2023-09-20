@@ -58,9 +58,9 @@ EXTRAS_REQUIRE = {
         "protobuf>=3.20.1",
         "accelerate",  # ORTTrainer requires it.
     ],
-    "exporters": ["onnx", "onnxruntime", "timm"],
-    "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
-    "exporters-tf": ["tensorflow>=2.4,<=2.12.1", "tf2onnx", "onnx", "onnxruntime", "timm", "h5py", "numpy<1.24.0"],
+    "exporters": ["onnx", "onnxruntime<1.16.0", "timm"],
+    "exporters-gpu": ["onnx", "onnxruntime-gpu<1.16.0", "timm"],
+    "exporters-tf": ["tensorflow>=2.4,<=2.12.1", "tf2onnx", "onnx", "onnxruntime<1.16.0", "timm", "h5py", "numpy<1.24.0"],
     "diffusers": ["diffusers"],
     "intel": "optimum-intel>=1.11.0",
     "openvino": "optimum-intel[openvino]>=1.11.0",
