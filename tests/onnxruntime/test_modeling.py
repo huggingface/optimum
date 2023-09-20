@@ -1970,7 +1970,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
 
-
     def test_inference_old_onnx_model(self):
         model_id = "optimum/gpt2"
         model = AutoModelForCausalLM.from_pretrained("gpt2")
@@ -1985,7 +1984,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertEqual(
                 onnx_model.model_path.name, ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME
             )
-            outputs_onnx = onnx_model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30)
+            outputs_onnx = onnx_model.generate(
+                **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30
+            )
             outputs = model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30)
             self.assertTrue(torch.allclose(outputs_onnx, outputs))
 

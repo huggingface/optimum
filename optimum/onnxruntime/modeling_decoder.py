@@ -693,7 +693,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 "Please either pass use_cache=True, use_io_binding=True (default), or use_cache=False, use_io_binding=False."
             )
 
-
     @add_start_docstrings_to_model_forward(
         CAUSALLM_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
         + TEXT_GENERATION_EXAMPLE.format(
