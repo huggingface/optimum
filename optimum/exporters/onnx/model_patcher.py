@@ -354,21 +354,20 @@ class BloomModelPatcher(ModelPatcher):
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
-        self.orig_prepare_attn_mask = getattr(self._model.transformer, "_prepare_attn_mask")
+
+        self.patch = self.real_config.task == "text-generation" and self.real_config.use_past
+        if self.patch:
+            self.orig_prepare_attn_mask = getattr(self._model.transformer, "_prepare_attn_mask")
 
     def __enter__(self):
         super().__enter__()
-        if self.real_config.task == "text-generation" and self.real_config.use_past:
+        if self.patch:
             setattr(self._model.transformer, "_prepare_attn_mask", _prepare_attn_mask)
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        if self.real_config.task == "text-generation" and self.real_config.use_past:
+        if self.patch:
             setattr(self._model.transformer, "_prepare_attn_mask", self.orig_prepare_attn_mask)
-
-
-class MPTModelPatcher(BloomModelPatcher):
-    pass
 
 
 class LlamaModelPatcher(ModelPatcher):
@@ -379,16 +378,19 @@ class LlamaModelPatcher(ModelPatcher):
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
-        self.orig_prepare_attn_mask = getattr(self._model.model, "_prepare_decoder_attention_mask")
+
+        self.patch = self.real_config.task == "text-generation" and self.real_config.use_past
+        if self.patch:
+            self.orig_prepare_attn_mask = getattr(self._model.model, "_prepare_decoder_attention_mask")
 
     def __enter__(self):
         super().__enter__()
-        if self.real_config.task == "text-generation" and self.real_config.use_past:
+        if self.patch:
             setattr(self._model.model, "_prepare_decoder_attention_mask", _prepare_decoder_attention_mask)
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        if self.real_config.task == "text-generation" and self.real_config.use_past:
+        if self.patch:
             setattr(self._model.model, "_prepare_decoder_attention_mask", self.orig_prepare_attn_mask)
 
 
@@ -400,30 +402,47 @@ class BartModelPatcher(Seq2SeqModelPatcher):
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
-        if (
-            self.real_config._behavior == "decoder"
-            and self.real_config.task == "text-generation"
-            and self.real_config.use_past
-        ):
+        self.patch = self.real_config.task == "text-generation" and self.real_config.use_past and self.real_config._behavior == "decoder"
+        if self.patch:
             self.orig_prepare_attn_mask = getattr(self._model.model.decoder, "_prepare_decoder_attention_mask")
 
     def __enter__(self):
         super().__enter__()
-        if (
-            self.real_config._behavior == "decoder"
-            and self.real_config.task == "text-generation"
-            and self.real_config.use_past
-        ):
+        if self.patch:
             setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", _prepare_decoder_attention_mask)
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        if (
-            self.real_config._behavior == "decoder"
-            and self.real_config.task == "text-generation"
-            and self.real_config.use_past
-        ):
+        if self.patch:
             setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", self.orig_prepare_attn_mask)
+
+
+class OPTModelPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+        self.patch = self.real_config.task == "text-generation" and self.real_config.use_past
+        if self.patch:
+            self.orig_prepare_attn_mask = getattr(self._model.model.decoder, "_prepare_decoder_attention_mask")
+
+    def __enter__(self):
+        super().__enter__()
+        if self.patch:
+            setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", _prepare_decoder_attention_mask)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+        if self.patch:
+            setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", self.orig_prepare_attn_mask)
+
+
+
+class MPTModelPatcher(BloomModelPatcher):
+    pass
 
 
 class BlenderbotSmallModelPatcher(BartModelPatcher):
@@ -437,6 +456,3 @@ class BlenderbotModelPatcher(BartModelPatcher):
 class PegasusModelPatcher(BartModelPatcher):
     pass
 
-
-class OPTModelPatcher(BartModelPatcher):
-    pass
