@@ -121,7 +121,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
     def test_decoder_quantization_with_and_without_cache(self, test_name, model_info, use_cache):
         model_cls, model_name, expected_quantized_matmuls = model_info
         qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=True)
-        model = model_cls.from_pretrained(model_name, export=True, use_cache=use_cache)
+        model = model_cls.from_pretrained(model_name, export=True, use_cache=use_cache, use_io_binding=use_cache)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             model.save_pretrained(tmp_dir)
