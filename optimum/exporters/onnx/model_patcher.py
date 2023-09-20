@@ -346,9 +346,6 @@ class SAMModelPatcher(ModelPatcher):
         self.patched_forward = patched_forward
 
 
-
-
-
 class BloomModelPatcher(ModelPatcher):
     def __init__(
         self,
@@ -364,12 +361,10 @@ class BloomModelPatcher(ModelPatcher):
         if self.real_config.task == "text-generation" and self.real_config.use_past:
             setattr(self._model.transformer, "_prepare_attn_mask", _prepare_attn_mask)
 
-
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
         if self.real_config.task == "text-generation" and self.real_config.use_past:
             setattr(self._model.transformer, "_prepare_attn_mask", self.orig_prepare_attn_mask)
-
 
 
 class MPTModelPatcher(BloomModelPatcher):
@@ -405,17 +400,29 @@ class BartModelPatcher(Seq2SeqModelPatcher):
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
-        if self.real_config._behavior == "decoder" and self.real_config.task == "text-generation" and self.real_config.use_past:
+        if (
+            self.real_config._behavior == "decoder"
+            and self.real_config.task == "text-generation"
+            and self.real_config.use_past
+        ):
             self.orig_prepare_attn_mask = getattr(self._model.model.decoder, "_prepare_decoder_attention_mask")
 
     def __enter__(self):
         super().__enter__()
-        if self.real_config._behavior == "decoder" and self.real_config.task == "text-generation" and self.real_config.use_past:
+        if (
+            self.real_config._behavior == "decoder"
+            and self.real_config.task == "text-generation"
+            and self.real_config.use_past
+        ):
             setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", _prepare_decoder_attention_mask)
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        if self.real_config._behavior == "decoder" and self.real_config.task == "text-generation" and self.real_config.use_past:
+        if (
+            self.real_config._behavior == "decoder"
+            and self.real_config.task == "text-generation"
+            and self.real_config.use_past
+        ):
             setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", self.orig_prepare_attn_mask)
 
 
@@ -433,5 +440,3 @@ class PegasusModelPatcher(BartModelPatcher):
 
 class OPTModelPatcher(BartModelPatcher):
     pass
-
-
