@@ -327,8 +327,6 @@ class T5OnnxConfig(TextSeq2SeqOnnxConfig):
         num_attention_heads="num_heads",
         encoder_num_layers="num_layers",
         decoder_num_layers="num_decoder_layers",
-        key_value_dim="d_kv",
-        allow_new=True,
     )
 
     def generate_dummy_inputs_for_validation(
@@ -1183,16 +1181,22 @@ class DummySpeechT5InputGenerator(DummyInputGenerator):
 class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
     # TODO: Transformers batched generation for Speecht5 is BROKEN (https://github.com/huggingface/transformers/pull/25943),
     # so we won't support for now.
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(decoder_num_layers="decoder_layers")
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
+        hidden_size="hidden_size",
+        num_attention_heads="encoder_attention_heads",  # TODO: bugged in case encoder and decoder have different number of heads
+        encoder_num_layers="encoder_layers",
+        decoder_num_layers="decoder_layers",
+        allow_new=True,
+    )
+
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTextInputGenerator,
         DummySeq2SeqDecoderTextInputGenerator,
-        T5DummySeq2SeqPastKeyValuesGenerator,
+        DummySeq2SeqPastKeyValuesGenerator,
         DummySpeechT5InputGenerator,
     )
-    DUMMY_PKV_GENERATOR_CLASS = T5DummySeq2SeqPastKeyValuesGenerator
-
-    # TODO: DO NOT CUT OUTPUT_SEQUENCE LENGTH WITH PAST!!!!!
+    DUMMY_PKV_GENERATOR_CLASS = DummySeq2SeqPastKeyValuesGenerator
 
     VARIANTS = {
         "with-past": "The export follows the Transformers implementation using the KV cache, with the following components exported:\n\t - encoder_model.onnx: corresponds to the encoding part in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2544-L2556.\n\t - decoder_model.onnx: corresponds to the decoder part in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2572-L2602.\n\t - decoder_with_past_model.onnx: same as the above, with past_key_values input (KV cache filled).\n\t - decoder_postnet_and_vocoder.onnx: Decoder speech postnet and vocoder (e.g. a SpeechT5HifiGan) to generate speech from the spectrogram, as in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2605-L2614.",
@@ -1240,7 +1244,6 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
             common_inputs["encoder_attention_mask"] = {1: "encoder_sequence_length"}
 
             if self.variant == "with-past" and self.use_past_in_inputs:
-                # TODO: check PKV shape
                 self.add_past_key_values(common_inputs, direction="inputs")
         elif self.is_postnet_and_vocoder:
             common_inputs["spectrogram"] = {0: "n_spectrums x reduction_factor"}
@@ -1281,11 +1284,7 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     @property
     def torch_to_onnx_input_map(self) -> Dict[str, str]:
-        return {
-            # "decoder_input_ids": "input_ids",
-            "encoder_outputs": "encoder_hidden_states",
-            # "attention_mask": "encoder_attention_mask",
-        }
+        return {"encoder_outputs": "encoder_hidden_states"}
 
     def overwrite_shape_and_generate_input(
         self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: Dict
@@ -1295,6 +1294,29 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
             input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
         )
         return dummy_input
+
+    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
+        if direction not in ["inputs", "outputs"]:
+            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+
+        if direction == "inputs":
+            decoder_sequence_name = "past_decoder_sequence_length"
+            name = "past_key_values"
+        else:
+            decoder_sequence_name = "past_decoder_sequence_length + 1"
+            name = "present"
+
+        for i in range(self._normalized_config.decoder_num_layers):
+            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {2: decoder_sequence_name}
+            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {2: decoder_sequence_name}
+
+            if (
+                self.is_merged is True
+                or (self._behavior is ConfigBehavior.DECODER and not self.use_past_in_inputs)
+                or direction == "inputs"
+            ):
+                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {2: "encoder_sequence_length_out"}
+                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {2: "encoder_sequence_length_out"}
 
 
 class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):

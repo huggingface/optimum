@@ -439,6 +439,7 @@ def get_speecht5_models_for_export(
         preprocessors=config._preprocessors,
         is_postnet_and_vocoder=True,
     )
+    postnet_and_vocoder_onnx_config.variant = config.variant
     models_for_export["decoder_postnet_and_vocoder"] = (
         models_for_export["decoder_postnet_and_vocoder"],
         postnet_and_vocoder_onnx_config,

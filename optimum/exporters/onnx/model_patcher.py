@@ -364,7 +364,7 @@ class SpeechT5ModelPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        model.vocoder = model_kwargs["vocoder_model"]
+        model.vocoder = model_kwargs["vocoder_model"].eval()
 
         def patched_forward(
             input_ids=None,
@@ -390,7 +390,7 @@ class SpeechT5ModelPatcher(ModelPatcher):
                         encoder_out[0].shape[1], encoder_attention_mask
                     )
 
-                return {
+                result = {
                     "encoder_outputs": encoder_out.last_hidden_state,
                     "encoder_attention_mask": encoder_attention_mask,
                 }
@@ -431,11 +431,11 @@ class SpeechT5ModelPatcher(ModelPatcher):
                 # Predict the probability that this is the stop token.
                 prob = torch.sigmoid(model.speech_decoder_postnet.prob_out(last_decoder_output))
 
-                return {
+                result = {
                     "output_sequence_out": output_sequence,
                     "spectrum": spectrum,
                     "prob": prob,
-                    # TODO: PKV here
+                    "past_key_values": past_key_values,
                 }
             elif self.real_config.is_postnet_and_vocoder:
                 # NOTE: the following concatenation is expected to be handled outside of the ONNX:
@@ -446,8 +446,24 @@ class SpeechT5ModelPatcher(ModelPatcher):
 
                 waveform = model.vocoder(spectrogram)
 
-                return {"waveform": waveform}
+                result = {"waveform": waveform}
             else:
                 raise ValueError("Should not happen")
+
+            # Filter out cross attention past key values output from the decoder using KV cache, as they are constants.
+            filterd_outputs = {}
+            for name, value in result.items():
+                if name != "past_key_values":
+                    filterd_outputs[name] = value
+                else:
+                    if self.real_config._behavior == "decoder" and (
+                        self.real_config.is_merged or not self.real_config.use_past_in_inputs
+                    ):
+                        filterd_outputs[name] = value
+                    elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
+                        # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
+                        filterd_outputs[name] = tuple([v[:2] for v in value])
+
+            return filterd_outputs
 
         self.patched_forward = patched_forward
