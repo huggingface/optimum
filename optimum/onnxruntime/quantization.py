@@ -279,6 +279,10 @@ class ORTQuantizer(OptimumQuantizer):
             )
 
         LOGGER.info("Computing calibration ranges")
+
+        if parse(ort_version) >= Version("1.16.0"):
+            return self._calibrator.compute_data()
+
         return self._calibrator.compute_range()
 
     def quantize(
@@ -351,8 +355,13 @@ class ORTQuantizer(OptimumQuantizer):
                 has_subgraphs = True
                 break
 
-        if quantization_config.is_static and has_subgraphs:
-            raise NotImplementedError("Static quantization is currently not supported for models with" " subgraphs.")
+        if has_subgraphs:
+            if quantization_config.is_static:
+                raise NotImplementedError("Static quantization is currently not supported for models with subgraphs.")
+            if parse(ort_version) == Version("1.16.0"):
+                raise ValueError(
+                    "ONNX Runtime version v1.16.0 is not compatible with quantization for models with subgraphs, please downgrade to 1.15.1 or upgrade to a higher version. Reference: https://github.com/microsoft/onnxruntime/pull/17651"
+                )
 
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
 

@@ -21,6 +21,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from onnxruntime import __version__ as ort_version
+from packaging.version import Version, parse
+
 import optimum.commands
 
 
@@ -84,13 +87,21 @@ class TestCLI(unittest.TestCase):
             export_commands = [
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-BertModel {tempdir}/encoder",
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-gpt2 {tempdir}/decoder",
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-t5 {tempdir}/encoder-decoder",
+                # f"optimum-cli export onnx --model hf-internal-testing/tiny-random-t5 {tempdir}/encoder-decoder",
             ]
             quantize_commands = [
                 f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder --avx2 -o {tempdir}/quantized_encoder",
                 f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/decoder --avx2 -o {tempdir}/quantized_decoder",
-                f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder-decoder --avx2 -o {tempdir}/quantized_encoder_decoder",
+                # f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder-decoder --avx2 -o {tempdir}/quantized_encoder_decoder",
             ]
+
+            if parse(ort_version) != Version("1.16.0"):
+                export_commands.append(
+                    f"optimum-cli export onnx --model hf-internal-testing/tiny-random-t5 {tempdir}/encoder-decoder"
+                )
+                quantize_commands.append(
+                    f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder-decoder --avx2 -o {tempdir}/quantized_encoder_decoder"
+                )
 
             for export, quantize in zip(export_commands, quantize_commands):
                 subprocess.run(export, shell=True, check=True)
