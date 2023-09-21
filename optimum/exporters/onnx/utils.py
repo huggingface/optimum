@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 import torch
 from packaging import version
+from transformers.models.speecht5.modeling_speecht5 import SpeechT5HifiGan
 from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import (
@@ -361,7 +362,7 @@ def _get_submodels_for_export_sam(model, variant):
     if variant == "monolith":
         models_for_export["model"] = model
     else:
-        # We use the model patcher to patch their forward method.
+        # We rather use the model patcher to patch their forward method.
         models_for_export["vision_encoder"] = model
         models_for_export["prompt_encoder_mask_decoder"] = model
 
@@ -386,6 +387,49 @@ def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel
             models_for_export["prompt_encoder_mask_decoder"],
             prompt_encoder_mask_decoder_onnx_config,
         )
+
+    return models_for_export
+
+
+def get_speecht5_models_for_export(
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "OnnxConfig", model_kwargs: Optional[Dict]
+):
+    if model_kwargs is None or "vocoder" not in model_kwargs:
+        raise ValueError("The ONNX export of SpeechT5 requires the model_kwargs `vocoder` to be set.")
+
+    models_for_export = {}
+
+    # We rather use the model patcher to patch their forward method.
+    models_for_export["encoder_model"] = model
+    models_for_export["decoder_model"] = model
+
+    if config.variant == "transformers-like":
+        models_for_export["decoder_with_past_model"] = model
+
+    vocoder = SpeechT5HifiGan.from_pretrained(model_kwargs["vocoder"])
+    model_kwargs["vocoder_model"] = vocoder
+
+    models_for_export["decoder_postnet_and_vocoder"] = model
+
+    encoder_onnx_config = config.with_behavior("encoder")
+
+    use_past = config.variant == "transformers-like"
+    decoder_onnx_config = config.with_behavior("decoder", use_past=use_past, use_past_in_inputs=False)
+
+    models_for_export[ONNX_ENCODER_NAME] = (models_for_export[ONNX_ENCODER_NAME], encoder_onnx_config)
+    models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], decoder_onnx_config)
+    if config.variant == "transformers-like":
+        decoder_onnx_config_with_past = config.with_behavior("decoder", use_past=True, use_past_in_inputs=True)
+        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
+            models_for_export[ONNX_DECODER_WITH_PAST_NAME],
+            decoder_onnx_config_with_past,
+        )
+
+    postnet_and_vocoder_onnx_config = config.__class__(..., is_vocoder=True)
+    models_for_export["decoder_postnet_and_vocoder"] = (
+        models_for_export["decoder_postnet_and_vocoder"],
+        postnet_and_vocoder_onnx_config,
+    )
 
     return models_for_export
 

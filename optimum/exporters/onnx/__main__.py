@@ -38,6 +38,7 @@ from .utils import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
     get_sam_models_for_export,
+    get_speecht5_models_for_export,
     get_stable_diffusion_models_for_export,
 )
 
@@ -69,6 +70,7 @@ def _get_submodels_and_onnx_configs(
     fn_get_submodels: Optional[Callable] = None,
     preprocessors: Optional[List[Any]] = None,
     no_position_ids: bool = False,
+    model_kwargs: Optional[Dict] = None,
 ):
     is_stable_diffusion = "stable-diffusion" in task
     if not custom_architecture:
@@ -99,6 +101,7 @@ def _get_submodels_and_onnx_configs(
             )
             logger.info(f"Using the export variant {onnx_config.variant}. Available variants are:\n{all_variants}")
 
+            # TODO: this succession of if/else strongly suggests a refactor is needed.
             if (
                 model.config.is_encoder_decoder
                 and task.startswith(TasksManager._ENCODER_DECODER_TASKS)
@@ -109,6 +112,8 @@ def _get_submodels_and_onnx_configs(
                 models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
             elif model.config.model_type == "sam":
                 models_and_onnx_configs = get_sam_models_for_export(model, onnx_config)
+            elif model.config.model_type == "speecht5":
+                models_and_onnx_configs = get_speecht5_models_for_export(model, onnx_config, model_kwargs)
             else:
                 models_and_onnx_configs = {"model": (model, onnx_config)}
 
@@ -425,6 +430,7 @@ def main_export(
         preprocessors=preprocessors,
         _variant=_variant,
         no_position_ids=no_position_ids,
+        model_kwargs=model_kwargs,
     )
 
     if not is_stable_diffusion:

@@ -55,7 +55,7 @@ from .config import (
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
-from .model_patcher import SAMModelPatcher, WavLMModelPatcher
+from .model_patcher import SAMModelPatcher, SpeechT5ModelPatcher, WavLMModelPatcher
 
 
 if TYPE_CHECKING:
@@ -1143,10 +1143,116 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
             common_outputs["last_hidden_state"][1] = f"{common_outputs['last_hidden_state'][1]} / 2"
         return common_outputs
 
-class SpeechT5OnnxConfig():
-    NORMALIZED_CONFIG_CLASS =
 
-    
+class DummySpeechT5InputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("output_sequence", "speaker_embeddings", "spectrogram")
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        **kwargs,
+    ):
+        self.task = task
+        self.batch_size = 1  # TODO: SpeechT5 does not support batch inference in Transformers for now.
+
+        self.sequence_length = sequence_length
+        self.speaker_embedding_dim = normalized_config.speaker_embedding_dim
+        self.num_mel_bins = normalized_config.speaker_embedding_dim
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "output_sequence":
+            shape = [self.batch_size, self.sequence_length, self.num_mel_bins]
+        elif input_name == "speaker_embeddings":
+            shape = [self.batch_size, self.speaker_embedding_dim]
+        elif input_name == "spectrogram":
+            shape = [20, self.num_mel_bins]  # NOTE: the first axis length is arbitrary and dynamic
+        else:
+            raise ValueError(f"Unsupported input {input_name} for DummySpeechT5InputGenerator")
+
+        return self.random_float_tensor(
+            shape=shape,
+            min_value=0,
+            max_value=1,
+            framework=framework,
+            dtype=float_dtype,
+        )
+
+
+class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
+    # TODO: Transformers batched generation for Speecht5 is BROKEN (https://github.com/huggingface/transformers/pull/25943),
+    # so we won't support for now.
+    NORMALIZED_CONFIG_CLASS = None
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTextInputGenerator,
+        DummySeq2SeqDecoderTextInputGenerator,
+        T5DummySeq2SeqPastKeyValuesGenerator,
+    )
+    DUMMY_PKV_GENERATOR_CLASS = T5DummySeq2SeqPastKeyValuesGenerator
+
+    # TODO: DO NOT CUT OUTPUT_SEQUENCE LENGTH WITH PAST!!!!!
+
+    VARIANTS = {
+        "transformers-like": "The following components are exported following Transformers implementation:\n\t - encoder_model.onnx: corresponds to the encoding part in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2544-L2556.\n\t - decoder_model.onnx: corresponds to the decoder part in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2572-L2602.\n\t - decoder_with_past_model.onnx: same as the above, with past_key_values input (KV cache filled).\n\t - decoder_postnet_and_vocoder.onnx: Decoder speech postnet and vocoder (e.g. a SpeechT5HifiGan) to generate speech from the spectrogram, as in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2605-L2614.",
+        "without-cache": "The same as `transformers-like`, without KV cache support. This is not a recommende export as slower than `transformers-like`.",
+    }
+    DEFAULT_VARIANT = "transformers-like"
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = {}
+
+        # Batched inference is not supported in Transformers.
+        if self._behavior is ConfigBehavior.ENCODER:
+            common_inputs["input_ids"] = {1: "encoder_sequence_length"}
+        elif self._behavior is ConfigBehavior.DECODER:
+            # NOTE: even when past is used, the decoder takes the full sequence as input as the prenet seem to require it:
+            # https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2573
+            common_inputs["output_sequence"] = {1: "decoder_sequence_length"}
+            common_inputs["speaker_embeddings"] = {}  # No dynamic shape here.
+            common_inputs["encoder_hidden_states"] = {1: "encoder_sequence_length"}
+            common_inputs["encoder_attention_mask"] = {1: "encoder_sequence_length"}
+
+            if self.variant == "transformers-like" and self.use_past_in_inputs:
+                # TODO: check PKV shape
+                self.add_past_key_values(common_inputs, direction="inputs")
+        elif self.is_postnet_and_vocoder:
+            common_inputs["spectrogram"] = {0: "n_spectrums x reduction_factor"}
+        else:
+            raise ValueError(
+                "self._behavior is neither encoder or decoder, and is_postnet_and_vocoder=False. This should not happen."
+            )
+
+        return common_inputs
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        common_outputs = {}
+        if self._behavior is ConfigBehavior.ENCODER:
+            common_outputs["encoder_hidden_states"] = {1: "encoder_sequence_length"}
+            common_outputs["encoder_attention_mask"] = {1: "encoder_sequence_length"}
+        elif self._behavior is ConfigBehavior.DECODER:
+            common_outputs["output_sequence"] = {1: "decoder_sequence_length + 1"}
+            common_outputs["prob"] = {}  # No dynamic shape here.
+            common_outputs["spectrum"] = {}  # No dynamic shape here.
+
+            if self.variant == "transformers-like" and self.use_past:
+                # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
+                self.add_past_key_values(common_outputs, direction="outputs")
+        elif self.is_postnet_and_vocoder:
+            common_outputs["waveform"] = {0: "n_samples"}
+        else:
+            raise ValueError(
+                "self._behavior is neither encoder or decoder, and is_postnet_and_vocoder=False. This should not happen."
+            )
+
+        return common_outputs
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return SpeechT5ModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):

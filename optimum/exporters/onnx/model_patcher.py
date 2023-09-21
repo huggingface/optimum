@@ -15,8 +15,9 @@
 import dataclasses
 import functools
 import inspect
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
+from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 from transformers.utils import is_torch_available
 
 
@@ -32,6 +33,18 @@ if TYPE_CHECKING:
     from .base import OnnxConfig
 
 logger = logging.get_logger(__name__)
+
+
+def get_argument(argument_name: str, args: List[Any], kwargs: Dict[str, Any], forward_signature):
+    """
+    Get the argument argument_name from the args and kwargs according to the signature forward_signature.
+    """
+    args = list(args)
+    if argument_name in forward_signature.parameters:
+        argument_index = list(forward_signature.parameters.keys()).index(argument_name)
+        return args[argument_index]
+    else:
+        return kwargs[argument_name]
 
 
 def override_arguments(args, kwargs, forward_signature, model_kwargs: Dict[str, Any]):
@@ -286,9 +299,7 @@ class SAMModelPatcher(ModelPatcher):
                     **kwargs,
                 )
             elif config.variant == "split":
-                # return_dict = get_argument(args, kwargs, signature, "return_dict")
                 if config.vision_encoder:
-                    # pixel_values = get_argument(args, kwargs, signature, "pixel_values")
                     image_positional_embeddings = model.get_image_wide_positional_embeddings()
 
                     # repeat with batch size
@@ -340,5 +351,94 @@ class SAMModelPatcher(ModelPatcher):
                         return (iou_predictions, low_res_masks)
                     else:
                         return {"iou_scores": iou_predictions, "pred_masks": low_res_masks}
+
+        self.patched_forward = patched_forward
+
+
+class SpeechT5ModelPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Dict[str, Any],
+    ):
+        super().__init__(config, model, model_kwargs)
+
+        def patched_forward(
+            input_ids=None,
+            speaker_embeddings=None,
+            encoder_outputs=None,
+            past_key_values=None,
+            output_sequence=None,
+            spectrogram=None,
+        ):
+            use_cache = self.real_config.use_past and self.real_config.variant == "transformers-like"
+            if self.real_config._behavior == "encoder":
+                encoder_attention_mask = torch.ones_like(input_ids)
+
+                encoder_out = model.speecht5.encoder(
+                    input_values=input_ids,
+                    attention_mask=encoder_attention_mask,
+                    return_dict=True,
+                )
+                # downsample encoder attention mask
+                if isinstance(model.speecht5.encoder, SpeechT5EncoderWithSpeechPrenet):
+                    encoder_attention_mask = model.speecht5.encoder.prenet._get_feature_vector_attention_mask(
+                        encoder_out[0].shape[1], encoder_attention_mask
+                    )
+
+                # TODO: that is wrong?
+                return {"encoder_out": encoder_out, "encoder_attention_mask": encoder_attention_mask}
+
+            elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
+                encoder_hidden_states = encoder_outputs.last_hidden_state
+
+                decoder_hidden_states = model.speecht5.decoder.prenet(output_sequence, speaker_embeddings)
+
+                # Run the decoder layers on the last element of the prenet output.
+                decoder_out = model.speecht5.decoder.wrapped_decoder(
+                    hidden_states=decoder_hidden_states[:, -1:],
+                    attention_mask=None,
+                    encoder_hidden_states=encoder_hidden_states,
+                    encoder_attention_mask=encoder_attention_mask,
+                    past_key_values=past_key_values,
+                    use_cache=use_cache,
+                    output_attentions=False,
+                    return_dict=True,
+                )
+
+                last_decoder_output = decoder_out.last_hidden_state[0, -1]
+                past_key_values = decoder_out.past_key_values
+
+                # Predict the new mel spectrum for this step in the sequence.
+                spectrum = model.speech_decoder_postnet.feat_out(last_decoder_output)
+                spectrum = spectrum.view(model.config.reduction_factor, model.config.num_mel_bins)
+
+                # NOTE: extending the spectrogram should is to be handled outside of the ONNX.
+                # spectrogram.append(spectrum)
+
+                # Extend the output sequence with the new mel spectrum.
+                output_sequence = torch.cat(
+                    (output_sequence, spectrum[-1].view(1, 1, model.config.num_mel_bins)), dim=1
+                )
+
+                # Predict the probability that this is the stop token.
+                prob = torch.sigmoid(model.speech_decoder_postnet.prob_out(last_decoder_output))
+
+                return {
+                    "prob": prob,
+                    "output_sequence": output_sequence,
+                    "spectrum": spectrum
+                    # TODO: PKV here
+                }
+            elif self.real_config.is_postnet_and_vocoder:
+                # spectrogram = torch.cat(spectrogram, dim=0).unsqueeze(0)
+                spectrogram = spectrogram.unsqueeze(0)
+                spectrogram = model.speech_decoder_postnet.postnet(spectrogram)
+                spectrogram = spectrogram.squeeze(0)
+
+                waveform = model_kwargs["vocoder"](spectrogram)
+
+                return {"waveform": waveform}
 
         self.patched_forward = patched_forward

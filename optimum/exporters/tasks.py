@@ -265,8 +265,6 @@ class TasksManager:
         ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
         # VisionEncoderDecoderModel is not registered in AutoModelForDocumentQuestionAnswering
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
-        # audio-to-audio task has no AutoModel class.
-        ("pt", "speecht5", "audio-to-audio"): ("transformers", "SpeechT5ForSpeechToSpeech"),
     }
 
     # TODO: why feature-extraction-with-past is here?
@@ -841,13 +839,9 @@ class TasksManager:
             "automatic-speech-recognition-with-past",
             onnx="Speech2TextOnnxConfig",
         ),
+        # TODO: SpeechT5 can also support audio-to-audio and automatic-speech-recognition.
         "speecht5": supported_tasks_mapping(
-            "audio-to-audio",
-            "audio-to-audio-with-past",
-            "automatic-speech-recognition",
-            "automatic-speech-recognition-with-past",
             "text-to-speech",
-            "text-to-speech-with-past",
             onnx="SpeechT5OnnxConfig",
         ),
         "splinter": supported_tasks_mapping(
