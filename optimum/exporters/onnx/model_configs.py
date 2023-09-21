@@ -24,6 +24,7 @@ from ...utils import (
     BloomDummyPastKeyValuesGenerator,
     DummyAudioInputGenerator,
     DummyDecoderTextInputGenerator,
+    DummyInputGenerator,
     DummyPastKeyValuesGenerator,
     DummyPix2StructInputGenerator,
     DummyPointsGenerator,
@@ -56,7 +57,7 @@ from .config import (
     VisionOnnxConfig,
 )
 from .model_patcher import SAMModelPatcher, SpeechT5ModelPatcher, WavLMModelPatcher
-from ...utils import DummyInputGenerator
+
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
@@ -1158,7 +1159,7 @@ class DummySpeechT5InputGenerator(DummyInputGenerator):
 
         self.sequence_length = sequence_length
         self.speaker_embedding_dim = normalized_config.speaker_embedding_dim
-        self.num_mel_bins = normalized_config.speaker_embedding_dim
+        self.num_mel_bins = normalized_config.num_mel_bins
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name == "output_sequence":
@@ -1182,11 +1183,12 @@ class DummySpeechT5InputGenerator(DummyInputGenerator):
 class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
     # TODO: Transformers batched generation for Speecht5 is BROKEN (https://github.com/huggingface/transformers/pull/25943),
     # so we won't support for now.
-    NORMALIZED_CONFIG_CLASS = None
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTextInputGenerator,
         DummySeq2SeqDecoderTextInputGenerator,
         T5DummySeq2SeqPastKeyValuesGenerator,
+        DummySpeechT5InputGenerator,
     )
     DUMMY_PKV_GENERATOR_CLASS = T5DummySeq2SeqPastKeyValuesGenerator
 
@@ -1197,6 +1199,30 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
         "without-past": "The same as `with-past`, just without KV cache support. This is not a recommended export as slower than `with-past`.",
     }
     DEFAULT_VARIANT = "with-past"
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        use_past: bool = False,
+        use_past_in_inputs: bool = False,
+        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+        preprocessors: Optional[List[Any]] = None,
+        is_postnet_and_vocoder: bool = False,
+    ):
+        super().__init__(
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            behavior=behavior,
+            preprocessors=preprocessors,
+        )
+        self.is_postnet_and_vocoder = is_postnet_and_vocoder
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1210,7 +1236,7 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
             # https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2573
             common_inputs["output_sequence"] = {1: "decoder_sequence_length"}
             common_inputs["speaker_embeddings"] = {}  # No dynamic shape here.
-            common_inputs["encoder_hidden_states"] = {1: "encoder_sequence_length"}
+            common_inputs["encoder_outputs"] = {1: "encoder_sequence_length"}
             common_inputs["encoder_attention_mask"] = {1: "encoder_sequence_length"}
 
             if self.variant == "with-past" and self.use_past_in_inputs:
@@ -1229,12 +1255,12 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
     def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = {}
         if self._behavior is ConfigBehavior.ENCODER:
-            common_outputs["encoder_hidden_states"] = {1: "encoder_sequence_length"}
+            common_outputs["encoder_outputs"] = {1: "encoder_sequence_length"}
             common_outputs["encoder_attention_mask"] = {1: "encoder_sequence_length"}
         elif self._behavior is ConfigBehavior.DECODER:
-            common_outputs["output_sequence"] = {1: "decoder_sequence_length + 1"}
-            common_outputs["prob"] = {}  # No dynamic shape here.
+            common_outputs["output_sequence_out"] = {1: "decoder_sequence_length + 1"}
             common_outputs["spectrum"] = {}  # No dynamic shape here.
+            common_outputs["prob"] = {}  # No dynamic shape here.
 
             if self.variant == "with-past" and self.use_past:
                 # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
@@ -1252,6 +1278,23 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
     ) -> "ModelPatcher":
         return SpeechT5ModelPatcher(self, model, model_kwargs=model_kwargs)
+
+    @property
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
+        return {
+            # "decoder_input_ids": "input_ids",
+            "encoder_outputs": "encoder_hidden_states",
+            # "attention_mask": "encoder_attention_mask",
+        }
+
+    def overwrite_shape_and_generate_input(
+        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: Dict
+    ):
+        dummy_input_gen.batch_size = 1
+        dummy_input = dummy_input_gen.generate(
+            input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+        )
+        return dummy_input
 
 
 class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):

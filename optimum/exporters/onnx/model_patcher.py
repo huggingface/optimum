@@ -364,6 +364,8 @@ class SpeechT5ModelPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
+        model.vocoder = model_kwargs["vocoder_model"]
+
         def patched_forward(
             input_ids=None,
             speaker_embeddings=None,
@@ -371,6 +373,7 @@ class SpeechT5ModelPatcher(ModelPatcher):
             past_key_values=None,
             output_sequence=None,
             spectrogram=None,
+            encoder_attention_mask=None,
         ):
             use_cache = self.real_config.use_past and self.real_config.variant == "with-past"
             if self.real_config._behavior == "encoder":
@@ -387,11 +390,14 @@ class SpeechT5ModelPatcher(ModelPatcher):
                         encoder_out[0].shape[1], encoder_attention_mask
                     )
 
-                # TODO: that is wrong?
-                return {"encoder_out": encoder_out, "encoder_attention_mask": encoder_attention_mask}
+                return {
+                    "encoder_outputs": encoder_out.last_hidden_state,
+                    "encoder_attention_mask": encoder_attention_mask,
+                }
 
-            elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
-                encoder_hidden_states = encoder_outputs.last_hidden_state
+            elif self.real_config._behavior == "decoder":
+                # TODO: and self.real_config.use_past_in_inputs
+                encoder_hidden_states = encoder_outputs[0]
 
                 decoder_hidden_states = model.speecht5.decoder.prenet(output_sequence, speaker_embeddings)
 
@@ -426,9 +432,9 @@ class SpeechT5ModelPatcher(ModelPatcher):
                 prob = torch.sigmoid(model.speech_decoder_postnet.prob_out(last_decoder_output))
 
                 return {
+                    "output_sequence_out": output_sequence,
+                    "spectrum": spectrum,
                     "prob": prob,
-                    "output_sequence": output_sequence,
-                    "spectrum": spectrum
                     # TODO: PKV here
                 }
             elif self.real_config.is_postnet_and_vocoder:
@@ -438,8 +444,10 @@ class SpeechT5ModelPatcher(ModelPatcher):
                 spectrogram = model.speech_decoder_postnet.postnet(spectrogram)
                 spectrogram = spectrogram.squeeze(0)
 
-                waveform = model_kwargs["vocoder"](spectrogram)
+                waveform = model.vocoder(spectrogram)
 
                 return {"waveform": waveform}
+            else:
+                raise ValueError("Should not happen")
 
         self.patched_forward = patched_forward

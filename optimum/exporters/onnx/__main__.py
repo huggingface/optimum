@@ -97,7 +97,7 @@ def _get_submodels_and_onnx_configs(
 
             onnx_config.variant = _variant
             all_variants = "\n".join(
-                [f"\t- {name}: {description}" for name, description in onnx_config.VARIANTS.items()]
+                [f"    - {name}: {description}" for name, description in onnx_config.VARIANTS.items()]
             )
             logger.info(f"Using the export variant {onnx_config.variant}. Available variants are:\n{all_variants}")
 

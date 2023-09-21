@@ -200,7 +200,8 @@ class OnnxConfig(ExportConfig, ABC):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
     ):
-        if task not in self._TASK_TO_COMMON_OUTPUTS:
+        # Isn't this check useless?
+        if task not in self._TASK_TO_COMMON_OUTPUTS and task != "text-to-speech":
             raise ValueError(
                 f"{task} is not a supported task, supported tasks: {', '.join(self._TASK_TO_COMMON_OUTPUTS.keys())}"
             )
@@ -808,7 +809,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         """
         if isinstance(behavior, str) and not isinstance(behavior, ConfigBehavior):
             behavior = ConfigBehavior(behavior)
-        return self.__class__(
+
+        onnx_config = self.__class__(
             self._config,
             task=self.task,
             int_dtype=self.int_dtype,
@@ -818,6 +820,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             behavior=behavior,
             preprocessors=self._preprocessors,
         )
+        onnx_config.variant = self.variant
+        return onnx_config
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:

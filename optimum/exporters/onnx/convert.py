@@ -560,25 +560,26 @@ def export_pytorch(
         if is_torch_less_than_1_11:
             raise RuntimeError("The ONNX export using the PyTorch framework is only supported for v1.11+")
         else:
-            with config.patch_model_for_export(model, model_kwargs=model_kwargs):
-                check_dummy_inputs_are_allowed(model, dummy_inputs)
+            with torch.no_grad():
+                with config.patch_model_for_export(model, model_kwargs=model_kwargs):
+                    check_dummy_inputs_are_allowed(model, dummy_inputs)
 
-                inputs = config.ordered_inputs(model)
-                input_names = list(inputs.keys())
-                output_names = list(config.outputs.keys())
+                    inputs = config.ordered_inputs(model)
+                    input_names = list(inputs.keys())
+                    output_names = list(config.outputs.keys())
 
-                # Export can work with named args but the dict containing named args has to be the last element of the args
-                # tuple.
-                onnx_export(
-                    model,
-                    (dummy_inputs,),
-                    f=output.as_posix(),
-                    input_names=input_names,
-                    output_names=output_names,
-                    dynamic_axes=dict(chain(inputs.items(), config.outputs.items())),
-                    do_constant_folding=True,
-                    opset_version=opset,
-                )
+                    # Export can work with named args but the dict containing named args has to be the last element of the args
+                    # tuple.
+                    onnx_export(
+                        model,
+                        (dummy_inputs,),
+                        f=output.as_posix(),
+                        input_names=input_names,
+                        output_names=output_names,
+                        dynamic_axes=dict(chain(inputs.items(), config.outputs.items())),
+                        do_constant_folding=True,
+                        opset_version=opset,
+                    )
 
             # check if external data was exported
             # TODO: this is quite inefficient as we load in memory if models are <2GB without external data

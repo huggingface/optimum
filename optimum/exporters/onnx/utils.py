@@ -395,7 +395,9 @@ def get_speecht5_models_for_export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "OnnxConfig", model_kwargs: Optional[Dict]
 ):
     if model_kwargs is None or "vocoder" not in model_kwargs:
-        raise ValueError("The ONNX export of SpeechT5 requires the model_kwargs `vocoder` to be set.")
+        raise ValueError(
+            'The ONNX export of SpeechT5 requires a vocoder. Please pass `--model-kwargs \'{"vocoder": "vocoder_model_name_or_path"}\'` from the command line, or `model_kwargs={"vocoder": "vocoder_model_name_or_path"}` if calling main_export.'
+        )
 
     models_for_export = {}
 
@@ -406,7 +408,8 @@ def get_speecht5_models_for_export(
     if config.variant == "with-past":
         models_for_export["decoder_with_past_model"] = model
 
-    vocoder = SpeechT5HifiGan.from_pretrained(model_kwargs["vocoder"])
+    # TODO: more flexibility in the vocoder class?
+    vocoder = SpeechT5HifiGan.from_pretrained(model_kwargs["vocoder"]).eval()
     model_kwargs["vocoder_model"] = vocoder
 
     models_for_export["decoder_postnet_and_vocoder"] = model
@@ -425,7 +428,17 @@ def get_speecht5_models_for_export(
             decoder_onnx_config_with_past,
         )
 
-    postnet_and_vocoder_onnx_config = config.__class__(..., is_vocoder=True)
+    postnet_and_vocoder_onnx_config = config.__class__(
+        config._config,
+        task=config.task,
+        int_dtype=config.int_dtype,
+        float_dtype=config.float_dtype,
+        use_past=use_past,
+        use_past_in_inputs=False,  # Irrelevant here.
+        behavior=config._behavior,  # Irrelevant here.
+        preprocessors=config._preprocessors,
+        is_postnet_and_vocoder=True,
+    )
     models_for_export["decoder_postnet_and_vocoder"] = (
         models_for_export["decoder_postnet_and_vocoder"],
         postnet_and_vocoder_onnx_config,
