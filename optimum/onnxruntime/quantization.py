@@ -360,7 +360,7 @@ class ORTQuantizer(OptimumQuantizer):
                 raise NotImplementedError("Static quantization is currently not supported for models with subgraphs.")
             if parse(ort_version) == Version("1.16.0"):
                 raise ValueError(
-                    "ONNX Runtime version v1.16.0 not compatible with quantization for models with subgraphs, please downgrade to 1.15.1 or upgrade to a higher version. Reference: https://github.com/microsoft/onnxruntime/pull/17651"
+                    "ONNX Runtime version v1.16.0 is not compatible with quantization for models with subgraphs, please downgrade to 1.15.1 or upgrade to a higher version. Reference: https://github.com/microsoft/onnxruntime/pull/17651"
                 )
 
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
