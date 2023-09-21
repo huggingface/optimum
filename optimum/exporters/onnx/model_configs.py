@@ -1143,6 +1143,11 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
             common_outputs["last_hidden_state"][1] = f"{common_outputs['last_hidden_state'][1]} / 2"
         return common_outputs
 
+class SpeechT5OnnxConfig():
+    NORMALIZED_CONFIG_CLASS =
+
+    
+
 
 class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):

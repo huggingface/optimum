@@ -159,26 +159,27 @@ class TasksManager:
         # task in a Hub repo that has no pipeline_tag, and no transformersInfo.pipeline_tag, as we then rely on
         # on transformersInfo["auto_model"] and this dictionary.
         _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
+            "audio-classification": "AutoModelForAudioClassification",
+            "audio-frame-classification": "AutoModelForAudioFrameClassification",
+            "audio-xvector": "AutoModelForAudioXVector",
+            "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
             "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
+            "image-classification": "AutoModelForImageClassification",
+            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
+            "image-to-text": "AutoModelForVision2Seq",
+            "mask-generation": "AutoModel",
+            "masked-im": "AutoModelForMaskedImageModeling",
+            "multiple-choice": "AutoModelForMultipleChoice",
+            "object-detection": "AutoModelForObjectDetection",
+            "question-answering": "AutoModelForQuestionAnswering",
+            "semantic-segmentation": "AutoModelForSemanticSegmentation",
+            "text-to-speech": "AutoModelForTextToSpectrogram",
             "text-generation": "AutoModelForCausalLM",
             "text2text-generation": "AutoModelForSeq2SeqLM",
             "text-classification": "AutoModelForSequenceClassification",
             "token-classification": "AutoModelForTokenClassification",
-            "multiple-choice": "AutoModelForMultipleChoice",
-            "object-detection": "AutoModelForObjectDetection",
-            "question-answering": "AutoModelForQuestionAnswering",
-            "image-classification": "AutoModelForImageClassification",
-            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
-            "mask-generation": "AutoModel",
-            "masked-im": "AutoModelForMaskedImageModeling",
-            "semantic-segmentation": "AutoModelForSemanticSegmentation",
-            "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
-            "audio-classification": "AutoModelForAudioClassification",
-            "audio-frame-classification": "AutoModelForAudioFrameClassification",
-            "audio-xvector": "AutoModelForAudioXVector",
-            "image-to-text": "AutoModelForVision2Seq",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
@@ -264,6 +265,8 @@ class TasksManager:
         ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
         # VisionEncoderDecoderModel is not registered in AutoModelForDocumentQuestionAnswering
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
+        # audio-to-audio task has no AutoModel class.
+        ("pt", "speecht5", "audio-to-audio"): ("transformers", "SpeechT5ForSpeechToSpeech"),
     }
 
     # TODO: why feature-extraction-with-past is here?
@@ -837,6 +840,15 @@ class TasksManager:
             "automatic-speech-recognition",
             "automatic-speech-recognition-with-past",
             onnx="Speech2TextOnnxConfig",
+        ),
+        "speecht5": supported_tasks_mapping(
+            "audio-to-audio",
+            "audio-to-audio-with-past",
+            "automatic-speech-recognition",
+            "automatic-speech-recognition-with-past",
+            "text-to-speech",
+            "text-to-speech-with-past",
+            onnx="SpeechT5OnnxConfig",
         ),
         "splinter": supported_tasks_mapping(
             "feature-extraction",
