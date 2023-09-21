@@ -56,13 +56,12 @@ from .config import (
     VisionOnnxConfig,
 )
 from .model_patcher import SAMModelPatcher, SpeechT5ModelPatcher, WavLMModelPatcher
-
+from ...utils import DummyInputGenerator
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
     from transformers.modeling_utils import PreTrainedModel
 
-    from ...utils import DummyInputGenerator
     from .model_patcher import ModelPatcher
 
     if is_tf_available():
