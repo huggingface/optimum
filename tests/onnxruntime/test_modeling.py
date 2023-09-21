@@ -357,12 +357,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         if not is_onnxruntime_gpu_installed:
             for provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
-                with self.assertRaises(ImportError) as cm:
+                with self.assertRaises(ValueError) as cm:
                     _ = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider=provider)
 
-                self.assertTrue(
-                    f"Asked to use {provider}, but `onnxruntime-gpu` package was not found." in str(cm.exception)
-                )
+            self.assertTrue("but the available execution providers" in str(cm.exception))
+
         else:
             logger.info("Skipping CUDAExecutionProvider/TensorrtExecutionProvider without `onnxruntime-gpu` test")
 
@@ -370,12 +369,10 @@ class ORTModelIntegrationTest(unittest.TestCase):
         # thus overwritting onnxruntime/capi/_ld_preload.py
         if is_onnxruntime_installed and is_onnxruntime_gpu_installed:
             for provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
-                with self.assertRaises(ImportError) as cm:
+                with self.assertRaises(ValueError) as cm:
                     _ = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider=provider)
 
-                self.assertTrue(
-                    "`onnxruntime-gpu` is installed, but GPU dependencies are not loaded." in str(cm.exception)
-                )
+                self.assertTrue("but the available execution providers" in str(cm.exception))
         else:
             logger.info("Skipping double onnxruntime + onnxruntime-gpu install test")
 
