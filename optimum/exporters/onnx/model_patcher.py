@@ -372,7 +372,7 @@ class SpeechT5ModelPatcher(ModelPatcher):
             output_sequence=None,
             spectrogram=None,
         ):
-            use_cache = self.real_config.use_past and self.real_config.variant == "transformers-like"
+            use_cache = self.real_config.use_past and self.real_config.variant == "with-past"
             if self.real_config._behavior == "encoder":
                 encoder_attention_mask = torch.ones_like(input_ids)
 
@@ -432,6 +432,7 @@ class SpeechT5ModelPatcher(ModelPatcher):
                     # TODO: PKV here
                 }
             elif self.real_config.is_postnet_and_vocoder:
+                # NOTE: the following concatenation is expected to be handled outside of the ONNX:
                 # spectrogram = torch.cat(spectrogram, dim=0).unsqueeze(0)
                 spectrogram = spectrogram.unsqueeze(0)
                 spectrogram = model.speech_decoder_postnet.postnet(spectrogram)

@@ -403,7 +403,7 @@ def get_speecht5_models_for_export(
     models_for_export["encoder_model"] = model
     models_for_export["decoder_model"] = model
 
-    if config.variant == "transformers-like":
+    if config.variant == "with-past":
         models_for_export["decoder_with_past_model"] = model
 
     vocoder = SpeechT5HifiGan.from_pretrained(model_kwargs["vocoder"])
@@ -413,12 +413,12 @@ def get_speecht5_models_for_export(
 
     encoder_onnx_config = config.with_behavior("encoder")
 
-    use_past = config.variant == "transformers-like"
+    use_past = config.variant == "with-past"
     decoder_onnx_config = config.with_behavior("decoder", use_past=use_past, use_past_in_inputs=False)
 
     models_for_export[ONNX_ENCODER_NAME] = (models_for_export[ONNX_ENCODER_NAME], encoder_onnx_config)
     models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], decoder_onnx_config)
-    if config.variant == "transformers-like":
+    if config.variant == "with-past":
         decoder_onnx_config_with_past = config.with_behavior("decoder", use_past=True, use_past_in_inputs=True)
         models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
             models_for_export[ONNX_DECODER_WITH_PAST_NAME],

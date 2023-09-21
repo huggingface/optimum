@@ -1194,10 +1194,10 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
     # TODO: DO NOT CUT OUTPUT_SEQUENCE LENGTH WITH PAST!!!!!
 
     VARIANTS = {
-        "transformers-like": "The following components are exported following Transformers implementation:\n\t - encoder_model.onnx: corresponds to the encoding part in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2544-L2556.\n\t - decoder_model.onnx: corresponds to the decoder part in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2572-L2602.\n\t - decoder_with_past_model.onnx: same as the above, with past_key_values input (KV cache filled).\n\t - decoder_postnet_and_vocoder.onnx: Decoder speech postnet and vocoder (e.g. a SpeechT5HifiGan) to generate speech from the spectrogram, as in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2605-L2614.",
-        "without-cache": "The same as `transformers-like`, without KV cache support. This is not a recommende export as slower than `transformers-like`.",
+        "with-past": "The export follows the Transformers implementation using the KV cache, with the following components exported:\n\t - encoder_model.onnx: corresponds to the encoding part in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2544-L2556.\n\t - decoder_model.onnx: corresponds to the decoder part in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2572-L2602.\n\t - decoder_with_past_model.onnx: same as the above, with past_key_values input (KV cache filled).\n\t - decoder_postnet_and_vocoder.onnx: Decoder speech postnet and vocoder (e.g. a SpeechT5HifiGan) to generate speech from the spectrogram, as in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2605-L2614.",
+        "without-past": "The same as `with-past`, just without KV cache support. This is not a recommended export as slower than `with-past`.",
     }
-    DEFAULT_VARIANT = "transformers-like"
+    DEFAULT_VARIANT = "with-past"
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1214,7 +1214,7 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
             common_inputs["encoder_hidden_states"] = {1: "encoder_sequence_length"}
             common_inputs["encoder_attention_mask"] = {1: "encoder_sequence_length"}
 
-            if self.variant == "transformers-like" and self.use_past_in_inputs:
+            if self.variant == "with-past" and self.use_past_in_inputs:
                 # TODO: check PKV shape
                 self.add_past_key_values(common_inputs, direction="inputs")
         elif self.is_postnet_and_vocoder:
@@ -1237,7 +1237,7 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
             common_outputs["prob"] = {}  # No dynamic shape here.
             common_outputs["spectrum"] = {}  # No dynamic shape here.
 
-            if self.variant == "transformers-like" and self.use_past:
+            if self.variant == "with-past" and self.use_past:
                 # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
                 self.add_past_key_values(common_outputs, direction="outputs")
         elif self.is_postnet_and_vocoder:
