@@ -223,7 +223,7 @@ class NormalizedConfigManager:
         "electra": NormalizedTextConfig,
         "encoder-decoder": NormalizedEncoderDecoderConfig,
         "gpt2": GPT2LikeNormalizedTextConfig,
-        "gpt-bigcode": GPT2LikeNormalizedTextConfig,
+        "gpt-bigcode": GPTBigCodeNormalizedTextConfig,
         "gpt-neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
         "gpt-neox": NormalizedTextConfig,
         "llama": NormalizedTextConfig,
@@ -252,7 +252,6 @@ class NormalizedConfigManager:
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
         "mpt": MPTNormalizedTextConfig,
-        "gpt-bigcode": GPTBigCodeNormalizedTextConfig,
     }
 
     @classmethod
