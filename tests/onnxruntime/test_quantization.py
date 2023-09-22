@@ -115,6 +115,31 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
             self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
             gc.collect()
 
+    @unittest.skipIf(parse(ort_version) == Version("1.16.0"), "not supported with this onnxruntime version")
+    def test_dynamic_quantization_subgraphs(self):
+        qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=True)
+        tmp_dir = tempfile.mkdtemp()
+        output_dir = Path(tmp_dir)
+        model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge", use_merged=True)
+        self.assertTrue(model.use_merged)
+        model.save_pretrained(tmp_dir)
+
+        quantizer = ORTQuantizer.from_pretrained(model)
+        quantizer.quantize(save_dir=output_dir, quantization_config=qconfig)
+        expected_ort_config = ORTConfig(quantization=qconfig)
+        ort_config = ORTConfig.from_pretrained(tmp_dir)
+        # Verify the ORTConfig was correctly created and saved
+        self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
+
+        quantized_model = onnx_load(output_dir.joinpath("decoder_model_merged_quantized.onnx"))
+        num_quantized_matmul = 0
+        for initializer in quantized_model.graph.initializer:
+            if "weight" in initializer.name and "quantized" in initializer.name:
+                num_quantized_matmul += 1
+
+        self.assertTrue(num_quantized_matmul > 0)
+        gc.collect()
+
     @parameterized.expand(
         grid_parameters(
             {"model_arch": SUPPORTED_DECODER_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS, "use_cache": [True, False]}
