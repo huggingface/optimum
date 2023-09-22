@@ -19,7 +19,9 @@ from functools import partial
 from pathlib import Path
 
 from onnx import load as onnx_load
+from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+from packaging.version import Version, parse
 from parameterized import parameterized
 from transformers import AutoTokenizer
 
