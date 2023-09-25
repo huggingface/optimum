@@ -1008,50 +1008,22 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         else:
             init_cls = ORTModelForCausalLM
 
-        ##################################################################################################
-
-        preprocessors = None
-        if model_path.is_dir():
-            model_cache_path = model_path / file_name
-            new_model_save_dir = model_path
-            preprocessors = maybe_load_preprocessors(model_id)
-        else:
-            model_cache_path = hf_hub_download(
-                repo_id=model_id,
-                filename=file_name,
-                subfolder=subfolder,
-                use_auth_token=use_auth_token,
-                revision=revision,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                local_files_only=local_files_only,
-            )
-
-            # try download external data
-            try:
-                hf_hub_download(
-                    repo_id=model_id,
-                    subfolder=subfolder,
-                    filename=file_name + "_data",
-                    use_auth_token=use_auth_token,
-                    revision=revision,
-                    cache_dir=cache_dir,
-                    force_download=force_download,
-                    local_files_only=local_files_only,
-                )
-            except EntryNotFoundError:
-                # model doesn't use external data
-                pass
-            model_cache_path = Path(model_cache_path)
-            new_model_save_dir = model_cache_path.parent
-            preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)
+        model_cache_path, preprocessors = cls._cached_file(
+            model_path=model_path,
+            use_auth_token=use_auth_token,
+            revision=revision,
+            force_download=force_download,
+            cache_dir=cache_dir,
+            file_name=file_name,
+            subfolder=subfolder,
+            local_files_only=local_files_only,
+        )
+        new_model_save_dir = model_cache_path.parent
 
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
         # instead of the path only.
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
-
-        ##################################################################################################
 
         # Since v1.7.0 decoder with past models have fixed sequence length of 1
         # To keep these models compatible we set this dimension to dynamic
