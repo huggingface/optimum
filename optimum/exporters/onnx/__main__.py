@@ -369,15 +369,22 @@ def main_export(
                 f"{model_type} is not supported yet. Only {TasksManager._SUPPORTED_CLI_MODEL_TYPE} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
-        if model.config.model_type.replace("-", "_") not in TasksManager.get_supported_model_type_for_task(
-            task, exporter="onnx"
-        ):
+        if model.config.model_type.replace("-", "_") not in TasksManager._SUPPORTED_MODEL_TYPE:
             custom_architecture = True
+        elif task not in TasksManager.get_supported_tasks_for_model_type(model.config.model_type, "onnx"):
+            if original_task == "auto":
+                autodetected_message = " (auto-detected)"
+            else:
+                autodetected_message = ""
+            model_tasks = TasksManager.get_supported_tasks_for_model_type(model.config.model_type, exporter="onnx")
+            raise ValueError(
+                f"Asked to export a {model.config.model_type} model for the task {task}{autodetected_message}, but the Optimum ONNX exporter only supports the tasks {', '.join(model_tasks.keys())} for {model.config.model_type}. Please use a supported task. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the task {task} to be supported in the ONNX export for {model.config.model_type}."
+            )
 
     # TODO: support onnx_config.py in the model repo
     if custom_architecture and custom_onnx_configs is None:
         raise ValueError(
-            f"Trying to export a {model.config.model_type.replace('-', '_')} model, that is a custom or unsupported architecture for the task {task}, but no custom onnx configuration was passed as `custom_onnx_configs`. Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models for an example on how to export custom models. For the task {task}, the Optimum ONNX exporter supports natively the architectures: {TasksManager.get_supported_model_type_for_task(task, exporter='onnx')}."
+            f"Trying to export a {model.config.model_type} model, that is a custom or unsupported architecture for the task {task}, but no custom onnx configuration was passed as `custom_onnx_configs`. Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models for an example on how to export custom models. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the model type {model.config.model_type} to be supported natively in the ONNX export."
         )
 
     if custom_architecture and original_task == "auto":

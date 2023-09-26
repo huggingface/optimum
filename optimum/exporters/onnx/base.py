@@ -140,6 +140,7 @@ class OnnxConfig(ExportConfig, ABC):
     MIN_TRANSFORMERS_VERSION = GLOBAL_MIN_TRANSFORMERS_VERSION
     PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
     VARIANTS = {"default": "The default ONNX variant."}
+    DEFAULT_VARIANT = "default"
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
@@ -200,11 +201,6 @@ class OnnxConfig(ExportConfig, ABC):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
     ):
-        # Isn't this check useless?
-        if task not in self._TASK_TO_COMMON_OUTPUTS and task != "text-to-speech":
-            raise ValueError(
-                f"{task} is not a supported task, supported tasks: {', '.join(self._TASK_TO_COMMON_OUTPUTS.keys())}"
-            )
         self.task = task
         self.int_dtype = int_dtype
         self.float_dtype = float_dtype
@@ -212,6 +208,7 @@ class OnnxConfig(ExportConfig, ABC):
         self._config = config
         self._preprocessors = preprocessors
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
+        self.variant = "default"
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
         """
@@ -1010,6 +1007,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         self.float_dtype = float_dtype
         self._normalized_config = self._onnx_config._normalized_config
         self.PATCHING_SPECS = self._onnx_config.PATCHING_SPECS
+        self.variant = "default"
 
     @classmethod
     def from_onnx_config(cls, config: OnnxConfig) -> "OnnxConfigWithLoss":

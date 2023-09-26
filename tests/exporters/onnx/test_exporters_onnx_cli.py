@@ -154,6 +154,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         device: str = "cpu",
         fp16: bool = False,
         variant: str = "default",
+        model_kwargs: Optional[Dict] = None,
     ):
         with TemporaryDirectory() as tmpdir:
             try:
@@ -167,6 +168,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     monolith=monolith,
                     no_post_process=no_post_process,
                     _variant=variant,
+                    model_kwargs=model_kwargs,
                 )
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
@@ -270,7 +272,12 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         # masked-im models use MaskedImageModelingOutput
         if model_type in ["vit", "deit"] and task == "masked-im":
             self.skipTest("Temporarily disabled upon transformers 4.28 release")
-        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
+
+        model_kwargs = None
+        if model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+
+        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, model_kwargs=model_kwargs)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_vision
@@ -294,7 +301,13 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         if model_type == "sam":
             self.skipTest("sam export on cuda is not supported due to a bug in PyTorch")
 
-        self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", variant=variant)
+        model_kwargs = None
+        if model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+
+        self._onnx_export(
+            model_name, task, monolith, no_post_process, device="cuda", variant=variant, model_kwargs=model_kwargs
+        )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
@@ -311,10 +324,20 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         monolith: bool,
         no_post_process: bool,
     ):
+        model_kwargs = None
+        if model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+
         for optimization_level in ["O1", "O2", "O3"]:
             try:
                 self._onnx_export(
-                    model_name, task, monolith, no_post_process, optimization_level=optimization_level, variant=variant
+                    model_name,
+                    task,
+                    monolith,
+                    no_post_process,
+                    optimization_level=optimization_level,
+                    variant=variant,
+                    model_kwargs=model_kwargs,
                 )
             except NotImplementedError as e:
                 if "Tried to use ORTOptimizer for the model type" in str(
@@ -348,9 +371,20 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         if model_type == "sam":
             self.skipTest("sam export on cuda is not supported due to a bug in PyTorch")
 
+        model_kwargs = None
+        if model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+
         try:
             self._onnx_export(
-                model_name, task, monolith, no_post_process, optimization_level="O4", device="cuda", variant=variant
+                model_name,
+                task,
+                monolith,
+                no_post_process,
+                optimization_level="O4",
+                device="cuda",
+                variant=variant,
+                model_kwargs=model_kwargs,
             )
         except NotImplementedError as e:
             if "Tried to use ORTOptimizer for the model type" in str(
@@ -452,6 +486,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
         if model_type == "ibert":
             self.skipTest("ibert can not be supported in fp16")
+
+        # TODO: test once https://github.com/pytorch/pytorch/pull/110078 is fixed
+        if model_type == "speecht5":
+            self.skipTest("speecht5 can not be supported in fp16 due to a pytorch bug")
 
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, fp16=True, device="cuda")
 

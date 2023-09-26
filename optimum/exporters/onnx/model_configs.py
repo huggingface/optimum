@@ -327,6 +327,8 @@ class T5OnnxConfig(TextSeq2SeqOnnxConfig):
         num_attention_heads="num_heads",
         encoder_num_layers="num_layers",
         decoder_num_layers="num_decoder_layers",
+        key_value_dim="d_kv",
+        allow_new=True,
     )
 
     def generate_dummy_inputs_for_validation(
@@ -1226,6 +1228,10 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
             behavior=behavior,
             preprocessors=preprocessors,
         )
+        if float_dtype == "fp16":
+            raise ValueError(
+                "The ONNX export of SpeechT5 in float16 is currently not supported due to a bug in PyTorch: https://github.com/pytorch/pytorch/pull/110078. Please open an issue in Optimum if you would like to export SpeechT5 in float16."
+            )
         self.is_postnet_and_vocoder = is_postnet_and_vocoder
 
     @property

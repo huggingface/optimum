@@ -150,6 +150,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     # Disabled for now because some operator seems to not be supported by ONNX.
     # "mctct": "hf-internal-testing/tiny-random-MCTCTModel",
     "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
+    "speecht5": "hf-internal-testing/tiny-random-SpeechT5ForTextToSpeech",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
     "vision-encoder-decoder": {

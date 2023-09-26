@@ -175,7 +175,7 @@ class TasksManager:
             "object-detection": "AutoModelForObjectDetection",
             "question-answering": "AutoModelForQuestionAnswering",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
-            "text-to-speech": "AutoModelForTextToSpectrogram",
+            "text-to-audio": "AutoModelForTextToSpectrogram",
             "text-generation": "AutoModelForCausalLM",
             "text2text-generation": "AutoModelForSeq2SeqLM",
             "text-classification": "AutoModelForSequenceClassification",
@@ -230,22 +230,23 @@ class TasksManager:
         }
 
     _SYNONYM_TASK_MAP = {
-        "sequence-classification": "text-classification",
+        "audio-ctc": "automatic-speech-recognition",
         "causal-lm": "text-generation",
         "causal-lm-with-past": "text-generation-with-past",
-        "seq2seq-lm": "text2text-generation",
-        "seq2seq-lm-with-past": "text2text-generation-with-past",
-        "speech2seq-lm": "automatic-speech-recognition",
-        "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
-        "masked-lm": "fill-mask",
-        "mask-generation": "feature-extraction",
-        "vision2seq-lm": "image-to-text",
         "default": "feature-extraction",
         "default-with-past": "feature-extraction-with-past",
-        "audio-ctc": "automatic-speech-recognition",
-        "translation": "text2text-generation",
+        "masked-lm": "fill-mask",
+        "mask-generation": "feature-extraction",
         "sentence-similarity": "feature-extraction",
+        "seq2seq-lm": "text2text-generation",
+        "seq2seq-lm-with-past": "text2text-generation-with-past",
+        "sequence-classification": "text-classification",
+        "speech2seq-lm": "automatic-speech-recognition",
+        "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
         "summarization": "text2text-generation",
+        "text-to-speech": "text-to-audio",
+        "translation": "text2text-generation",
+        "vision2seq-lm": "image-to-text",
         "zero-shot-classification": "text-classification",
     }
 
@@ -269,12 +270,12 @@ class TasksManager:
 
     # TODO: why feature-extraction-with-past is here?
     _ENCODER_DECODER_TASKS = (
-        "text2text-generation",
         "automatic-speech-recognition",
-        "image-to-text",
-        "feature-extraction-with-past",
-        "visual-question-answering",
         "document-question-answering",
+        "feature-extraction-with-past",
+        "image-to-text",
+        "text2text-generation",
+        "visual-question-answering",
     )
 
     # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
@@ -841,7 +842,7 @@ class TasksManager:
         ),
         # TODO: SpeechT5 can also support audio-to-audio and automatic-speech-recognition.
         "speecht5": supported_tasks_mapping(
-            "text-to-speech",
+            "text-to-audio",
             onnx="SpeechT5OnnxConfig",
         ),
         "splinter": supported_tasks_mapping(
@@ -1398,8 +1399,8 @@ class TasksManager:
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
                 # conversational is not a supported task per se, just an alias that may map to
-                # text-generaton or text2text-generation
-                if pipeline_tag is not None and pipeline_tag != "conversational":
+                # text-generaton or text2text-generation.
+                if pipeline_tag is not None and pipeline_tag not in ["conversational"]:
                     inferred_task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
                 else:
                     transformers_info = model_info.transformersInfo
