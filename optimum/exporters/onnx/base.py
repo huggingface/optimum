@@ -904,7 +904,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         )
 
         # Attempt to merge only if the decoder was exported without/with past
-        if self.use_past is True and len(models_and_onnx_configs) == 3:
+        if self.use_past is True or self.variant == "with-past":
             decoder_path = Path(path, onnx_files_subpaths[1])
             decoder_with_past_path = Path(path, onnx_files_subpaths[2])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
@@ -923,7 +923,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             # In order to do the validation of the two branches on the same file
             encoder_path = onnx_files_subpaths[0]
 
-            onnx_files_subpaths = [encoder_path, decoder_merged_path.name, decoder_merged_path.name]
+            onnx_files_subpaths_new = [encoder_path, decoder_merged_path.name, decoder_merged_path.name]
+            onnx_files_subpaths_new.extend(onnx_files_subpaths[3:])
 
             # We validate the two branches of the decoder model then
             models_and_onnx_configs[ONNX_DECODER_NAME][1].is_merged = True
@@ -934,8 +935,10 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
             models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].use_cache_branch = True
             models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].is_merged = True
+        else:
+            onnx_files_subpaths_new = onnx_files_subpaths
 
-        return models_and_onnx_configs, onnx_files_subpaths
+        return models_and_onnx_configs, onnx_files_subpaths_new
 
     def generate_dummy_inputs_for_validation(
         self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
