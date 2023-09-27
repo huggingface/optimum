@@ -11,22 +11,20 @@ The results below are for AutoGPTQ 0.4.2, PyTorch 2.0.1, bitsandbytes 0.41.1, tr
 Run
 
 ```shell
-git clone --branch main https://huggingface.co/TheBloke/Llama-2-13B-chat-GPTQ
-cd Llama-2-13B-chat-GPTQ
-mv gptq_model-4bit-128g.safetensors model.safetensors
-mv quantize_config.json quantization_config.json
-
 # pytorch fp16
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-chat-hf --sweep --num-batches 4 --task text-generation
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --sweep --num-batches 4 --task text-generation --generate
+
+# GPTQ with exllamav2 kernel (int4/fp16)
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --task text-generation --generate
 
 # GPTQ with exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-chat-hf --gptq-model /path/to/Llama-2-13B-chat-GPTQ/ --sweep --num-batches 4 --gptq --task text-generation
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --disable-exllamav2 --task text-generation --generate
 
 # GPTQ without exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-chat-hf --gptq-model /path/to/Llama-2-13B-chat-GPTQ/ --sweep --num-batches 4 --gptq --task text-generation --disable-exllama
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --task text-generation --disable-exllama  --disable-exllamav2 --generate
 
 # using bitsandbytes fp4/fp16 scheme
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-chat-hf --sweep --num-batches 4 --task text-generation --bitsandbytes
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --sweep --num-batches 4 --task text-generation --bitsandbytes --generate
 ```
 
 Here are results obtained on a single NVIDIA A100-SXM4-80GB GPU. We use a prompt length of 512, and generate exactly 512 new tokens. Each generation is repeated for 4 batches, and metrics are averaged over the number of batches and generation length.
@@ -88,16 +86,20 @@ Run
 
 ```shell
 # pytorch fp16
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-chat-hf --sweep --num-batches 10 --task text-generation --prefill
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --sweep --num-batches 10 --task text-generation --prefill --generate
 
-# GPTQ with exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-chat-hf --gptq-model ../../../Llama-2-13B-chat-GPTQ/ --sweep --num-batches 10 --gptq --task text-generation --prefill
+# GPTQ with exllamav2 kernel (int4/fp16)
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --generate
+
+# GPTQ with exllamav kernel (int4/fp16)
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --disable-exllamav2 --sweep --num-batches 10 --gptq --task text-generation --prefill --generate
+
 
 # GPTQ without exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-chat-hf --gptq-model ../../../Llama-2-13B-chat-GPTQ/ --sweep --num-batches 10 --gptq --task text-generation --prefill --disable-exllama
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --disable-exllama --disable-exllamav2 --generate
 
 # using bitsandbytes fp4/fp16 scheme
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model daryl149/llama-2-13b-chat-hf --sweep --num-batches 10 --task text-generation --prefill --bitsandbytes
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --sweep --num-batches 10 --task text-generation --prefill --bitsandbytes --generate
 ```
 
 The benchmark below is for a prompt length of 512, measuring only the prefill step on a single NVIDIA A100-SXM4-80GB GPU. The forward is repeated 10 times. This benchmark typically corresponds to the forward during training (to the difference that here `generate` is called, which has some overhead).
@@ -146,3 +148,32 @@ The benchmark below is for a prompt length of 512, measuring only the prefill st
 |gptq |False    |4   |128       |exllama          |10         |16        |512          |1         |38.35        |1280.25               |12.50             |17203.22       |
 |gptq |False    |4   |128       |autogptq-cuda-old|10         |16        |512          |1         |43.94        |1533.54               |10.43             |17060.76       |
 |bitsandbytes|None|None|None|None|512|1  |37.46|1256.88|12.73|17737.95|
+
+## Perplexity benchmark results
+
+Run
+
+```shell
+# pytorch fp16
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --task text-generation --ppl
+
+# GPTQ with exllamav2 kernel (int4/fp16)
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq --task text-generation --ppl
+
+# GPTQ with exllama kernel (int4/fp16)
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq --disable-exllamav2 --task text-generation --ppl
+
+# GPTQ without exllama kernel (int4/fp16)
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq --task text-generation --disable-exllama  --disable-exllamav2 --ppl
+
+# using bitsandbytes fp4/fp16 scheme
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf ---task text-generation --bitsandbytes --ppl
+```
+
+| quantization | act_order | bits | group_size | kernel           | perplexity |
+|--------------|-----------|------|------------|------------------|------------|
+| None         | None      | None | None       | None             | 6.61       |
+| gptq         | True      | 4    | 128        | exllamav2        | 6.77       |
+| gptq         | True      | 4    | 128        | exllama          | 6.77       |
+| gptq         | True      | 4    | 128        | autogptq-cuda-old| 6.77       |
+| bitsandbytes | None      | 4    | None       | None             | 6.78       |
