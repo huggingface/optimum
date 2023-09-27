@@ -721,29 +721,24 @@ def gpt_bigcode_wrapped_scaled_dot_product(
     key = key.expand(-1, self.num_heads, -1, -1)
     value = value.expand(-1, self.num_heads, -1, -1)
 
-    if batch_size == 1 or self.training:
-        if query_length > 1:
-            sdpa_result = torch.nn.functional.scaled_dot_product_attention(
-                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=True
-            )
-        else:
-            sdpa_result = torch.nn.functional.scaled_dot_product_attention(
-                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=False
-            )
-    else:
-        if attention_mask is not None:
-            mask_value = self._get_mask_value(query.device, query.dtype)
+    if attention_mask is not None:
+        mask_value = self._get_mask_value(query.device, query.dtype)
 
-            # gpt_bigcode has the bad taste to use a causal mask a
-            # [batch_size, target_length, 1, source_length] which is different from
-            # **all** other architectures and not compatible with SDPA.
-            # We could avoid this transpose by overriding the forward from GPTBigCodeModel,
-            # but it is probably not worth it.
-            attention_mask = attention_mask.transpose(1, 2)
-            attention_mask = torch.where(attention_mask, 0.0, mask_value)
+        # gpt_bigcode has the bad taste to use a causal mask a
+        # [batch_size, target_length, 1, source_length] which is different from
+        # **all** other architectures and not compatible with SDPA.
+        # We could avoid this transpose by overriding the forward from GPTBigCodeModel,
+        # but it is probably not worth it.
+        attention_mask = attention_mask.transpose(1, 2)
+        attention_mask = torch.where(attention_mask, 0.0, mask_value)
 
         sdpa_result = torch.nn.functional.scaled_dot_product_attention(
             query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=False
+        )
+    
+    else: 
+        sdpa_result = torch.nn.functional.scaled_dot_product_attention(
+            query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=True
         )
 
     if self.multi_query:
