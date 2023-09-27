@@ -136,7 +136,11 @@ class GPTQTest(unittest.TestCase):
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
-                empty_model, save_folder=tmpdirname, device_map={"": 0}, disable_exllama=self.disable_exllama, disable_exllamav2=self.disable_exllamav2
+                empty_model,
+                save_folder=tmpdirname,
+                device_map={"": 0},
+                disable_exllama=self.disable_exllama,
+                disable_exllamav2=self.disable_exllamav2,
             )
             self.check_inference_correctness(quantized_model_from_saved)
 
@@ -202,7 +206,12 @@ class GPTQTestActOrder(GPTQTest):
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
-                empty_model, save_folder=tmpdirname, device_map={"": 0}, disable_exllama=False, max_input_length=4028, disable_exllamav2=True
+                empty_model,
+                save_folder=tmpdirname,
+                device_map={"": 0},
+                disable_exllama=False,
+                max_input_length=4028,
+                disable_exllamav2=True,
             )
 
             prompt = "I am in Paris and" * 1000
@@ -218,12 +227,11 @@ class GPTQTestActOrder(GPTQTest):
             quantized_model_from_saved.generate(**inp, num_beams=1, min_new_tokens=3, max_new_tokens=3)
 
 
-    
 class GPTQTestExllamav2(GPTQTest):
     desc_act = False
     disable_exllama = True
     disable_exllamav2 = True
-    
+
     def test_generate_quality(self):
         # don't need to test
         pass
@@ -247,11 +255,14 @@ class GPTQTestExllamav2(GPTQTest):
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
-                empty_model, save_folder=tmpdirname, device_map={"": 0}, disable_exllamav2=False,
+                empty_model,
+                save_folder=tmpdirname,
+                device_map={"": 0},
+                disable_exllamav2=False,
             )
             self.check_inference_correctness(quantized_model_from_saved)
 
-            
+
 class GPTQUtilsTest(unittest.TestCase):
     """
     Test utilities

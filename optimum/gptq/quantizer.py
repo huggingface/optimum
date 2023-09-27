@@ -70,7 +70,7 @@ class GPTQQuantizer(object):
         batch_size: int = 1,
         pad_token_id: Optional[int] = None,
         disable_exllama: bool = True,
-        disable_exllamav2: bool = False, 
+        disable_exllamav2: bool = False,
         max_input_length: Optional[int] = None,
         *args,
         **kwargs,
@@ -142,8 +142,10 @@ class GPTQQuantizer(object):
         if not (0 < self.damp_percent < 1):
             raise ValueError("damp_percent must between 0 and 1.")
         if not self.disable_exllamav2 and not self.disable_exllama:
-            logger.warning("You have activated exllama and exllamav2 backend. Setting `disable_exllama=True` and keeping `disable_exllamav2=False`")
-            self.disable_exllama=True
+            logger.warning(
+                "You have activated exllama and exllamav2 backend. Setting `disable_exllama=True` and keeping `disable_exllamav2=False`"
+            )
+            self.disable_exllama = True
 
     def to_dict(self):
         """
