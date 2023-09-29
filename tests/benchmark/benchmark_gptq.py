@@ -103,6 +103,11 @@ def get_parser():
         default=None,
         help="Revision of the model to benchmark",
     )
+    parser.add_argument(
+        "--enable-flash",
+        action="store_true",
+        help="Use flash attention",
+    )
 
     return parser
 
@@ -124,7 +129,8 @@ def timing_cuda(
         start_event.record()
 
         if is_decoder:
-            _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
+            with torch.backends.cuda.sdp_kernel(enable_flash=args.enable_flash, enable_math=False, enable_mem_efficient=False):
+                _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
         else:
             _ = model(input_ids, masks)
         end_event.record()
@@ -157,7 +163,9 @@ def warmup(
             eos_token_id=None,  # This is required for min_new_tokens to actually have an effect.
         )
         model.generation_config.eos_token_id = None  # greedy_search falls back on this eos_token_id that we need to set to None as well for min_new_tokens to have an effect.
-        res = model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
+        with torch.backends.cuda.sdp_kernel(enable_flash=args.enable_flash, enable_math=False, enable_mem_efficient=False):
+            print(input_ids)
+            res = model.generate(input_ids, generation_config=gen_config)
         assert res.shape[1] == new_tokens + input_ids.shape[1]
         del res
     else:
@@ -221,7 +229,8 @@ def benchmark_memory(
         )
 
         if is_decoder:
-            _ = model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
+            with torch.backends.cuda.sdp_kernel(enable_flash=args.enable_flash, enable_math=False, enable_mem_efficient=False):
+                _ = model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
         else:
             _ = model(input_ids, masks)
 
@@ -324,7 +333,10 @@ elif args.bitsandbytes:
 else:
     with device:
         model = autoclass.from_pretrained(args.model, torch_dtype=torch.float16)
+        
+model.to_bettertransformer()
 torch.cuda.synchronize()
+
 load_end = time.time_ns()
 
 act_order = None
@@ -415,7 +427,8 @@ if args.generate:
                 torch.cuda.reset_peak_memory_stats()
 
                 input_ids = torch.randint(1, model.config.vocab_size - 1, size=(batch_size, prompt_length)).to(device)
-                masks = torch.ones(batch_size, prompt_length, dtype=torch.int32).to(device)
+                #masks = torch.ones(batch_size, prompt_length, dtype=torch.int32).to(device)
+                masks=None
 
                 with torch.no_grad():
                     max_mem = benchmark_memory(
