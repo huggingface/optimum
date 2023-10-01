@@ -40,7 +40,7 @@ MODELS_DICT = {
     "codegen": "hf-internal-testing/tiny-random-CodeGenModel",
     "data2vec-text": "hf-internal-testing/tiny-random-Data2VecTextModel",
     "deit": "hf-internal-testing/tiny-random-deit",
-    "detr": "hf-internal-testing/tiny-random-detr",
+    "detr": "hf-internal-testing/tiny-random-DetrModel",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "ernie": "hf-internal-testing/tiny-random-ErnieModel",
