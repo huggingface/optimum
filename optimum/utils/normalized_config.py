@@ -167,6 +167,8 @@ SpeechToTextLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
     allow_new=True,
 )
 
+MistralNormalizedTextConfig = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
+
 
 class NormalizedConfigManager:
     """
@@ -232,6 +234,7 @@ class NormalizedConfigManager:
         "longt5": T5LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
+        "mistral": MistralNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m_100": BartLikeNormalizedTextConfig,
         "nystromformer": NormalizedTextConfig,

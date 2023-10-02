@@ -34,6 +34,7 @@ from ...utils import (
     DummyVisionEmbeddingsGenerator,
     DummyVisionInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
+    MistralDummyPastKeyValuesGenerator,
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
@@ -42,6 +43,7 @@ from ...utils import (
     NormalizedVisionConfig,
     logging,
 )
+
 from ...utils.normalized_config import NormalizedConfigManager
 from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .config import (
@@ -219,6 +221,17 @@ class OPTOnnxConfig(TextDecoderOnnxConfig):
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+
+class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
+    DEFAULT_ONNX_OPSET = 14
+    # NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args( num_attention_heads="num_key_value_heads", hidden_size="hidden_size", num_layers="num_hidden_layers")
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        MistralDummyPastKeyValuesGenerator,
+    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
 
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):
