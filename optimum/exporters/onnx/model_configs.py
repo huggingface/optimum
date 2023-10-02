@@ -43,7 +43,6 @@ from ...utils import (
     NormalizedVisionConfig,
     logging,
 )
-
 from ...utils.normalized_config import NormalizedConfigManager
 from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .config import (
