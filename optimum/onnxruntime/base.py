@@ -216,8 +216,12 @@ class ORTDecoder(ORTModelPart):
         # Generate dummy past for the first forward if uses a merged decoder
         if self.parent_model.use_merged and past_key_values is None:
             batch_size = input_ids.shape[0]
-            num_attention_heads = self.normalized_config.num_attention_heads
-            embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
+
+            if self.normalized_config.config.model_type != "mistral":
+                num_attention_heads = self.normalized_config.num_attention_heads
+            else:
+                num_attention_heads = self.normalized_config.num_key_value_heads
+            embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
 
             dtype = constructor.float16 if self.use_fp16 else constructor.float32
             # TODO: find a way to better handle this controlflow, this is EXTREMELY ugly
@@ -277,8 +281,11 @@ class ORTDecoder(ORTModelPart):
             `Dict[str, List[int]]`: The dictionary mapping each past key value output name to its corresponding shape.
         """
         batch_size = input_ids.size(0)
-        num_attention_heads = self.normalized_config.num_attention_heads
-        embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
+        if self.normalized_config.config.model_type != "mistral":
+            num_attention_heads = self.normalized_config.num_attention_heads
+        else:
+            num_attention_heads = self.normalized_config.num_key_value_heads
+        embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
 
         sequence_length = input_ids.size(1)
         if past_key_values is not None and use_cache_branch is not False:
@@ -527,7 +534,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
     ) -> Dict[str, int]:
         batch_size = input_ids.size(0)
         num_attention_heads = self.normalized_config.num_attention_heads
-        embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
+        embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
 
         sequence_length = input_ids.size(1)
         encoder_sequence_length = encoder_hidden_states.size(1)
