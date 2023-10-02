@@ -226,7 +226,6 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
-    # NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args( num_attention_heads="num_key_value_heads", hidden_size="hidden_size", num_layers="num_hidden_layers")
     DUMMY_INPUT_GENERATOR_CLASSES = (
         MistralDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
