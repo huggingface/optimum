@@ -1130,18 +1130,7 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         common_inputs = super().inputs
-        if self._behavior is ConfigBehavior.DECODER and self.use_past_in_inputs is False:
-            common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / 2"
         return common_inputs
-
-    @property
-    def outputs(self) -> Dict[str, Dict[int, str]]:
-        common_outputs = super().outputs
-        if self._behavior is ConfigBehavior.ENCODER:
-            # For Whisper, we need to name the second axis as encoder_sequence_length / 2 as the axis name is used for
-            # dummy input generation
-            common_outputs["last_hidden_state"][1] = f"{common_outputs['last_hidden_state'][1]} / 2"
-        return common_outputs
 
 
 class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):

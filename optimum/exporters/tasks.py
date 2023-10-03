@@ -1489,6 +1489,7 @@ class TasksManager:
         Returns:
             `str`: The library name automatically detected from the model repo.
         """
+        return "transformers"  # working offline
         if library_name is not None:
             return library_name
 

@@ -528,13 +528,6 @@ def export_pytorch(
         model.config.return_dict = True
         model.eval()
 
-        # Check if we need to override certain configuration item
-        if config.values_override is not None:
-            logger.info(f"Overriding {len(config.values_override)} configuration item(s)")
-            for override_config_key, override_config_value in config.values_override.items():
-                logger.info(f"\t- {override_config_key} -> {override_config_value}")
-                setattr(model.config, override_config_key, override_config_value)
-
         if input_shapes is None:
             input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
 
@@ -555,6 +548,7 @@ def export_pytorch(
 
         dummy_inputs = config.rename_ambiguous_inputs(dummy_inputs)
 
+        print("---------------- EXPORT")
         # PyTorch deprecated the `enable_onnx_checker` and `use_external_data_format` arguments in v1.11,
         # so we check the torch version for backwards compatibility
         if is_torch_less_than_1_11:
@@ -567,11 +561,28 @@ def export_pytorch(
                 input_names = list(inputs.keys())
                 output_names = list(config.outputs.keys())
 
+                print("input_names", input_names)
+                print("output_names", output_names)
+                print("dummy_inputs keys", dummy_inputs.keys())
+                
+                for name, inp in dummy_inputs.items():
+                    if isinstance(inp, torch.Tensor):
+                        print(name, inp.shape)
+                    else:
+                        print(name, type(inp))
+                
+                if config._behavior == "decoder":
+                    dummy_inputs = (dummy_inputs["decoder_input_ids"], dummy_inputs["decoder_attention_mask"], dummy_inputs["encoder_outputs"][0], dummy_inputs["past_key_values"], dummy_inputs["position_ids"])
+
+                    model = torch.jit.trace(model, dummy_inputs)
+                else:
+                    dummy_inputs = (dummy_inputs,)
+
                 # Export can work with named args but the dict containing named args has to be the last element of the args
                 # tuple.
                 onnx_export(
                     model,
-                    (dummy_inputs,),
+                    dummy_inputs,
                     f=output.as_posix(),
                     input_names=input_names,
                     output_names=output_names,
@@ -879,6 +890,7 @@ def export(
             "You either provided a PyTorch model with only TensorFlow installed, or a TensorFlow model with only PyTorch installed."
         )
 
+    print("------ FIXING")
     if not disable_dynamic_axes_fix:
         config.fix_dynamic_axes(output, device=device, input_shapes=input_shapes, dtype=dtype)
     return export_output

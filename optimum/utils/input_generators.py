@@ -360,7 +360,13 @@ class DummyTextInputGenerator(DummyInputGenerator):
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         min_value = 0
         max_value = 2 if input_name != "input_ids" else self.vocab_size
-        shape = [self.batch_size, self.sequence_length]
+
+        # TODO: fix
+        if input_name == "decoder_attention_mask":
+            shape = [self.batch_size, 128]
+        else:
+            shape = [self.batch_size, self.sequence_length]
+        
         if self.task == "multiple-choice":
             shape = [self.batch_size, self.num_choices, self.sequence_length]
         return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework, dtype=int_dtype)
@@ -414,7 +420,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
         if input_name in ["encoder_outputs", "encoder_hidden_states"]:
             return (
                 self.random_float_tensor(
-                    shape=[self.batch_size, self.sequence_length, self.hidden_size],
+                    shape=[self.batch_size, 1500, self.hidden_size],
                     min_value=0,
                     max_value=1,
                     framework=framework,
@@ -492,6 +498,8 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         **kwargs,
     ):
         self.normalized_config = normalized_config
+        self.batch_size = 1
+        """
         if random_batch_size_range:
             low, high = random_batch_size_range
             self.batch_size = random.randint(low, high)
@@ -505,6 +513,10 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         self.encoder_sequence_length = (
             self.sequence_length if encoder_sequence_length is None else encoder_sequence_length
         )
+        """
+        self.encoder_sequence_length = 1500
+        self.sequence_length = 128
+
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         encoder_shape = (
@@ -519,7 +531,7 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
             self.sequence_length,
             self.normalized_config.hidden_size // self.normalized_config.decoder_num_attention_heads,
         )
-        return [
+        return tuple(
             (
                 self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
                 self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
@@ -527,7 +539,7 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
                 self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
             )
             for _ in range(self.normalized_config.decoder_num_layers)
-        ]
+        )
 
 
 # TODO: should it just be merged to DummyTextInputGenerator?

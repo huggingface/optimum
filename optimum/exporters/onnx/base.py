@@ -325,7 +325,7 @@ class OnnxConfig(ExportConfig, ABC):
                     onnx_inputs[name] = value
 
             for name, value in onnx_inputs.items():
-                if value.dtype == np.float32 and dtype == "fp16":
+                if value is not None and (value.dtype == np.float32 and dtype == "fp16"):
                     onnx_inputs[name] = onnx_inputs[name].astype(np.float16)
 
             outputs = session.run(None, onnx_inputs)
@@ -579,14 +579,16 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        if not self.use_past_in_inputs:
-            common_outputs = super().outputs
+        #if not self.use_past_in_inputs:
+        #    common_outputs = super().outputs
+        self.use_past_in_inputs = True
+
         # In the other cases, the sequence_length axis is not dynamic, always of length 1
-        elif self.task == "feature-extraction":
+        if self.task == "feature-extraction":
             common_outputs = OrderedDict({"last_hidden_state": {0: "batch_size"}})
         else:
-            common_outputs = OrderedDict({"logits": {0: "batch_size"}})
-        if self.use_past:
+            common_outputs = OrderedDict({"logits": {}})
+            
             # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
             self.add_past_key_values(common_outputs, direction="outputs")
         return common_outputs
@@ -602,7 +604,9 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         dummy_inputs = {}
         input_names = [key for key in self.inputs.keys() if not key.startswith("past_key_values")]
-        if self.use_past_in_inputs and self.use_cache_branch is not False:
+
+        print("self._behavior", self._behavior)
+        if self._behavior is not ConfigBehavior.ENCODER:
             input_names.append("past_key_values")
 
         for input_name in input_names:
@@ -821,7 +825,16 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        common_outputs = super(OnnxConfigWithPast, self).outputs
+        # In the other cases, the sequence_length axis is not dynamic, always of length 1
+        if self.task == "feature-extraction":
+            common_outputs = OrderedDict({"last_hidden_state": {}})
+        else:
+            common_outputs = OrderedDict({"logits": {}})
+            
+            # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
+            self.add_past_key_values(common_outputs, direction="outputs")
+
+        """
         # Renaming the outputs axes properly.
         for name, axes_names in common_outputs.items():
             if self._behavior is ConfigBehavior.ENCODER or "encoder" in name:
@@ -840,10 +853,12 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 else:
                     new_axes_names[axis_idx] = axis_name
             common_outputs[name] = new_axes_names
+        
 
         if self.use_past:
             # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
             self.add_past_key_values(common_outputs, direction="outputs")
+        """
 
         return common_outputs
 
@@ -859,19 +874,17 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             name = "present"
 
         for i in range(self._normalized_config.decoder_num_layers):
-            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "batch_size", 2: decoder_sequence_name}
-            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "batch_size", 2: decoder_sequence_name}
-
+            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {}
+            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {}
+        
             if (
-                self.is_merged is True
-                or (self._behavior is ConfigBehavior.DECODER and not self.use_past_in_inputs)
-                or direction == "inputs"
+                self._behavior is ConfigBehavior.DECODER
             ):
                 # TODO: we only need to call it encoder_sequence_length_out in the merge case - but at torch.onnx.export()
                 # time we have currently no case to check whether we will merge at a later step or not (self.is_merged is
                 # not yet set at this time)
-                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: "encoder_sequence_length_out"}
-                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length_out"}
+                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {}
+                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         if len(t) not in [2, 4]:

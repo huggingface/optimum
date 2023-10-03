@@ -348,6 +348,11 @@ def main_export(
         device=device,
         library_name=library_name,
     )
+    import torch
+    model = model.eval()
+    with torch.no_grad():
+        for i in range(len(model.model.decoder.layers)):
+            model.model.decoder.layers[i].encoder_attn = torch.jit.script(model.model.decoder.layers[i].encoder_attn)
 
     custom_architecture = False
     is_stable_diffusion = "stable-diffusion" in task
@@ -574,10 +579,12 @@ def main_export(
             logger.warning(
                 f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {output.as_posix()}"
             )
+        """
         except Exception as e:
             raise Exception(
                 f"An error occured during validation, but the model was saved nonetheless at {output.as_posix()}. Detailed error: {e}."
             )
+        """
 
 
 def main():

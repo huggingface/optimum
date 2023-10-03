@@ -272,6 +272,7 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
         DummyAudioInputGenerator,
         DummySeq2SeqDecoderTextInputGenerator,
         DummySeq2SeqPastKeyValuesGenerator,
+        DummyTextInputGenerator,
     )
 
     @property
@@ -279,19 +280,18 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
         common_inputs = {}
 
         if self._behavior is not ConfigBehavior.DECODER:
-            common_inputs["input_features"] = {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"}
+            common_inputs["input_features"] = {}
 
         if self._behavior is not ConfigBehavior.ENCODER:
-            if self.use_past_in_inputs:
-                common_inputs["decoder_input_ids"] = {0: "batch_size"}
-            else:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+            common_inputs["decoder_input_ids"] = {}
 
-            if self.use_past_in_inputs:
-                self.add_past_key_values(common_inputs, direction="inputs")
+            self.add_past_key_values(common_inputs, direction="inputs")
+
+            common_inputs["decoder_attention_mask"] = {}
+            common_inputs["position_ids"] = {}
 
         if self._behavior is ConfigBehavior.DECODER:
-            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+            common_inputs["encoder_outputs"] = {}
 
         return common_inputs
 

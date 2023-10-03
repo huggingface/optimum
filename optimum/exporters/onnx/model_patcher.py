@@ -193,13 +193,15 @@ class Seq2SeqModelPatcher(ModelPatcher):
 
             outputs = self.orig_forward(*args, **kwargs)
 
+            """
             # Filter out cross attention past key values output from the decoder using KV cache, as they are constants.
             filterd_outputs = {}
             for name, value in outputs.items():
+                # filterd_outputs[name] = value
                 onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
                 if (
                     onnx_output_name in config.outputs
-                    or (allow_past_in_outputs and name.startswith("past_key_values"))
+                    or name.startswith("past_key_values")
                     or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
                 ):
                     if name != "past_key_values":
@@ -209,16 +211,14 @@ class Seq2SeqModelPatcher(ModelPatcher):
                         else:
                             filterd_outputs[name] = value
                     else:
-                        if self.real_config._behavior == "monolith" or (
-                            self.real_config._behavior == "decoder"
-                            and (self.real_config.is_merged or not self.real_config.use_past_in_inputs)
-                        ):
-                            filterd_outputs[name] = value
-                        elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
-                            # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
-                            filterd_outputs[name] = tuple([v[:2] for v in value])
+                        # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
+                        # filterd_outputs[name] = tuple([v[:2] for v in value])
+                        filterd_outputs[name] = value
+            """
 
-            return filterd_outputs
+            #print("filterd_outputs", filterd_outputs.keys())
+
+            return outputs
 
         self.patched_forward = patched_forward
 
