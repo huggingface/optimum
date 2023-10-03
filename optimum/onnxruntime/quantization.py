@@ -482,6 +482,7 @@ class ORTQuantizer(OptimumQuantizer):
     def get_calibration_dataset(
         self,
         dataset_name: str,
+        data_files: str = None,
         num_samples: int = 100,
         dataset_config_name: Optional[str] = None,
         dataset_split: Optional[str] = None,
@@ -525,6 +526,7 @@ class ORTQuantizer(OptimumQuantizer):
         calib_dataset = load_dataset(
             dataset_name,
             name=dataset_config_name,
+            data_files=data_files,
             split=dataset_split,
             use_auth_token=use_auth_token,
         )
