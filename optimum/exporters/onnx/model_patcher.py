@@ -439,19 +439,3 @@ class OPTModelPatcher(ModelPatcher):
         super().__exit__(exc_type, exc_value, traceback)
         if self.patch:
             setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", self.orig_prepare_attn_mask)
-
-
-class MPTModelPatcher(BloomModelPatcher):
-    pass
-
-
-class BlenderbotSmallModelPatcher(BartModelPatcher):
-    pass
-
-
-class BlenderbotModelPatcher(BartModelPatcher):
-    pass
-
-
-class PegasusModelPatcher(BartModelPatcher):
-    pass

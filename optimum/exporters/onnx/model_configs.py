@@ -59,7 +59,6 @@ from .model_patcher import (
     BartModelPatcher,
     BloomModelPatcher,
     LlamaModelPatcher,
-    MPTModelPatcher,
     OPTModelPatcher,
     SAMModelPatcher,
     WavLMModelPatcher,
@@ -249,7 +248,7 @@ class MPTOnnxConfig(TextDecoderOnnxConfig):
     def patch_model_for_export(
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
     ) -> "ModelPatcher":
-        return MPTModelPatcher(self, model, model_kwargs=model_kwargs)
+        return BloomModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class BloomOnnxConfig(TextDecoderOnnxConfig):

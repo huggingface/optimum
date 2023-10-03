@@ -138,12 +138,12 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_hub(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_hub_subfolder(self):
@@ -151,11 +151,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModelForSequenceClassification.from_pretrained(
             "fxmarty/tiny-bert-sst2-distilled-subfolder", subfolder="my_subfolder", export=True
         )
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
         model = ORTModel.from_pretrained("fxmarty/tiny-bert-sst2-distilled-onnx-subfolder", subfolder="my_subfolder")
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_from_hub_subfolder(self):
@@ -178,7 +178,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         model = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID, local_files_only=True)
 
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_empty_cache(self):
@@ -768,7 +768,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     @require_hf_token
     def test_load_model_from_hub_private(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, use_auth_token=os.environ.get("HF_AUTH_TOKEN", None))
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_save_model(self):
@@ -1100,7 +1100,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1267,7 +1267,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1429,7 +1429,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1602,7 +1602,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForTokenClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1725,7 +1725,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1870,7 +1870,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMultipleChoice.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1992,14 +1992,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         self.assertFalse(model.use_merged)
         self.assertTrue(model.use_cache)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertEqual(model.onnx_paths[0].name, ONNX_DECODER_WITH_PAST_NAME)
 
         model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge")
 
         self.assertTrue(model.use_merged)
         self.assertTrue(model.use_cache)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertEqual(model.onnx_paths[0].name, ONNX_DECODER_MERGED_NAME)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
@@ -2041,7 +2041,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             model = ORTModelForCausalLM.from_pretrained(tmpdir)
 
             self.assertTrue(model.use_merged)
-            self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+            self.assertIsInstance(model.model, onnxruntime.InferenceSession)
 
             model.save_pretrained(tmpdir + "_save")
             save_path = os.path.join(tmpdir + "_save", ONNX_DECODER_MERGED_NAME)
@@ -2079,7 +2079,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model_path = Path(self.onnx_model_dirs[test_name], ONNX_WEIGHTS_NAME)
         self.assertFalse(has_onnx_input(model_path, "use_cache_branch"))
         self.assertFalse(onnx_model.use_merged)
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -2440,7 +2440,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch] if model_arch in MODEL_NAMES else self.ARCH_MODEL_MAP[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -2580,7 +2580,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSemanticSegmentation.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -2735,7 +2735,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -2887,7 +2887,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
         onnx_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -2946,7 +2946,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
         model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioXVector.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -3038,7 +3038,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
         model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioFrameClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)

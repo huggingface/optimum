@@ -220,7 +220,7 @@ def parse_args_onnx(parser):
     optional_group.add_argument(
         "--legacy",
         action="store_true",
-        help=("Export decoder only models in two (without + with past) model as a single ONNX file."),
+        help="Export decoder only models in two (without + with past) model as a single ONNX file.",
     )
 
     # deprecated argument
