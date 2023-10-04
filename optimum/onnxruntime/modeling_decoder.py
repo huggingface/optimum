@@ -14,16 +14,13 @@
 """Classes handling causal-lm related architectures in ONNX Runtime."""
 
 import logging
-import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
 import torch
-from huggingface_hub import hf_hub_download
-from huggingface_hub.utils import EntryNotFoundError
 from onnx.tools import update_model_dims
 from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
@@ -32,23 +29,13 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 import onnxruntime
 
 from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
-from ..onnx.utils import _get_external_data_paths, check_model_uses_external_data
+from ..onnx.utils import check_model_uses_external_data
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
-from ..utils.file_utils import validate_file_exists
-from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
-from .base import ORTDecoder
+from ..utils.save_utils import maybe_save_preprocessors
 from .constants import DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN, DECODER_WITH_PAST_ONNX_FILE_PATTERN
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .models.bloom import bloom_convert_to_bloom_cache, bloom_convert_to_standard_cache
-from .utils import (
-    MULTI_QUERY_ATTN_MODELS,
-    ONNX_DECODER_NAME,
-    ONNX_DECODER_WITH_PAST_NAME,
-    ONNX_WEIGHTS_NAME,
-    get_provider_for_device,
-    parse_device,
-    validate_provider_availability,
-)
+from .utils import MULTI_QUERY_ATTN_MODELS, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_WEIGHTS_NAME
 
 
 if TYPE_CHECKING:
@@ -165,6 +152,14 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if inp.name == "past_key_values" and inp.type == "tensor(float16)":
                 self.use_fp16 = True
                 break
+
+       # Reference: https://github.com/huggingface/optimum/pull/1381
+        model_type = config.model_type.replace("_", "-")
+        if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.decoder.input_names:
+            logger.warning(
+                f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although this input is required for batched generation for the architecture {model_type}. "
+                "We strongly encourage to re-export the model with optimum>=1.14 for position_ids and batched inference support."
+            )
 
         if use_cache ^ self.use_cache:
             raise ValueError(
