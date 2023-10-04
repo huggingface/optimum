@@ -315,7 +315,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
                 use_auth_token=use_auth_token,
                 revision=revision,
                 allow_patterns=allow_patterns,
-                ignore_patterns=["*.msgpack", "*.safetensors", "*.bin"],
+                ignore_patterns=["*.msgpack", "*.safetensors", "*.bin", "*.xml"],
             )
         new_model_save_dir = Path(model_id)
 
