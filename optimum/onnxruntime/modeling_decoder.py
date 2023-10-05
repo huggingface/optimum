@@ -153,7 +153,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 self.use_fp16 = True
                 break
 
-       # Reference: https://github.com/huggingface/optimum/pull/1381
+        # Reference: https://github.com/huggingface/optimum/pull/1381
         model_type = config.model_type.replace("_", "-")
         if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.decoder.input_names:
             logger.warning(
@@ -413,11 +413,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 )
             use_merged = False
 
-        # TODO : deprecate
-        decoder_file_name = kwargs.pop("decoder_file_name", None)
-        decoder_with_past_file_name = kwargs.pop("decoder_with_past_file_name", None)
+        decoder_name = "decoder_file_name" if use_cache else "decoder_with_past_file_name"
+        decoder_file_name = kwargs.pop(decoder_name, None)
 
-        file_name = file_name or (decoder_with_past_file_name if use_cache else decoder_file_name)
+        if decoder_file_name is not None:
+            logger.warning(f"The `{decoder_name}` argument is deprecated, please use `file_name` instead.")
+            file_name = file_name or decoder_file_name
+
         if file_name is None:
             decoder_path = None
             # We use `is not False` here to include two cases: use_merged = None (in which case we auto-detect it),

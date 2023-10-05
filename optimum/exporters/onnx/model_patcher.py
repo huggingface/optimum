@@ -357,17 +357,17 @@ class BloomModelPatcher(ModelPatcher):
 
         self.patch = self.real_config.task == "text-generation" and self.real_config.use_past
         if self.patch:
-            self.orig_prepare_attn_mask = getattr(self._model.transformer, "_prepare_attn_mask")
+            self.orig_prepare_attn_mask = self._model.transformer._prepare_attn_mask
 
     def __enter__(self):
         super().__enter__()
         if self.patch:
-            setattr(self._model.transformer, "_prepare_attn_mask", _prepare_attn_mask)
+            self._model.transformer._prepare_attn_mask = _prepare_attn_mask.__get__(self._model.transformer)
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
         if self.patch:
-            setattr(self._model.transformer, "_prepare_attn_mask", self.orig_prepare_attn_mask)
+            self._model.transformer._prepare_attn_mask = self.orig_prepare_attn_mask.__get__(self._model.transformer)
 
 
 class LlamaModelPatcher(ModelPatcher):
@@ -381,17 +381,19 @@ class LlamaModelPatcher(ModelPatcher):
 
         self.patch = self.real_config.task == "text-generation" and self.real_config.use_past
         if self.patch:
-            self.orig_prepare_attn_mask = getattr(self._model.model, "_prepare_decoder_attention_mask")
+            self.orig_prepare_attn_mask = self._model.model._prepare_decoder_attention_mask
 
     def __enter__(self):
         super().__enter__()
         if self.patch:
-            setattr(self._model.model, "_prepare_decoder_attention_mask", _prepare_decoder_attention_mask)
+            self._model.model._prepare_decoder_attention_mask = _prepare_decoder_attention_mask.__get__(
+                self._model.model
+            )
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
         if self.patch:
-            setattr(self._model.model, "_prepare_decoder_attention_mask", self.orig_prepare_attn_mask)
+            self._model.model._prepare_decoder_attention_mask = self.orig_prepare_attn_mask.__get__(self._model.model)
 
 
 class BartModelPatcher(Seq2SeqModelPatcher):
@@ -405,17 +407,21 @@ class BartModelPatcher(Seq2SeqModelPatcher):
 
         self.patch = self.real_config.task == "text-generation" and self.real_config.use_past
         if self.patch:
-            self.orig_prepare_attn_mask = getattr(self._model.model.decoder, "_prepare_decoder_attention_mask")
+            self.orig_prepare_attn_mask = self._model.model.decoder._prepare_decoder_attention_mask
 
     def __enter__(self):
         super().__enter__()
         if self.patch:
-            setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", _prepare_decoder_attention_mask)
+            self._model.model.decoder._prepare_decoder_attention_mask = _prepare_decoder_attention_mask.__get__(
+                self._model.model.decoder
+            )
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
         if self.patch:
-            setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", self.orig_prepare_attn_mask)
+            self._model.model.decoder._prepare_decoder_attention_mask = self.orig_prepare_attn_mask.__get__(
+                self._model.model.decoder
+            )
 
 
 class OPTModelPatcher(ModelPatcher):
@@ -428,14 +434,18 @@ class OPTModelPatcher(ModelPatcher):
         super().__init__(config, model, model_kwargs)
         self.patch = self.real_config.task == "text-generation" and self.real_config.use_past
         if self.patch:
-            self.orig_prepare_attn_mask = getattr(self._model.model.decoder, "_prepare_decoder_attention_mask")
+            self.orig_prepare_attn_mask = self._model.model.decoder._prepare_decoder_attention_mask
 
     def __enter__(self):
         super().__enter__()
         if self.patch:
-            setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", _prepare_decoder_attention_mask)
+            self._model.model.decoder._prepare_decoder_attention_mask = _prepare_decoder_attention_mask.__get__(
+                self._model.model.decoder
+            )
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
         if self.patch:
-            setattr(self._model.model.decoder, "_prepare_decoder_attention_mask", self.orig_prepare_attn_mask)
+            self._model.model.decoder._prepare_decoder_attention_mask = self.orig_prepare_attn_mask.__get__(
+                self._model.model.decoder
+            )

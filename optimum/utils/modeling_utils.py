@@ -69,7 +69,10 @@ def _make_causal_mask(
 
 # Modified from transformers.models.bloom.modeling_bloom._prepare_attn_mask
 def _prepare_attn_mask(
-    attention_mask: torch.Tensor, input_shape: Tuple[int, int], past_key_values_length: int
+    self,
+    attention_mask: torch.Tensor,
+    input_shape: Tuple[int, int],
+    past_key_values_length: int,
 ) -> torch.BoolTensor:
     from transformers.models.bloom.modeling_bloom import _expand_mask
 
@@ -92,7 +95,13 @@ def _prepare_attn_mask(
 
 
 # Modified from transformers.models.llama.modeling_llama._prepare_decoder_attention_mask
-def _prepare_decoder_attention_mask(attention_mask, input_shape, inputs_embeds, past_key_values_length):
+def _prepare_decoder_attention_mask(
+    self,
+    attention_mask: torch.Tensor,
+    input_shape: Tuple[int, int],
+    inputs_embeds: torch.Tensor,
+    past_key_values_length: int,
+):
     from transformers.models.llama.modeling_llama import _expand_mask
 
     # create causal mask

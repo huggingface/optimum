@@ -68,7 +68,6 @@ def _get_submodels_and_onnx_configs(
     float_dtype: str = "fp32",
     fn_get_submodels: Optional[Callable] = None,
     preprocessors: Optional[List[Any]] = None,
-    no_position_ids: bool = False,
     legacy: bool = False,
 ):
     is_stable_diffusion = "stable-diffusion" in task
@@ -83,8 +82,8 @@ def _get_submodels_and_onnx_configs(
                 model=model, exporter="onnx", task=task
             )
             onnx_config_kwargs = {}
-            if task.startswith("text-generation") and no_position_ids:
-                onnx_config_kwargs["no_position_ids"] = no_position_ids
+            if task.startswith("text-generation") and legacy:
+                onnx_config_kwargs["no_position_ids"] = legacy
 
             onnx_config = onnx_config_constructor(
                 model.config,
@@ -185,7 +184,6 @@ def main_export(
     use_subprocess: bool = False,
     _variant: str = "default",
     library_name: Optional[str] = None,
-    no_position_ids: bool = False,
     legacy: bool = False,
     **kwargs_shapes,
 ):
@@ -266,8 +264,8 @@ def main_export(
         library_name (`Optional[str]`, defaults to `None`):
             The library of the model(`"tansformers"` or `"diffusers"` or `"timm"`). If not provided, will attempt to automatically detect
             the library name for the checkpoint.
-        no_position_ids (`bool`, defaults to `False`):
-            Disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum.
+        legacy (`bool`, defaults to `False`):
+            Disable the use of position_ids for text-generation models that require it for batched generation. Also enable to export decoder only models in three files (without + with past and the merged model). This argument is introduced for backward compatibility and will be removed in a future release of Optimum.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -355,9 +353,9 @@ def main_export(
     is_stable_diffusion = "stable-diffusion" in task
     model_type = "stable-diffusion" if is_stable_diffusion else model.config.model_type.replace("_", "-")
 
-    if no_position_ids and model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and task.startswith("text-generation"):
+    if legacy and model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and task.startswith("text-generation"):
         logger.warning(
-            f"no_position_ids=True was specified in the ONNX export, although the model {model_name_or_path} (model type {model_type}) requires position_ids for batched inference. Passing `no_position_ids=True` is strongly discouraged, and this option will be removed in a future release. Reference: https://github.com/huggingface/optimum/pull/1381"
+            f"legacy=True was specified in the ONNX export, although the model {model_name_or_path} (model type {model_type}) requires position_ids for batched inference. Passing `legacy=True` is strongly discouraged, and this option will be removed in a future release. Reference: https://github.com/huggingface/optimum/pull/1381"
         )
 
     if not is_stable_diffusion:
@@ -426,7 +424,6 @@ def main_export(
         fn_get_submodels=fn_get_submodels,
         preprocessors=preprocessors,
         _variant=_variant,
-        no_position_ids=no_position_ids,
         legacy=legacy,
     )
 
