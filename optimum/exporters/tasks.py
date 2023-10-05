@@ -1058,7 +1058,7 @@ class TasksManager:
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet. "
-                f"Only {TasksManager._SUPPORTED_MODEL_TYPE} are supported. "
+                f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
         elif exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
@@ -1686,16 +1686,6 @@ class TasksManager:
             if original_task == "automatic-speech-recognition" or task == "automatic-speech-recognition":
                 if original_task == "auto" and config.architectures is not None:
                     model_class_name = config.architectures[0]
-
-            if task not in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx"):
-                if original_task == "auto":
-                    autodetected_message = " (auto-detected)"
-                else:
-                    autodetected_message = ""
-                model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter="onnx")
-                raise ValueError(
-                    f"Asked to export a {model_type} model for the task {task}{autodetected_message}, but the Optimum ONNX exporter only supports the tasks {', '.join(model_tasks.keys())} for {model_type}. Please use a supported task. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the task {task} to be supported in the ONNX export for {model_type}."
-                )
 
         model_class = TasksManager.get_model_class_for_task(
             task, framework, model_type=model_type, model_class_name=model_class_name, library=library_name

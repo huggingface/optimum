@@ -19,7 +19,7 @@ import os
 from pathlib import Path
 
 from requests.exceptions import ConnectionError as RequestsConnectionError
-from transformers import AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
@@ -336,6 +336,30 @@ def main_export(
         except RequestsConnectionError as e:
             raise RequestsConnectionError(
                 f"The task could not be automatically inferred as this is available only for models hosted on the Hugging Face Hub. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
+            )
+
+    if library_name == "transformers":
+        config = AutoConfig.from_pretrained(
+            model_name_or_path,
+            subfolder=subfolder,
+            revision=revision,
+            cache_dir=cache_dir,
+            use_auth_token=use_auth_token,
+            local_files_only=local_files_only,
+            force_download=force_download,
+            trust_remote_code=trust_remote_code,
+        )
+        model_type = config.model_type.replace("_", "-")
+        if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
+            custom_architecture = True
+        elif task not in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx"):
+            if original_task == "auto":
+                autodetected_message = " (auto-detected)"
+            else:
+                autodetected_message = ""
+            model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter="onnx")
+            raise ValueError(
+                f"Asked to export a {model_type} model for the task {task}{autodetected_message}, but the Optimum ONNX exporter only supports the tasks {', '.join(model_tasks.keys())} for {model_type}. Please use a supported task. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the task {task} to be supported in the ONNX export for {model_type}."
             )
 
     model = TasksManager.get_model_from_task(
