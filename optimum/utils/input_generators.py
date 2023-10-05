@@ -363,7 +363,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
 
         # TODO: fix
         if input_name == "decoder_attention_mask":
-            shape = [self.batch_size, 128]
+            shape = [self.batch_size, 448]  # TODO: fix to max_length for whisper
         else:
             shape = [self.batch_size, self.sequence_length]
         
@@ -516,7 +516,7 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         )
         """
         self.encoder_sequence_length = 1500
-        self.sequence_length = 128
+        self.sequence_length = 448  # TODO: fix to max_length for whisper
 
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
