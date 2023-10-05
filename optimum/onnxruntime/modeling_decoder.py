@@ -156,7 +156,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         # Reference: https://github.com/huggingface/optimum/pull/1381
         model_type = config.model_type.replace("_", "-")
-        if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.decoder.input_names:
+        if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.inputs_names:
             logger.warning(
                 f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although this input is required for batched generation for the architecture {model_type}. "
                 "We strongly encourage to re-export the model with optimum>=1.14 for position_ids and batched inference support."
