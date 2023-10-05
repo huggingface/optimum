@@ -31,6 +31,7 @@ import onnxruntime
 from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from ..onnx.utils import check_model_uses_external_data
 from ..utils import NormalizedConfigManager, check_if_transformers_greater
+from ..utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ..utils.save_utils import maybe_save_preprocessors
 from .constants import DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN, DECODER_WITH_PAST_ONNX_FILE_PATTERN
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
@@ -458,16 +459,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 )
                 file_name = decoder_path.name
 
-            MODEL_TO_PATCH_FOR_PAST = {
-                "bloom",
-                "mpt",
-                "llama",
-                "blenderbot-small",
-                "blenderbot",
-                "opt",
-                "pegasus",
-                "bart",
-            }
             if file_name == ONNX_DECODER_WITH_PAST_NAME and config.model_type in MODEL_TO_PATCH_FOR_PAST:
                 raise ValueError(
                     f"{ONNX_DECODER_WITH_PAST_NAME} not supported for the following architecture : {', '.join(MODEL_TO_PATCH_FOR_PAST)}. Please re-export your model or set use_cache=False."

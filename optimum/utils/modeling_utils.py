@@ -18,6 +18,18 @@ from typing import Tuple
 import torch
 
 
+MODEL_TO_PATCH_FOR_PAST = {
+    "bart",
+    "blenderbot",
+    "blenderbot-small",
+    "bloom",
+    "llama",
+    "mpt",
+    "opt",
+    "pegasus",
+}
+
+
 def recurse_getattr(obj, attr: str):
     """
     Recursive `getattr`.
@@ -65,6 +77,11 @@ def _make_causal_mask(
     )
 
     return mask[None, None, :, :].expand(batch_size, 1, target_length, target_length + past_key_values_length)
+
+
+# NOTE: For MODEL_TO_PATCH_FOR_PAST architectures, when exporting the model with an input of sequence length of 1, the attention masks will be generated incorrectly for other sequence length
+# https://github.com/huggingface/transformers/blob/0ee45906845c8d58b9bd2df5acd90e09b00047ff/src/transformers/models/bloom/modeling_bloom.py#L654
+# The method taking care of the decoder mask generation of the models from these architectures must be patched during export for sequence length of 1.
 
 
 # Modified from transformers.models.bloom.modeling_bloom._prepare_attn_mask
