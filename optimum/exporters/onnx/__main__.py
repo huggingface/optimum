@@ -366,20 +366,11 @@ def main_export(
     if not is_stable_diffusion:
         if model_type in TasksManager._UNSUPPORTED_CLI_MODEL_TYPE:
             raise ValueError(
-                f"{model_type} is not supported yet. Only {TasksManager._SUPPORTED_CLI_MODEL_TYPE} are supported. "
+                f"{model_type} is not supported yet. Only {list(TasksManager._SUPPORTED_CLI_MODEL_TYPE.keys())} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
-        if model.config.model_type.replace("-", "_") not in TasksManager._SUPPORTED_MODEL_TYPE:
+        if model.config.model_type.replace("_", "-") not in TasksManager._SUPPORTED_MODEL_TYPE:
             custom_architecture = True
-        elif task not in TasksManager.get_supported_tasks_for_model_type(model.config.model_type, "onnx"):
-            if original_task == "auto":
-                autodetected_message = " (auto-detected)"
-            else:
-                autodetected_message = ""
-            model_tasks = TasksManager.get_supported_tasks_for_model_type(model.config.model_type, exporter="onnx")
-            raise ValueError(
-                f"Asked to export a {model.config.model_type} model for the task {task}{autodetected_message}, but the Optimum ONNX exporter only supports the tasks {', '.join(model_tasks.keys())} for {model.config.model_type}. Please use a supported task. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the task {task} to be supported in the ONNX export for {model.config.model_type}."
-            )
 
     # TODO: support onnx_config.py in the model repo
     if custom_architecture and custom_onnx_configs is None:
