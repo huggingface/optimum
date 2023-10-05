@@ -218,7 +218,7 @@ class OPTOnnxConfig(TextDecoderOnnxConfig):
 
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_key_value_heads")
 
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):
