@@ -913,6 +913,7 @@ def falcon_forward(
     alibi: Optional[torch.Tensor],
     attention_mask: torch.Tensor,
     layer_past: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+    position_ids: Optional[torch.LongTensor] = None,
     head_mask: Optional[torch.Tensor] = None,
     use_cache: bool = False,
     output_attentions: bool = False,
@@ -937,7 +938,7 @@ def falcon_forward(
     value_layer = value_layer.transpose(1, 2).reshape(batch_size * num_kv_heads, query_length, self.head_dim)
 
     past_kv_length = 0 if layer_past is None else layer_past[0].shape[1]
-    query_layer, key_layer = self.maybe_rotary(query_layer, key_layer, past_kv_length)
+    query_layer, key_layer = self.maybe_rotary(query_layer, key_layer, past_kv_length, position_ids)
 
     if layer_past is not None:
         past_key, past_value = layer_past
