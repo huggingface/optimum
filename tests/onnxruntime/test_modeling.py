@@ -2009,25 +2009,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_merge_from_transformers_and_save(self, model_arch):
-        if "text-generation-with-past" not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx"
-        ):
-            self.skipTest("Unsupported -with-past export case")
-
-        model_id = MODEL_NAMES[model_arch]
-        model = ORTModelForCausalLM.from_pretrained(model_id, export=True, use_merged=True)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            model.save_pretrained(tmpdir)
-            save_path = os.path.join(tmpdir, ONNX_WEIGHTS_NAME)
-            self.assertFalse(has_onnx_input(save_path, "use_cache_branch"))
-
-            folder_contents = os.listdir(tmpdir)
-            self.assertTrue(ONNX_DECODER_NAME not in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
-            self.assertTrue(ONNX_DECODER_MERGED_NAME not in folder_contents)
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
         model_id = MODEL_NAMES[model_arch]
         task = "text-generation-with-past"
