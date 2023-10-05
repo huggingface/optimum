@@ -16,7 +16,7 @@ import dataclasses
 import functools
 import inspect
 import types
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
 
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 from transformers.utils import is_torch_available
@@ -34,18 +34,6 @@ if TYPE_CHECKING:
     from .base import OnnxConfig
 
 logger = logging.get_logger(__name__)
-
-
-def get_argument(argument_name: str, args: List[Any], kwargs: Dict[str, Any], forward_signature):
-    """
-    Get the argument argument_name from the args and kwargs according to the signature forward_signature.
-    """
-    args = list(args)
-    if argument_name in forward_signature.parameters:
-        argument_index = list(forward_signature.parameters.keys()).index(argument_name)
-        return args[argument_index]
-    else:
-        return kwargs[argument_name]
 
 
 def override_arguments(args, kwargs, forward_signature, model_kwargs: Dict[str, Any]):

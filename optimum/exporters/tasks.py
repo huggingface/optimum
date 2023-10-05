@@ -1400,7 +1400,7 @@ class TasksManager:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
                 # conversational is not a supported task per se, just an alias that may map to
                 # text-generaton or text2text-generation.
-                if pipeline_tag is not None and pipeline_tag not in ["conversational"]:
+                if pipeline_tag is not None and pipeline_tag != "conversational":
                     inferred_task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
                 else:
                     transformers_info = model_info.transformersInfo
