@@ -102,7 +102,7 @@ class ModelPatcher:
         else:
             self.real_config = config
 
-        allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
+        allow_past_in_outputs = (hasattr(self.real_config, "use_past") and self.real_config.use_past)
 
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
@@ -215,8 +215,6 @@ class Seq2SeqModelPatcher(ModelPatcher):
                         # filterd_outputs[name] = tuple([v[:2] for v in value])
                         filterd_outputs[name] = value
             """
-
-            #print("filterd_outputs", filterd_outputs.keys())
 
             return outputs
 

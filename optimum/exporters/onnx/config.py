@@ -92,13 +92,13 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         if self.use_past_in_inputs:
-            common_inputs = {"input_ids": {0: "batch_size"}}
+            common_inputs = {"input_ids": {}}
             self.add_past_key_values(common_inputs, direction="inputs")
-            common_inputs["attention_mask"] = {0: "batch_size", 1: "past_sequence_length + 1"}
+            common_inputs["attention_mask"] = {}
         else:
             common_inputs = {
-                "input_ids": {0: "batch_size", 1: "sequence_length"},
-                "attention_mask": {0: "batch_size", 1: "sequence_length"},
+                "input_ids": {},
+                "attention_mask": {},
             }
         return common_inputs
 
@@ -109,7 +109,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         else:
             # in the merged case, we need to allow the `sequence_length` to be variable, as it is not 1
             # during the first pass without past key values
-            common_outputs = OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}})
+            common_outputs = OrderedDict({"logits": {}})
             self.add_past_key_values(common_outputs, direction="outputs")
         return common_outputs
 
@@ -165,9 +165,9 @@ class TextDecoderWithPositionIdsOnnxConfig(TextDecoderOnnxConfig):
         # https://github.com/huggingface/transformers/blob/v4.33.1/src/transformers/models/gpt2/modeling_gpt2.py#L802
         if not self.no_position_ids and self.task == "text-generation":
             if self.use_past_in_inputs:
-                common_inputs["position_ids"] = {0: "batch_size"}
+                common_inputs["position_ids"] = {}
             else:
-                common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+                common_inputs["position_ids"] = {}
 
         return common_inputs
 

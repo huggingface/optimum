@@ -369,6 +369,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         
         if self.task == "multiple-choice":
             shape = [self.batch_size, self.num_choices, self.sequence_length]
+
         return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework, dtype=int_dtype)
 
 

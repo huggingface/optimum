@@ -151,24 +151,23 @@ def validate_models_outputs(
             else output_dir.joinpath(model_name + ".onnx")
         )
         onnx_paths.append(onnx_model_path)
-        try:
-            # Model validation is done in subprocesses, as ONNX Runtime has the bad habit of
-            # not releasing memory once an InferenceSession is initialized.
-            # Reference: https://github.com/huggingface/optimum/pull/1115
-            validate_model_outputs(
-                config=sub_onnx_config,
-                reference_model=submodel,
-                onnx_model=onnx_model_path,
-                onnx_named_outputs=onnx_named_outputs[i],
-                atol=atol,
-                input_shapes=input_shapes,
-                device=device,
-                dtype=dtype,
-                use_subprocess=use_subprocess,
-                model_kwargs=model_kwargs,
-            )
-        except Exception as e:
-            exceptions.append(e)
+        # Model validation is done in subprocesses, as ONNX Runtime has the bad habit of
+        # not releasing memory once an InferenceSession is initialized.
+        # Reference: https://github.com/huggingface/optimum/pull/1115
+        validate_model_outputs(
+            config=sub_onnx_config,
+            reference_model=submodel,
+            onnx_model=onnx_model_path,
+            onnx_named_outputs=onnx_named_outputs[i],
+            atol=atol,
+            input_shapes=input_shapes,
+            device=device,
+            dtype=dtype,
+            use_subprocess=use_subprocess,
+            model_kwargs=model_kwargs,
+        )
+        #except Exception as e:
+        #    exceptions.append(e)
 
     if len(exceptions) != 0:
         for i, exception in enumerate(exceptions[:-1]):
@@ -571,7 +570,7 @@ def export_pytorch(
                     else:
                         print(name, type(inp))
                 
-                if config._behavior == "decoder":
+                if model.config.model_type == "whisper" and config._behavior == "decoder":
                     dummy_inputs = (dummy_inputs["decoder_input_ids"], dummy_inputs["decoder_attention_mask"], dummy_inputs["encoder_outputs"][0], dummy_inputs["past_key_values"], dummy_inputs["position_ids"])
 
                     model = torch.jit.trace(model, dummy_inputs)

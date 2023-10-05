@@ -581,11 +581,10 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     def outputs(self) -> Dict[str, Dict[int, str]]:
         #if not self.use_past_in_inputs:
         #    common_outputs = super().outputs
-        self.use_past_in_inputs = True
 
         # In the other cases, the sequence_length axis is not dynamic, always of length 1
         if self.task == "feature-extraction":
-            common_outputs = OrderedDict({"last_hidden_state": {0: "batch_size"}})
+            common_outputs = OrderedDict({"last_hidden_state": {}})
         else:
             common_outputs = OrderedDict({"logits": {}})
             
@@ -605,8 +604,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         dummy_inputs = {}
         input_names = [key for key in self.inputs.keys() if not key.startswith("past_key_values")]
 
-        print("self._behavior", self._behavior)
-        if self._behavior is not ConfigBehavior.ENCODER:
+        if self.use_past_in_inputs:
             input_names.append("past_key_values")
 
         for input_name in input_names:
@@ -627,30 +625,30 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 )
 
         # refer to https://github.com/huggingface/optimum/pull/764
-        if (
-            self.use_past_in_inputs
-            and self.PAD_ATTENTION_MASK_TO_PAST
-            and self.use_cache_branch is not False
-            and "attention_mask" in dummy_inputs
-        ):
-            # Obtain the past sequence length from the value instead of the key (Bloom).
-            past_length = dummy_inputs["past_key_values"][0][1].shape[-2]
+        # if (
+        #     self.use_past_in_inputs
+        #     and self.PAD_ATTENTION_MASK_TO_PAST
+        #     and self.use_cache_branch is not False
+        #     and "attention_mask" in dummy_inputs
+        # ):
+        #     # Obtain the past sequence length from the value instead of the key (Bloom).
+        #     past_length = dummy_inputs["past_key_values"][0][1].shape[-2]
 
-            dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
-                dummy_inputs["attention_mask"],
-                desired_length=past_length + 1,
-                dim=1,
-                dtype=dummy_inputs["attention_mask"].dtype,
-            )
+        #     dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
+        #         dummy_inputs["attention_mask"],
+        #         desired_length=past_length + 1,
+        #         dim=1,
+        #         dtype=dummy_inputs["attention_mask"].dtype,
+        #     )
 
-        if self.use_past_in_inputs and self.use_cache_branch is not False and "decoder_attention_mask" in dummy_inputs:
-            past_length = dummy_inputs["past_key_values"][0][0].shape[2]
-            dummy_inputs["decoder_attention_mask"] = DummyInputGenerator.pad_input_on_dim(
-                dummy_inputs["decoder_attention_mask"],
-                desired_length=past_length + 1,
-                dim=1,
-                dtype=dummy_inputs["decoder_attention_mask"].dtype,
-            )
+        # if self.use_past_in_inputs and self.use_cache_branch is not False and "decoder_attention_mask" in dummy_inputs:
+        #     past_length = dummy_inputs["past_key_values"][0][0].shape[2]
+        #     dummy_inputs["decoder_attention_mask"] = DummyInputGenerator.pad_input_on_dim(
+        #         dummy_inputs["decoder_attention_mask"],
+        #         desired_length=past_length + 1,
+        #         dim=1,
+        #         dtype=dummy_inputs["decoder_attention_mask"].dtype,
+        #     )
 
         return dummy_inputs
 
@@ -706,8 +704,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             name = "present"
 
         for i in range(self._normalized_config.num_layers):
-            inputs_or_outputs[f"{name}.{i}.key"] = {0: "batch_size", 2: decoder_sequence_name}
-            inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 2: decoder_sequence_name}
+            inputs_or_outputs[f"{name}.{i}.key"] = {}  # static shapes
+            inputs_or_outputs[f"{name}.{i}.value"] = {}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.key"] = t[0]
