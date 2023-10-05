@@ -348,11 +348,13 @@ def main_export(
         device=device,
         library_name=library_name,
     )
-    import torch
-    model = model.eval()
-    with torch.no_grad():
-        for i in range(len(model.model.decoder.layers)):
-            model.model.decoder.layers[i].encoder_attn = torch.jit.script(model.model.decoder.layers[i].encoder_attn)
+
+    if model.config.model_type == "whisper":
+        import torch
+        model = model.eval()
+        with torch.no_grad():
+            for i in range(len(model.model.decoder.layers)):
+                model.model.decoder.layers[i].encoder_attn = torch.jit.script(model.model.decoder.layers[i].encoder_attn)
 
     custom_architecture = False
     is_stable_diffusion = "stable-diffusion" in task
