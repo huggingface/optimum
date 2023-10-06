@@ -19,7 +19,9 @@ from typing import Any, Dict, Optional, Union
 from transformers import (
     AudioClassificationPipeline,
     AutoConfig,
+    AutoFeatureExtractor,
     AutomaticSpeechRecognitionPipeline,
+    AutoTokenizer,
     FeatureExtractionPipeline,
     FillMaskPipeline,
     ImageClassificationPipeline,
@@ -38,10 +40,8 @@ from transformers import (
     TranslationPipeline,
     ZeroShotClassificationPipeline,
 )
-from transformers import AutoTokenizer, AutoFeatureExtractor
 from transformers import pipeline as transformers_pipeline
 from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
-from transformers.onnx.utils import get_preprocessor
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
 from transformers.pipelines import infer_framework_load_model
 
