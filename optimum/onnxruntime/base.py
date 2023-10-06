@@ -218,9 +218,9 @@ class ORTDecoder(ORTModelPart):
             batch_size = input_ids.shape[0]
 
             if self.normalized_config.config.model_type in {"mistral", "llama"}:
-                num_attention_heads = self.normalized_config.num_attention_heads
-            else:
                 num_attention_heads = self.normalized_config.num_key_value_heads
+            else:
+                num_attention_heads = self.normalized_config.num_attention_heads
             embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
 
             dtype = constructor.float16 if self.use_fp16 else constructor.float32
@@ -282,9 +282,9 @@ class ORTDecoder(ORTModelPart):
         """
         batch_size = input_ids.size(0)
         if self.normalized_config.config.model_type in {"mistral", "llama"}:
-            num_attention_heads = self.normalized_config.num_attention_heads
-        else:
             num_attention_heads = self.normalized_config.num_key_value_heads
+        else:
+            num_attention_heads = self.normalized_config.num_attention_heads
         embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
 
         sequence_length = input_ids.size(1)
