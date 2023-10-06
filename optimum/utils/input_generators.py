@@ -922,8 +922,8 @@ class MistralDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         **kwargs,
     ):
         super().__init__(
-            task,
-            normalized_config,
+            task=task,
+            normalized_config=normalized_config,
             batch_size=batch_size,
             sequence_length=sequence_length,
             random_batch_size_range=random_batch_size_range,

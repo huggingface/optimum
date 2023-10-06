@@ -217,7 +217,7 @@ class ORTDecoder(ORTModelPart):
         if self.parent_model.use_merged and past_key_values is None:
             batch_size = input_ids.shape[0]
 
-            if self.normalized_config.config.model_type != "mistral":
+            if self.normalized_config.config.model_type in {"mistral", "llama"}:
                 num_attention_heads = self.normalized_config.num_attention_heads
             else:
                 num_attention_heads = self.normalized_config.num_key_value_heads
@@ -281,7 +281,7 @@ class ORTDecoder(ORTModelPart):
             `Dict[str, List[int]]`: The dictionary mapping each past key value output name to its corresponding shape.
         """
         batch_size = input_ids.size(0)
-        if self.normalized_config.config.model_type != "mistral":
+        if self.normalized_config.config.model_type in {"mistral", "llama"}:
             num_attention_heads = self.normalized_config.num_attention_heads
         else:
             num_attention_heads = self.normalized_config.num_key_value_heads
