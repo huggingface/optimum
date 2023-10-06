@@ -38,6 +38,7 @@ from transformers import (
     TranslationPipeline,
     ZeroShotClassificationPipeline,
 )
+from transformers import AutoTokenizer, AutoFeatureExtractor
 from transformers import pipeline as transformers_pipeline
 from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
 from transformers.onnx.utils import get_preprocessor
@@ -370,9 +371,9 @@ def pipeline(
     )
 
     if tokenizer is None and load_tokenizer:
-        tokenizer = get_preprocessor(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=use_fast, **kwargs)
     if feature_extractor is None and load_feature_extractor:
-        feature_extractor = get_preprocessor(model_id)
+        feature_extractor = AutoFeatureExtractor.from_pretrained(model_id, **kwargs)
 
     return transformers_pipeline(
         task,
