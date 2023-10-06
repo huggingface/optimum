@@ -1958,7 +1958,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [False, True],
-        "use_merged": [False, True],
     }
 
     ORTMODEL_CLASS = ORTModelForCausalLM
@@ -2030,10 +2029,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertNotIn(ONNX_WEIGHTS_NAME, folder_contents)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
+    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         use_io_binding = None
         if use_cache is False:
             use_io_binding = False
@@ -2042,7 +2038,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             "test_name": test_name,
             "model_arch": model_arch,
             "use_cache": use_cache,
-            "use_merged": use_merged,
         }
         self._setup(model_args)
 
@@ -2100,10 +2095,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
+    def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool):
         use_io_binding = None
         if use_cache is False:
             use_io_binding = False
@@ -2112,7 +2104,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             "test_name": test_name,
             "model_arch": model_arch,
             "use_cache": use_cache,
-            "use_merged": use_merged,
         }
         self._setup(model_args)
 
