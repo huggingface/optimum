@@ -1251,16 +1251,8 @@ class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
         self.norm_first = True
 
         self.original_layers_mapping = {
-            "in_proj_weight": [
-                "self_attn.q_proj.weight",
-                "self_attn.k_proj.weight",
-                "self_attn.v_proj.weight"
-                ],
-            "in_proj_bias": [
-                "self_attn.q_proj.bias",
-                "self_attn.k_proj.bias",
-                "self_attn.v_proj.bias"
-                ],
+            "in_proj_weight": ["self_attn.q_proj.weight", "self_attn.k_proj.weight", "self_attn.v_proj.weight"],
+            "in_proj_bias": ["self_attn.q_proj.bias", "self_attn.k_proj.bias", "self_attn.v_proj.bias"],
             "out_proj_weight": "self_attn.out_proj.weight",
             "out_proj_bias": "self_attn.out_proj.bias",
             "linear1_weight": "fc1.weight",
@@ -1272,7 +1264,7 @@ class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
             "norm2_weight": "final_layer_norm.weight",
             "norm2_bias": "final_layer_norm.bias",
         }
-        
+
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, attention_mask, output_attentions: bool, *_, **__):
@@ -1303,15 +1295,15 @@ class DetrEncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
                 self.linear2_bias,
                 attention_mask,
             )
-            
+
             if hidden_states.is_nested and self.is_last_layer:
                 hidden_states = hidden_states.to_padded_tensor(0.0)
-                
+
         else:
             raise NotImplementedError(
                 "Training and Autocast are not implemented for BetterTransformer + Detr. Please open an issue."
             )
-        
+
         return (hidden_states,)
 
 
