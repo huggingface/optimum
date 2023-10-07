@@ -38,7 +38,7 @@ from .encoder_models import (
     BartEncoderLayerBetterTransformer,
     BertLayerBetterTransformer,
     CLIPLayerBetterTransformer,
-    DetrEncoderLayerBetterTransformer
+    DetrEncoderLayerBetterTransformer,
     DistilBertLayerBetterTransformer,
     FSMTEncoderLayerBetterTransformer,
     MBartEncoderLayerBetterTransformer,

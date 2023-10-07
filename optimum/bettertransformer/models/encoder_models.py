@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
@@ -20,10 +19,6 @@ from transformers import PretrainedConfig
 from transformers.activations import ACT2FN
 
 from .base import BetterTransformerBaseLayer
-
-
-if TYPE_CHECKING:
-    from transformers import PretrainedConfig
 
 
 class AlbertLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
