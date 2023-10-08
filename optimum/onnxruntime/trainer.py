@@ -553,9 +553,13 @@ class ORTTrainer(Trainer):
 
         if self.is_deepspeed_enabled:
             if is_deepspeed_zero3_enabled():
-                raise NotImplementedError(
-                    "`ORTTrainer` does not support ZeRO stage 3 for the moment. Please use DeepSpeed stage 1 or 2 instead."
-                )
+                from onnxruntime import version as ort_version
+                if version.parse(ort_version) < version.parse("1.17.0"):
+                    raise NotImplementedError(
+                        "`ORTTrainer` does not support ZeRO stage 3 for the moment. Please use DeepSpeed stage 1 or 2 instead."
+                    )
+                else:
+                    os.environ["ORTMODULE_ENABLE_ZERO_STAGE3"] = '1'
             if args.bf16:
                 warnings.warn(
                     "ONNX Runtime doesn't support BF16 when executing some operators. The execution will fail if there are any"
