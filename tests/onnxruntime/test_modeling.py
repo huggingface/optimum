@@ -59,7 +59,7 @@ from transformers import (
 )
 from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
-from transformers.testing_utils import get_gpu_count, require_torch_gpu
+from transformers.testing_utils import get_gpu_count, require_torch_gpu, slow
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
 from optimum.exporters import TasksManager
@@ -832,11 +832,12 @@ class ORTModelIntegrationTest(unittest.TestCase):
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @parameterized.expand([(False,), (True,)])
+    @pytest.mark.run_slow
+    @slow
     def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
             model = ORTModelForCausalLM.from_pretrained(
-                MODEL_NAMES["gpt2"],
+                "gpt2-large",
                 use_cache=use_cache,
                 export=True,
                 use_merged=False,
@@ -847,14 +848,13 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # verify external data is exported
             folder_contents = os.listdir(tmpdirname)
             self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
-            # self.assertTrue(ONNX_WEIGHTS_NAME + "_data" in folder_contents)
+            self.assertTrue(ONNX_WEIGHTS_NAME + "_data" in folder_contents)
             self.assertFalse(use_cache ^ model.use_cache)
 
             # verify loading from local folder works
             model = ORTModelForCausalLM.from_pretrained(
                 tmpdirname, use_cache=use_cache, export=False, use_io_binding=False
             )
-            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @parameterized.expand([(False,), (True,)])
     def test_save_load_seq2seq_model_with_external_data(self, use_cache: bool):
