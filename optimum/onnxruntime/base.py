@@ -534,7 +534,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
     ) -> Dict[str, int]:
         batch_size = input_ids.size(0)
         num_attention_heads = self.normalized_config.num_attention_heads
-        embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
+        embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
 
         sequence_length = input_ids.size(1)
         encoder_sequence_length = encoder_hidden_states.size(1)
