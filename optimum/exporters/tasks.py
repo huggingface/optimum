@@ -656,6 +656,11 @@ class TasksManager:
         #     "automatic-speech-recognition",
         #     onnx="MCTCTOnnxConfig",
         # ),
+        "mistral": supported_tasks_mapping(
+            "text-generation",
+            "text-generation-with-past",
+            onnx="MistralOnnxConfig",
+        ),
         "mobilebert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",

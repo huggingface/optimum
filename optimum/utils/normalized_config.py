@@ -254,6 +254,7 @@ class NormalizedConfigManager:
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
         "mpt": MPTNormalizedTextConfig,
+        "mistral": NormalizedTextConfig,
     }
 
     @classmethod
