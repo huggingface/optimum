@@ -34,6 +34,7 @@ from ...utils import (
     DummyVisionEmbeddingsGenerator,
     DummyVisionInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
+    MistralDummyPastKeyValuesGenerator,
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
@@ -229,6 +230,8 @@ class OPTOnnxConfig(TextDecoderOnnxConfig):
 
 
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
@@ -236,6 +239,16 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
     ) -> "ModelPatcher":
         return LlamaModelPatcher(self, model, model_kwargs=model_kwargs)
+
+
+class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
+    DEFAULT_ONNX_OPSET = 14
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        MistralDummyPastKeyValuesGenerator,
+    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
 
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):

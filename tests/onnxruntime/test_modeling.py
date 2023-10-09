@@ -1952,6 +1952,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "gpt_neox",
         "gptj",
         "llama",
+        "mistral",
         "mpt",
     ]
 
@@ -2113,7 +2114,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             use_cache=use_cache,
             use_io_binding=use_io_binding,
         )
-
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live"
@@ -2177,7 +2177,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             )
 
             tokenizer = get_preprocessor(model_id)
-
             # build engine for a short sequence
             text = ["short"]
             encoded_input = tokenizer(

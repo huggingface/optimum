@@ -201,6 +201,10 @@ BACKENDS_MAPPING = OrderedDict(
             "transformers_432",
             (lambda: check_if_transformers_greater("4.32"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.32")),
         ),
+        (
+            "transformers_434",
+            (lambda: check_if_transformers_greater("4.34"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.34")),
+        ),
     ]
 )
 
