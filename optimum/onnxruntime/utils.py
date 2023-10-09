@@ -121,6 +121,7 @@ class ORTConfigManager:
         "llama": "gpt2",
         "marian": "bart",
         "mbart": "bart",
+        "mistral": "gpt2",
         "mt5": "bart",
         "m2m-100": "bart",
         "nystromformer": "bert",

@@ -1955,6 +1955,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "gpt_neox",
         "gptj",
         "llama",
+        "mistral",
         "mpt",
     ]
 
@@ -2084,10 +2085,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         transformers_model = AutoModelForCausalLM.from_pretrained(model_id)
         transformers_model = transformers_model.eval()
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(
-            "This is a sample output",
-            return_tensors="pt",
-        )
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
         position_ids = None
         if model_arch.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
             input_shape = tokens["input_ids"].shape
@@ -2146,7 +2144,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             use_cache=use_cache,
             use_io_binding=use_io_binding,
         )
-
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live"
@@ -2210,7 +2207,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             )
 
             tokenizer = get_preprocessor(model_id)
-
             # build engine for a short sequence
             text = ["short"]
             encoded_input = tokenizer(
