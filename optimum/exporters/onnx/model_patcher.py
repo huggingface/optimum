@@ -358,10 +358,7 @@ class CausalAttentionMaskModelPatcher(ModelPatcher):
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
-
         self.patch = self.real_config.task == "text-generation" and self.real_config.use_past
-        if self.patch:
-            self._orig_func = getattr(self._model_to_patch, self._orig_func_name)
 
     def __enter__(self):
         super().__enter__()
@@ -381,10 +378,12 @@ class BloomModelPatcher(CausalAttentionMaskModelPatcher):
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        self._model_to_patch = model.transformer
-        self._patch_func = _prepare_attn_mask
-        self._orig_func_name = "_prepare_attn_mask"
         super().__init__(config, model, model_kwargs)
+        if self.patch:
+            self._model_to_patch = model.transformer
+            self._patch_func = _prepare_attn_mask
+            self._orig_func_name = "_prepare_attn_mask"
+            self._orig_func = self._model_to_patch._prepare_attn_mask
 
 
 class OPTModelPatcher(CausalAttentionMaskModelPatcher):
@@ -394,10 +393,13 @@ class OPTModelPatcher(CausalAttentionMaskModelPatcher):
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        self._model_to_patch = model.model.decoder
-        self._patch_func = _prepare_decoder_attention_mask
-        self._orig_func_name = "_prepare_decoder_attention_mask"
         super().__init__(config, model, model_kwargs)
+
+        if self.patch:
+            self._model_to_patch = model.model.decoder
+            self._patch_func = _prepare_decoder_attention_mask
+            self._orig_func_name = "_prepare_decoder_attention_mask"
+            self._orig_func = self._model_to_patch._prepare_decoder_attention_mask
 
 
 class LlamaModelPatcher(CausalAttentionMaskModelPatcher):
@@ -407,10 +409,13 @@ class LlamaModelPatcher(CausalAttentionMaskModelPatcher):
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        self._model_to_patch = model.model
-        self._patch_func = _prepare_decoder_attention_mask
-        self._orig_func_name = "_prepare_decoder_attention_mask"
         super().__init__(config, model, model_kwargs)
+
+        if self.patch:
+            self._model_to_patch = model.model
+            self._patch_func = _prepare_decoder_attention_mask
+            self._orig_func_name = "_prepare_decoder_attention_mask"
+            self._orig_func = self._model_to_patch._prepare_decoder_attention_mask
 
 
 class MistralModelPatcher(CausalAttentionMaskModelPatcher):
@@ -420,10 +425,13 @@ class MistralModelPatcher(CausalAttentionMaskModelPatcher):
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        self._model_to_patch = model.model
-        self._patch_func = _prepare_decoder_sliding_window_attention_mask
-        self._orig_func_name = "_prepare_decoder_attention_mask"
         super().__init__(config, model, model_kwargs)
+
+        if self.patch:
+            self._model_to_patch = model.model
+            self._patch_func = _prepare_decoder_sliding_window_attention_mask
+            self._orig_func_name = "_prepare_decoder_attention_mask"
+            self._orig_func = self._model_to_patch._prepare_decoder_attention_mask
 
 
 class BartModelPatcher(CausalAttentionMaskModelPatcher, Seq2SeqModelPatcher):
@@ -433,7 +441,10 @@ class BartModelPatcher(CausalAttentionMaskModelPatcher, Seq2SeqModelPatcher):
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        self._model_to_patch = model.model.decoder
-        self._patch_func = _prepare_decoder_attention_mask
-        self._orig_func_name = "_prepare_decoder_attention_mask"
         super().__init__(config, model, model_kwargs)
+
+        if self.patch:
+            self._model_to_patch = model.model.decoder
+            self._patch_func = _prepare_decoder_attention_mask
+            self._orig_func_name = "_prepare_decoder_attention_mask"
+            self._orig_func = self._model_to_patch._prepare_decoder_attention_mask

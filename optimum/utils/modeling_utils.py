@@ -154,7 +154,7 @@ def _prepare_decoder_sliding_window_attention_mask(
     past_key_values_length: int,
     sliding_window: int,
 ):
-    from transformers.models.mistral.modeling_mistral import _make_sliding_window_causal_mask, _expand_mask
+    from transformers.models.mistral.modeling_mistral import _expand_mask, _make_sliding_window_causal_mask
 
     # create causal mask
     # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
