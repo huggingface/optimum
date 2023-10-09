@@ -1955,6 +1955,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "gpt_neox",
         "gptj",
         "llama",
+        "mistral",
         "mpt",
     ]
 
