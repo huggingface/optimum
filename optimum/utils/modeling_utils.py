@@ -24,6 +24,7 @@ MODEL_TO_PATCH_FOR_PAST = {
     "blenderbot-small",
     "bloom",
     "llama",
+    "mistral",
     "mpt",
     "opt",
     "pegasus",
@@ -130,6 +131,41 @@ def _prepare_decoder_attention_mask(
         device=inputs_embeds.device,
         past_key_values_length=past_key_values_length,
         dtype=inputs_embeds.dtype,
+    )
+
+    if attention_mask is not None:
+        # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+        expanded_attn_mask = _expand_mask(attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1]).to(
+            inputs_embeds.device
+        )
+        combined_attention_mask = (
+            expanded_attn_mask if combined_attention_mask is None else expanded_attn_mask + combined_attention_mask
+        )
+
+    return combined_attention_mask
+
+
+# Modified from transformers.models.mistral.modeling_mistral._prepare_decoder_sliding_window_attention_mask
+def _prepare_decoder_sliding_window_attention_mask(
+    self,
+    attention_mask: torch.Tensor,
+    input_shape: Tuple[int, int],
+    inputs_embeds: torch.Tensor,
+    past_key_values_length: int,
+    sliding_window: int,
+):
+    from transformers.models.mistral.modeling_mistral import _make_sliding_window_causal_mask, _expand_mask
+
+    # create causal mask
+    # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+    combined_attention_mask = None
+
+    combined_attention_mask = _make_sliding_window_causal_mask(
+        input_shape,
+        device=inputs_embeds.device,
+        dtype=inputs_embeds.dtype,
+        past_key_values_length=past_key_values_length,
+        sliding_window=sliding_window,
     )
 
     if attention_mask is not None:
