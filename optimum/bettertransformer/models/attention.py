@@ -695,6 +695,7 @@ def gpt_bigcode_wrapped_scaled_dot_product(
     # MHA models: (batch_size, num_heads, query_length, head_dim)
     query_shape = query.shape
     batch_size = query_shape[0]
+    kv_seq_len = key.shape[-2]
 
     if self.multi_query:
         query_length = query_shape[1]
