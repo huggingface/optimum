@@ -747,7 +747,7 @@ def gpt_bigcode_wrapped_scaled_dot_product(
         is_causal = True
 
     sdpa_result = torch.nn.functional.scaled_dot_product_attention(
-        query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=is_causal
+        query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal
     )
 
     if self.multi_query:
