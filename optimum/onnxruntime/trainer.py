@@ -788,7 +788,8 @@ class ORTTrainer(Trainer):
                             model.clip_grad_norm_(args.max_grad_norm)
                         else:
                             self.accelerator.clip_grad_norm_(
-                                model.parameters(), args.max_grad_norm,
+                                model.parameters(),
+                                args.max_grad_norm,
                             )
 
                     # Optimizer step
