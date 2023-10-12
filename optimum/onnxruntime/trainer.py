@@ -213,17 +213,16 @@ class ORTTrainer(Trainer):
     def __init__(
         self,
         model: Union[PreTrainedModel, nn.Module] = None,
-        tokenizer: Optional[PreTrainedTokenizerBase] = None,
         args: ORTTrainingArguments = None,
         data_collator: Optional[DataCollator] = None,
         train_dataset: Optional[Dataset] = None,
         eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
+        tokenizer: Optional[PreTrainedTokenizerBase] = None,
         model_init: Optional[Callable[[], PreTrainedModel]] = None,
         compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
         preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
-        onnx_model_path: Union[str, os.PathLike] = None,
     ):
         super().__init__(
             model=model,
@@ -249,8 +248,6 @@ class ORTTrainer(Trainer):
 
         self.model = model
 
-        self.onnx_model_path = onnx_model_path
-        self.exported_with_loss = False
         if self.args.local_rank:
             torch.cuda.set_device(self.args.local_rank)
 

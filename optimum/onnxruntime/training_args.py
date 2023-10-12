@@ -139,8 +139,9 @@ class ORTTrainingArguments(TrainingArguments):
         if self.load_best_model_at_end:
             if self.evaluation_strategy != self.save_strategy:
                 raise ValueError(
-                    "--load_best_model_at_end requires the save and eval strategy to match, but found\n- Evaluation "
-                    f"strategy: {self.evaluation_strategy}\n- Save strategy: {self.save_strategy}"
+                    "--load_best_model_at_end requires the saving steps to be a multiple of the evaluation "
+                    "steps, which cannot get guaranteed when mixing ratio and absolute steps for save_steps "
+                    f"{self.save_steps} and eval_steps {self.eval_steps}."
                 )
             if self.evaluation_strategy == IntervalStrategy.STEPS and self.save_steps % self.eval_steps != 0:
                 if self.eval_steps < 1 or self.save_steps < 1:
@@ -191,14 +192,15 @@ class ORTTrainingArguments(TrainingArguments):
                 self.half_precision_backend = self.fp16_backend
 
             if self.bf16 or self.bf16_full_eval:
-                if self.no_cuda and not is_torch_bf16_cpu_available():
+                if self.use_cpu and not is_torch_bf16_cpu_available():
                     # cpu
                     raise ValueError("Your setup doesn't support bf16/(cpu, tpu, neuroncore). You need torch>=1.10")
-                elif not self.no_cuda and torch.cuda.is_available() and not is_torch_bf16_gpu_available():
-                    # gpu
-                    raise ValueError(
-                        "Your setup doesn't support bf16/gpu. You need torch>=1.10, using Ampere GPU with cuda>=11.0"
-                    )
+                elif not self.use_cpu:
+                    if torch.cuda.is_available() and not is_torch_bf16_gpu_available():
+                        # gpu
+                        raise ValueError(
+                            "Your setup doesn't support bf16/gpu. You need torch>=1.10, using Ampere GPU with cuda>=11.0"
+                        )
 
         if self.fp16 and self.bf16:
             raise ValueError("At most one of fp16 and bf16 can be True, but not both")
@@ -307,7 +309,7 @@ class ORTTrainingArguments(TrainingArguments):
                 # no need to assert on else
 
         # if training args is specified, it will override the one specified in the accelerate config
-        if self.half_precision_backend != "apex" and len(self.sharded_ddp) == 0:
+        if self.half_precision_backend != "apex":
             mixed_precision_dtype = os.environ.get("ACCELERATE_MIXED_PRECISION", "no")
             if self.fp16:
                 mixed_precision_dtype = "fp16"
