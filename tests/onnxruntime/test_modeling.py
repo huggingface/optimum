@@ -63,7 +63,7 @@ from transformers.testing_utils import get_gpu_count, require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
 from optimum.exporters import TasksManager
-from optimum.exporters.onnx import main_export
+from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import (
     ONNX_DECODER_MERGED_NAME,
@@ -357,12 +357,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         if not is_onnxruntime_gpu_installed:
             for provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
-                with self.assertRaises(ImportError) as cm:
+                with self.assertRaises(ValueError) as cm:
                     _ = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider=provider)
 
-                self.assertTrue(
-                    f"Asked to use {provider}, but `onnxruntime-gpu` package was not found." in str(cm.exception)
-                )
+            self.assertTrue("but the available execution providers" in str(cm.exception))
+
         else:
             logger.info("Skipping CUDAExecutionProvider/TensorrtExecutionProvider without `onnxruntime-gpu` test")
 
@@ -370,12 +369,10 @@ class ORTModelIntegrationTest(unittest.TestCase):
         # thus overwritting onnxruntime/capi/_ld_preload.py
         if is_onnxruntime_installed and is_onnxruntime_gpu_installed:
             for provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
-                with self.assertRaises(ImportError) as cm:
+                with self.assertRaises(ValueError) as cm:
                     _ = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider=provider)
 
-                self.assertTrue(
-                    "`onnxruntime-gpu` is installed, but GPU dependencies are not loaded." in str(cm.exception)
-                )
+                self.assertTrue("but the available execution providers" in str(cm.exception))
         else:
             logger.info("Skipping double onnxruntime + onnxruntime-gpu install test")
 
@@ -1042,6 +1039,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
         tokenizer = AutoTokenizer.from_pretrained(model_id)
 
         inputs = tokenizer("My name is", return_tensors="pt")
+
+        input_shape = inputs["input_ids"].shape
+        inputs["position_ids"] = (
+            torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).view(-1, input_shape[-1])
+        )
 
         with torch.inference_mode():
             pt_logits = pt_model(**inputs).logits
@@ -1953,6 +1955,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "gpt_neox",
         "gptj",
         "llama",
+        "mistral",
         "mpt",
     ]
 
@@ -1995,32 +1998,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"], export=True)
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name])
-        tokenizer = get_preprocessor(model_id)
-        text = "This is a sample output"
-        tokens = tokenizer(text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None)
-
-        # General case
-        outputs = model.generate(**tokens)
-        res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-        self.assertIsInstance(res[0], str)
-        self.assertTrue(len(res[0]) > len(text))
-
-        # With input ids
-        tokens = tokenizer(text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None)
-        outputs = model.generate(input_ids=tokens["input_ids"])
-        res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-        self.assertIsInstance(res[0], str)
-        self.assertTrue(len(res[0]) > len(text))
-
-        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
@@ -2106,13 +2083,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         set_seed(SEED)
         transformers_model = AutoModelForCausalLM.from_pretrained(model_id)
+        transformers_model = transformers_model.eval()
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(
-            "This is a sample output",
-            return_tensors="pt",
-            return_token_type_ids=False if model_arch == "llama" else None,
-        )
-        onnx_outputs = onnx_model(**tokens)
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        position_ids = None
+        if model_arch.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
+            input_shape = tokens["input_ids"].shape
+            position_ids = torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).view(-1, input_shape[-1])
+        onnx_outputs = onnx_model(**tokens, position_ids=position_ids)
 
         self.assertTrue("logits" in onnx_outputs)
         self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
@@ -2122,6 +2100,24 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         # compare tensor outputs
         self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+
+        # Compare batched generation.
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+        tokenizer.padding_side = "left"
+        tokens = tokenizer(["Today is a nice day and I am longer", "This is me"], return_tensors="pt", padding=True)
+        onnx_model.generation_config.eos_token_id = None
+        transformers_model.generation_config.eos_token_id = None
+        onnx_model.config.eos_token_id = None
+        transformers_model.config.eos_token_id = None
+
+        onnx_outputs = onnx_model.generate(
+            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30, eos_token_id=None
+        )
+        transformers_outputs = transformers_model.generate(
+            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30, eos_token_id=None
+        )
+
+        self.assertTrue(torch.allclose(onnx_outputs, transformers_outputs))
 
         gc.collect()
 
@@ -2148,7 +2144,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             use_cache=use_cache,
             use_io_binding=use_io_binding,
         )
-
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live"
@@ -2212,7 +2207,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             )
 
             tokenizer = get_preprocessor(model_id)
-
             # build engine for a short sequence
             text = ["short"]
             encoded_input = tokenizer(
@@ -2353,8 +2347,16 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
-        onnx_outputs = onnx_model(**tokens)
-        io_outputs = io_model(**tokens)
+
+        position_ids = None
+        if model_arch.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
+            input_shape = tokens["input_ids"].shape
+            position_ids = (
+                torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).expand(2, input_shape[-1]).to("cuda")
+            )
+
+        onnx_outputs = onnx_model(**tokens, position_ids=position_ids)
+        io_outputs = io_model(**tokens, position_ids=position_ids)
 
         self.assertTrue("logits" in io_outputs)
         self.assertIsInstance(io_outputs.logits, torch.Tensor)

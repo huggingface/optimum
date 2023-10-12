@@ -65,6 +65,19 @@ if TYPE_CHECKING:
         from diffusers import ModelMixin, StableDiffusionPipeline
 
 
+MODEL_TYPES_REQUIRING_POSITION_IDS = {
+    "codegen",
+    "gpt2",
+    "gpt-bigcode",
+    "gpt-neo",
+    "gpt-neox",
+    "gptj",
+    "imagegpt",
+    "llama",
+    "mistral",
+}
+
+
 def check_onnxruntime_requirements(minimum_version: version.Version):
     """
     Checks that ONNX Runtime is installed and if version is recent enough.
@@ -198,11 +211,11 @@ def get_encoder_decoder_models_for_export(
     encoder_onnx_config = config.with_behavior("encoder")
     models_for_export[ONNX_ENCODER_NAME] = (models_for_export[ONNX_ENCODER_NAME], encoder_onnx_config)
 
-    decoder_onnx_config = config.with_behavior("decoder", use_past=False)
+    decoder_onnx_config = config.with_behavior("decoder", use_past=config.use_past, use_past_in_inputs=False)
     models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], decoder_onnx_config)
 
     if config.use_past:
-        decoder_onnx_config_with_past = config.with_behavior("decoder", use_past=True)
+        decoder_onnx_config_with_past = config.with_behavior("decoder", use_past=True, use_past_in_inputs=True)
         models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
             models_for_export[ONNX_DECODER_WITH_PAST_NAME],
             decoder_onnx_config_with_past,
@@ -235,19 +248,24 @@ def get_decoder_models_for_export(
     """
     models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past)
 
+    onnx_kwargs = {"task": config.task, "float_dtype": config.float_dtype, "int_dtype": config.int_dtype}
+    if model.config.model_type.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
+        onnx_kwargs["no_position_ids"] = config.no_position_ids
+
     onnx_config = config.__class__(
         model.config,
-        task=config.task,
+        use_past=config.use_past,
         use_past_in_inputs=False,
-        use_present_in_outputs=True,
-        float_dtype=config.float_dtype,
-        int_dtype=config.int_dtype,
+        **onnx_kwargs,
     )
     models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], onnx_config)
 
     if config.use_past:
         onnx_config_with_past = config.__class__(
-            model.config, task=config.task, use_past=True, float_dtype=config.float_dtype, int_dtype=config.int_dtype
+            model.config,
+            use_past=True,
+            use_past_in_inputs=True,
+            **onnx_kwargs,
         )
         models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
             models_for_export[ONNX_DECODER_WITH_PAST_NAME],

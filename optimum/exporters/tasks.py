@@ -65,9 +65,9 @@ def is_backend_available(backend):
 
 def make_backend_config_constructor_for_task(config_cls: Type, task: str) -> ExportConfigConstructor:
     if "-with-past" in task:
-        if not hasattr(config_cls, "with_past"):
+        if not getattr(config_cls, "SUPPORTS_PAST", False):
             raise ValueError(f"{config_cls} does not support tasks with past.")
-        constructor = partial(config_cls.with_past, task=task.replace("-with-past", ""))
+        constructor = partial(config_cls, use_past=True, task=task.replace("-with-past", ""))
     else:
         constructor = partial(config_cls, task=task)
     return constructor
@@ -649,6 +649,14 @@ class TasksManager:
             "text-classification",
             "question-answering",
             onnx="MBartOnnxConfig",
+        ),
+        "mistral": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            # "text-classification",
+            onnx="MistralOnnxConfig",
         ),
         # TODO: enable once the missing operator is supported.
         # "mctct": supported_tasks_mapping(

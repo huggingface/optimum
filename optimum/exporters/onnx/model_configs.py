@@ -34,6 +34,7 @@ from ...utils import (
     DummyVisionEmbeddingsGenerator,
     DummyVisionInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
+    MistralDummyPastKeyValuesGenerator,
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
@@ -50,6 +51,7 @@ from .config import (
     EncoderDecoderBaseOnnxConfig,
     TextAndVisionOnnxConfig,
     TextDecoderOnnxConfig,
+    TextDecoderWithPositionIdsOnnxConfig,
     TextEncoderOnnxConfig,
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
@@ -172,7 +174,7 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
     pass
 
 
-class GPT2OnnxConfig(TextDecoderOnnxConfig):
+class GPT2OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
@@ -199,27 +201,41 @@ class ImageGPTOnnxConfig(GPT2OnnxConfig):
     pass
 
 
-class GPTNeoOnnxConfig(TextDecoderOnnxConfig):
+class GPTNeoOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
 
-class GPTNeoXOnnxConfig(TextDecoderOnnxConfig):
+class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
 class OPTOnnxConfig(TextDecoderOnnxConfig):
+    # OPT does not require position_ids input.
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
-class LlamaOnnxConfig(TextDecoderOnnxConfig):
+class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+
+class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
+    DEFAULT_ONNX_OPSET = 14
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        MistralDummyPastKeyValuesGenerator,
+    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
 
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):
+    # MPT does not require position_ids input.
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
@@ -227,6 +243,7 @@ class MPTOnnxConfig(TextDecoderOnnxConfig):
 
 
 class BloomOnnxConfig(TextDecoderOnnxConfig):
+    # Bloom does not require position_ids input.
     DUMMY_INPUT_GENERATOR_CLASSES = (
         BloomDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
@@ -258,7 +275,7 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
             }
 
 
-class GPTBigCodeOnnxConfig(TextDecoderOnnxConfig):
+class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         GPTBigCodeDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
@@ -490,7 +507,8 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             common_outputs = super().outputs
         else:
             common_outputs = super(OnnxConfigWithPast, self).outputs
-            if self.use_present_in_outputs:
+            if self.use_past:
+                # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
                 for i in range(self._normalized_config.encoder_num_layers):
                     common_outputs[f"present.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
                     common_outputs[f"present.{i}.value"] = {
@@ -1223,8 +1241,7 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         use_past: bool = False,
-        use_past_in_inputs: Optional[bool] = None,
-        use_present_in_outputs: Optional[bool] = None,
+        use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: Optional[List[Any]] = None,
     ):
@@ -1235,17 +1252,14 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
             float_dtype=float_dtype,
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
-            use_present_in_outputs=use_present_in_outputs,
             behavior=behavior,
             preprocessors=preprocessors,
         )
 
-        # TODO: Check modeling code to fix the issue with use_cache for trocr
-        if config.decoder.model_type == "trocr":
-            if self.use_past_in_inputs:
-                raise ValueError("Exporting past key values is not supported with TrOCR model!")
-
-            self.use_present_in_outputs = False
+        if config.decoder.model_type == "trocr" and use_past:
+            raise ValueError(
+                "Exporting TrOCR to ONNX with past key values is not supported with TrOCR model. Please open an issue in Optimum repository."
+            )
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1405,7 +1419,8 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
                     new_axes_names[axis_idx] = axis_name
             common_outputs[name] = new_axes_names
 
-        if self.use_present_in_outputs:
+        if self.use_past:
+            # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
             self.add_past_key_values(common_outputs, direction="outputs")
 
         return common_outputs
@@ -1471,16 +1486,13 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
         # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
         if (
-            self.use_past is True
+            self.use_past
+            and self.use_past_in_inputs
             and self.use_cache_branch is not False
             and input_name in ["decoder_input_ids", "input_ids"]
         ):
             sequence_length = dummy_input_gen.sequence_length
-            if "sequence_length" in input_shapes and input_shapes["sequence_length"] != 1:
-                logger.info(
-                    f"Asked a sequence length of {input_shapes['sequence_length']}, but a sequence length of 1 "
-                    f"will be used with use_past == True for `{input_name}`."
-                )
+            # Use a sequence length of 1 when the KV cache is already populated.
             dummy_input_gen.sequence_length = 1
             dummy_input = dummy_input_gen.generate(
                 input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype

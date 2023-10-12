@@ -31,6 +31,7 @@ from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES
 
 from optimum.exporters import TasksManager
+from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS
 from optimum.onnxruntime import (
     AutoOptimizationConfig,
     ORTConfig,
@@ -115,8 +116,15 @@ class ORTOptimizerTest(unittest.TestCase):
             self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
 
             tokens = tokenizer("This is a sample input", return_tensors="pt")
-            model_outputs = model(**tokens)
-            optimized_model_outputs = optimized_model(**tokens)
+            position_ids = None
+            if model.config.model_type.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
+                input_shape = tokens["input_ids"].shape
+                position_ids = (
+                    torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).view(-1, input_shape[-1])
+                )
+
+            model_outputs = model(**tokens, position_ids=position_ids)
+            optimized_model_outputs = optimized_model(**tokens, position_ids=position_ids)
 
             # Compare tensors outputs
             self.assertTrue(torch.allclose(model_outputs.logits, optimized_model_outputs.logits, atol=1e-4))

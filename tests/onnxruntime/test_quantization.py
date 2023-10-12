@@ -19,7 +19,9 @@ from functools import partial
 from pathlib import Path
 
 from onnx import load as onnx_load
+from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+from packaging.version import Version, parse
 from parameterized import parameterized
 from transformers import AutoTokenizer
 
@@ -112,9 +114,9 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
             self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
             gc.collect()
 
+    @unittest.skipIf(parse(ort_version) == Version("1.16.0"), "not supported with this onnxruntime version")
     def test_dynamic_quantization_subgraphs(self):
         qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=True)
-        # with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_dir = tempfile.mkdtemp()
         output_dir = Path(tmp_dir)
         model = ORTModelForCausalLM.from_pretrained(

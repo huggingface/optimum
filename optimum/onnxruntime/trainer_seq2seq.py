@@ -570,7 +570,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         has_labels = "labels" in inputs
         inputs = self._prepare_inputs(inputs)
 
-        # XXX: adapt synced_gpus for fairscale as well
         # Priority (handled in generate):
         # non-`None` gen_kwargs > model.generation_config > default GenerationConfig()
         if len(gen_kwargs) == 0 and hasattr(self, "_gen_kwargs"):
@@ -680,7 +679,6 @@ class ORTSeq2SeqTrainer(ORTTrainer):
         has_labels = "labels" in inputs
         inputs = self._prepare_inputs(inputs)
 
-        # XXX: adapt synced_gpus for fairscale as well
         # Priority (handled in generate):
         # non-`None` gen_kwargs > model.generation_config > default GenerationConfig()
         if len(gen_kwargs) == 0 and hasattr(self, "_gen_kwargs"):

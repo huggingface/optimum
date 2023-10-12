@@ -54,9 +54,6 @@ if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
 
 
-mp.set_start_method("spawn", force=True)
-
-
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
@@ -217,6 +214,9 @@ def validate_model_outputs(
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
     if use_subprocess:
+        # InferenceSession do not support the fork start method with some EP: https://github.com/microsoft/onnxruntime/issues/7846
+        mp.set_start_method("spawn", force=True)
+
         io_process = ValidationProcess(
             config, reference_model, onnx_model, onnx_named_outputs, atol, input_shapes, device, dtype, model_kwargs
         )

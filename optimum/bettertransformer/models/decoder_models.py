@@ -44,7 +44,7 @@ if check_if_transformers_greater("4.31"):
 else:
     from ...utils.dummy_bettertransformer_objects import BarkSelfAttention
 
-if check_if_transformers_greater("4.32"):
+if check_if_transformers_greater("4.34"):
     from transformers.models.falcon.modeling_falcon import FalconAttention
 else:
     from ...utils.dummy_bettertransformer_objects import FalconAttention

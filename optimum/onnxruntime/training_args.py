@@ -29,7 +29,6 @@ from transformers.trainer_utils import (
     HubStrategy,
     IntervalStrategy,
     SchedulerType,
-    ShardedDDPOption,
 )
 from transformers.training_args import OptimizerNames, default_logdir, logger
 from transformers.utils import (
@@ -213,8 +212,6 @@ class ORTTrainingArguments(TrainingArguments):
                     " `--half_precision_backend apex`: GPU bf16 is not supported by apex. Use"
                     " `--half_precision_backend cuda_amp` instead"
                 )
-            if not (self.sharded_ddp == "" or not self.sharded_ddp):
-                raise ValueError("sharded_ddp is not supported with bf16")
 
         if self.lr_scheduler_type == SchedulerType.REDUCE_ON_PLATEAU:
             if self.evaluation_strategy == IntervalStrategy.NO:
@@ -342,26 +339,6 @@ class ORTTrainingArguments(TrainingArguments):
                 "Both warmup_ratio and warmup_steps given, warmup_steps will override any effect of warmup_ratio"
                 " during training"
             )
-
-        if not (self.sharded_ddp == "" or not self.sharded_ddp):
-            warnings.warn(
-                "using `sharded_ddp` is deprecated and will be removed in version 4.33"
-                " of 🤗 Transformers. Use `fsdp` instead",
-                FutureWarning,
-            )
-        if isinstance(self.sharded_ddp, bool):
-            self.sharded_ddp = "simple" if self.sharded_ddp else ""
-        if isinstance(self.sharded_ddp, str):
-            self.sharded_ddp = [ShardedDDPOption(s) for s in self.sharded_ddp.split()]
-        if self.sharded_ddp == [ShardedDDPOption.OFFLOAD]:
-            raise ValueError(
-                "`--sharded_ddp offload` can't work on its own. It needs to be added to `--sharded_ddp zero_dp_2` or "
-                '`--sharded_ddp zero_dp_3`. For example, `--sharded_ddp "zero_dp_2 offload"`.'
-            )
-        elif len(self.sharded_ddp) > 1 and ShardedDDPOption.SIMPLE in self.sharded_ddp:
-            raise ValueError("`--sharded_ddp simple` is not compatible with any other option.")
-        elif ShardedDDPOption.ZERO_DP_2 in self.sharded_ddp and ShardedDDPOption.ZERO_DP_3 in self.sharded_ddp:
-            raise ValueError("`--sharded_ddp zero_dp_2` is not compatible with `--sharded_ddp zero_dp_3`.")
 
         if isinstance(self.fsdp, bool):
             self.fsdp = "full_shard" if self.fsdp else ""
@@ -544,3 +521,20 @@ class ORTTrainingArguments(TrainingArguments):
                 f"{self.hub_model_id}).",
                 FutureWarning,
             )
+
+        # if training args is specified, it will override the one specified in the accelerate config
+        if self.half_precision_backend != "apex":
+            mixed_precision_dtype = os.environ.get("ACCELERATE_MIXED_PRECISION", "no")
+            if self.fp16:
+                mixed_precision_dtype = "fp16"
+            elif self.bf16:
+                mixed_precision_dtype = "bf16"
+            os.environ["ACCELERATE_MIXED_PRECISION"] = mixed_precision_dtype
+
+        if self.use_module_with_loss is True:
+            logger.info(
+                "Using ModuleWithLoss Wrapper."
+                "loss will be computed during training loop and it will save memory peak "
+            )
+        else:
+            logger.info("Not Using ModuleWithLoss Wrapper.")
