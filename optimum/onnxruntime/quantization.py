@@ -115,7 +115,7 @@ class ORTQuantizer(OptimumQuantizer):
         file_name: Optional[str] = None,
     ) -> "ORTQuantizer":
         """
-        Instantiates a `ORTQuantizer` from a an ONNX model file or an `ORTModel`.
+        Instantiates a `ORTQuantizer` from an ONNX model file or an `ORTModel`.
 
         Args:
             model_or_path (`Union[ORTModel, str, Path]`):
