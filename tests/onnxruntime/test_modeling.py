@@ -1239,7 +1239,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         "flaubert",
         "ibert",
         "mobilebert",
-        # "perceiver",
+        "perceiver_text",
         "roberta",
         "roformer",
         "squeezebert",
@@ -1247,10 +1247,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         "xlm_roberta",
     ]
 
-    ARCH_MODEL_MAP = {
-        # TODO: fix non passing test
-        # "perceiver": "hf-internal-testing/tiny-random-language_perceiver",
-    }
+    ARCH_MODEL_MAP = {}  # TODO remove
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForMaskedLM
@@ -1401,7 +1398,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "mbart",
         "mobilebert",
         "nystromformer",
-        # "perceiver",
+        "perceiver_text",
         "roberta",
         "roformer",
         "squeezebert",
@@ -1409,10 +1406,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "xlm_roberta",
     ]
 
-    ARCH_MODEL_MAP = {
-        # TODO: fix non passing test
-        # "perceiver": "hf-internal-testing/tiny-random-language_perceiver",
-    }
+    ARCH_MODEL_MAP = {}  # TODO remove
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForSequenceClassification
@@ -2404,7 +2398,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "mobilenet_v1",
         "mobilenet_v2",
         "mobilevit",
-        # "perceiver",
+        "perceiver_vision",
         "poolformer",
         "resnet",
         "segformer",
@@ -2412,10 +2406,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "vit",
     ]
 
-    ARCH_MODEL_MAP = {
-        # TODO: fix non passing test
-        # "perceiver": "hf-internal-testing/tiny-random-vision_perceiver_conv",
-    }
+    ARCH_MODEL_MAP = {}  # TODO remove
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForImageClassification
