@@ -83,6 +83,8 @@ MODEL_NAMES = {
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
+    "perceiver_text": "hf-internal-testing/tiny-random-language_perceiver",
+    "perceiver_vision": "hf-internal-testing/tiny-random-vision_perceiver_conv",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
