@@ -335,54 +335,54 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         self.is_decoder_with_past = False
 
-        if self._behavior is not ConfigBehavior.DECODER:
-            encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                exporter="onnx", task="feature-extraction", model_type=config.encoder.model_type
+        # Set up the encoder ONNX config.
+        encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+            exporter="onnx", task="feature-extraction", model_type=config.encoder.model_type
+        )
+        self._encoder_onnx_config = encoder_onnx_config_constructor(
+            config.encoder, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+        )
+        self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = self._encoder_onnx_config._normalized_config
+
+        # Set up the decoder ONNX config.
+        decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+            exporter="onnx", task="feature-extraction", model_type=config.decoder.model_type
+        )
+        kwargs = {}
+        if issubclass(decoder_onnx_config_constructor.func, OnnxConfigWithPast):
+            self.is_decoder_with_past = True
+            kwargs["use_past"] = use_past
+        else:
+            self.use_past = False
+
+        if use_past and not self.is_decoder_with_past:
+            raise ValueError(
+                f"The decoder part of the encoder-decoder model is {config.decoder.model_type} which does not need "
+                "past key values."
             )
-            self._encoder_onnx_config = encoder_onnx_config_constructor(
-                config.encoder, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+
+        self._decoder_onnx_config = decoder_onnx_config_constructor(
+            config.decoder, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors, **kwargs
+        )
+        if issubclass(decoder_onnx_config_constructor.func, OnnxSeq2SeqConfigWithPast):
+            self._decoder_onnx_config = self._decoder_onnx_config.with_behavior(
+                self._behavior, use_past=kwargs["use_past"], use_past_in_inputs=use_past_in_inputs
             )
-            self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = self._encoder_onnx_config._normalized_config
 
-        if self._behavior is not ConfigBehavior.ENCODER:
-            decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                exporter="onnx", task="feature-extraction", model_type=config.decoder.model_type
+        self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
+
+        if isinstance(self._decoder_onnx_config, OnnxSeq2SeqConfigWithPast):
+            self._past_key_values_generator = (
+                DummySeq2SeqDecoderTextInputGenerator,
+                DummySeq2SeqPastKeyValuesGenerator,
             )
-            kwargs = {}
-            if issubclass(decoder_onnx_config_constructor.func, OnnxConfigWithPast):
-                self.is_decoder_with_past = True
-                kwargs["use_past"] = use_past
-            else:
-                self.use_past = False
-
-            if use_past and not self.is_decoder_with_past:
-                raise ValueError(
-                    f"The decoder part of the encoder-decoder model is {config.decoder.model_type} which does not need "
-                    "past key values."
-                )
-
-            self._decoder_onnx_config = decoder_onnx_config_constructor(
-                config.decoder, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors, **kwargs
+        else:
+            self._past_key_values_generator = (
+                DummySeq2SeqDecoderTextInputGenerator,
+                DummyPastKeyValuesGenerator,
             )
-            if issubclass(decoder_onnx_config_constructor.func, OnnxSeq2SeqConfigWithPast):
-                self._decoder_onnx_config = self._decoder_onnx_config.with_behavior(
-                    self._behavior, use_past=kwargs["use_past"], use_past_in_inputs=use_past_in_inputs
-                )
 
-            self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
-
-            if isinstance(self._decoder_onnx_config, OnnxSeq2SeqConfigWithPast):
-                self._past_key_values_generator = (
-                    DummySeq2SeqDecoderTextInputGenerator,
-                    DummySeq2SeqPastKeyValuesGenerator,
-                )
-            else:
-                self._past_key_values_generator = (
-                    DummySeq2SeqDecoderTextInputGenerator,
-                    DummyPastKeyValuesGenerator,
-                )
-
-            self.DUMMY_INPUT_GENERATOR_CLASSES += self._past_key_values_generator
+        self.DUMMY_INPUT_GENERATOR_CLASSES += self._past_key_values_generator
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:

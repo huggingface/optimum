@@ -22,7 +22,13 @@ from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
 
-from .normalized_config import NormalizedConfig, NormalizedSeq2SeqConfig, NormalizedTextConfig, NormalizedVisionConfig
+from .normalized_config import (
+    NormalizedConfig,
+    NormalizedEncoderDecoderConfig,
+    NormalizedSeq2SeqConfig,
+    NormalizedTextConfig,
+    NormalizedVisionConfig,
+)
 
 
 if is_torch_available():
@@ -408,7 +414,10 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
             random_num_choices_range=random_num_choices_range,
         )
 
-        self.hidden_size = normalized_config.hidden_size
+        if isinstance(normalized_config, NormalizedEncoderDecoderConfig):
+            self.hidden_size = normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS.hidden_size
+        else:
+            self.hidden_size = normalized_config.hidden_size
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name in ["encoder_outputs", "encoder_hidden_states"]:
@@ -507,17 +516,28 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         )
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if isinstance(self.normalized_config, NormalizedEncoderDecoderConfig):
+            decoder_hidden_size = self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.hidden_size
+            encoder_hidden_size = decoder_hidden_size
+            decoder_num_attention_heads = self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.num_attention_heads
+            encoder_num_attention_heads = decoder_num_attention_heads  # This is used for cross-attention KV cache.
+        else:
+            encoder_hidden_size = self.normalized_config.hidden_size
+            decoder_hidden_size = self.normalized_config.hidden_size
+            encoder_num_attention_heads = self.normalized_config.encoder_num_attention_heads
+            decoder_num_attention_heads = self.normalized_config.decoder_num_attention_heads
+
         encoder_shape = (
             self.batch_size,
-            self.normalized_config.encoder_num_attention_heads,
+            encoder_num_attention_heads,
             self.encoder_sequence_length,
-            self.normalized_config.hidden_size // self.normalized_config.encoder_num_attention_heads,
+            encoder_hidden_size // encoder_num_attention_heads,
         )
         decoder_shape = (
             self.batch_size,
-            self.normalized_config.decoder_num_attention_heads,
+            decoder_num_attention_heads,
             self.sequence_length,
-            self.normalized_config.hidden_size // self.normalized_config.decoder_num_attention_heads,
+            decoder_hidden_size // decoder_num_attention_heads,
         )
         return [
             (
@@ -945,3 +965,31 @@ class MistralDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             )
             for _ in range(self.num_layers)
         ]
+
+
+class TROCRDummyPastKeyValuseGenerator(DummySeq2SeqPastKeyValuesGenerator):
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedSeq2SeqConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        encoder_sequence_length: Optional[int] = None,
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            task=task,
+            normalized_config=normalized_config,
+            batch_size=batch_size,
+            sequence_length=sequence_length,
+            encoder_sequence_length=encoder_sequence_length,
+            random_batch_size_range=random_batch_size_range,
+            random_sequence_length_range=random_sequence_length_range,
+            **kwargs,
+        )
+
+        image_size = normalized_config.encoder.image_size
+        patch_size = normalized_config.encoder.patch_size
+        self.encoder_sequence_length = (image_size // patch_size) ** 2 + 1

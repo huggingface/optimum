@@ -41,6 +41,7 @@ from ...utils import (
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedVisionConfig,
+    TROCRDummyPastKeyValuseGenerator,
     logging,
 )
 from ...utils.normalized_config import NormalizedConfigManager
@@ -56,7 +57,7 @@ from .config import (
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
-from .model_patcher import SAMModelPatcher, WavLMModelPatcher
+from .model_patcher import SAMModelPatcher, VisionEncoderDecoderPatcher, WavLMModelPatcher
 
 
 if TYPE_CHECKING:
@@ -1224,7 +1225,7 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
         decoder_num_layers="decoder_layers",
         num_layers="decoder_layers",
         decoder_num_attention_heads="decoder_attention_heads",
-        hidden_size="cross_attention_hidden_size",
+        hidden_size="hidden_size",
     )
 
 
@@ -1232,7 +1233,11 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     ATOL_FOR_VALIDATION = 1e-3
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyVisionInputGenerator,
+        TROCRDummyPastKeyValuseGenerator,
+        DummySeq2SeqPastKeyValuesGenerator,
+    )
 
     def __init__(
         self,
@@ -1256,10 +1261,10 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
             preprocessors=preprocessors,
         )
 
-        if config.decoder.model_type == "trocr" and use_past:
-            raise ValueError(
-                "Exporting TrOCR to ONNX with past key values is not supported with TrOCR model. Please open an issue in Optimum repository."
-            )
+        if config.decoder.model_type == "trocr":
+            self.DUMMY_PKV_GENERATOR_CLASS = TROCRDummyPastKeyValuseGenerator
+        else:
+            self.DUMMY_PKV_GENERATOR_CLASS = DummySeq2SeqPastKeyValuesGenerator
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1280,6 +1285,11 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return VisionEncoderDecoderPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class SamOnnxConfig(OnnxConfig):
