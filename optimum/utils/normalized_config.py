@@ -257,7 +257,7 @@ class NormalizedConfigManager:
         "yolos": NormalizedVisionConfig,
         "mpt": MPTNormalizedTextConfig,
         "gpt_bigcode": GPTBigCodeNormalizedTextConfig,
-        "mistral": MistralNormalizedTextConfig,
+        "mistral": MistralNormalizedTextConfig
     }
 
     @classmethod
