@@ -142,10 +142,9 @@ class GPTQQuantizer(object):
         if not (0 < self.damp_percent < 1):
             raise ValueError("damp_percent must between 0 and 1.")
         if not self.disable_exllamav2 and not self.disable_exllama:
-            logger.warning(
-                "You have activated exllama and exllamav2 backend. Setting `disable_exllama=True` and keeping `disable_exllamav2=False`"
+            raise ValueError(
+                "disable_exllamav2 and disable_exllama are both set to `False`. Please disable one of the kernels."
             )
-            self.disable_exllama = True
 
     def to_dict(self):
         """
