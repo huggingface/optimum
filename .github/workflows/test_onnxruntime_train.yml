@@ -30,7 +30,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GH_ACTION_ROLE }}
+          role-to-assume: arn:aws:iam::754289655784:role/GitHub_Action_Role
           role-session-name: OptimumGHSession
           aws-region: ${{ env.AWS_REGION }}
       - name: Start EC2 runner
