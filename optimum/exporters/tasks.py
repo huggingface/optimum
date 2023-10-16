@@ -1401,7 +1401,7 @@ class TasksManager:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
                 # The Hub task "conversational" is not a supported task per se, just an alias that may map to
                 # text-generaton or text2text-generation.
-                # The Hub task "object-detection" is not a supported task per so, as in Transformers this may map to either
+                # The Hub task "object-detection" is not a supported task per se, as in Transformers this may map to either
                 # zero-shot-object-detection or object-detection.
                 if pipeline_tag is not None and pipeline_tag not in ["conversational", "object-detection"]:
                     inferred_task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
