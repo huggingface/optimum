@@ -172,6 +172,8 @@ def load_bettertransformer(
     tokenizer=None,
     feature_extractor=None,
     load_feature_extractor=None,
+    load_image_processor=None,
+    image_processor=None,
     SUPPORTED_TASKS=None,
     subfolder: str = "",
     token: Optional[Union[bool, str]] = None,
@@ -209,7 +211,7 @@ def load_bettertransformer(
 
     model = BetterTransformer.transform(model, **kwargs)
 
-    return model, model_id, tokenizer, feature_extractor
+    return model, model_id, tokenizer, feature_extractor, image_processor
 
 
 def load_ort_pipeline(
@@ -219,6 +221,8 @@ def load_ort_pipeline(
     tokenizer,
     feature_extractor,
     load_feature_extractor,
+    load_image_processor,
+    image_processor,
     SUPPORTED_TASKS,
     subfolder: str = "",
     token: Optional[Union[bool, str]] = None,
@@ -280,7 +284,7 @@ def load_ort_pipeline(
             f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
             You can also provide non model then a default one will be used"""
         )
-    return model, model_id, tokenizer, feature_extractor
+    return model, model_id, tokenizer, feature_extractor, image_processor
 
 
 MAPPING_LOADING_FUNC = {
@@ -293,8 +297,8 @@ def pipeline(
     task: str = None,
     model: Optional[Any] = None,
     tokenizer: Optional[Union[str, PreTrainedTokenizer]] = None,
-    image_processor: Optional[Union[str, ImageProcessingMixin]] = None,
     feature_extractor: Optional[Union[str, FeatureExtractionMixin]] = None,
+    image_processor: Optional[Union[str, ImageProcessingMixin]] = None,
     use_fast: bool = True,
     token: Optional[Union[str, bool]] = None,
     accelerator: Optional[str] = "ort",
@@ -332,8 +336,8 @@ def pipeline(
     supported_tasks = ORT_SUPPORTED_TASKS if accelerator == "ort" else TRANSFORMERS_SUPPORTED_TASKS
 
     no_tokenizer_tasks = set()
-    no_image_processor = set()
     no_feature_extractor_tasks = set()
+    no_image_processor = set()
 
     for _task, values in supported_tasks.items():
         if values["type"] == "text":
@@ -357,25 +361,25 @@ def pipeline(
     else:
         load_tokenizer = True
 
-    if targeted_task in no_image_processor:
-        load_image_processor = False
-    else:
-        load_image_processor = True
-
     if targeted_task in no_feature_extractor_tasks:
         load_feature_extractor = False
     else:
         load_feature_extractor = True
 
-    model, model_id, tokenizer, feature_extractor = MAPPING_LOADING_FUNC[accelerator](
+    if targeted_task in no_image_processor:
+        load_image_processor = False
+    else:
+        load_image_processor = True
+
+    model, model_id, tokenizer, feature_extractor, image_processor = MAPPING_LOADING_FUNC[accelerator](
         model,
         targeted_task,
         load_tokenizer,
         tokenizer,
-        load_image_processor,
-        image_processor,
         feature_extractor,
         load_feature_extractor,
+        load_image_processor,
+        image_processor,
         SUPPORTED_TASKS=supported_tasks,
         config=config,
         hub_kwargs=hub_kwargs,
@@ -395,8 +399,8 @@ def pipeline(
         task,
         model=model,
         tokenizer=tokenizer,
-        image_processor=image_processor,
         feature_extractor=feature_extractor,
+        image_processor=image_processor,
         use_fast=use_fast,
         **kwargs,
     )
