@@ -309,24 +309,20 @@ For example, for text generation, the engine can be built with:
 
 ```python
 >>> import os
->>> from transformers import AutoTokenizer
 >>> from optimum.onnxruntime import ORTModelForCausalLM
 
 >>> os.makedirs("tmp/trt_cache_gpt2_example", exist_ok=True)
 >>> provider_options = {
 ...     "trt_engine_cache_enable": True,
-...     "trt_engine_cache_path": "tmp/trt_cache_gpt2_example"
+...     "trt_engine_cache_path": "tmp/trt_cache_gpt2_example",
 ...     "trt_profile_min_shapes": "input_ids:1x1,attention_mask:1x1,position_ids:1x1",
 ...     "trt_profile_opt_shapes": "input_ids:1x1,attention_mask:1x1,position_ids:1x1",
 ...     "trt_profile_max_shapes": "input_ids:1x64,attention_mask:1x64,position_ids:1x64",
 ... }
 
 >>> ort_model = ORTModelForCausalLM.from_pretrained(
-...     "gpt2",
-...     export=True,
+...     "optimum/gpt2",
 ...     use_cache=False,
-...     use_merged=False,
-...     use_io_binding=False,
 ...     provider="TensorrtExecutionProvider",
 ...     provider_options=provider_options,
 ... )
