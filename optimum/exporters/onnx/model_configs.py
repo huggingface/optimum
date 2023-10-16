@@ -56,7 +56,15 @@ from .config import (
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
-from .model_patcher import SAMModelPatcher, WavLMModelPatcher
+from .model_patcher import (
+    BartModelPatcher,
+    BloomModelPatcher,
+    LlamaModelPatcher,
+    MistralModelPatcher,
+    OPTModelPatcher,
+    SAMModelPatcher,
+    WavLMModelPatcher,
+)
 
 
 if TYPE_CHECKING:
@@ -216,12 +224,22 @@ class OPTOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return OPTModelPatcher(self, model, model_kwargs=model_kwargs)
+
 
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return LlamaModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -233,6 +251,11 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
 
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return MistralModelPatcher(self, model, model_kwargs=model_kwargs)
+
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):
     # MPT does not require position_ids input.
@@ -240,6 +263,11 @@ class MPTOnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
     )
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return BloomModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class BloomOnnxConfig(TextDecoderOnnxConfig):
@@ -273,6 +301,11 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
                 0: "batch_size x num_heads",
                 1: decoder_sequence_name,
             }
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return BloomModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -413,7 +446,7 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
         return int_tensor
 
 
-class BartOnnxConfig(TextSeq2SeqOnnxConfig):
+class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
@@ -537,11 +570,14 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             )
 
 
+class BartOnnxConfig(M2M100OnnxConfig):
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return BartModelPatcher(self, model, model_kwargs=model_kwargs)
+
+
 class MBartOnnxConfig(BartOnnxConfig):
-    pass
-
-
-class M2M100OnnxConfig(BartOnnxConfig):
     pass
 
 

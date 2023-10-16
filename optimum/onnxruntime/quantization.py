@@ -33,7 +33,6 @@ from ..quantization_base import OptimumQuantizer
 from ..utils.save_utils import maybe_save_preprocessors
 from . import ORTQuantizableOperator
 from .configuration import CalibrationConfig, ORTConfig, QuantizationConfig
-from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForConditionalGeneration
 from .preprocessors import QuantizationPreprocessor
@@ -136,13 +135,6 @@ class ORTQuantizer(OptimumQuantizer):
         path = None
         if isinstance(model_or_path, ORTModelForConditionalGeneration):
             raise NotImplementedError(ort_quantizer_error_message)
-        elif isinstance(model_or_path, ORTModelForCausalLM):
-            if model_or_path.use_cache is False:
-                path = Path(model_or_path.decoder_model_path)
-            elif model_or_path.use_cache is True and model_or_path.use_merged is False:
-                raise NotImplementedError(ort_quantizer_error_message)
-            else:
-                path = Path(model_or_path.decoder_model_path)
         elif isinstance(model_or_path, Path) and file_name is None:
             onnx_files = list(model_or_path.glob("*.onnx"))
             if len(onnx_files) == 0:

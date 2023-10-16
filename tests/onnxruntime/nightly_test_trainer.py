@@ -40,11 +40,7 @@ from transformers import (
     default_data_collator,
     is_torch_available,
 )
-from transformers.testing_utils import (
-    require_deepspeed,
-    require_torch,
-    slow,
-)
+from transformers.testing_utils import require_deepspeed, require_torch, slow
 from transformers.training_args import OptimizerNames
 
 
