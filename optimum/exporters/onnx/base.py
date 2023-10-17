@@ -904,7 +904,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         )
 
         # Attempt to merge only if the decoder was exported without/with past, and ignore seq2seq models exported with text-generation task
-        if len(onnx_files_subpaths) >= 3 and self.use_past is True or self.variant == "with-past":
+        if len(onnx_files_subpaths) >= 3 and self.use_past is True:
             decoder_path = Path(path, onnx_files_subpaths[1])
             decoder_with_past_path = Path(path, onnx_files_subpaths[2])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
