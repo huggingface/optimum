@@ -1533,7 +1533,7 @@ class TasksManager:
                     library_name = "transformers"
 
         if library_name is None:
-            ValueError(
+            raise ValueError(
                 "The library_name could not be automatically inferred. If using the command-line, please provide the argument --library (transformers,diffusers,timm)!"
             )
 
