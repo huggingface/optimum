@@ -158,7 +158,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
             "image-to-text",
             "image-to-text-with-past",
         ],
-        "microsoft/trocr-small-handwritten": ["image-to-text"],
+        "microsoft/trocr-small-handwritten": ["image-to-text", "image-to-text-with-past"],
         "fxmarty/tiny-doc-qa-vision-encoder-decoder": [
             "document-question-answering",
             "document-question-answering-with-past",

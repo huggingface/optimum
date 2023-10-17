@@ -32,6 +32,7 @@ from ...utils import (
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
     DummyVisionEmbeddingsGenerator,
+    DummyVisionEncoderDecoderPastKeyValuesGenerator,
     DummyVisionInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
     MistralDummyPastKeyValuesGenerator,
@@ -41,7 +42,6 @@ from ...utils import (
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedVisionConfig,
-    TROCRDummyPastKeyValuseGenerator,
     logging,
 )
 from ...utils.normalized_config import NormalizedConfigManager
@@ -623,6 +623,13 @@ class ViTOnnxConfig(VisionOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        common_outputs = super().outputs
+        if self.task == "feature-extraction":
+            common_outputs["last_hidden_state"] = {0: "batch_size"}
+        return common_outputs
 
 
 class CvTOnnxConfig(ViTOnnxConfig):
@@ -1295,11 +1302,7 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     ATOL_FOR_VALIDATION = 1e-3
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        DummyVisionInputGenerator,
-        TROCRDummyPastKeyValuseGenerator,
-        DummySeq2SeqPastKeyValuesGenerator,
-    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyVisionEncoderDecoderPastKeyValuesGenerator)
 
     def __init__(
         self,
@@ -1323,11 +1326,6 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
             preprocessors=preprocessors,
         )
 
-        if config.decoder.model_type == "trocr":
-            self.DUMMY_PKV_GENERATOR_CLASS = TROCRDummyPastKeyValuseGenerator
-        else:
-            self.DUMMY_PKV_GENERATOR_CLASS = DummySeq2SeqPastKeyValuesGenerator
-
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         common_inputs = {}
@@ -1347,6 +1345,17 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self._behavior == ConfigBehavior.ENCODER:
+            # Some encoders have static sequence length so it is useful to rely on the encoder ONNX config to grab this information.
+            return self._encoder_onnx_config.outputs
+        else:
+            # Ideally, we would want here to have self._decoder_onnx_config.outputs, which is currently not possible
+            # as we hard-code the task to feature-extraction, that has the wrong output names (e.g. mbart does not support document-question-answering
+            # so we can not initializer MBartONNXConfig with document-question-answering).
+            return super().outputs
 
     def patch_model_for_export(
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None

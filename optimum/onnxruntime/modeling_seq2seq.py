@@ -446,30 +446,27 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
     def compute_encoder_known_output_shapes(self, pixel_values: torch.FloatTensor) -> Dict[str, List[int]]:
-        if self.normalized_config.model_type == "vit":
-            # for vit models
-            encoder_sequence_length = (
-                self.normalized_config.image_size // self.normalized_config.config.patch_size
-            ) ** 2 + 1  # plus cls token
-        elif self.normalized_config.config.model_type == "donut-swin":
-            # for donut-swin models
+        if self.normalized_config.config.model_type == "donut-swin":
+            # TODO: kind of weird to export to ONNX with dynamic output shape if it is in fact static...
             encoder_sequence_length = (
                 self.normalized_config.config.image_size[0]
                 * self.normalized_config.config.image_size[1]
                 // self.normalized_config.config.hidden_size
             )
+        elif self.normalized_config.config.model_type in ["vit", "deit"]:
+            return None
         else:
             raise ValueError(
                 f"Unsupported encoder model type {self.normalized_config.config.model_type} for ORTForVisionSeq2Seq with IOBinding."
-                "Currently supported models are vit and donut-swin."
+                "Currently supported models are vit, donut-swin and deit."
                 "Please submit a PR to add support for this model type."
             )
 
         return {
             "last_hidden_state": [
-                pixel_values.shape[0],  # batch_size
-                encoder_sequence_length,  # encoder_sequence_length
-                self.normalized_config.config.hidden_size,  # hidden_size
+                pixel_values.shape[0],  # batch size
+                encoder_sequence_length,
+                self.normalized_config.config.hidden_size,
             ]
         }
 
@@ -1155,6 +1152,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
             **kwargs,
         )
 
+        # The normalized_config initialization in ORTModelPart is unfortunately wrong as the top level config is initialized.
         if config.model_type == "encoder-decoder":
             self.encoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
                 config.encoder.model_type
@@ -1489,6 +1487,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
             **kwargs,
         )
 
+        # The normalized_config initialization in ORTModelPart is unfortunately wrong as the top level config is initialized.
         self.encoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
             config.encoder.model_type
         )(config.encoder)
@@ -1496,6 +1495,11 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         self.decoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
             config.decoder.model_type
         )(config.decoder)
+
+        if self.decoder_with_past is not None:
+            self.decoder_with_past.normalized_config = NormalizedConfigManager.get_normalized_config_class(
+                config.decoder.model_type
+            )(config.decoder)
 
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoderForVisionEncoderDecoder(session, self)

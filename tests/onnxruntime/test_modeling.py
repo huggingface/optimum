@@ -4022,16 +4022,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
 
-    def exclude_trocr_with_cache(params):
-        if params[0] == "trocr" and params[1] is True:
-            return None
-        return params
-
-    def update_trocr_with_cache(params):
-        if params[0] == "trocr" and params[1] is True:
-            params[1] = False
-        return params
-
     def _get_sample_image(self):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
@@ -4049,11 +4039,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         self.assertIn("Unrecognized configuration class", str(context.exception))
 
-    @parameterized.expand(
-        grid_parameters(
-            {"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}, filter_params_func=update_trocr_with_cache
-        )
-    )
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -4071,7 +4057,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(grid_parameters(FULL_GRID, filter_params_func=exclude_trocr_with_cache))
+    @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -4116,17 +4102,12 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         extra_inputs = [{}, {}]
 
-        if use_cache and False:
-            # TODO: the dims will fail with other models
-            fake_pkv = tuple((torch.rand(1, 4, 1, 8), torch.rand(1, 4, 1, 8)) for _ in range(5))
-            extra_inputs[1]["past_key_values"] = fake_pkv
-
         for extra_inps in extra_inputs:
             features = feature_extractor(data, return_tensors="pt")
             decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
 
             with torch.no_grad():
-                transformers_outputs = transformers_model(**features, **decoder_inputs, **extra_inps)
+                transformers_outputs = transformers_model(**features, **decoder_inputs, **extra_inps, use_cache=True)
             for input_type in ["pt", "np"]:
                 features = feature_extractor(data, return_tensors=input_type)
 
@@ -4163,7 +4144,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(grid_parameters(FULL_GRID, filter_params_func=exclude_trocr_with_cache))
+    @parameterized.expand(grid_parameters(FULL_GRID))
     def test_pipeline_image_to_text(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -4194,11 +4175,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(
-        grid_parameters(
-            {"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}, filter_params_func=update_trocr_with_cache
-        )
-    )
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, use_cache: bool):

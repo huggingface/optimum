@@ -516,28 +516,17 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         )
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        if isinstance(self.normalized_config, NormalizedEncoderDecoderConfig):
-            decoder_hidden_size = self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.hidden_size
-            encoder_hidden_size = decoder_hidden_size
-            decoder_num_attention_heads = self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.num_attention_heads
-            encoder_num_attention_heads = decoder_num_attention_heads  # This is used for cross-attention KV cache.
-        else:
-            encoder_hidden_size = self.normalized_config.hidden_size
-            decoder_hidden_size = self.normalized_config.hidden_size
-            encoder_num_attention_heads = self.normalized_config.encoder_num_attention_heads
-            decoder_num_attention_heads = self.normalized_config.decoder_num_attention_heads
-
         encoder_shape = (
             self.batch_size,
-            encoder_num_attention_heads,
+            self.normalized_config.encoder_num_attention_heads,
             self.encoder_sequence_length,
-            encoder_hidden_size // encoder_num_attention_heads,
+            self.normalized_config.hidden_size // self.normalized_config.encoder_num_attention_heads,
         )
         decoder_shape = (
             self.batch_size,
-            decoder_num_attention_heads,
+            self.normalized_config.decoder_num_attention_heads,
             self.sequence_length,
-            decoder_hidden_size // decoder_num_attention_heads,
+            self.normalized_config.hidden_size // self.normalized_config.decoder_num_attention_heads,
         )
         return [
             (
@@ -967,7 +956,7 @@ class MistralDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         ]
 
 
-class TROCRDummyPastKeyValuseGenerator(DummySeq2SeqPastKeyValuesGenerator):
+class DummyVisionEncoderDecoderPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
     def __init__(
         self,
         task: str,
@@ -989,7 +978,53 @@ class TROCRDummyPastKeyValuseGenerator(DummySeq2SeqPastKeyValuesGenerator):
             random_sequence_length_range=random_sequence_length_range,
             **kwargs,
         )
+        if normalized_config.model_type == "trocr":
+            image_size = normalized_config.encoder.image_size
+            patch_size = normalized_config.encoder.patch_size
+            self.encoder_sequence_length = (image_size // patch_size) ** 2 + 1
 
-        image_size = normalized_config.encoder.image_size
-        patch_size = normalized_config.encoder.patch_size
-        self.encoder_sequence_length = (image_size // patch_size) ** 2 + 1
+        if isinstance(normalized_config.DECODER_NORMALIZED_CONFIG_CLASS, NormalizedSeq2SeqConfig):
+            # Here, the decoder used in the vision-encoder-decoder comes from a seq2seq model.
+            self.num_layers = self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.decoder_num_layers
+            self.use_cross_attention = True
+        else:
+            self.num_layers = self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.num_layers
+            self.use_cross_attention = False
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        decoder_hidden_size = self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.hidden_size
+        decoder_num_attention_heads = self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.num_attention_heads
+        decoder_shape = (
+            self.batch_size,
+            decoder_num_attention_heads,
+            self.sequence_length,
+            decoder_hidden_size // decoder_num_attention_heads,
+        )
+
+        if not self.use_cross_attention:
+            return [
+                (
+                    self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
+                    self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
+                )
+                for _ in range(self.num_layers)
+            ]
+        else:
+            encoder_hidden_size = decoder_hidden_size
+            encoder_num_attention_heads = decoder_num_attention_heads
+
+            encoder_shape = (
+                self.batch_size,
+                encoder_num_attention_heads,
+                self.encoder_sequence_length,
+                encoder_hidden_size // encoder_num_attention_heads,
+            )
+            return [
+                (
+                    self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
+                    self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
+                    self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
+                    self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
+                )
+                for _ in range(self.num_layers)
+            ]
