@@ -29,6 +29,7 @@ from ...utils import (
     logging,
 )
 from ...utils.import_utils import _diffusers_version
+from ...utils.modeling_utils import _prepare_attn_mask, _prepare_decoder_attention_mask  # noqa: F401
 from ..tasks import TasksManager
 from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
@@ -63,6 +64,19 @@ if TYPE_CHECKING:
 
     if is_diffusers_available():
         from diffusers import ModelMixin, StableDiffusionPipeline
+
+
+MODEL_TYPES_REQUIRING_POSITION_IDS = {
+    "codegen",
+    "gpt2",
+    "gpt-bigcode",
+    "gpt-neo",
+    "gpt-neox",
+    "gptj",
+    "imagegpt",
+    "llama",
+    "mistral",
+}
 
 
 def check_onnxruntime_requirements(minimum_version: version.Version):
@@ -146,15 +160,16 @@ def _get_submodels_for_export_stable_diffusion(
 
 
 def _get_submodels_for_export_decoder(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], use_past: bool
+    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    use_past: bool,
+    legacy: bool = False,
 ) -> Dict[str, Union["PreTrainedModel", "TFPreTrainedModel"]]:
     """
     Returns the decoder part of the model.
     """
-    models_for_export = {}
+    models_for_export = {ONNX_DECODER_NAME if legacy else "model": model}
 
-    models_for_export[ONNX_DECODER_NAME] = model
-    if use_past:
+    if legacy and use_past:
         models_for_export[ONNX_DECODER_WITH_PAST_NAME] = model
 
     return models_for_export
@@ -214,6 +229,7 @@ def get_encoder_decoder_models_for_export(
 def get_decoder_models_for_export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
     config: "OnnxConfig",
+    legacy: bool = False,
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "OnnxConfig"]]:
     """
     Returns two versions of the decoder that can be used together to perform fast generation:
@@ -233,31 +249,42 @@ def get_decoder_models_for_export(
         `Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]: A Dict containing the model and
         onnx configs for the encoder and decoder parts of the model.
     """
-    models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past)
 
-    onnx_config = config.__class__(
-        model.config,
-        task=config.task,
-        use_past=config.use_past,
-        use_past_in_inputs=False,
-        float_dtype=config.float_dtype,
-        int_dtype=config.int_dtype,
-    )
-    models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], onnx_config)
+    models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past, legacy=legacy)
 
-    if config.use_past:
-        onnx_config_with_past = config.__class__(
+    onnx_kwargs = {"task": config.task, "float_dtype": config.float_dtype, "int_dtype": config.int_dtype}
+    if model.config.model_type.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
+        onnx_kwargs["no_position_ids"] = config.no_position_ids
+
+    if legacy:
+        onnx_config = config.__class__(
             model.config,
-            task=config.task,
-            use_past=True,
-            use_past_in_inputs=True,
-            float_dtype=config.float_dtype,
-            int_dtype=config.int_dtype,
+            use_past=config.use_past,
+            use_past_in_inputs=False,
+            **onnx_kwargs,
         )
-        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
-            models_for_export[ONNX_DECODER_WITH_PAST_NAME],
-            onnx_config_with_past,
+        models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], onnx_config)
+
+        if config.use_past:
+            onnx_config_with_past = config.__class__(
+                model.config,
+                use_past=True,
+                use_past_in_inputs=True,
+                **onnx_kwargs,
+            )
+            models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
+                models_for_export[ONNX_DECODER_WITH_PAST_NAME],
+                onnx_config_with_past,
+            )
+
+    else:
+        onnx_config = config.__class__(
+            model.config,
+            use_past=config.use_past,
+            use_past_in_inputs=config.use_past,
+            **onnx_kwargs,
         )
+        models_for_export["model"] = (models_for_export["model"], onnx_config)
 
     return models_for_export
 

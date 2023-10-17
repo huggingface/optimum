@@ -225,8 +225,12 @@ class ORTDecoder(ORTModelPart):
         # TODO: the controlflow here is ugly and should be removed in favor of class inheritance.
         if self.parent_model.use_merged and past_key_values is None:
             batch_size = input_ids.shape[0]
-            num_attention_heads = self.normalized_config.num_attention_heads
-            embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
+
+            if self.normalized_config.config.model_type in {"mistral", "llama"}:
+                num_attention_heads = self.normalized_config.num_key_value_heads
+            else:
+                num_attention_heads = self.normalized_config.num_attention_heads
+            embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
 
             dtype = constructor.float16 if self.use_fp16 else constructor.float32
             # TODO: find a way to better handle this controlflow, this is EXTREMELY ugly
@@ -301,8 +305,11 @@ class ORTDecoder(ORTModelPart):
             `Dict[str, List[int]]`: The dictionary mapping each past key value output name to its corresponding shape.
         """
         batch_size = input_ids.size(0)
-        num_attention_heads = self.normalized_config.num_attention_heads
-        embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
+        if self.normalized_config.config.model_type in {"mistral", "llama"}:
+            num_attention_heads = self.normalized_config.num_key_value_heads
+        else:
+            num_attention_heads = self.normalized_config.num_attention_heads
+        embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
 
         sequence_length = input_ids.size(1)
         if past_key_values is not None and use_cache_branch is not False:
@@ -352,6 +359,7 @@ class ORTDecoder(ORTModelPart):
         self,
         input_ids: torch.LongTensor,
         attention_mask: Optional[torch.LongTensor] = None,
+        position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
         use_cache_branch: None = None,
@@ -382,14 +390,20 @@ class ORTDecoder(ORTModelPart):
                 past_key_values=past_key_values,
             )
 
-            # TODO: fix transformers generate to have contiguous input_ids here already
-            # For an unknown reason, calling `contiguous()` here is necessary to not have errors
+            # TODO: fix transformers generate to have contiguous input_ids, position_ids here already
+            # Calling `contiguous()` here is necessary to not have errors
             # on CPU EP with batch size > 1, despite it being also called in _prepare_io_binding.
-            # I suspect the reason is the contiguous python list that messes something up?
+            # I suspect the garbage collector to somehow negate `tensor = tensor.contiguous()`
+            # in modeling_ort.py, which is then never assigned anywhere.
             model_inputs = [input_ids.contiguous()]
 
             if "attention_mask" in self.input_names:
                 model_inputs.append(attention_mask)
+
+            if "position_ids" in self.input_names:
+                if position_ids is None:
+                    raise ValueError("position_ids was not passed but is a required input for this ONNX model.")
+                model_inputs.append(position_ids.contiguous())
 
             if past_key_values is not None:
                 model_inputs += past_key_values
@@ -450,6 +464,11 @@ class ORTDecoder(ORTModelPart):
                     for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                         onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
 
+                if "position_ids" in self.input_names:
+                    if position_ids is None:
+                        raise ValueError("position_ids was not passed but is a required input for this ONNX model.")
+                    onnx_inputs["position_ids"] = position_ids.cpu().detach().numpy()
+
                 if "labels" in self.input_names:
                     onnx_inputs["labels"] = labels.cpu().detach().numpy()
             else:
@@ -465,6 +484,11 @@ class ORTDecoder(ORTModelPart):
                     # Add the past_key_values to the decoder inputs
                     for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
                         onnx_inputs[input_name] = past_key_value
+
+                if "position_ids" in self.input_names:
+                    if position_ids is None:
+                        raise ValueError("position_ids was not passed but is a required input for this ONNX model.")
+                    onnx_inputs["position_ids"] = position_ids
 
                 if "labels" in self.input_names:
                     onnx_inputs["labels"] = labels

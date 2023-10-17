@@ -21,15 +21,15 @@ CMD nvidia-smi
 # Ignore interactive questions during `docker build`
 ENV DEBIAN_FRONTEND noninteractive
 
-# Bash shell
-RUN chsh -s /bin/bash
-SHELL ["/bin/bash", "-c"]
-
 # Versions
-ARG PYTHON_VERSION=3.9
+ARG PYTHON_VERSION=3.10
 ARG TORCH_CUDA_VERSION=cu118
 ARG TORCH_VERSION=2.0.0
 ARG TORCHVISION_VERSION=0.15.1
+
+# Bash shell
+RUN chsh -s /bin/bash
+SHELL ["/bin/bash", "-c"]
 
 # Install and update tools to minimize security vulnerabilities
 RUN apt-get update
@@ -65,7 +65,7 @@ RUN $PYTHON_EXE -m pip install onnx ninja
 RUN $PYTHON_EXE -m pip install torch==${TORCH_VERSION} torchvision==${TORCHVISION_VERSION} -f https://download.pytorch.org/whl/${TORCH_CUDA_VERSION}
 
 # ORT Module
-RUN $PYTHON_EXE -m pip install onnxruntime-training==1.15.1 -f https://download.onnxruntime.ai/onnxruntime_stable_cu118.html
+RUN $PYTHON_EXE -m pip install onnxruntime-training==1.16.1 -f https://download.onnxruntime.ai/onnxruntime_stable_cu118.html
 RUN $PYTHON_EXE -m pip install torch-ort
 ENV TORCH_CUDA_ARCH_LIST="5.2 6.0 6.1 7.0 7.5 8.0 8.6+PTX"
 RUN $PYTHON_EXE -m pip install --upgrade protobuf==3.20.2

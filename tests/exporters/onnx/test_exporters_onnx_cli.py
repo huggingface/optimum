@@ -19,6 +19,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 
+import onnx
 import pytest
 from parameterized import parameterized
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, is_torch_available
@@ -26,7 +27,12 @@ from transformers.testing_utils import require_torch, require_torch_gpu, require
 
 from optimum.exporters.error_utils import MinimumVersionError
 from optimum.exporters.onnx.__main__ import main_export
-from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
+from optimum.onnxruntime import (
+    ONNX_DECODER_MERGED_NAME,
+    ONNX_DECODER_NAME,
+    ONNX_DECODER_WITH_PAST_NAME,
+    ONNX_ENCODER_NAME,
+)
 from optimum.utils.testing_utils import require_diffusers, require_timm
 
 
@@ -412,6 +418,21 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 shell=True,
                 check=True,
             )
+
+    def test_legacy(self):
+        with TemporaryDirectory() as tmpdirname:
+            subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model  hf-internal-testing/tiny-random-gpt2 --task text-generation-with-past --legacy {tmpdirname}",
+                shell=True,
+                capture_output=True,
+            )
+            folder_contents = os.listdir(tmpdirname)
+            self.assertIn(ONNX_DECODER_NAME, folder_contents)
+            self.assertIn(ONNX_DECODER_WITH_PAST_NAME, folder_contents)
+            self.assertIn(ONNX_DECODER_MERGED_NAME, folder_contents)
+
+            model = onnx.load(Path(tmpdirname) / ONNX_DECODER_MERGED_NAME)
+            self.assertNotIn("position_ids", {node.name for node in model.graph.input})
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_vision

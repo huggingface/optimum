@@ -22,6 +22,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from packaging import version
 from transformers.utils import logging
 
 import onnxruntime as ort
@@ -101,8 +102,8 @@ class ORTConfigManager:
         "albert": "bert",
         "bart": "bart",
         "bert": "bert",
-        "big_bird": "bert",
-        # "bigbird_pegasus": None,  # bug in `fusion_skiplayernorm.py`
+        "big-bird": "bert",
+        # "bigbird-pegasus": None,  # bug in `fusion_skiplayernorm.py`
         "blenderbot": "bert",
         "bloom": "gpt2",
         "camembert": "bert",
@@ -112,17 +113,18 @@ class ORTConfigManager:
         "distilbert": "bert",
         "electra": "bert",
         "gpt2": "gpt2",
-        "gpt_bigcode": "gpt2",
-        "gpt_neo": "gpt2",
-        "gpt_neox": "gpt2",
+        "gpt-bigcode": "gpt2",
+        "gpt-neo": "gpt2",
+        "gpt-neox": "gpt2",
         "gptj": "gpt2",
         # longt5 with O4 results in segmentation fault
         "longt5": "bert",
         "llama": "gpt2",
         "marian": "bart",
         "mbart": "bart",
+        "mistral": "gpt2",
         "mt5": "bart",
-        "m2m_100": "bart",
+        "m2m-100": "bart",
         "nystromformer": "bert",
         "pegasus": "bert",
         "roberta": "bert",
@@ -134,6 +136,7 @@ class ORTConfigManager:
 
     @classmethod
     def get_model_ort_type(cls, model_type: str) -> str:
+        model_type = model_type.replace("_", "-")
         cls.check_supported_model(model_type)
         return cls._conf[model_type]
 
@@ -161,7 +164,7 @@ class ORTConfigManager:
             "vit",
             "swin",
         ]
-
+        model_type = model_type.replace("_", "-")
         if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):
             raise NotImplementedError(
                 f"ONNX Runtime doesn't support the graph optimization of {model_type} yet. Only {list(cls._conf.keys())} are supported. "
@@ -219,8 +222,13 @@ def validate_provider_availability(provider: str):
     Args:
         provider (str): Name of an ONNX Runtime execution provider.
     """
-    # disable on Windows as reported in https://github.com/huggingface/optimum/issues/769
-    if os.name != "nt" and provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
+    # Disable on Windows as reported in https://github.com/huggingface/optimum/issues/769.
+    # Disable as well for ORT 1.16.0 that has changed changed the way _ld_preload.py is filled: https://github.com/huggingface/optimum/issues/1402.
+    if (
+        version.parse(ort.__version__) < version.parse("1.16.0")
+        and os.name != "nt"
+        and provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]
+    ):
         path_cuda_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_cuda.so")
         path_trt_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_tensorrt.so")
         path_dependecy_loading = os.path.join(ort.__path__[0], "capi", "_ld_preload.py")

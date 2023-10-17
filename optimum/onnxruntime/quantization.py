@@ -33,7 +33,6 @@ from ..quantization_base import OptimumQuantizer
 from ..utils.save_utils import maybe_save_preprocessors
 from . import ORTQuantizableOperator
 from .configuration import CalibrationConfig, ORTConfig, QuantizationConfig
-from .modeling_decoder import ORTModelForCausalLM
 from .modeling_ort import ORTModel
 from .modeling_seq2seq import ORTModelForConditionalGeneration
 from .preprocessors import QuantizationPreprocessor
@@ -115,7 +114,7 @@ class ORTQuantizer(OptimumQuantizer):
         file_name: Optional[str] = None,
     ) -> "ORTQuantizer":
         """
-        Instantiates a `ORTQuantizer` from a an ONNX model file or an `ORTModel`.
+        Instantiates a `ORTQuantizer` from an ONNX model file or an `ORTModel`.
 
         Args:
             model_or_path (`Union[ORTModel, str, Path]`):
@@ -136,13 +135,6 @@ class ORTQuantizer(OptimumQuantizer):
         path = None
         if isinstance(model_or_path, ORTModelForConditionalGeneration):
             raise NotImplementedError(ort_quantizer_error_message)
-        elif isinstance(model_or_path, ORTModelForCausalLM):
-            if model_or_path.use_cache is False:
-                path = Path(model_or_path.decoder_model_path)
-            elif model_or_path.use_cache is True and model_or_path.use_merged is False:
-                raise NotImplementedError(ort_quantizer_error_message)
-            else:
-                path = Path(model_or_path.decoder_model_path)
         elif isinstance(model_or_path, Path) and file_name is None:
             onnx_files = list(model_or_path.glob("*.onnx"))
             if len(onnx_files) == 0:
@@ -279,6 +271,10 @@ class ORTQuantizer(OptimumQuantizer):
             )
 
         LOGGER.info("Computing calibration ranges")
+
+        if parse(ort_version) >= Version("1.16.0"):
+            return self._calibrator.compute_data()
+
         return self._calibrator.compute_range()
 
     def quantize(
@@ -351,8 +347,13 @@ class ORTQuantizer(OptimumQuantizer):
                 has_subgraphs = True
                 break
 
-        if quantization_config.is_static and has_subgraphs:
-            raise NotImplementedError("Static quantization is currently not supported for models with" " subgraphs.")
+        if has_subgraphs:
+            if quantization_config.is_static:
+                raise NotImplementedError("Static quantization is currently not supported for models with subgraphs.")
+            if parse(ort_version) == Version("1.16.0"):
+                raise ValueError(
+                    "ONNX Runtime version v1.16.0 is not compatible with quantization for models with subgraphs, please downgrade to 1.15.1 or upgrade to a higher version. Reference: https://github.com/microsoft/onnxruntime/pull/17651"
+                )
 
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
 

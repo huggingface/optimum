@@ -31,6 +31,7 @@ from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES
 
 from optimum.exporters import TasksManager
+from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS
 from optimum.onnxruntime import (
     AutoOptimizationConfig,
     ORTConfig,
@@ -88,7 +89,6 @@ class ORTOptimizerTestMixin(unittest.TestCase):
 class ORTOptimizerTest(unittest.TestCase):
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
         # (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
@@ -115,8 +115,15 @@ class ORTOptimizerTest(unittest.TestCase):
             self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
 
             tokens = tokenizer("This is a sample input", return_tensors="pt")
-            model_outputs = model(**tokens)
-            optimized_model_outputs = optimized_model(**tokens)
+            position_ids = None
+            if model.config.model_type.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
+                input_shape = tokens["input_ids"].shape
+                position_ids = (
+                    torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).view(-1, input_shape[-1])
+                )
+
+            model_outputs = model(**tokens, position_ids=position_ids)
+            optimized_model_outputs = optimized_model(**tokens, position_ids=position_ids)
 
             # Compare tensors outputs
             self.assertTrue(torch.allclose(model_outputs.logits, optimized_model_outputs.logits, atol=1e-4))
@@ -510,15 +517,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         ort_model = ORTModelForCausalLM.from_pretrained(
             self.onnx_model_dirs[export_name], use_cache=use_cache, provider=provider, use_io_binding=use_io_binding
         )
-
-        if use_merged:
-            with self.assertRaises(NotImplementedError) as cm:
-                optimizer = ORTOptimizer.from_pretrained(ort_model)
-
-            self.assertTrue("ORTModelForCausalLM models that use a single ONNX" in str(cm.exception))
-            self.skipTest("Unsupported optimization case")
-        else:
-            optimizer = ORTOptimizer.from_pretrained(ort_model)
+        optimizer = ORTOptimizer.from_pretrained(ort_model)
 
         if provider == "CUDAExecutionProvider":
             for_gpu = True
@@ -533,7 +532,6 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
 
         with tempfile.TemporaryDirectory(suffix="_optimized") as tmp_dir:
             optimizer.optimize(save_dir=tmp_dir, optimization_config=optimization_config)
-
             optimized_model = ORTModelForCausalLM.from_pretrained(
                 tmp_dir, use_cache=use_cache, provider=provider, use_io_binding=use_io_binding
             )
@@ -586,3 +584,15 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
                 provider="CUDAExecutionProvider",
                 use_io_binding=use_io_binding,
             )
+
+    def test_merged_optimization(self):
+        ort_model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge")
+        self.assertTrue(ort_model.use_cache)
+
+        with self.assertRaises(NotImplementedError) as cm:
+            ORTOptimizer.from_pretrained(ort_model)
+
+        self.assertTrue(
+            "ORTOptimizer does not support ORTModelForCausalLM models when without/with past models are merged"
+            in str(cm.exception)
+        )

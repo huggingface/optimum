@@ -61,6 +61,7 @@ from .input_generators import (
     DummyVisionInputGenerator,
     FalconDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
+    MistralDummyPastKeyValuesGenerator,
     MultiQueryPastKeyValuesGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr

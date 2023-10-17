@@ -585,7 +585,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         elif self.task == "feature-extraction":
             common_outputs = OrderedDict({"last_hidden_state": {0: "batch_size"}})
         else:
-            common_outputs = OrderedDict({"logits": {0: "batch_size"}})
+            common_outputs = OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}})
         if self.use_past:
             # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
             self.add_past_key_values(common_outputs, direction="outputs")
@@ -664,7 +664,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             self.use_past
             and self.use_past_in_inputs
             and self.use_cache_branch is not False
-            and input_name in ["decoder_input_ids", "input_ids"]
+            and input_name in ["decoder_input_ids", "input_ids", "position_ids"]
         ):
             sequence_length = dummy_input_gen.sequence_length
             # Use a sequence length of 1 when the KV cache is already populated.

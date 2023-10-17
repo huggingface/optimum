@@ -66,10 +66,33 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = DummyPastKeyValuesGenerator
 
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        use_past: bool = False,
+        use_past_in_inputs: bool = False,
+        preprocessors: Optional[List[Any]] = None,
+        no_position_ids: bool = False,
+    ):
+        super().__init__(
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            preprocessors=preprocessors,
+        )
+        # TODO: remove no_position_ids once optimum is sufficiently above 1.13
+        self.no_position_ids = no_position_ids
+
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         if self.use_past_in_inputs:
-            common_inputs = {"input_ids": {0: "batch_size"}}
+            common_inputs = {"input_ids": {0: "batch_size", 1: "sequence_length"}}
             self.add_past_key_values(common_inputs, direction="inputs")
             common_inputs["attention_mask"] = {0: "batch_size", 1: "past_sequence_length + 1"}
         else:
@@ -130,6 +153,20 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
             models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].is_merged = True
 
         return models_and_onnx_configs, onnx_files_subpaths
+
+
+class TextDecoderWithPositionIdsOnnxConfig(TextDecoderOnnxConfig):
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = super().inputs
+
+        # Decoders based on GPT2 require a position_ids input to avoid
+        # generating wrong position_ids in the model itself:
+        # https://github.com/huggingface/transformers/blob/v4.33.1/src/transformers/models/gpt2/modeling_gpt2.py#L802
+        if not self.no_position_ids and self.task == "text-generation":
+            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+
+        return common_inputs
 
 
 class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
