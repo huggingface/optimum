@@ -142,6 +142,14 @@ def parse_args_onnx(parser):
         type=json.loads,
         help=("Any kwargs passed to the model forward, or used to customize the export for a given model."),
     )
+    optional_group.add_argument(
+        "--legacy",
+        action="store_true",
+        help=(
+            "Export decoder only models in three files (without + with past and the resulting merged model)."
+            "Also disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum."
+        ),
+    )
 
     input_group = parser.add_argument_group(
         "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input)."
