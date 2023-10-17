@@ -28,10 +28,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Ty
 
 # Integrations must be imported before ML frameworks:
 # isort: off
-from transformers.integrations import (
-    hp_params,
-    is_fairscale_available,
-)
+from transformers.integrations import hp_params
 
 from transformers.utils import is_accelerate_available
 from packaging import version
@@ -60,7 +57,6 @@ from torch.utils.data import DataLoader, Dataset
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
-from transformers.dependency_versions_check import dep_version_check
 from transformers.file_utils import (
     is_apex_available,
     is_sagemaker_dp_enabled,
@@ -88,7 +84,6 @@ from transformers.trainer_utils import (
     EvalPrediction,
     HPSearchBackend,
     PredictionOutput,
-    ShardedDDPOption,
     TrainOutput,
     denumpify_detensorize,
     enable_full_determinism,
@@ -132,11 +127,6 @@ if is_apex_available():
 
 if is_torch_tpu_available(check_device=False):
     import torch_xla.core.xla_model as xm
-
-if is_fairscale_available():
-    dep_version_check("fairscale")
-    from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
-    from fairscale.optim import OSS
 
 if TYPE_CHECKING:
     import optuna
@@ -533,12 +523,7 @@ class ORTTrainer(Trainer):
             else:
                 debug_overflow = DebugUnderflowOverflow(self.model)  # noqa
 
-        delay_optimizer_creation = (
-            self.sharded_ddp is not None
-            and self.sharded_ddp != ShardedDDPOption.SIMPLE
-            or self.fsdp is not None
-            or self.is_fsdp_enabled
-        )
+        delay_optimizer_creation = is_sagemaker_mp_enabled() or self.fsdp is not None or self.is_fsdp_enabled
 
         # Wrap the model with `ORTModule`
         logger.info("Wrap ORTModule for ONNX Runtime training.")
@@ -582,7 +567,7 @@ class ORTTrainer(Trainer):
 
         # as the model is wrapped, don't use `accelerator.prepare`
         # this is for unhandled cases such as
-        # Fairscale Sharded DDP, FSDP-XLA, SageMaker MP/DP, DataParallel, IPEX
+        # FSDP-XLA, SageMaker MP/DP, DataParallel, IPEX
         use_accelerator_prepare = True if model is self.model else False
 
         if delay_optimizer_creation:
@@ -793,10 +778,6 @@ class ORTTrainer(Trainer):
                     if args.max_grad_norm is not None and args.max_grad_norm > 0:
                         # deepspeed does its own clipping
 
-                        if self.do_grad_scaling:
-                            # AMP: gradients need unscaling
-                            self.scaler.unscale_(self.optimizer)
-
                         if is_sagemaker_mp_enabled() and args.fp16:
                             self.optimizer.clip_master_grads(args.max_grad_norm)
                         elif hasattr(self.optimizer, "clip_grad_norm"):
@@ -812,18 +793,8 @@ class ORTTrainer(Trainer):
                             )
 
                     # Optimizer step
-                    optimizer_was_run = True
-                    if is_torch_tpu_available():
-                        raise NotImplementedError("`ORTTrainer` is not supported by TPU!")
-                    elif self.do_grad_scaling:
-                        scale_before = self.scaler.get_scale()
-                        self.scaler.step(self.optimizer)
-                        self.scaler.update()
-                        scale_after = self.scaler.get_scale()
-                        optimizer_was_run = scale_before <= scale_after
-                    else:
-                        self.optimizer.step()
-                        optimizer_was_run = not self.accelerator.optimizer_step_was_skipped
+                    self.optimizer.step()
+                    optimizer_was_run = not self.accelerator.optimizer_step_was_skipped
 
                     if optimizer_was_run:
                         # Delay optimizer scheduling until metrics are generated
@@ -1689,19 +1660,8 @@ class ORTTrainer(Trainer):
         if not training:
             return model
 
-        # Distributed training (should be after apex fp16 initialization)
-        if self.sharded_ddp is not None:
-            # Sharded DDP!
-            if self.sharded_ddp == ShardedDDPOption.SIMPLE:
-                model = ShardedDDP(model, self.optimizer)
-            else:
-                raise NotImplementedError(
-                    "Fairscale's zero_dp_2 and zero_dp_3 are not compatible with `torch_ort.ORTModule`"
-                    " used in `ORTTrainer`. Use `--sharded_ddp simpe` or deepspeed stage 2 if you want"
-                    "the gradient to be sharded."
-                )
         # Distributed training using PyTorch FSDP
-        elif self.fsdp is not None:
+        if self.fsdp is not None:
             try:
                 from torch_xla.distributed.fsdp import XlaFullyShardedDataParallel as FSDP
                 from torch_xla.distributed.fsdp import checkpoint_module
@@ -1806,27 +1766,20 @@ class ORTTrainer(Trainer):
             else:
                 optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
 
-            if self.sharded_ddp == ShardedDDPOption.SIMPLE:
-                self.optimizer = OSS(
-                    params=optimizer_grouped_parameters,
-                    optim=optimizer_cls,
-                    **optimizer_kwargs,
-                )
-            else:
-                self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
-                if optimizer_cls.__name__ == "Adam8bit":
-                    import bitsandbytes
+            self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
+            if optimizer_cls.__name__ == "Adam8bit":
+                import bitsandbytes
 
-                    manager = bitsandbytes.optim.GlobalOptimManager.get_instance()
+                manager = bitsandbytes.optim.GlobalOptimManager.get_instance()
 
-                    skipped = 0
-                    for module in opt_model.modules():
-                        if isinstance(module, nn.Embedding):
-                            skipped += sum({p.data_ptr(): p.numel() for p in module.parameters()}.values())
-                            logger.info(f"skipped {module}: {skipped/2**20}M params")
-                            manager.register_module_override(module, "weight", {"optim_bits": 32})
-                            logger.debug(f"bitsandbytes: will optimize {module} in fp32")
-                    logger.info(f"skipped: {skipped/2**20}M params")
+                skipped = 0
+                for module in opt_model.modules():
+                    if isinstance(module, nn.Embedding):
+                        skipped += sum({p.data_ptr(): p.numel() for p in module.parameters()}.values())
+                        logger.info(f"skipped {module}: {skipped/2**20}M params")
+                        manager.register_module_override(module, "weight", {"optim_bits": 32})
+                        logger.debug(f"bitsandbytes: will optimize {module} in fp32")
+                logger.info(f"skipped: {skipped/2**20}M params")
 
         if is_sagemaker_mp_enabled():
             raise NotImplementedError(

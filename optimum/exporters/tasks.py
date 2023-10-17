@@ -303,8 +303,10 @@ class TasksManager:
             "text-generation-with-past",
             "text2text-generation",
             "text2text-generation-with-past",
-            "text-classification",
-            "question-answering",
+            # text-classification and question-answering can be supported, but the ONNX export is currently broken due to a regression in PyTorch 2.1.
+            # Reference: https://github.com/pytorch/pytorch/issues/110597.
+            # "text-classification",
+            # "question-answering",
             onnx="BartOnnxConfig",
         ),
         # BEiT cannot be used with the masked image modeling autoclass, so this task is excluded here
@@ -651,6 +653,14 @@ class TasksManager:
             "text-classification",
             "question-answering",
             onnx="MBartOnnxConfig",
+        ),
+        "mistral": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            # "text-classification",
+            onnx="MistralOnnxConfig",
         ),
         # TODO: enable once the missing operator is supported.
         # "mctct": supported_tasks_mapping(
@@ -1398,9 +1408,11 @@ class TasksManager:
                 inferred_task_name = "image-classification"
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
-                # conversational is not a supported task per se, just an alias that may map to
+                # The Hub task "conversational" is not a supported task per se, just an alias that may map to
                 # text-generaton or text2text-generation.
-                if pipeline_tag is not None and pipeline_tag != "conversational":
+                # The Hub task "object-detection" is not a supported task per se, as in Transformers this may map to either
+                # zero-shot-object-detection or object-detection.
+                if pipeline_tag is not None and pipeline_tag not in ["conversational", "object-detection"]:
                     inferred_task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
                 else:
                     transformers_info = model_info.transformersInfo

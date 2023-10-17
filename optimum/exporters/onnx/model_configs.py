@@ -35,6 +35,7 @@ from ...utils import (
     DummyVisionEmbeddingsGenerator,
     DummyVisionInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
+    MistralDummyPastKeyValuesGenerator,
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
@@ -56,7 +57,16 @@ from .config import (
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
-from .model_patcher import SAMModelPatcher, SpeechT5ModelPatcher, WavLMModelPatcher
+from .model_patcher import (
+    BartModelPatcher,
+    BloomModelPatcher,
+    LlamaModelPatcher,
+    MistralModelPatcher,
+    OPTModelPatcher,
+    SAMModelPatcher,
+    SpeechT5ModelPatcher,
+    WavLMModelPatcher,
+)
 
 
 if TYPE_CHECKING:
@@ -215,10 +225,37 @@ class OPTOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return OPTModelPatcher(self, model, model_kwargs=model_kwargs)
+
 
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return LlamaModelPatcher(self, model, model_kwargs=model_kwargs)
+
+
+class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
+    DEFAULT_ONNX_OPSET = 14
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        MistralDummyPastKeyValuesGenerator,
+    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return MistralModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):
@@ -227,6 +264,11 @@ class MPTOnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
     )
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return BloomModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class BloomOnnxConfig(TextDecoderOnnxConfig):
@@ -260,6 +302,11 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
                 0: "batch_size x num_heads",
                 1: decoder_sequence_name,
             }
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return BloomModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -400,7 +447,7 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
         return int_tensor
 
 
-class BartOnnxConfig(TextSeq2SeqOnnxConfig):
+class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
@@ -524,11 +571,14 @@ class BartOnnxConfig(TextSeq2SeqOnnxConfig):
             )
 
 
+class BartOnnxConfig(M2M100OnnxConfig):
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return BartModelPatcher(self, model, model_kwargs=model_kwargs)
+
+
 class MBartOnnxConfig(BartOnnxConfig):
-    pass
-
-
-class M2M100OnnxConfig(BartOnnxConfig):
     pass
 
 
@@ -985,12 +1035,37 @@ class Data2VecAudioOnnxConfig(AudioOnnxConfig):
 
 
 class PerceiverDummyInputGenerator(DummyVisionInputGenerator):
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedVisionConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
+        width: int = DEFAULT_DUMMY_SHAPES["width"],
+        height: int = DEFAULT_DUMMY_SHAPES["height"],
+        **kwargs,
+    ):
+        super().__init__(
+            task=task,
+            normalized_config=normalized_config,
+            batch_size=batch_size,
+            num_channels=num_channels,
+            width=width,
+            height=height,
+            **kwargs,
+        )
+
+        from transformers.onnx.utils import get_preprocessor
+
+        preprocessor = get_preprocessor(normalized_config._name_or_path)
+        if preprocessor is not None and hasattr(preprocessor, "size"):
+            self.height = preprocessor.size.get("height", self.height)
+            self.width = preprocessor.size.get("width", self.width)
+
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         input_ = super().generate(
             input_name=input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
         )
-        # if input_name == "pixel_values":
-        #     input_ = input_[None, :]
         return input_
 
 
@@ -1025,22 +1100,22 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        # TODO: validate that.
-        dynamic_axis = {0: "batch_size", 1: "sequence_length"}
-        return {
-            self.inputs_name: dynamic_axis,
-            # TODO: should we add the attention_mask?
-            # This breaks things for image-classification, suspected bug is the DummyInputGenerators not having the
-            # same num_channels / sequence_length.
-            # "attention_mask": dynamic_axis,
-        }
+        if self.inputs_name in ["input_ids", "inputs"]:
+            dynamic_axis = {0: "batch_size", 1: "sequence_length"}
+            return {
+                "input_ids": dynamic_axis,
+                "attention_mask": dynamic_axis,
+            }
+        else:
+            dynamic_axis = {0: "batch_size", 1: "sequence_length", 2: "width", 3: "height"}
+            return {
+                "pixel_values": dynamic_axis,
+            }
 
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         self.is_generating_dummy_inputs = True
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
-        specialized_inputs_name = self.inputs_name
-        self.is_generating_dummy_inputs = True
-        dummy_inputs[self.inputs_name] = dummy_inputs.pop(specialized_inputs_name)
+        dummy_inputs[self.inputs_name] = dummy_inputs.pop(self.inputs_name)
         return dummy_inputs
 
 

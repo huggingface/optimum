@@ -91,6 +91,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
     "mbart": "hf-internal-testing/tiny-random-mbart",
+    "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
     "mobilenet-v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
     "mobilenet-v1": "google/mobilenet_v1_0.75_192",

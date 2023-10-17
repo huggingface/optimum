@@ -138,13 +138,6 @@ def parse_args_onnx(parser):
         help=("The library on the model." " If not provided, will attempt to infer the local checkpoint's library"),
     )
     optional_group.add_argument(
-        "--no-position-ids",
-        action="store_true",
-        help=(
-            "Disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum."
-        ),
-    )
-    optional_group.add_argument(
         "--model-kwargs",
         type=json.loads,
         help=("Any kwargs passed to the model forward, or used to customize the export for a given model."),
@@ -261,7 +254,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             use_subprocess=True,
             _variant=self.args.variant,
             library_name=self.args.library_name,
-            no_position_ids=self.args.no_position_ids,
+            legacy=self.args.legacy,
             model_kwargs=self.args.model_kwargs,
             **input_shapes,
         )
