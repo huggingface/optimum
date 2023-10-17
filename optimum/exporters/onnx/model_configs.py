@@ -353,6 +353,7 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         preprocessors: Optional[List[Any]] = None,
+        no_position_ids: bool = False,
     ):
         super().__init__(
             config=config,
@@ -362,13 +363,30 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             preprocessors=preprocessors,
+            no_position_ids=no_position_ids,
         )
-        # For some reason Falcon config.num_kv_heads can not be trusted, see modeling_falcon.py in transformers
+        # For some reason Falcon config.num_kv_heads can not be trusted, see in Transformers:
+        # https://github.com/huggingface/transformers/blob/v4.34.0/src/transformers/models/falcon/modeling_falcon.py#L337
         self._normalized_config.num_kv_heads = (
             self._normalized_config.num_kv_heads
             if (self._normalized_config.new_decoder_architecture or not self._normalized_config.multi_query)
             else 1
         )
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = super().inputs
+
+        if (
+            not self.no_position_ids
+            and not self._config.alibi
+            and self.task in ["text-generation", "feature-extraction"]
+        ):
+            # When alibi is used, position_ids are not used in Falcon.
+            # Reference: https://github.com/huggingface/transformers/blob/v4.34.0/src/transformers/models/falcon/modeling_falcon.py#L1116
+            common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
+
+        return common_inputs
 
     # we need to set output_attentions=True in the model input to avoid calling
     # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export

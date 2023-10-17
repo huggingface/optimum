@@ -2057,14 +2057,17 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             position_ids = torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).view(-1, input_shape[-1])
         onnx_outputs = onnx_model(**tokens, position_ids=position_ids)
 
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        self.assertTrue(
+            torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4),
+            f"Maxdiff: {(onnx_outputs.logits - transformers_outputs.logits).abs()}",
+        )
 
         # Compare batched generation.
         tokenizer.pad_token_id = tokenizer.eos_token_id
@@ -2075,11 +2078,25 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_model.config.eos_token_id = None
         transformers_model.config.eos_token_id = None
 
+        new_tokens = 30
+        if model_arch == "falcon":
+            # TODO: remove once https://github.com/huggingface/transformers/pull/26873 is released, falcon is broken in transformers
+            new_tokens = 5
         onnx_outputs = onnx_model.generate(
-            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30, eos_token_id=None
+            **tokens,
+            num_beams=1,
+            do_sample=False,
+            min_new_tokens=new_tokens,
+            max_new_tokens=new_tokens,
+            eos_token_id=None,
         )
         transformers_outputs = transformers_model.generate(
-            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30, eos_token_id=None
+            **tokens,
+            num_beams=1,
+            do_sample=False,
+            min_new_tokens=new_tokens,
+            max_new_tokens=new_tokens,
+            eos_token_id=None,
         )
 
         self.assertTrue(torch.allclose(onnx_outputs, transformers_outputs))
@@ -2257,12 +2274,13 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         text = "My Name is Philipp and i live"
         tokens = tokenizer(text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None)
         model_not_merged_dir = self.onnx_model_dirs[test_name + "_False"]
+
         model_not_merged = ORTModelForCausalLM.from_pretrained(model_not_merged_dir)
         not_merged_onnx_path = Path(model_not_merged_dir, ONNX_WEIGHTS_NAME)
         self.assertFalse(has_onnx_input(not_merged_onnx_path, "use_cache_branch"))
         self.assertFalse(model_not_merged.use_merged)
 
-        model_merged_dir = Path(model_not_merged_dir) / "merged"
+        model_merged_dir = Path(Path(model_not_merged_dir).parents[0], "merged")
         task = model_not_merged.export_feature
         if use_cache:
             task += "-with-past"

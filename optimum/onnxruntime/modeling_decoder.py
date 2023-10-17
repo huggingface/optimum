@@ -265,7 +265,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
             if "loss" in self.output_names:
                 loss = output_buffers["loss"].view(output_shapes["loss"])
-
         else:
             inputs["input_ids"] = input_ids.cpu().detach().numpy() if use_torch else input_ids
 
@@ -337,8 +336,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             else:
                 num_attention_heads = self.normalized_config.num_attention_heads
             embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
+
             dtype = constructor.float16 if self.use_fp16 else constructor.float32
-            # TODO: find a way to better handle this controlflow
+            # TODO: find a way to better handle this controlflow, this is EXTREMELY UGLY.
             # "1" is the dummy sequence length
             if self.config.model_type == "bloom":
                 shape_value = (batch_size * num_attention_heads, 0, embed_size_per_head)
@@ -353,7 +353,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 past_key_values = tuple(
                     key_or_value for _ in range(len(self.key_value_input_names) // 2) for key_or_value in [key, value]
                 )
-            elif self.config.model_type in MULTI_QUERY_ATTN_MODELS:
+            elif self.config.model_type == "gpt_bigcode":
+                # GPT BigCode uses muti-query attention, and has the specificity of putting both key and value in the same cache tensor.
                 shape_key_and_value = (batch_size, 0, embed_size_per_head * 2)
                 key_and_value = constructor.zeros(shape_key_and_value, dtype=dtype)
 
@@ -361,6 +362,14 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     key_and_value = key_and_value.to(self.device)
 
                 past_key_values = tuple(key_and_value for _ in range(len(self.key_value_input_names)))
+            elif self.config.model_type == "falcon":
+                shape = (batch_size * self.num_key_value_heads, 0, embed_size_per_head)
+                key_or_value = constructor.zeros(shape, dtype=dtype)
+
+                if use_torch:
+                    key_or_value = key_or_value.to(self.device)
+
+                past_key_values = tuple(key_or_value for _ in range(len(self.key_value_input_names)))
             else:
                 shape = (batch_size, num_attention_heads, 0, embed_size_per_head)
                 key_or_value = constructor.zeros(shape, dtype=dtype)
@@ -729,30 +738,28 @@ class ORTMPTForCausalLM(ORTModelForCausalLM):
 class ORTFalconForCausalLM(ORTModelForCausalLM):
     def __init__(
         self,
-        decoder_session: onnxruntime.InferenceSession,
+        model: onnxruntime.InferenceSession,
         config: "PretrainedConfig",
-        onnx_paths: List[str],
-        decoder_with_past_session: Optional[onnxruntime.InferenceSession] = None,
-        use_cache: bool = True,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         generation_config: Optional[GenerationConfig] = None,
+        use_cache: Optional[bool] = None,
         **kwargs,
     ):
         super().__init__(
-            decoder_session=decoder_session,
+            model=model,
             config=config,
-            onnx_paths=onnx_paths,
-            decoder_with_past_session=decoder_with_past_session,
-            use_cache=use_cache,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
             generation_config=generation_config,
+            use_cache=use_cache,
             **kwargs,
         )
-        # self.num_kv_heads = config.num_kv_heads if (config.new_decoder_architecture or not config.multi_query) else 1
+        self.num_key_value_heads = (
+            config.num_kv_heads if (config.new_decoder_architecture or not config.multi_query) else 1
+        )
 
     # Copied from https://github.com/huggingface/transformers/pull/26199
     def _reorder_cache(

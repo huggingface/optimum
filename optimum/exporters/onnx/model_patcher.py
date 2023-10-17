@@ -19,10 +19,11 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Union
 
 import transformers
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
-from transformers.models.falcon.modeling_falcon import build_alibi_tensor
+from transformers.models.falcon.modeling_falcon import FalconModel, build_alibi_tensor
 from transformers.utils import is_torch_available
 
 from ...utils.modeling_utils import (
+    _falcon_prepare_attn_mask,
     _prepare_attn_mask,
     _prepare_decoder_attention_mask,
     _prepare_decoder_sliding_window_attention_mask,
@@ -390,7 +391,15 @@ class FalconModelPatcher(ModelPatcher):
             model.transformer.__class__.forward = falcon_model_forward_without_kv_reformatting
 
         self.original_make_causal = transformers.models.falcon.modeling_falcon._make_causal_mask
+
         transformers.models.falcon.modeling_falcon._make_causal_mask = _make_causal_mask_falcon_patched
+
+        # In order to use a single decoder, we need to patch the _prepare_attn_mask function to behave independently of the sequence length.
+        if isinstance(model, FalconModel):
+            model._prepare_attn_mask = _falcon_prepare_attn_mask
+        else:
+            model.transformer._prepare_attn_mask = _falcon_prepare_attn_mask
+
         self._model = model
 
         self.orig_forward_name = "forward" if hasattr(self._model, "forward") else "call"
