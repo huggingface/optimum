@@ -31,7 +31,7 @@ jobs:
       ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.OPTIMUM_OIDC_IAM_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
@@ -81,7 +81,7 @@ jobs:
     if: ${{ always() && !(needs.start-runner.result == 'skipped' && needs.do-the-job.result == 'skipped') }} # required to stop the runner even if the error happened in the previous jobs
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.OPTIMUM_OIDC_IAM_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
