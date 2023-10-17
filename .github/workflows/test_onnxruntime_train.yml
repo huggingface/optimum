@@ -1,4 +1,4 @@
-name: ONNX Runtime / Test ORTTrainer
+name: ONNX Runtime Training / Test ORTTrainer
 
 on:
   workflow_dispatch:
@@ -6,10 +6,6 @@ on:
     - cron: 0 1 */3 * * # at 1am every 3 days
   pull_request:
     types: [opened, synchronize, reopened, labeled]
-
-permissions:
-  id-token: write
-  contents: read
 
 jobs:
   start-runner:
