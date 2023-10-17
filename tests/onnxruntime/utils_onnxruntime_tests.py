@@ -117,8 +117,6 @@ SEED = 42
 
 
 class ORTModelTestMixin(unittest.TestCase):
-    ARCH_MODEL_MAP = {}
-
     TENSOR_ALIAS_TO_TYPE = {
         "pt": torch.Tensor,
         "np": np.ndarray,
@@ -163,12 +161,6 @@ class ORTModelTestMixin(unittest.TestCase):
                 if model_arch == "encoder-decoder" and task not in MODEL_NAMES[model_arch][model_id]:
                     # The model with use_cache=True is not supported for bert as a decoder")
                     continue
-
-                if model_arch in self.ARCH_MODEL_MAP:
-                    if isinstance(MODEL_NAMES[model_arch], dict):
-                        model_id = list(self.ARCH_MODEL_MAP[model_arch].keys())[idx]
-                    else:
-                        model_id = self.ARCH_MODEL_MAP[model_arch]
 
                 set_seed(SEED)
                 onnx_model = self.ORTMODEL_CLASS.from_pretrained(

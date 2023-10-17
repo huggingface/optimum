@@ -1244,8 +1244,6 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         "xlm_roberta",
     ]
 
-    ARCH_MODEL_MAP = {}  # TODO remove
-
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForMaskedLM
     TASK = "fill-mask"
@@ -1261,7 +1259,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
 
         self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
@@ -1293,7 +1291,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer)
@@ -1324,7 +1322,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
         tokenizer = get_preprocessor(model_id)
         MASK_TOKEN = tokenizer.mask_token
@@ -1346,7 +1344,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=False).to(
             "cuda"
         )
@@ -1403,8 +1401,6 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "xlm_roberta",
     ]
 
-    ARCH_MODEL_MAP = {}  # TODO remove
-
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForSequenceClassification
     TASK = "text-classification"
@@ -1420,7 +1416,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
         self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
@@ -1452,7 +1448,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(self.onnx_model_dirs[model_arch])
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer)
@@ -1489,7 +1485,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], provider=provider
         )
@@ -1529,7 +1525,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], use_io_binding=False
         ).to("cuda")
@@ -2377,8 +2373,6 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "vit",
     ]
 
-    ARCH_MODEL_MAP = {}  # TODO remove
-
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForImageClassification
     TASK = "image-classification"
@@ -2394,7 +2388,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch] if model_arch in MODEL_NAMES else self.ARCH_MODEL_MAP[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
         self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
@@ -2428,7 +2422,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(self.onnx_model_dirs[model_arch])
         preprocessor = get_preprocessor(model_id)
         pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
@@ -2465,7 +2459,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], provider=provider
         )
@@ -2489,7 +2483,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], use_io_binding=False
         ).to("cuda")
@@ -2689,7 +2683,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
         self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
@@ -2721,7 +2715,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(self.onnx_model_dirs[model_arch])
         processor = AutoFeatureExtractor.from_pretrained(model_id)
         pipe = pipeline("audio-classification", model=onnx_model, feature_extractor=processor, sampling_rate=220)
@@ -2759,7 +2753,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], provider=provider
         )
@@ -2782,7 +2776,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], use_io_binding=False
         ).to("cuda")
@@ -2841,7 +2835,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch])
 
         self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
@@ -2900,7 +2894,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioXVector.from_pretrained(self.onnx_model_dirs[model_arch])
 
         self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
@@ -2936,7 +2930,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioXVector.from_pretrained(
             self.onnx_model_dirs[model_arch], use_io_binding=False
         ).to("cuda")
@@ -2992,7 +2986,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioFrameClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
         self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
