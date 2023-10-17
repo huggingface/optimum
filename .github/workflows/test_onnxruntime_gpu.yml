@@ -11,14 +11,15 @@ on:
   #  branches:
   #    - main
 
+permissions:
+    id-token: write
+    contents: read
+
 jobs:
   start-runner:
     if: ${{ (github.event_name == 'workflow_dispatch') || (github.event_name == 'schedule') || contains( github.event.pull_request.labels.*.name, 'gpu-test') }}
     name: Start self-hosted EC2 runner
-    permissions:
-      id-token: write
-      contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest   
     env:
       AWS_REGION: us-east-1
       EC2_AMI_ID: ami-0dc1c26161f869ed1
@@ -31,9 +32,10 @@ jobs:
       ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: arn:aws:iam::754289655784:role/optimum-oidc-github-actions-role
+          role-session-name: samplerolesession
           aws-region: ${{ env.AWS_REGION }}
       - name: Start EC2 runner
         id: start-ec2-runner
@@ -72,9 +74,6 @@ jobs:
     needs:
       - start-runner # required to get output from the start-runner job
       - do-the-job # required to wait when the main job is done
-    permissions:
-      id-token: write
-      contents: read
     runs-on: ubuntu-latest
     env:
       AWS_REGION: us-east-1
