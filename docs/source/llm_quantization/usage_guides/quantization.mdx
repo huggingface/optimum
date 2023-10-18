@@ -76,20 +76,7 @@ quantized_model = load_quantized_model(empty_model, save_folder=save_folder, dev
 
 ### Exllama kernels for faster inference
 
-For 4-bit model, you can use the exllama kernels in order to have a faster inference speed. If you want to change its value, you just need to pass `disable_exllama` in [`~optimum.gptq.load_quantized_model`]. In order to use these kernels, you need to have the entire model on gpus.
-
-```py
-from optimum.gptq import GPTQQuantizer, load_quantized_model
-import torch
-
-from accelerate import init_empty_weights
-with init_empty_weights():
-    empty_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
-empty_model.tie_weights()
-quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto", disable_exllama=False, disable_exllamav2=True)
-```
-
-With the release of the exllamav2 kernel, you can get faster inference speed compared to the exllama kernels. It is activated by default: `disable_exllamav2=False` in [`~optimum.gptq.load_quantized_model`]. 
+With the release of the exllamav2 kernel, you can get faster inference speed compared to the exllama kernels for 4-bit model. It is activated by default: `disable_exllamav2=False` in [`~optimum.gptq.load_quantized_model`]. In order to use these kernels, you need to have the entire model on gpus.
 
 ```py
 from optimum.gptq import GPTQQuantizer, load_quantized_model
@@ -100,6 +87,19 @@ with init_empty_weights():
     empty_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
 empty_model.tie_weights()
 quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto")
+```
+
+If you wish to use exllama kernels, you will have to disable the exllamav2 kernel and activate the exllama kernel:
+
+```py
+from optimum.gptq import GPTQQuantizer, load_quantized_model
+import torch
+
+from accelerate import init_empty_weights
+with init_empty_weights():
+    empty_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
+empty_model.tie_weights()
+quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto", disable_exllama=False, disable_exllamav2=True)
 ```
 
 Note that only 4-bit models are supported with exllama/exllamav2 kernels for now. Furthermore, it is recommended to disable the exllama/exllamav2 kernel when you are finetuning your model with peft.
