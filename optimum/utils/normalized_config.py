@@ -213,9 +213,7 @@ class NormalizedConfigManager:
         "blenderbot": BartLikeNormalizedTextConfig,
         "blenderbot-small": BartLikeNormalizedTextConfig,
         "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
-        "falcon": NormalizedTextConfig.with_args(
-            num_layers="num_hidden_layers", num_attention_heads="num_attention_heads"
-        ),
+        "falcon": NormalizedTextConfig,
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "cvt": NormalizedVisionConfig,
