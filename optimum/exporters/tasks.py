@@ -1407,13 +1407,13 @@ class TasksManager:
                     "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
                 )
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
-            if model_info.library_name == "diffusers":
+            if getattr(model_info, "library_name", None) == "diffusers":
                 # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
                 for task in ("stable-diffusion-xl", "stable-diffusion"):
                     if task in model_info.tags:
                         inferred_task_name = task
                         break
-            elif model_info.library_name == "timm":
+            elif getattr(model_info, "library_name", None) == "timm":
                 inferred_task_name = "image-classification"
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
@@ -1549,7 +1549,7 @@ class TasksManager:
                     library_name = "transformers"
 
         if library_name is None:
-            ValueError(
+            raise ValueError(
                 "The library_name could not be automatically inferred. If using the command-line, please provide the argument --library (transformers,diffusers,timm)!"
             )
 
