@@ -390,7 +390,7 @@ class TasksManager:
             onnx="CamembertOnnxConfig",
             tflite="CamembertTFLiteConfig",
         ),
-        "open_clip": supported_tasks_mapping(
+        "open-clip": supported_tasks_mapping(
             "zero-shot-image-classification",
             onnx="CLIPOnnxConfig",
         ),
@@ -1588,7 +1588,7 @@ class TasksManager:
         full_model_path = Path(model_name_or_path) / subfolder
         is_local = full_model_path.is_dir()
 
-        if library_name == "timm":
+        if library_name == "timm" or library_name == "open_clip":
             # Retrieve model config
             config_path = full_model_path / "config.json"
 
@@ -1602,11 +1602,14 @@ class TasksManager:
             # Set config as in transformers
             setattr(model, "config", model_config)
 
-            # Update model_type for model
-            with open(config_path) as fp:
-                model_type = json.load(fp)["architecture"]
+            if library_name == "timm":
+                # Update model_type for model
+                with open(config_path) as fp:
+                    model_type = json.load(fp)["architecture"]
+            else:
+                model_type = "open-clip"
 
-            setattr(model.config, "model_type", model_type)
+            setattr(model.config, "model_type", model_type)        
 
     @staticmethod
     def get_all_tasks():
