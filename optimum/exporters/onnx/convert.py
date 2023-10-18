@@ -23,7 +23,7 @@ from inspect import signature
 from itertools import chain
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
-
+import sys
 import numpy as np
 import onnx
 from transformers.utils import is_tf_available, is_torch_available
@@ -581,15 +581,16 @@ def export_pytorch(
                 )
 
             # check if external data was exported
-            # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
-            onnx_model = onnx.load(str(output), load_external_data=False)
-            model_uses_external_data = check_model_uses_external_data(onnx_model)
+            if (
+                os.path.getsize(str(output)) + sys.getsizeof(bytes()) > onnx.checker.MAXIMUM_PROTOBUF
+                or FORCE_ONNX_EXTERNAL_DATA
+            ):
+                onnx_model = onnx.load(str(output), load_external_data=False)
 
-            if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
                 tensors_paths = _get_onnx_external_data_tensors(onnx_model)
                 logger.info("Saving external data to one file...")
 
-                # try free model memory
+                # try to free up model memory
                 del model
                 del onnx_model
                 gc.collect()
