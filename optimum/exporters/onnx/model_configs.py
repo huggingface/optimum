@@ -1531,33 +1531,6 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyVisionEncoderDecoderPastKeyValuesGenerator)
 
-    def __init__(
-        self,
-        config: "PretrainedConfig",
-        task: str = "feature-extraction",
-        int_dtype: str = "int64",
-        float_dtype: str = "fp32",
-        use_past: bool = False,
-        use_past_in_inputs: bool = False,
-        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
-        preprocessors: Optional[List[Any]] = None,
-    ):
-        super().__init__(
-            config=config,
-            task=task,
-            int_dtype=int_dtype,
-            float_dtype=float_dtype,
-            use_past=use_past,
-            use_past_in_inputs=use_past_in_inputs,
-            behavior=behavior,
-            preprocessors=preprocessors,
-        )
-
-        if config.decoder.model_type == "trocr" and use_past:
-            raise ValueError(
-                "Exporting TrOCR to ONNX with past key values is not supported with TrOCR model. Please open an issue in Optimum repository."
-            )
-
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         common_inputs = {}

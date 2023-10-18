@@ -25,6 +25,7 @@ from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSp
 from transformers.utils import is_torch_available
 
 from ...utils.modeling_utils import (
+    _falcon_prepare_attn_mask,
     _prepare_attn_mask,
     _prepare_decoder_attention_mask,
     _prepare_decoder_sliding_window_attention_mask,
