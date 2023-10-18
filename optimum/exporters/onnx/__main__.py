@@ -351,10 +351,7 @@ def main_export(
 
     custom_architecture = False
     is_stable_diffusion = "stable-diffusion" in task
-    if is_stable_diffusion:
-        model_type = "stable-diffusion"
-    else:
-        model_type = model.config.model_type.replace("_", "-")
+    model_type = "stable-diffusion" if is_stable_diffusion else  model.config.model_type.replace("_", "-")
 
     if legacy and model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and task.startswith("text-generation"):
         logger.warning(
