@@ -68,6 +68,7 @@ def _get_submodels_and_onnx_configs(
     float_dtype: str = "fp32",
     fn_get_submodels: Optional[Callable] = None,
     preprocessors: Optional[List[Any]] = None,
+    model_type: Optional[str] = None, 
     legacy: bool = False,
 ):
     is_stable_diffusion = "stable-diffusion" in task
@@ -79,7 +80,7 @@ def _get_submodels_and_onnx_configs(
             )
         else:
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                model=model, exporter="onnx", task=task
+                model=model, model_type=model_type, exporter="onnx", task=task
             )
             onnx_config_kwargs = {}
             if task.startswith("text-generation") and legacy:
@@ -351,14 +352,20 @@ def main_export(
 
     custom_architecture = False
     is_stable_diffusion = "stable-diffusion" in task
-    model_type = "stable-diffusion" if is_stable_diffusion else model.config.model_type.replace("_", "-")
+    is_open_ai_clip = "laion" in model_name_or_path and "CLIP" in model_name_or_path
+    if is_stable_diffusion:
+        model_type = "stable-diffusion"
+    elif is_open_ai_clip:
+        model_type = "open_clip"
+    else:
+        model_type = model.config.model_type.replace("_", "-")
 
     if legacy and model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and task.startswith("text-generation"):
         logger.warning(
             f"legacy=True was specified in the ONNX export, although the model {model_name_or_path} (model type {model_type}) requires position_ids for batched inference. Passing `legacy=True` is strongly discouraged, and this option will be removed in a future release. Reference: https://github.com/huggingface/optimum/pull/1381"
         )
 
-    if not is_stable_diffusion:
+    if not is_stable_diffusion and not is_open_ai_clip:
         if model_type in TasksManager._UNSUPPORTED_CLI_MODEL_TYPE:
             raise ValueError(
                 f"{model_type} is not supported yet. Only {TasksManager._SUPPORTED_CLI_MODEL_TYPE} are supported. "
@@ -417,6 +424,7 @@ def main_export(
     onnx_config, models_and_onnx_configs = _get_submodels_and_onnx_configs(
         model=model,
         task=task,
+        model_type=model_type,
         monolith=monolith,
         custom_onnx_configs=custom_onnx_configs if custom_onnx_configs is not None else {},
         custom_architecture=custom_architecture,

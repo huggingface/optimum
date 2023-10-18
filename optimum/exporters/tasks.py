@@ -192,10 +192,15 @@ class TasksManager:
             "image-classification": "create_model",
         }
 
+        _OPEN_CLIP_TASKS_TO_MODEL_LOADERS = {
+            "zero-shot-image-classification": "create_model_and_transforms",
+        }
+
         _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {
             "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
             "diffusers": _DIFFUSERS_TASKS_TO_MODEL_LOADERS,
             "timm": _TIMM_TASKS_TO_MODEL_LOADERS,
+            "open_clip": _OPEN_CLIP_TASKS_TO_MODEL_LOADERS,
         }
 
     if is_tf_available():
@@ -384,6 +389,10 @@ class TasksManager:
             "question-answering",
             onnx="CamembertOnnxConfig",
             tflite="CamembertTFLiteConfig",
+        ),
+        "open_clip": supported_tasks_mapping(
+            "zero-shot-image-classification",
+            onnx="CLIPOnnxConfig",
         ),
         "clip": supported_tasks_mapping(
             "feature-extraction",
@@ -1702,6 +1711,14 @@ class TasksManager:
                 model_name_or_path, model, subfolder, revision, cache_dir, library_name
             )
             return model
+        
+        if library_name == "open_clip":
+            model, _, _ = model_class(f"hf-hub:{model_name_or_path}", cache_dir=cache_dir)
+            TasksManager.standardize_model_attributes(
+                model_name_or_path, model, subfolder, revision, cache_dir, library_name
+            )
+            return model
+
 
         try:
             if framework == "pt":
