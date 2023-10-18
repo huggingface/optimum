@@ -1090,7 +1090,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForQuestionAnswering.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("custom or unsupported architecture", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -1252,7 +1252,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForMaskedLM.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -1409,7 +1409,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("that is a custom or unsupported", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -1582,7 +1582,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForTokenClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -1936,6 +1936,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "bloom",
         "codegen",
+        "falcon",
         "gpt2",
         "gpt_bigcode",
         "gpt_neo",
@@ -1993,7 +1994,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
@@ -2056,14 +2057,17 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             position_ids = torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).view(-1, input_shape[-1])
         onnx_outputs = onnx_model(**tokens, position_ids=position_ids)
 
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        self.assertTrue(
+            torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4),
+            f"Maxdiff: {(onnx_outputs.logits - transformers_outputs.logits).abs()}",
+        )
 
         # Compare batched generation.
         tokenizer.pad_token_id = tokenizer.eos_token_id
@@ -2074,11 +2078,25 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_model.config.eos_token_id = None
         transformers_model.config.eos_token_id = None
 
+        new_tokens = 30
+        if model_arch == "falcon":
+            # TODO: remove once https://github.com/huggingface/transformers/pull/26873 is released, falcon is broken in transformers
+            new_tokens = 5
         onnx_outputs = onnx_model.generate(
-            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30, eos_token_id=None
+            **tokens,
+            num_beams=1,
+            do_sample=False,
+            min_new_tokens=new_tokens,
+            max_new_tokens=new_tokens,
+            eos_token_id=None,
         )
         transformers_outputs = transformers_model.generate(
-            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30, eos_token_id=None
+            **tokens,
+            num_beams=1,
+            do_sample=False,
+            min_new_tokens=new_tokens,
+            max_new_tokens=new_tokens,
+            eos_token_id=None,
         )
 
         self.assertTrue(torch.allclose(onnx_outputs, transformers_outputs))
@@ -2256,12 +2274,13 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         text = "My Name is Philipp and i live"
         tokens = tokenizer(text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None)
         model_not_merged_dir = self.onnx_model_dirs[test_name + "_False"]
+
         model_not_merged = ORTModelForCausalLM.from_pretrained(model_not_merged_dir)
         not_merged_onnx_path = Path(model_not_merged_dir, ONNX_WEIGHTS_NAME)
         self.assertFalse(has_onnx_input(not_merged_onnx_path, "use_cache_branch"))
         self.assertFalse(model_not_merged.use_merged)
 
-        model_merged_dir = Path(model_not_merged_dir) / "merged"
+        model_merged_dir = Path(Path(model_not_merged_dir).parents[0], "merged")
         task = model_not_merged.export_feature
         if use_cache:
             task += "-with-past"
@@ -2381,7 +2400,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -2521,7 +2540,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForSemanticSegmentation.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -2676,7 +2695,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForAudioClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -2828,7 +2847,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForCTC.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -2887,7 +2906,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForAudioXVector.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -2979,7 +2998,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForAudioFrameClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -3068,7 +3087,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["bert"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
@@ -3678,7 +3697,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForSpeechSeq2Seq.from_pretrained(MODEL_NAMES["bert"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
@@ -4037,7 +4056,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForVision2Seq.from_pretrained(MODEL_NAMES["bert"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
@@ -4438,7 +4457,7 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForPix2Struct.from_pretrained(MODEL_NAMES["bert"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):

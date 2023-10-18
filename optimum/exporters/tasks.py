@@ -159,26 +159,27 @@ class TasksManager:
         # task in a Hub repo that has no pipeline_tag, and no transformersInfo.pipeline_tag, as we then rely on
         # on transformersInfo["auto_model"] and this dictionary.
         _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
+            "audio-classification": "AutoModelForAudioClassification",
+            "audio-frame-classification": "AutoModelForAudioFrameClassification",
+            "audio-xvector": "AutoModelForAudioXVector",
+            "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
             "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
+            "image-classification": "AutoModelForImageClassification",
+            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
+            "image-to-text": "AutoModelForVision2Seq",
+            "mask-generation": "AutoModel",
+            "masked-im": "AutoModelForMaskedImageModeling",
+            "multiple-choice": "AutoModelForMultipleChoice",
+            "object-detection": "AutoModelForObjectDetection",
+            "question-answering": "AutoModelForQuestionAnswering",
+            "semantic-segmentation": "AutoModelForSemanticSegmentation",
+            "text-to-audio": "AutoModelForTextToSpectrogram",
             "text-generation": "AutoModelForCausalLM",
             "text2text-generation": "AutoModelForSeq2SeqLM",
             "text-classification": "AutoModelForSequenceClassification",
             "token-classification": "AutoModelForTokenClassification",
-            "multiple-choice": "AutoModelForMultipleChoice",
-            "object-detection": "AutoModelForObjectDetection",
-            "question-answering": "AutoModelForQuestionAnswering",
-            "image-classification": "AutoModelForImageClassification",
-            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
-            "mask-generation": "AutoModel",
-            "masked-im": "AutoModelForMaskedImageModeling",
-            "semantic-segmentation": "AutoModelForSemanticSegmentation",
-            "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
-            "audio-classification": "AutoModelForAudioClassification",
-            "audio-frame-classification": "AutoModelForAudioFrameClassification",
-            "audio-xvector": "AutoModelForAudioXVector",
-            "image-to-text": "AutoModelForVision2Seq",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
@@ -229,22 +230,23 @@ class TasksManager:
         }
 
     _SYNONYM_TASK_MAP = {
-        "sequence-classification": "text-classification",
+        "audio-ctc": "automatic-speech-recognition",
         "causal-lm": "text-generation",
         "causal-lm-with-past": "text-generation-with-past",
-        "seq2seq-lm": "text2text-generation",
-        "seq2seq-lm-with-past": "text2text-generation-with-past",
-        "speech2seq-lm": "automatic-speech-recognition",
-        "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
-        "masked-lm": "fill-mask",
-        "mask-generation": "feature-extraction",
-        "vision2seq-lm": "image-to-text",
         "default": "feature-extraction",
         "default-with-past": "feature-extraction-with-past",
-        "audio-ctc": "automatic-speech-recognition",
-        "translation": "text2text-generation",
+        "masked-lm": "fill-mask",
+        "mask-generation": "feature-extraction",
         "sentence-similarity": "feature-extraction",
+        "seq2seq-lm": "text2text-generation",
+        "seq2seq-lm-with-past": "text2text-generation-with-past",
+        "sequence-classification": "text-classification",
+        "speech2seq-lm": "automatic-speech-recognition",
+        "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
         "summarization": "text2text-generation",
+        "text-to-speech": "text-to-audio",
+        "translation": "text2text-generation",
+        "vision2seq-lm": "image-to-text",
         "zero-shot-classification": "text-classification",
     }
 
@@ -268,12 +270,12 @@ class TasksManager:
 
     # TODO: why feature-extraction-with-past is here?
     _ENCODER_DECODER_TASKS = (
-        "text2text-generation",
         "automatic-speech-recognition",
-        "image-to-text",
-        "feature-extraction-with-past",
-        "visual-question-answering",
         "document-question-answering",
+        "feature-extraction-with-past",
+        "image-to-text",
+        "text2text-generation",
+        "visual-question-answering",
     )
 
     # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
@@ -510,6 +512,15 @@ class TasksManager:
             "text2text-generation",
             "text2text-generation-with-past",
             onnx="EncoderDecoderOnnxConfig",
+        ),
+        "falcon": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "question-answering",
+            "text-generation",
+            "text-generation-with-past",
+            "token-classification",
+            onnx="FalconOnnxConfig",
         ),
         "flaubert": supported_tasks_mapping(
             "feature-extraction",
@@ -848,6 +859,11 @@ class TasksManager:
             "automatic-speech-recognition-with-past",
             onnx="Speech2TextOnnxConfig",
         ),
+        # TODO: SpeechT5 can also support audio-to-audio and automatic-speech-recognition.
+        "speecht5": supported_tasks_mapping(
+            "text-to-audio",
+            onnx="SpeechT5OnnxConfig",
+        ),
         "splinter": supported_tasks_mapping(
             "feature-extraction",
             "question-answering",
@@ -1056,12 +1072,12 @@ class TasksManager:
             `TaskNameToExportConfigDict`: The dictionary mapping each task to a corresponding `ExportConfig`
             constructor.
         """
-        model_type = model_type.lower()
+        model_type = model_type.lower().replace("_", "-")
         model_type_and_model_name = f"{model_type} ({model_name})" if model_name else model_type
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet. "
-                f"Only {TasksManager._SUPPORTED_MODEL_TYPE} are supported. "
+                f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
         elif exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:

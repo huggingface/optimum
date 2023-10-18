@@ -329,6 +329,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
     SUPPORTED_INPUT_NAMES = (
         "input_ids",
         "attention_mask",
+        "encoder_attention_mask",
         "token_type_ids",
         "position_ids",
     )
@@ -841,7 +842,7 @@ class GPTBigCodeDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         past_key_value_shape = (
             self.batch_size,
             self.sequence_length,
-            self.hidden_size // self.num_attention_heads * 2,
+            self.hidden_size // self.num_attention_heads * 2,  # GPT BigCode has a fused KV cache.
         )
         return [
             self.random_float_tensor(past_key_value_shape, framework=framework, dtype=float_dtype)
@@ -865,6 +866,43 @@ class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             (
                 self.random_float_tensor(past_key_shape, framework=framework, dtype=float_dtype),
                 self.random_float_tensor(past_value_shape, framework=framework, dtype=float_dtype),
+            )
+            for _ in range(self.num_layers)
+        ]
+
+
+class MultiQueryPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedTextConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            task=task,
+            normalized_config=normalized_config,
+            batch_size=batch_size,
+            sequence_length=sequence_length,
+            random_batch_size_range=random_batch_size_range,
+            random_sequence_length_range=random_sequence_length_range,
+            **kwargs,
+        )
+        self.num_kv_heads = normalized_config.num_kv_heads
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        past_shape = (
+            self.batch_size * self.num_kv_heads,
+            self.sequence_length,
+            self.hidden_size // self.num_attention_heads,
+        )
+        return [
+            (
+                self.random_float_tensor(past_shape, framework=framework, dtype=float_dtype),
+                self.random_float_tensor(past_shape, framework=framework, dtype=float_dtype),
             )
             for _ in range(self.num_layers)
         ]
@@ -954,6 +992,42 @@ class MistralDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
             )
             for _ in range(self.num_layers)
         ]
+
+
+class DummySpeechT5InputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("output_sequence", "speaker_embeddings", "spectrogram")
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        **kwargs,
+    ):
+        self.task = task
+        self.batch_size = 1  # TODO: SpeechT5 does not support batch inference in Transformers for now.
+
+        self.sequence_length = sequence_length
+        self.speaker_embedding_dim = normalized_config.speaker_embedding_dim
+        self.num_mel_bins = normalized_config.num_mel_bins
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "output_sequence":
+            shape = [self.batch_size, self.sequence_length, self.num_mel_bins]
+        elif input_name == "speaker_embeddings":
+            shape = [self.batch_size, self.speaker_embedding_dim]
+        elif input_name == "spectrogram":
+            shape = [20, self.num_mel_bins]  # NOTE: the first axis length is arbitrary and dynamic
+        else:
+            raise ValueError(f"Unsupported input {input_name} for DummySpeechT5InputGenerator")
+
+        return self.random_float_tensor(
+            shape=shape,
+            min_value=0,
+            max_value=1,
+            framework=framework,
+            dtype=float_dtype,
+        )
 
 
 class DummyVisionEncoderDecoderPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):

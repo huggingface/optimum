@@ -40,6 +40,7 @@ from optimum.exporters.onnx.__main__ import main_export
 from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
+from optimum.exporters.onnx.utils import get_speecht5_models_for_export
 from optimum.utils import ONNX_WEIGHTS_NAME, DummyPastKeyValuesGenerator, NormalizedTextConfig
 from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_timm
 
@@ -216,6 +217,7 @@ class OnnxExportTestCase(TestCase):
         if isinstance(atol, dict):
             atol = atol[task.replace("-with-past", "")]
 
+        model_kwargs = None
         if (
             model.config.is_encoder_decoder
             and task.startswith(
@@ -231,6 +233,9 @@ class OnnxExportTestCase(TestCase):
             models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
         elif task.startswith("text-generation") and monolith is False:
             models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
+        elif model.config.model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+            models_and_onnx_configs = get_speecht5_models_for_export(model, onnx_config, model_kwargs)
         else:
             models_and_onnx_configs = {"model": (model, onnx_config)}
 
@@ -240,6 +245,7 @@ class OnnxExportTestCase(TestCase):
                 opset=onnx_config.DEFAULT_ONNX_OPSET,
                 output_dir=Path(tmpdirname),
                 device=device,
+                model_kwargs=model_kwargs,
             )
             input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True, add_test_name=False)
             for input_shapes in input_shapes_iterator:
@@ -269,6 +275,7 @@ class OnnxExportTestCase(TestCase):
                         output_dir=Path(tmpdirname),
                         input_shapes=input_shapes,
                         device=device,
+                        model_kwargs=model_kwargs,
                     )
                 except AtolError as e:
                     print(f"The ONNX export succeeded with the warning: {e}")
@@ -318,15 +325,18 @@ class OnnxExportTestCase(TestCase):
     def test_pytorch_export_on_cpu(
         self,
         test_name,
-        name,
+        model_type,
         model_name,
         task,
         onnx_config_class_constructor,
         monolith: bool,
     ):
+        if model_type == "speecht5" and monolith:
+            self.skipTest("unsupported export")
+
         self._onnx_export(
             test_name,
-            name,
+            model_type,
             model_name,
             task,
             onnx_config_class_constructor,
@@ -344,15 +354,18 @@ class OnnxExportTestCase(TestCase):
     def test_pytorch_export_on_cuda(
         self,
         test_name,
-        name,
+        model_type,
         model_name,
         task,
         onnx_config_class_constructor,
         monolith: bool,
     ):
+        if model_type == "speecht5" and monolith:
+            self.skipTest("unsupported export")
+
         self._onnx_export(
             test_name,
-            name,
+            model_type,
             model_name,
             task,
             onnx_config_class_constructor,
@@ -367,11 +380,13 @@ class OnnxExportTestCase(TestCase):
     @require_tf
     @require_vision
     @pytest.mark.tensorflow_test
-    def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor, monolith: bool):
+    def test_tensorflow_export(
+        self, test_name, model_type, model_name, task, onnx_config_class_constructor, monolith: bool
+    ):
         if monolith is False:
             return 0
 
-        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, monolith=monolith)
+        self._onnx_export(test_name, model_type, model_name, task, onnx_config_class_constructor, monolith=monolith)
 
     @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
     @require_torch
@@ -401,7 +416,7 @@ class OnnxExportTestCase(TestCase):
     def test_pytorch_export_for_timm_on_cpu(
         self,
         test_name,
-        name,
+        model_type,
         model_name,
         task,
         onnx_config_class_constructor,
@@ -409,7 +424,7 @@ class OnnxExportTestCase(TestCase):
     ):
         self._onnx_export(
             test_name,
-            name,
+            model_type,
             model_name,
             task,
             onnx_config_class_constructor,
@@ -429,7 +444,7 @@ class OnnxExportTestCase(TestCase):
     def test_pytorch_export_for_timm_on_cuda(
         self,
         test_name,
-        name,
+        model_type,
         model_name,
         task,
         onnx_config_class_constructor,
@@ -437,7 +452,7 @@ class OnnxExportTestCase(TestCase):
     ):
         self._onnx_export(
             test_name,
-            name,
+            model_type,
             model_name,
             task,
             onnx_config_class_constructor,
