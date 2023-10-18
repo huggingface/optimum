@@ -18,17 +18,18 @@ import copy
 import gc
 import multiprocessing as mp
 import os
+import sys
 import traceback
 from inspect import signature
 from itertools import chain
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
-import sys
+
 import numpy as np
 import onnx
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
+from ...onnx.utils import _get_onnx_external_data_tensors
 from ...utils import (
     TORCH_MINIMUM_VERSION,
     is_diffusers_available,
