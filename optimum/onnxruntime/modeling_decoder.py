@@ -475,8 +475,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 raise ValueError(
                     f"{ONNX_DECODER_WITH_PAST_NAME} not supported for the following architecture : {', '.join(MODEL_TO_PATCH_FOR_PAST)}. Please re-export your model or set use_cache=False."
                 )
-            else:
-                pass
 
             regular_file_names = []
             for name in [ONNX_WEIGHTS_NAME, ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME]:
