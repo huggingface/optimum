@@ -7,10 +7,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   start-runner:
     if: ${{ (github.event_name == 'workflow_dispatch') || (github.event_name == 'schedule') ||  contains( github.event.pull_request.labels.*.name, 'training')}}
