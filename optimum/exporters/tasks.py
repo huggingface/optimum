@@ -511,6 +511,15 @@ class TasksManager:
             "text2text-generation-with-past",
             onnx="EncoderDecoderOnnxConfig",
         ),
+        "falcon": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "question-answering",
+            "text-generation",
+            "text-generation-with-past",
+            "token-classification",
+            onnx="FalconOnnxConfig",
+        ),
         "flaubert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
