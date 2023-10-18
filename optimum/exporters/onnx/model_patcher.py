@@ -464,11 +464,6 @@ class FalconModelPatcher(ModelPatcher):
 
         self.patched_forward = patched_forward
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.restore_ops()
-        transformers.models.falcon.modeling_falcon._make_causal_mask = self.original_make_causal
-        setattr(self._model, self.orig_forward_name, self.orig_forward)
-
 
 class WavLMModelPatcher(ModelPatcher):
     def __init__(
