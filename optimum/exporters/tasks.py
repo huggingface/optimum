@@ -392,7 +392,7 @@ class TasksManager:
         ),
         "open-clip": supported_tasks_mapping(
             "zero-shot-image-classification",
-            onnx="CLIPOnnxConfig",
+            onnx="OpenCLIPOnnxConfig",
         ),
         "clip": supported_tasks_mapping(
             "feature-extraction",

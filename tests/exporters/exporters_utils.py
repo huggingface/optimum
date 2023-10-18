@@ -277,3 +277,7 @@ PYTORCH_TIMM_MODEL = {
     "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
     "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
 }
+
+PYTORCH_OPEN_CLIP_MODEL = {
+    "open-clip": "laion/CLIP-ViT-B-16-laion2B-s34B-b88K",
+}

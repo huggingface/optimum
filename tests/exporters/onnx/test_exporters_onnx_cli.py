@@ -39,7 +39,7 @@ from optimum.utils.testing_utils import require_diffusers, require_timm
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
-from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY, PYTORCH_STABLE_DIFFUSION_MODEL, PYTORCH_TIMM_MODEL
+from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY, PYTORCH_STABLE_DIFFUSION_MODEL, PYTORCH_TIMM_MODEL, PYTORCH_OPEN_CLIP_MODEL
 
 
 def _get_models_to_test(export_models_dict: Dict):
@@ -256,6 +256,28 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         no_post_process: bool,
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", fp16=True)
+
+    @parameterized.expand(PYTORCH_OPEN_CLIP_MODEL.items())
+    @require_torch
+    @require_vision
+    def test_exporters_cli_pytorch_cpu_open_clip(self, model_type: str, model_name: str):
+        self._onnx_export(model_name, model_type)
+
+    @parameterized.expand(PYTORCH_OPEN_CLIP_MODEL.items())
+    @require_torch_gpu
+    @require_vision
+    @slow
+    @pytest.mark.run_slow
+    def test_exporters_cli_pytorch_gpu_open_clip(self, model_type: str, model_name: str):
+        self._onnx_export(model_name, model_type, device="cuda")
+
+    @parameterized.expand(PYTORCH_OPEN_CLIP_MODEL.items())
+    @require_torch_gpu
+    @require_vision
+    @slow
+    @pytest.mark.run_slow
+    def test_exporters_cli_fp16_open_clip(self, model_type: str, model_name: str):
+        self._onnx_export(model_name, model_type, device="cuda", fp16=True)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch

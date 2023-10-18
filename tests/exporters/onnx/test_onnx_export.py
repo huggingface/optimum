@@ -47,6 +47,7 @@ from ..exporters_utils import (
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_STABLE_DIFFUSION_MODEL,
     PYTORCH_TIMM_MODEL,
+    PYTORCH_OPEN_CLIP_MODEL,
     TENSORFLOW_EXPORT_MODELS,
     VALIDATE_EXPORT_ON_SHAPES_SLOW,
 )
@@ -427,6 +428,57 @@ class OnnxExportTestCase(TestCase):
     @pytest.mark.run_slow
     @pytest.mark.gpu_test
     def test_pytorch_export_for_timm_on_cuda(
+        self,
+        test_name,
+        name,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        monolith: bool,
+    ):
+        self._onnx_export(
+            test_name,
+            name,
+            model_name,
+            task,
+            onnx_config_class_constructor,
+            device="cuda",
+            shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
+            monolith=monolith,
+        )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_OPEN_CLIP_MODEL))
+    @require_torch
+    @require_vision
+    @pytest.mark.run_slow
+    @slow
+    def test_pytorch_export_for_open_clip_on_cpu(
+        self,
+        test_name,
+        name,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        monolith: bool,
+    ):
+        self._onnx_export(
+            test_name,
+            name,
+            model_name,
+            task,
+            onnx_config_class_constructor,
+            shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
+            monolith=monolith,
+        )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_OPEN_CLIP_MODEL))
+    @require_torch
+    @require_vision
+    @require_torch_gpu
+    @slow
+    @pytest.mark.run_slow
+    @pytest.mark.gpu_test
+    def test_pytorch_export_for_open_clip_on_cuda(
         self,
         test_name,
         name,

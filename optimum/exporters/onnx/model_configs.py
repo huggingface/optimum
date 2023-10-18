@@ -750,6 +750,27 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
         }
 
 
+
+class OpenCLIPOnnxConfig(CLIPOnnxConfig):
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
+            "logits_per_text": {0: "text_batch_size", 1: "image_batch_size"},
+            "text_embeds": {0: "text_batch_size"},
+            "image_embeds": {0: "image_batch_size"},
+        }
+    
+    def rename_ambiguous_inputs(self, inputs):
+        #  The input name in the model signature is `x, hence the export input name is updated.
+        model_inputs = {}
+        model_inputs["image"] = inputs["pixel_values"]
+        model_inputs["text"] = inputs["input_ids"]
+
+        return model_inputs
+
+
 class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
