@@ -34,6 +34,7 @@ from ...utils import (
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
     DummyVisionEmbeddingsGenerator,
+    DummyVisionEncoderDecoderPastKeyValuesGenerator,
     DummyVisionInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
     MistralDummyPastKeyValuesGenerator,
@@ -68,6 +69,7 @@ from .model_patcher import (
     OPTModelPatcher,
     SAMModelPatcher,
     SpeechT5ModelPatcher,
+    VisionEncoderDecoderPatcher,
     WavLMModelPatcher,
 )
 
@@ -703,6 +705,13 @@ class ViTOnnxConfig(VisionOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        common_outputs = super().outputs
+        if self.task == "feature-extraction":
+            common_outputs["last_hidden_state"] = {0: "batch_size"}
+        return common_outputs
 
 
 class CvTOnnxConfig(ViTOnnxConfig):
@@ -1512,7 +1521,7 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
         decoder_num_layers="decoder_layers",
         num_layers="decoder_layers",
         decoder_num_attention_heads="decoder_attention_heads",
-        hidden_size="cross_attention_hidden_size",
+        hidden_size="hidden_size",
     )
 
 
@@ -1520,34 +1529,7 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     ATOL_FOR_VALIDATION = 1e-3
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
-
-    def __init__(
-        self,
-        config: "PretrainedConfig",
-        task: str = "feature-extraction",
-        int_dtype: str = "int64",
-        float_dtype: str = "fp32",
-        use_past: bool = False,
-        use_past_in_inputs: bool = False,
-        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
-        preprocessors: Optional[List[Any]] = None,
-    ):
-        super().__init__(
-            config=config,
-            task=task,
-            int_dtype=int_dtype,
-            float_dtype=float_dtype,
-            use_past=use_past,
-            use_past_in_inputs=use_past_in_inputs,
-            behavior=behavior,
-            preprocessors=preprocessors,
-        )
-
-        if config.decoder.model_type == "trocr" and use_past:
-            raise ValueError(
-                "Exporting TrOCR to ONNX with past key values is not supported with TrOCR model. Please open an issue in Optimum repository."
-            )
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyVisionEncoderDecoderPastKeyValuesGenerator)
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1568,6 +1550,22 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self._behavior == ConfigBehavior.ENCODER:
+            # Some encoders have static sequence length so it is useful to rely on the encoder ONNX config to grab this information.
+            return self._encoder_onnx_config.outputs
+        else:
+            # Ideally, we would want here to have self._decoder_onnx_config.outputs, which is currently not possible
+            # as we hard-code the task to feature-extraction, that has the wrong output names (e.g. mbart does not support document-question-answering
+            # so we can not initializer MBartONNXConfig with document-question-answering).
+            return super().outputs
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return VisionEncoderDecoderPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class SamOnnxConfig(OnnxConfig):

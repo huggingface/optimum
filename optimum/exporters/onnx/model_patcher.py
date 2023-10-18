@@ -235,6 +235,20 @@ class Seq2SeqModelPatcher(ModelPatcher):
         self.patched_forward = patched_forward
 
 
+class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+        use_cache = hasattr(self.real_config, "use_past")
+
+        if config._behavior == "decoder" and model.config.decoder.model_type == "trocr" and use_cache:
+            model.decoder.model.decoder.config.use_cache = True
+
+
 def _make_causal_mask_falcon_patched(
     input_ids_shape: torch.Size, device: torch.device, past_key_values_length: int
 ) -> torch.BoolTensor:

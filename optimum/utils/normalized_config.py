@@ -153,11 +153,10 @@ WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     hidden_size="d_model",
 )
 
-TrOCRLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
-    decoder_num_layers="decoder_layers",
+TrOCRLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_layers="decoder_layers",
-    decoder_num_attention_heads="decoder_attention_heads",
-    hidden_size="cross_attention_hidden_size",
+    num_attention_heads="decoder_attention_heads",
+    hidden_size="hidden_size",
 )
 
 SpeechToTextLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(

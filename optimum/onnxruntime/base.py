@@ -533,6 +533,7 @@ class ORTDecoderForSeq2Seq(ORTDecoder):
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
     ) -> Dict[str, int]:
         batch_size = input_ids.size(0)
+
         num_attention_heads = self.normalized_config.num_attention_heads
         embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
 

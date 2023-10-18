@@ -59,6 +59,7 @@ from .input_generators import (
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
     DummyVisionEmbeddingsGenerator,
+    DummyVisionEncoderDecoderPastKeyValuesGenerator,
     DummyVisionInputGenerator,
     FalconDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
