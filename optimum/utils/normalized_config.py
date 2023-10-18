@@ -58,6 +58,11 @@ class NormalizedConfig:
         for attr in attr_name[:-1]:
             config = getattr(config, attr)
 
+            # We cast potential dictionaries to PretrainedConfig for getattr to work for nested structures, where nested dictionaries
+            # may not always themselves be PretrainedConfig instances (e.g. timm, open_clip).
+            if isinstance(config, dict):
+                config = PretrainedConfig.from_dict(config)
+
         attr = getattr(config, leaf_attr_name, None)
 
         # If the attribute was not specified manually, try to fallback on the attribute_map.
