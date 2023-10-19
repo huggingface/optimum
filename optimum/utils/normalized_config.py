@@ -244,6 +244,7 @@ class NormalizedConfigManager:
         "pegasus": BartLikeNormalizedTextConfig,
         "pix2struct": Pix2StructNormalizedTextConfig,
         "poolformer": NormalizedVisionConfig,
+        "qwen": NormalizedTextConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
