@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import inspect
 import logging
 from typing import Callable, List, Optional, Union
 
@@ -20,7 +19,6 @@ import numpy as np
 import torch
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 
-from .pipeline_utils import DiffusionPipelineMixin, rescale_noise_cfg
 from .pipeline_stable_diffusion import StableDiffusionPipelineMixin
 
 
