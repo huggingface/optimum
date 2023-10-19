@@ -27,8 +27,6 @@ from transformers.utils import is_torch_available
 from ...utils.modeling_utils import (
     _falcon_prepare_attn_mask,
     _prepare_attn_mask,
-    _prepare_decoder_attention_mask,
-    _prepare_decoder_sliding_window_attention_mask,
 )
 
 
@@ -799,67 +797,3 @@ class BloomModelPatcher(CausalAttentionMaskModelPatcher):
             self._patch_func = _prepare_attn_mask
             self._orig_func_name = "_prepare_attn_mask"
             self._orig_func = self._model_to_patch._prepare_attn_mask
-
-
-class OPTModelPatcher(CausalAttentionMaskModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-
-        if self.patch:
-            self._model_to_patch = model.model.decoder
-            self._patch_func = _prepare_decoder_attention_mask
-            self._orig_func_name = "_prepare_decoder_attention_mask"
-            self._orig_func = self._model_to_patch._prepare_decoder_attention_mask
-
-
-class LlamaModelPatcher(CausalAttentionMaskModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-
-        if self.patch:
-            self._model_to_patch = model.model
-            self._patch_func = _prepare_decoder_attention_mask
-            self._orig_func_name = "_prepare_decoder_attention_mask"
-            self._orig_func = self._model_to_patch._prepare_decoder_attention_mask
-
-
-class MistralModelPatcher(CausalAttentionMaskModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-
-        if self.patch:
-            self._model_to_patch = model.model
-            self._patch_func = _prepare_decoder_sliding_window_attention_mask
-            self._orig_func_name = "_prepare_decoder_attention_mask"
-            self._orig_func = self._model_to_patch._prepare_decoder_attention_mask
-
-
-class BartModelPatcher(CausalAttentionMaskModelPatcher, Seq2SeqModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-
-        if self.patch:
-            self._model_to_patch = model.model.decoder
-            self._patch_func = _prepare_decoder_attention_mask
-            self._orig_func_name = "_prepare_decoder_attention_mask"
-            self._orig_func = self._model_to_patch._prepare_decoder_attention_mask

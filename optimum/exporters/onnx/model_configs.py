@@ -61,12 +61,8 @@ from .config import (
     VisionOnnxConfig,
 )
 from .model_patcher import (
-    BartModelPatcher,
     BloomModelPatcher,
     FalconModelPatcher,
-    LlamaModelPatcher,
-    MistralModelPatcher,
-    OPTModelPatcher,
     SAMModelPatcher,
     SpeechT5ModelPatcher,
     VisionEncoderDecoderPatcher,
@@ -230,22 +226,12 @@ class OPTOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return OPTModelPatcher(self, model, model_kwargs=model_kwargs)
-
 
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return LlamaModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -256,11 +242,6 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
-
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return MistralModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):
@@ -655,10 +636,7 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
 
 
 class BartOnnxConfig(M2M100OnnxConfig):
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return BartModelPatcher(self, model, model_kwargs=model_kwargs)
+    pass
 
 
 class MBartOnnxConfig(BartOnnxConfig):
