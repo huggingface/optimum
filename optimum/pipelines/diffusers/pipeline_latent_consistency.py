@@ -69,9 +69,6 @@ class LatentConsistencyModelPipelinePipelineMixin(StableDiffusionPipelineMixin):
                 usually at the expense of lower image quality.
             num_images_per_prompt (`int`, defaults to 1):
                 The number of images to generate per prompt.
-            eta (`float`, defaults to 0.0):
-                Corresponds to parameter eta (η) in the DDIM paper: https://arxiv.org/abs/2010.02502. Only applies to
-                [`schedulers.DDIMScheduler`], will be ignored for others.
             generator (`Optional[np.random.RandomState]`, defaults to `None`)::
                 A np.random.RandomState to make generation deterministic.
             latents (`Optional[np.ndarray]`, defaults to `None`):
