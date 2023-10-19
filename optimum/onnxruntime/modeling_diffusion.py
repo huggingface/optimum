@@ -47,9 +47,7 @@ from ..pipelines.diffusers.pipeline_stable_diffusion_img2img import StableDiffus
 from ..pipelines.diffusers.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl import StableDiffusionXLPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipelineMixin
-from ..pipelines.diffusers.pipeline_stable_diffusion_latent_consistency import (
-    LatentConsistencyModelPipelinePipelineMixin,
-)
+from ..pipelines.diffusers.pipeline_latent_consistency import LatentConsistencyModelPipelinePipelineMixin
 from ..pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from ..utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
@@ -506,6 +504,7 @@ class ORTModelUnet(_ORTDiffusionModelPart):
         encoder_hidden_states: np.ndarray,
         text_embeds: Optional[np.ndarray] = None,
         time_ids: Optional[np.ndarray] = None,
+        timestep_cond: Optional[np.ndarray] = None,
     ):
         onnx_inputs = {
             "sample": sample,
@@ -517,7 +516,8 @@ class ORTModelUnet(_ORTDiffusionModelPart):
             onnx_inputs["text_embeds"] = text_embeds
         if time_ids is not None:
             onnx_inputs["time_ids"] = time_ids
-
+        if timestep_cond is not None:
+            onnx_inputs["timestep_cond"] = timestep_cond
         outputs = self.session.run(None, onnx_inputs)
         return outputs
 

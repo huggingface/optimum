@@ -129,7 +129,7 @@ class LatentConsistencyModelPipelinePipelineMixin(StableDiffusionPipelineMixin):
         prompt_embeds = self._encode_prompt(
             prompt,
             num_images_per_prompt,
-            do_classifier_free_guidance,
+            False,  # Don't need to get negative prompts due to LCM guided distillation
             negative_prompt,
             prompt_embeds=prompt_embeds,
             negative_prompt_embeds=negative_prompt_embeds,
@@ -151,7 +151,7 @@ class LatentConsistencyModelPipelinePipelineMixin(StableDiffusionPipelineMixin):
 
         bs = batch_size * num_images_per_prompt
         # get Guidance Scale Embedding
-        w = np.full(bs, guidance_scale)
+        w = np.full(bs, guidance_scale, dtype=prompt_embeds.dtype)
         w_embedding = self.get_guidance_scale_embedding(w, embedding_dim=256, dtype=prompt_embeds.dtype)
 
         # Adapted from diffusers to extend it for other runtimes than ORT
@@ -162,12 +162,11 @@ class LatentConsistencyModelPipelinePipelineMixin(StableDiffusionPipelineMixin):
             # predict the noise residual
             timestep = np.full(bs, t, dtype=timestep_dtype)
             noise_pred = self.unet(
-                sample=latent_model_input,
+                sample=latents,
                 timestep=timestep,
                 encoder_hidden_states=prompt_embeds,
                 timestep_cond=w_embedding,
-            )
-            noise_pred = noise_pred[0]
+            )[0]
 
             # compute the previous noisy sample x_t -> x_t-1
             scheduler_output = self.scheduler.step(torch.from_numpy(noise_pred), t, torch.from_numpy(latents))
@@ -217,7 +216,7 @@ class LatentConsistencyModelPipelinePipelineMixin(StableDiffusionPipelineMixin):
         Returns:
             `torch.FloatTensor`: Embedding vectors with shape `(len(timesteps), embedding_dim)`
         """
-        w = w * 1000.0
+        w = w * 1000
         half_dim = embedding_dim // 2
         emb = np.log(10000.0) / (half_dim - 1)
         emb = np.exp(np.arange(half_dim, dtype=dtype) * -emb)
