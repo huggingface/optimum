@@ -710,7 +710,7 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
         if input_name == "timestep":
             shape = [self.batch_size]
             return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=int_dtype)
-        
+
         if input_name == "text_embeds":
             dim = self.text_encoder_projection_dim
         elif input_name == "timestep_cond":

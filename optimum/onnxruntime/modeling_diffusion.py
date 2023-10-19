@@ -47,7 +47,9 @@ from ..pipelines.diffusers.pipeline_stable_diffusion_img2img import StableDiffus
 from ..pipelines.diffusers.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl import StableDiffusionXLPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipelineMixin
-from ..pipelines.diffusers.pipeline_stable_diffusion_latent_consistency import LatentConsistencyModelPipelinePipelineMixin
+from ..pipelines.diffusers.pipeline_stable_diffusion_latent_consistency import (
+    LatentConsistencyModelPipelinePipelineMixin,
+)
 from ..pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from ..utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
@@ -565,16 +567,14 @@ class ORTStableDiffusionInpaintPipeline(ORTStableDiffusionPipelineBase, StableDi
     __call__ = StableDiffusionInpaintPipelineMixin.__call__
 
 
-
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTLatentConsistencyModelPipeline(ORTStableDiffusionPipelineBase, LatentConsistencyModelPipelinePipelineMixin):
     """
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline).
     """
+
     auto_model_class = LatentConsistencyModelPipeline
     __call__ = LatentConsistencyModelPipelinePipelineMixin.__call__
-
-
 
 
 class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):

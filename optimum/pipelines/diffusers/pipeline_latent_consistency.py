@@ -28,12 +28,11 @@ logger = logging.getLogger(__name__)
 
 
 class LatentConsistencyModelPipelinePipelineMixin(StableDiffusionPipelineMixin):
-    
     # Adapted from https://github.com/huggingface/diffusers/blob/v0.22.0/src/diffusers/pipelines/latent_consistency/pipeline_latent_consistency.py#L264
     def __call__(
         self,
         prompt: Optional[Union[str, List[str]]] = None,
-        height: Optional[int] = 768, # TODO : default to None
+        height: Optional[int] = 768,  # TODO : default to None
         width: Optional[int] = 768,
         num_inference_steps: int = 4,
         guidance_scale: float = 7.5,
@@ -110,10 +109,9 @@ class LatentConsistencyModelPipelinePipelineMixin(StableDiffusionPipelineMixin):
         height = height or self.unet.config.get("sample_size", 64) * self.vae_scale_factor
         width = width or self.unet.config.get("sample_size", 64) * self.vae_scale_factor
 
-
-        # Don't need to get negative prompts due to LCM guided distillation  
-        negative_prompt=None
-        negative_prompt_embeds=None
+        # Don't need to get negative prompts due to LCM guided distillation
+        negative_prompt = None
+        negative_prompt_embeds = None
 
         # check inputs. Raise error if not correct
         self.check_inputs(
@@ -164,10 +162,14 @@ class LatentConsistencyModelPipelinePipelineMixin(StableDiffusionPipelineMixin):
 
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
         for i, t in enumerate(self.progress_bar(timesteps)):
-    
             # predict the noise residual
             timestep = np.full(bs, t, dtype=timestep_dtype)
-            noise_pred = self.unet(sample=latent_model_input, timestep=timestep, encoder_hidden_states=prompt_embeds, timestep_cond=w_embedding)
+            noise_pred = self.unet(
+                sample=latent_model_input,
+                timestep=timestep,
+                encoder_hidden_states=prompt_embeds,
+                timestep_cond=w_embedding,
+            )
             noise_pred = noise_pred[0]
 
             # compute the previous noisy sample x_t -> x_t-1
@@ -202,12 +204,11 @@ class LatentConsistencyModelPipelinePipelineMixin(StableDiffusionPipelineMixin):
 
         return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=has_nsfw_concept)
 
-
     # Adapted from https://github.com/huggingface/diffusers/blob/v0.22.0/src/diffusers/pipelines/latent_consistency/pipeline_latent_consistency.py#L264
     def get_guidance_scale_embedding(self, w, embedding_dim=512, dtype=None):
         """
         See https://github.com/google-research/vdm/blob/dc27b98a554f65cdc654b800da5aa1846545d41b/model_vdm.py#L298
-        
+
         Args:
             timesteps (`torch.Tensor`):
                 generate embedding vectors at these timesteps
@@ -215,7 +216,7 @@ class LatentConsistencyModelPipelinePipelineMixin(StableDiffusionPipelineMixin):
                 dimension of the embeddings to generate
             dtype:
                 data type of the generated embeddings
-        
+
         Returns:
             `torch.FloatTensor`: Embedding vectors with shape `(len(timesteps), embedding_dim)`
         """
