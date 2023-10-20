@@ -1716,7 +1716,7 @@ class TasksManager:
             return model
         
         if library_name == "open_clip":
-            model, _, _ = model_class(f"hf-hub:{model_name_or_path}", cache_dir=cache_dir)
+            model, _, _ = model_class(f"hf-hub:{model_name_or_path}", cache_dir=cache_dir, output_dict=True)
             TasksManager.standardize_model_attributes(
                 model_name_or_path, model, subfolder, revision, cache_dir, library_name
             )

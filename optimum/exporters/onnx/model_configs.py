@@ -761,6 +761,14 @@ class OpenCLIPOnnxConfig(CLIPOnnxConfig):
             "attention_mask": {0: "text_batch_size"},
         }
 
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "logits_scale": {0: "image_batch_size"},
+            "text_features": {0: "text_batch_size"},
+            "image_features": {0: "image_batch_size"},
+        }
+
     def rename_ambiguous_inputs(self, inputs):
         model_inputs = {}
         model_inputs["image"] = inputs["pixel_values"]
