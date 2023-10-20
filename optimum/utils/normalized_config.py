@@ -234,6 +234,7 @@ class NormalizedConfigManager:
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
         "mistral": MistralNormalizedTextConfig,
+        "mpnet": NormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m-100": BartLikeNormalizedTextConfig,
         "nystromformer": NormalizedTextConfig,
