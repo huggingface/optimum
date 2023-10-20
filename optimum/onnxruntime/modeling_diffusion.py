@@ -40,7 +40,7 @@ import onnxruntime as ort
 
 from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
-from ..pipelines.diffusers.pipeline_latent_consistency import LatentConsistencyModelPipelinePipelineMixin
+from ..pipelines.diffusers.pipeline_latent_consistency import LatentConsistencyPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion import StableDiffusionPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_img2img import StableDiffusionImg2ImgPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipelineMixin
@@ -566,12 +566,12 @@ class ORTStableDiffusionInpaintPipeline(ORTStableDiffusionPipelineBase, StableDi
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTLatentConsistencyModelPipeline(ORTStableDiffusionPipelineBase, LatentConsistencyModelPipelinePipelineMixin):
+class ORTLatentConsistencyModelPipeline(ORTStableDiffusionPipelineBase, LatentConsistencyPipelineMixin):
     """
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline).
     """
 
-    __call__ = LatentConsistencyModelPipelinePipelineMixin.__call__
+    __call__ = LatentConsistencyPipelineMixin.__call__
 
 
 class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):

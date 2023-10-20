@@ -25,7 +25,7 @@ from .pipeline_stable_diffusion import StableDiffusionPipelineMixin
 logger = logging.getLogger(__name__)
 
 
-class LatentConsistencyModelPipelinePipelineMixin(StableDiffusionPipelineMixin):
+class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
     # Adapted from https://github.com/huggingface/diffusers/blob/v0.22.0/src/diffusers/pipelines/latent_consistency/pipeline_latent_consistency.py#L264
     def __call__(
         self,
