@@ -752,6 +752,7 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
 
 
 class OpenCLIPOnnxConfig(CLIPOnnxConfig):
+    DEFAULT_ONNX_OPSET = 18
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -764,7 +765,6 @@ class OpenCLIPOnnxConfig(CLIPOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "logits_scale": {0: "image_batch_size"},
             "text_features": {0: "text_batch_size"},
             "image_features": {0: "image_batch_size"},
         }
