@@ -753,12 +753,24 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
 
 class OpenCLIPOnnxConfig(CLIPOnnxConfig):
 
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "text_batch_size"},
+            "pixel_values": {0: "image_batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "attention_mask": {0: "text_batch_size"},
+        }
+
     def rename_ambiguous_inputs(self, inputs):
         model_inputs = {}
         model_inputs["image"] = inputs["pixel_values"]
         model_inputs["text"] = inputs["input_ids"]
-
         return model_inputs
+
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        # override sequence_length shape here in the kwargs
+        kwargs["sequence_length"] = self._preprocessors[0].model_max_length
+        return super().generate_dummy_inputs(framework, **kwargs)
 
 
 class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
