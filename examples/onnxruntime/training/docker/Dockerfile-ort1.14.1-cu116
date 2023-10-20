@@ -33,7 +33,7 @@ ARG TORCHVISION_VERSION=0.14.1
 # Install and update tools to minimize security vulnerabilities
 RUN apt-get update
 RUN apt-get install -y software-properties-common wget apt-utils patchelf git libprotobuf-dev protobuf-compiler cmake \
-    bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion libopenmpi-dev && \
+    bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion libopenmpi-dev ffmpeg && \
     apt-get clean
 RUN unattended-upgrade
 RUN apt-get autoremove -y
@@ -48,7 +48,7 @@ RUN pip install pygit2 pgzip
 # (Optional) Intall test dependencies
 RUN pip install git+https://github.com/huggingface/transformers
 RUN pip install datasets accelerate evaluate coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk scikit-learn parameterized sentencepiece
-RUN pip install fairscale deepspeed mpi4py
+RUN pip install deepspeed mpi4py
 # RUN pip install optuna ray sigopt wandb
 
 # Install onnxruntime-training dependencies

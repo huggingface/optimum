@@ -1,0 +1,16 @@
+{
+    "steps_per_print": 100,
+    "zero_optimization": {
+        "stage": 2
+    },
+    "zero_allow_untested_optimizer": true,
+    "fp16": {
+        "enabled": true,
+        "initial_scale_power": 12
+    },
+    "tensorboard":{
+        "enabled": false
+    },
+    "train_micro_batch_size_per_gpu": "auto",
+    "gradient_accumulation_steps": "auto"
+}

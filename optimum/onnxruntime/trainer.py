@@ -22,16 +22,12 @@ import sys
 import time
 import types
 import warnings
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 
 # Integrations must be imported before ML frameworks:
 # isort: off
-from transformers.integrations import (
-    hp_params,
-    is_fairscale_available,
-)
+from transformers.integrations import hp_params
 
 from transformers.utils import is_accelerate_available
 from packaging import version
@@ -52,45 +48,27 @@ else:
 
 # isort: on
 
-import numpy as np
+import huggingface_hub.utils as hf_hub_utils
 import torch
 import torch.distributed as dist
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset, RandomSampler
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
-from transformers.dependency_versions_check import dep_version_check
-from transformers.file_utils import (
-    is_apex_available,
-    is_sagemaker_dp_enabled,
-    is_sagemaker_mp_enabled,
-    is_torch_tpu_available,
-)
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
 from transformers.trainer_callback import TrainerCallback, TrainerState
 from transformers.trainer_pt_utils import (
-    DistributedTensorGatherer,
-    IterableDatasetShard,
-    SequentialDistributedSampler,
-    find_batch_size,
     get_model_param_count,
     get_module_class_from_name,
     get_parameter_names,
-    nested_concat,
-    nested_detach,
-    nested_numpify,
 )
 from transformers.trainer_utils import (
-    EvalLoopOutput,
     EvalPrediction,
     HPSearchBackend,
-    PredictionOutput,
-    ShardedDDPOption,
     TrainOutput,
-    denumpify_detensorize,
     enable_full_determinism,
     find_executable_batch_size,
     get_last_checkpoint,
@@ -99,31 +77,17 @@ from transformers.trainer_utils import (
     speed_metrics,
 )
 from transformers.training_args import ParallelMode
-
-from ..exporters import TasksManager
-from ..exporters.onnx import OnnxConfigWithPast, export, export_models, get_decoder_models_for_export
-from ..utils import logging
-from .modeling_decoder import ORTModelForCausalLM
-from .modeling_ort import (
-    ORTModel,
-    ORTModelForCustomTasks,
-    ORTModelForFeatureExtraction,
-    ORTModelForImageClassification,
-    ORTModelForMaskedLM,
-    ORTModelForMultipleChoice,
-    ORTModelForQuestionAnswering,
-    ORTModelForSemanticSegmentation,
-    ORTModelForSequenceClassification,
-    ORTModelForTokenClassification,
+from transformers.utils import (
+    is_apex_available,
+    is_sagemaker_dp_enabled,
+    is_sagemaker_mp_enabled,
+    is_torch_tpu_available,
 )
-from .modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
+
+from ..utils import logging
 from .training_args import ORTOptimizerNames, ORTTrainingArguments
 from .utils import (
-    ONNX_DECODER_NAME,
-    ONNX_DECODER_WITH_PAST_NAME,
-    ONNX_WEIGHTS_NAME,
     is_onnxruntime_training_available,
-    wrap_onnx_config_for_loss,
 )
 
 
@@ -133,23 +97,14 @@ if is_apex_available():
 if is_torch_tpu_available(check_device=False):
     import torch_xla.core.xla_model as xm
 
-if is_fairscale_available():
-    dep_version_check("fairscale")
-    from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
-    from fairscale.optim import OSS
-
 if TYPE_CHECKING:
     import optuna
 
 
-logger = logging.get_logger(__name__)
-
 # Name of the files used for checkpointing
-TRAINING_ARGS_NAME = "training_args.bin"
 TRAINER_STATE_NAME = "trainer_state.json"
-OPTIMIZER_NAME = "optimizer.pt"
-SCHEDULER_NAME = "scheduler.pt"
-SCALER_NAME = "scaler.pt"
+
+logger = logging.get_logger(__name__)
 
 
 class ModuleWithLoss(nn.Module):
@@ -176,44 +131,6 @@ class ModuleWithLoss(nn.Module):
     @property
     def config(self):
         return self._original_model.config
-
-
-class ORTFeaturesManager:
-    _TASKS_TO_ORTMODELS = {
-        "feature-extraction": ORTModelForFeatureExtraction,
-        "fill-mask": ORTModelForMaskedLM,
-        "text-generation": ORTModelForCausalLM,
-        "text-generation-with-past": ORTModelForCausalLM,
-        "text2text-generation": ORTModelForSeq2SeqLM,
-        "text2text-generation-with-past": ORTModelForSeq2SeqLM,
-        "text-classification": ORTModelForSequenceClassification,
-        "token-classification": ORTModelForTokenClassification,
-        "multiple-choice": ORTModelForMultipleChoice,
-        "question-answering": ORTModelForQuestionAnswering,
-        "image-classification": ORTModelForImageClassification,
-        "semantic-segmentation": ORTModelForSemanticSegmentation,
-        "automatic-speech-recognition": ORTModelForSpeechSeq2Seq,
-    }
-
-    SUPPORTED_FEATURES = _TASKS_TO_ORTMODELS.keys()
-
-    @staticmethod
-    def get_model_class_for_feature(feature: str) -> Type:
-        """
-        Gets the subclass of `ORTModel` associated with the feature.
-        """
-
-        return ORTFeaturesManager._TASKS_TO_ORTMODELS[feature]
-
-    @staticmethod
-    def do_use_cache(feature: str) -> bool:
-        """
-        Gets the value of `use_cache` for the feature.
-        """
-        if "-with-past" in feature:
-            return True
-        else:
-            return False
 
 
 class ORTTrainer(Trainer):
@@ -296,18 +213,16 @@ class ORTTrainer(Trainer):
     def __init__(
         self,
         model: Union[PreTrainedModel, nn.Module] = None,
-        tokenizer: Optional[PreTrainedTokenizerBase] = None,
-        feature: str = "feature-extraction",
         args: ORTTrainingArguments = None,
         data_collator: Optional[DataCollator] = None,
         train_dataset: Optional[Dataset] = None,
         eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
+        tokenizer: Optional[PreTrainedTokenizerBase] = None,
         model_init: Optional[Callable[[], PreTrainedModel]] = None,
         compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
         preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
-        onnx_model_path: Union[str, os.PathLike] = None,
     ):
         super().__init__(
             model=model,
@@ -333,9 +248,6 @@ class ORTTrainer(Trainer):
 
         self.model = model
 
-        self.feature = feature
-        self.onnx_model_path = onnx_model_path
-        self.exported_with_loss = False
         if self.args.local_rank:
             torch.cuda.set_device(self.args.local_rank)
 
@@ -447,7 +359,12 @@ class ORTTrainer(Trainer):
             if resume_from_checkpoint is None:
                 raise ValueError(f"No valid checkpoint found in output directory ({args.output_dir})")
 
-        if resume_from_checkpoint is not None and not is_sagemaker_mp_enabled() and args.deepspeed is None:
+        if (
+            resume_from_checkpoint is not None
+            and not is_sagemaker_mp_enabled()
+            and not self.is_deepspeed_enabled
+            and not self.is_fsdp_enabled
+        ):
             self._load_from_checkpoint(resume_from_checkpoint)
 
         # If model was re-initialized, put it on the right device and update self.model_wrapped
@@ -459,12 +376,25 @@ class ORTTrainer(Trainer):
         inner_training_loop = find_executable_batch_size(
             self._inner_training_loop, self._train_batch_size, args.auto_find_batch_size
         )
-        return inner_training_loop(
-            args=args,
-            resume_from_checkpoint=resume_from_checkpoint,
-            trial=trial,
-            ignore_keys_for_eval=ignore_keys_for_eval,
-        )
+        if args.push_to_hub:
+            try:
+                # Disable progress bars when uploading models during checkpoints to avoid polluting stdout
+                hf_hub_utils.disable_progress_bars()
+                return inner_training_loop(
+                    args=args,
+                    resume_from_checkpoint=resume_from_checkpoint,
+                    trial=trial,
+                    ignore_keys_for_eval=ignore_keys_for_eval,
+                )
+            finally:
+                hf_hub_utils.enable_progress_bars()
+        else:
+            return inner_training_loop(
+                args=args,
+                resume_from_checkpoint=resume_from_checkpoint,
+                trial=trial,
+                ignore_keys_for_eval=ignore_keys_for_eval,
+            )
 
     def _inner_training_loop(
         self, batch_size=None, args=None, resume_from_checkpoint=None, trial=None, ignore_keys_for_eval=None
@@ -514,14 +444,6 @@ class ORTTrainer(Trainer):
                 f" {args.max_steps}"
             )
 
-        # Compute absolute values for logging, eval, and save if given as ratio
-        if args.logging_steps and args.logging_steps < 1:
-            args.logging_steps = math.ceil(max_steps * args.logging_steps)
-        if args.eval_steps and args.eval_steps < 1:
-            args.eval_steps = math.ceil(max_steps * args.eval_steps)
-        if args.save_steps and args.save_steps < 1:
-            args.save_steps = math.ceil(max_steps * args.save_steps)
-
         if DebugOption.UNDERFLOW_OVERFLOW in self.args.debug:
             if self.args.n_gpu > 1:
                 # nn.DataParallel(model) replicates the model, creating new variables and module
@@ -533,12 +455,7 @@ class ORTTrainer(Trainer):
             else:
                 debug_overflow = DebugUnderflowOverflow(self.model)  # noqa
 
-        delay_optimizer_creation = (
-            self.sharded_ddp is not None
-            and self.sharded_ddp != ShardedDDPOption.SIMPLE
-            or self.fsdp is not None
-            or self.is_fsdp_enabled
-        )
+        delay_optimizer_creation = is_sagemaker_mp_enabled() or self.fsdp is not None or self.is_fsdp_enabled
 
         # Wrap the model with `ORTModule`
         logger.info("Wrap ORTModule for ONNX Runtime training.")
@@ -571,18 +488,35 @@ class ORTTrainer(Trainer):
         self.state = TrainerState()
         self.state.is_hyper_param_search = trial is not None
 
+        # Compute absolute values for logging, eval, and save if given as ratio
+        if args.logging_steps is not None:
+            if args.logging_steps < 1:
+                self.state.logging_steps = math.ceil(max_steps * args.logging_steps)
+            else:
+                self.state.logging_steps = args.logging_steps
+        if args.eval_steps is not None:
+            if args.eval_steps < 1:
+                self.state.eval_steps = math.ceil(max_steps * args.eval_steps)
+            else:
+                self.state.eval_steps = args.eval_steps
+        if args.save_steps is not None:
+            if args.save_steps < 1:
+                self.state.save_steps = math.ceil(max_steps * args.save_steps)
+            else:
+                self.state.save_steps = args.save_steps
+
         # Activate gradient checkpointing if needed
         if args.gradient_checkpointing:
             self.model.gradient_checkpointing_enable()
 
         model = self._wrap_model(self.model_wrapped)  # Wrap unless the ORTModule is already wrapped, eg. wrap DDP
 
-        if is_sagemaker_mp_enabled() and resume_from_checkpoint is not None:
+        if (is_sagemaker_mp_enabled() or self.is_fsdp_enabled) and resume_from_checkpoint is not None:
             self._load_from_checkpoint(resume_from_checkpoint, model)
 
         # as the model is wrapped, don't use `accelerator.prepare`
         # this is for unhandled cases such as
-        # Fairscale Sharded DDP, FSDP-XLA, SageMaker MP/DP, DataParallel, IPEX
+        # FSDP-XLA, SageMaker MP/DP, DataParallel, IPEX
         use_accelerator_prepare = True if model is self.model else False
 
         if delay_optimizer_creation:
@@ -703,11 +637,27 @@ class ORTTrainer(Trainer):
 
         self.control = self.callback_handler.on_train_begin(args, self.state, self.control)
 
+        # Temp: remove after transformers 4.34 release
+        def get_dataloader_sampler(dataloader):
+            if hasattr(dataloader, "batch_sampler") and dataloader.batch_sampler is not None:
+                return get_dataloader_sampler(dataloader.batch_sampler)
+            elif hasattr(dataloader, "sampler"):
+                return dataloader.sampler
+
         # Skip the first epochs_trained epochs to get the random state of the dataloader at the right point.
         if not args.ignore_data_skip:
             for epoch in range(epochs_trained):
-                for _ in train_dataloader:
-                    break
+                sampler = get_dataloader_sampler(train_dataloader)
+                is_random_sampler = isinstance(sampler, RandomSampler)
+                if not is_random_sampler:
+                    # We just need to begin an iteration to create the randomization of the sampler.
+                    for _ in train_dataloader:
+                        break
+                else:
+                    # Otherwise we need to call the whooooole sampler cause there is some random operation added
+                    # AT THE VERY END!
+                    sampler = sampler if sampler is not None else []
+                    _ = list(sampler)
 
         total_batched_samples = 0
         for epoch in range(epochs_trained, num_train_epochs):
@@ -718,7 +668,7 @@ class ORTTrainer(Trainer):
                 self._past = None
 
             steps_in_epoch = (
-                len(train_dataloader)
+                len(epoch_iterator)
                 if len_dataloader is not None
                 else args.max_steps * args.gradient_accumulation_steps
             )
@@ -730,13 +680,13 @@ class ORTTrainer(Trainer):
             rng_to_sync = False
             steps_skipped = 0
             if steps_trained_in_current_epoch > 0:
-                skip_first_batches(epoch_iterator, steps_trained_in_current_epoch)
+                epoch_iterator = skip_first_batches(epoch_iterator, steps_trained_in_current_epoch)
                 steps_skipped = steps_trained_in_current_epoch
                 steps_trained_in_current_epoch = 0
                 rng_to_sync = True
 
             step = -1
-            for step, inputs in enumerate(train_dataloader):
+            for step, inputs in enumerate(epoch_iterator):
                 total_batched_samples += 1
                 if rng_to_sync:
                     self._load_rng_state(resume_from_checkpoint)
@@ -793,10 +743,6 @@ class ORTTrainer(Trainer):
                     if args.max_grad_norm is not None and args.max_grad_norm > 0:
                         # deepspeed does its own clipping
 
-                        if self.do_grad_scaling:
-                            # AMP: gradients need unscaling
-                            self.scaler.unscale_(self.optimizer)
-
                         if is_sagemaker_mp_enabled() and args.fp16:
                             self.optimizer.clip_master_grads(args.max_grad_norm)
                         elif hasattr(self.optimizer, "clip_grad_norm"):
@@ -812,18 +758,8 @@ class ORTTrainer(Trainer):
                             )
 
                     # Optimizer step
-                    optimizer_was_run = True
-                    if is_torch_tpu_available():
-                        raise NotImplementedError("`ORTTrainer` is not supported by TPU!")
-                    elif self.do_grad_scaling:
-                        scale_before = self.scaler.get_scale()
-                        self.scaler.step(self.optimizer)
-                        self.scaler.update()
-                        scale_after = self.scaler.get_scale()
-                        optimizer_was_run = scale_before <= scale_after
-                    else:
-                        self.optimizer.step()
-                        optimizer_was_run = not self.accelerator.optimizer_step_was_skipped
+                    self.optimizer.step()
+                    optimizer_was_run = not self.accelerator.optimizer_step_was_skipped
 
                     if optimizer_was_run:
                         # Delay optimizer scheduling until metrics are generated
@@ -893,759 +829,16 @@ class ORTTrainer(Trainer):
         # Delete the last checkpoint when save_total_limit=1 if it's different from the best checkpoint and process allowed to save.
         if self.args.should_save and self.state.best_model_checkpoint is not None and self.args.save_total_limit == 1:
             for checkpoint in checkpoints_sorted:
-                if checkpoint != self.state.best_model_checkpoint:
+                if not os.path.samefile(checkpoint, self.state.best_model_checkpoint):
                     logger.info(f"Deleting older checkpoint [{checkpoint}] due to args.save_total_limit")
                     shutil.rmtree(checkpoint)
 
         self.control = self.callback_handler.on_train_end(args, self.state, self.control)
 
+        # Wait for the checkpoint to be uploaded.
+        self._finish_current_push()
+
         return TrainOutput(self.state.global_step, train_loss, metrics)
-
-    def evaluate(
-        self,
-        eval_dataset: Optional[Dataset] = None,
-        ignore_keys: Optional[List[str]] = None,
-        metric_key_prefix: str = "eval",
-        inference_with_ort: bool = False,
-    ) -> Dict[str, float]:
-        """
-        Run evaluation with ONNX Runtime or PyTorch backend and returns metrics.
-
-        Args:
-            eval_dataset (`Dataset`, *optional*):
-                Pass a dataset if you wish to override `self.eval_dataset`. If it is a [`~datasets.Dataset`], columns
-                not accepted by the `model.forward()` method are automatically removed. It must implement the `__len__`
-                method.
-            ignore_keys (`List[str]`, *optional*):
-                A list of keys in the output of your model (if it is a dictionary) that should be ignored when
-                gathering predictions.
-            metric_key_prefix (`str`, *optional*, defaults to `"eval"`):
-                An optional prefix to be used as the metrics key prefix. For example the metrics "bleu" will be named
-                "eval_bleu" if the prefix is "eval" (default)
-
-        Returns:
-            A dictionary containing the evaluation loss and the potential metrics computed from the predictions. The
-            dictionary also contains the epoch number which comes from the training state.
-        """
-        # memory metrics - must set up as early as possible
-        # TODO: We need to enable evaluation using ORT backend.
-        if self.args.use_module_with_loss:
-            self.model = self.model._original_model
-        self._memory_tracker.start()
-
-        eval_dataloader = self.get_eval_dataloader(eval_dataset)
-        start_time = time.time()
-
-        if inference_with_ort:
-            logger.info("[INFO] Evaluating with ONNX Runtime backend.")
-            eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
-        else:
-            logger.info(
-                "[INFO] Evaluating with PyTorch backend. If you want to use ONNX Runtime for the evaluation, set `trainer.evaluate(inference_with_ort=True)`."
-            )
-            eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
-
-        try:
-            output = eval_loop(
-                eval_dataloader,
-                description="Evaluation",
-                # No point gathering the predictions if there are no metrics, otherwise we defer to
-                # self.args.prediction_loss_only
-                prediction_loss_only=True if self.compute_metrics is None else None,
-                ignore_keys=ignore_keys,
-                metric_key_prefix=metric_key_prefix,
-            )
-        except Exception as error:
-            logger.error(error)
-            if inference_with_ort:
-                logger.error(
-                    f"[ERROR!] Evaluation with ONNX Runtime is not available for {self.model.config.name_or_path} model. Set `inference_with_ort=False` to evaluate with PyTorch."
-                )
-            raise
-
-        total_batch_size = self.args.eval_batch_size * self.args.world_size
-        if f"{metric_key_prefix}_jit_compilation_time" in output.metrics:
-            start_time += output.metrics[f"{metric_key_prefix}_jit_compilation_time"]
-        output.metrics.update(
-            speed_metrics(
-                metric_key_prefix,
-                start_time,
-                num_samples=output.num_samples,
-                num_steps=math.ceil(output.num_samples / total_batch_size),
-            )
-        )
-
-        self.log(output.metrics)
-
-        self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, output.metrics)
-
-        self._memory_tracker.stop_and_update_metrics(output.metrics)
-
-        return output.metrics
-
-    def predict(
-        self,
-        test_dataset: Dataset,
-        ignore_keys: Optional[List[str]] = None,
-        metric_key_prefix: str = "test",
-        inference_with_ort: bool = False,
-    ) -> PredictionOutput:
-        """
-        Run prediction and returns predictions and potential metrics.
-
-        Depending on the dataset and your use case, your test dataset may contain labels. In that case, this method
-        will also return metrics, like in `evaluate()`.
-
-        Args:
-            test_dataset (`Dataset`):
-                Dataset to run the predictions on. If it is an `datasets.Dataset`, columns not accepted by the
-                `model.forward()` method are automatically removed. Has to implement the method `__len__`
-            ignore_keys (`List[str]`, *optional*):
-                A list of keys in the output of your model (if it is a dictionary) that should be ignored when
-                gathering predictions.
-            metric_key_prefix (`str`, *optional*, defaults to `"test"`):
-                An optional prefix to be used as the metrics key prefix. For example the metrics "bleu" will be named
-                "test_bleu" if the prefix is "test" (default)
-
-        <Tip>
-
-        If your predictions or labels have different sequence length (for instance because you're doing dynamic padding
-        in a token classification task) the predictions will be padded (on the right) to allow for concatenation into
-        one array. The padding index is -100.
-
-        </Tip>
-
-        Returns: *NamedTuple* A namedtuple with the following keys:
-
-            - predictions (`np.ndarray`): The predictions on `test_dataset`.
-            - label_ids (`np.ndarray`, *optional*): The labels (if the dataset contained some).
-            - metrics (`Dict[str, float]`, *optional*): The potential dictionary of metrics (if the dataset contained
-              labels).
-        """
-        # TODO: We need to enable evaluation using ORT backend.
-        if self.args.use_module_with_loss:
-            self.model = self.model._original_model
-
-        # memory metrics - must set up as early as possible
-        self._memory_tracker.start()
-
-        test_dataloader = self.get_test_dataloader(test_dataset)
-        start_time = time.time()
-
-        if inference_with_ort:
-            logger.info("[INFO] Predicting with ONNX Runtime backend.")
-            eval_loop = self.prediction_loop_ort if self.args.use_legacy_prediction_loop else self.evaluation_loop_ort
-        else:
-            logger.info(
-                "[INFO] Predicting with PyTorch backend. If you want to use ONNX Runtime for the prediction, set `trainer.predict(inference_with_ort=True)`."
-            )
-            eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
-
-        try:
-            output = eval_loop(
-                test_dataloader, description="Prediction", ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix
-            )
-        except Exception as error:
-            logger.error(error)
-            if inference_with_ort:
-                logger.error(
-                    f"[ERROR!] Prediction with ONNX Runtime is not available for {self.model.config.name_or_path} model. Set `inference_with_ort=False` to predict with PyTorch."
-                )
-            raise
-
-        total_batch_size = self.args.eval_batch_size * self.args.world_size
-        if f"{metric_key_prefix}_jit_compilation_time" in output.metrics:
-            start_time += output.metrics[f"{metric_key_prefix}_jit_compilation_time"]
-        output.metrics.update(
-            speed_metrics(
-                metric_key_prefix,
-                start_time,
-                num_samples=output.num_samples,
-                num_steps=math.ceil(output.num_samples / total_batch_size),
-            )
-        )
-
-        self._memory_tracker.stop_and_update_metrics(output.metrics)
-
-        return PredictionOutput(predictions=output.predictions, label_ids=output.label_ids, metrics=output.metrics)
-
-    def evaluation_loop_ort(
-        self,
-        dataloader: DataLoader,
-        description: str,
-        prediction_loss_only: Optional[bool] = None,
-        ignore_keys: Optional[List[str]] = None,
-        metric_key_prefix: str = "eval",
-    ) -> EvalLoopOutput:
-        """
-        Prediction/evaluation loop, shared by `ORTTrainer.evaluate()` and `ORTTrainer.predict()`.
-
-        Works both with or without labels.
-        """
-        logger.info("[INFO] ONNX Runtime inference starts...")
-
-        # Check if there are labels in the dataset
-        dummy_inputs = next(iter(dataloader))
-        has_labels = all(dummy_inputs.get(k) is not None for k in self.label_names)
-        use_cache = ORTFeaturesManager.do_use_cache(self.feature)
-
-        if self.onnx_model_path and (has_labels == self.exported_with_loss):
-            logger.info("[INFO] Inference with given ONNX model")
-            self.onnx_model_path = Path(self.onnx_model_path).as_posix()
-        else:
-            onnx_model_path = Path(self.args.output_dir)
-
-            logger.info("[INFO] Exporting the model to ONNX...")
-            if self.args.deepspeed and self.args.fp16:
-                export_device = "cuda"
-            else:
-                export_device = "cpu"
-
-            # With `label_smoother` the loss will be computed outside modeling
-            with_loss = has_labels and not self.label_smoother
-            self._export(onnx_model_path, with_loss=with_loss, device=export_device, use_cache=use_cache)
-
-            self.exported_with_loss = with_loss
-            self.onnx_model_path = onnx_model_path.as_posix()
-            logger.info(f"[INFO] ONNX model is stored in: {self.onnx_model_path}")
-
-        # Load ORT model
-        support_loss_in_modeling = self.feature in [
-            "text-generation",
-            "text-generation-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-        ]
-        support_feature = self.feature in ORTFeaturesManager.SUPPORTED_FEATURES
-        if support_loss_in_modeling or (not self.exported_with_loss and support_feature):
-            # Exported with standard outputs, use specific ORTModels
-            ort_model_cls = ORTFeaturesManager.get_model_class_for_feature(self.feature)
-        else:
-            ort_model_cls = ORTModelForCustomTasks
-
-        model_id = self.onnx_model_path
-        args = self.args
-        if ort_model_cls is ORTModelForCausalLM:
-            ort_model = ort_model_cls.from_pretrained(model_id=model_id, use_cache=use_cache).to(args.device)
-        else:
-            ort_model = ort_model_cls.from_pretrained(model_id=model_id).to(args.device)
-
-        prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
-
-        batch_size = dataloader.batch_size
-
-        logger.info(f"***** Running {description} *****")
-        if has_length(dataloader):
-            logger.info(f"  Num examples = {self.num_examples(dataloader)}")
-        else:
-            logger.info("  Num examples: Unknown")
-        logger.info(f"  Batch size = {batch_size}")
-
-        self.callback_handler.eval_dataloader = dataloader
-        # Do this before wrapping.
-        eval_dataset = getattr(dataloader, "dataset", None)
-
-        if args.past_index >= 0:
-            self._past = None
-
-        # Initialize containers
-        # losses/preds/labels on GPU/TPU (accumulated for eval_accumulation_steps)
-        losses_host = None
-        preds_host = None
-        labels_host = None
-        inputs_host = None
-
-        # losses/preds/labels on CPU (final containers)
-        all_losses = None
-        all_preds = None
-        all_labels = None
-        all_inputs = None
-        # Will be useful when we have an iterable dataset so don't know its length.
-
-        observed_num_examples = 0
-        # Main evaluation loop
-        for step, inputs in enumerate(dataloader):
-            # Update the observed num examples
-            observed_batch_size = find_batch_size(inputs)
-            if observed_batch_size is not None:
-                observed_num_examples += observed_batch_size
-                # For batch samplers, batch_size is not known by the dataloader in advance.
-                if batch_size is None:
-                    batch_size = observed_batch_size
-
-            # Prediction step(send also onnxruntime inference session)
-            loss, logits, labels = self.prediction_step_ort(
-                ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
-            )
-            inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
-
-            # Update containers on host
-            if loss is not None:
-                losses = self.accelerator.gather_for_metrics((loss.repeat(batch_size)))
-                losses_host = losses if losses_host is None else nested_concat(losses_host, losses, padding_index=-100)
-            if labels is not None:
-                labels = self.accelerator.pad_across_processes(labels, dim=1, pad_index=-100)
-            if inputs_decode is not None:
-                inputs_decode = self.accelerator.pad_across_processes(inputs_decode, dim=1, pad_index=-100)
-                inputs_decode = self.accelerator.gather_for_metrics((inputs_decode))
-                inputs_host = (
-                    inputs_decode
-                    if inputs_host is None
-                    else nested_concat(inputs_host, inputs_decode, padding_index=-100)
-                )
-            if logits is not None:
-                logits = self.accelerator.pad_across_processes(logits, dim=1, pad_index=-100)
-                if self.preprocess_logits_for_metrics is not None:
-                    logits = self.preprocess_logits_for_metrics(logits, labels)
-                logits = self.accelerator.gather_for_metrics((logits))
-                preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
-
-            if labels is not None:
-                labels = self.accelerator.gather_for_metrics((labels))
-            labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
-
-            self.control = self.callback_handler.on_prediction_step(args, self.state, self.control)
-
-            # Gather all tensors and put them back on the CPU if we have done enough accumulation steps.
-            if args.eval_accumulation_steps is not None and self.accelerator.sync_gradients:
-                if losses_host is not None:
-                    losses = nested_numpify(losses_host)
-                    all_losses = losses if all_losses is None else np.concatenate((all_losses, losses), axis=0)
-                if preds_host is not None:
-                    logits = nested_numpify(preds_host)
-                    all_preds = logits if all_preds is None else nested_concat(all_preds, logits, padding_index=-100)
-                if inputs_host is not None:
-                    inputs_decode = nested_numpify(inputs_host)
-                    all_inputs = (
-                        inputs_decode
-                        if all_inputs is None
-                        else nested_concat(all_inputs, inputs_decode, padding_index=-100)
-                    )
-                if labels_host is not None:
-                    labels = nested_numpify(labels_host)
-                    all_labels = (
-                        labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
-                    )
-
-                # Set back to None to begin a new accumulation
-                losses_host, preds_host, inputs_host, labels_host = None, None, None, None
-
-        if args.past_index and hasattr(self, "_past"):
-            # Clean the state at the end of the evaluation loop
-            delattr(self, "_past")
-
-        # Gather all remaining tensors and put them back on the CPU
-        if losses_host is not None:
-            losses = nested_numpify(losses_host)
-            all_losses = losses if all_losses is None else np.concatenate((all_losses, losses), axis=0)
-        if preds_host is not None:
-            logits = nested_numpify(preds_host)
-            all_preds = logits if all_preds is None else nested_concat(all_preds, logits, padding_index=-100)
-        if inputs_host is not None:
-            inputs_decode = nested_numpify(inputs_host)
-            all_inputs = (
-                inputs_decode if all_inputs is None else nested_concat(all_inputs, inputs_decode, padding_index=-100)
-            )
-        if labels_host is not None:
-            labels = nested_numpify(labels_host)
-            all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
-
-        # Number of samples
-        if has_length(eval_dataset):
-            num_samples = len(eval_dataset)
-        # The instance check is weird and does not actually check for the type, but whether the dataset has the right
-        # methods. Therefore we need to make sure it also has the attribute.
-        elif isinstance(eval_dataset, IterableDatasetShard) and getattr(eval_dataset, "num_examples", 0) > 0:
-            num_samples = eval_dataset.num_examples
-        else:
-            if has_length(dataloader):
-                num_samples = self.num_examples(dataloader)
-            else:  # both len(dataloader.dataset) and len(dataloader) fail
-                num_samples = observed_num_examples
-        if num_samples == 0 and observed_num_examples > 0:
-            num_samples = observed_num_examples
-
-        # Metrics!
-        if self.compute_metrics is not None and all_preds is not None and all_labels is not None:
-            if args.include_inputs_for_metrics:
-                metrics = self.compute_metrics(
-                    EvalPrediction(predictions=all_preds, label_ids=all_labels, inputs=all_inputs)
-                )
-            else:
-                metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
-        else:
-            metrics = {}
-
-        # To be JSON-serializable, we need to remove numpy types or zero-d tensors
-        metrics = denumpify_detensorize(metrics)
-
-        if all_losses is not None:
-            metrics[f"{metric_key_prefix}_loss"] = all_losses.mean().item()
-        if hasattr(self, "jit_compilation_time"):
-            metrics[f"{metric_key_prefix}_jit_compilation_time"] = self.jit_compilation_time
-
-        # Prefix all keys with metric_key_prefix + '_'
-        for key in list(metrics.keys()):
-            if not key.startswith(f"{metric_key_prefix}_"):
-                metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
-
-        return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)
-
-    def prediction_loop_ort(
-        self,
-        dataloader: DataLoader,
-        description: str,
-        prediction_loss_only: Optional[bool] = None,
-        ignore_keys: Optional[List[str]] = None,
-        metric_key_prefix: str = "eval",
-    ) -> EvalLoopOutput:
-        """
-        Prediction/evaluation loop, shared by `ORTTrainer.evaluate()` and `ORTTrainer.predict()`.
-
-        Works both with or without labels.
-        """
-        logger.info("[INFO] ONNX Runtime inference starts...")
-
-        # Check if there are labels in the dataset
-        dummy_inputs = next(iter(dataloader))
-        has_labels = all(dummy_inputs.get(k) is not None for k in self.label_names)
-        use_cache = ORTFeaturesManager.do_use_cache(self.feature)
-
-        if self.onnx_model_path and (has_labels == self.exported_with_loss):
-            logger.info("[INFO] Inference with given ONNX model")
-            self.onnx_model_path = Path(self.onnx_model_path).as_posix()
-        else:
-            onnx_model_path = Path(self.args.output_dir)
-
-            logger.info("[INFO] Exporting the model to ONNX...")
-            if self.args.deepspeed and self.args.fp16:
-                export_device = "cuda"
-            else:
-                export_device = "cpu"
-
-            # With `label_smoother` the loss will be computed outside modeling
-            with_loss = has_labels and not self.label_smoother
-            self._export(onnx_model_path, with_loss=with_loss, device=export_device, use_cache=use_cache)
-
-            self.exported_with_loss = with_loss
-            self.onnx_model_path = onnx_model_path.as_posix()
-            logger.info("[INFO] ONNX model is stored in:\n", self.onnx_model_path)
-
-        # Load ORT model
-        support_loss_in_modeling = self.feature in [
-            "text-generation",
-            "text-generation-with-past",
-            "text2text-generation",
-            "text2text-generation-with-past",
-        ]
-        support_feature = self.feature in ORTFeaturesManager.SUPPORTED_FEATURES
-        if support_loss_in_modeling or (not self.exported_with_loss and support_feature):
-            # Exported with standard outputs, use specific ORTModels
-            ort_model_cls = ORTFeaturesManager.get_model_class_for_feature(self.feature)
-        else:
-            ort_model_cls = ORTModelForCustomTasks
-
-        model_id = self.onnx_model_path
-        args = self.args
-        if ort_model_cls is ORTModelForCausalLM:
-            ort_model = ort_model_cls.from_pretrained(model_id=model_id, use_cache=use_cache).to(args.device)
-        else:
-            ort_model = ort_model_cls.from_pretrained(model_id=model_id).to(args.device)
-
-        if not has_length(dataloader):
-            raise ValueError("dataloader must implement a working __len__")
-
-        prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
-
-        batch_size = dataloader.batch_size
-        num_examples = self.num_examples(dataloader)
-        logger.info(f"***** Running {description} *****")
-        logger.info(f"  Num examples = {num_examples}")
-        logger.info(f"  Batch size = {batch_size}")
-        losses_host: torch.Tensor = None
-        preds_host: Union[torch.Tensor, List[torch.Tensor]] = None
-        labels_host: Union[torch.Tensor, List[torch.Tensor]] = None
-        inputs_host: Union[torch.Tensor, List[torch.Tensor]] = None
-
-        world_size = max(1, args.world_size)
-
-        eval_losses_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=batch_size)
-        if not prediction_loss_only:
-            # The actual number of eval_sample can be greater than num_examples in distributed settings (when we pass
-            # a batch size to the sampler)
-            make_multiple_of = None
-            if hasattr(dataloader, "sampler") and isinstance(dataloader.sampler, SequentialDistributedSampler):
-                make_multiple_of = dataloader.sampler.batch_size
-            preds_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
-            labels_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
-            inputs_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
-
-        if args.past_index >= 0:
-            self._past = None
-
-        self.callback_handler.eval_dataloader = dataloader
-
-        for step, inputs in enumerate(dataloader):
-            loss, logits, labels = self.prediction_step_ort(
-                ort_model, inputs, prediction_loss_only, ignore_keys=ignore_keys
-            )
-            inputs_decode = inputs["input_ids"] if args.include_inputs_for_metrics else None
-
-            if loss is not None:
-                losses = loss.repeat(batch_size)
-                losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
-            if logits is not None:
-                preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
-            if labels is not None:
-                labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
-            if inputs_decode is not None:
-                inputs_host = (
-                    inputs_decode
-                    if inputs_host is None
-                    else nested_concat(inputs_host, inputs_decode, padding_index=-100)
-                )
-            self.control = self.callback_handler.on_prediction_step(args, self.state, self.control)
-
-            # Gather all tensors and put them back on the CPU if we have done enough accumulation steps.
-            if args.eval_accumulation_steps is not None and (step + 1) % args.eval_accumulation_steps == 0:
-                eval_losses_gatherer.add_arrays(self._gather_and_numpify(losses_host, "eval_losses"))
-                if not prediction_loss_only:
-                    preds_gatherer.add_arrays(self._gather_and_numpify(preds_host, "eval_preds"))
-                    labels_gatherer.add_arrays(self._gather_and_numpify(labels_host, "eval_label_ids"))
-                    inputs_gatherer.add_arrays(self._gather_and_numpify(inputs_host, "eval_inputs_ids"))
-
-                # Set back to None to begin a new accumulation
-                losses_host, preds_host, labels_host, inputs_host = None, None, None, None
-
-        if args.past_index and hasattr(self, "_past"):
-            # Clean the state at the end of the evaluation loop
-            delattr(self, "_past")
-
-        # Gather all remaining tensors and put them back on the CPU
-        eval_losses_gatherer.add_arrays(self._gather_and_numpify(losses_host, "eval_losses"))
-        if not prediction_loss_only:
-            preds_gatherer.add_arrays(self._gather_and_numpify(preds_host, "eval_preds"))
-            labels_gatherer.add_arrays(self._gather_and_numpify(labels_host, "eval_label_ids"))
-            inputs_gatherer.add_arrays(self._gather_and_numpify(inputs_host, "eval_inputs_ids"))
-
-        eval_loss = eval_losses_gatherer.finalize()
-        preds = preds_gatherer.finalize() if not prediction_loss_only else None
-        label_ids = labels_gatherer.finalize() if not prediction_loss_only else None
-        inputs_ids = inputs_gatherer.finalize() if not prediction_loss_only else None
-
-        if self.compute_metrics is not None and preds is not None and label_ids is not None:
-            if args.include_inputs_for_metrics:
-                metrics = self.compute_metrics(
-                    EvalPrediction(predictions=preds, label_ids=label_ids, inputs=inputs_ids)
-                )
-            else:
-                metrics = self.compute_metrics(EvalPrediction(predictions=preds, label_ids=label_ids))
-        else:
-            metrics = {}
-
-        # To be JSON-serializable, we need to remove numpy types or zero-d tensors
-        metrics = denumpify_detensorize(metrics)
-
-        if eval_loss is not None:
-            metrics[f"{metric_key_prefix}_loss"] = eval_loss.mean().item()
-
-        # Prefix all keys with metric_key_prefix + '_'
-        for key in list(metrics.keys()):
-            if not key.startswith(f"{metric_key_prefix}_"):
-                metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
-
-        return EvalLoopOutput(predictions=preds, label_ids=label_ids, metrics=metrics, num_samples=num_examples)
-
-    def prediction_step_ort(
-        self,
-        model: ORTModel,
-        inputs: Dict[str, Union[torch.Tensor, Any]],
-        prediction_loss_only: bool,
-        ignore_keys: Optional[List[str]] = None,
-    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
-        """
-        Perform an evaluation step on `model` using `inputs`.
-
-        Args:
-            model (`ORTModel`):
-                The model to evaluate.
-            inputs (`Dict[str, Union[torch.Tensor, Any]]`):
-                The inputs and targets of the model.
-
-                The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
-                argument `labels`. Check your model's documentation for all accepted arguments.
-            prediction_loss_only (`bool`):
-                Whether or not to return the loss only.
-            ignore_keys (`List[str]`, *optional*):
-                A list of keys in the output of your model (if it is a dictionary) that should be ignored when
-                gathering predictions.
-
-        Return:
-            Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss,
-            logits and labels (each being optional).
-        """
-        has_labels = False if len(self.label_names) == 0 else all(inputs.get(k) is not None for k in self.label_names)
-        # For CLIP-like models capable of returning loss values.
-        # If `return_loss` is not specified or being `None` in `inputs`, we check if the default value of `return_loss`
-        # is `True` in `model.forward`.
-        return_loss = inputs.get("return_loss", None)
-        if return_loss is None:
-            return_loss = self.can_return_loss
-        loss_without_labels = True if len(self.label_names) == 0 and return_loss else False
-
-        inputs = self._prepare_inputs(inputs)
-
-        if ignore_keys is None:
-            if hasattr(self.model, "config"):
-                ignore_keys = getattr(self.model.config, "keys_to_ignore_at_inference", [])
-            else:
-                ignore_keys = []
-
-        # labels may be popped when computing the loss (label smoothing for instance) so we grab them first.
-        if has_labels or loss_without_labels:
-            labels = nested_detach(tuple(inputs.get(name) for name in self.label_names))
-            if len(labels) == 1:
-                labels = labels[0]
-        else:
-            labels = None
-
-        with torch.no_grad():
-            if is_sagemaker_mp_enabled():
-                raise NotImplementedError(
-                    "Sagemaker's distributed data parallel features are not supported by `ORTTrainer` yet."
-                )
-            else:
-                if has_labels or loss_without_labels:
-                    with self.compute_loss_context_manager():
-                        loss, outputs = self.compute_loss_ort(model, inputs, return_outputs=True)
-                    loss = loss.mean().detach()
-
-                    if isinstance(outputs, dict):
-                        logits = tuple(v for k, v in outputs.items() if k not in ignore_keys + ["loss"])
-                    else:
-                        logits = outputs[1:]
-                else:
-                    loss = None
-                    with self.compute_loss_context_manager():
-                        outputs = model(**inputs)
-                    if isinstance(outputs, dict):
-                        logits = tuple(v for k, v in outputs.items() if k not in ignore_keys)
-                    else:
-                        logits = outputs
-                    # TODO: this needs to be fixed and made cleaner later.
-                    if self.args.past_index >= 0:
-                        self._past = outputs[self.args.past_index - 1]
-
-        if prediction_loss_only:
-            return (loss, None, None)
-
-        logits = nested_detach(logits)
-        if len(logits) == 1:
-            logits = logits[0]
-
-        return (loss, logits, labels)
-
-    def compute_loss_ort(self, model, inputs, return_outputs=False):
-        """
-        How the loss is computed by ORTTrainer. By default, all models return the loss in the first element.
-        Subclass and override for custom behavior.
-        """
-        if self.label_smoother is not None and "labels" in inputs:
-            labels = inputs.pop("labels")
-        else:
-            labels = None
-        outputs = model(**inputs)
-        # Save past state if it exists
-        # TODO: this needs to be fixed and made cleaner later.
-        if self.args.past_index >= 0:
-            self._past = outputs[self.args.past_index]
-
-        if labels is not None:
-            if "text-generation" in self.feature:
-                loss = self.label_smoother(outputs, labels, shift_labels=True)
-            else:
-                loss = self.label_smoother(outputs, labels)
-        else:
-            if isinstance(outputs, dict) and "loss" not in outputs:
-                raise ValueError(
-                    "The model did not return a loss from the inputs, only the following keys: "
-                    f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
-                )
-            # We don't use .loss here since the model may return tuples instead of ModelOutput.
-            loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
-
-        return (loss, outputs) if return_outputs else loss
-
-    def _export(
-        self,
-        model_path: os.PathLike,
-        model: Optional[PreTrainedModel] = None,
-        opset: Optional[int] = None,
-        device: str = "cpu",
-        with_loss: bool = True,
-        use_cache: bool = False,
-    ) -> None:
-        """
-        Load and export a model to an ONNX format.
-
-        Args:
-            model_path (`os.PathLike`):
-                The path used to save the model exported to an ONNX format.
-            model ([`PreTrainedModel`], *optional*):
-                The model to export. If not provided, a `model_path` must be passed.
-            opset (`int`, *optional*):
-                ONNX opset version to export the model with.
-            device (`str`, *optional*, defaults to `cpu`):
-                The device on which the ONNX model will be exported. Either `cpu` or `cuda`.
-            with_loss (`bool`, defaults to `True`):
-                Whether to export ONNX model with the loss in outputs.
-        """
-        if model is None:
-            if not (self.args.fp16 and self.args.deepspeed):
-                # Taking CPU to export the model
-                self.model.to("cpu")
-            model = unwrap_model(self.model)
-
-        onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            model=model, exporter="onnx", task=self.feature
-        )
-        onnx_config = onnx_config_constructor(model.config)
-        opset = onnx_config.DEFAULT_ONNX_OPSET if opset is None else opset
-
-        is_decoder = isinstance(onnx_config, OnnxConfigWithPast)
-
-        if is_decoder:
-            output_names = [ONNX_DECODER_NAME]
-            if use_cache is True:
-                output_names.append(ONNX_DECODER_WITH_PAST_NAME)
-
-            models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
-            if with_loss is True:
-                opset = max(opset, 12)
-                models_and_onnx_configs_with_loss = {}
-                for decoder_name, (decoder, decoder_config) in models_and_onnx_configs.items():
-                    models_and_onnx_configs_with_loss[decoder_name] = (
-                        decoder,
-                        wrap_onnx_config_for_loss(decoder_config),
-                    )
-
-            export_models(
-                models_and_onnx_configs=models_and_onnx_configs_with_loss if with_loss else models_and_onnx_configs,
-                opset=opset,
-                output_dir=model_path,
-                output_names=output_names,
-                device=device,
-                disable_dynamic_axes_fix=True,  # onnxruntime floating point exception (core dumped)
-            )
-        else:
-            if with_loss is True:
-                onnx_config = wrap_onnx_config_for_loss(onnx_config)
-                opset = max(opset, 12)  # Operators like `nll_loss`are added for opset>=12
-
-            output_path = model_path / ONNX_WEIGHTS_NAME
-            _ = export(model=model, config=onnx_config, opset=opset, output=output_path, device=device)
-
-        model.config.save_pretrained(model_path)
 
     def _wrap_model(self, model, training=True, dataloader=None):
         # TODO: ipex only works with inference with PyTorch, will move `inference_with_ort` to training arguments and
@@ -1689,19 +882,8 @@ class ORTTrainer(Trainer):
         if not training:
             return model
 
-        # Distributed training (should be after apex fp16 initialization)
-        if self.sharded_ddp is not None:
-            # Sharded DDP!
-            if self.sharded_ddp == ShardedDDPOption.SIMPLE:
-                model = ShardedDDP(model, self.optimizer)
-            else:
-                raise NotImplementedError(
-                    "Fairscale's zero_dp_2 and zero_dp_3 are not compatible with `torch_ort.ORTModule`"
-                    " used in `ORTTrainer`. Use `--sharded_ddp simpe` or deepspeed stage 2 if you want"
-                    "the gradient to be sharded."
-                )
         # Distributed training using PyTorch FSDP
-        elif self.fsdp is not None:
+        if self.fsdp is not None:
             try:
                 from torch_xla.distributed.fsdp import XlaFullyShardedDataParallel as FSDP
                 from torch_xla.distributed.fsdp import checkpoint_module
@@ -1714,18 +896,24 @@ class ORTTrainer(Trainer):
 
             auto_wrap_policy = None
             auto_wrapper_callable = None
-            if self.args.fsdp_config["fsdp_min_num_params"] > 0:
+            default_transformer_cls_names_to_wrap = getattr(model, "_no_split_modules", None)
+            fsdp_transformer_layer_cls_to_wrap = self.args.fsdp_config.get(
+                "transformer_layer_cls_to_wrap", default_transformer_cls_names_to_wrap
+            )
+
+            if self.args.fsdp_config["min_num_params"] > 0:
                 auto_wrap_policy = functools.partial(
-                    size_based_auto_wrap_policy, min_num_params=self.args.fsdp_config["fsdp_min_num_params"]
+                    size_based_auto_wrap_policy, min_num_params=self.args.fsdp_config["min_num_params"]
                 )
-            elif self.args.fsdp_config.get("fsdp_transformer_layer_cls_to_wrap", None) is not None:
+            elif fsdp_transformer_layer_cls_to_wrap is not None:
                 transformer_cls_to_wrap = set()
-                for layer_class in self.args.fsdp_config["fsdp_transformer_layer_cls_to_wrap"]:
+                for layer_class in fsdp_transformer_layer_cls_to_wrap:
                     transformer_cls = get_module_class_from_name(model, layer_class)
                     if transformer_cls is None:
                         raise Exception("Could not find the transformer layer class to wrap in the model.")
                     else:
                         transformer_cls_to_wrap.add(transformer_cls)
+
                 auto_wrap_policy = functools.partial(
                     transformer_auto_wrap_policy,
                     # Transformer layer class to wrap
@@ -1806,27 +994,20 @@ class ORTTrainer(Trainer):
             else:
                 optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
 
-            if self.sharded_ddp == ShardedDDPOption.SIMPLE:
-                self.optimizer = OSS(
-                    params=optimizer_grouped_parameters,
-                    optim=optimizer_cls,
-                    **optimizer_kwargs,
-                )
-            else:
-                self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
-                if optimizer_cls.__name__ == "Adam8bit":
-                    import bitsandbytes
+            self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
+            if optimizer_cls.__name__ == "Adam8bit":
+                import bitsandbytes
 
-                    manager = bitsandbytes.optim.GlobalOptimManager.get_instance()
+                manager = bitsandbytes.optim.GlobalOptimManager.get_instance()
 
-                    skipped = 0
-                    for module in opt_model.modules():
-                        if isinstance(module, nn.Embedding):
-                            skipped += sum({p.data_ptr(): p.numel() for p in module.parameters()}.values())
-                            logger.info(f"skipped {module}: {skipped/2**20}M params")
-                            manager.register_module_override(module, "weight", {"optim_bits": 32})
-                            logger.debug(f"bitsandbytes: will optimize {module} in fp32")
-                    logger.info(f"skipped: {skipped/2**20}M params")
+                skipped = 0
+                for module in opt_model.modules():
+                    if isinstance(module, nn.Embedding):
+                        skipped += sum({p.data_ptr(): p.numel() for p in module.parameters()}.values())
+                        logger.info(f"skipped {module}: {skipped/2**20}M params")
+                        manager.register_module_override(module, "weight", {"optim_bits": 32})
+                        logger.debug(f"bitsandbytes: will optimize {module} in fp32")
+                logger.info(f"skipped: {skipped/2**20}M params")
 
         if is_sagemaker_mp_enabled():
             raise NotImplementedError(

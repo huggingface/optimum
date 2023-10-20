@@ -14,6 +14,7 @@
 """Defines the command line for the export with ONNX."""
 
 import argparse
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -137,10 +138,16 @@ def parse_args_onnx(parser):
         help=("The library on the model." " If not provided, will attempt to infer the local checkpoint's library"),
     )
     optional_group.add_argument(
-        "--no-position-ids",
+        "--model-kwargs",
+        type=json.loads,
+        help=("Any kwargs passed to the model forward, or used to customize the export for a given model."),
+    )
+    optional_group.add_argument(
+        "--legacy",
         action="store_true",
         help=(
-            "Disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum."
+            "Export decoder only models in three files (without + with past and the resulting merged model)."
+            "Also disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum."
         ),
     )
 
@@ -255,6 +262,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             use_subprocess=True,
             _variant=self.args.variant,
             library_name=self.args.library_name,
-            no_position_ids=self.args.no_position_ids,
+            legacy=self.args.legacy,
+            model_kwargs=self.args.model_kwargs,
             **input_shapes,
         )
