@@ -25,7 +25,6 @@ import numpy as np
 import torch
 from diffusers import (
     DDIMScheduler,
-    LatentConsistencyModelPipeline,
     LMSDiscreteScheduler,
     PNDMScheduler,
     StableDiffusionPipeline,
@@ -572,7 +571,6 @@ class ORTLatentConsistencyModelPipeline(ORTStableDiffusionPipelineBase, LatentCo
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline).
     """
 
-    auto_model_class = LatentConsistencyModelPipeline
     __call__ = LatentConsistencyModelPipelinePipelineMixin.__call__
 
 
