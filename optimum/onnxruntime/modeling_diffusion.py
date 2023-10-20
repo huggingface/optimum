@@ -25,13 +25,12 @@ import numpy as np
 import torch
 from diffusers import (
     DDIMScheduler,
+    LatentConsistencyModelPipeline,
     LMSDiscreteScheduler,
     PNDMScheduler,
     StableDiffusionPipeline,
     StableDiffusionXLImg2ImgPipeline,
-    LatentConsistencyModelPipeline,
 )
-
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils import CONFIG_NAME, is_invisible_watermark_available
 from huggingface_hub import snapshot_download
@@ -42,12 +41,12 @@ import onnxruntime as ort
 
 from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
+from ..pipelines.diffusers.pipeline_latent_consistency import LatentConsistencyModelPipelinePipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion import StableDiffusionPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_img2img import StableDiffusionImg2ImgPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl import StableDiffusionXLPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipelineMixin
-from ..pipelines.diffusers.pipeline_latent_consistency import LatentConsistencyModelPipelinePipelineMixin
 from ..pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from ..utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
