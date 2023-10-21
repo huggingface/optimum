@@ -159,26 +159,27 @@ class TasksManager:
         # task in a Hub repo that has no pipeline_tag, and no transformersInfo.pipeline_tag, as we then rely on
         # on transformersInfo["auto_model"] and this dictionary.
         _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
+            "audio-classification": "AutoModelForAudioClassification",
+            "audio-frame-classification": "AutoModelForAudioFrameClassification",
+            "audio-xvector": "AutoModelForAudioXVector",
+            "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
             "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
+            "image-classification": "AutoModelForImageClassification",
+            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
+            "image-to-text": "AutoModelForVision2Seq",
+            "mask-generation": "AutoModel",
+            "masked-im": "AutoModelForMaskedImageModeling",
+            "multiple-choice": "AutoModelForMultipleChoice",
+            "object-detection": "AutoModelForObjectDetection",
+            "question-answering": "AutoModelForQuestionAnswering",
+            "semantic-segmentation": "AutoModelForSemanticSegmentation",
+            "text-to-audio": "AutoModelForTextToSpectrogram",
             "text-generation": "AutoModelForCausalLM",
             "text2text-generation": "AutoModelForSeq2SeqLM",
             "text-classification": "AutoModelForSequenceClassification",
             "token-classification": "AutoModelForTokenClassification",
-            "multiple-choice": "AutoModelForMultipleChoice",
-            "object-detection": "AutoModelForObjectDetection",
-            "question-answering": "AutoModelForQuestionAnswering",
-            "image-classification": "AutoModelForImageClassification",
-            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
-            "mask-generation": "AutoModel",
-            "masked-im": "AutoModelForMaskedImageModeling",
-            "semantic-segmentation": "AutoModelForSemanticSegmentation",
-            "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
-            "audio-classification": "AutoModelForAudioClassification",
-            "audio-frame-classification": "AutoModelForAudioFrameClassification",
-            "audio-xvector": "AutoModelForAudioXVector",
-            "image-to-text": "AutoModelForVision2Seq",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
@@ -229,22 +230,23 @@ class TasksManager:
         }
 
     _SYNONYM_TASK_MAP = {
-        "sequence-classification": "text-classification",
+        "audio-ctc": "automatic-speech-recognition",
         "causal-lm": "text-generation",
         "causal-lm-with-past": "text-generation-with-past",
-        "seq2seq-lm": "text2text-generation",
-        "seq2seq-lm-with-past": "text2text-generation-with-past",
-        "speech2seq-lm": "automatic-speech-recognition",
-        "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
-        "masked-lm": "fill-mask",
-        "mask-generation": "feature-extraction",
-        "vision2seq-lm": "image-to-text",
         "default": "feature-extraction",
         "default-with-past": "feature-extraction-with-past",
-        "audio-ctc": "automatic-speech-recognition",
-        "translation": "text2text-generation",
+        "masked-lm": "fill-mask",
+        "mask-generation": "feature-extraction",
         "sentence-similarity": "feature-extraction",
+        "seq2seq-lm": "text2text-generation",
+        "seq2seq-lm-with-past": "text2text-generation-with-past",
+        "sequence-classification": "text-classification",
+        "speech2seq-lm": "automatic-speech-recognition",
+        "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
         "summarization": "text2text-generation",
+        "text-to-speech": "text-to-audio",
+        "translation": "text2text-generation",
+        "vision2seq-lm": "image-to-text",
         "zero-shot-classification": "text-classification",
     }
 
@@ -268,12 +270,12 @@ class TasksManager:
 
     # TODO: why feature-extraction-with-past is here?
     _ENCODER_DECODER_TASKS = (
-        "text2text-generation",
         "automatic-speech-recognition",
-        "image-to-text",
-        "feature-extraction-with-past",
-        "visual-question-answering",
         "document-question-answering",
+        "feature-extraction-with-past",
+        "image-to-text",
+        "text2text-generation",
+        "visual-question-answering",
     )
 
     # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
@@ -301,8 +303,10 @@ class TasksManager:
             "text-generation-with-past",
             "text2text-generation",
             "text2text-generation-with-past",
-            "text-classification",
-            "question-answering",
+            # text-classification and question-answering can be supported, but the ONNX export is currently broken due to a regression in PyTorch 2.1.
+            # Reference: https://github.com/pytorch/pytorch/issues/110597.
+            # "text-classification",
+            # "question-answering",
             onnx="BartOnnxConfig",
         ),
         # BEiT cannot be used with the masked image modeling autoclass, so this task is excluded here
@@ -509,6 +513,15 @@ class TasksManager:
             "text2text-generation-with-past",
             onnx="EncoderDecoderOnnxConfig",
         ),
+        "falcon": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "question-answering",
+            "text-generation",
+            "text-generation-with-past",
+            "token-classification",
+            onnx="FalconOnnxConfig",
+        ),
         "flaubert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -649,6 +662,14 @@ class TasksManager:
             "text-classification",
             "question-answering",
             onnx="MBartOnnxConfig",
+        ),
+        "mistral": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            # "text-classification",
+            onnx="MistralOnnxConfig",
         ),
         # TODO: enable once the missing operator is supported.
         # "mctct": supported_tasks_mapping(
@@ -837,6 +858,11 @@ class TasksManager:
             "automatic-speech-recognition",
             "automatic-speech-recognition-with-past",
             onnx="Speech2TextOnnxConfig",
+        ),
+        # TODO: SpeechT5 can also support audio-to-audio and automatic-speech-recognition.
+        "speecht5": supported_tasks_mapping(
+            "text-to-audio",
+            onnx="SpeechT5OnnxConfig",
         ),
         "splinter": supported_tasks_mapping(
             "feature-extraction",
@@ -1046,12 +1072,12 @@ class TasksManager:
             `TaskNameToExportConfigDict`: The dictionary mapping each task to a corresponding `ExportConfig`
             constructor.
         """
-        model_type = model_type.lower()
+        model_type = model_type.lower().replace("_", "-")
         model_type_and_model_name = f"{model_type} ({model_name})" if model_name else model_type
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet. "
-                f"Only {TasksManager._SUPPORTED_MODEL_TYPE} are supported. "
+                f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
         elif exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
@@ -1381,19 +1407,21 @@ class TasksManager:
                     "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
                 )
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
-            if model_info.library_name == "diffusers":
+            if getattr(model_info, "library_name", None) == "diffusers":
                 # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
                 for task in ("stable-diffusion-xl", "stable-diffusion"):
                     if task in model_info.tags:
                         inferred_task_name = task
                         break
-            elif model_info.library_name == "timm":
+            elif getattr(model_info, "library_name", None) == "timm":
                 inferred_task_name = "image-classification"
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
-                # conversational is not a supported task per se, just an alias that may map to
-                # text-generaton or text2text-generation
-                if pipeline_tag is not None and pipeline_tag != "conversational":
+                # The Hub task "conversational" is not a supported task per se, just an alias that may map to
+                # text-generaton or text2text-generation.
+                # The Hub task "object-detection" is not a supported task per se, as in Transformers this may map to either
+                # zero-shot-object-detection or object-detection.
+                if pipeline_tag is not None and pipeline_tag not in ["conversational", "object-detection"]:
                     inferred_task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
                 else:
                     transformers_info = model_info.transformersInfo
@@ -1521,7 +1549,7 @@ class TasksManager:
                     library_name = "transformers"
 
         if library_name is None:
-            ValueError(
+            raise ValueError(
                 "The library_name could not be automatically inferred. If using the command-line, please provide the argument --library (transformers,diffusers,timm)!"
             )
 

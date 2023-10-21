@@ -55,12 +55,16 @@ from .input_generators import (
     DummyPointsGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
+    DummySpeechT5InputGenerator,
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
     DummyVisionEmbeddingsGenerator,
+    DummyVisionEncoderDecoderPastKeyValuesGenerator,
     DummyVisionInputGenerator,
     FalconDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
+    MistralDummyPastKeyValuesGenerator,
+    MultiQueryPastKeyValuesGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr
 from .normalized_config import (

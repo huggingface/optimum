@@ -59,7 +59,7 @@ from transformers import (
 )
 from transformers.modeling_utils import no_init_weights
 from transformers.onnx.utils import get_preprocessor
-from transformers.testing_utils import get_gpu_count, require_torch_gpu
+from transformers.testing_utils import get_gpu_count, require_torch_gpu, slow
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
 from optimum.exporters import TasksManager
@@ -138,12 +138,12 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_hub(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_hub_subfolder(self):
@@ -151,11 +151,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModelForSequenceClassification.from_pretrained(
             "fxmarty/tiny-bert-sst2-distilled-subfolder", subfolder="my_subfolder", export=True
         )
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
         model = ORTModel.from_pretrained("fxmarty/tiny-bert-sst2-distilled-onnx-subfolder", subfolder="my_subfolder")
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_from_hub_subfolder(self):
@@ -178,7 +178,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         model = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID, local_files_only=True)
 
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_empty_cache(self):
@@ -768,7 +768,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     @require_hf_token
     def test_load_model_from_hub_private(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, use_auth_token=os.environ.get("HF_AUTH_TOKEN", None))
-        self.assertIsInstance(model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_save_model(self):
@@ -832,11 +832,12 @@ class ORTModelIntegrationTest(unittest.TestCase):
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @parameterized.expand([(False,), (True,)])
+    @pytest.mark.run_slow
+    @slow
     def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
             model = ORTModelForCausalLM.from_pretrained(
-                MODEL_NAMES["gpt2"],
+                "gpt2-large",
                 use_cache=use_cache,
                 export=True,
                 use_merged=False,
@@ -846,18 +847,14 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             # verify external data is exported
             folder_contents = os.listdir(tmpdirname)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME + "_data" in folder_contents)
-
-            if use_cache:
-                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
+            self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
+            self.assertTrue(ONNX_WEIGHTS_NAME + "_data" in folder_contents)
+            self.assertFalse(use_cache ^ model.use_cache)
 
             # verify loading from local folder works
             model = ORTModelForCausalLM.from_pretrained(
                 tmpdirname, use_cache=use_cache, export=False, use_io_binding=False
             )
-            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @parameterized.expand([(False,), (True,)])
     def test_save_load_seq2seq_model_with_external_data(self, use_cache: bool):
@@ -1058,7 +1055,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
-        "bart",
+        # "bart",  # see tasks.py
         "bert",
         # "big_bird",
         # "bigbird_pegasus",
@@ -1093,7 +1090,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForQuestionAnswering.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("custom or unsupported architecture", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -1103,7 +1100,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1239,18 +1236,13 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         "flaubert",
         "ibert",
         "mobilebert",
-        # "perceiver",
+        "perceiver_text",
         "roberta",
         "roformer",
         "squeezebert",
         "xlm",
         "xlm_roberta",
     ]
-
-    ARCH_MODEL_MAP = {
-        # TODO: fix non passing test
-        # "perceiver": "hf-internal-testing/tiny-random-language_perceiver",
-    }
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForMaskedLM
@@ -1260,17 +1252,17 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForMaskedLM.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1299,7 +1291,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer)
@@ -1330,7 +1322,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
         tokenizer = get_preprocessor(model_id)
         MASK_TOKEN = tokenizer.mask_token
@@ -1352,7 +1344,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=False).to(
             "cuda"
         )
@@ -1378,7 +1370,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
-        "bart",
+        # "bart",  # see tasks.py
         "bert",
         # "big_bird",
         # "bigbird_pegasus",
@@ -1401,18 +1393,13 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "mbart",
         "mobilebert",
         "nystromformer",
-        # "perceiver",
+        "perceiver_text",
         "roberta",
         "roformer",
         "squeezebert",
         "xlm",
         "xlm_roberta",
     ]
-
-    ARCH_MODEL_MAP = {
-        # TODO: fix non passing test
-        # "perceiver": "hf-internal-testing/tiny-random-language_perceiver",
-    }
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForSequenceClassification
@@ -1422,17 +1409,17 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("that is a custom or unsupported", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1461,7 +1448,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(self.onnx_model_dirs[model_arch])
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-classification", model=onnx_model, tokenizer=tokenizer)
@@ -1498,7 +1485,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], provider=provider
         )
@@ -1538,7 +1525,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], use_io_binding=False
         ).to("cuda")
@@ -1595,7 +1582,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForTokenClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -1605,7 +1592,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForTokenClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1728,7 +1715,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1873,7 +1860,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMultipleChoice.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -1949,19 +1936,20 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "bloom",
         "codegen",
+        "falcon",
         "gpt2",
         "gpt_bigcode",
         "gpt_neo",
         "gpt_neox",
         "gptj",
         "llama",
+        "mistral",
         "mpt",
     ]
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [False, True],
-        "use_merged": [False, True],
     }
 
     ORTMODEL_CLASS = ORTModelForCausalLM
@@ -1970,51 +1958,43 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
 
-    def test_inference_old_onnx_model(self):
-        model = ORTModelForCausalLM.from_pretrained("optimum/gpt2")
-
-        tokenizer = get_preprocessor("optimum/gpt2")
+    @parameterized.expand([(False,), (True,)])
+    def test_inference_old_onnx_model(self, use_cache):
+        model_id = "optimum/gpt2"
+        model = AutoModelForCausalLM.from_pretrained("gpt2")
+        tokenizer = get_preprocessor(model_id)
         text = "This is a sample output"
         tokens = tokenizer(text, return_tensors="pt")
+        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, use_cache=use_cache, use_io_binding=use_cache)
 
-        model.generate(**tokens)
+        self.assertEqual(onnx_model.use_cache, use_cache)
+        self.assertEqual(onnx_model.model_path.name, ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME)
+        outputs_onnx = onnx_model.generate(
+            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30
+        )
+        outputs = model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30)
+        self.assertTrue(torch.allclose(outputs_onnx, outputs))
 
     def test_load_model_from_hub_onnx(self):
         model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-without-merge")
 
         self.assertFalse(model.use_merged)
         self.assertTrue(model.use_cache)
-        self.assertTrue(model.decoder_with_past is not None)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
+        self.assertEqual(model.onnx_paths[0].name, ONNX_DECODER_WITH_PAST_NAME)
 
         model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge")
 
         self.assertTrue(model.use_merged)
         self.assertTrue(model.use_cache)
-        self.assertTrue(model.decoder_with_past is None)
+        self.assertIsInstance(model.model, onnxruntime.InferenceSession)
+        self.assertEqual(model.onnx_paths[0].name, ONNX_DECODER_MERGED_NAME)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_merge_from_transformers_and_save(self, model_arch):
-        if "text-generation-with-past" not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx"
-        ):
-            self.skipTest("Unsupported -with-past export case")
-
-        model_id = MODEL_NAMES[model_arch]
-        model = ORTModelForCausalLM.from_pretrained(model_id, export=True, use_merged=True)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            model.save_pretrained(tmpdir)
-            save_path = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
-
-            folder_contents = os.listdir(tmpdir)
-            self.assertTrue(ONNX_DECODER_NAME not in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_onnx_and_save(self, model_arch):
@@ -2025,26 +2005,23 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.skipTest("Unsupported export case")
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            main_export(model_id, tmpdir, task=task)
+            main_export(model_id, tmpdir, task=task, legacy=True)
 
             model = ORTModelForCausalLM.from_pretrained(tmpdir)
 
             self.assertTrue(model.use_merged)
-            self.assertTrue(model.decoder_with_past is None)
-
+            self.assertIsInstance(model.model, onnxruntime.InferenceSession)
             model.save_pretrained(tmpdir + "_save")
             save_path = os.path.join(tmpdir + "_save", ONNX_DECODER_MERGED_NAME)
             self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
 
             folder_contents = os.listdir(tmpdir + "_save")
-            self.assertTrue(ONNX_DECODER_NAME not in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
+            self.assertNotIn(ONNX_DECODER_NAME, folder_contents)
+            self.assertNotIn(ONNX_DECODER_WITH_PAST_NAME, folder_contents)
+            self.assertNotIn(ONNX_WEIGHTS_NAME, folder_contents)
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
+    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         use_io_binding = None
         if use_cache is False:
             use_io_binding = False
@@ -2053,7 +2030,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             "test_name": test_name,
             "model_arch": model_arch,
             "use_cache": use_cache,
-            "use_merged": use_merged,
         }
         self._setup(model_args)
 
@@ -2063,45 +2039,35 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             use_cache=use_cache,
             use_io_binding=use_io_binding,
         )
-        if use_merged is False:
-            model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_NAME)
-            self.assertFalse(has_onnx_input(model_path, "use_cache_branch"))
-            self.assertEqual(onnx_model.use_merged, False)
-        else:
-            model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(has_onnx_input(model_path, "use_cache_branch"))
-            self.assertEqual(onnx_model.use_merged, True)
 
-        self.assertIsInstance(onnx_model.decoder, ORTDecoder)
-        if onnx_model.use_cache is True and onnx_model.use_merged is False:
-            self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
-        if onnx_model.use_cache is True and onnx_model.use_merged is True:
-            self.assertTrue(onnx_model.decoder_with_past is None)
-
+        model_path = Path(self.onnx_model_dirs[test_name], ONNX_WEIGHTS_NAME)
+        self.assertFalse(has_onnx_input(model_path, "use_cache_branch"))
+        self.assertFalse(onnx_model.use_merged)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
         transformers_model = AutoModelForCausalLM.from_pretrained(model_id)
         transformers_model = transformers_model.eval()
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(
-            "This is a sample output",
-            return_tensors="pt",
-        )
+        tokens = tokenizer("This is a sample output", return_tensors="pt")
         position_ids = None
         if model_arch.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
             input_shape = tokens["input_ids"].shape
             position_ids = torch.arange(0, input_shape[-1], dtype=torch.long).unsqueeze(0).view(-1, input_shape[-1])
         onnx_outputs = onnx_model(**tokens, position_ids=position_ids)
 
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-
         with torch.no_grad():
             transformers_outputs = transformers_model(**tokens)
 
+        self.assertTrue("logits" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
+
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4))
+        self.assertTrue(
+            torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4),
+            f"Maxdiff: {(onnx_outputs.logits - transformers_outputs.logits).abs()}",
+        )
 
         # Compare batched generation.
         tokenizer.pad_token_id = tokenizer.eos_token_id
@@ -2112,11 +2078,25 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_model.config.eos_token_id = None
         transformers_model.config.eos_token_id = None
 
+        new_tokens = 30
+        if model_arch == "falcon":
+            # TODO: remove once https://github.com/huggingface/transformers/pull/26873 is released, falcon is broken in transformers
+            new_tokens = 5
         onnx_outputs = onnx_model.generate(
-            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30, eos_token_id=None
+            **tokens,
+            num_beams=1,
+            do_sample=False,
+            min_new_tokens=new_tokens,
+            max_new_tokens=new_tokens,
+            eos_token_id=None,
         )
         transformers_outputs = transformers_model.generate(
-            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30, eos_token_id=None
+            **tokens,
+            num_beams=1,
+            do_sample=False,
+            min_new_tokens=new_tokens,
+            max_new_tokens=new_tokens,
+            eos_token_id=None,
         )
 
         self.assertTrue(torch.allclose(onnx_outputs, transformers_outputs))
@@ -2124,10 +2104,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
+    def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool):
         use_io_binding = None
         if use_cache is False:
             use_io_binding = False
@@ -2136,7 +2113,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             "test_name": test_name,
             "model_arch": model_arch,
             "use_cache": use_cache,
-            "use_merged": use_merged,
         }
         self._setup(model_args)
 
@@ -2146,7 +2122,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             use_cache=use_cache,
             use_io_binding=use_io_binding,
         )
-
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live"
@@ -2210,7 +2185,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             )
 
             tokenizer = get_preprocessor(model_id)
-
             # build engine for a short sequence
             text = ["short"]
             encoded_input = tokenizer(
@@ -2289,17 +2263,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {
-            "test_name": test_name + "_True",
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": True,
-        }
-        self._setup(model_args)
-        model_args = {
             "test_name": test_name + "_False",
             "model_arch": model_arch,
             "use_cache": use_cache,
-            "use_merged": False,
         }
         self._setup(model_args)
 
@@ -2307,20 +2273,30 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokenizer = get_preprocessor(model_id)
         text = "My Name is Philipp and i live"
         tokens = tokenizer(text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None)
-
         model_not_merged_dir = self.onnx_model_dirs[test_name + "_False"]
-        model_merged_dir = self.onnx_model_dirs[test_name + "_True"]
 
         model_not_merged = ORTModelForCausalLM.from_pretrained(model_not_merged_dir)
-        not_merged_onnx_path = Path(model_not_merged_dir, ONNX_DECODER_NAME)
+        not_merged_onnx_path = Path(model_not_merged_dir, ONNX_WEIGHTS_NAME)
         self.assertFalse(has_onnx_input(not_merged_onnx_path, "use_cache_branch"))
-        self.assertEqual(model_not_merged.use_merged, False)
+        self.assertFalse(model_not_merged.use_merged)
+
+        model_merged_dir = Path(Path(model_not_merged_dir).parents[0], "merged")
+        task = model_not_merged.export_feature
+        if use_cache:
+            task += "-with-past"
+
+        main_export(
+            model_id,
+            output=model_merged_dir,
+            task=task,
+            no_post_process=False,
+            legacy=True,
+        )
 
         model_merged = ORTModelForCausalLM.from_pretrained(model_merged_dir)
         merged_onnx_path = Path(model_merged_dir, ONNX_DECODER_MERGED_NAME)
         self.assertTrue(has_onnx_input(merged_onnx_path, "use_cache_branch"))
-        self.assertEqual(model_merged.decoder_with_past, None)
-        self.assertEqual(model_merged.use_merged, True)
+        self.assertTrue(model_merged.use_merged)
 
         outputs_model_not_merged = model_not_merged.generate(**tokens)
         outputs_model_merged = model_merged.generate(**tokens)
@@ -2408,18 +2384,13 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "mobilenet_v1",
         "mobilenet_v2",
         "mobilevit",
-        # "perceiver",
+        "perceiver_vision",
         "poolformer",
         "resnet",
         "segformer",
         "swin",
         "vit",
     ]
-
-    ARCH_MODEL_MAP = {
-        # TODO: fix non passing test
-        # "perceiver": "hf-internal-testing/tiny-random-vision_perceiver_conv",
-    }
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForImageClassification
@@ -2429,17 +2400,17 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch] if model_arch in MODEL_NAMES else self.ARCH_MODEL_MAP[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -2470,7 +2441,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(self.onnx_model_dirs[model_arch])
         preprocessor = get_preprocessor(model_id)
         pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor)
@@ -2507,7 +2478,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], provider=provider
         )
@@ -2531,7 +2502,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], use_io_binding=False
         ).to("cuda")
@@ -2569,7 +2540,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForSemanticSegmentation.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -2579,7 +2550,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSemanticSegmentation.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -2724,17 +2695,17 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForAudioClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -2763,7 +2734,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(self.onnx_model_dirs[model_arch])
         processor = AutoFeatureExtractor.from_pretrained(model_id)
         pipe = pipeline("audio-classification", model=onnx_model, feature_extractor=processor, sampling_rate=220)
@@ -2801,7 +2772,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], provider=provider
         )
@@ -2824,7 +2795,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], use_io_binding=False
         ).to("cuda")
@@ -2876,17 +2847,17 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForCTC.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -2935,17 +2906,17 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForAudioXVector.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioXVector.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -2978,7 +2949,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioXVector.from_pretrained(
             self.onnx_model_dirs[model_arch], use_io_binding=False
         ).to("cuda")
@@ -3027,17 +2998,17 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForAudioFrameClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = self.ARCH_MODEL_MAP[model_arch] if model_arch in self.ARCH_MODEL_MAP else MODEL_NAMES[model_arch]
+        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioFrameClassification.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertIsInstance(onnx_model.model, onnxruntime.capi.onnxruntime_inference_collection.InferenceSession)
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
@@ -3116,7 +3087,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["bert"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
@@ -3726,7 +3697,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForSpeechSeq2Seq.from_pretrained(MODEL_NAMES["bert"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
@@ -4070,16 +4041,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     GENERATION_LENGTH = 100
     SPEEDUP_CACHE = 1.1
 
-    def exclude_trocr_with_cache(params):
-        if params[0] == "trocr" and params[1] is True:
-            return None
-        return params
-
-    def update_trocr_with_cache(params):
-        if params[0] == "trocr" and params[1] is True:
-            params[1] = False
-        return params
-
     def _get_sample_image(self):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
@@ -4095,13 +4056,9 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForVision2Seq.from_pretrained(MODEL_NAMES["bert"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
-    @parameterized.expand(
-        grid_parameters(
-            {"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}, filter_params_func=update_trocr_with_cache
-        )
-    )
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
@@ -4119,7 +4076,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(grid_parameters(FULL_GRID, filter_params_func=exclude_trocr_with_cache))
+    @parameterized.expand(grid_parameters(FULL_GRID))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -4164,17 +4121,12 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         extra_inputs = [{}, {}]
 
-        if use_cache and False:
-            # TODO: the dims will fail with other models
-            fake_pkv = tuple((torch.rand(1, 4, 1, 8), torch.rand(1, 4, 1, 8)) for _ in range(5))
-            extra_inputs[1]["past_key_values"] = fake_pkv
-
         for extra_inps in extra_inputs:
             features = feature_extractor(data, return_tensors="pt")
             decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
 
             with torch.no_grad():
-                transformers_outputs = transformers_model(**features, **decoder_inputs, **extra_inps)
+                transformers_outputs = transformers_model(**features, **decoder_inputs, **extra_inps, use_cache=True)
             for input_type in ["pt", "np"]:
                 features = feature_extractor(data, return_tensors=input_type)
 
@@ -4211,7 +4163,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(grid_parameters(FULL_GRID, filter_params_func=exclude_trocr_with_cache))
+    @parameterized.expand(grid_parameters(FULL_GRID))
     def test_pipeline_image_to_text(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -4242,11 +4194,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(
-        grid_parameters(
-            {"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}, filter_params_func=update_trocr_with_cache
-        )
-    )
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     @require_torch_gpu
     @pytest.mark.gpu_test
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, use_cache: bool):
@@ -4509,7 +4457,7 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForPix2Struct.from_pretrained(MODEL_NAMES["bert"], export=True)
 
-        self.assertIn("Unrecognized configuration class", str(context.exception))
+        self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):

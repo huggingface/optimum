@@ -1833,7 +1833,7 @@ class CLIPLayerBetterTransformer(BetterTransformerBaseLayer, nn.Module):
                 attention_mask,
             )
         else:
-            NotImplementedError(
+            raise NotImplementedError(
                 "Training and Autocast are not implemented for BetterTransformer + CLIP. Please open an issue."
             )
 

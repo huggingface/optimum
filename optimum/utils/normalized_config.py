@@ -153,11 +153,10 @@ WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     hidden_size="d_model",
 )
 
-TrOCRLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
-    decoder_num_layers="decoder_layers",
+TrOCRLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_layers="decoder_layers",
-    decoder_num_attention_heads="decoder_attention_heads",
-    hidden_size="cross_attention_hidden_size",
+    num_attention_heads="decoder_attention_heads",
+    hidden_size="hidden_size",
 )
 
 SpeechToTextLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
@@ -166,6 +165,8 @@ SpeechToTextLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
     input_features_per_channel="input_feat_per_channel",
     allow_new=True,
 )
+
+MistralNormalizedTextConfig = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
 
 
 class NormalizedConfigManager:
@@ -211,9 +212,7 @@ class NormalizedConfigManager:
         "blenderbot": BartLikeNormalizedTextConfig,
         "blenderbot-small": BartLikeNormalizedTextConfig,
         "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
-        "falcon": NormalizedTextConfig.with_args(
-            num_layers="num_hidden_layers", num_attention_heads="num_attention_heads"
-        ),
+        "falcon": NormalizedTextConfig,
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "cvt": NormalizedVisionConfig,
@@ -234,6 +233,7 @@ class NormalizedConfigManager:
         "longt5": T5LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
+        "mistral": MistralNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m-100": BartLikeNormalizedTextConfig,
         "nystromformer": NormalizedTextConfig,

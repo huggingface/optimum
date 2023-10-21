@@ -34,7 +34,7 @@ ARG TORCHVISION_VERSION=0.15.1
 # Install and update tools to minimize security vulnerabilities
 RUN apt-get update
 RUN apt-get install -y software-properties-common wget apt-utils patchelf git libprotobuf-dev protobuf-compiler cmake \
-    bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion libopenmpi-dev && \
+    bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion libopenmpi-dev ffmpeg && \
     apt-get clean
 RUN unattended-upgrade
 RUN apt-get autoremove -y
@@ -57,7 +57,7 @@ ARG PYTHON_EXE=$MINICONDA_PREFIX/bin/python
 # (Optional) Intall test dependencies
 RUN $PYTHON_EXE -m pip install git+https://github.com/huggingface/transformers
 RUN $PYTHON_EXE -m pip install datasets accelerate evaluate coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk scikit-learn parameterized sentencepiece
-RUN $PYTHON_EXE -m pip install fairscale deepspeed mpi4py
+RUN $PYTHON_EXE -m pip install deepspeed mpi4py
 # RUN $PYTHON_EXE -m pip install optuna ray sigopt wandb
 
 # PyTorch
@@ -65,7 +65,7 @@ RUN $PYTHON_EXE -m pip install onnx ninja
 RUN $PYTHON_EXE -m pip install torch==${TORCH_VERSION} torchvision==${TORCHVISION_VERSION} -f https://download.pytorch.org/whl/${TORCH_CUDA_VERSION}
 
 # ORT Module
-RUN $PYTHON_EXE -m pip install onnxruntime-training==1.15.1 -f https://download.onnxruntime.ai/onnxruntime_stable_cu118.html
+RUN $PYTHON_EXE -m pip install onnxruntime-training==1.16.1 -f https://download.onnxruntime.ai/onnxruntime_stable_cu118.html
 RUN $PYTHON_EXE -m pip install torch-ort
 ENV TORCH_CUDA_ARCH_LIST="5.2 6.0 6.1 7.0 7.5 8.0 8.6+PTX"
 RUN $PYTHON_EXE -m pip install --upgrade protobuf==3.20.2
@@ -76,4 +76,5 @@ COPY . /workspace/optimum
 RUN pip install /workspace/optimum[tests]
 
 ENV TEST_LEVEL=1
-CMD RUN_SLOW=1 pytest -v -rs onnxruntime/nightly_test_trainer.py --durations=0
+CMD RUN_SLOW=1 pytest -v -rs onnxruntime/training/nightly_test_trainer.py --durations=0
+CMD RUN_SLOW=1 pytest -v -rs onnxruntime/training/nightly_test_examples.py --durations=0

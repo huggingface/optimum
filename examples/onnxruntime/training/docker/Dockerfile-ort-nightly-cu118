@@ -22,6 +22,7 @@ CMD nvidia-smi
 ENV DEBIAN_FRONTEND noninteractive
 
 # Versions
+# available options 3.8, 3.9, 3.10, 3.11
 ARG PYTHON_VERSION=3.9
 ARG TORCH_CUDA_VERSION=cu118
 ARG TORCH_VERSION=2.0.0
@@ -34,7 +35,7 @@ SHELL ["/bin/bash", "-c"]
 # Install and update tools to minimize security vulnerabilities
 RUN apt-get update
 RUN apt-get install -y software-properties-common wget apt-utils patchelf git libprotobuf-dev protobuf-compiler cmake \
-    bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion libopenmpi-dev && \
+    bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion libopenmpi-dev ffmpeg && \
     apt-get clean
 RUN unattended-upgrade
 RUN apt-get autoremove -y
@@ -57,7 +58,7 @@ ARG PYTHON_EXE=$MINICONDA_PREFIX/bin/python
 # (Optional) Intall test dependencies
 RUN $PYTHON_EXE -m pip install git+https://github.com/huggingface/transformers
 RUN $PYTHON_EXE -m pip install datasets accelerate evaluate coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk scikit-learn parameterized sentencepiece
-RUN $PYTHON_EXE -m pip install fairscale deepspeed mpi4py
+RUN $PYTHON_EXE -m pip install deepspeed mpi4py
 # RUN $PYTHON_EXE -m pip install optuna ray sigopt wandb
 
 # PyTorch
