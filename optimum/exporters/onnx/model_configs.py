@@ -61,6 +61,7 @@ from .model_patcher import (
     BloomModelPatcher,
     LlamaModelPatcher,
     MistralModelPatcher,
+    OpenCLIPModelPatcher,
     OPTModelPatcher,
     SAMModelPatcher,
     WavLMModelPatcher,
@@ -779,6 +780,11 @@ class OpenCLIPOnnxConfig(CLIPOnnxConfig):
         # override sequence_length shape here in the kwargs
         kwargs["sequence_length"] = self._preprocessors[0].model_max_length
         return super().generate_dummy_inputs(framework, **kwargs)
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return OpenCLIPModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):

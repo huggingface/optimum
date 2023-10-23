@@ -14,6 +14,7 @@
 # limitations under the License.
 import dataclasses
 import functools
+import importlib.util
 import inspect
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
 
@@ -448,3 +449,45 @@ class BartModelPatcher(CausalAttentionMaskModelPatcher, Seq2SeqModelPatcher):
             self._patch_func = _prepare_decoder_attention_mask
             self._orig_func_name = "_prepare_decoder_attention_mask"
             self._orig_func = self._model_to_patch._prepare_decoder_attention_mask
+
+
+def is_open_clip_available():
+    return importlib.util.find_spec("open_clip") is not None
+
+if is_open_clip_available():
+    import open_clip
+
+def _text_global_pool_patched(x, text: Optional[torch.Tensor] = None, pool_type: str = 'argmax'):
+    text.to(dtype=torch.int32)
+    if pool_type == 'first':
+        pooled, tokens = x[:, 0], x[:, 1:]
+    elif pool_type == 'last':
+        pooled, tokens = x[:, -1], x[:, :-1]
+    elif pool_type == 'argmax':
+        # take features from the eot embedding (eot_token is the highest number in each sequence)
+        assert text is not None
+        pooled, tokens = x[torch.arange(x.shape[0]), text.argmax(dim=-1)], x
+    else:
+        pooled = tokens = x
+
+    return pooled, tokens
+
+
+class OpenCLIPModelPatcher(CausalAttentionMaskModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+        self.original_text_global_pool = open_clip.transformer.text_global_pool
+
+    def __enter__(self):
+        self.patch_ops()
+        open_clip.transformer.text_global_pool = _text_global_pool_patched
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.restore_ops()
+        open_clip.transformer.text_global_pool = self.original_text_global_pool
+
