@@ -26,6 +26,8 @@ from ...utils.modeling_utils import (
     _prepare_decoder_sliding_window_attention_mask,
 )
 
+from ...utils.import_utils import is_open_clip_available
+
 
 if is_torch_available():
     import torch
@@ -451,19 +453,16 @@ class BartModelPatcher(CausalAttentionMaskModelPatcher, Seq2SeqModelPatcher):
             self._orig_func = self._model_to_patch._prepare_decoder_attention_mask
 
 
-def is_open_clip_available():
-    return importlib.util.find_spec("open_clip") is not None
-
 if is_open_clip_available():
     import open_clip
 
 def _text_global_pool_patched(x, text: Optional[torch.Tensor] = None, pool_type: str = 'argmax'):
-    text.to(dtype=torch.int32)
     if pool_type == 'first':
         pooled, tokens = x[:, 0], x[:, 1:]
     elif pool_type == 'last':
         pooled, tokens = x[:, -1], x[:, :-1]
     elif pool_type == 'argmax':
+        text = text.to(dtype=torch.int32)  # ONNX Runtime is unable to run argmax with int64 input, hence this cast.
         # take features from the eot embedding (eot_token is the highest number in each sequence)
         assert text is not None
         pooled, tokens = x[torch.arange(x.shape[0]), text.argmax(dim=-1)], x
