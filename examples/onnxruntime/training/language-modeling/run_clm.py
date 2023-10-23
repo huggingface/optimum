@@ -493,7 +493,7 @@ def main():
                 remove_columns=column_names,
             )
 
-    if hasattr(config, 'max_position_embeddings'):
+    if hasattr(config, "max_position_embeddings"):
         max_pos_embeddings = config.max_position_embeddings
     else:
         # Define a default value if the attribute is missing in the config.
