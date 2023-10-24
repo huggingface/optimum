@@ -112,6 +112,8 @@ class GPTQQuantizer(object):
             max_input_length (`Optional[int]`, defaults to `None`):
                 The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
                 It is specific to the exllama backend with act-order.
+            cache_block_outputs (`bool`, defaults to `False`):
+                Whether to cache block outputs to reuse as inputs for the succeeding block.
         """
 
         self.bits = bits
