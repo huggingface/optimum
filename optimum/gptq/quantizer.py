@@ -380,7 +380,7 @@ class GPTQQuantizer(object):
         quantizers = {}
         for i, block in enumerate(tqdm(blocks, desc=f"Quantizing {self.block_name_to_quantize} blocks ")):
             logger.info(f"Start quantizing block {self.block_name_to_quantize} {i + 1}/{len(blocks)}")
-            
+
             if not self.cache_block_outputs:
                 handle = block.register_forward_pre_hook(store_input_hook, with_kwargs=True)
                 for data in dataset:
@@ -392,7 +392,7 @@ class GPTQQuantizer(object):
                     except ValueError:
                         pass
                 handle.remove()
-            
+
             # move block to cuda if needed
             # in case we have offload modules, we need to put them on cuda because of GPTQ object
             if not has_device_map or get_device(block) == torch.device("cpu"):
