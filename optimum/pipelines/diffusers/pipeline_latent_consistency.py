@@ -165,9 +165,8 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
             )[0]
 
             # compute the previous noisy sample x_t -> x_t-1
-            scheduler_output = self.scheduler.step(torch.from_numpy(noise_pred), t, torch.from_numpy(latents))
-            latents = scheduler_output.prev_sample.numpy()
-            denoised = scheduler_output.denoised.numpy()
+            latents, denoised = self.scheduler.step(torch.from_numpy(noise_pred), t, torch.from_numpy(latents), return_dict=False)
+            latents, denoised = latents.numpy(), denoised.numpy()
 
             # call the callback, if provided
             if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):

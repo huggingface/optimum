@@ -187,7 +187,6 @@ class TasksManager:
         _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
             "stable-diffusion": "StableDiffusionPipeline",
             "stable-diffusion-xl": "StableDiffusionXLImg2ImgPipeline",
-            "stable-diffusion-latent-consistency": "LatentConsistencyModelPipeline",
         }
 
         _TIMM_TASKS_TO_MODEL_LOADERS = {
@@ -1362,14 +1361,12 @@ class TasksManager:
 
         pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
         tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
-        is_diffusers = model_class.config_name == "model_index.json"
-
         for auto_cls_name, task in itertools.chain.from_iterable(iterable):
             if any(
                 (
                     target_name.startswith("Auto"),
                     target_name.startswith("TFAuto"),
-                    is_diffusers,
+                    "StableDiffusion" in target_name,
                 )
             ):
                 if target_name == auto_cls_name:
@@ -1411,11 +1408,8 @@ class TasksManager:
                 )
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             if getattr(model_info, "library_name", None) == "diffusers":
-                # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
-                for task in ("stable-diffusion-xl", "stable-diffusion", "stable-diffusion-latent-consistency"):
-                    if task in model_info.tags:
-                        inferred_task_name = task
-                        break
+                class_name = model_info.config["diffusers"]["class_name"]
+                inferred_task_name = "stable-diffusion-xl" if "StableDiffusionXL" in class_name else "stable-diffusion"
             elif getattr(model_info, "library_name", None) == "timm":
                 inferred_task_name = "image-classification"
             else:
