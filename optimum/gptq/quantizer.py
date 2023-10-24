@@ -69,7 +69,8 @@ class GPTQQuantizer(object):
         module_name_preceding_first_block: Optional[List[str]] = None,
         batch_size: int = 1,
         pad_token_id: Optional[int] = None,
-        disable_exllama: bool = False,
+        disable_exllama: bool = True,
+        disable_exllamav2: bool = False,
         max_input_length: Optional[int] = None,
         *args,
         **kwargs,
@@ -107,8 +108,10 @@ class GPTQQuantizer(object):
                 The batch size of the dataset
             pad_token_id (`Optional[int]`, defaults to `None`):
                 The pad token id. Needed to prepare the dataset when `batch_size` > 1.
-            disable_exllama (`bool`, defaults to `False`):
+            disable_exllama (`bool`, defaults to `True`):
                 Whether to use exllama backend. Only works with `bits` = 4.
+            disable_exllamav2 (`bool`, defaults to `False`):
+                Whether to use exllamav2 backend. Only works with `bits` = 4.
             max_input_length (`Optional[int]`, defaults to `None`):
                 The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
                 It is specific to the exllama backend with act-order.
@@ -128,6 +131,7 @@ class GPTQQuantizer(object):
         self.batch_size = batch_size
         self.pad_token_id = pad_token_id
         self.disable_exllama = disable_exllama
+        self.disable_exllamav2 = disable_exllamav2
         self.max_input_length = max_input_length
         self.quant_method = QuantizationMethod.GPTQ
 
@@ -137,6 +141,10 @@ class GPTQQuantizer(object):
             raise ValueError("group_size must be greater than 0 or equal to -1")
         if not (0 < self.damp_percent < 1):
             raise ValueError("damp_percent must between 0 and 1.")
+        if not self.disable_exllamav2 and not self.disable_exllama:
+            raise ValueError(
+                "disable_exllamav2 and disable_exllama are both set to `False`. Please disable one of the kernels."
+            )
 
     def to_dict(self):
         """
@@ -205,6 +213,7 @@ class GPTQQuantizer(object):
             group_size=self.group_size,
             bits=self.bits,
             disable_exllama=self.disable_exllama,
+            disable_exllamav2=self.disable_exllamav2,
         )
         if isinstance(module, QuantLinear):
             return
@@ -440,13 +449,21 @@ class GPTQQuantizer(object):
             layer_inputs, layer_outputs = layer_outputs, []
             torch.cuda.empty_cache()
 
-        if self.bits == 4 and not self.disable_exllama:
+        if self.bits == 4:
+            # device not on gpu
             if device == torch.device("cpu") or (has_device_map and any(d in devices for d in ["cpu", "disk"])):
-                logger.warning(
-                    "Found modules on cpu/disk. Using Exllama backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
-                )
-                self.disable_exllama = True
-            elif self.desc_act:
+                if not self.disable_exllama:
+                    logger.warning(
+                        "Found modules on cpu/disk. Using Exllama backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
+                    )
+                    self.disable_exllama = True
+                if not self.disable_exllamav2:
+                    logger.warning(
+                        "Found modules on cpu/disk. Using Exllamav2 backend requires all the modules to be on GPU. Setting `disable_exllamav2=True`"
+                    )
+                    self.disable_exllamav2 = True
+            # act order and exllama
+            elif self.desc_act and not self.disable_exllama:
                 logger.warning(
                     "Using Exllama backend with act_order will reorder the weights offline, thus you will not be able to save the model with the right weights."
                     "Setting `disable_exllama=True`. You should only use Exllama backend with act_order for inference. "
@@ -475,13 +492,13 @@ class GPTQQuantizer(object):
             model (`nn.Module`):
                 The input model
         """
-        if self.bits == 4 and not self.disable_exllama:
+        if self.bits == 4 and (not self.disable_exllama or not self.disable_exllamav2):
             if get_device(model) == torch.device("cpu") or (
                 hasattr(model, "hf_device_map") and any(d in model.hf_device_map for d in ["cpu", "disk"])
             ):
                 raise ValueError(
-                    "Found modules on cpu/disk. Using Exllama backend requires all the modules to be on GPU."
-                    "You can deactivate exllama backend by setting `disable_exllama=True` in the quantization config object"
+                    "Found modules on cpu/disk. Using Exllama or Exllamav2 backend requires all the modules to be on GPU."
+                    "You can deactivate exllama backend by setting `disable_exllama=True` or `disable_exllamav2=True` in the quantization config object"
                 )
 
         class StoreAttr(object):
@@ -514,6 +531,7 @@ class GPTQQuantizer(object):
             group_size=self.group_size,
             bits=self.bits,
             disable_exllama=self.disable_exllama,
+            disable_exllamav2=self.disable_exllamav2,
         )
         logger.info("Packing model...")
         layers = get_layers(model)
@@ -579,7 +597,8 @@ def load_quantized_model(
     offload_folder: Optional[str] = None,
     offload_buffers: Optional[str] = None,
     offload_state_dict: bool = False,
-    disable_exllama: bool = False,
+    disable_exllama: bool = True,
+    disable_exllamav2: bool = False,
     max_input_length: Optional[int] = None,
 ):
     """
@@ -615,6 +634,8 @@ def load_quantized_model(
             picked contains `"disk"` values.
         disable_exllama (`bool`, defaults to `False`):
             Whether to use exllama backend. Only works with `bits` = 4.
+        disable_exllama (`bool`, defaults to `False`):
+            Whether to use exllamav2 backend. Only works with `bits` = 4.
         max_input_length (`Optional[int]`, defaults to `None`):
             The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
             It is specific to the exllama backend with act-order.
@@ -648,6 +669,7 @@ def load_quantized_model(
         ) from err
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
     quantizer.disable_exllama = disable_exllama
+    quantizer.disable_exllamav2 = disable_exllamav2
     quantizer.max_input_length = max_input_length
 
     model = quantizer.convert_model(model)
