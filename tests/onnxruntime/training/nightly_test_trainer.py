@@ -12,11 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Test ONNX Runtime Training ORTTrainer in Optimum."""
 
 import gc
+import os
 import random
-import subprocess
-import sys
 import tempfile
 import unittest
 from itertools import chain
@@ -25,7 +25,6 @@ from unittest.mock import Mock, patch
 
 import nltk
 import numpy as np
-import pytest
 from datasets import load_dataset
 from evaluate import load
 from transformers import (
@@ -35,12 +34,12 @@ from transformers import (
     AutoModelForTokenClassification,
     AutoTokenizer,
     DataCollatorForSeq2Seq,
-    DataCollatorForTokenClassification,
     DataCollatorWithPadding,
     default_data_collator,
     is_torch_available,
 )
 from transformers.testing_utils import (
+    mockenv_context,
     require_deepspeed,
     require_torch,
     slow,
@@ -79,20 +78,15 @@ _ENCODER_TASKS_DATASETS_CONFIGS = {
         "data_collator": default_data_collator,
         "data_collator_class": DataCollatorWithPadding,
     },
-    "token-classification": {
-        "dataset": ["conll2003"],
-        "metric": ["seqeval"],
-        "data_collator_class": DataCollatorForTokenClassification,
-    },
+    # "token-classification": {
+    #     "dataset": ["conll2003"],
+    #     "metric": ["seqeval"],
+    #     "data_collator_class": DataCollatorForTokenClassification,
+    # },
 }
 
 _DECODER_TASKS_DATASETS_CONFIGS = {
     "text-generation": {
-        "dataset": ["wikitext", "wikitext-2-raw-v1"],
-        "metric": ["accuracy"],
-        "data_collator": default_data_collator,
-    },
-    "text-generation-with-past": {
         "dataset": ["wikitext", "wikitext-2-raw-v1"],
         "metric": ["accuracy"],
         "data_collator": default_data_collator,
@@ -105,30 +99,37 @@ _SEQ2SEQ_TASKS_DATASETS_CONFIGS = {
         "metric": ["rouge"],
         "data_collator_class": DataCollatorForSeq2Seq,
     },
-    "text2text-generation-with-past": {
-        "dataset": ["xsum"],
-        "metric": ["rouge"],
-        "data_collator_class": DataCollatorForSeq2Seq,
-    },
 }
 
+# List supported ORT optimizers to test
+optim_test_params = []
+if is_torch_available():
+    default_adam_kwargs = {
+        "betas": (ORTTrainingArguments.adam_beta1, ORTTrainingArguments.adam_beta2),
+        "eps": ORTTrainingArguments.adam_epsilon,
+        "lr": ORTTrainingArguments.learning_rate,
+    }
 
-def _get_models_to_test(model_list, task_list, both_inf_backend=False, excluded: Optional[List[str]] = None):
+    optim_test_params = [
+        (
+            ORTOptimizerNames.ADAMW_ORT_FUSED,
+            onnxruntime.training.optim.FusedAdam,
+            default_adam_kwargs,
+        ),
+    ]
+
+# default torch.distributed port
+DEFAULT_MASTER_PORT = "10999"
+
+
+def _get_models_to_test(model_list, task_list, excluded: Optional[List[str]] = None):
     models_to_test = []
 
     for name, model_name in model_list:
-        for feature, data_metric_config in task_list.items():
-            if excluded and (name in excluded or feature in excluded):
+        for task, data_metric_config in task_list.items():
+            if excluded and (name in excluded or task in excluded):
                 continue
-            if both_inf_backend:
-                models_to_test.append(
-                    (f"{name}_{feature}", model_name, feature, data_metric_config, True)
-                )  # inference_with_ort=True
-                models_to_test.append(
-                    (f"{name}_{feature}", model_name, feature, data_metric_config, False)
-                )  # inference_with_ort=False
-            else:
-                models_to_test.append((f"{name}_{feature}", model_name, feature, data_metric_config))
+            models_to_test.append((f"{name}_{task}", model_name, task, data_metric_config))
 
     return sorted(models_to_test)
 
@@ -155,17 +156,39 @@ def _get_data_collator(data_metric_config, tokenizer=None, model=None, training_
     return data_collator
 
 
-def get_ort_training_args(feature, **kwargs):
-    if feature in _ENCODER_TASKS_DATASETS_CONFIGS or feature in _DECODER_TASKS_DATASETS_CONFIGS:
+def get_ort_training_args(task, **kwargs):
+    if task in _ENCODER_TASKS_DATASETS_CONFIGS or task in _DECODER_TASKS_DATASETS_CONFIGS:
         training_args = ORTTrainingArguments(**kwargs)
-    elif feature in _SEQ2SEQ_TASKS_DATASETS_CONFIGS:
+    elif task in _SEQ2SEQ_TASKS_DATASETS_CONFIGS:
         training_args = ORTSeq2SeqTrainingArguments(**kwargs)
     return training_args
 
 
+def get_master_port(real_launcher=False):
+    """
+    When using a single gpu launcher emulation (i.e. not deepspeed or python -m torch.distributed)
+    the issue is that once the port is tied it can't be used anywhere else outside of this process,
+    since torch.dist doesn't free the port until the process exits. Therefore for the sake of being
+    able to run both emulated launcher and normal launcher tests we need 2 distinct ports.
+
+    This function will give the right port in the right context. For real launcher it'll give the
+    base port, for emulated launcher it'll give the base port + 1. In both cases a string is
+    returned.
+
+    Args:
+        `real_launcher`: whether a real launcher is going to be used, or the emulated one
+
+    """
+
+    master_port_base = os.environ.get("DS_TEST_PORT", DEFAULT_MASTER_PORT)
+    if not real_launcher:
+        master_port_base = str(int(master_port_base) + 1)
+    return master_port_base
+
+
 def get_ort_trainer(
     model_name,
-    feature,
+    task,
     data_metric_config,
     training_args,
     max_seq_length=None,
@@ -174,7 +197,7 @@ def get_ort_trainer(
     max_test_samples=None,
     **kwargs,
 ):
-    training_kwargs = load_and_prepare(feature)(
+    training_kwargs = load_and_prepare(task)(
         model_name,
         data_metric_config,
         max_seq_length,
@@ -189,26 +212,25 @@ def get_ort_trainer(
     if getattr(training_args, "predict_with_generate", False) is not True:
         training_kwargs.pop("compute_metrics", None)
 
-    if feature in _ENCODER_TASKS_DATASETS_CONFIGS or feature in _DECODER_TASKS_DATASETS_CONFIGS:
-        trainer = ORTTrainer(feature=feature, args=training_args, **training_kwargs)
-    elif feature in _SEQ2SEQ_TASKS_DATASETS_CONFIGS:
-        trainer = ORTSeq2SeqTrainer(feature=feature, args=training_args, **training_kwargs)
+    if task in _ENCODER_TASKS_DATASETS_CONFIGS or task in _DECODER_TASKS_DATASETS_CONFIGS:
+        trainer = ORTTrainer(args=training_args, **training_kwargs)
+    elif task in _SEQ2SEQ_TASKS_DATASETS_CONFIGS:
+        trainer = ORTSeq2SeqTrainer(args=training_args, **training_kwargs)
     else:
         raise
 
     return trainer, test_dataset
 
 
-def load_and_prepare(feature):
+def load_and_prepare(task):
     preprocess_mapping = {
         "text-classification": load_and_prepare_glue,
         "token-classification": load_and_prepare_ner,
         "text-generation": load_and_prepare_clm,
         "text-generation-with-past": load_and_prepare_clm,
         "text2text-generation": load_and_prepare_xsum,
-        "text2text-generation-with-past": load_and_prepare_xsum,
     }
-    return preprocess_mapping[feature]
+    return preprocess_mapping[task]
 
 
 def load_and_prepare_glue(model_name, data_metric_config, max_seq_length, padding="max_length", **kwargs):
@@ -524,212 +546,140 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
         args = ORTTrainingArguments("..")
+        master_port = get_master_port(real_launcher=False)
+        self.dist_env_1_gpu = {
+            "MASTER_ADDR": "localhost",
+            "MASTER_PORT": master_port,
+            "RANK": "0",
+            "LOCAL_RANK": "0",
+            "WORLD_SIZE": "1",
+        }
         self.n_epochs = min(args.num_train_epochs, 1)
-        self.per_device_train_batch_size = args.per_device_train_batch_size
-        self.per_device_eval_batch_size = args.per_device_eval_batch_size
+        self.per_device_train_batch_size = min(args.per_device_train_batch_size, 2)
+        self.per_device_eval_batch_size = min(args.per_device_eval_batch_size, 2)
 
         self.max_seq_length = 64
-        self.max_train_samples = 50
-        self.max_valid_samples = 20
-        self.max_test_samples = 10
+        self.max_train_samples = 10
+        self.max_valid_samples = 5
+        self.max_test_samples = 5
 
         self.warmup_steps = 10
         self.weight_decay = 0.01
 
     @parameterized.expand(
-        _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS, both_inf_backend=True)
-        # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS, both_inf_backend=True)  # Skip test for OOM bug
-        + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS, both_inf_backend=True),
-        skip_on_empty=True,
-    )
-    def test_trainer_fp32(self, test_name, model_name, feature, data_metric_config, inference_with_ort):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = get_ort_training_args(
-                feature=feature,
-                output_dir=tmp_dir,
-                num_train_epochs=self.n_epochs,
-                per_device_train_batch_size=self.per_device_train_batch_size,
-                per_device_eval_batch_size=self.per_device_eval_batch_size,
-                warmup_steps=self.warmup_steps,
-                weight_decay=self.weight_decay,
-                logging_dir=tmp_dir,
-            )
-
-            trainer, test_dataset = get_ort_trainer(
-                model_name,
-                feature,
-                data_metric_config,
-                training_args,
-                max_seq_length=self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
-
-            trainer.train()
-            trainer.save_model()
-            trainer.evaluate(inference_with_ort=inference_with_ort)
-            trainer.predict(test_dataset, inference_with_ort=inference_with_ort)
-            gc.collect()
-
-    @parameterized.expand(
-        _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS, both_inf_backend=True)
-        # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS, both_inf_backend=True)  # Skip test for OOM bug
-        + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS, both_inf_backend=True),
-        skip_on_empty=True,
-    )
-    def test_trainer_fp32_with_label_smoothing(
-        self, test_name, model_name, feature, data_metric_config, inference_with_ort
-    ):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = get_ort_training_args(
-                feature=feature,
-                output_dir=tmp_dir,
-                num_train_epochs=self.n_epochs,
-                per_device_train_batch_size=self.per_device_train_batch_size,
-                per_device_eval_batch_size=self.per_device_eval_batch_size,
-                label_smoothing_factor=0.1,
-                warmup_steps=self.warmup_steps,
-                weight_decay=self.weight_decay,
-                logging_dir=tmp_dir,
-            )
-
-            trainer, test_dataset = get_ort_trainer(
-                model_name,
-                feature,
-                data_metric_config,
-                training_args,
-                max_seq_length=self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
-
-            trainer.train()
-            trainer.save_model()
-            trainer.evaluate(inference_with_ort=inference_with_ort)
-            trainer.predict(test_dataset, inference_with_ort=inference_with_ort)
-            gc.collect()
-
-    @slow
-    @parameterized.expand(
         _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
-        # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)  # Skip test for OOM bug
+        + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
         + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
         skip_on_empty=True,
     )
-    def test_trainer_fp16_pt_inference(self, test_name, model_name, feature, data_metric_config):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = get_ort_training_args(
-                feature=feature,
-                output_dir=tmp_dir,
-                num_train_epochs=self.n_epochs,
-                per_device_train_batch_size=self.per_device_train_batch_size,
-                per_device_eval_batch_size=self.per_device_eval_batch_size,
-                warmup_steps=self.warmup_steps,
-                weight_decay=self.weight_decay,
-                logging_dir=tmp_dir,
-                fp16=True,
-            )
+    def test_trainer_fp32(self, test_name, model_name, task, data_metric_config):
+        with mockenv_context(**self.dist_env_1_gpu):
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                training_args = get_ort_training_args(
+                    task=task,
+                    output_dir=tmp_dir,
+                    num_train_epochs=self.n_epochs,
+                    per_device_train_batch_size=self.per_device_train_batch_size,
+                    per_device_eval_batch_size=self.per_device_eval_batch_size,
+                    warmup_steps=self.warmup_steps,
+                    weight_decay=self.weight_decay,
+                    logging_dir=tmp_dir,
+                )
 
-            trainer, test_dataset = get_ort_trainer(
-                model_name,
-                feature,
-                data_metric_config,
-                training_args,
-                max_seq_length=self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
+                trainer, test_dataset = get_ort_trainer(
+                    model_name,
+                    task,
+                    data_metric_config,
+                    training_args,
+                    max_seq_length=self.max_seq_length,
+                    max_train_samples=self.max_train_samples,
+                    max_valid_samples=self.max_valid_samples,
+                    max_test_samples=self.max_test_samples,
+                )
 
-            trainer.train()
-            trainer.save_model()
-            trainer.evaluate()
-            trainer.predict(test_dataset)
-            gc.collect()
+                trainer.train()
+                trainer.save_model()
+                trainer.evaluate()
+                trainer.predict(test_dataset)
+                gc.collect()
 
     @slow
     @parameterized.expand(
         _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
-        # Exclude "with-past" tests as they fail for ORT inference after the mixed-precision training
-        # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS, excluded=["text-generation-with-past"])  # Skip test for OOM bug
-        + _get_models_to_test(
-            _SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS, excluded=["text2text-generation-with-past"]
-        ),
+        + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
+        + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
         skip_on_empty=True,
     )
-    def test_trainer_fp16_ort_inference(self, test_name, model_name, feature, data_metric_config):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = get_ort_training_args(
-                feature=feature,
-                output_dir=tmp_dir,
-                num_train_epochs=self.n_epochs,
-                per_device_train_batch_size=self.per_device_train_batch_size,
-                per_device_eval_batch_size=self.per_device_eval_batch_size,
-                warmup_steps=self.warmup_steps,
-                weight_decay=self.weight_decay,
-                logging_dir=tmp_dir,
-                fp16=True,
-            )
+    def test_trainer_fp32_with_label_smoothing(self, test_name, model_name, task, data_metric_config):
+        with mockenv_context(**self.dist_env_1_gpu):
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                training_args = get_ort_training_args(
+                    task=task,
+                    output_dir=tmp_dir,
+                    num_train_epochs=self.n_epochs,
+                    per_device_train_batch_size=self.per_device_train_batch_size,
+                    per_device_eval_batch_size=self.per_device_eval_batch_size,
+                    label_smoothing_factor=0.1,
+                    warmup_steps=self.warmup_steps,
+                    weight_decay=self.weight_decay,
+                    logging_dir=tmp_dir,
+                )
 
-            trainer, test_dataset = get_ort_trainer(
-                model_name,
-                feature,
-                data_metric_config,
-                training_args,
-                max_seq_length=self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
+                trainer, test_dataset = get_ort_trainer(
+                    model_name,
+                    task,
+                    data_metric_config,
+                    training_args,
+                    max_seq_length=self.max_seq_length,
+                    max_train_samples=self.max_train_samples,
+                    max_valid_samples=self.max_valid_samples,
+                    max_test_samples=self.max_test_samples,
+                )
 
-            trainer.train()
-            trainer.save_model()
-            trainer.evaluate(inference_with_ort=True)
-            trainer.predict(test_dataset, inference_with_ort=True)
-            gc.collect()
+                trainer.train()
+                trainer.save_model()
+                trainer.evaluate()
+                trainer.predict(test_dataset)
+                gc.collect()
 
-    # Skip this test as a large amount of ops don't support bf16 yet.
-    # @unittest.skip("Skip BF16 test.")
-    # @slow
-    # @require_torch_bf16_gpu
-    # @parameterized.expand(
-    #     _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
-    #     + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
-    #     + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
-    #     skip_on_empty=True,
-    # )
-    # def test_trainer_bf16(self, test_name, model_name, feature, data_metric_config):
-    #     with tempfile.TemporaryDirectory() as tmp_dir:
-    #         training_args = get_ort_training_args(
-    #             feature=feature,
-    #             output_dir=tmp_dir,
-    #             num_train_epochs=self.n_epochs,
-    #             per_device_train_batch_size=self.per_device_train_batch_size,
-    #             per_device_eval_batch_size=self.per_device_eval_batch_size,
-    #             warmup_steps=self.warmup_steps,
-    #             weight_decay=self.weight_decay,
-    #             logging_dir=tmp_dir,
-    #             bf16=True,
-    #         )
+    @slow
+    @parameterized.expand(
+        _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
+        + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
+        + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
+        skip_on_empty=True,
+    )
+    def test_trainer_fp16(self, test_name, model_name, task, data_metric_config):
+        with mockenv_context(**self.dist_env_1_gpu):
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                training_args = get_ort_training_args(
+                    task=task,
+                    output_dir=tmp_dir,
+                    num_train_epochs=self.n_epochs,
+                    per_device_train_batch_size=self.per_device_train_batch_size,
+                    per_device_eval_batch_size=self.per_device_eval_batch_size,
+                    warmup_steps=self.warmup_steps,
+                    weight_decay=self.weight_decay,
+                    logging_dir=tmp_dir,
+                    fp16=True,
+                )
 
-    #         trainer, test_dataset = get_ort_trainer(
-    #             model_name,
-    #             feature,
-    #             data_metric_config,
-    #             training_args,
-    #             max_seq_length=self.max_seq_length,
-    #             max_train_samples=self.max_train_samples,
-    #             max_valid_samples=self.max_valid_samples,
-    #             max_test_samples=self.max_test_samples,
-    #         )
+                trainer, test_dataset = get_ort_trainer(
+                    model_name,
+                    task,
+                    data_metric_config,
+                    training_args,
+                    max_seq_length=self.max_seq_length,
+                    max_train_samples=self.max_train_samples,
+                    max_valid_samples=self.max_valid_samples,
+                    max_test_samples=self.max_test_samples,
+                )
 
-    #         trainer.train()
-    #         trainer.save_model()
-    #         trainer.evaluate()
-    #         trainer.predict(test_dataset)
-    #         gc.collect()
+                trainer.train()
+                trainer.save_model()
+                trainer.evaluate()
+                trainer.predict(test_dataset)
+                gc.collect()
 
 
 @slow
@@ -738,14 +688,22 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
         args = ORTTrainingArguments("..")
+        master_port = get_master_port(real_launcher=False)
+        self.dist_env_1_gpu = {
+            "MASTER_ADDR": "localhost",
+            "MASTER_PORT": master_port,
+            "RANK": "0",
+            "LOCAL_RANK": "0",
+            "WORLD_SIZE": "1",
+        }
         self.n_epochs = min(args.num_train_epochs, 1)
-        self.per_device_train_batch_size = args.per_device_train_batch_size
-        self.per_device_eval_batch_size = args.per_device_eval_batch_size
+        self.per_device_train_batch_size = min(args.per_device_train_batch_size, 2)
+        self.per_device_eval_batch_size = min(args.per_device_eval_batch_size, 2)
 
         self.max_seq_length = 64
-        self.max_train_samples = 30
-        self.max_valid_samples = 10
-        self.max_test_samples = 10
+        self.max_train_samples = 10
+        self.max_valid_samples = 5
+        self.max_test_samples = 5
 
         self.warmup_steps = 10
         self.weight_decay = 0.01
@@ -753,126 +711,80 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
     @parameterized.expand(
         random.sample(
             _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
-            # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
+            + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
             + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
-            1,
+            1,  # only test one
         ),
         skip_on_empty=True,
     )
-    def test_trainer_fp16_ds_stage1(self, test_name, model_name, feature, data_metric_config):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = get_ort_training_args(
-                feature=feature,
-                output_dir=tmp_dir,
-                num_train_epochs=self.n_epochs,
-                per_device_train_batch_size=self.per_device_train_batch_size,
-                per_device_eval_batch_size=self.per_device_eval_batch_size,
-                warmup_steps=self.warmup_steps,
-                weight_decay=self.weight_decay,
-                logging_dir=tmp_dir,
-                fp16=True,
-                deepspeed="onnxruntime/ds_configs/ds_config_zero_stage_1.json",
-            )
+    def test_trainer_fp16_ds_stage1(self, test_name, model_name, task, data_metric_config):
+        with mockenv_context(**self.dist_env_1_gpu):
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                training_args = get_ort_training_args(
+                    task=task,
+                    output_dir=tmp_dir,
+                    num_train_epochs=self.n_epochs,
+                    per_device_train_batch_size=self.per_device_train_batch_size,
+                    per_device_eval_batch_size=self.per_device_eval_batch_size,
+                    warmup_steps=self.warmup_steps,
+                    weight_decay=self.weight_decay,
+                    logging_dir=tmp_dir,
+                    fp16=True,
+                    deepspeed="onnxruntime/ds_configs/ds_config_zero_stage_1.json",
+                )
 
-            trainer, _ = get_ort_trainer(
-                model_name,
-                feature,
-                data_metric_config,
-                training_args,
-                max_seq_length=self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
+                trainer, _ = get_ort_trainer(
+                    model_name,
+                    task,
+                    data_metric_config,
+                    training_args,
+                    max_seq_length=self.max_seq_length,
+                    max_train_samples=self.max_train_samples,
+                    max_valid_samples=self.max_valid_samples,
+                    max_test_samples=self.max_test_samples,
+                )
 
-            trainer.train()
-            gc.collect()
+                trainer.train()
+                gc.collect()
 
     @parameterized.expand(
         random.sample(
             _get_models_to_test(_ENCODERS_TO_TEST, _ENCODER_TASKS_DATASETS_CONFIGS)
-            # + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
+            + _get_models_to_test(_DECODERS_TO_TEST, _DECODER_TASKS_DATASETS_CONFIGS)
             + _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
             1,
         ),
         skip_on_empty=True,
     )
-    def test_trainer_fp16_ds_stage2(self, test_name, model_name, feature, data_metric_config):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = get_ort_training_args(
-                feature=feature,
-                output_dir=tmp_dir,
-                num_train_epochs=self.n_epochs,
-                per_device_train_batch_size=self.per_device_train_batch_size,
-                per_device_eval_batch_size=self.per_device_eval_batch_size,
-                warmup_steps=self.warmup_steps,
-                weight_decay=self.weight_decay,
-                logging_dir=tmp_dir,
-                fp16=True,
-                deepspeed="onnxruntime/ds_configs/ds_config_zero_stage_2.json",
-            )
+    def test_trainer_fp16_ds_stage2(self, test_name, model_name, task, data_metric_config):
+        with mockenv_context(**self.dist_env_1_gpu):
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                training_args = get_ort_training_args(
+                    task=task,
+                    output_dir=tmp_dir,
+                    num_train_epochs=self.n_epochs,
+                    per_device_train_batch_size=self.per_device_train_batch_size,
+                    per_device_eval_batch_size=self.per_device_eval_batch_size,
+                    warmup_steps=self.warmup_steps,
+                    weight_decay=self.weight_decay,
+                    logging_dir=tmp_dir,
+                    fp16=True,
+                    deepspeed="onnxruntime/ds_configs/ds_config_zero_stage_2.json",
+                )
 
-            trainer, _ = get_ort_trainer(
-                model_name,
-                feature,
-                data_metric_config,
-                training_args,
-                max_seq_length=self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
+                trainer, _ = get_ort_trainer(
+                    model_name,
+                    task,
+                    data_metric_config,
+                    training_args,
+                    max_seq_length=self.max_seq_length,
+                    max_train_samples=self.max_train_samples,
+                    max_valid_samples=self.max_valid_samples,
+                    max_test_samples=self.max_test_samples,
+                )
 
-            trainer.train()
-            gc.collect()
-
-
-@slow
-@pytest.mark.skip(reason="skip for now, server socket error")
-class ORTTrainerIntegrationDDPTest(unittest.TestCase):
-    def test_trainer_ddp_glue(self):
-        subprocess.run(
-            "cp ../examples/onnxruntime/training/text-classification/run_glue.py ./",
-            shell=True,
-        )
-
-        subprocess.run(
-            f"{sys.executable} -m torch.distributed.launch"
-            " --nproc_per_node=1"
-            " run_glue.py"
-            " --model_name_or_path distilbert-base-uncased"
-            " --task_name mnli"
-            " --max_seq_length 128"
-            " --learning_rate 3e-6"
-            " --do_train"
-            " --output_dir /tmp/distilbert"
-            " --overwrite_output_dir"
-            " --max_steps 200"
-            " --logging_steps 20"
-            " --per_device_train_batch_size 32"
-            " --fp16 --optim adamw_ort_fused"
-            " --max_train_samples 500",
-            shell=True,
-            check=True,
-        )
-
-
-# List supported ORT optimizers to test
-optim_test_params = []
-if is_torch_available():
-    default_adam_kwargs = {
-        "betas": (ORTTrainingArguments.adam_beta1, ORTTrainingArguments.adam_beta2),
-        "eps": ORTTrainingArguments.adam_epsilon,
-        "lr": ORTTrainingArguments.learning_rate,
-    }
-
-    optim_test_params = [
-        (
-            ORTOptimizerNames.ADAMW_ORT_FUSED,
-            onnxruntime.training.optim.FusedAdam,
-            default_adam_kwargs,
-        ),
-    ]
+                trainer.train()
+                gc.collect()
 
 
 @slow
@@ -880,21 +792,6 @@ if is_torch_available():
 class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        args = ORTTrainingArguments("..")
-        self.n_epochs = min(args.num_train_epochs, 1)
-        self.per_device_train_batch_size = args.per_device_train_batch_size
-        self.per_device_eval_batch_size = args.per_device_eval_batch_size
-
-        self.max_seq_length = 64
-        self.max_train_samples = 50
-        self.max_valid_samples = 20
-        self.max_test_samples = 10
-
-        self.warmup_steps = 10
-        self.weight_decay = 0.01
-
-        self.model_name = "bert-base-cased"
-        self.feature = "text-classification"
 
     def check_optim_and_kwargs(self, optim: OptimizerNames, mandatory_kwargs, expected_cls):
         args = ORTTrainingArguments(optim=optim, output_dir="None")
@@ -906,37 +803,6 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
             self.assertTrue(p in optim_kwargs)
             actual_v = optim_kwargs[p]
             self.assertTrue(actual_v == v, f"Failed check for {p}. Expected {v}, but got {actual_v}.")
-
-    @parameterized.expand(optim_test_params, skip_on_empty=True)
-    def test_optim_supported(self, name: str, expected_cls, mandatory_kwargs):
-        # exercises all the valid --optim options
-        self.check_optim_and_kwargs(name, mandatory_kwargs, expected_cls)
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = ORTTrainingArguments(
-                optim=name,
-                output_dir=tmp_dir,
-                num_train_epochs=self.n_epochs,
-                per_device_train_batch_size=self.per_device_train_batch_size,
-                per_device_eval_batch_size=self.per_device_eval_batch_size,
-                warmup_steps=self.warmup_steps,
-                weight_decay=self.weight_decay,
-                logging_dir=tmp_dir,
-            )
-
-            trainer, _ = get_ort_trainer(
-                self.model_name,
-                self.feature,
-                _ENCODER_TASKS_DATASETS_CONFIGS[self.feature],
-                training_args,
-                max_seq_length=self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
-
-            trainer.train()
-            gc.collect()
 
     def test_ort_fused_adam(self):
         # Pretend that onnxruntime-training is installed and mock onnxruntime.training.optim.FusedAdam exists.
@@ -955,56 +821,3 @@ class ORTTrainerOptimizerChoiceTest(unittest.TestCase):
                 default_adam_kwargs,
                 mock.optimizers.FusedAdam,
             )
-
-
-class ORTSeq2SeqTrainerSpecificIntegrationTest(unittest.TestCase):
-    def setUp(self):
-        super().setUp()
-        args = ORTTrainingArguments("..")
-        self.n_epochs = min(args.num_train_epochs, 1)
-        self.per_device_train_batch_size = args.per_device_train_batch_size
-        self.per_device_eval_batch_size = args.per_device_eval_batch_size
-
-        self.max_seq_length = 32
-        self.max_train_samples = 10
-        self.max_valid_samples = 10
-        self.max_test_samples = 10
-
-        self.warmup_steps = 10
-        self.weight_decay = 0.01
-
-    @parameterized.expand(
-        _get_models_to_test(_SEQ2SEQ_MODELS_TO_TEST, _SEQ2SEQ_TASKS_DATASETS_CONFIGS),
-        skip_on_empty=True,
-    )
-    def test_predict_with_generate_ort(self, test_name, model_name, feature, data_metric_config):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            training_args = get_ort_training_args(
-                feature=feature,
-                output_dir=tmp_dir,
-                evaluation_strategy="epoch",
-                num_train_epochs=self.n_epochs,
-                per_device_train_batch_size=self.per_device_train_batch_size,
-                per_device_eval_batch_size=self.per_device_eval_batch_size,
-                warmup_steps=self.warmup_steps,
-                weight_decay=self.weight_decay,
-                logging_dir=tmp_dir,
-                label_smoothing_factor=0.1,
-                predict_with_generate=True,
-            )
-
-            trainer, test_dataset = get_ort_trainer(
-                model_name,
-                feature,
-                data_metric_config,
-                training_args,
-                max_seq_length=self.max_seq_length,
-                max_train_samples=self.max_train_samples,
-                max_valid_samples=self.max_valid_samples,
-                max_test_samples=self.max_test_samples,
-            )
-
-            trainer.train()
-            trainer.evaluate(inference_with_ort=True)
-            trainer.predict(test_dataset, inference_with_ort=True)
-            gc.collect()

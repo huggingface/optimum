@@ -40,7 +40,7 @@ MODEL_NAMES = {
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
-    "codegen": "hf-internal-testing/tiny-random-CodeGenModel",
+    "codegen": "hf-internal-testing/tiny-random-CodeGenForCausalLM",
     "data2vec_text": "hf-internal-testing/tiny-random-Data2VecTextModel",
     "data2vec_vision": "hf-internal-testing/tiny-random-Data2VecVisionModel",
     "data2vec_audio": "hf-internal-testing/tiny-random-Data2VecAudioModel",
@@ -57,12 +57,13 @@ MODEL_NAMES = {
         ],
         "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
     },
+    "falcon": "fxmarty/really-tiny-falcon-testing",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
-    "gptj": "hf-internal-testing/tiny-random-GPTJModel",
+    "gptj": "hf-internal-testing/tiny-random-GPTJForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
@@ -74,6 +75,7 @@ MODEL_NAMES = {
     "m2m_100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
     "mbart": "hf-internal-testing/tiny-random-mbart",
+    "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
     "mobilenet_v1": "google/mobilenet_v1_0.75_192",
     "mobilenet_v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
@@ -82,6 +84,8 @@ MODEL_NAMES = {
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
+    "perceiver_text": "hf-internal-testing/tiny-random-language_perceiver",
+    "perceiver_vision": "hf-internal-testing/tiny-random-vision_perceiver_conv",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
@@ -114,8 +118,6 @@ SEED = 42
 
 
 class ORTModelTestMixin(unittest.TestCase):
-    ARCH_MODEL_MAP = {}
-
     TENSOR_ALIAS_TO_TYPE = {
         "pt": torch.Tensor,
         "np": np.ndarray,
@@ -160,12 +162,6 @@ class ORTModelTestMixin(unittest.TestCase):
                 if model_arch == "encoder-decoder" and task not in MODEL_NAMES[model_arch][model_id]:
                     # The model with use_cache=True is not supported for bert as a decoder")
                     continue
-
-                if model_arch in self.ARCH_MODEL_MAP:
-                    if isinstance(MODEL_NAMES[model_arch], dict):
-                        model_id = list(self.ARCH_MODEL_MAP[model_arch].keys())[idx]
-                    else:
-                        model_id = self.ARCH_MODEL_MAP[model_arch]
 
                 set_seed(SEED)
                 onnx_model = self.ORTMODEL_CLASS.from_pretrained(

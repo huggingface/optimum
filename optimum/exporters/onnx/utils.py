@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 import torch
 from packaging import version
+from transformers.models.speecht5.modeling_speecht5 import SpeechT5HifiGan
 from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import (
@@ -29,6 +30,7 @@ from ...utils import (
     logging,
 )
 from ...utils.import_utils import _diffusers_version
+from ...utils.modeling_utils import _prepare_attn_mask, _prepare_decoder_attention_mask  # noqa: F401
 from ..tasks import TasksManager
 from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
@@ -67,6 +69,7 @@ if TYPE_CHECKING:
 
 MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "codegen",
+    "falcon",
     "gpt2",
     "gpt-bigcode",
     "gpt-neo",
@@ -74,6 +77,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "gptj",
     "imagegpt",
     "llama",
+    "mistral",
 }
 
 
@@ -158,15 +162,16 @@ def _get_submodels_for_export_stable_diffusion(
 
 
 def _get_submodels_for_export_decoder(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], use_past: bool
+    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    use_past: bool,
+    legacy: bool = False,
 ) -> Dict[str, Union["PreTrainedModel", "TFPreTrainedModel"]]:
     """
     Returns the decoder part of the model.
     """
-    models_for_export = {}
+    models_for_export = {ONNX_DECODER_NAME if legacy else "model": model}
 
-    models_for_export[ONNX_DECODER_NAME] = model
-    if use_past:
+    if legacy and use_past:
         models_for_export[ONNX_DECODER_WITH_PAST_NAME] = model
 
     return models_for_export
@@ -226,6 +231,7 @@ def get_encoder_decoder_models_for_export(
 def get_decoder_models_for_export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
     config: "OnnxConfig",
+    legacy: bool = False,
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "OnnxConfig"]]:
     """
     Returns two versions of the decoder that can be used together to perform fast generation:
@@ -245,31 +251,42 @@ def get_decoder_models_for_export(
         `Dict[str, Tuple[Union[PreTrainedModel, TFPreTrainedModel], OnnxConfig]]: A Dict containing the model and
         onnx configs for the encoder and decoder parts of the model.
     """
-    models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past)
+
+    models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past, legacy=legacy)
 
     onnx_kwargs = {"task": config.task, "float_dtype": config.float_dtype, "int_dtype": config.int_dtype}
     if model.config.model_type.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
         onnx_kwargs["no_position_ids"] = config.no_position_ids
 
-    onnx_config = config.__class__(
-        model.config,
-        use_past=config.use_past,
-        use_past_in_inputs=False,
-        **onnx_kwargs,
-    )
-    models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], onnx_config)
-
-    if config.use_past:
-        onnx_config_with_past = config.__class__(
+    if legacy:
+        onnx_config = config.__class__(
             model.config,
-            use_past=True,
-            use_past_in_inputs=True,
+            use_past=config.use_past,
+            use_past_in_inputs=False,
             **onnx_kwargs,
         )
-        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
-            models_for_export[ONNX_DECODER_WITH_PAST_NAME],
-            onnx_config_with_past,
+        models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], onnx_config)
+
+        if config.use_past:
+            onnx_config_with_past = config.__class__(
+                model.config,
+                use_past=True,
+                use_past_in_inputs=True,
+                **onnx_kwargs,
+            )
+            models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
+                models_for_export[ONNX_DECODER_WITH_PAST_NAME],
+                onnx_config_with_past,
+            )
+
+    else:
+        onnx_config = config.__class__(
+            model.config,
+            use_past=config.use_past,
+            use_past_in_inputs=config.use_past,
+            **onnx_kwargs,
         )
+        models_for_export["model"] = (models_for_export["model"], onnx_config)
 
     return models_for_export
 
@@ -361,7 +378,7 @@ def _get_submodels_for_export_sam(model, variant):
     if variant == "monolith":
         models_for_export["model"] = model
     else:
-        # We use the model patcher to patch their forward method.
+        # We rather use the model patcher to patch their forward method.
         models_for_export["vision_encoder"] = model
         models_for_export["prompt_encoder_mask_decoder"] = model
 
@@ -386,6 +403,63 @@ def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel
             models_for_export["prompt_encoder_mask_decoder"],
             prompt_encoder_mask_decoder_onnx_config,
         )
+
+    return models_for_export
+
+
+def get_speecht5_models_for_export(
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "OnnxConfig", model_kwargs: Optional[Dict]
+):
+    if model_kwargs is None or "vocoder" not in model_kwargs:
+        raise ValueError(
+            'The ONNX export of SpeechT5 requires a vocoder. Please pass `--model-kwargs \'{"vocoder": "vocoder_model_name_or_path"}\'` from the command line, or `model_kwargs={"vocoder": "vocoder_model_name_or_path"}` if calling main_export.'
+        )
+
+    models_for_export = {}
+
+    # We rather use the model patcher to patch their forward method.
+    models_for_export["encoder_model"] = model
+    models_for_export["decoder_model"] = model
+
+    if config.variant == "with-past":
+        models_for_export["decoder_with_past_model"] = model
+
+    # TODO: more flexibility in the vocoder class?
+    vocoder = SpeechT5HifiGan.from_pretrained(model_kwargs["vocoder"]).eval()
+    model_kwargs["vocoder_model"] = vocoder
+
+    models_for_export["decoder_postnet_and_vocoder"] = model
+
+    encoder_onnx_config = config.with_behavior("encoder")
+
+    use_past = config.variant == "with-past"
+    decoder_onnx_config = config.with_behavior("decoder", use_past=use_past, use_past_in_inputs=False)
+
+    models_for_export[ONNX_ENCODER_NAME] = (models_for_export[ONNX_ENCODER_NAME], encoder_onnx_config)
+    models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], decoder_onnx_config)
+    if config.variant == "with-past":
+        decoder_onnx_config_with_past = config.with_behavior("decoder", use_past=True, use_past_in_inputs=True)
+        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
+            models_for_export[ONNX_DECODER_WITH_PAST_NAME],
+            decoder_onnx_config_with_past,
+        )
+
+    postnet_and_vocoder_onnx_config = config.__class__(
+        config._config,
+        task=config.task,
+        int_dtype=config.int_dtype,
+        float_dtype=config.float_dtype,
+        use_past=use_past,
+        use_past_in_inputs=False,  # Irrelevant here.
+        behavior=config._behavior,  # Irrelevant here.
+        preprocessors=config._preprocessors,
+        is_postnet_and_vocoder=True,
+    )
+    postnet_and_vocoder_onnx_config.variant = config.variant
+    models_for_export["decoder_postnet_and_vocoder"] = (
+        models_for_export["decoder_postnet_and_vocoder"],
+        postnet_and_vocoder_onnx_config,
+    )
 
     return models_for_export
 

@@ -178,16 +178,20 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
                 if strict is False and model_output_1.name not in model2_outputs:
                     data_type = model_output_1.type.tensor_type.elem_type
                     dims_output_1 = _infer_output_shape(model_output_1)
-                    if not isinstance(dims_output_1[0], str):
+                    if not any(isinstance(dim_output, str) for dim_output in dims_output_1):
                         raise ValueError(
-                            f"Expected a dynamic shape for the axis zero of {model_output_1.name}, found a static shape: {dims_output_1[0]}"
+                            f"Expected at least one dynamic input shape for the output {model_output_1.name}, found a static shape: {dims_output_1}"
                         )
 
-                    # fill the constant shape with the original shape, except for the axis zero that is 0 for an empty constant,
+                    # fill the constant shape with the original shape, except for the first dynamic axis that is 0 for an empty constant,
                     # and the dynamic axis set to 1
-                    dims_dummy_output = [0]
-                    for dim in dims_output_1[1:]:
-                        if isinstance(dim, str):
+                    dims_dummy_output = []
+                    dummy_axis = None
+                    for j, dim in enumerate(dims_output_1):
+                        if isinstance(dim, str) and dummy_axis is None:
+                            dims_dummy_output.append(0)
+                            dummy_axis = j
+                        elif isinstance(dim, str) and dummy_axis is not None:
                             dims_dummy_output.append(1)
                         else:
                             dims_dummy_output.append(dim)
