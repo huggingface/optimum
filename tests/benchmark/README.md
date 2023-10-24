@@ -4,7 +4,7 @@ Please refer to https://medium.com/pytorch/bettertransformer-out-of-the-box-perf
 
 # GPTQ benchmark
 
-The results below are for AutoGPTQ 0.4.2, PyTorch 2.0.1, bitsandbytes 0.41.1, transformers 4.32.
+The results below are for AutoGPTQ 0.5.0, PyTorch 2.0.1, bitsandbytes 0.41.1, transformers 4.35.
 
 ## Generation benchmark results
 
@@ -15,13 +15,13 @@ Run
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --sweep --num-batches 4 --task text-generation --generate
 
 # GPTQ with exllamav2 kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --task text-generation --generate
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --task text-generation --use-exllama-v2 --generate 
 
 # GPTQ with exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --disable-exllamav2 --task text-generation --generate
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --task text-generation --generate
 
 # GPTQ without exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --task text-generation --disable-exllama  --disable-exllamav2 --generate
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --task text-generation --disable-exllama --generate
 
 # using bitsandbytes fp4/fp16 scheme
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --sweep --num-batches 4 --task text-generation --bitsandbytes --generate
@@ -94,14 +94,13 @@ Run
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --sweep --num-batches 10 --task text-generation --prefill --generate
 
 # GPTQ with exllamav2 kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --generate
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --use_exllama_v2 --generate 
 
 # GPTQ with exllamav kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --disable-exllamav2 --sweep --num-batches 10 --gptq --task text-generation --prefill --generate
-
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --generate
 
 # GPTQ without exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --disable-exllama --disable-exllamav2 --generate
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --disable-exllama --generate
 
 # using bitsandbytes fp4/fp16 scheme
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --sweep --num-batches 10 --task text-generation --prefill --bitsandbytes --generate
@@ -168,13 +167,13 @@ Run
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --task text-generation --ppl
 
 # GPTQ with exllamav2 kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq --task text-generation --ppl
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq --task text-generation --use_exllama_v2 --ppl
 
 # GPTQ with exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq --disable-exllamav2 --task text-generation --ppl
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq  --task text-generation --ppl
 
 # GPTQ without exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq --task text-generation --disable-exllama  --disable-exllamav2 --ppl
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq --task text-generation --disable-exllama --ppl
 
 # using bitsandbytes fp4/fp16 scheme
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf ---task text-generation --bitsandbytes --ppl
