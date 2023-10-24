@@ -30,20 +30,19 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
     def __call__(
         self,
         prompt: Optional[Union[str, List[str]]] = None,
-        height: Optional[int] = 768,  # TODO : default to None
-        width: Optional[int] = 768,
+        height: Optional[int] = None,
+        width: Optional[int] = None,
         num_inference_steps: int = 4,
-        guidance_scale: float = 7.5,
+        original_inference_steps: int = None,
+        guidance_scale: float = 8.5,
         num_images_per_prompt: int = 1,
         generator: Optional[np.random.RandomState] = None,
         latents: Optional[np.ndarray] = None,
         prompt_embeds: Optional[np.ndarray] = None,
-        lcm_origin_steps: int = 50,
         output_type: str = "pil",
         return_dict: bool = True,
         callback: Optional[Callable[[int, int, np.ndarray], None]] = None,
         callback_steps: int = 1,
-        guidance_rescale: float = 0.0,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -101,8 +100,8 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
             list of `bool`s denoting whether the corresponding generated image likely represents "not-safe-for-work"
             (nsfw) content, according to the `safety_checker`.
         """
-        height = height or self.unet.config.get("sample_size", 64) * self.vae_scale_factor
-        width = width or self.unet.config.get("sample_size", 64) * self.vae_scale_factor
+        height = height or self.unet.config["sample_size"] * self.vae_scale_factor
+        width = width or self.unet.config["sample_size"]* self.vae_scale_factor
 
         # Don't need to get negative prompts due to LCM guided distillation
         negative_prompt = None
@@ -127,19 +126,19 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
         prompt_embeds = self._encode_prompt(
             prompt,
             num_images_per_prompt,
-            False,  # Don't need to get negative prompts due to LCM guided distillation
+            False,
             negative_prompt,
             prompt_embeds=prompt_embeds,
             negative_prompt_embeds=negative_prompt_embeds,
         )
 
         # set timesteps
-        self.scheduler.set_timesteps(num_inference_steps, lcm_origin_steps)
+        self.scheduler.set_timesteps(num_inference_steps, original_inference_steps=original_inference_steps)
         timesteps = self.scheduler.timesteps
 
         latents = self.prepare_latents(
             batch_size * num_images_per_prompt,
-            self.unet.config.get("in_channels", 4),
+            self.unet.config["in_channels"],
             height,
             width,
             prompt_embeds.dtype,
@@ -149,16 +148,15 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
 
         bs = batch_size * num_images_per_prompt
         # get Guidance Scale Embedding
-        w = np.full(bs, guidance_scale, dtype=prompt_embeds.dtype)
-        w_embedding = self.get_guidance_scale_embedding(w, embedding_dim=256, dtype=prompt_embeds.dtype)
+        w = np.full(bs, guidance_scale - 1, dtype=prompt_embeds.dtype)
+        w_embedding = self.get_guidance_scale_embedding(w, embedding_dim=self.unet.config["time_cond_proj_dim"], dtype=prompt_embeds.dtype)
 
         # Adapted from diffusers to extend it for other runtimes than ORT
         timestep_dtype = self.unet.input_dtype.get("timestep", np.float32)
 
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
         for i, t in enumerate(self.progress_bar(timesteps)):
-            # predict the noise residual
-            timestep = np.full(bs, t, dtype=timestep_dtype)
+            timestep = np.array([t], dtype=timestep_dtype)
             noise_pred = self.unet(
                 sample=latents,
                 timestep=timestep,
@@ -169,6 +167,7 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
             # compute the previous noisy sample x_t -> x_t-1
             scheduler_output = self.scheduler.step(torch.from_numpy(noise_pred), t, torch.from_numpy(latents))
             latents = scheduler_output.prev_sample.numpy()
+            denoised = scheduler_output.denoised.numpy()
 
             # call the callback, if provided
             if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
@@ -176,13 +175,13 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
                     callback(i, t, latents)
 
         if output_type == "latent":
-            image = latents
+            image = denoised
             has_nsfw_concept = None
         else:
-            latents /= self.vae_decoder.config.get("scaling_factor", 0.18215)
+            denoised /= self.vae_decoder.config["scaling_factor"]
             # it seems likes there is a strange result for using half-precision vae decoder if batchsize>1
             image = np.concatenate(
-                [self.vae_decoder(latent_sample=latents[i : i + 1])[0] for i in range(latents.shape[0])]
+                [self.vae_decoder(latent_sample=denoised[i : i + 1])[0] for i in range(denoised.shape[0])]
             )
             image, has_nsfw_concept = self.run_safety_checker(image)
 
