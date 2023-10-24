@@ -130,6 +130,7 @@ class GPTQQuantizer(object):
         self.disable_exllama = disable_exllama
         self.max_input_length = max_input_length
         self.quant_method = QuantizationMethod.GPTQ
+        self.cache_block_outputs = False
 
         if self.bits not in [2, 3, 4, 8]:
             raise ValueError("only support quantize to [2,3,4,8] bits.")
@@ -340,10 +341,10 @@ class GPTQQuantizer(object):
 
         def store_input_hook(_, input, *args):
             kwargs = args[0]
-            input = input[0]
+            input = (input[0],) if len(input) < 3 else input
             if input is None:
                 if "hidden_states" in kwargs:
-                    input = kwargs["hidden_states"]
+                    input = (kwargs["hidden_states"],)
                 else:
                     raise ValueError("No input value found in the foward pass")
             layer_inputs.append(input)
@@ -354,17 +355,18 @@ class GPTQQuantizer(object):
             layer_input_kwargs.append(other_kwargs)
             raise ValueError
 
-        handle = blocks[0].register_forward_pre_hook(store_input_hook, with_kwargs=True)
-        for data in dataset:
-            for k, v in data.items():
-                # put the data on gpu, we won't put them back to cpu
-                data[k] = v.to(0)
-            try:
-                model(**data)
-            except ValueError:
-                pass
+        if self.cache_block_outputs:
+            handle = blocks[0].register_forward_pre_hook(store_input_hook, with_kwargs=True)
+            for data in dataset:
+                for k, v in data.items():
+                    # put the data on gpu, we won't put them back to cpu
+                    data[k] = v.to(0)
+                try:
+                    model(**data)
+                except ValueError:
+                    pass
+            handle.remove()
 
-        handle.remove()
         if not has_device_map:
             blocks[0].to(device)
             for module_name in self.module_name_preceding_first_block:
@@ -378,6 +380,19 @@ class GPTQQuantizer(object):
         quantizers = {}
         for i, block in enumerate(tqdm(blocks, desc=f"Quantizing {self.block_name_to_quantize} blocks ")):
             logger.info(f"Start quantizing block {self.block_name_to_quantize} {i + 1}/{len(blocks)}")
+            
+            if not self.cache_block_outputs:
+                handle = block.register_forward_pre_hook(store_input_hook, with_kwargs=True)
+                for data in dataset:
+                    for k, v in data.items():
+                        # put the data on gpu, we won't put them back to cpu
+                        data[k] = v.to(0)
+                    try:
+                        model(**data)
+                    except ValueError:
+                        pass
+                handle.remove()
+            
             # move block to cuda if needed
             # in case we have offload modules, we need to put them on cuda because of GPTQ object
             if not has_device_map or get_device(block) == torch.device("cpu"):
@@ -410,7 +425,7 @@ class GPTQQuantizer(object):
                 for j in range(len(dataset)):
                     # the args are already on the gpu
                     # don't need to store the output
-                    block(layer_inputs[j], **layer_input_kwargs[j])
+                    block(*layer_inputs[j], **layer_input_kwargs[j])
                 # remove hook
                 for h in handles:
                     h.remove()
@@ -428,16 +443,22 @@ class GPTQQuantizer(object):
                     gptq[name].free()
                 del subset_layers
             # we get the new output from the partial quantized block
-            for j in range(len(dataset)):
-                layer_output = block(layer_inputs[j], **layer_input_kwargs[j])[0]
-                layer_outputs.append(layer_output)
+            if self.cache_block_outputs:
+                for j in range(len(dataset)):
+                    layer_output = block(*layer_inputs[j], **layer_input_kwargs[j])
+                    layer_output = layer_output
+                    layer_outputs.append(layer_output)
 
-            # put back to device
-            if not has_device_map:
-                blocks[i] = block.to(device)
-            del layers
-            del layer_inputs
-            layer_inputs, layer_outputs = layer_outputs, []
+                # put back to device
+                if not has_device_map:
+                    blocks[i] = block.to(device)
+                del layers
+                del layer_inputs
+                layer_inputs, layer_outputs = layer_outputs, []
+            else:
+                del layers
+                del layer_inputs
+                layer_inputs = []
             torch.cuda.empty_cache()
 
         if self.bits == 4 and not self.disable_exllama:
