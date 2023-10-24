@@ -101,7 +101,7 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
             (nsfw) content, according to the `safety_checker`.
         """
         height = height or self.unet.config["sample_size"] * self.vae_scale_factor
-        width = width or self.unet.config["sample_size"]* self.vae_scale_factor
+        width = width or self.unet.config["sample_size"] * self.vae_scale_factor
 
         # Don't need to get negative prompts due to LCM guided distillation
         negative_prompt = None
@@ -149,7 +149,9 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
         bs = batch_size * num_images_per_prompt
         # get Guidance Scale Embedding
         w = np.full(bs, guidance_scale - 1, dtype=prompt_embeds.dtype)
-        w_embedding = self.get_guidance_scale_embedding(w, embedding_dim=self.unet.config["time_cond_proj_dim"], dtype=prompt_embeds.dtype)
+        w_embedding = self.get_guidance_scale_embedding(
+            w, embedding_dim=self.unet.config["time_cond_proj_dim"], dtype=prompt_embeds.dtype
+        )
 
         # Adapted from diffusers to extend it for other runtimes than ORT
         timestep_dtype = self.unet.input_dtype.get("timestep", np.float32)
@@ -165,7 +167,9 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
             )[0]
 
             # compute the previous noisy sample x_t -> x_t-1
-            latents, denoised = self.scheduler.step(torch.from_numpy(noise_pred), t, torch.from_numpy(latents), return_dict=False)
+            latents, denoised = self.scheduler.step(
+                torch.from_numpy(noise_pred), t, torch.from_numpy(latents), return_dict=False
+            )
             latents, denoised = latents.numpy(), denoised.numpy()
 
             # call the callback, if provided
