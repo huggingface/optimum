@@ -512,7 +512,6 @@ class ORTLatentConsistencyModelPipelineTest(ORTModelTestMixin):
         self.assertIsInstance(ort_pipeline.unet, ORTModelUnet)
         self.assertIsInstance(ort_pipeline.config, Dict)
 
-
         from diffusers import LatentConsistencyModelPipeline
 
         pipeline = LatentConsistencyModelPipeline.from_pretrained(MODEL_NAMES[model_arch])
@@ -545,6 +544,3 @@ class ORTLatentConsistencyModelPipelineTest(ORTModelTestMixin):
             self.assertTrue(np.allclose(ort_outputs, outputs, atol=1e-4))
             # Compare model devices
             self.assertEqual(pipeline.device, ort_pipeline.device)
-
-
-

@@ -70,7 +70,6 @@ class ORTStableDiffusionXLImg2ImgPipeline(metaclass=DummyObject):
         requires_backends(cls, ["diffusers"])
 
 
-
 class ORTLatentConsistencyModelPipeline(metaclass=DummyObject):
     _backends = ["diffusers"]
 
@@ -80,4 +79,3 @@ class ORTLatentConsistencyModelPipeline(metaclass=DummyObject):
     @classmethod
     def from_pretrained(cls, *args, **kwargs):
         requires_backends(cls, ["diffusers"])
-
