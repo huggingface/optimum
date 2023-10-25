@@ -185,6 +185,24 @@ prompt = "Face of a yellow cat, high resolution, sitting on a park bench"
 image = pipeline(prompt=prompt, image=init_image, mask_image=mask_image).images[0]
 ```
 
+### Panorama
+
+```python
+import torch
+from optimum.onnxruntime import ORTStableDiffusionPanoramaPipeline, ORTModelTiledVaeWrapper
+
+model_id = "runwayml/stable-diffusion-v1-5"
+pipeline = ORTStableDiffusionPanoramaPipeline.from_pretrained(model_id, revision="onnx")
+
+# patch pipeline with tiled VAE
+pipeline.vae_decoder = ORTModelTiledVaeWrapper(pipeline.vae_decoder, True, 64, 0.5)
+pipeline.vae_encoder = ORTModelTiledVaeWrapper(pipeline.vae_encoder, False, 64, 0.5)
+
+prompt = "A fantasy landscape, trending on artstation"
+
+image = pipeline(prompt=prompt, height=512, width=2048).images[0]
+image.save("fantasy_landscape.png")
+```
 
 ## Stable Diffusion XL
 
