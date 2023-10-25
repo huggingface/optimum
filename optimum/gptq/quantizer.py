@@ -71,6 +71,7 @@ class GPTQQuantizer(object):
         pad_token_id: Optional[int] = None,
         disable_exllama: bool = False,
         max_input_length: Optional[int] = None,
+        cache_block_outputs: Optional[bool] = False,
         *args,
         **kwargs,
     ):
@@ -132,7 +133,7 @@ class GPTQQuantizer(object):
         self.disable_exllama = disable_exllama
         self.max_input_length = max_input_length
         self.quant_method = QuantizationMethod.GPTQ
-        self.cache_block_outputs = False
+        self.cache_block_outputs = cache_block_outputs
 
         if self.bits not in [2, 3, 4, 8]:
             raise ValueError("only support quantize to [2,3,4,8] bits.")
@@ -343,7 +344,6 @@ class GPTQQuantizer(object):
 
         def store_input_hook(_, input, *args):
             kwargs = args[0]
-            input = (input[0],) if len(input) < 3 else input
             if input is None:
                 if "hidden_states" in kwargs:
                     input = (kwargs["hidden_states"],)
@@ -448,7 +448,6 @@ class GPTQQuantizer(object):
             if self.cache_block_outputs:
                 for j in range(len(dataset)):
                     layer_output = block(*layer_inputs[j], **layer_input_kwargs[j])
-                    layer_output = layer_output
                     layer_outputs.append(layer_output)
 
                 # put back to device
