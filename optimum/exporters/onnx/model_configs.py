@@ -768,6 +768,7 @@ class OpenCLIPOnnxConfig(CLIPOnnxConfig):
         return {
             "text_features": {0: "text_batch_size"},
             "image_features": {0: "image_batch_size"},
+            "logit_scale": {},
         }
 
     def rename_ambiguous_inputs(self, inputs):
@@ -781,6 +782,16 @@ class OpenCLIPOnnxConfig(CLIPOnnxConfig):
         kwargs["sequence_length"] = self._preprocessors[0].model_max_length
         return super().generate_dummy_inputs(framework, **kwargs)
 
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        if "attention_mask" in reference_model_inputs:
+            reference_model_inputs.pop("attention_mask")
+        if "image" in onnx_input_names and "pixel_values" in reference_model_inputs:
+            reference_model_inputs["image"] = reference_model_inputs.pop("pixel_values")
+        if "text" in onnx_input_names and "input_ids" in reference_model_inputs:
+            reference_model_inputs["text"] = reference_model_inputs.pop("input_ids")
+        return super().generate_dummy_inputs_for_validation(reference_model_inputs)
+        
     def patch_model_for_export(
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
     ) -> "ModelPatcher":

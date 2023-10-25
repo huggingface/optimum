@@ -468,7 +468,6 @@ def _text_global_pool_patched(x, text: Optional[torch.Tensor] = None, pool_type:
         pooled, tokens = x[torch.arange(x.shape[0]), text.argmax(dim=-1)], x
     else:
         pooled = tokens = x
-
     return pooled, tokens
 
 
@@ -479,14 +478,11 @@ class OpenCLIPModelPatcher(CausalAttentionMaskModelPatcher):
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        super().__init__(config, model, model_kwargs)
         self.original_text_global_pool = open_clip.transformer.text_global_pool
 
     def __enter__(self):
-        self.patch_ops()
-        open_clip.transformer.text_global_pool = _text_global_pool_patched
+        open_clip.transformer.text_global_pool.__code__ = _text_global_pool_patched.__code__
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.restore_ops()
-        open_clip.transformer.text_global_pool = self.original_text_global_pool
+        open_clip.transformer.text_global_pool.__code__ = self.original_text_global_pool.__code__
 
