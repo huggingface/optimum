@@ -457,11 +457,6 @@ class GPTQQuantizer(object):
                         "Found modules on cpu/disk. Using Exllama backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
                     )
                     self.disable_exllama = True
-                if not self.disable_exllamav2:
-                    logger.warning(
-                        "Found modules on cpu/disk. Using Exllamav2 backend requires all the modules to be on GPU. Setting `disable_exllamav2=True`"
-                    )
-                    self.disable_exllamav2 = True
             # act order and exllama
             elif self.desc_act and not self.disable_exllama:
                 logger.warning(
@@ -469,6 +464,12 @@ class GPTQQuantizer(object):
                     "Setting `disable_exllama=True`. You should only use Exllama backend with act_order for inference. "
                 )
                 self.disable_exllama = True
+            elif not self.disable_exllamav2:
+                logger.warning(
+                    "Using Exllamav2 backend will reorder the weights offline, thus you will not be able to save the model with the right weights."
+                    "Setting `disable_exllamav2=True`. You should only use Exllamav2 backend for inference. "
+                )
+                self.disable_exllamav2 = True
         # Step 4: Pack the model at the end (Replacing the layers)
         self.pack_model(model=model, quantizers=quantizers)
 
