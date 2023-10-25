@@ -25,33 +25,29 @@ from diffusers import (
     StableDiffusionPipeline,
     StableDiffusionXLPipeline,
 )
-from packaging.version import Version, parse
-from optimum.utils.import_utils import _diffusers_version
 from diffusers.utils import load_image
 from diffusers.utils.testing_utils import floats_tensor
+from packaging.version import Version, parse
 from parameterized import parameterized
 from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
 from optimum.onnxruntime import (
-    ORTStableDiffusionPipeline,
+    ORTLatentConsistencyModelPipeline,
     ORTStableDiffusionImg2ImgPipeline,
     ORTStableDiffusionInpaintPipeline,
+    ORTStableDiffusionPipeline,
     ORTStableDiffusionXLImg2ImgPipeline,
     ORTStableDiffusionXLPipeline,
-    ORTLatentConsistencyModelPipeline,
 )
-
-
 from optimum.onnxruntime.modeling_diffusion import (
     ORTModelTextEncoder,
     ORTModelUnet,
     ORTModelVaeDecoder,
     ORTModelVaeEncoder,
 )
-
-
 from optimum.pipelines.diffusers.pipeline_utils import VaeImageProcessor
+from optimum.utils.import_utils import _diffusers_version
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
 

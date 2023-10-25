@@ -137,20 +137,20 @@ if TYPE_CHECKING:
             raise OptionalDependencyNotAvailable()
     except OptionalDependencyNotAvailable:
         from ..utils.dummy_diffusers_objects import (
+            ORTLatentConsistencyModelPipeline,
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
             ORTStableDiffusionXLImg2ImgPipeline,
-            ORTLatentConsistencyModelPipeline,
             ORTStableDiffusionXLPipeline,
         )
     else:
         from .modeling_diffusion import (
+            ORTLatentConsistencyModelPipeline,
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
             ORTStableDiffusionXLImg2ImgPipeline,
-            ORTLatentConsistencyModelPipeline,
             ORTStableDiffusionXLPipeline,
         )
 else:
