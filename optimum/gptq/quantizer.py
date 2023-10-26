@@ -71,7 +71,7 @@ class GPTQQuantizer(object):
         pad_token_id: Optional[int] = None,
         disable_exllama: bool = False,
         max_input_length: Optional[int] = None,
-        cache_block_outputs: Optional[bool] = False,
+        cache_block_outputs: Optional[bool] = True,
         *args,
         **kwargs,
     ):
@@ -113,8 +113,9 @@ class GPTQQuantizer(object):
             max_input_length (`Optional[int]`, defaults to `None`):
                 The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
                 It is specific to the exllama backend with act-order.
-            cache_block_outputs (`bool`, defaults to `False`):
-                Whether to cache block outputs to reuse as inputs for the succeeding block.
+            cache_block_outputs (`bool`, defaults to `True`):
+                Whether to cache block outputs to reuse as inputs for the succeeding block. It allows optimization of non-standard models
+                (e.g. ChatGLM) but can require more time.
         """
 
         self.bits = bits
