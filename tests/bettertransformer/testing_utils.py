@@ -33,6 +33,7 @@ MODELS_DICT = {
     "bert-generation": "ybelkada/random-tiny-BertGenerationModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blip-2": "hf-internal-testing/tiny-random-Blip2Model",
+    "blip-2-opt": "baskra/tiny-random-Blip2Model-opt",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip_text_model": "hf-internal-testing/tiny-random-clip-zero-shot-image-classification",  # with quick_gelu

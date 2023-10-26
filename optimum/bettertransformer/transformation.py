@@ -20,9 +20,8 @@ from typing import TYPE_CHECKING, Dict, Optional, Union
 import torch
 from packaging.version import parse
 
-from ..utils import check_if_pytorch_greater, is_accelerate_available, recurse_getattr, recurse_setattr
 from .models import BetterTransformerManager
-
+from ..utils import check_if_pytorch_greater, is_accelerate_available, recurse_getattr, recurse_setattr
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel
@@ -104,8 +103,8 @@ def replace_to_bettertransformer(model, config):
         if len(list(module.children())) > 0 and should_replace_module is False:
             # we may explicitly exclude part of the model to use BetterTransformer
             if config.model_type not in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM or (
-                config.model_type in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM
-                and name not in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM[config.model_type]
+                    config.model_type in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM
+                    and name not in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM[config.model_type]
             ):
                 replace_to_bettertransformer(module, config)
 
@@ -130,18 +129,18 @@ def set_last_layer(model: torch.nn.Module):
 
     for key in dict_named_module.keys():
         if (
-            isinstance(dict_named_module[key], torch.nn.ModuleList)
-            and "encoder" in key
-            and (
+                isinstance(dict_named_module[key], torch.nn.ModuleList)
+                and "encoder" in key
+                and (
                 model.config.model_type not in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM
                 or (
-                    model.config.model_type in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM
-                    and all(
-                        name not in key
-                        for name in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM[model.config.model_type]
-                    )
+                        model.config.model_type in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM
+                        and all(
+                    name not in key
+                    for name in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM[model.config.model_type]
                 )
-            )
+                )
+        )
         ):
             modulelist_lengths.append((len(dict_named_module[key]), key))
 
@@ -158,7 +157,7 @@ def set_last_layer(model: torch.nn.Module):
     else:
         for key in dict_named_module.keys():
             if isinstance(dict_named_module[key], torch.nn.ModuleList) and all(
-                "LayerBetterTransformer" in module_name for module_name in sort_fn(dict_named_module[key])
+                    "LayerBetterTransformer" in module_name for module_name in sort_fn(dict_named_module[key])
             ):
                 setattr(dict_named_module[key][-1], "is_last_layer", True)
                 return
@@ -184,11 +183,11 @@ class BetterTransformer(object):
         "Please upgrade PyTorch following https://pytorch.org/get-started/locally/ in order to use BetterTransformer.",
     )
     def transform(
-        model: torch.nn.Module,
-        keep_original_model: bool = False,
-        max_memory: Optional[Dict] = None,
-        offload_dir: Optional[Union[str, os.PathLike]] = None,
-        **kwargs,
+            model: torch.nn.Module,
+            keep_original_model: bool = False,
+            max_memory: Optional[Dict] = None,
+            offload_dir: Optional[Union[str, os.PathLike]] = None,
+            **kwargs,
     ) -> torch.nn.Module:
         r"""
         Conversion script from `transformers` model to its BetterTransformers version
@@ -262,7 +261,8 @@ class BetterTransformer(object):
             model_fast = replace_to_bettertransformer(model, hf_config)
             model = None
 
-        if BetterTransformerManager.requires_nested_tensor(model_fast.config.model_type):
+        model_type = BetterTransformerManager.get_model_type(model_fast.config)
+        if BetterTransformerManager.requires_nested_tensor(model_type):
             set_last_layer(model_fast)
 
         # Add a class arguments, we might need to identify whether the model
@@ -355,7 +355,7 @@ class BetterTransformer(object):
                 continue
 
             if config.model_type in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM and any(
-                subname in path for subname in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM[config.model_type]
+                    subname in path for subname in BetterTransformerManager.EXCLUDE_FROM_TRANSFORM[config.model_type]
             ):
                 continue
 

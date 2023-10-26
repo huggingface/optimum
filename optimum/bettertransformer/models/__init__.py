@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import warnings
+from typing import TYPE_CHECKING
 
 from ...utils.import_utils import check_if_transformers_greater
 from .decoder_models import (
@@ -55,6 +56,9 @@ if check_if_transformers_greater("4.31"):
 else:
     from ...utils.dummy_bettertransformer_objects import _llama_prepare_decoder_attention_mask
 
+if TYPE_CHECKING:
+    from transformers import PretrainedConfig
+
 
 class BetterTransformerManager:
     MODEL_MAPPING = {
@@ -69,7 +73,10 @@ class BetterTransformerManager:
         "blenderbot": {"BlenderbotAttention": BlenderbotAttentionLayerBetterTransformer},
         "bloom": {"BloomAttention": BloomAttentionLayerBetterTransformer},
         "camembert": {"CamembertLayer": BertLayerBetterTransformer},
-        "blip-2": {"T5Attention": T5AttentionLayerBetterTransformer},
+        "blip-2": {
+            "T5Attention": T5AttentionLayerBetterTransformer,
+            "OPTAttention": OPTAttentionLayerBetterTransformer,
+        },
         "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
         "codegen": {"CodeGenAttention": CodegenAttentionLayerBetterTransformer},
         "data2vec-text": {"Data2VecTextLayer": BertLayerBetterTransformer},
@@ -171,6 +178,19 @@ class BetterTransformerManager:
         "t5",
         "falcon",
     }
+
+    @staticmethod
+    def get_model_type(model_config: "PretrainedConfig") -> str:
+        """
+        Returns the model_type attribute out of a (potentially nested) configuration object.
+
+        Args:
+            model_config (`PretrainedConfig`):
+                The configuration object to get the model type from.
+        """
+        if model_config.model_type == "blip-2":
+            return model_config.text_config.model_type
+        return model_config.model_type
 
     @staticmethod
     def cannot_support(model_type: str) -> bool:
