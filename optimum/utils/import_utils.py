@@ -110,7 +110,7 @@ def is_timm_available():
 def is_auto_gptq_available():
     if _auto_gptq_available:
         version_autogptq = packaging.version.parse(importlib_metadata.version("auto_gptq"))
-        if AUTOGPTQ_MINIMUM_VERSION < version_autogptq:
+        if version_autogptq >= AUTOGPTQ_MINIMUM_VERSION:
             return True
         else:
             raise ImportError(
