@@ -495,6 +495,8 @@ def main():
 
     if hasattr(config, "max_position_embeddings"):
         max_pos_embeddings = config.max_position_embeddings
+        if max_pos_embeddings < 0:
+            max_pos_embeddings = 1024
     else:
         # Define a default value if the attribute is missing in the config.
         max_pos_embeddings = 1024
@@ -506,10 +508,7 @@ def main():
                 f"The tokenizer picked seems to have a very large `model_max_length` ({tokenizer.model_max_length}). "
                 f"Using block_size={min(1024, max_pos_embeddings)} instead. You can change that default value by passing --block_size xxx."
             )
-        if max_pos_embeddings > 0:
             block_size = min(1024, max_pos_embeddings)
-        else:
-            block_size = 1024
     else:
         if data_args.block_size > tokenizer.model_max_length:
             logger.warning(
