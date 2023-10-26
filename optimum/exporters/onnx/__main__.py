@@ -340,7 +340,9 @@ def main_export(
             and kwargs_shapes.get(input_name) == 1
             and task.startswith("text-generation")
         ):
-            logger.warning("Exporting with a sequence length of 1 for text generation models is not supported and can yield unexpected results.")
+            logger.warning(
+                "Exporting with a sequence length of 1 for text generation models is not supported and can yield unexpected results."
+            )
 
     torch_dtype = None if fp16 is False else torch.float16
 
