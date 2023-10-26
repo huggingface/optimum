@@ -461,8 +461,11 @@ class ORTTrainer(Trainer):
         logger.info("Wrap ORTModule for ONNX Runtime training.")
 
         from onnxruntime import version as ort_version
+
         ort_support_stage3 = version.parse(ort_version) >= version.parse("1.17.0")
-        os.environ["ORTMODULE_ENABLE_ZERO_STAGE3"] = str(int(ort_support_stage3 and self.is_deepspeed_enabled and is_deepspeed_zero3_enabled()))
+        os.environ["ORTMODULE_ENABLE_ZERO_STAGE3"] = str(
+            int(ort_support_stage3 and self.is_deepspeed_enabled and is_deepspeed_zero3_enabled())
+        )
 
         model = ORTModule(self.model)
         self.model_wrapped = model
