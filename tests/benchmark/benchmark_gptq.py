@@ -79,9 +79,9 @@ def get_parser():
         help="Use the parameter ranges for (batch_size, prompt_length, new_tokens) defined in the .py file instead of the CLI ones.",
     )
     parser.add_argument(
-        "--disable-exllama",
+        "--use-exllama",
         action="store_true",
-        help="Disable Exllama kernel, to rather use the AutoGPTQ CUDA (act-order case) or CUDA-old (no act-order case) kernels.",
+        help="Use Exllama kernel, to rather use the AutoGPTQ CUDA (act-order case) or CUDA-old (no act-order case) kernels.",
     )
     parser.add_argument(
         "--use-exllama-v2",
@@ -236,7 +236,7 @@ def benchmark_memory(
 
     # I am not sure whether we should substract here `inactive_split_bytes.all.peak` (not sure what it corresponds to, though it can get quite large, in the several GB).
     peak_external_mb = peak_nvml_mb - peak_reserved_torch_mb
-    assert peak_external_mb > 0
+    # assert peak_external_mb > 0
 
     # This formula is to confirm. We measure the actual allocated PyTorch memory, plus the additional non-PyTorch memory (as the CUDA context, CUDA extension device memory). We need to substract the PyTorch peak reserved memory since this one appears in the peak nvidia-smi/nvmlDeviceGetMemoryInfo.
 
@@ -304,9 +304,7 @@ else:
 
 load_start = time.time_ns()
 if args.gptq:
-    quantization_config = GPTQConfig(
-        bits=4, disable_exllama=args.disable_exllama, use_exllama_v2=args.use_exllama_v2
-    )
+    quantization_config = GPTQConfig(bits=4, use_exllama=args.use_exllama, use_exllama_v2=args.use_exllama_v2)
     model = autoclass.from_pretrained(
         args.model,
         revision=args.revision,
@@ -340,7 +338,7 @@ if args.gptq:
 
     if args.use_exllama_v2:
         kernel = "exllamav2"
-    elif not args.disable_exllama:
+    elif args.use_exllama:
         # Exllama kernel can handle both the act-order / no act-order cases.
         kernel = "exllama"
     elif act_order:

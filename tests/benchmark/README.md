@@ -18,10 +18,10 @@ CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-c
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --task text-generation --use-exllama-v2 --generate 
 
 # GPTQ with exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --task text-generation --generate
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --task text-generation --use-exllama --generate
 
 # GPTQ without exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --task text-generation --disable-exllama --generate
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 4 --gptq --task text-generation --generate
 
 # using bitsandbytes fp4/fp16 scheme
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --sweep --num-batches 4 --task text-generation --bitsandbytes --generate
@@ -94,13 +94,13 @@ Run
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --sweep --num-batches 10 --task text-generation --prefill --generate
 
 # GPTQ with exllamav2 kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --use_exllama_v2 --generate 
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --use-exllama-v2 --generate 
 
 # GPTQ with exllamav kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --generate
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --use-exllama --generate
 
 # GPTQ without exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --disable-exllama --generate
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --sweep --num-batches 10 --gptq --task text-generation --prefill --generate
 
 # using bitsandbytes fp4/fp16 scheme
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --sweep --num-batches 10 --task text-generation --prefill --bitsandbytes --generate
@@ -167,13 +167,13 @@ Run
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf --task text-generation --ppl
 
 # GPTQ with exllamav2 kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq --task text-generation --use_exllama_v2 --ppl
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq --task text-generation --use-exllama-v2 --ppl
 
 # GPTQ with exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq  --task text-generation --ppl
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq  --task text-generation --use-exllama --ppl
 
 # GPTQ without exllama kernel (int4/fp16)
-CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq --task text-generation --disable-exllama --ppl
+CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model TheBloke/Llama-2-13B-chat-GPTQ --revision gptq-4bit-128g-actorder_True --gptq --task text-generation --ppl
 
 # using bitsandbytes fp4/fp16 scheme
 CUDA_VISIBLE_DEVICES=0 python benchmark_gptq.py --model meta-llama/Llama-2-13b-chat-hf ---task text-generation --bitsandbytes --ppl
