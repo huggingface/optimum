@@ -886,6 +886,7 @@ class TasksManager:
             onnx="SwinOnnxConfig",
         ),
         "swin2sr": supported_tasks_mapping(
+            "feature-extraction",
             "image-to-image",
             onnx="SwinOnnxConfig",
         ),
