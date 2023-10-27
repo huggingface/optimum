@@ -258,7 +258,6 @@ class NormalizedConfigManager:
         "baichuan": NormalizedTextConfig,
         "qwen": NormalizedTextConfig,
         "chatglm": NormalizedTextConfig.with_args(num_layers="num_layers"),
-
     }
 
     @classmethod
