@@ -50,6 +50,9 @@ from optimum.pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from optimum.utils.import_utils import _diffusers_version
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
+if parse(_diffusers_version) > Version("0.21.4"):
+    from diffusers import LatentConsistencyModelPipeline
+
 
 def _generate_inputs(batch_size=1):
     inputs = {
@@ -499,7 +502,10 @@ class ORTLatentConsistencyModelPipelineTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
-    @unittest.skipIf(parse(_diffusers_version) <= Version("0.21.4"), "not supported with this diffusers version, needs diffusers>=v0.22.0")
+    @unittest.skipIf(
+        parse(_diffusers_version) <= Version("0.21.4"),
+        "not supported with this diffusers version, needs diffusers>=v0.22.0",
+    )
     def test_compare_to_diffusers(self, model_arch: str):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
         self.assertIsInstance(ort_pipeline.text_encoder, ORTModelTextEncoder)
@@ -507,8 +513,6 @@ class ORTLatentConsistencyModelPipelineTest(ORTModelTestMixin):
         self.assertIsInstance(ort_pipeline.vae_encoder, ORTModelVaeEncoder)
         self.assertIsInstance(ort_pipeline.unet, ORTModelUnet)
         self.assertIsInstance(ort_pipeline.config, Dict)
-
-        from diffusers import LatentConsistencyModelPipeline
 
         pipeline = LatentConsistencyModelPipeline.from_pretrained(MODEL_NAMES[model_arch])
         batch_size, num_images_per_prompt, height, width = 2, 2, 64, 32
