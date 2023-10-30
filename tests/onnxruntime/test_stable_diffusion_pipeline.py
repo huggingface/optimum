@@ -499,7 +499,7 @@ class ORTLatentConsistencyModelPipelineTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
-    @unittest.skipIf(parse(_diffusers_version) <= Version("0.21.4"), "not supported with this diffusers version")
+    @unittest.skipIf(parse(_diffusers_version) <= Version("0.21.4"), "not supported with this diffusers version, needs diffusers>=v0.22.0")
     def test_compare_to_diffusers(self, model_arch: str):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
         self.assertIsInstance(ort_pipeline.text_encoder, ORTModelTextEncoder)
