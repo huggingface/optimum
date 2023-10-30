@@ -213,8 +213,8 @@ class GPTQTestActOrder(GPTQTest):
             inp = self.tokenizer(prompt, return_tensors="pt").to(0)
             self.assertTrue(inp["input_ids"].shape[1] < 4028)
             quantized_model_from_saved.generate(**inp, num_beams=1, min_new_tokens=3, max_new_tokens=3)
-            
-            
+
+
 class GPTQTestNoBlockCaching(GPTQTest):
     cache_block_outputs = False
     EXPECTED_OUTPUTS = set()
