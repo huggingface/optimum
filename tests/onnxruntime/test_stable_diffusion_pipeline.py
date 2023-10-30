@@ -50,6 +50,7 @@ from optimum.pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from optimum.utils.import_utils import _diffusers_version
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
+
 if parse(_diffusers_version) > Version("0.21.4"):
     from diffusers import LatentConsistencyModelPipeline
 
