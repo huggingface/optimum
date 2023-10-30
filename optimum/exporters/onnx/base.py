@@ -435,7 +435,7 @@ class OnnxConfig(ExportConfig, ABC):
             sig = inspect.signature(model.call)
 
         for param in sig.parameters:
-            param_regex = re.compile(rf"{param}(\.\d*)?")
+            param_regex = re.compile(rf"{param}(\..*)?$")
             to_insert = []
             for name, dynamic_axes in inputs.items():
                 if re.match(param_regex, name):
