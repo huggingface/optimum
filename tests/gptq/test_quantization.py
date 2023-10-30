@@ -46,6 +46,7 @@ class GPTQTest(unittest.TestCase):
     group_size = 128
     desc_act = False
     disable_exllama = True
+    cache_block_outputs = True
 
     dataset = [
         "auto-gptq is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
@@ -69,6 +70,7 @@ class GPTQTest(unittest.TestCase):
             group_size=cls.group_size,
             desc_act=cls.desc_act,
             disable_exllama=cls.disable_exllama,
+            cache_block_outputs=cls.cache_block_outputs,
         )
 
         cls.quantized_model = cls.quantizer.quantize_model(cls.model_fp16, cls.tokenizer)
@@ -211,6 +213,14 @@ class GPTQTestActOrder(GPTQTest):
             inp = self.tokenizer(prompt, return_tensors="pt").to(0)
             self.assertTrue(inp["input_ids"].shape[1] < 4028)
             quantized_model_from_saved.generate(**inp, num_beams=1, min_new_tokens=3, max_new_tokens=3)
+            
+            
+class GPTQTestNoBlockCaching(GPTQTest):
+    cache_block_outputs = False
+    EXPECTED_OUTPUTS = set()
+    EXPECTED_OUTPUTS.add("Hello my name is John, I am a professional photographer and I")
+    EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
+    EXPECTED_OUTPUTS.add("Hello my name is John, I am a student in the University of")
 
 
 class GPTQUtilsTest(unittest.TestCase):
