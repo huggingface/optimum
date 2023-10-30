@@ -187,7 +187,7 @@ class GPTQTestActOrder(GPTQTest):
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
-                empty_model, save_folder=tmpdirname, device_map={"": 0}, disable_exllama=False, disable_exllamav2=True
+                empty_model, save_folder=tmpdirname, device_map={"": 0}, disable_exllamav2=True
             )
             self.check_inference_correctness(quantized_model_from_saved)
 
@@ -209,7 +209,6 @@ class GPTQTestActOrder(GPTQTest):
                 empty_model,
                 save_folder=tmpdirname,
                 device_map={"": 0},
-                disable_exllama=False,
                 max_input_length=4028,
                 disable_exllamav2=True,
             )
@@ -258,7 +257,6 @@ class GPTQTestExllamav2(GPTQTest):
                 empty_model,
                 save_folder=tmpdirname,
                 device_map={"": 0},
-                disable_exllamav2=False,
             )
             self.check_inference_correctness(quantized_model_from_saved)
 

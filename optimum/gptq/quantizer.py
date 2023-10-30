@@ -69,7 +69,7 @@ class GPTQQuantizer(object):
         module_name_preceding_first_block: Optional[List[str]] = None,
         batch_size: int = 1,
         pad_token_id: Optional[int] = None,
-        disable_exllama: bool = True,
+        disable_exllama: Optional[bool] = None,
         disable_exllamav2: bool = False,
         max_input_length: Optional[int] = None,
         *args,
@@ -108,7 +108,7 @@ class GPTQQuantizer(object):
                 The batch size of the dataset
             pad_token_id (`Optional[int]`, defaults to `None`):
                 The pad token id. Needed to prepare the dataset when `batch_size` > 1.
-            disable_exllama (`bool`, defaults to `True`):
+            disable_exllama (`Optional[bool]`, defaults to `None`):
                 Whether to use exllama backend. Only works with `bits` = 4.
             disable_exllamav2 (`bool`, defaults to `False`):
                 Whether to use exllamav2 backend. Only works with `bits` = 4.
@@ -145,6 +145,12 @@ class GPTQQuantizer(object):
             raise ValueError(
                 "disable_exllamav2 and disable_exllama are both set to `False`. Please disable one of the kernels."
             )
+        # If disable_exllamav2 is True, we want to fall back on the exllama kernel and not the cuda/cuda_old ones.
+        if self.disable_exllama is None:
+            if self.disable_exllamav2:
+                self.disable_exllama = False
+            else:
+                self.disable_exllama = True
 
     def to_dict(self):
         """
@@ -598,7 +604,7 @@ def load_quantized_model(
     offload_folder: Optional[str] = None,
     offload_buffers: Optional[str] = None,
     offload_state_dict: bool = False,
-    disable_exllama: bool = True,
+    disable_exllama: Optional[bool] = None,
     disable_exllamav2: bool = False,
     max_input_length: Optional[int] = None,
 ):
@@ -633,7 +639,7 @@ def load_quantized_model(
             If `True`, will temporarily offload the CPU state dict on the hard drive to avoid getting out of CPU RAM if
             the weight of the CPU state dict + the biggest shard does not fit. Will default to `True` if the device map
             picked contains `"disk"` values.
-        disable_exllama (`bool`, defaults to `False`):
+        disable_exllama (`Optional[bool]`, defaults to `None`):
             Whether to use exllama backend. Only works with `bits` = 4.
         disable_exllama (`bool`, defaults to `False`):
             Whether to use exllamav2 backend. Only works with `bits` = 4.
@@ -656,6 +662,12 @@ def load_quantized_model(
     if device_map is None:
         device_map = {"": torch.cuda.current_device()}
         logger.info("The device_map was not initialized." "Setting device_map to `{'':torch.cuda.current_device()}`.")
+
+    if disable_exllama is None:
+        if disable_exllamav2:
+            disable_exllama = False
+        else:
+            disable_exllama = True
 
     # this branch will check if model is from huggingface
     try:
