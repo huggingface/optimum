@@ -110,11 +110,11 @@ def is_timm_available():
 def is_auto_gptq_available():
     if _auto_gptq_available:
         version_autogptq = packaging.version.parse(importlib_metadata.version("auto_gptq"))
-        if AUTOGPTQ_MINIMUM_VERSION <= version_autogptq:
+        if AUTOGPTQ_MINIMUM_VERSION < version_autogptq:
             return True
         else:
             raise ImportError(
-                f"Found an incompatible version of auto-gptq. Found version {version_autogptq}, but only {AUTOGPTQ_MINIMUM_VERSION} and above are supported"
+                f"Found an incompatible version of auto-gptq. Found version {version_autogptq}, but only version above {AUTOGPTQ_MINIMUM_VERSION} are supported"
             )
 
 

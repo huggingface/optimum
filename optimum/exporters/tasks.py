@@ -1408,11 +1408,8 @@ class TasksManager:
                 )
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             if getattr(model_info, "library_name", None) == "diffusers":
-                # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
-                for task in ("stable-diffusion-xl", "stable-diffusion"):
-                    if task in model_info.tags:
-                        inferred_task_name = task
-                        break
+                class_name = model_info.config["diffusers"]["class_name"]
+                inferred_task_name = "stable-diffusion-xl" if "StableDiffusionXL" in class_name else "stable-diffusion"
             elif getattr(model_info, "library_name", None) == "timm":
                 inferred_task_name = "image-classification"
             else:

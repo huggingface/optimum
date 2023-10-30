@@ -27,23 +27,32 @@ from diffusers import (
 )
 from diffusers.utils import load_image
 from diffusers.utils.testing_utils import floats_tensor
+from packaging.version import Version, parse
 from parameterized import parameterized
 from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
-from optimum.onnxruntime import ORTStableDiffusionPipeline
+from optimum.onnxruntime import (
+    ORTLatentConsistencyModelPipeline,
+    ORTStableDiffusionImg2ImgPipeline,
+    ORTStableDiffusionInpaintPipeline,
+    ORTStableDiffusionPipeline,
+    ORTStableDiffusionXLImg2ImgPipeline,
+    ORTStableDiffusionXLPipeline,
+)
 from optimum.onnxruntime.modeling_diffusion import (
     ORTModelTextEncoder,
     ORTModelUnet,
     ORTModelVaeDecoder,
     ORTModelVaeEncoder,
-    ORTStableDiffusionImg2ImgPipeline,
-    ORTStableDiffusionInpaintPipeline,
-    ORTStableDiffusionXLImg2ImgPipeline,
-    ORTStableDiffusionXLPipeline,
 )
 from optimum.pipelines.diffusers.pipeline_utils import VaeImageProcessor
+from optimum.utils.import_utils import _diffusers_version
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
+
+
+if parse(_diffusers_version) > Version("0.21.4"):
+    from diffusers import LatentConsistencyModelPipeline
 
 
 def _generate_inputs(batch_size=1):
@@ -483,3 +492,56 @@ class ImageProcessorTest(unittest.TestCase):
                 in_np = np.array(i)
                 out_np = to_np(out) if output_type == "pil" else (to_np(out) * 255).round()
                 self.assertTrue(np.allclose(in_np, out_np, atol=1e-6))
+
+
+class ORTLatentConsistencyModelPipelineTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = [
+        "latent-consistency",
+    ]
+    ORTMODEL_CLASS = ORTLatentConsistencyModelPipeline
+    TASK = "text-to-image"
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    @unittest.skipIf(
+        parse(_diffusers_version) <= Version("0.21.4"),
+        "not supported with this diffusers version, needs diffusers>=v0.22.0",
+    )
+    def test_compare_to_diffusers(self, model_arch: str):
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], export=True)
+        self.assertIsInstance(ort_pipeline.text_encoder, ORTModelTextEncoder)
+        self.assertIsInstance(ort_pipeline.vae_decoder, ORTModelVaeDecoder)
+        self.assertIsInstance(ort_pipeline.vae_encoder, ORTModelVaeEncoder)
+        self.assertIsInstance(ort_pipeline.unet, ORTModelUnet)
+        self.assertIsInstance(ort_pipeline.config, Dict)
+
+        pipeline = LatentConsistencyModelPipeline.from_pretrained(MODEL_NAMES[model_arch])
+        batch_size, num_images_per_prompt, height, width = 2, 2, 64, 32
+        latents = ort_pipeline.prepare_latents(
+            batch_size * num_images_per_prompt,
+            ort_pipeline.unet.config["in_channels"],
+            height,
+            width,
+            dtype=np.float32,
+            generator=np.random.RandomState(0),
+        )
+
+        kwargs = {
+            "prompt": ["sailing ship in storm by Leonardo da Vinci"] * batch_size,
+            "num_inference_steps": 1,
+            "num_images_per_prompt": num_images_per_prompt,
+            "height": height,
+            "width": width,
+            "guidance_scale": 8.5,
+        }
+
+        for output_type in ["latent", "np"]:
+            ort_outputs = ort_pipeline(latents=latents, output_type=output_type, **kwargs).images
+            self.assertIsInstance(ort_outputs, np.ndarray)
+            with torch.no_grad():
+                outputs = pipeline(latents=torch.from_numpy(latents), output_type=output_type, **kwargs).images
+
+            # Compare model outputs
+            self.assertTrue(np.allclose(ort_outputs, outputs, atol=1e-4))
+            # Compare model devices
+            self.assertEqual(pipeline.device, ort_pipeline.device)

@@ -227,7 +227,6 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
       model=model,
       args=training_args,
       train_dataset=train_dataset,
-+     feature="sequence-classification", # The model type to export to ONNX
       ...
   )
 
