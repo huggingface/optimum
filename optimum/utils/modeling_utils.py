@@ -131,20 +131,6 @@ def _falcon_prepare_attn_mask(
             f" but is {attention_mask.shape} with input_ids shape {input_shape} and past length"
             f" {past_key_values_length}."
         )
-    combined_attention_mask = None
-    device = attention_mask.device
-    _, seq_length = input_shape
-
-    # if seq_length > 1:
-    # NOTE: we remove here the `if seq_length > 1` to allow to use a single decoder.
-    combined_attention_mask = _make_causal_mask(
-        input_shape, device=device, past_key_values_length=past_key_values_length
-    )
 
     # [batch_size, seq_length + past_key_values_length] -> [batch_size, 1, seq_length, seq_length + past_key_values_length]
-    expanded_attn_mask = _expand_mask(attention_mask, past_key_values_length=past_key_values_length)
-    combined_attention_mask = (
-        expanded_attn_mask if combined_attention_mask is None else expanded_attn_mask | combined_attention_mask
-    )
-
-    return combined_attention_mask
+    return _expand_mask(attention_mask, past_key_values_length=past_key_values_length)

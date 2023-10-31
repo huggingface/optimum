@@ -18,14 +18,12 @@ import inspect
 import types
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Union
 
-import transformers
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
-from transformers.models.falcon.modeling_falcon import FalconModel, build_alibi_tensor
+from transformers.models.falcon.modeling_falcon import build_alibi_tensor
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 from transformers.utils import is_torch_available
 
 from ...utils.modeling_utils import (
-    _falcon_prepare_attn_mask,
     _prepare_attn_mask,
 )
 
@@ -395,20 +393,10 @@ class FalconModelPatcher(ModelPatcher):
     def __enter__(self):
         self.patch_ops()
 
-        transformers.models.falcon.modeling_falcon._make_causal_mask = _make_causal_mask_falcon_patched
-
         if self.real_config.task == "text-generation":
             self._model.transformer.forward = types.MethodType(
                 falcon_model_forward_without_kv_reformatting, self._model.transformer
             )
-
-        # In order to use a single decoder, we need to patch the _prepare_attn_mask function to behave independently of the sequence length.
-        if isinstance(self._model, FalconModel):
-            self._model._prepare_attn_mask = _falcon_prepare_attn_mask
-        else:
-            self._model.transformer._prepare_attn_mask = _falcon_prepare_attn_mask
-
-        setattr(self._model, self.orig_forward_name, self.patched_forward)
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.restore_ops()
@@ -420,14 +408,6 @@ class FalconModelPatcher(ModelPatcher):
                 self.original_model_transformer_forward, self._model.transformer
             )
 
-        transformers.models.falcon.modeling_falcon._make_causal_mask = self.original_make_causal
-
-        # In order to use a single decoder, we need to patch the _prepare_attn_mask function to behave independently of the sequence length.
-        if isinstance(self._model, FalconModel):
-            self._model._prepare_attn_mask = self.original_falcon_prepare_attn_mask
-        else:
-            self._model.transformer._prepare_attn_mask = self.original_falcon_prepare_attn_mask
-
     def __init__(
         self,
         config: "OnnxConfig",
@@ -438,13 +418,6 @@ class FalconModelPatcher(ModelPatcher):
 
         if config.task == "text-generation":
             self.original_model_transformer_forward = model.transformer.forward
-
-        self.original_make_causal = transformers.models.falcon.modeling_falcon._make_causal_mask
-
-        if isinstance(model, FalconModel):
-            self.original_falcon_prepare_attn_mask = model._prepare_attn_mask
-        else:
-            self.original_falcon_prepare_attn_mask = model.transformer._prepare_attn_mask
 
         self._model = model
 
