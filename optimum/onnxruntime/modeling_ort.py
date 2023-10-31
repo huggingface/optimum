@@ -941,7 +941,9 @@ class ORTModelForFeatureExtraction(ORTModel):
                     attention_mask = np.ones_like(input_ids)
                 else:
                     attention_mask = attention_mask.cpu().detach().numpy()
-                if token_type_ids is not None:
+                if token_type_ids is None:
+                    token_type_ids = np.ones_like(input_ids)
+                else:
                     token_type_ids = token_type_ids.cpu().detach().numpy()
 
             onnx_inputs = {
