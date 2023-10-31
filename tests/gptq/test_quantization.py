@@ -47,6 +47,7 @@ class GPTQTest(unittest.TestCase):
     desc_act = False
     disable_exllama = True
     disable_exllamav2 = True
+    cache_block_outputs = True
 
     dataset = [
         "auto-gptq is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
@@ -71,6 +72,7 @@ class GPTQTest(unittest.TestCase):
             desc_act=cls.desc_act,
             disable_exllama=cls.disable_exllama,
             disable_exllamav2=cls.disable_exllamav2,
+            cache_block_outputs=cls.cache_block_outputs,
         )
 
         cls.quantized_model = cls.quantizer.quantize_model(cls.model_fp16, cls.tokenizer)
@@ -259,6 +261,14 @@ class GPTQTestExllamav2(GPTQTest):
                 device_map={"": 0},
             )
             self.check_inference_correctness(quantized_model_from_saved)
+
+
+class GPTQTestNoBlockCaching(GPTQTest):
+    cache_block_outputs = False
+    EXPECTED_OUTPUTS = set()
+    EXPECTED_OUTPUTS.add("Hello my name is John, I am a professional photographer and I")
+    EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
+    EXPECTED_OUTPUTS.add("Hello my name is John, I am a student in the University of")
 
 
 class GPTQUtilsTest(unittest.TestCase):
