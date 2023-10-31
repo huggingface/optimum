@@ -245,10 +245,10 @@ class GPTQQuantizer(object):
                     out_features = layer.weight.shape[1]
                 if not (self.desc_act) or self.group_size == -1:
                     new_layer = QuantLinear(
-                        self.bits, self.group_size, in_features, out_features, True, use_cuda_fp16=self.use_cuda_fp16
+                        self.bits, self.group_size, in_features, out_features, True, use_cuda_fp16=self.use_cuda_fp16, weight_dtype=layer.weight.dtype
                     )
                 else:
-                    new_layer = QuantLinear(self.bits, self.group_size, in_features, out_features, True)
+                    new_layer = QuantLinear(self.bits, self.group_size, in_features, out_features, True, weight_dtype=layer.weight.dtype)
                 new_layer.device = device
                 setattr(module, attr, new_layer.to(device))
         for name1, child in module.named_children():
