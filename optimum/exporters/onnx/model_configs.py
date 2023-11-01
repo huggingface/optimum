@@ -928,6 +928,8 @@ class UNetOnnxConfig(VisionOnnxConfig):
             common_inputs["text_embeds"] = {0: "batch_size"}
             common_inputs["time_ids"] = {0: "batch_size"}
 
+        if getattr(self._normalized_config, "time_cond_proj_dim", None) is not None:
+            common_inputs["timestep_cond"] = {0: "batch_size"}
         return common_inputs
 
     @property

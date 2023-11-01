@@ -338,6 +338,7 @@ def main_export(
                 f"The task could not be automatically inferred as this is available only for models hosted on the Hugging Face Hub. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
+    custom_architecture = False
     if library_name == "transformers":
         config = AutoConfig.from_pretrained(
             model_name_or_path,
@@ -378,7 +379,6 @@ def main_export(
         library_name=library_name,
     )
 
-    custom_architecture = False
     is_stable_diffusion = "stable-diffusion" in task
     model_type = "stable-diffusion" if is_stable_diffusion else model.config.model_type.replace("_", "-")
 
@@ -393,8 +393,6 @@ def main_export(
                 f"{model_type} is not supported yet. Only {list(TasksManager._SUPPORTED_CLI_MODEL_TYPE.keys())} are supported. "
                 f"If you want to support {model_type} please propose a PR or open up an issue."
             )
-        if model.config.model_type.replace("_", "-") not in TasksManager._SUPPORTED_MODEL_TYPE:
-            custom_architecture = True
 
     # TODO: support onnx_config.py in the model repo
     if custom_architecture and custom_onnx_configs is None:

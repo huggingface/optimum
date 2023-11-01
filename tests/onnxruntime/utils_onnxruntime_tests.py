@@ -68,6 +68,7 @@ MODEL_NAMES = {
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
+    "latent-consistency": "echarlaix/tiny-random-latent-consistency",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
     "longt5": "hf-internal-testing/tiny-random-LongT5Model",
