@@ -84,9 +84,10 @@ def get_parser():
         help="Use Exllama kernel, to rather use the AutoGPTQ CUDA (act-order case) or CUDA-old (no act-order case) kernels.",
     )
     parser.add_argument(
-        "--use-exllama-v2",
-        action="store_true",
-        help="Use Exllamav2 kernel. It will disable exllama kernels by default",
+        "--exllama-version",
+        type=int,
+        default=2,
+        help="Use Exllamav2 kernel. Set 1 in order to use exllama kernel",
     )
     parser.add_argument(
         "--generate",
@@ -304,7 +305,9 @@ else:
 
 load_start = time.time_ns()
 if args.gptq:
-    quantization_config = GPTQConfig(bits=4, use_exllama=args.use_exllama, use_exllama_v2=args.use_exllama_v2)
+    quantization_config = GPTQConfig(
+        bits=4, use_exllama=args.use_exllama, exllama_config={"version": args.exllama_version}
+    )
     model = autoclass.from_pretrained(
         args.model,
         revision=args.revision,
@@ -335,12 +338,14 @@ if args.gptq:
     act_order = quantization_config_dict["desc_act"]
     bits = quantization_config_dict["bits"]
     group_size = quantization_config_dict["group_size"]
+    use_exllama = quantization_config_dict["use_exllama"]
+    exllama_version = quantization_config_dict["exllama_config"]["version"]
 
-    if args.use_exllama_v2:
-        kernel = "exllamav2"
-    elif args.use_exllama:
-        # Exllama kernel can handle both the act-order / no act-order cases.
-        kernel = "exllama"
+    if use_exllama:
+        if exllama_version == 2:
+            kernel = "exllamav2"
+        else:
+            kernel = "exllama"
     elif act_order:
         kernel = "autotogptq-cuda"
     else:
