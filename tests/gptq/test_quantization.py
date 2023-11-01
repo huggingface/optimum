@@ -104,6 +104,9 @@ class GPTQTest(unittest.TestCase):
         )
         self.assertTrue(self.quantized_model.transformer.h[0].mlp.dense_4h_to_h.__class__ == QuantLinear)
 
+    def check_quantized_layers_type(self, model, value):
+        self.assertTrue(model.transformer.h[0].mlp.dense_4h_to_h.QUANT_TYPE == value)
+
     def check_inference_correctness(self, model):
         """
         Test the generation quality of the quantized model and see that we are matching the expected output.
@@ -118,6 +121,7 @@ class GPTQTest(unittest.TestCase):
 
         # Check the exactness of the result
         self.assertIn(self.tokenizer.decode(output_sequences[0], skip_special_tokens=True), self.EXPECTED_OUTPUTS)
+        
 
     def test_generate_quality(self):
         self.check_inference_correctness(self.quantized_model)
@@ -144,6 +148,7 @@ class GPTQTest(unittest.TestCase):
                 disable_exllama=self.disable_exllama,
                 exllama_config=self.exllama_config,
             )
+            self.check_quantized_layers_type(quantized_model_from_saved,"cuda-old")
             self.check_inference_correctness(quantized_model_from_saved)
 
 
@@ -190,6 +195,7 @@ class GPTQTestActOrder(GPTQTest):
             quantized_model_from_saved = load_quantized_model(
                 empty_model, save_folder=tmpdirname, device_map={"": 0}, exllama_config={"version": 1}
             )
+            self.check_quantized_layers_type(quantized_model_from_saved,"exllama")
             self.check_inference_correctness(quantized_model_from_saved)
 
     def test_exllama_max_input_length(self):
@@ -213,6 +219,7 @@ class GPTQTestActOrder(GPTQTest):
                 max_input_length=4028,
                 exllama_config={"version": 1},
             )
+            self.check_quantized_layers_type(quantized_model_from_saved,"exllama")
 
             prompt = "I am in Paris and" * 1000
             inp = self.tokenizer(prompt, return_tensors="pt").to(0)
@@ -258,6 +265,7 @@ class GPTQTestExllamav2(GPTQTest):
                 save_folder=tmpdirname,
                 device_map={"": 0},
             )
+            self.check_quantized_layers_type(quantized_model_from_saved,"exllamav2")
             self.check_inference_correctness(quantized_model_from_saved)
 
 

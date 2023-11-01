@@ -731,6 +731,7 @@ def load_quantized_model(
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
     quantizer.disable_exllama = disable_exllama
     quantizer.exllama_config = exllama_config
+    quantizer.exllama_version = quantizer.exllama_config["version"]
     quantizer.max_input_length = max_input_length
 
     model = quantizer.convert_model(model)
