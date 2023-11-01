@@ -89,7 +89,7 @@ empty_model.tie_weights()
 quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto")
 ```
 
-If you wish to use exllama kernels, you will have to disable exllamav2 kernels:
+If you wish to use exllama kernels, you will have to change the version by setting `exllama_config`:
 
 ```py
 from optimum.gptq import GPTQQuantizer, load_quantized_model
@@ -99,7 +99,7 @@ from accelerate import init_empty_weights
 with init_empty_weights():
     empty_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
 empty_model.tie_weights()
-quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto", disable_exllamav2=True)
+quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto", exllama_config = {"version":1})
 ```
 
 Note that only 4-bit models are supported with exllama/exllamav2 kernels for now. Furthermore, it is recommended to disable exllama/exllamav2 kernels when you are finetuning your model with peft.

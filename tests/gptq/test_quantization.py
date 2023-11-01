@@ -46,7 +46,7 @@ class GPTQTest(unittest.TestCase):
     group_size = 128
     desc_act = False
     disable_exllama = True
-    disable_exllamav2 = True
+    exllama_config = None
     cache_block_outputs = True
 
     dataset = [
@@ -71,7 +71,7 @@ class GPTQTest(unittest.TestCase):
             group_size=cls.group_size,
             desc_act=cls.desc_act,
             disable_exllama=cls.disable_exllama,
-            disable_exllamav2=cls.disable_exllamav2,
+            exllama_config=cls.exllama_config,
             cache_block_outputs=cls.cache_block_outputs,
         )
 
@@ -99,8 +99,8 @@ class GPTQTest(unittest.TestCase):
             desc_act=self.desc_act,
             group_size=self.group_size,
             bits=self.bits,
-            disable_exllama=self.disable_exllama,
-            disable_exllamav2=self.disable_exllamav2,
+            disable_exllama=self.disable_exllama or self.exllama_config["version"] != 1,
+            disable_exllamav2=self.disable_exllama or self.exllama_config["version"] != 2,
         )
         self.assertTrue(self.quantized_model.transformer.h[0].mlp.dense_4h_to_h.__class__ == QuantLinear)
 
@@ -142,14 +142,14 @@ class GPTQTest(unittest.TestCase):
                 save_folder=tmpdirname,
                 device_map={"": 0},
                 disable_exllama=self.disable_exllama,
-                disable_exllamav2=self.disable_exllamav2,
+                exllama_config=self.exllama_config,
             )
             self.check_inference_correctness(quantized_model_from_saved)
 
 
 class GPTQTestExllama(GPTQTest):
     disable_exllama = False
-    disable_exllamav2 = True
+    exllama_config = {"version": 1}
     EXPECTED_OUTPUTS = set()
     EXPECTED_OUTPUTS.add("Hello my name is John, I am a professional photographer and I")
     EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
@@ -163,7 +163,6 @@ class GPTQTestActOrder(GPTQTest):
     EXPECTED_OUTPUTS.add("Hello my name is nathalie, I am a young girl from")
 
     disable_exllama = True
-    disable_exllamav2 = True
     desc_act = True
 
     def test_generate_quality(self):
@@ -189,7 +188,7 @@ class GPTQTestActOrder(GPTQTest):
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
-                empty_model, save_folder=tmpdirname, device_map={"": 0}, disable_exllamav2=True
+                empty_model, save_folder=tmpdirname, device_map={"": 0}, exllama_config={"version": 1}
             )
             self.check_inference_correctness(quantized_model_from_saved)
 
@@ -212,7 +211,7 @@ class GPTQTestActOrder(GPTQTest):
                 save_folder=tmpdirname,
                 device_map={"": 0},
                 max_input_length=4028,
-                disable_exllamav2=True,
+                exllama_config={"version": 1},
             )
 
             prompt = "I am in Paris and" * 1000
@@ -231,7 +230,6 @@ class GPTQTestActOrder(GPTQTest):
 class GPTQTestExllamav2(GPTQTest):
     desc_act = False
     disable_exllama = True
-    disable_exllamav2 = True
 
     def test_generate_quality(self):
         # don't need to test
