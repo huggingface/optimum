@@ -648,7 +648,7 @@ def load_quantized_model(
     offload_buffers: Optional[str] = None,
     offload_state_dict: bool = False,
     disable_exllama: bool = False,
-    exllama_config: Dict[str, Any] = None,
+    exllama_config: Optional[Dict[str, Any]] = None,
     max_input_length: Optional[int] = None,
 ):
     """
@@ -684,7 +684,7 @@ def load_quantized_model(
             picked contains `"disk"` values.
         disable_exllama (`Optional[bool]`, defaults to `None`):
             Whether to use exllama backend. Only works with `bits` = 4.
-        exllama_config (`Dict[str, Any]`, *optional*):
+        exllama_config (`Optional[Dict[str, Any]]`, defaults to `None`):
             The exllama config. You can specify the version of the exllama kernel through the `version` key. Defaults to `{"version": 2}` if unset.
         max_input_length (`Optional[int]`, defaults to `None`):
             The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input length.
