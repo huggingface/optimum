@@ -830,6 +830,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=self._preprocessors,
+            legacy=legacy,
         )
         onnx_config.variant = self.variant
         return onnx_config
