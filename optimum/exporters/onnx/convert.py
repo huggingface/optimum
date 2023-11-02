@@ -568,12 +568,6 @@ def export_pytorch(
                 input_names = list(inputs.keys())
                 output_names = list(config.outputs.keys())
 
-                for name, inp in dummy_inputs.items():
-                    if isinstance(inp, torch.Tensor):
-                        print(name, inp.shape)
-                    else:
-                        print(name, type(inp))
-
                 # Export can work with named args but the dict containing named args has to be the last element of the args
                 # tuple.
                 onnx_export(

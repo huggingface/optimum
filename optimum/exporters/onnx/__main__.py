@@ -314,6 +314,8 @@ def main_export(
         model_name_or_path, subfolder=subfolder, library_name=library_name
     )
 
+    torch_dtype = None if fp16 is False else torch.float16
+
     if task == "auto":
         try:
             task = TasksManager.infer_task_from_model(model_name_or_path)
@@ -325,8 +327,6 @@ def main_export(
             raise RequestsConnectionError(
                 f"The task could not be automatically inferred as this is available only for models hosted on the Hugging Face Hub. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
-
-    torch_dtype = None if fp16 is False else torch.float16
 
     custom_architecture = False
     if library_name == "transformers":

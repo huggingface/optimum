@@ -33,9 +33,10 @@ from ...utils import logging
 
 
 if _transformers_version > version.parse("4.34.99"):
-    from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask
+    from transformers.modeling_attn_mask_utils import AttentionMaskConverter, _prepare_4d_causal_attention_mask
 else:
     _prepare_4d_causal_attention_mask = None
+    AttentionMaskConverter = None
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
@@ -368,7 +369,64 @@ def falcon_model_forward_without_kv_reformatting(
     )
 
 
-class FalconModelPatcher(ModelPatcher):
+def _make_causal_mask_patched(
+    self,
+    input_ids_shape: torch.Size,
+    dtype: torch.dtype,
+    device: torch.device,
+    past_key_values_length: int = 0,
+    sliding_window: Optional[int] = None,
+):
+    """
+    Make causal mask used for bi-directional self-attention.
+    """
+    # We add self in the signature because `self._make_causal_mask` is used elsewhere in the class definition, despite the method being a staticmethod.
+    bsz, tgt_len = input_ids_shape
+    mask = torch.full((tgt_len, tgt_len), torch.finfo(dtype).min, device=device)
+    mask_cond = torch.arange(mask.size(-1), device=device)
+    mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
+
+    mask = mask.to(dtype)
+
+    if past_key_values_length > 0:
+        mask = torch.cat([torch.zeros(tgt_len, past_key_values_length, dtype=dtype, device=device), mask], dim=-1)
+
+    # add lower triangular sliding window mask if necessary
+    if sliding_window is not None:
+        diagonal = past_key_values_length - sliding_window + 1
+
+        # NOTE: adding dtype=torch.int64 here for triu to be supported by ORT: https://github.com/microsoft/onnxruntime/issues/16189
+        context_mask = 1 - torch.triu(torch.ones_like(mask, dtype=torch.int64), diagonal=diagonal)
+        mask.masked_fill_(context_mask.bool(), torch.finfo(dtype).min)
+
+    return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
+
+
+class DecoderModelPatcher(ModelPatcher):
+    def __enter__(self):
+        # TODO: Remove this if once transformers if much above 4.35
+        if AttentionMaskConverter is not None:
+            AttentionMaskConverter._make_causal_mask = _make_causal_mask_patched
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # TODO: Remove this if once transformers if much above 4.35
+        if AttentionMaskConverter is not None:
+            AttentionMaskConverter._make_causal_mask = self.original_make_causal
+
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+
+        # TODO: Remove this if once transformers if much above 4.35
+        if AttentionMaskConverter is not None:
+            self.original_make_causal = AttentionMaskConverter._make_causal_mask
+
+
+class FalconModelPatcher(DecoderModelPatcher):
     def __enter__(self):
         self.patch_ops()
 
@@ -713,24 +771,3 @@ class SpeechT5ModelPatcher(ModelPatcher):
             return filterd_outputs
 
         self.patched_forward = patched_forward
-
-
-class CausalAttentionMaskModelPatcher(ModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-        self.patch = self.real_config.task == "text-generation" and self.real_config.use_past
-
-    def __enter__(self):
-        super().__enter__()
-        if self.patch:
-            setattr(self._model_to_patch, self._orig_func_name, self._patch_func.__get__(self._model_to_patch))
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        super().__exit__(exc_type, exc_value, traceback)
-        if self.patch:
-            setattr(self._model_to_patch, self._orig_func_name, self._orig_func.__get__(self._model_to_patch))

@@ -234,6 +234,9 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    # This is because of the patching of torch.triu in AttentionMaskConverter, that exists from transformers>=4.35
+    MIN_TRANSFORMERS_VERSION = version.parse("4.34.99")
+
     # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
     DUMMY_INPUT_GENERATOR_CLASSES = (
@@ -311,9 +314,9 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 
 class FalconOnnxConfig(TextDecoderOnnxConfig):
-    MIN_TRANSFORMERS_VERSION = version.parse(
-        "4.34.99"
-    )  # This is because of the patching that uses _prepare_4d_causal_attention_mask from transformers>=4.35
+    # This is because of the patching that uses _prepare_4d_causal_attention_mask from transformers>=4.35
+    MIN_TRANSFORMERS_VERSION = version.parse("4.34.99")
+
     DUMMY_INPUT_GENERATOR_CLASSES = (
         MultiQueryPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
