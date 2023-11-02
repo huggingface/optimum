@@ -53,7 +53,7 @@ def prepare_dataset(
             "You need to pass a `pad_token_id` in `quantize_model` if you want to have examples with batch size > 1"
         )
     new_examples = [
-        collate_data(new_examples[start : start + batch_size], pad_token_id)
+        collate_data(new_examples[start : start + batch_size], contain_labels=False, pad_token_id=pad_token_id)
         for start in range(0, len(new_examples), batch_size)
     ]
     return new_examples
