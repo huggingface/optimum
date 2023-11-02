@@ -18,21 +18,24 @@ import inspect
 import types
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Union
 
+from packaging import version
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
 from transformers.models.falcon.modeling_falcon import build_alibi_tensor
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 from transformers.utils import is_torch_available
 
-from ...utils.modeling_utils import (
-    _prepare_attn_mask,
-)
-
 
 if is_torch_available():
     import torch
 
+from ...configuration_utils import _transformers_version
 from ...utils import logging
 
+
+if _transformers_version > version.parse("4.34.99"):
+    from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask
+else:
+    _prepare_4d_causal_attention_mask = None
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
@@ -245,31 +248,6 @@ class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
             model.decoder.model.decoder.config.use_cache = True
 
 
-def _make_causal_mask_falcon_patched(
-    input_ids_shape: torch.Size, device: torch.device, past_key_values_length: int
-) -> torch.BoolTensor:
-    """
-    Make causal mask used for self-attention. This mask does not take the existing attention mask into account - it
-    just blocks tokens from attending forwards in the sequence. The output shape will be `[batch_size, 1,
-    target_length, target_length+past_key_values_length]`.
-    """
-    batch_size, target_length = input_ids_shape
-
-    # NOTE: ONNX Runtime is not able to run ONNX Trilu node with bool input. As a workaround, we pass a float input
-    # and cast to bool here. Reference: https://github.com/microsoft/onnxruntime/issues/16189
-    mask = torch.triu(torch.ones((target_length, target_length), dtype=torch.float, device=device), diagonal=1).to(
-        torch.bool
-    )
-
-    # If past_key_values_length is 0 this is an empty tensor and the concatenation is a no-op.
-    # This code style is an unfortunate consequence of getting your TF engineer to port models; doing it this
-    # way avoids a data-dependent conditional, which will help me when I have to port this to XLA later.
-    past_mask = torch.zeros((target_length, past_key_values_length), dtype=torch.bool, device=device)
-    mask = torch.cat([past_mask, mask], dim=-1)
-    expanded_mask = mask[None, None, :, :].expand(batch_size, 1, target_length, target_length + past_key_values_length)
-    return expanded_mask
-
-
 def falcon_model_forward_without_kv_reformatting(
     self,
     input_ids: Optional[torch.LongTensor] = None,
@@ -283,6 +261,8 @@ def falcon_model_forward_without_kv_reformatting(
     output_hidden_states: Optional[bool] = None,
     return_dict: Optional[bool] = None,
 ):
+    # TODO: We may remove this patch once https://github.com/huggingface/transformers/pull/26933 is merged & released in Transformers.
+
     output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
     output_hidden_states = (
         output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -342,10 +322,9 @@ def falcon_model_forward_without_kv_reformatting(
         else:
             position_ids = position_ids.view(-1, seq_length).long()
 
-    causal_mask = self._prepare_attn_mask(
-        attention_mask,
-        input_shape=(batch_size, seq_length),
-        past_key_values_length=past_key_values_length,
+    # 4d mask is passed through the layers
+    attention_mask = _prepare_4d_causal_attention_mask(
+        attention_mask, (batch_size, seq_length), inputs_embeds, past_key_values_length
     )
 
     for i, (block, layer_past) in enumerate(zip(self.h, past_key_values)):
@@ -355,7 +334,7 @@ def falcon_model_forward_without_kv_reformatting(
         outputs = block(
             hidden_states,
             layer_past=layer_past,
-            attention_mask=causal_mask,
+            attention_mask=attention_mask,
             position_ids=position_ids,
             head_mask=head_mask[i],
             use_cache=use_cache,
@@ -755,18 +734,3 @@ class CausalAttentionMaskModelPatcher(ModelPatcher):
         super().__exit__(exc_type, exc_value, traceback)
         if self.patch:
             setattr(self._model_to_patch, self._orig_func_name, self._orig_func.__get__(self._model_to_patch))
-
-
-class BloomModelPatcher(CausalAttentionMaskModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-        if self.patch:
-            self._model_to_patch = model.transformer
-            self._patch_func = _prepare_attn_mask
-            self._orig_func_name = "_prepare_attn_mask"
-            self._orig_func = self._model_to_patch._prepare_attn_mask

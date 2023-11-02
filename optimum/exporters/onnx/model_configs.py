@@ -61,7 +61,6 @@ from .config import (
     VisionOnnxConfig,
 )
 from .model_patcher import (
-    BloomModelPatcher,
     FalconModelPatcher,
     SAMModelPatcher,
     SpeechT5ModelPatcher,
@@ -251,11 +250,6 @@ class MPTOnnxConfig(TextDecoderOnnxConfig):
         num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
     )
 
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return BloomModelPatcher(self, model, model_kwargs=model_kwargs)
-
 
 class BloomOnnxConfig(TextDecoderOnnxConfig):
     # Bloom does not require position_ids input.
@@ -285,11 +279,6 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
                 0: "batch_size x num_heads",
                 1: decoder_sequence_name,
             }
-
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return BloomModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -322,6 +311,9 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 
 class FalconOnnxConfig(TextDecoderOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse(
+        "4.34.99"
+    )  # This is because of the patching that uses _prepare_4d_causal_attention_mask from transformers>=4.35
     DUMMY_INPUT_GENERATOR_CLASSES = (
         MultiQueryPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
@@ -338,7 +330,7 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         preprocessors: Optional[List[Any]] = None,
-        no_position_ids: bool = False,
+        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -348,7 +340,7 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             preprocessors=preprocessors,
-            no_position_ids=no_position_ids,
+            legacy=legacy,
         )
         # For some reason Falcon config.num_kv_heads can not be trusted, see in Transformers:
         # https://github.com/huggingface/transformers/blob/v4.34.0/src/transformers/models/falcon/modeling_falcon.py#L337
@@ -362,11 +354,7 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
     def inputs(self) -> Dict[str, Dict[int, str]]:
         common_inputs = super().inputs
 
-        if (
-            not self.no_position_ids
-            and not self._config.alibi
-            and self.task in ["text-generation", "feature-extraction"]
-        ):
+        if not self.legacy and not self._config.alibi and self.task in ["text-generation", "feature-extraction"]:
             # When alibi is used, position_ids are not used in Falcon.
             # Reference: https://github.com/huggingface/transformers/blob/v4.34.0/src/transformers/models/falcon/modeling_falcon.py#L1116
             common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
@@ -1009,9 +997,15 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         preprocessors: Optional[List[Any]] = None,
+        legacy: bool = False,
     ):
         super().__init__(
-            config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            preprocessors=preprocessors,
+            legacy=legacy,
         )
         if task == "zero-shot-object-detection":
             logger.warning(
@@ -1150,9 +1144,15 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         preprocessors: Optional[List[Any]] = None,
+        legacy: bool = False,
     ):
         super().__init__(
-            config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            preprocessors=preprocessors,
+            legacy=legacy,
         )
         self.is_generating_dummy_inputs = False
 
@@ -1324,6 +1324,7 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: Optional[List[Any]] = None,
         is_postnet_and_vocoder: bool = False,
+        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -1334,6 +1335,7 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=preprocessors,
+            legacy=legacy,
         )
         if float_dtype == "fp16":
             raise ValueError(
@@ -1568,9 +1570,15 @@ class SamOnnxConfig(OnnxConfig):
         variant: str = "split",
         vision_encoder: Optional[bool] = None,
         preprocessors: Optional[List[Any]] = None,
+        legacy: bool = False,
     ):
         super().__init__(
-            config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            preprocessors=preprocessors,
+            legacy=legacy,
         )
         self.variant = variant
         self.vision_encoder = vision_encoder

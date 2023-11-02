@@ -30,7 +30,6 @@ from ...utils import (
     logging,
 )
 from ...utils.import_utils import _diffusers_version
-from ...utils.modeling_utils import _prepare_attn_mask  # noqa: F401
 from ..tasks import TasksManager
 from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
@@ -255,8 +254,6 @@ def get_decoder_models_for_export(
     models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past, legacy=legacy)
 
     onnx_kwargs = {"task": config.task, "float_dtype": config.float_dtype, "int_dtype": config.int_dtype}
-    if model.config.model_type.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
-        onnx_kwargs["no_position_ids"] = config.no_position_ids
 
     if legacy:
         onnx_config = config.__class__(
