@@ -91,7 +91,7 @@ from optimum.onnxruntime import (
     ORTModelForVision2Seq,
     ORTStableDiffusionPipeline,
 )
-from optimum.onnxruntime.base import ORTDecoder, ORTDecoderForSeq2Seq, ORTEncoder
+from optimum.onnxruntime.base import ORTDecoderForSeq2Seq, ORTEncoder
 from optimum.onnxruntime.modeling_diffusion import (
     ORTModelTextEncoder,
     ORTModelUnet,

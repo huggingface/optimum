@@ -14,11 +14,11 @@
 """Defines the base classes that are used to perform inference with ONNX Runtime of Transformers models."""
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
-from transformers.modeling_outputs import BaseModelOutput, CausalLMOutputWithCrossAttentions, Seq2SeqLMOutput
+from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
 from onnxruntime import InferenceSession
 
@@ -495,5 +495,9 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
 
 
 class ORTDecoder(ORTDecoderForSeq2Seq):
-    # TODO : add warning message
-    pass
+
+    def __init__(self, *args, **kwargs):
+        logger.warning(
+            f"The class `ORTDecoder` is deprecated and will be removed in optimum v1.15.0, please use `ORTDecoderForSeq2Seq` instead."
+        )
+        super().__init__(*args, **kwargs)
