@@ -410,8 +410,11 @@ class DecoderModelPatcher(ModelPatcher):
 
     def __exit__(self, exc_type, exc_value, traceback):
         # TODO: Remove this if once transformers if much above 4.35
-        if AttentionMaskConverter is not None:
-            AttentionMaskConverter._make_causal_mask = self.original_make_causal
+        # TODO: We should unpatch it - however `self._make_causal_mask` may still be called later which raises issues with this simple patch strategy.
+        # We need to find a proper solution.
+        # if AttentionMaskConverter is not None:
+        #     AttentionMaskConverter._make_causal_mask = self.original_make_causal
+        pass
 
     def __init__(
         self,
@@ -428,6 +431,7 @@ class DecoderModelPatcher(ModelPatcher):
 
 class FalconModelPatcher(DecoderModelPatcher):
     def __enter__(self):
+        super().__enter__()
         self.patch_ops()
 
         if self.real_config.task == "text-generation":
@@ -436,6 +440,7 @@ class FalconModelPatcher(DecoderModelPatcher):
             )
 
     def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
         self.restore_ops()
 
         setattr(self._model, self.orig_forward_name, self.orig_forward)

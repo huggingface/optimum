@@ -667,14 +667,14 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
         # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
 
-        # TODO: The check `self.task != "text-generation" and not self.legacy` is added following the use of a single ONNX for both without/with KV cache, without subgraphs.
+        # TODO: The check `self.task != "text-generation" and self.legacy` is added following the use of a single ONNX for both without/with KV cache, without subgraphs.
         # This overwrite may be moved to OnnxSeq2SeqConfigWithPast, but I am afraid it would break encoder-decoder models.
         if (
             self.use_past
             and self.use_past_in_inputs
             and self.use_cache_branch is not False
             and input_name in ["decoder_input_ids", "input_ids", "position_ids"]
-            and ((self.task == "text-generation" and not self.legacy) or self.task != "text-generation")
+            and ((self.task == "text-generation" and self.legacy) or self.task != "text-generation")
         ):
             sequence_length = dummy_input_gen.sequence_length
             # Use a sequence length of 1 when the KV cache is already populated.
@@ -830,7 +830,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=self._preprocessors,
-            legacy=legacy,
+            legacy=self.legacy,
         )
         onnx_config.variant = self.variant
         return onnx_config

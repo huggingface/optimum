@@ -253,7 +253,12 @@ def get_decoder_models_for_export(
 
     models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past, legacy=legacy)
 
-    onnx_kwargs = {"task": config.task, "float_dtype": config.float_dtype, "int_dtype": config.int_dtype, "legacy": legacy}
+    onnx_kwargs = {
+        "task": config.task,
+        "float_dtype": config.float_dtype,
+        "int_dtype": config.int_dtype,
+        "legacy": legacy,
+    }
 
     if legacy:
         onnx_config = config.__class__(
@@ -386,14 +391,14 @@ def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel
     models_for_export = _get_submodels_for_export_sam(model, config.variant)
 
     if config.variant == "monolith":
-        onnx_config = config.__class__(model.config, task=config.task, legacy=legacy)
+        onnx_config = config.__class__(model.config, task=config.task, legacy=config.legacy)
         models_for_export["model"] = (models_for_export["model"], onnx_config)
     else:
         vision_encoder_onnx_config = config.__class__(
-            model.config, task=config.task, variant=config.variant, vision_encoder=True, legacy=legacy
+            model.config, task=config.task, variant=config.variant, vision_encoder=True, legacy=config.legacy
         )
         prompt_encoder_mask_decoder_onnx_config = config.__class__(
-            model.config, task=config.task, variant=config.variant, vision_encoder=False, legacy=legacy
+            model.config, task=config.task, variant=config.variant, vision_encoder=False, legacy=config.legacy
         )
         models_for_export["vision_encoder"] = (models_for_export["vision_encoder"], vision_encoder_onnx_config)
         models_for_export["prompt_encoder_mask_decoder"] = (
@@ -451,7 +456,7 @@ def get_speecht5_models_for_export(
         behavior=config._behavior,  # Irrelevant here.
         preprocessors=config._preprocessors,
         is_postnet_and_vocoder=True,
-        legacy=legacy,
+        legacy=config.legacy,
     )
     postnet_and_vocoder_onnx_config.variant = config.variant
     models_for_export["decoder_postnet_and_vocoder"] = (
