@@ -4524,9 +4524,9 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
             self.assertTrue(has_onnx_input(model_path, "use_cache_branch"))
             self.assertEqual(onnx_model.use_merged, True)
 
-        self.assertIsInstance(onnx_model.decoder, ORTDecoder)
+        self.assertIsInstance(onnx_model.decoder, ORTDecoderForSeq2Seq)
         if onnx_model.use_cache is True and onnx_model.use_merged is False:
-            self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoder)
+            self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
         if onnx_model.use_cache is True and onnx_model.use_merged is True:
             self.assertTrue(onnx_model.decoder_with_past is None)
 
