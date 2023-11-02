@@ -495,7 +495,6 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
 
 
 class ORTDecoder(ORTDecoderForSeq2Seq):
-
     def __init__(self, *args, **kwargs):
         logger.warning(
             "The class `ORTDecoder` is deprecated and will be removed in optimum v1.15.0, please use `ORTDecoderForSeq2Seq` instead."
