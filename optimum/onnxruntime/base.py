@@ -18,13 +18,12 @@ from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
-from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
-
 from onnxruntime import InferenceSession
+from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
 from ..utils import NormalizedConfigManager
 from ..utils.logging import warn_once
-from .utils import MULTI_QUERY_ATTN_MODELS, get_ordered_input_names, logging
+from .utils import get_ordered_input_names, logging
 
 
 logger = logging.get_logger(__name__)
@@ -498,6 +497,6 @@ class ORTDecoder(ORTDecoderForSeq2Seq):
 
     def __init__(self, *args, **kwargs):
         logger.warning(
-            f"The class `ORTDecoder` is deprecated and will be removed in optimum v1.15.0, please use `ORTDecoderForSeq2Seq` instead."
+            "The class `ORTDecoder` is deprecated and will be removed in optimum v1.15.0, please use `ORTDecoderForSeq2Seq` instead."
         )
         super().__init__(*args, **kwargs)
