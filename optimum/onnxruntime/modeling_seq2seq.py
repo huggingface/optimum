@@ -1225,14 +1225,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         **kwargs,
     ) -> Dict:
         if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-            input_ids = input_ids[:, remove_prefix_length:]
+            input_ids = input_ids[:, -1:]
 
         return {
             "decoder_input_ids": input_ids,
@@ -1361,14 +1354,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         **kwargs,
     ) -> Dict:
         if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-            input_ids = input_ids[:, remove_prefix_length:]
+            input_ids = input_ids[:, -1:]
 
         return {
             "decoder_input_ids": input_ids,
@@ -1554,14 +1540,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         **kwargs,
     ) -> Dict:
         if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-            input_ids = input_ids[:, remove_prefix_length:]
+            input_ids = input_ids[:, -1:]
 
         return {
             "decoder_input_ids": input_ids,
@@ -1674,14 +1653,7 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         **kwargs,
     ) -> Dict:
         if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-            input_ids = input_ids[:, remove_prefix_length:]
+            input_ids = input_ids[:, -1:]
 
         if decoder_attention_mask is None:
             decoder_attention_mask = torch.ones_like(input_ids).to(input_ids.device)

@@ -630,14 +630,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
         if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-            input_ids = input_ids[:, remove_prefix_length:]
+            input_ids = input_ids[:, -1:]
 
         # if model is used as a decoder in encoder-decoder model, the decoder attention mask is created on the fly
         attention_mask = kwargs.get("attention_mask", None)
@@ -676,14 +669,7 @@ class ORTBloomForCausalLM(ORTModelForCausalLM):
     # Adapted from transformers.models.bloom.modeling_bloom.BloomForCausalLM.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
         if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-            input_ids = input_ids[:, remove_prefix_length:]
+            input_ids = input_ids[:, -1:]
 
         attention_mask = kwargs.get("attention_mask", None)
         use_cache = kwargs.get("use_cache", None)
@@ -725,14 +711,7 @@ class ORTOPTForCausalLM(ORTModelForCausalLM):
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
         if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-            input_ids = input_ids[:, remove_prefix_length:]
+            input_ids = input_ids[:, -1:]
 
         attention_mask = kwargs.get("attention_mask", None)
         use_cache = kwargs.get("use_cache", None)
@@ -750,14 +729,7 @@ class ORTMPTForCausalLM(ORTModelForCausalLM):
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
         if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-            input_ids = input_ids[:, remove_prefix_length:]
+            input_ids = input_ids[:, -1:]
 
         attention_mask = kwargs.get("attention_mask", None)
         use_cache = kwargs.get("use_cache", None)
@@ -832,14 +804,7 @@ class ORTFalconForCausalLM(ORTModelForCausalLM):
         **kwargs,
     ) -> dict:
         if past_key_values is not None:
-            past_length = past_key_values[0][0].shape[2]
-            # Some generation methods already pass only the last input ID
-            if input_ids.shape[1] > past_length:
-                remove_prefix_length = past_length
-            else:
-                # Default to old behavior: keep only final ID
-                remove_prefix_length = input_ids.shape[1] - 1
-            input_ids = input_ids[:, remove_prefix_length:]
+            input_ids = input_ids[:, -1:]
 
             # the cache may be in the stardard format (e.g. in contrastive search), convert to falcon's format if needed
             if len(past_key_values[0][0].shape) == 4:
