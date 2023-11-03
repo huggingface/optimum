@@ -200,6 +200,7 @@ class OnnxConfig(ExportConfig, ABC):
         preprocessors: Optional[List[Any]] = None,
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
+        legacy: bool = False,
     ):
         self.task = task
         self.int_dtype = int_dtype
@@ -209,6 +210,7 @@ class OnnxConfig(ExportConfig, ABC):
         self._preprocessors = preprocessors
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
         self.variant = "default"
+        self.legacy = legacy
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
         """
@@ -565,6 +567,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         preprocessors: Optional[List[Any]] = None,
+        legacy: bool = False,
     ):
         self.use_past = use_past
         self.use_past_in_inputs = use_past_in_inputs
@@ -572,7 +575,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         self.is_merged = False
         self.use_cache_branch = None
         super().__init__(
-            config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            preprocessors=preprocessors,
+            legacy=legacy,
         )
 
     @property
@@ -628,11 +636,11 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             and "attention_mask" in dummy_inputs
         ):
             # Obtain the past sequence length from the value instead of the key (Bloom).
-            past_length = dummy_inputs["past_key_values"][0][1].shape[-2]
+            past_present_length = dummy_inputs["input_ids"].shape[1] + dummy_inputs["past_key_values"][0][1].shape[-2]
 
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],
-                desired_length=past_length + 1,
+                desired_length=past_present_length,
                 dim=1,
                 dtype=dummy_inputs["attention_mask"].dtype,
             )
@@ -658,11 +666,15 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
         # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
+
+        # TODO: The check `self.task != "text-generation" and self.legacy` is added following the use of a single ONNX for both without/with KV cache, without subgraphs.
+        # This overwrite may be moved to OnnxSeq2SeqConfigWithPast, but I am afraid it would break encoder-decoder models.
         if (
             self.use_past
             and self.use_past_in_inputs
             and self.use_cache_branch is not False
             and input_name in ["decoder_input_ids", "input_ids", "position_ids"]
+            and ((self.task == "text-generation" and self.legacy) or self.task != "text-generation")
         ):
             sequence_length = dummy_input_gen.sequence_length
             # Use a sequence length of 1 when the KV cache is already populated.
@@ -768,6 +780,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: Optional[List[Any]] = None,
+        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -777,6 +790,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             preprocessors=preprocessors,
+            legacy=legacy,
         )
         self._behavior = behavior
 
@@ -816,6 +830,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=self._preprocessors,
+            legacy=self.legacy,
         )
         onnx_config.variant = self.variant
         return onnx_config
@@ -1003,7 +1018,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
 
     DUMMY_EXTRA_INPUT_GENERATOR_CLASSES = (DummyLabelsGenerator,)
 
-    def __init__(self, config: OnnxConfig, int_dtype: str = "int64", float_dtype: str = "fp32"):
+    def __init__(self, config: OnnxConfig, int_dtype: str = "int64", float_dtype: str = "fp32", legacy: bool = False):
         self._onnx_config = config
         self.task = self._onnx_config.task
         self.int_dtype = int_dtype
@@ -1011,6 +1026,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         self._normalized_config = self._onnx_config._normalized_config
         self.PATCHING_SPECS = self._onnx_config.PATCHING_SPECS
         self.variant = "default"
+        self.legacy = legacy
 
     @classmethod
     def from_onnx_config(cls, config: OnnxConfig) -> "OnnxConfigWithLoss":
@@ -1037,7 +1053,11 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         batch_size = dummy_inputs[input_name].shape[0]
 
         # TODO: doesn't this break attention_mask generation?
-        if isinstance(self._onnx_config, OnnxConfigWithPast) and self._onnx_config.use_past_in_inputs is True:
+        if (
+            isinstance(self._onnx_config, OnnxConfigWithPast)
+            and self._onnx_config.use_past_in_inputs is True
+            and self.task != "text-generation"
+        ):
             kwargs["sequence_length"] = 1
         else:
             for input_name, dynamic_axes in self._tasks_to_extra_inputs[self.task].items():
