@@ -146,7 +146,8 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
         if self.parent_model.use_cache is True and len(self.key_value_output_names) == 0:
             raise RuntimeError("Could not find the past key values in the provided model.")
 
-        self.use_past = len(self.key_value_output_names) > 0
+        self.use_past_in_outputs = len(self.key_value_output_names) > 0
+        self.use_past_in_inputs = len(self.key_value_input_names) > 0
         self.use_fp16 = False
         for inp in session.get_inputs():
             if "past_key_values" in inp.name and inp.type == "tensor(float16)":
@@ -159,7 +160,7 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
         # This attribute is used to avoid returning cross-attention KV-cache in this case.
         self.no_cross_attention_cache = getattr(self.parent_model, "no_cross_attention_cache", False)
 
-        if (not self.parent_model.use_merged and self.use_past) or self.no_cross_attention_cache:
+        if (not self.parent_model.use_merged and self.use_past_in_outputs) or self.no_cross_attention_cache:
             self.num_pkv = 2
         else:
             # When using a merged model, we always have the same number of output whether we use past key values or not,
@@ -312,9 +313,9 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
             if "loss" in self.output_names:
                 loss = output_buffers["loss"].view(output_shapes["loss"])
 
-            if not self.use_past:
+            if not self.use_past_in_outputs:
                 out_past_key_values = None
-            elif use_merged_no_cache:
+            elif not self.use_past_in_inputs or use_merged_no_cache:
                 out_past_key_values = tuple(
                     out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
                 )
@@ -428,9 +429,9 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to:
             # * 4 for the decoder without cache (k/v of self-attention + k/v of cross-attention)
             # * 2 for the decoder with cache (k/v of self-attention as cross-attention cache is constant)
-            if not self.use_past:
+            if not self.use_past_in_outputs:
                 out_past_key_values = None
-            elif use_merged_no_cache or self.no_cross_attention_cache:
+            elif not self.use_past_in_inputs or use_merged_no_cache or self.no_cross_attention_cache:
                 out_past_key_values = tuple(
                     out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
                 )
