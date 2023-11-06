@@ -160,7 +160,7 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
         # This attribute is used to avoid returning cross-attention KV-cache in this case.
         self.no_cross_attention_cache = getattr(self.parent_model, "no_cross_attention_cache", False)
 
-        if (not self.parent_model.use_merged and self.use_past_in_outputs) or self.no_cross_attention_cache:
+        if (not self.parent_model.use_merged and self.use_past_in_inputs) or self.no_cross_attention_cache:
             self.num_pkv = 2
         else:
             # When using a merged model, we always have the same number of output whether we use past key values or not,
