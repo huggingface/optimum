@@ -980,7 +980,7 @@ def falcon_forward(
             value_layer_,
             attention_mask,
             0.0,
-            is_causal=self.is_causal and attention_mask is None,
+            is_causal=self.is_causal and attention_mask is None and query_length > 1,
         )
         attn_output = attn_output.view(batch_size, self.num_heads, query_length, self.head_dim)
         attn_output = attn_output.permute(0, 2, 1, 3)

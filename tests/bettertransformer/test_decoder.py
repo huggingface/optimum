@@ -159,7 +159,6 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         result_vanilla = model(input_ids=input_ids, attention_mask=attention_mask, past_key_values=past_key_values)
 
         model = BetterTransformer.transform(model)
-
         result_bettertransformer = model(
             input_ids=input_ids, attention_mask=attention_mask, past_key_values=past_key_values
         )
