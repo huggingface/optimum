@@ -168,6 +168,7 @@ class TasksManager:
             "fill-mask": "AutoModelForMaskedLM",
             "image-classification": "AutoModelForImageClassification",
             "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
+            "image-to-image": "AutoModelForImageToImage",
             "image-to-text": "AutoModelForVision2Seq",
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
@@ -883,6 +884,11 @@ class TasksManager:
             "image-classification",
             "masked-im",
             onnx="SwinOnnxConfig",
+        ),
+        "swin2sr": supported_tasks_mapping(
+            "feature-extraction",
+            "image-to-image",
+            onnx="Swin2srOnnxConfig",
         ),
         "t5": supported_tasks_mapping(
             "feature-extraction",

@@ -120,6 +120,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
+    "swin2sr": "hf-internal-testing/tiny-random-Swin2SRModel",
     "t5": "hf-internal-testing/tiny-random-t5",
     "vit": "hf-internal-testing/tiny-random-vit",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",

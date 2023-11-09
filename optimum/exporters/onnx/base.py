@@ -152,6 +152,9 @@ class OnnxConfig(ExportConfig, ABC):
         "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "image-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
         "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "image-to-image": OrderedDict(
+            {"reconstruction": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+        ),
         "mask-generation": OrderedDict({"logits": {0: "batch_size"}}),
         "masked-im": OrderedDict(
             {"reconstruction" if check_if_transformers_greater("4.29.0") else "logits": {0: "batch_size"}}
