@@ -1279,6 +1279,8 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
+        feature_size="num_mel_bins",
+        allow_new=True,
     )
     ATOL_FOR_VALIDATION = 1e-3
 
