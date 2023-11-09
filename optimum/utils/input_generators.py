@@ -651,7 +651,10 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         self.task = task
         self.normalized_config = normalized_config
 
-        self.feature_size = feature_size
+        if hasattr(self.normalized_config, "feature_size"):
+            self.feature_size = self.normalized_config.feature_size
+        else:
+            self.feature_size = feature_size
         self.nb_max_frames = nb_max_frames
         self.batch_size = batch_size
         self.sequence_length = audio_sequence_length
