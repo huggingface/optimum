@@ -24,6 +24,7 @@ from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
 from ...utils import DEFAULT_DUMMY_SHAPES, ONNX_WEIGHTS_NAME, logging
+from ...utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ...utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
@@ -83,16 +84,12 @@ def _get_submodels_and_onnx_configs(
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
                 model=model, exporter="onnx", task=task
             )
-            onnx_config_kwargs = {}
-            if task.startswith("text-generation") and legacy:
-                onnx_config_kwargs["no_position_ids"] = legacy
-
             onnx_config = onnx_config_constructor(
                 model.config,
                 int_dtype=int_dtype,
                 float_dtype=float_dtype,
                 preprocessors=preprocessors,
-                **onnx_config_kwargs,
+                legacy=legacy,
             )
 
             onnx_config.variant = _variant
@@ -317,13 +314,6 @@ def main_export(
         model_name_or_path, subfolder=subfolder, library_name=library_name
     )
 
-    # get the shapes to be used to generate dummy inputs
-    input_shapes = {}
-    for input_name in DEFAULT_DUMMY_SHAPES.keys():
-        input_shapes[input_name] = (
-            kwargs_shapes[input_name] if input_name in kwargs_shapes else DEFAULT_DUMMY_SHAPES[input_name]
-        )
-
     torch_dtype = None if fp16 is False else torch.float16
 
     if task == "auto":
@@ -381,6 +371,25 @@ def main_export(
 
     is_stable_diffusion = "stable-diffusion" in task
     model_type = "stable-diffusion" if is_stable_diffusion else model.config.model_type.replace("_", "-")
+
+    # For MODEL_TO_PATCH_FOR_PAST architectures, when exporting the model with an input of sequence length of 1, a tracer that does not handle
+    # controlflows will trace incorrectly the mask generation, resulting in incorrect attention masks for other sequence lengthss.
+    # Reference: https://github.com/huggingface/transformers/blob/af3de8d87c717c4bb090f037d0d89413c195a42f/src/transformers/modeling_attn_mask_utils.py#L94
+    input_shapes = {}
+    for input_name in DEFAULT_DUMMY_SHAPES.keys():
+        input_shapes[input_name] = (
+            kwargs_shapes[input_name] if input_name in kwargs_shapes else DEFAULT_DUMMY_SHAPES[input_name]
+        )
+
+        # TODO: this may be moved rather to the OnnxConfig to avoid bloating this script.
+        if (
+            model_type in MODEL_TO_PATCH_FOR_PAST
+            and input_name == "sequence_length"
+            and kwargs_shapes.get(input_name) == 1
+        ):
+            raise ValueError(
+                f"Exporting with a sequence length of 1 a {model_type} model is not supported and can yield unexpected results."
+            )
 
     if legacy and model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and task.startswith("text-generation"):
         logger.warning(

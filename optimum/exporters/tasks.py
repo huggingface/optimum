@@ -168,6 +168,7 @@ class TasksManager:
             "fill-mask": "AutoModelForMaskedLM",
             "image-classification": "AutoModelForImageClassification",
             "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
+            "image-to-image": "AutoModelForImageToImage",
             "image-to-text": "AutoModelForVision2Seq",
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
@@ -884,6 +885,11 @@ class TasksManager:
             "masked-im",
             onnx="SwinOnnxConfig",
         ),
+        "swin2sr": supported_tasks_mapping(
+            "feature-extraction",
+            "image-to-image",
+            onnx="Swin2srOnnxConfig",
+        ),
         "t5": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -1408,11 +1414,8 @@ class TasksManager:
                 )
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             if getattr(model_info, "library_name", None) == "diffusers":
-                # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
-                for task in ("stable-diffusion-xl", "stable-diffusion"):
-                    if task in model_info.tags:
-                        inferred_task_name = task
-                        break
+                class_name = model_info.config["diffusers"]["class_name"]
+                inferred_task_name = "stable-diffusion-xl" if "StableDiffusionXL" in class_name else "stable-diffusion"
             elif getattr(model_info, "library_name", None) == "timm":
                 inferred_task_name = "image-classification"
             else:

@@ -40,6 +40,7 @@ import onnxruntime as ort
 
 from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
+from ..pipelines.diffusers.pipeline_latent_consistency import LatentConsistencyPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion import StableDiffusionPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_img2img import StableDiffusionImg2ImgPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipelineMixin
@@ -501,6 +502,7 @@ class ORTModelUnet(_ORTDiffusionModelPart):
         encoder_hidden_states: np.ndarray,
         text_embeds: Optional[np.ndarray] = None,
         time_ids: Optional[np.ndarray] = None,
+        timestep_cond: Optional[np.ndarray] = None,
     ):
         onnx_inputs = {
             "sample": sample,
@@ -512,7 +514,8 @@ class ORTModelUnet(_ORTDiffusionModelPart):
             onnx_inputs["text_embeds"] = text_embeds
         if time_ids is not None:
             onnx_inputs["time_ids"] = time_ids
-
+        if timestep_cond is not None:
+            onnx_inputs["timestep_cond"] = timestep_cond
         outputs = self.session.run(None, onnx_inputs)
         return outputs
 
@@ -560,6 +563,15 @@ class ORTStableDiffusionInpaintPipeline(ORTStableDiffusionPipelineBase, StableDi
     """
 
     __call__ = StableDiffusionInpaintPipelineMixin.__call__
+
+
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+class ORTLatentConsistencyModelPipeline(ORTStableDiffusionPipelineBase, LatentConsistencyPipelineMixin):
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline).
+    """
+
+    __call__ = LatentConsistencyPipelineMixin.__call__
 
 
 class ORTStableDiffusionXLPipelineBase(ORTStableDiffusionPipelineBase):
