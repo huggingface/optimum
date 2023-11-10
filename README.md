@@ -62,7 +62,7 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 
 ### OpenVINO
 
-This requires to install the OpenVINO extra by doing `pip install --upgrade-strategy eager optimum[openvino,nncf]`, this will ensure you have the latest version of [optimum-intel](https://github.com/huggingface/optimum-intel).
+This requires to install the OpenVINO extra by doing `pip install --upgrade-strategy eager optimum[openvino,nncf]`, this will ensure you have the latest version of [`optimum-intel`](https://github.com/huggingface/optimum-intel).
 
 It is possible to export 🤗 Transformers and Diffusers models to the OpenVINO format easily:
 
@@ -70,7 +70,7 @@ It is possible to export 🤗 Transformers and Diffusers models to the OpenVINO 
 optimum-cli export openvino --model distilbert-base-uncased-finetuned-sst-2-english distilbert_sst2_ov
 ```
 
-If you add `--int8`, the weights will be quantized to INT8. In order to also quantize the activations, static quantization can be applied using [NNCF](https://github.com/openvinotoolkit/nncf), more information can be found in the [documentation](https://huggingface.co/docs/optimum/main/en/intel/optimization_ov).
+If you add `--int8`, the weights will be quantized to INT8. Static quantization can also be applied on the activations using [NNCF](https://github.com/openvinotoolkit/nncf), more information can be found in the [documentation](https://huggingface.co/docs/optimum/main/en/intel/optimization_ov).
 
 To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class. To load a PyTorch checkpoint and convert it to the OpenVINO format on-the-fly, you can set `export=True` when loading your model.
 
