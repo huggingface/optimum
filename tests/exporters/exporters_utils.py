@@ -85,6 +85,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "fxmarty/tiny-testing-falcon-alibi": ["text-generation", "text-generation-with-past"],
     },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
+    "glpn": "hf-internal-testing/tiny-random-GLPNModel",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt-neo": "hf-internal-testing/tiny-random-GPTNeoModel",

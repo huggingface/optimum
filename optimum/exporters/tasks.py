@@ -539,6 +539,11 @@ class TasksManager:
             onnx="FlaubertOnnxConfig",
             tflite="FlaubertTFLiteConfig",
         ),
+        "glpn": supported_tasks_mapping(
+            "feature-extraction",
+            "depth-estimation",
+            onnx="GlpnOnnxConfig",
+        ),
         "gpt2": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
