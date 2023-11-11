@@ -164,6 +164,7 @@ class TasksManager:
             "audio-xvector": "AutoModelForAudioXVector",
             "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
             "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
+            "depth-estimation": "AutoModelForDepthEstimation",
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
             "image-classification": "AutoModelForImageClassification",
@@ -496,6 +497,11 @@ class TasksManager:
         "donut-swin": supported_tasks_mapping(
             "feature-extraction",
             onnx="DonutSwinOnnxConfig",
+        ),
+        "dpt": supported_tasks_mapping(
+            "feature-extraction",
+            "depth-estimation",
+            onnx="DptOnnxConfig",
         ),
         "electra": supported_tasks_mapping(
             "feature-extraction",
