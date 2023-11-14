@@ -146,6 +146,7 @@ class OnnxConfig(ExportConfig, ABC):
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "automatic-speech-recognition": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
+        "depth-estimation": OrderedDict({"predicted_depth": {0: "batch_size", 1: "height", 2: "width"}}),
         "document-question-answering": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "feature-extraction": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),

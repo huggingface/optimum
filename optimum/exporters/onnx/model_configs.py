@@ -743,6 +743,14 @@ class Swin2srOnnxConfig(SwinOnnxConfig):
     pass
 
 
+class DptOnnxConfig(ViTOnnxConfig):
+    pass
+
+
+class GlpnOnnxConfig(ViTOnnxConfig):
+    pass
+
+
 class PoolFormerOnnxConfig(ViTOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
     ATOL_FOR_VALIDATION = 2e-3

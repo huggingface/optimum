@@ -164,6 +164,7 @@ class TasksManager:
             "audio-xvector": "AutoModelForAudioXVector",
             "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
             "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
+            "depth-estimation": "AutoModelForDepthEstimation",
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
             "image-classification": "AutoModelForImageClassification",
@@ -497,6 +498,11 @@ class TasksManager:
             "feature-extraction",
             onnx="DonutSwinOnnxConfig",
         ),
+        "dpt": supported_tasks_mapping(
+            "feature-extraction",
+            "depth-estimation",
+            onnx="DptOnnxConfig",
+        ),
         "electra": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -532,6 +538,11 @@ class TasksManager:
             "question-answering",
             onnx="FlaubertOnnxConfig",
             tflite="FlaubertTFLiteConfig",
+        ),
+        "glpn": supported_tasks_mapping(
+            "feature-extraction",
+            "depth-estimation",
+            onnx="GlpnOnnxConfig",
         ),
         "gpt2": supported_tasks_mapping(
             "feature-extraction",
