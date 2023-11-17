@@ -139,6 +139,25 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["ROCMExecutionProvider"]})
+    )
+    @require_torch_gpu
+    @pytest.mark.amdgpu_test
+    @require_diffusers
+    def test_pipeline_on_amdgpu(self, test_name: str, model_arch: str, provider: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch}
+        self._setup(model_args)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        height, width, batch_size = 32, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+        outputs = pipeline(**inputs).images
+        # Verify model devices
+        self.assertEqual(pipeline.device.type.lower(), "cuda")
+        # Verify model outptus
+        self.assertIsInstance(outputs, np.ndarray)
+        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):

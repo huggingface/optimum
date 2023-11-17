@@ -33,6 +33,7 @@ known-first-party = ["optimum"]
 [tool.pytest.ini_options]
 markers = [
     "gpu_test",
+    "amdgpu_test",
     "tensorflow_test",
     "timm_test",
     "run_in_series",
