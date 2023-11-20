@@ -15,9 +15,11 @@ To install ROCM, please follow the [ROCM installation guide](https://rocm.docs.a
 pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.7
 ```
 
-> **Note:** Exporting with SDPA may encounter issues with torch versions below 2.1.0. To ensure smooth operation, consider upgrading to torch 2.1.0 or newer.
+> **Note1:** Exporting with SDPA may encounter issues with torch versions below 2.1.0. To ensure smooth operation, consider upgrading to torch 2.1.0 or newer.
 
-#### 3. ONNXRuntime Installation with ROCM Execution Provider
+> **Note2:** For docker installation, the following base image is recommended: rocm/pytorch:rocm5.7_ubuntu22.04_py3.10_pytorch_2.0.1
+
+### 3. ONNXRuntime Installation with ROCM Execution Provider
 
 ```bash
 # pre-requisites
