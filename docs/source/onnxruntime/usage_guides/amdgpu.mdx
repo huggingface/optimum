@@ -4,14 +4,12 @@ By default, ONNX Runtime runs inference on CPU devices. However, it is possible 
 
 This guide will show you how to run inference on the `ROCMExecutionProvider` execution provider that ONNX Runtime supports for AMD GPUs:
 
-## ROCMExecutionProvider
+## Installation
 
-### Installation
-
-#### ROCM Installation (V 5.7.X)
+#### 1. ROCM Installation (V 5.7.X)
 To install ROCM, please follow the [ROCM installation guide](https://rocm.docs.amd.com/en/latest/deploy/linux/index.html).
 
-#### Torch Installation with ROCM Support
+#### 2. Torch Installation with ROCM Support
 
 ```bash
 pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.7
@@ -19,7 +17,7 @@ pip3 install --pre torch torchvision torchaudio --index-url https://download.pyt
 
 > **Note:** Exporting with SDPA may encounter issues with torch versions below 2.1.0. To ensure smooth operation, consider upgrading to torch 2.1.0 or newer.
 
-#### ONNXRuntime Installation with ROCM Execution Provider
+#### 3. ONNXRuntime Installation with ROCM Execution Provider
 
 ```bash
 # pre-requisites
