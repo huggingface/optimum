@@ -65,6 +65,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel",
     "detr": "hf-internal-testing/tiny-random-DetrModel",  # hf-internal-testing/tiny-random-detr is larger
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
+    "dpt": "hf-internal-testing/tiny-random-DPTModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "encoder-decoder": {
         "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": [
@@ -84,6 +85,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "fxmarty/tiny-testing-falcon-alibi": ["text-generation", "text-generation-with-past"],
     },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
+    "glpn": "hf-internal-testing/tiny-random-GLPNModel",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt-neo": "hf-internal-testing/tiny-random-GPTNeoModel",

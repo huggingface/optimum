@@ -62,7 +62,15 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 
 ### OpenVINO
 
-This requires to install the OpenVINO extra by doing `pip install --upgrade-strategy eager optimum[openvino,nncf]`
+This requires to install the OpenVINO extra by doing `pip install --upgrade-strategy eager optimum[openvino,nncf]`, this will ensure you have the latest version of [`optimum-intel`](https://github.com/huggingface/optimum-intel).
+
+It is possible to export 🤗 Transformers and Diffusers models to the OpenVINO format easily:
+
+```bash
+optimum-cli export openvino --model distilbert-base-uncased-finetuned-sst-2-english distilbert_sst2_ov
+```
+
+If you add `--int8`, the weights will be quantized to INT8. Static quantization can also be applied on the activations using [NNCF](https://github.com/openvinotoolkit/nncf), more information can be found in the [documentation](https://huggingface.co/docs/optimum/main/en/intel/optimization_ov).
 
 To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class. To load a PyTorch checkpoint and convert it to the OpenVINO format on-the-fly, you can set `export=True` when loading your model.
 
@@ -74,8 +82,7 @@ To load a model and run inference with OpenVINO Runtime, you can just replace yo
   model_id = "distilbert-base-uncased-finetuned-sst-2-english"
   tokenizer = AutoTokenizer.from_pretrained(model_id)
 - model = AutoModelForSequenceClassification.from_pretrained(model_id)
-+ model = OVModelForSequenceClassification.from_pretrained(model_id, export=True)
-  model.save_pretrained("./distilbert")
++ model = OVModelForSequenceClassification.from_pretrained("distilbert_sst2_ov")
 
   classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
   results = classifier("He's a dreadful magician.")
@@ -107,7 +114,7 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 This requires to install the ONNX Runtime extra by doing `pip install optimum[exporters,onnxruntime]`
 
-It is possible to export 🤗 Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
+It is possible to export 🤗 Transformers and Diffusers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
 
 ```plain
 optimum-cli export onnx -m deepset/roberta-base-squad2 --optimize O2 roberta_base_qa_onnx

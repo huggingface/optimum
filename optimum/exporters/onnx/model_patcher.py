@@ -408,11 +408,13 @@ _make_causal_mask_patched = staticmethod(_make_causal_mask_patched)
 
 class DecoderModelPatcher(ModelPatcher):
     def __enter__(self):
+        super().__enter__()
         # TODO: Remove this if once transformers if much above 4.35
         if AttentionMaskConverter is not None:
             AttentionMaskConverter._make_causal_mask = _make_causal_mask_patched
 
     def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
         # TODO: Remove this if once transformers if much above 4.35
         # TODO: We should unpatch it - however `self._make_causal_mask` may still be called later which raises issues with this simple patch strategy.
         # We need to find a proper solution.
