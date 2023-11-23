@@ -3173,9 +3173,6 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
     @require_ort_rocm
     @pytest.mark.rocm_ep_test
     def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, provider: str):
-        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
-            self.skipTest("testing a single arch for TensorrtExecutionProvider")
-
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 

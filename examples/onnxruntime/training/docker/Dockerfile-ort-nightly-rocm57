@@ -25,8 +25,8 @@ ARG PYTHON_EXE=/opt/conda/envs/py_$PYTHON_VERSION/bin/python
 # (Optional) Intall test dependencies
 RUN $PYTHON_EXE -m pip install -U pip
 RUN $PYTHON_EXE -m pip install git+https://github.com/huggingface/transformers
-RUN $PYTHON_EXE -m pip install datasets accelerate evaluate coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk scikit-learn parameterized sentencepiece
-RUN $PYTHON_EXE -m pip install deepspeed
+RUN $PYTHON_EXE -m pip install datasets accelerate evaluate coloredlogs absl-py rouge_score seqeval scipy sacrebleu nltk scikit-learn parameterized sentencepiece --no-cache-dir
+RUN $PYTHON_EXE -m pip install deepspeed --no-cache-dir
 RUN conda install -y mpi4py
 
 # PyTorch
