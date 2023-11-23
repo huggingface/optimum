@@ -16,6 +16,10 @@ To install ROCM 5.7, please follow the [ROCm installation guide](https://rocm.do
 #### 2. PyTorch Installation with ROCm Support
 Optimum ONNX Runtime integration relies on some functionalities of Transformers that require PyTorch. For now, we recommend to use Pytorch compiled against RoCm 5.7, that can be installed following [PyTorch installation guide](https://pytorch.org/get-started/locally/): 
 
+```bash
+pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.7
+```
+
 <Tip>
 For docker installation, the following base image is recommended: `rocm/pytorch:rocm5.7_ubuntu22.04_py3.10_pytorch_2.0.1`
 </Tip>
