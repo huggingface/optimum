@@ -312,7 +312,8 @@ class ORTModel(OptimizedModel):
         provider = get_provider_for_device(self.device)
         validate_provider_availability(provider)  # raise error if the provider is not available
 
-        if device.type == "cuda" and self._use_io_binding is False and provider != "ROCMExecutionProvider":
+        # IOBinding is only supported for CPU and CUDA Execution Providers.
+        if device.type == "cuda" and self._use_io_binding is False and provider == "CUDAExecutionProvider":
             self.use_io_binding = True
             logger.info(
                 "use_io_binding was set to False, setting it to True because it can provide a huge speedup on GPUs. "
