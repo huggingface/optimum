@@ -63,7 +63,9 @@ def _is_gpu_available():
     Checks if a gpu is available.
     """
     available_providers = ort.get_available_providers()
-    if "CUDAExecutionProvider" in available_providers and torch.cuda.is_available():
+    if (
+        "CUDAExecutionProvider" in available_providers or "ROCMExecutionProvider" in available_providers
+    ) and torch.cuda.is_available():
         return True
     else:
         return False
@@ -184,7 +186,7 @@ def get_device_for_provider(provider: str, provider_options: Dict) -> torch.devi
     """
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
-    if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
+    if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider", "ROCMExecutionProvider"]:
         return torch.device(f"cuda:{provider_options['device_id']}")
     else:
         return torch.device("cpu")
@@ -194,7 +196,12 @@ def get_provider_for_device(device: torch.device) -> str:
     """
     Gets the ONNX Runtime provider associated with the PyTorch device (CPU/CUDA).
     """
-    return "CUDAExecutionProvider" if device.type.lower() == "cuda" else "CPUExecutionProvider"
+    if device.type.lower() == "cuda":
+        if "ROCMExecutionProvider" in ort.get_available_providers():
+            return "ROCMExecutionProvider"
+        else:
+            return "CUDAExecutionProvider"
+    return "CPUExecutionProvider"
 
 
 def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, Dict]:

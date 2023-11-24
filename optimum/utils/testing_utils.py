@@ -69,6 +69,17 @@ def require_torch_gpu(test_case):
     return unittest.skipUnless(torch_device == "cuda", "test requires CUDA")(test_case)
 
 
+def require_ort_rocm(test_case):
+    """Decorator marking a test that requires ROCMExecutionProvider for ONNX Runtime."""
+    import onnxruntime as ort
+
+    providers = ort.get_available_providers()
+
+    return unittest.skipUnless("ROCMExecutionProvider" == providers[0], "test requires ROCMExecutionProvider")(
+        test_case
+    )
+
+
 def require_hf_token(test_case):
     """
     Decorator marking a test that requires huggingface hub token.
