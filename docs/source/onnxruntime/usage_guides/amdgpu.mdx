@@ -2,7 +2,7 @@
 
 By default, ONNX Runtime runs inference on CPU devices. However, it is possible to place supported operations on an AMD Instinct GPU, while leaving any unsupported ones on CPU. In most cases, this allows costly operations to be placed on GPU and significantly accelerate inference.
 
-Our testing primarily involved AMD Instinct GPUs, and for specific GPU compatibility, refer to the support matrix available at AMD ROCm GPU OS support matrix."
+Our testing involved AMD Instinct GPUs, and for specific GPU compatibility, please refer to the official support list of GPUs available [here](https://rocm.docs.amd.com/en/latest/release/gpu_os_support.html).
 
 This guide will show you how to run inference on the `ROCMExecutionProvider` execution provider that ONNX Runtime supports for AMD GPUs.
 
