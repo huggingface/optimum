@@ -66,6 +66,7 @@ DEFAULT_DUMMY_SHAPES = {
     "feature_size": 80,
     "nb_max_frames": 3000,
     "audio_sequence_length": 16000,
+    "num_mel_bins": 64,
 }
 
 
@@ -636,7 +637,7 @@ class DummyVisionInputGenerator(DummyInputGenerator):
 
 
 class DummyAudioInputGenerator(DummyInputGenerator):
-    SUPPORTED_INPUT_NAMES = ("input_features", "input_values")
+    SUPPORTED_INPUT_NAMES = ("input_features", "input_values", "is_longer")
 
     def __init__(
         self,
@@ -646,6 +647,7 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         feature_size: int = DEFAULT_DUMMY_SHAPES["feature_size"],
         nb_max_frames: int = DEFAULT_DUMMY_SHAPES["nb_max_frames"],
         audio_sequence_length: int = DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
+        num_mel_bins: int = DEFAULT_DUMMY_SHAPES["num_mel_bins"],
         **kwargs,
     ):
         self.task = task
@@ -658,8 +660,19 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         self.nb_max_frames = nb_max_frames
         self.batch_size = batch_size
         self.sequence_length = audio_sequence_length
+        if hasattr(self.normalized_config, "num_mel_bins"):
+            self.num_mel_bins = self.normalized_config.num_mel_bins
+        else:
+            self.num_mel_bins = num_mel_bins
+        if hasattr(self.normalized_config, "enable_fusion"):
+            self.enable_fusion = self.normalized_config.enable_fusion
+        else:
+            self.enable_fusion = False
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        print('generate dummy', input_name)
+        print(f'{self.normalized_config=}')
+        print(f'{self.normalized_config.model_type=}')
         if input_name == "input_values":  # raw waveform
             return self.random_float_tensor(
                 shape=[self.batch_size, self.sequence_length],
@@ -668,9 +681,20 @@ class DummyAudioInputGenerator(DummyInputGenerator):
                 framework=framework,
                 dtype=float_dtype,
             )
+        elif input_name == 'is_longer':
+            return self.constant_tensor(shape=[self.batch_size, 1], value=self.enable_fusion, framework=framework)
+
         else:
+            if self.normalized_config.model_type == 'clap':
+                # TODO figure out what this value is for?
+                # https://huggingface.co/laion/clap-htsat-fused uses 4
+                num_channels = 1
+                shape = [self.batch_size, num_channels, self.feature_size, self.num_mel_bins]
+            else:
+                shape = [self.batch_size, self.feature_size, self.nb_max_frames]
+
             return self.random_float_tensor(
-                shape=[self.batch_size, self.feature_size, self.nb_max_frames],
+                shape=shape,
                 min_value=-1,
                 max_value=1,
                 framework=framework,

@@ -101,6 +101,10 @@ class NormalizedVisionConfig(NormalizedConfig):
     NUM_CHANNELS = "num_channels"
 
 
+class NormalizedAudioConfig(NormalizedConfig):
+    NUM_MEL_BINS = "num_mel_bins"
+
+
 class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig):
     TEXT_CONFIG = None
     VISION_CONFIG = None
@@ -116,6 +120,18 @@ class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig
 Pix2StructNormalizedTextConfig = NormalizedTextAndVisionConfig.with_args(
     text_config="text_config", vision_config="vision_config"
 )
+
+
+class NormalizedTextAndAudioConfig(NormalizedTextConfig, NormalizedAudioConfig):
+    TEXT_CONFIG = None
+    AUDIO_CONFIG = None
+
+    def __getattr__(self, attr_name):
+        if self.TEXT_CONFIG is not None and attr_name.upper() in dir(NormalizedTextConfig):
+            attr_name = f"{self.TEXT_CONFIG}.{attr_name}"
+        elif self.AUDIO_CONFIG is not None and attr_name.upper() in dir(NormalizedAudioConfig):
+            attr_name = f"{self.AUDIO_CONFIG}.{attr_name}"
+        return super().__getattr__(attr_name)
 
 
 class NormalizedEncoderDecoderConfig(NormalizedConfig):

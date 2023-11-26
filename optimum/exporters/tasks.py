@@ -389,6 +389,11 @@ class TasksManager:
             onnx="CamembertOnnxConfig",
             tflite="CamembertTFLiteConfig",
         ),
+        "clap": supported_tasks_mapping(
+            "feature-extraction",
+            "zero-shot-audio-classification",
+            onnx="CLAPOnnxConfig",
+        ),
         "clip": supported_tasks_mapping(
             "feature-extraction",
             "zero-shot-image-classification",

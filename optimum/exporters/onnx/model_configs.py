@@ -43,6 +43,7 @@ from ...utils import (
     NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
+    NormalizedTextAndAudioConfig,
     NormalizedTextConfig,
     NormalizedVisionConfig,
     logging,
@@ -54,6 +55,7 @@ from .config import (
     AudioToTextOnnxConfig,
     EncoderDecoderBaseOnnxConfig,
     TextAndVisionOnnxConfig,
+    TextAndAudioOnnxConfig,
     TextDecoderOnnxConfig,
     TextDecoderWithPositionIdsOnnxConfig,
     TextEncoderOnnxConfig,
@@ -872,6 +874,92 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
         if framework == "pt":
             import torch
 
+            dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
+        return dummy_inputs
+
+
+class CLAPNormalizedConfig(NormalizedTextAndAudioConfig):
+    TEXT_CONFIG = "text_config"
+    AUDIO_CONFIG = "audio_config"
+
+
+class CLAPOnnxConfig(TextAndAudioOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = CLAPNormalizedConfig
+    DEFAULT_ONNX_OPSET = 14
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        i = {
+            "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
+            "input_features": {0: "audio_batch_size", 1: "num_channels", 2: "height", 3: "width"}, # As described in modeling_clap.py
+        }
+        # print('self._normalized_config', self._normalized_config.audio_config)
+        # print('self._normalized_config', self._normalized_config)
+        if(self._normalized_config.audio_config.enable_fusion):
+            i["is_longer"] = {0: "audio_batch_size"}
+
+        return i
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "logits_per_audio": {0: "audio_batch_size", 1: "text_batch_size"},
+            "logits_per_text": {0: "text_batch_size", 1: "audio_batch_size"},
+            "text_embeds": {0: "text_batch_size"},
+            "audio_embeds": {0: "audio_batch_size"},
+        }
+
+
+class CLAPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-3
+    # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
+    DEFAULT_ONNX_OPSET = 14
+
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        vocab_size="vocab_size",
+        sequence_length="max_position_embeddings",
+        num_layers="num_hidden_layers",
+        allow_new=True,
+    )
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        common_outputs = {
+            "text_embeds": {0: "batch_size", 1: "sequence_length"},
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
+        }
+        if self._normalized_config.output_hidden_states:
+            for i in range(self._normalized_config.num_layers + 1):
+                common_outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
+
+        return common_outputs
+
+
+class CLAPTextOnnxConfig(CLAPTextWithProjectionOnnxConfig):
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        common_outputs = {
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
+            "pooler_output": {0: "batch_size"},
+        }
+        if self._normalized_config.output_hidden_states:
+            for i in range(self._normalized_config.num_layers + 1):
+                common_outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
+
+        return common_outputs
+
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
+
+        if framework == "pt":
+            import torch
             dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
         return dummy_inputs
 
