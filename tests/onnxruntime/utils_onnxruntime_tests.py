@@ -40,6 +40,7 @@ MODEL_NAMES = {
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
+    "convnextv2": "hf-internal-testing/tiny-random-ConvNextV2Model",
     "codegen": "hf-internal-testing/tiny-random-CodeGenForCausalLM",
     "data2vec_text": "hf-internal-testing/tiny-random-Data2VecTextModel",
     "data2vec_vision": "hf-internal-testing/tiny-random-Data2VecVisionModel",
