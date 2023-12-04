@@ -651,7 +651,10 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         self.task = task
         self.normalized_config = normalized_config
 
-        self.feature_size = feature_size
+        if hasattr(self.normalized_config, "feature_size"):
+            self.feature_size = self.normalized_config.feature_size
+        else:
+            self.feature_size = feature_size
         self.nb_max_frames = nb_max_frames
         self.batch_size = batch_size
         self.sequence_length = audio_sequence_length
@@ -684,6 +687,7 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
         "timestep",
         "text_embeds",
         "time_ids",
+        "timestep_cond",
     )
 
     def __init__(
@@ -703,14 +707,21 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
             self.batch_size = random.randint(low, high)
         else:
             self.batch_size = batch_size
+        self.time_cond_proj_dim = normalized_config.config.time_cond_proj_dim
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        shape = [self.batch_size]
-
         if input_name == "timestep":
+            shape = [self.batch_size]
             return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=int_dtype)
 
-        shape.append(self.text_encoder_projection_dim if input_name == "text_embeds" else self.time_ids)
+        if input_name == "text_embeds":
+            dim = self.text_encoder_projection_dim
+        elif input_name == "timestep_cond":
+            dim = self.time_cond_proj_dim
+        else:
+            dim = self.time_ids
+
+        shape = [self.batch_size, dim]
         return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=float_dtype)
 
 

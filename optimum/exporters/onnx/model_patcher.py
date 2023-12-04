@@ -15,28 +15,28 @@
 import dataclasses
 import functools
 import inspect
+import math
 import types
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Union
 
-import transformers
+from packaging import version
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
-from transformers.models.falcon.modeling_falcon import FalconModel, build_alibi_tensor
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 from transformers.utils import is_torch_available
-
-from ...utils.modeling_utils import (
-    _falcon_prepare_attn_mask,
-    _prepare_attn_mask,
-    _prepare_decoder_attention_mask,
-    _prepare_decoder_sliding_window_attention_mask,
-)
 
 
 if is_torch_available():
     import torch
 
+from ...configuration_utils import _transformers_version
 from ...utils import logging
 
+
+if _transformers_version > version.parse("4.34.99"):
+    from transformers.modeling_attn_mask_utils import AttentionMaskConverter, _prepare_4d_causal_attention_mask
+else:
+    _prepare_4d_causal_attention_mask = None
+    AttentionMaskConverter = None
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
@@ -249,31 +249,6 @@ class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
             model.decoder.model.decoder.config.use_cache = True
 
 
-def _make_causal_mask_falcon_patched(
-    input_ids_shape: torch.Size, device: torch.device, past_key_values_length: int
-) -> torch.BoolTensor:
-    """
-    Make causal mask used for self-attention. This mask does not take the existing attention mask into account - it
-    just blocks tokens from attending forwards in the sequence. The output shape will be `[batch_size, 1,
-    target_length, target_length+past_key_values_length]`.
-    """
-    batch_size, target_length = input_ids_shape
-
-    # NOTE: ONNX Runtime is not able to run ONNX Trilu node with bool input. As a workaround, we pass a float input
-    # and cast to bool here. Reference: https://github.com/microsoft/onnxruntime/issues/16189
-    mask = torch.triu(torch.ones((target_length, target_length), dtype=torch.float, device=device), diagonal=1).to(
-        torch.bool
-    )
-
-    # If past_key_values_length is 0 this is an empty tensor and the concatenation is a no-op.
-    # This code style is an unfortunate consequence of getting your TF engineer to port models; doing it this
-    # way avoids a data-dependent conditional, which will help me when I have to port this to XLA later.
-    past_mask = torch.zeros((target_length, past_key_values_length), dtype=torch.bool, device=device)
-    mask = torch.cat([past_mask, mask], dim=-1)
-    expanded_mask = mask[None, None, :, :].expand(batch_size, 1, target_length, target_length + past_key_values_length)
-    return expanded_mask
-
-
 def falcon_model_forward_without_kv_reformatting(
     self,
     input_ids: Optional[torch.LongTensor] = None,
@@ -287,6 +262,8 @@ def falcon_model_forward_without_kv_reformatting(
     output_hidden_states: Optional[bool] = None,
     return_dict: Optional[bool] = None,
 ):
+    # TODO: We may remove this patch once https://github.com/huggingface/transformers/pull/26933 is merged & released in Transformers.
+
     output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
     output_hidden_states = (
         output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -333,7 +310,9 @@ def falcon_model_forward_without_kv_reformatting(
         attention_mask = attention_mask.to(hidden_states.device)
 
     if self.use_alibi:
-        alibi = build_alibi_tensor(attention_mask, self.num_heads, dtype=hidden_states.dtype)
+        # NOTE: we use a patched build_alibi_tensor.
+        alibi = falcon_build_alibi_tensor_patched(attention_mask, self.num_heads, dtype=hidden_states.dtype)
+        # alibi = build_alibi_tensor(attention_mask, self.num_heads, dtype=hidden_states.dtype)
     else:
         alibi = None
         if position_ids is None:
@@ -346,10 +325,9 @@ def falcon_model_forward_without_kv_reformatting(
         else:
             position_ids = position_ids.view(-1, seq_length).long()
 
-    causal_mask = self._prepare_attn_mask(
-        attention_mask,
-        input_shape=(batch_size, seq_length),
-        past_key_values_length=past_key_values_length,
+    # 4d mask is passed through the layers
+    attention_mask = _prepare_4d_causal_attention_mask(
+        attention_mask, (batch_size, seq_length), inputs_embeds, past_key_values_length
     )
 
     for i, (block, layer_past) in enumerate(zip(self.h, past_key_values)):
@@ -359,7 +337,7 @@ def falcon_model_forward_without_kv_reformatting(
         outputs = block(
             hidden_states,
             layer_past=layer_past,
-            attention_mask=causal_mask,
+            attention_mask=attention_mask,
             position_ids=position_ids,
             head_mask=head_mask[i],
             use_cache=use_cache,
@@ -393,26 +371,113 @@ def falcon_model_forward_without_kv_reformatting(
     )
 
 
-class FalconModelPatcher(ModelPatcher):
-    def __enter__(self):
-        self.patch_ops()
+def _make_causal_mask_patched(
+    input_ids_shape: torch.Size,
+    dtype: torch.dtype,
+    device: torch.device,
+    past_key_values_length: int = 0,
+    sliding_window: Optional[int] = None,
+):
+    """
+    Make causal mask used for bi-directional self-attention.
+    """
+    # We add self in the signature because `self._make_causal_mask` is used elsewhere in the class definition, despite the method being a staticmethod.
+    bsz, tgt_len = input_ids_shape
+    mask = torch.full((tgt_len, tgt_len), torch.finfo(dtype).min, device=device)
+    mask_cond = torch.arange(mask.size(-1), device=device)
+    mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
 
-        transformers.models.falcon.modeling_falcon._make_causal_mask = _make_causal_mask_falcon_patched
+    mask = mask.to(dtype)
+
+    if past_key_values_length > 0:
+        mask = torch.cat([torch.zeros(tgt_len, past_key_values_length, dtype=dtype, device=device), mask], dim=-1)
+
+    # add lower triangular sliding window mask if necessary
+    if sliding_window is not None:
+        diagonal = past_key_values_length - sliding_window + 1
+
+        # NOTE: adding dtype=torch.int64 here for triu to be supported by ORT: https://github.com/microsoft/onnxruntime/issues/16189
+        context_mask = 1 - torch.triu(torch.ones_like(mask, dtype=torch.int64), diagonal=diagonal)
+        mask.masked_fill_(context_mask.bool(), torch.finfo(dtype).min)
+
+    return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
+
+
+_make_causal_mask_patched = staticmethod(_make_causal_mask_patched)
+
+
+class DecoderModelPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+        # TODO: Remove this if once transformers if much above 4.35
+        if AttentionMaskConverter is not None:
+            AttentionMaskConverter._make_causal_mask = _make_causal_mask_patched
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+        # TODO: Remove this if once transformers if much above 4.35
+        # TODO: We should unpatch it - however `self._make_causal_mask` may still be called later which raises issues with this simple patch strategy.
+        # We need to find a proper solution.
+        # if AttentionMaskConverter is not None:
+        #     AttentionMaskConverter._make_causal_mask = self.original_make_causal
+        pass
+
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+
+        # TODO: Remove this if once transformers if much above 4.35
+        if AttentionMaskConverter is not None:
+            self.original_make_causal = AttentionMaskConverter._make_causal_mask
+
+
+def falcon_build_alibi_tensor_patched(
+    attention_mask: torch.Tensor, num_heads: int, dtype: torch.dtype
+) -> torch.Tensor:
+    batch_size, seq_length = attention_mask.shape
+    closest_power_of_2 = 2 ** math.floor(math.log2(num_heads))
+    base = torch.tensor(
+        2 ** (-(2 ** -(math.log2(closest_power_of_2) - 3))), device=attention_mask.device, dtype=torch.float32
+    )
+    powers = torch.arange(1, 1 + closest_power_of_2, device=attention_mask.device, dtype=torch.int32)
+    slopes = torch.pow(base, powers)
+
+    if closest_power_of_2 != num_heads:
+        extra_base = torch.tensor(
+            2 ** (-(2 ** -(math.log2(2 * closest_power_of_2) - 3))), device=attention_mask.device, dtype=torch.float32
+        )
+        num_remaining_heads = min(closest_power_of_2, num_heads - closest_power_of_2)
+        extra_powers = torch.arange(1, 1 + 2 * num_remaining_heads, 2, device=attention_mask.device, dtype=torch.int32)
+        slopes = torch.cat([slopes, torch.pow(extra_base, extra_powers)], dim=0)
+
+    # Note: alibi will added to the attention bias that will be applied to the query, key product of attention
+    # => therefore alibi will have to be of shape (batch_size, num_heads, query_length, key_length)
+    # => here we set (batch_size=1, num_heads=num_heads, query_length=1, key_length=max_length)
+    # => the query_length dimension will then be broadcasted correctly
+    # This is more or less identical to T5's relative position bias:
+    # https://github.com/huggingface/transformers/blob/f681437203baa7671de3174b0fa583c349d9d5e1/src/transformers/models/t5/modeling_t5.py#L527
+    # NOTE: remove the .bfloat16() cast here as PyTorch ONNX export rather casts to complex128 if this is used, resulting in a onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph error.
+    arange_tensor = ((attention_mask.cumsum(dim=-1) - 1) * attention_mask)[:, None, :]
+    alibi = slopes[..., None] * arange_tensor
+    return alibi.reshape(batch_size * num_heads, 1, seq_length).to(dtype)
+
+
+class FalconModelPatcher(DecoderModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+        self.patch_ops()
 
         if self.real_config.task == "text-generation":
             self._model.transformer.forward = types.MethodType(
                 falcon_model_forward_without_kv_reformatting, self._model.transformer
             )
 
-        # In order to use a single decoder, we need to patch the _prepare_attn_mask function to behave independently of the sequence length.
-        if isinstance(self._model, FalconModel):
-            self._model._prepare_attn_mask = _falcon_prepare_attn_mask
-        else:
-            self._model.transformer._prepare_attn_mask = _falcon_prepare_attn_mask
-
-        setattr(self._model, self.orig_forward_name, self.patched_forward)
-
     def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
         self.restore_ops()
 
         setattr(self._model, self.orig_forward_name, self.orig_forward)
@@ -421,14 +486,6 @@ class FalconModelPatcher(ModelPatcher):
             self._model.transformer.forward = types.MethodType(
                 self.original_model_transformer_forward, self._model.transformer
             )
-
-        transformers.models.falcon.modeling_falcon._make_causal_mask = self.original_make_causal
-
-        # In order to use a single decoder, we need to patch the _prepare_attn_mask function to behave independently of the sequence length.
-        if isinstance(self._model, FalconModel):
-            self._model._prepare_attn_mask = self.original_falcon_prepare_attn_mask
-        else:
-            self._model.transformer._prepare_attn_mask = self.original_falcon_prepare_attn_mask
 
     def __init__(
         self,
@@ -440,13 +497,6 @@ class FalconModelPatcher(ModelPatcher):
 
         if config.task == "text-generation":
             self.original_model_transformer_forward = model.transformer.forward
-
-        self.original_make_causal = transformers.models.falcon.modeling_falcon._make_causal_mask
-
-        if isinstance(model, FalconModel):
-            self.original_falcon_prepare_attn_mask = model._prepare_attn_mask
-        else:
-            self.original_falcon_prepare_attn_mask = model.transformer._prepare_attn_mask
 
         self._model = model
 
@@ -763,103 +813,3 @@ class SpeechT5ModelPatcher(ModelPatcher):
             return filterd_outputs
 
         self.patched_forward = patched_forward
-
-
-class CausalAttentionMaskModelPatcher(ModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-        self.patch = self.real_config.task == "text-generation" and self.real_config.use_past
-
-    def __enter__(self):
-        super().__enter__()
-        if self.patch:
-            setattr(self._model_to_patch, self._orig_func_name, self._patch_func.__get__(self._model_to_patch))
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        super().__exit__(exc_type, exc_value, traceback)
-        if self.patch:
-            setattr(self._model_to_patch, self._orig_func_name, self._orig_func.__get__(self._model_to_patch))
-
-
-class BloomModelPatcher(CausalAttentionMaskModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-        if self.patch:
-            self._model_to_patch = model.transformer
-            self._patch_func = _prepare_attn_mask
-            self._orig_func_name = "_prepare_attn_mask"
-            self._orig_func = self._model_to_patch._prepare_attn_mask
-
-
-class OPTModelPatcher(CausalAttentionMaskModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-
-        if self.patch:
-            self._model_to_patch = model.model.decoder
-            self._patch_func = _prepare_decoder_attention_mask
-            self._orig_func_name = "_prepare_decoder_attention_mask"
-            self._orig_func = self._model_to_patch._prepare_decoder_attention_mask
-
-
-class LlamaModelPatcher(CausalAttentionMaskModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-
-        if self.patch:
-            self._model_to_patch = model.model
-            self._patch_func = _prepare_decoder_attention_mask
-            self._orig_func_name = "_prepare_decoder_attention_mask"
-            self._orig_func = self._model_to_patch._prepare_decoder_attention_mask
-
-
-class MistralModelPatcher(CausalAttentionMaskModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-
-        if self.patch:
-            self._model_to_patch = model.model
-            self._patch_func = _prepare_decoder_sliding_window_attention_mask
-            self._orig_func_name = "_prepare_decoder_attention_mask"
-            self._orig_func = self._model_to_patch._prepare_decoder_attention_mask
-
-
-class BartModelPatcher(CausalAttentionMaskModelPatcher, Seq2SeqModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-
-        if self.patch:
-            self._model_to_patch = model.model.decoder
-            self._patch_func = _prepare_decoder_attention_mask
-            self._orig_func_name = "_prepare_decoder_attention_mask"
-            self._orig_func = self._model_to_patch._prepare_decoder_attention_mask

@@ -635,7 +635,7 @@ def export_tensorflow(
             The version of the ONNX operator set to use.
         output (`Path`):
             Directory to store the exported ONNX model.
-        device (`str`, *optional*, defaults to `cpu`):
+        device (`Optional[str]`, defaults to `"cpu"`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
 
@@ -790,7 +790,7 @@ def export(
             Directory to store the exported ONNX model.
         opset (`Optional[int]`, defaults to `None`):
             The version of the ONNX operator set to use.
-        device (`str`, *optional*, defaults to `cpu`):
+        device (`Optional[str]`, defaults to `"cpu"`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
         input_shapes (`Optional[Dict]`, defaults to `None`):

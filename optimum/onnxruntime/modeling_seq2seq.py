@@ -1192,30 +1192,18 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         if encoder_outputs is None:
             encoder_outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
 
-        # Decode
-        if past_key_values is None or self.use_cache is False:
-            decoder_outputs = self.decoder(
-                input_ids=decoder_input_ids,
-                encoder_hidden_states=encoder_outputs.last_hidden_state,
-                encoder_attention_mask=attention_mask,
-                labels=labels,
-            )
-        elif self.use_merged is True:
-            decoder_outputs = self.decoder(
-                input_ids=decoder_input_ids[:, -1:],
-                encoder_hidden_states=encoder_outputs.last_hidden_state,
-                past_key_values=past_key_values,
-                encoder_attention_mask=attention_mask,
-                labels=labels,
-            )
-        else:
-            decoder_outputs = self.decoder_with_past(
-                input_ids=decoder_input_ids[:, -1:],  # Cut decoder_input_ids if past is used
-                past_key_values=past_key_values,
-                encoder_hidden_states=encoder_outputs.last_hidden_state,
-                encoder_attention_mask=attention_mask,
-                labels=labels,
-            )
+        model = (
+            self.decoder
+            if past_key_values is None or not self.use_cache or self.use_merged
+            else self.decoder_with_past
+        )
+        decoder_outputs = model(
+            input_ids=decoder_input_ids,
+            past_key_values=past_key_values,
+            encoder_hidden_states=encoder_outputs.last_hidden_state,
+            encoder_attention_mask=attention_mask,
+            labels=labels,
+        )
 
         return Seq2SeqLMOutput(
             loss=decoder_outputs.get("loss", None),
@@ -1236,6 +1224,16 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         encoder_outputs=None,
         **kwargs,
     ) -> Dict:
+        if past_key_values is not None:
+            past_length = past_key_values[0][0].shape[2]
+            # Some generation methods already pass only the last input ID
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                # Default to old behavior: keep only final ID
+                remove_prefix_length = input_ids.shape[1] - 1
+            input_ids = input_ids[:, remove_prefix_length:]
+
         return {
             "decoder_input_ids": input_ids,
             "past_key_values": past_key_values,
@@ -1331,28 +1329,18 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         if encoder_outputs is None:
             encoder_outputs = self.encoder(input_features=input_features, attention_mask=attention_mask)
 
-        # Decode
-        if past_key_values is None or self.use_cache is False:
-            decoder_outputs = self.decoder(
-                input_ids=decoder_input_ids,
-                encoder_hidden_states=encoder_outputs.last_hidden_state,
-                labels=labels,
-            )
-        elif self.use_merged is True:
-            decoder_outputs = self.decoder(
-                input_ids=decoder_input_ids[:, -1:],
-                encoder_hidden_states=encoder_outputs.last_hidden_state,
-                past_key_values=past_key_values,
-                encoder_attention_mask=attention_mask,
-                labels=labels,
-            )
-        else:
-            decoder_outputs = self.decoder_with_past(
-                input_ids=decoder_input_ids[:, -1:],  # Cut decoder_input_ids if past is used
-                past_key_values=past_key_values,
-                encoder_hidden_states=encoder_outputs.last_hidden_state,
-                labels=labels,
-            )
+        model = (
+            self.decoder
+            if past_key_values is None or not self.use_cache or self.use_merged
+            else self.decoder_with_past
+        )
+        decoder_outputs = model(
+            input_ids=decoder_input_ids,
+            past_key_values=past_key_values,
+            encoder_hidden_states=encoder_outputs.last_hidden_state,
+            encoder_attention_mask=attention_mask,
+            labels=labels,
+        )
 
         return Seq2SeqLMOutput(
             loss=decoder_outputs.get("loss", None),
@@ -1372,6 +1360,16 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         encoder_outputs=None,
         **kwargs,
     ) -> Dict:
+        if past_key_values is not None:
+            past_length = past_key_values[0][0].shape[2]
+            # Some generation methods already pass only the last input ID
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                # Default to old behavior: keep only final ID
+                remove_prefix_length = input_ids.shape[1] - 1
+            input_ids = input_ids[:, remove_prefix_length:]
+
         return {
             "decoder_input_ids": input_ids,
             "past_key_values": past_key_values,
@@ -1526,27 +1524,17 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         if encoder_outputs is None:
             encoder_outputs = self.encoder(pixel_values=pixel_values)
 
-        # Decode
-        if past_key_values is None or self.use_cache is False:
-            decoder_outputs = self.decoder(
-                input_ids=decoder_input_ids,
-                encoder_hidden_states=encoder_outputs.last_hidden_state,
-                labels=labels,
-            )
-        elif self.use_merged is True:
-            decoder_outputs = self.decoder(
-                input_ids=decoder_input_ids[:, -1:],
-                encoder_hidden_states=encoder_outputs.last_hidden_state,
-                past_key_values=past_key_values,
-                labels=labels,
-            )
-        else:
-            decoder_outputs = self.decoder_with_past(
-                input_ids=decoder_input_ids[:, -1:],  # Cut decoder_input_ids if past is used
-                past_key_values=past_key_values,
-                encoder_hidden_states=encoder_outputs.last_hidden_state,
-                labels=labels,
-            )
+        model = (
+            self.decoder
+            if past_key_values is None or not self.use_cache or self.use_merged
+            else self.decoder_with_past
+        )
+        decoder_outputs = model(
+            input_ids=decoder_input_ids,
+            past_key_values=past_key_values,
+            encoder_hidden_states=encoder_outputs.last_hidden_state,
+            labels=labels,
+        )
 
         return Seq2SeqLMOutput(
             loss=decoder_outputs.get("loss", None),
@@ -1565,6 +1553,16 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         encoder_outputs=None,
         **kwargs,
     ) -> Dict:
+        if past_key_values is not None:
+            past_length = past_key_values[0][0].shape[2]
+            # Some generation methods already pass only the last input ID
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                # Default to old behavior: keep only final ID
+                remove_prefix_length = input_ids.shape[1] - 1
+            input_ids = input_ids[:, remove_prefix_length:]
+
         return {
             "decoder_input_ids": input_ids,
             "past_key_values": past_key_values,
@@ -1641,34 +1639,19 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         else:
             attention_mask = attention_mask.astype(np.int64)
 
-        # Decode
-        if past_key_values is None or self.use_cache is False:
-            decoder_outputs = self.decoder(
-                input_ids=decoder_input_ids,
-                decoder_attention_mask=decoder_attention_mask,
-                past_key_values=past_key_values,
-                encoder_hidden_states=encoder_outputs.last_hidden_state,
-                encoder_attention_mask=attention_mask,
-                labels=labels,
-            )
-        elif self.use_merged is True:
-            decoder_outputs = self.decoder(
-                input_ids=decoder_input_ids[:, -1:],
-                decoder_attention_mask=decoder_attention_mask,
-                past_key_values=past_key_values,
-                encoder_hidden_states=encoder_outputs.last_hidden_state,
-                encoder_attention_mask=attention_mask,
-                labels=labels,
-            )
-        else:
-            decoder_outputs = self.decoder_with_past(
-                input_ids=decoder_input_ids[:, -1:],  # Cut decoder_input_ids if past is used
-                decoder_attention_mask=decoder_attention_mask,
-                past_key_values=past_key_values,
-                encoder_hidden_states=encoder_outputs.last_hidden_state,
-                encoder_attention_mask=attention_mask,
-                labels=labels,
-            )
+        model = (
+            self.decoder
+            if past_key_values is None or not self.use_cache or self.use_merged
+            else self.decoder_with_past
+        )
+        decoder_outputs = model(
+            input_ids=decoder_input_ids,
+            decoder_attention_mask=decoder_attention_mask,
+            past_key_values=past_key_values,
+            encoder_hidden_states=encoder_outputs.last_hidden_state,
+            encoder_attention_mask=attention_mask,
+            labels=labels,
+        )
 
         return Seq2SeqLMOutput(
             loss=decoder_outputs.get("loss", None),
@@ -1690,6 +1673,16 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         encoder_outputs=None,
         **kwargs,
     ) -> Dict:
+        if past_key_values is not None:
+            past_length = past_key_values[0][0].shape[2]
+            # Some generation methods already pass only the last input ID
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                # Default to old behavior: keep only final ID
+                remove_prefix_length = input_ids.shape[1] - 1
+            input_ids = input_ids[:, remove_prefix_length:]
+
         if decoder_attention_mask is None:
             decoder_attention_mask = torch.ones_like(input_ids).to(input_ids.device)
 

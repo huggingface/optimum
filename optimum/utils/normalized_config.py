@@ -85,6 +85,10 @@ class NormalizedTextConfig(NormalizedConfig):
     EOS_TOKEN_ID = "eos_token_id"
 
 
+class NormalizedTextConfigWithGQA(NormalizedTextConfig):
+    NUM_KEY_VALUE_HEADS = "num_key_value_heads"
+
+
 class NormalizedSeq2SeqConfig(NormalizedTextConfig):
     ENCODER_NUM_LAYERS = NormalizedTextConfig.NUM_LAYERS
     DECODER_NUM_LAYERS = NormalizedTextConfig.NUM_LAYERS
@@ -166,8 +170,6 @@ SpeechToTextLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
     allow_new=True,
 )
 
-MistralNormalizedTextConfig = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
-
 
 class NormalizedConfigManager:
     """
@@ -227,13 +229,13 @@ class NormalizedConfigManager:
         "gpt-bigcode": GPTBigCodeNormalizedTextConfig,
         "gpt-neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
         "gpt-neox": NormalizedTextConfig,
-        "llama": NormalizedTextConfig,
+        "llama": NormalizedTextConfigWithGQA,
         "gptj": GPT2LikeNormalizedTextConfig,
         "imagegpt": GPT2LikeNormalizedTextConfig,
         "longt5": T5LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
-        "mistral": MistralNormalizedTextConfig,
+        "mistral": NormalizedTextConfigWithGQA,
         "mpnet": NormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m-100": BartLikeNormalizedTextConfig,

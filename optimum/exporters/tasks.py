@@ -164,10 +164,12 @@ class TasksManager:
             "audio-xvector": "AutoModelForAudioXVector",
             "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
             "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
+            "depth-estimation": "AutoModelForDepthEstimation",
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
             "image-classification": "AutoModelForImageClassification",
             "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
+            "image-to-image": "AutoModelForImageToImage",
             "image-to-text": "AutoModelForVision2Seq",
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
@@ -496,6 +498,11 @@ class TasksManager:
             "feature-extraction",
             onnx="DonutSwinOnnxConfig",
         ),
+        "dpt": supported_tasks_mapping(
+            "feature-extraction",
+            "depth-estimation",
+            onnx="DptOnnxConfig",
+        ),
         "electra": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -531,6 +538,11 @@ class TasksManager:
             "question-answering",
             onnx="FlaubertOnnxConfig",
             tflite="FlaubertTFLiteConfig",
+        ),
+        "glpn": supported_tasks_mapping(
+            "feature-extraction",
+            "depth-estimation",
+            onnx="GlpnOnnxConfig",
         ),
         "gpt2": supported_tasks_mapping(
             "feature-extraction",
@@ -883,6 +895,11 @@ class TasksManager:
             "image-classification",
             "masked-im",
             onnx="SwinOnnxConfig",
+        ),
+        "swin2sr": supported_tasks_mapping(
+            "feature-extraction",
+            "image-to-image",
+            onnx="Swin2srOnnxConfig",
         ),
         "t5": supported_tasks_mapping(
             "feature-extraction",
@@ -1408,11 +1425,8 @@ class TasksManager:
                 )
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             if getattr(model_info, "library_name", None) == "diffusers":
-                # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
-                for task in ("stable-diffusion-xl", "stable-diffusion"):
-                    if task in model_info.tags:
-                        inferred_task_name = task
-                        break
+                class_name = model_info.config["diffusers"]["class_name"]
+                inferred_task_name = "stable-diffusion-xl" if "StableDiffusionXL" in class_name else "stable-diffusion"
             elif getattr(model_info, "library_name", None) == "timm":
                 inferred_task_name = "image-classification"
             else:

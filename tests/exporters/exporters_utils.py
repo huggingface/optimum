@@ -65,6 +65,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel",
     "detr": "hf-internal-testing/tiny-random-DetrModel",  # hf-internal-testing/tiny-random-detr is larger
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
+    "dpt": "hf-internal-testing/tiny-random-DPTModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "encoder-decoder": {
         "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": [
@@ -72,8 +73,19 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
         "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
     },
-    "falcon": "fxmarty/really-tiny-falcon-testing",
+    "falcon": {
+        "fxmarty/really-tiny-falcon-testing": [
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "question-answering",
+            "text-generation",
+            "text-generation-with-past",
+            "token-classification",
+        ],
+        "fxmarty/tiny-testing-falcon-alibi": ["text-generation", "text-generation-with-past"],
+    },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
+    "glpn": "hf-internal-testing/tiny-random-GLPNModel",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt-neo": "hf-internal-testing/tiny-random-GPTNeoModel",
@@ -120,6 +132,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
+    "swin2sr": "hf-internal-testing/tiny-random-Swin2SRModel",
     "t5": "hf-internal-testing/tiny-random-t5",
     "vit": "hf-internal-testing/tiny-random-vit",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
