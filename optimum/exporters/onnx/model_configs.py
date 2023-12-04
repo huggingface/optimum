@@ -806,6 +806,7 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
+        print('1 get inputs')
         return {
             "input_ids": {0: "text_batch_size", 1: "sequence_length"},
             "pixel_values": {0: "image_batch_size", 1: "num_channels", 2: "height", 3: "width"},
@@ -836,8 +837,10 @@ class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
+        print('2 get inputs')
         return {
             "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
         }
 
     @property
@@ -874,6 +877,22 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
 
             dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
         return dummy_inputs
+
+
+class SiglipNormalizedConfig(CLIPNormalizedConfig):
+    pass
+
+
+class SiglipOnnxConfig(CLIPOnnxConfig):
+    pass
+
+
+class SiglipTextWithProjectionOnnxConfig(CLIPTextWithProjectionOnnxConfig):
+    pass
+
+
+class SiglipTextOnnxConfig(CLIPTextOnnxConfig):
+    pass
 
 
 class UNetOnnxConfig(VisionOnnxConfig):

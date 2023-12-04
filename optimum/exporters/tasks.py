@@ -864,6 +864,19 @@ class TasksManager:
             "audio-classification",
             onnx="SEWDOnnxConfig",
         ),
+        "siglip": supported_tasks_mapping(
+            "feature-extraction",
+            "zero-shot-image-classification",
+            onnx="SiglipOnnxConfig",
+        ),
+        "siglip-text-model": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="SiglipTextOnnxConfig",
+        ),
+        "siglip-text-with-projection": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="SiglipTextWithProjectionOnnxConfig",
+        ),
         "speech-to-text": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
