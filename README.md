@@ -19,7 +19,7 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 | [ONNX Runtime](https://onnxruntime.ai/docs/)                                                                           | `pip install --upgrade-strategy eager optimum[onnxruntime]`       |
 | [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html)       | `pip install --upgrade-strategy eager optimum[neural-compressor]`|
 | [OpenVINO](https://docs.openvino.ai/latest/index.html)                                                                 | `pip install --upgrade-strategy eager optimum[openvino,nncf]`    |
-| [AMD Instinct GPUs](https://www.amd.com/en/graphics/instinct-server-accelerators)                                      | `pip install --upgrade-strategy eager optimum[amd]`              |
+| [AMD Instinct GPUs and Ryzen AI NPU](https://www.amd.com/en/graphics/instinct-server-accelerators)                                      | `pip install --upgrade-strategy eager optimum[amd]`              |
 | [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `pip install --upgrade-strategy eager optimum[habana]`           |
 | [FuriosaAI](https://www.furiosa.ai/)                                                                                   | `pip install --upgrade-strategy eager optimum[furiosa]`          |
 
