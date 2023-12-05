@@ -9,21 +9,28 @@ This guide will show you how to run inference on the `ROCMExecutionProvider` exe
 ## Installation
 The following setup installs the ONNX Runtime support with ROCM Execution Provider with ROCm 5.7. 
 
-#### 1. ROCm Installation
+#### ROCm Installation
 
 Refer to the [ROCm installation guide](https://rocm.docs.amd.com/en/latest/deploy/linux/index.html) to install ROCm 5.7.
 
-#### 2. Installing `onnxruntime-rocm`
+#### Installing `onnxruntime-rocm`
 
-Utilize either the provided [Dockerfile](https://github.com/huggingface/optimum-amd/blob/main/docker/onnx-runtime-amd-gpu/Dockerfile) example or perform a local installation from the source since pip wheels are currently unavailable.
+Utilize the provided [Dockerfile](https://github.com/huggingface/optimum-amd/blob/main/docker/onnx-runtime-amd-gpu/Dockerfile) example or perform a local installation from the source since pip wheels are currently unavailable.
 
-##### Local Installation Steps:
+**Docker Installation:**
+
+```bash
+docker build -f Dockerfile -t ort/rocm .
+```
+
+**Local Installation Steps**
 
 ##### 2.1 Installing PyTorch with ROCm Support
 Optimum ONNX Runtime integration relies on some functionalities of Transformers that require PyTorch. For now, we recommend to use Pytorch compiled against RoCm 5.7, that can be installed following [PyTorch installation guide](https://pytorch.org/get-started/locally/): 
 
 ```bash
 pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.7
+# Use 'rocm/pytorch:latest' as the preferred base image when using Docker for PyTorch installation.
 ```
 
 ### 2.2 ONNX Runtime installation with ROCm Execution Provider
