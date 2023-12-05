@@ -9,22 +9,31 @@ This guide will show you how to run inference on the `ROCMExecutionProvider` exe
 ## Installation
 The following setup installs the ONNX Runtime support with ROCM Execution Provider with ROCm 5.7. 
 
-#### 1. ROCm Installation
+#### 1 ROCm Installation
 
-To install ROCM 5.7, please follow the [ROCm installation guide](https://rocm.docs.amd.com/en/latest/deploy/linux/index.html).
+Refer to the [ROCm installation guide](https://rocm.docs.amd.com/en/latest/deploy/linux/index.html) to install ROCm 5.7.
 
-#### 2. PyTorch Installation with ROCm Support
+#### 2 Installing `onnxruntime-rocm`
+
+Please use the provided [Dockerfile](https://github.com/huggingface/optimum-amd/blob/main/docker/onnx-runtime-amd-gpu/Dockerfile) example or do a local installation from source since pip wheels are currently unavailable.
+
+**Docker Installation:**
+
+```bash
+docker build -f Dockerfile -t ort/rocm .
+```
+
+**Local Installation Steps:**
+
+##### 2.1 PyTorch with ROCm Support
 Optimum ONNX Runtime integration relies on some functionalities of Transformers that require PyTorch. For now, we recommend to use Pytorch compiled against RoCm 5.7, that can be installed following [PyTorch installation guide](https://pytorch.org/get-started/locally/): 
 
 ```bash
 pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.7
+# Use 'rocm/pytorch:latest' as the preferred base image when using Docker for PyTorch installation.
 ```
 
-<Tip>
-For docker installation, the following base image is recommended: `rocm/pytorch:rocm5.7_ubuntu22.04_py3.10_pytorch_2.0.1`
-</Tip>
-
-### 3. ONNX Runtime installation with ROCm Execution Provider
+### 2.2 ONNX Runtime with ROCm Execution Provider
 
 ```bash
 # pre-requisites
@@ -34,8 +43,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Install ONNXRuntime from source
 git clone --recursive  https://github.com/ROCmSoftwarePlatform/onnxruntime.git
-git checkout rocm5.7_internal_testing_eigen-3.4.zip_hash
 cd onnxruntime
+git checkout rocm5.7_internal_testing_eigen-3.4.zip_hash
 
 ./build.sh --config Release --build_wheel --update --build --parallel --cmake_extra_defines ONNXRUNTIME_VERSION=$(cat ./VERSION_NUMBER) --use_rocm --rocm_home=/opt/rocm
 pip install build/Linux/Release/dist/*
@@ -66,7 +75,7 @@ Before going further, run the following sample code to check whether the install
 >>> assert ort_model.providers == ["ROCMExecutionProvider", "CPUExecutionProvider"]
 ```
 
-In case this code runs gracefully, congratulations, the installation is successfull! If you encounter the following error or similar,
+In case this code runs gracefully, congratulations, the installation is successful! If you encounter the following error or similar,
 
 ```
 ValueError: Asked to use ROCMExecutionProvider as an ONNX Runtime execution provider, but the available execution providers are ['CPUExecutionProvider'].
