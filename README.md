@@ -19,7 +19,7 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 | [ONNX Runtime](https://onnxruntime.ai/docs/)                                                                           | `pip install --upgrade-strategy eager optimum[onnxruntime]`       |
 | [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html)       | `pip install --upgrade-strategy eager optimum[neural-compressor]`|
 | [OpenVINO](https://docs.openvino.ai/latest/index.html)                                                                 | `pip install --upgrade-strategy eager optimum[openvino,nncf]`    |
-| [AMD Instinct GPUs and Ryzen AI NPU](https://www.amd.com/en/graphics/instinct-server-accelerators)                                      | `pip install --upgrade-strategy eager optimum[amd]`              |
+| [AMD Instinct GPUs and Ryzen AI NPU](https://www.amd.com/en/graphics/instinct-server-accelerators)                     | `pip install --upgrade-strategy eager optimum[amd]`              |
 | [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `pip install --upgrade-strategy eager optimum[habana]`           |
 | [FuriosaAI](https://www.furiosa.ai/)                                                                                   | `pip install --upgrade-strategy eager optimum[furiosa]`          |
 
@@ -63,7 +63,11 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 
 ### OpenVINO
 
-This requires to install the OpenVINO extra by doing `pip install --upgrade-strategy eager optimum[openvino,nncf]`, this will ensure you have the latest version of [`optimum-intel`](https://github.com/huggingface/optimum-intel).
+Before you begin, make sure you have all the necessary libraries installed :
+
+```bash
+pip install --upgrade-strategy eager optimum[openvino,nncf]
+```
 
 It is possible to export 🤗 Transformers and Diffusers models to the OpenVINO format easily:
 
@@ -93,7 +97,11 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 ### Neural Compressor
 
-This requires to install the Neural Compressor extra by doing `pip install --upgrade-strategy eager optimum[neural-compressor]`
+Before you begin, make sure you have all the necessary libraries installed :
+
+```bash
+pip install --upgrade-strategy eager optimum[neural-compressor]
+```
 
 Dynamic quantization can be applied on your model:
 
@@ -113,7 +121,11 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 ### ONNX + ONNX Runtime
 
-This requires to install the ONNX Runtime extra by doing `pip install optimum[exporters,onnxruntime]`
+Before you begin, make sure you have all the necessary libraries installed :
+
+```bash
+pip install optimum[exporters,onnxruntime]
+```
 
 It is possible to export 🤗 Transformers and Diffusers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
 
@@ -157,7 +169,11 @@ More details on how to run ONNX models with `ORTModelForXXX` classes [here](http
 
 ### TensorFlow Lite
 
-This requires to install the Exporters extra by doing `pip install optimum[exporters-tf]`
+Before you begin, make sure you have all the necessary libraries installed :
+
+```bash
+pip install optimum[exporters-tf]
+```
 
 Just as for ONNX, it is possible to export models to [TensorFlow Lite](https://www.tensorflow.org/lite) and quantize them:
 
@@ -178,7 +194,11 @@ We support many providers:
 
 ### Habana
 
-This requires to install the Habana extra by doing `pip install --upgrade-strategy eager optimum[habana]`
+Before you begin, make sure you have all the necessary libraries installed :
+
+```bash
+pip install --upgrade-strategy eager optimum[habana]
+```
 
 ```diff
 - from transformers import Trainer, TrainingArguments
