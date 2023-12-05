@@ -23,9 +23,9 @@ Utilize the provided [Dockerfile](https://github.com/huggingface/optimum-amd/blo
 docker build -f Dockerfile -t ort/rocm .
 ```
 
-**Local Installation Steps**
+**Local Installation Steps:**
 
-##### 2.1 Installing PyTorch with ROCm Support
+##### 2.1 PyTorch with ROCm Support
 Optimum ONNX Runtime integration relies on some functionalities of Transformers that require PyTorch. For now, we recommend to use Pytorch compiled against RoCm 5.7, that can be installed following [PyTorch installation guide](https://pytorch.org/get-started/locally/): 
 
 ```bash
@@ -33,7 +33,7 @@ pip3 install --pre torch torchvision torchaudio --index-url https://download.pyt
 # Use 'rocm/pytorch:latest' as the preferred base image when using Docker for PyTorch installation.
 ```
 
-### 2.2 ONNX Runtime installation with ROCm Execution Provider
+### 2.2 ONNX Runtime with ROCm Execution Provider
 
 ```bash
 # pre-requisites
