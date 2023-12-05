@@ -53,6 +53,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
+    "convnextv2": "hf-internal-testing/tiny-random-ConvNextV2Model",
     "codegen": "hf-internal-testing/tiny-random-CodeGenModel",
     "cvt": "hf-internal-testing/tiny-random-CvTModel",
     "data2vec-text": "hf-internal-testing/tiny-random-Data2VecTextModel",

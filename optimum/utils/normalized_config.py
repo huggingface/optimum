@@ -186,6 +186,7 @@ class NormalizedConfigManager:
         'clip',
         'convbert',
         'convnext',
+        'convnextv2',
         'data2vec-text',
         'data2vec-vision',
         'detr',
