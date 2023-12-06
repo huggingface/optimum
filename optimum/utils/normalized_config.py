@@ -256,8 +256,8 @@ class NormalizedConfigManager:
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
         "mpt": MPTNormalizedTextConfig,
-        "phi": GPTBigCodeNormalizedTextConfig,
         "baichuan": NormalizedTextConfig,
+        "phi": NormalizedTextConfig,
         "qwen": NormalizedTextConfig,
         "chatglm": NormalizedTextConfig.with_args(num_layers="num_layers"),
     }
