@@ -33,7 +33,7 @@ pip3 install --pre torch torchvision torchaudio --index-url https://download.pyt
 # Use 'rocm/pytorch:latest' as the preferred base image when using Docker for PyTorch installation.
 ```
 
-### 2.2 ONNX Runtime with ROCm Execution Provider
+##### 2.2 ONNX Runtime with ROCm Execution Provider
 
 ```bash
 # pre-requisites
@@ -83,7 +83,7 @@ ValueError: Asked to use ROCMExecutionProvider as an ONNX Runtime execution prov
 
 then something is wrong with the ROCM or ONNX Runtime installation.
 
-### Use ROCM Execution Provider with ORT models
+## Use ROCM Execution Provider with ORT models
 
 For ORT models, the use is straightforward. Simply specify the `provider` argument in the `ORTModel.from_pretrained()` method. Here's an example:
 
@@ -128,6 +128,6 @@ Additionally, you can pass the session option `log_severity_level = 0` (verbose)
 ... )
 ```
 
-### Observed time gains
+## Observed time gains
 
 Coming soon!
