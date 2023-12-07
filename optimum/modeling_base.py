@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from huggingface_hub import HfApi, HfFolder
 from transformers import AutoConfig, add_start_docstrings
 
+from .exporters import TasksManager
 from .utils import CONFIG_NAME
 
 
@@ -289,6 +290,25 @@ class OptimizedModel(PreTrainedModel):
         )
 
     @classmethod
+    def _from_timm(
+        cls,
+        model_id: Union[str, Path],
+        config: "PretrainedConfig",
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
+        force_download: bool = False,
+        cache_dir: Optional[str] = None,
+        subfolder: str = "",
+        local_files_only: bool = False,
+        trust_remote_code: bool = False,
+        **kwargs,
+    ) -> "OptimizedModel":
+        """Overwrite this method in subclass to define how to load your model from vanilla timm model"""
+        raise NotImplementedError(
+            "Overwrite this method in subclass to define how to load your model from vanilla timm model"
+        )
+
+    @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
     def from_pretrained(
         cls,
@@ -324,6 +344,11 @@ class OptimizedModel(PreTrainedModel):
                     f"The argument `revision` was set to {revision} but will be ignored for {model_id.split('@')[1]}"
                 )
             model_id, revision = model_id.split("@")
+
+        library_name = TasksManager.infer_library_from_model(model_id, subfolder, revision, cache_dir)
+
+        if library_name == "timm":
+            config = TasksManager.get_config_from_model(model_id, subfolder, revision, cache_dir)
 
         if config is None:
             if os.path.isdir(os.path.join(model_id, subfolder)) and cls.config_name == CONFIG_NAME:
@@ -368,7 +393,11 @@ class OptimizedModel(PreTrainedModel):
         elif export and trust_remote_code is None:
             trust_remote_code = False
 
-        from_pretrained_method = cls._from_transformers if export else cls._from_pretrained
+        if export:
+            from_pretrained_method = cls._from_timm if library_name == "timm" else cls._from_transformers
+        else:
+            from_pretrained_method = cls._from_pretrained
+
         return from_pretrained_method(
             model_id=model_id,
             config=config,

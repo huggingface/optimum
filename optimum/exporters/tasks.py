@@ -30,6 +30,7 @@ from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch
 from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
 from ..utils.import_utils import is_onnx_available
+from .utils import CONFIG_NAME
 
 
 if TYPE_CHECKING:
@@ -1552,9 +1553,29 @@ class TasksManager:
         return task
 
     @classmethod
+    def get_config_from_model(
+        cls,
+        model_name_or_path: Union[str, Path],
+        subfolder: str = "",
+        revision: Optional[str] = None,
+    ):
+        full_model_path = Path(model_name_or_path) / subfolder
+
+        config_path = full_model_path / CONFIG_NAME
+
+        if not full_model_path.is_dir():
+            config_path = huggingface_hub.hf_hub_download(
+                model_name_or_path, CONFIG_NAME, subfolder=subfolder, revision=revision
+            )
+
+        model_config = PretrainedConfig.from_json_file(config_path)
+
+        return model_config
+
+    @classmethod
     def infer_library_from_model(
         cls,
-        model_name_or_path: str,
+        model_name_or_path: Union[str, Path],
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
@@ -1597,12 +1618,12 @@ class TasksManager:
 
             if "model_index.json" in all_files:
                 library_name = "diffusers"
-            elif "config.json" in all_files:
-                config_path = full_model_path / "config.json"
+            elif CONFIG_NAME in all_files:
+                config_path = full_model_path / CONFIG_NAME
 
                 if not full_model_path.is_dir():
                     config_path = huggingface_hub.hf_hub_download(
-                        model_name_or_path, "config.json", subfolder=subfolder, revision=revision
+                        model_name_or_path, CONFIG_NAME, subfolder=subfolder, revision=revision
                     )
 
                 model_config = PretrainedConfig.from_json_file(config_path)

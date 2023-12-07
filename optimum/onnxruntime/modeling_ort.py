@@ -575,6 +575,57 @@ class ORTModel(OptimizedModel):
         )
 
     @classmethod
+    def _from_timm(
+        cls,
+        model_id: str,
+        config: "PretrainedConfig",
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
+        force_download: bool = False,
+        cache_dir: Optional[str] = None,
+        subfolder: str = "",
+        local_files_only: bool = False,
+        trust_remote_code: bool = False,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[ort.SessionOptions] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
+        use_io_binding: Optional[bool] = None,
+        task: Optional[str] = None,
+    ) -> "ORTModel":
+        task = "image-classification"
+
+        save_dir = TemporaryDirectory()
+        save_dir_path = Path(save_dir.name)
+
+        main_export(
+            model_name_or_path=model_id,
+            output=save_dir_path,
+            task=task,
+            do_validation=False,
+            no_post_process=True,
+            subfolder=subfolder,
+            revision=revision,
+            cache_dir=cache_dir,
+            use_auth_token=use_auth_token,
+            local_files_only=local_files_only,
+            force_download=force_download,
+            trust_remote_code=trust_remote_code,
+        )
+
+        config.save_pretrained(save_dir_path)
+        maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
+
+        return cls._from_pretrained(
+            save_dir_path,
+            config,
+            use_io_binding=use_io_binding,
+            model_save_dir=save_dir,
+            provider=provider,
+            session_options=session_options,
+            provider_options=provider_options,
+        )
+
+    @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
     def from_pretrained(
         cls,
