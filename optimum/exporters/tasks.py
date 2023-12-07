@@ -29,8 +29,8 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
+from ..utils import CONFIG_NAME
 from ..utils.import_utils import is_onnx_available
-from .utils import CONFIG_NAME
 
 
 if TYPE_CHECKING:

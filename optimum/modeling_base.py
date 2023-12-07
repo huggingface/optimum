@@ -348,7 +348,7 @@ class OptimizedModel(PreTrainedModel):
         library_name = TasksManager.infer_library_from_model(model_id, subfolder, revision, cache_dir)
 
         if library_name == "timm":
-            config = TasksManager.get_config_from_model(model_id, subfolder, revision, cache_dir)
+            config = TasksManager.get_config_from_model(model_id, subfolder, revision)
 
         if config is None:
             if os.path.isdir(os.path.join(model_id, subfolder)) and cls.config_name == CONFIG_NAME:
