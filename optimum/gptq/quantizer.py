@@ -146,6 +146,8 @@ class GPTQQuantizer(object):
         self.quant_method = QuantizationMethod.GPTQ
         self.cache_block_outputs = cache_block_outputs
 
+        self.serialization_keys = ["bits", "dataset", "group_size", "damp_percent", "desc_act", "sym", "true_sequential", "quant_method"]
+
         if self.bits not in [2, 3, 4, 8]:
             raise ValueError("only support quantize to [2,3,4,8] bits.")
         if self.group_size != -1 and self.group_size <= 0:
@@ -169,7 +171,10 @@ class GPTQQuantizer(object):
         """
         Returns the args in dict format.
         """
-        return copy.deepcopy(self.__dict__)
+        gptq_dict = {}
+        for key in self.serialization_keys:
+            gptq_dict[key] = getattr(self, key)
+        return gptq_dict
 
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]):
