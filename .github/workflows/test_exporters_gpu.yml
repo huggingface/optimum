@@ -13,8 +13,9 @@ on:
 
 jobs:
   do-the-job:
-    name: Setup
-    runs-on: [self-hosted, ci] # run the job on the newly created runner
+    if: ${{ (github.event_name == 'workflow_dispatch') || (github.event_name == 'schedule') || contains( github.event.pull_request.labels.*.name, 'gpu-test') }}
+    name: Start self-hosted EC2 runner
+    runs-on: [single-gpu, nvidia-gpu, t4, ci]
     env:
       AWS_REGION: us-east-1
     steps:
@@ -25,4 +26,4 @@ jobs:
           docker build -f tests/exporters/Dockerfile_exporters_gpu -t exporters-gpu .
       - name: Test with unittest within docker container
         run: |
-          docker run --rm --gpus all -v $(pwd)/hf_cache:/root/.cache/huggingface --workdir=/workspace/optimum/tests exporters-gpu:latest
+          docker run --rm --gpus all -v /mnt/cache/.cache/huggingface:/root/.cache/huggingface --workdir=/workspace/optimum/tests exporters-gpu:latest

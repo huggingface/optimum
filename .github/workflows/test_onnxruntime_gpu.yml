@@ -13,7 +13,8 @@ on:
 
 jobs:
   do-the-job:
-    name: Setup
+    if: ${{ (github.event_name == 'workflow_dispatch') || (github.event_name == 'schedule') || contains( github.event.pull_request.labels.*.name, 'gpu-test') }}
+    name: Start self-hosted EC2 runner
     runs-on: [single-gpu, nvidia-gpu, t4, ci]
     env:
       AWS_REGION: us-east-1
