@@ -27,6 +27,7 @@ import onnx
 import onnxruntime
 import pytest
 import requests
+import timm
 import torch
 from huggingface_hub.constants import default_cache_path
 from parameterized import parameterized
@@ -2714,6 +2715,15 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "vit",
     ]
 
+    TIMM_SUPPORTED_ARCHITECTURES = [
+        "resnext26ts",
+        "resnext50-32x4d",
+        "resnext50d-32x4d",
+        "resnext101-32x4d",
+        "resnext101-32x8d",
+        "resnext101-64x4d",
+    ]
+
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForImageClassification
     TASK = "image-classification"
@@ -2723,6 +2733,50 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
             _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("only supports the tasks", str(context.exception))
+
+
+    @parameterized.expand(TIMM_SUPPORTED_ARCHITECTURES)
+    @pytest.mark.run_slow
+    @pytest.mark.timm_test
+    @slow
+    def test_compare_to_timm(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForImageClassification.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        timm_model = timm.create_model(model_id, pretrained=True)
+        timm_model = timm_model.eval()
+
+        # get model specific transforms (normalization, resize)
+        data_config = timm.data.resolve_model_data_config(timm_model)
+        transforms = timm.data.create_transform(**data_config, is_training=False)
+
+        url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/beignets-task-guide.png"
+        image = Image.open(requests.get(url, stream=True).raw)
+        inputs = transforms(image).unsqueeze(0)
+
+        with torch.no_grad():
+            timm_outputs = timm_model(inputs)
+
+        for input_type in ["pt", "np"]:
+            if input_type == "np":
+                inputs = inputs.cpu().detach().numpy()
+            onnx_outputs = onnx_model(inputs)
+
+            self.assertIn("logits", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), timm_outputs, atol=1e-4))
+
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
