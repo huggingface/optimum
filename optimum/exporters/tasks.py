@@ -177,6 +177,7 @@ class TasksManager:
             "question-answering": "AutoModelForQuestionAnswering",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
             "text-to-audio": "AutoModelForTextToSpectrogram",
+            "text-to-waveform": "AutoModelForTextToWaveform",
             "text-generation": "AutoModelForCausalLM",
             "text2text-generation": "AutoModelForSeq2SeqLM",
             "text-classification": "AutoModelForSequenceClassification",
@@ -939,6 +940,10 @@ class TasksManager:
         ),
         "vit": supported_tasks_mapping(
             "feature-extraction", "image-classification", "masked-im", onnx="ViTOnnxConfig"
+        ),
+        "vits": supported_tasks_mapping(
+            "text-to-waveform",
+            onnx="VitsOnnxConfig",
         ),
         "wavlm": supported_tasks_mapping(
             "feature-extraction",
