@@ -2734,7 +2734,6 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
         self.assertIn("only supports the tasks", str(context.exception))
 
-
     @parameterized.expand(TIMM_SUPPORTED_ARCHITECTURES)
     @pytest.mark.run_slow
     @pytest.mark.timm_test
