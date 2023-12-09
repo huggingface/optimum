@@ -482,6 +482,11 @@ class TasksManager:
             "image-segmentation",
             onnx="DetrOnnxConfig",
         ),
+        "dinov2": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="Dinov2OnnxConfig",
+        ),
         "distilbert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",

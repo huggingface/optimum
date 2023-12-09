@@ -708,6 +708,10 @@ class ConvNextV2OnnxConfig(ViTOnnxConfig):
     pass
 
 
+class Dinov2OnnxConfig(ViTOnnxConfig):
+    pass
+
+
 class MobileViTOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
 
