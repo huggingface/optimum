@@ -744,7 +744,7 @@ class Dinov2DummyInputGenerator(DummyVisionInputGenerator):
 
 
 class Dinov2OnnxConfig(ViTOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (Dinov2DummyInputGenerator, )
+    DUMMY_INPUT_GENERATOR_CLASSES = (Dinov2DummyInputGenerator,)
 
 
 class MobileViTOnnxConfig(ViTOnnxConfig):
