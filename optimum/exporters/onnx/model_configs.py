@@ -880,22 +880,6 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
         return dummy_inputs
 
 
-class SiglipNormalizedConfig(CLIPNormalizedConfig):
-    pass
-
-
-class SiglipOnnxConfig(CLIPOnnxConfig):
-    pass
-
-
-class SiglipTextWithProjectionOnnxConfig(CLIPTextWithProjectionOnnxConfig):
-    pass
-
-
-class SiglipTextOnnxConfig(CLIPTextOnnxConfig):
-    pass
-
-
 class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
