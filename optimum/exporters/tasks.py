@@ -168,6 +168,7 @@ class TasksManager:
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
             "image-classification": "AutoModelForImageClassification",
+            "image-matting": "VitMatteForImageMatting",
             "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
             "image-to-image": "AutoModelForImageToImage",
             "image-to-text": "AutoModelForVision2Seq",
@@ -955,6 +956,11 @@ class TasksManager:
         ),
         "vit": supported_tasks_mapping(
             "feature-extraction", "image-classification", "masked-im", onnx="ViTOnnxConfig"
+        ),
+        "vitmatte": supported_tasks_mapping(
+            "feature-extraction",
+            "image-matting",
+            onnx="VitMatteOnnxConfig",
         ),
         "wavlm": supported_tasks_mapping(
             "feature-extraction",

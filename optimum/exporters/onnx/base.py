@@ -151,6 +151,7 @@ class OnnxConfig(ExportConfig, ABC):
         "feature-extraction": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
+        "image-matting": OrderedDict({"alphas": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}),
         "image-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
         "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-to-image": OrderedDict(
