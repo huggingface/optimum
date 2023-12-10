@@ -186,6 +186,7 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
 class EsmOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     ATOL_FOR_VALIDATION = 1e-4
+    DEFAULT_ONNX_OPSET = 12
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
