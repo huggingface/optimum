@@ -782,6 +782,7 @@ class DonutSwinOnnxConfig(ViTOnnxConfig):
 
 class TimmResNextOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 12
 
     def __init__(
         self,
@@ -806,6 +807,10 @@ class TimmResNextOnnxConfig(ViTOnnxConfig):
         model_inputs["x"] = inputs["pixel_values"]
 
         return model_inputs
+
+    @property
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
+        return {"x": "pixel_values"}
 
 
 class TimmResNext50d_32x4dOnnxConfig(TimmResNextOnnxConfig):
