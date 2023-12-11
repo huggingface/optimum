@@ -360,7 +360,9 @@ class GPTQQuantizer(object):
             elif isinstance(self.dataset, list):
                 dataset = [tokenizer(data, return_tensors="pt") for data in self.dataset]
             else:
-                raise ValueError("You need to pass a list of string, a list of tokenized data or a string for `dataset`")
+                raise ValueError(
+                    "You need to pass a list of string, a list of tokenized data or a string for `dataset`"
+                )
 
         dataset = prepare_dataset(dataset, pad_token_id=self.pad_token_id, batch_size=self.batch_size)
 
