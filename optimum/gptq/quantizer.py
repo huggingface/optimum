@@ -157,7 +157,7 @@ class GPTQQuantizer(object):
             "sym",
             "true_sequential",
             "quant_method",
-            "inside_layer_modules"
+            "inside_layer_modules",
         ]
 
         if self.bits not in [2, 3, 4, 8]:
