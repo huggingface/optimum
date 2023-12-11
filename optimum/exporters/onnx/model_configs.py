@@ -783,6 +783,23 @@ class DonutSwinOnnxConfig(ViTOnnxConfig):
 class TimmResNextOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
 
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        preprocessors: Optional[List[Any]] = None,
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        legacy: bool = False,
+    ):
+        super().__init__(config, task, preprocessors, int_dtype, float_dtype, legacy)
+
+        pretrained_cfg = self._config
+        if hasattr(self._config, "pretrained_cfg"):
+            pretrained_cfg = self._config.pretrained_cfg
+
+        self._normalized_config = self.NORMALIZED_CONFIG_CLASS(pretrained_cfg)
+
     def rename_ambiguous_inputs(self, inputs):
         #  The input name in the model signature is `x, hence the export input name is updated.
         model_inputs = {}

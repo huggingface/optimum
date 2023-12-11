@@ -815,12 +815,7 @@ class TasksManager:
         "resnet": supported_tasks_mapping(
             "feature-extraction", "image-classification", onnx="ResNetOnnxConfig", tflite="ResNetTFLiteConfig"
         ),
-        "resnext26ts": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
-        "resnext50-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
-        "resnext50d-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNext50d_32x4dOnnxConfig"),
-        "resnext101-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
-        "resnext101-32x8d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
-        "resnext101-64x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "timm-default-config": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
         "roberta": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -1560,7 +1555,7 @@ class TasksManager:
 
                 model_config = PretrainedConfig.from_json_file(config_path)
 
-                if hasattr(model_config, "pretrained_cfg"):
+                if hasattr(model_config, "pretrained_cfg") or hasattr(model_config, "architecture"):
                     library_name = "timm"
                 elif hasattr(model_config, "_diffusers_version"):
                     library_name = "diffusers"
@@ -1625,6 +1620,9 @@ class TasksManager:
 
             model_config = PretrainedConfig.from_json_file(config_path)
 
+            if hasattr(model_config, "pretrained_cfg"):
+                model_config.pretrained_cfg = PretrainedConfig.from_dict(model_config.pretrained_cfg)
+
             # Set config as in transformers
             setattr(model, "config", model_config)
 
@@ -1632,7 +1630,7 @@ class TasksManager:
             with open(config_path) as fp:
                 model_type = json.load(fp)["architecture"]
 
-            setattr(model.config, "model_type", model_type)
+            setattr(model.config, "model_type", "timm-default-config")
 
     @staticmethod
     def get_all_tasks():

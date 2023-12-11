@@ -604,15 +604,21 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         **kwargs,
     ):
         self.task = task
+
         # Some vision models can take any input sizes, in this case we use the values provided as parameters.
-        if normalized_config.has_attribute("image_size"):
-            self.image_size = normalized_config.image_size
-        else:
-            self.image_size = (height, width)
         if normalized_config.has_attribute("num_channels"):
             self.num_channels = normalized_config.num_channels
         else:
             self.num_channels = num_channels
+
+        if normalized_config.has_attribute("image_size"):
+            self.image_size = normalized_config.image_size
+        elif normalized_config.has_attribute("input_size"):
+            input_size = normalized_config.input_size
+            self.num_channels = input_size[0]
+            self.image_size = input_size[1:]
+        else:
+            self.image_size = (height, width)
 
         if not isinstance(self.image_size, (tuple, list)):
             self.image_size = (self.image_size, self.image_size)
