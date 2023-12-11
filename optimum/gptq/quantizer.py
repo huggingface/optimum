@@ -749,7 +749,6 @@ def load_quantized_model(
             f"Failed to load quantization config from {save_folder} (lookup for traceback): {err}\nTip: If the save directory is saved from a transformers.PreTrainedModel, make sure that `config.json` contains a 'quantization_config' key."
         ) from err
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
-    print(quantizer.to_dict())
     quantizer.disable_exllama = disable_exllama
     quantizer.exllama_config = exllama_config
     quantizer.exllama_version = quantizer.exllama_config["version"]
