@@ -157,6 +157,7 @@ class GPTQQuantizer(object):
             "sym",
             "true_sequential",
             "quant_method",
+            "inside_layer_modules"
         ]
 
         if self.bits not in [2, 3, 4, 8]:
@@ -455,9 +456,9 @@ class GPTQQuantizer(object):
             layers = get_layers(block)
             if isinstance(self.inside_layer_modules, list) and len(self.inside_layer_modules) > 0:
                 if self.true_sequential:
-                    layers_name_list = [sum(self.inside_layer_modules, [])]
-                else:
                     layers_name_list = self.inside_layer_modules
+                else:
+                    layers_name_list = [sum(self.inside_layer_modules, [])]
             else:
                 if self.true_sequential:
                     # lazy sequential but works well
@@ -748,6 +749,7 @@ def load_quantized_model(
             f"Failed to load quantization config from {save_folder} (lookup for traceback): {err}\nTip: If the save directory is saved from a transformers.PreTrainedModel, make sure that `config.json` contains a 'quantization_config' key."
         ) from err
     quantizer = GPTQQuantizer.from_dict(quantize_config_dict)
+    print(quantizer.to_dict())
     quantizer.disable_exllama = disable_exllama
     quantizer.exllama_config = exllama_config
     quantizer.exllama_version = quantizer.exllama_config["version"]
