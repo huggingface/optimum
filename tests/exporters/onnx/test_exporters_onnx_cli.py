@@ -42,11 +42,13 @@ if is_torch_available():
 from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY, PYTORCH_STABLE_DIFFUSION_MODEL, PYTORCH_TIMM_MODEL
 
 
-def _get_models_to_test(export_models_dict: Dict):
+def _get_models_to_test(export_models_dict: Dict, library_name: str = "transformers"):
     models_to_test = []
     if is_torch_available():
         for model_type, model_names_tasks in export_models_dict.items():
-            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
+            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(
+                model_type, "onnx", library_name=library_name
+            )
 
             if isinstance(model_names_tasks, str):  # test export of all tasks on the same model
                 tasks = list(task_config_mapping.keys())
@@ -67,7 +69,7 @@ def _get_models_to_test(export_models_dict: Dict):
                         # The model uses bert as decoder and does not support past key values
                         continue
                     onnx_config_class = TasksManager.get_exporter_config_constructor(
-                        "onnx", task=task, model_type=model_type
+                        "onnx", task=task, model_type=model_type, library_name=library_name
                     )
 
                     # Refer to https://github.com/huggingface/optimum/blob/0b08a1fd19005b7334aa923433b3544bd2b11ff2/optimum/exporters/tasks.py#L65
@@ -204,7 +206,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_fp16_stable_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda", fp16=True)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_torch
     @require_vision
     @require_timm
@@ -221,7 +223,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_torch_gpu
     @require_vision
     @require_timm
@@ -240,7 +242,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", variant=variant)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_torch_gpu
     @require_vision
     @require_timm

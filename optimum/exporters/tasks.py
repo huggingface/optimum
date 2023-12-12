@@ -280,6 +280,10 @@ class TasksManager:
         "visual-question-answering",
     )
 
+    _MODEL_TYPE_FOR_DEFAULT_CONFIG = {
+        "timm": "default-timm-config",
+    }
+
     # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
     _SUPPORTED_MODEL_TYPE = {
@@ -815,7 +819,7 @@ class TasksManager:
         "resnet": supported_tasks_mapping(
             "feature-extraction", "image-classification", onnx="ResNetOnnxConfig", tflite="ResNetTFLiteConfig"
         ),
-        "timm-default-config": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "default-timm-config": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
         "roberta": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -1072,7 +1076,7 @@ class TasksManager:
 
     @staticmethod
     def get_supported_tasks_for_model_type(
-        model_type: str, exporter: str, model_name: Optional[str] = None
+        model_type: str, exporter: str, model_name: Optional[str] = None, library_name: str = "transformers"
     ) -> TaskNameToExportConfigDict:
         """
         Retrieves the `task -> exporter backend config constructors` map from the model type.
@@ -1084,6 +1088,8 @@ class TasksManager:
                 The name of the exporter.
             model_name (`Optional[str]`, defaults to `None`):
                 The name attribute of the model object, only used for the exception message.
+            library_name (defaults to `transformers`):
+                 The library name of the model.
 
         Returns:
             `TaskNameToExportConfigDict`: The dictionary mapping each task to a corresponding `ExportConfig`
@@ -1091,20 +1097,28 @@ class TasksManager:
         """
         model_type = model_type.lower().replace("_", "-")
         model_type_and_model_name = f"{model_type} ({model_name})" if model_name else model_type
+
+        default_model_type = None
+        if library_name in TasksManager._MODEL_TYPE_FOR_DEFAULT_CONFIG:
+            default_model_type = TasksManager._MODEL_TYPE_FOR_DEFAULT_CONFIG[library_name]
+
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
-            raise KeyError(
-                f"{model_type_and_model_name} is not supported yet. "
-                f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
-                f"If you want to support {model_type} please propose a PR or open up an issue."
-            )
-        elif exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
+            if default_model_type is not None:
+                model_type = default_model_type
+            else:
+                raise KeyError(
+                    f"{model_type_and_model_name} is not supported yet for {library_name}. "
+                    f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
+                    f"If you want to support {model_type} please propose a PR or open up an issue."
+                )
+        if exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet with the {exporter} backend. "
                 f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE[model_type].keys())} are supported. "
                 f"If you want to support {exporter} please propose a PR or open up an issue."
             )
-        else:
-            return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
+
+        return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
 
     @staticmethod
     def get_supported_model_type_for_task(task: str, exporter: str) -> List[str]:
@@ -1630,7 +1644,7 @@ class TasksManager:
             with open(config_path) as fp:
                 model_type = json.load(fp)["architecture"]
 
-            setattr(model.config, "model_type", "timm-default-config")
+            setattr(model.config, "model_type", model_type)
 
     @staticmethod
     def get_all_tasks():
@@ -1774,6 +1788,7 @@ class TasksManager:
         model_type: Optional[str] = None,
         model_name: Optional[str] = None,
         exporter_config_kwargs: Optional[Dict[str, Any]] = None,
+        library_name: str = "transformers",
     ) -> ExportConfigConstructor:
         """
         Gets the `ExportConfigConstructor` for a model (or alternatively for a model type) and task combination.
@@ -1807,7 +1822,9 @@ class TasksManager:
             model_type = model_type.replace("_", "-")
             model_name = getattr(model, "name", model_name)
 
-        model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
+        model_tasks = TasksManager.get_supported_tasks_for_model_type(
+            model_type, exporter, model_name=model_name, library_name=library_name
+        )
 
         if task not in model_tasks:
             synonyms = TasksManager.synonyms_for_task(task)
@@ -1820,6 +1837,9 @@ class TasksManager:
                     f"{model_type} doesn't support task {task} for the {exporter} backend."
                     f" Supported tasks are: {', '.join(model_tasks.keys())}."
                 )
+
+        if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
+            model_type = TasksManager._MODEL_TYPE_FOR_DEFAULT_CONFIG[library_name]
 
         exporter_config_constructor = TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
         if exporter_config_kwargs is not None:
