@@ -126,7 +126,7 @@ class GPTQQuantizer(object):
                 (e.g. ChatGLM) but can require more time.
             modules_to_quantize_inside_block (`List[List[str]]`, *optional*, defaults to `None`):
                 List list of module names to quantize in the block specified. The block to quantize can be specified by setting
-                `block_name_to_quantize`. We will quantize each list sequentially.
+                `block_name_to_quantize`. We will quantize each list sequentially. If not set, we will quantize all linear layers.
         """
 
         self.bits = bits
