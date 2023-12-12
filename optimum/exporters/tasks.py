@@ -1564,9 +1564,9 @@ class TasksManager:
         if not full_model_path.is_dir():
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             library_name = getattr(model_info, "library_name", None)
-            library_name = library_name.replace(
-                "-", "_"
-            )  # sentence-transformers name on python side is sentence_transformers
+            
+            # sentence-transformers package name is sentence_transformers
+            library_name = library_name.replace("-", "_")
 
         if library_name is None:
             all_files, _ = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
