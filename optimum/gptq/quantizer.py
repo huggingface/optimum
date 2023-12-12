@@ -221,7 +221,9 @@ class GPTQQuantizer(object):
             layers_to_keep = sum(self.modules_in_block_to_quantize, [])
             for name in list(layers_to_be_replaced.keys()):
                 if not any(name.endswith(layer) for layer in layers_to_keep):
-                    logger.info(f"Quantization disabled for {name} (only modules_in_block_to_quantize={self.modules_in_block_to_quantize} are quantized)")
+                    logger.info(
+                        f"Quantization disabled for {name} (only modules_in_block_to_quantize={self.modules_in_block_to_quantize} are quantized)"
+                    )
                     del layers_to_be_replaced[name]
         self._replace_by_quant_layers(model, layers_to_be_replaced)
         return model
@@ -456,10 +458,7 @@ class GPTQQuantizer(object):
             if not has_device_map or get_device(block) == torch.device("cpu"):
                 block = block.to(0)
             layers = get_layers(block)
-            if (
-                isinstance(self.modules_in_block_to_quantize, list)
-                and len(self.modules_in_block_to_quantize) > 0
-            ):
+            if isinstance(self.modules_in_block_to_quantize, list) and len(self.modules_in_block_to_quantize) > 0:
                 if self.true_sequential:
                     layers_name_list = self.modules_in_block_to_quantize
                 else:
