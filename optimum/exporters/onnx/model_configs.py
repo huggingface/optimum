@@ -780,7 +780,7 @@ class DonutSwinOnnxConfig(ViTOnnxConfig):
     pass
 
 
-class TimmResNextOnnxConfig(ViTOnnxConfig):
+class TimmDefaultOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     DEFAULT_ONNX_OPSET = 12
 
@@ -811,15 +811,6 @@ class TimmResNextOnnxConfig(ViTOnnxConfig):
     @property
     def torch_to_onnx_input_map(self) -> Dict[str, str]:
         return {"x": "pixel_values"}
-
-
-class TimmResNext50d_32x4dOnnxConfig(TimmResNextOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-3
-
-    @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
-        return {"pixel_values": {0: "batch_size"}}
-
 
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     TEXT_CONFIG = "text_config"
