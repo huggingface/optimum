@@ -16,8 +16,9 @@ import dataclasses
 import functools
 import inspect
 import math
+import sys
 import types
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 from packaging import version
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
@@ -34,8 +35,11 @@ from ...utils import logging
 
 if _transformers_version > version.parse("4.34.99"):
     from transformers.modeling_attn_mask_utils import AttentionMaskConverter, _prepare_4d_causal_attention_mask
+if _transformers_version > version.parse("4.35.99"):
+    from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask_for_sdpa
 else:
     _prepare_4d_causal_attention_mask = None
+    _prepare_4d_causal_attention_mask_for_sdpa = None
     AttentionMaskConverter = None
 
 if TYPE_CHECKING:
@@ -44,6 +48,26 @@ if TYPE_CHECKING:
     from .base import OnnxConfig
 
 logger = logging.get_logger(__name__)
+
+
+@functools.lru_cache()
+def patch_everywhere(attribute_name: str, patch: Any, module_name_prefix: Optional[str] = None):
+    """
+    Finds all occurences of `attribute_name` in the loaded modules and patches them with `patch`.
+
+    Args:
+        attribute_name (`str`):
+            The name of attribute to patch.
+        patch (`Any`):
+            The patch for the attribute.
+        module_name_prefix (`Optional[str]`, defaults to `None`):
+            If set, only module names starting with this prefix will be considered for patching.
+    """
+    for name, module in sys.modules.items():
+        if module_name_prefix is not None and not name.startswith(module_name_prefix):
+            continue
+        if hasattr(module, attribute_name):
+            setattr(module, attribute_name, patch)
 
 
 def override_arguments(args, kwargs, forward_signature, model_kwargs: Dict[str, Any]):
@@ -371,6 +395,12 @@ def falcon_model_forward_without_kv_reformatting(
     )
 
 
+def _unmask_unattended_patched(
+    expanded_mask: torch.Tensor, attention_mask: torch.Tensor, unmasked_value: Union[bool, float]
+):
+    return expanded_mask
+
+
 def _make_causal_mask_patched(
     input_ids_shape: torch.Size,
     dtype: torch.dtype,
@@ -403,24 +433,73 @@ def _make_causal_mask_patched(
     return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
 
 
-_make_causal_mask_patched = staticmethod(_make_causal_mask_patched)
+_make_causal_mask_patched_staticmethod = staticmethod(_make_causal_mask_patched)
+_unmask_unattended_patched_staticmethod = staticmethod(_unmask_unattended_patched)
+
+
+# Adapted from _prepare_4d_causal_attention_mask
+def _prepare_4d_causal_attention_mask_for_sdpa_patched(
+    attention_mask: Optional[torch.Tensor],
+    input_shape: Union[torch.Size, Tuple, List],
+    inputs_embeds: torch.Tensor,
+    past_key_values_length: int,
+    sliding_window: Optional[int] = None,
+):
+    """
+    Prepares the correct `attn_mask` argument to be used by `torch.nn.functional.scaled_dot_product_attention`.
+
+    In case no token is masked in the `attention_mask` argument, we simply set it to `None` for the cases `query_length == 1` and
+    `key_value_length == query_length`, and rely instead on SDPA `is_causal` argument to use causal/non-causal masks,
+    allowing to dispatch to the flash attention kernel (that can otherwise not be used if a custom `attn_mask` is passed).
+    """
+    attn_mask_converter = AttentionMaskConverter(is_causal=True, sliding_window=sliding_window)
+
+    key_value_length = input_shape[-1] + past_key_values_length
+
+    # 4d mask is passed through the layers
+    if attention_mask is not None:
+        attention_mask = attn_mask_converter.to_4d(
+            attention_mask, input_shape[-1], key_value_length=key_value_length, dtype=inputs_embeds.dtype
+        )
+    else:
+        attention_mask = attn_mask_converter.to_causal_4d(
+            input_shape[0], input_shape[-1], key_value_length, dtype=inputs_embeds.dtype, device=inputs_embeds.device
+        )
+
+    # NOTE: For the ONNX export we remove the setting of attention_mask to None in some specific cases, and we do NOT call _unmask_unattended
+    # that can not be exported to ONNX and is very specific to PyTorch memory-efficient attention backend anyway.
+
+    return attention_mask
 
 
 class DecoderModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
-        # TODO: Remove this if once transformers if much above 4.35
         if AttentionMaskConverter is not None:
-            AttentionMaskConverter._make_causal_mask = _make_causal_mask_patched
+            # TODO: Remove this _make_causal_mask patch if once transformers if much above 4.35
+            AttentionMaskConverter._make_causal_mask = _make_causal_mask_patched_staticmethod
+
+            if _transformers_version > version.parse("4.35.99"):
+                AttentionMaskConverter._unmask_unattended = _unmask_unattended_patched_staticmethod
+
+        if _transformers_version > version.parse("4.35.99"):
+            patch_everywhere(
+                "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
+            )
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        # TODO: Remove this if once transformers if much above 4.35
-        # TODO: We should unpatch it - however `self._make_causal_mask` may still be called later which raises issues with this simple patch strategy.
-        # We need to find a proper solution.
-        # if AttentionMaskConverter is not None:
-        #     AttentionMaskConverter._make_causal_mask = self.original_make_causal
-        pass
+        if AttentionMaskConverter is not None:
+            # TODO: Remove this _make_causal_mask patch if once transformers if much above 4.35
+            AttentionMaskConverter._make_causal_mask = self.original_make_causal
+
+            if _transformers_version > version.parse("4.35.99"):
+                AttentionMaskConverter._unmask_unattended = self.original_unmask_unattended
+
+        if _transformers_version > version.parse("4.35.99"):
+            patch_everywhere(
+                "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa
+            )
 
     def __init__(
         self,
@@ -429,6 +508,10 @@ class DecoderModelPatcher(ModelPatcher):
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
+
+        if _transformers_version > version.parse("4.35.99"):
+            self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
+            self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
 
         # TODO: Remove this if once transformers if much above 4.35
         if AttentionMaskConverter is not None:
