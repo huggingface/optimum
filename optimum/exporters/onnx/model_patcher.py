@@ -431,10 +431,6 @@ class FalconModelPatcher(DecoderModelPatcher):
         super().__enter__()
         self.patch_ops()
 
-        print(
-            "sys.modules[transformers.models.falcon.modeling_falcon]",
-            sys.modules["transformers.models.falcon.modeling_falcon"],
-        )
         if self.real_config.task == "text-generation":
             patch_everywhere(
                 "build_alibi_tensor",
