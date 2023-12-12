@@ -1564,7 +1564,7 @@ class TasksManager:
         if not full_model_path.is_dir():
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             library_name = getattr(model_info, "library_name", None)
-            
+
             # sentence-transformers package name is sentence_transformers
             library_name = library_name.replace("-", "_")
 
