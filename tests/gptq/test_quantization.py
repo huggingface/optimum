@@ -53,7 +53,7 @@ class GPTQTest(unittest.TestCase):
     disable_exllama = True
     exllama_config = None
     cache_block_outputs = True
-    inside_layer_modules = None
+    modules_to_quantize_inside_block = None
 
     dataset = [
         "auto-gptq is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
@@ -79,7 +79,7 @@ class GPTQTest(unittest.TestCase):
             disable_exllama=cls.disable_exllama,
             exllama_config=cls.exllama_config,
             cache_block_outputs=cls.cache_block_outputs,
-            inside_layer_modules=cls.inside_layer_modules,
+            modules_to_quantize_inside_block=cls.modules_to_quantize_inside_block,
         )
 
         cls.quantized_model = cls.quantizer.quantize_model(cls.model_fp16, cls.tokenizer)
@@ -303,9 +303,13 @@ class GPTQTestNoBlockCaching(GPTQTest):
     EXPECTED_OUTPUTS.add("Hello my name is John, I am a student in the University of")
 
 
-class GPTQTestInsideLayerModules(GPTQTest):
+class GPTQTestModuleQuant(GPTQTest):
     # all layers are quantized apart from self_attention.dense
-    inside_layer_modules = [["self_attention.query_key_value"], ["mlp.dense_h_to_4h"], ["mlp.dense_4h_to_h"]]
+    modules_to_quantize_inside_block = [
+        ["self_attention.query_key_value"],
+        ["mlp.dense_h_to_4h"],
+        ["mlp.dense_4h_to_h"],
+    ]
     EXPECTED_RELATIVE_DIFFERENCE = 1.57705236164535
 
     def test_not_converted_layers(self):
