@@ -812,6 +812,7 @@ class TimmDefaultOnnxConfig(ViTOnnxConfig):
     def torch_to_onnx_input_map(self) -> Dict[str, str]:
         return {"x": "pixel_values"}
 
+
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     TEXT_CONFIG = "text_config"
     VISION_CONFIG = "vision_config"
