@@ -221,7 +221,7 @@ class GPTQQuantizer(object):
             layers_to_keep = sum(self.modules_in_block_to_quantize, [])
             for name in list(layers_to_be_replaced.keys()):
                 if not any(name.endswith(layer) for layer in layers_to_keep):
-                    logger.info(f"Quantization disabled for {name} (only modules_in_block_to_quantize={modules_in_block_to_quantize} are quantized)")
+                    logger.info(f"Quantization disabled for {name} (only modules_in_block_to_quantize={self.modules_in_block_to_quantize} are quantized)")
                     del layers_to_be_replaced[name]
         self._replace_by_quant_layers(model, layers_to_be_replaced)
         return model
