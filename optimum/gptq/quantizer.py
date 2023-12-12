@@ -107,7 +107,7 @@ class GPTQQuantizer(object):
             model_seqlen (`Optional[int]`, defaults to `None`):
                 The maximum sequence length that the model can take.
             block_name_to_quantize (`Optional[str]`, defaults to `None`):
-                The transformers block name to quantize. If None, we will infer the block name using common pattern (e.g. model.layers)
+                The transformers block name to quantize. If None, we will infer the block name using common patterns (e.g. model.layers)
             module_name_preceding_first_block (`Optional[List[str]]`, defaults to `None`):
                 The layers that are preceding the first Transformer block.
             batch_size (`int`, defaults to `1`):
