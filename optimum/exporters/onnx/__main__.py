@@ -264,8 +264,7 @@ def main_export(
         _variant (`str`, defaults to `default`):
             Specify the variant of the ONNX export to use.
         library_name (`Optional[str]`, defaults to `None`):
-            The library of the model(`"tansformers"` or `"diffusers"` or `"timm"`). If not provided, will attempt to automatically detect
-            the library name for the checkpoint.
+            The library of the model (`"tansformers"` or `"diffusers"` or `"timm"` or `"sentence_transformers"`). If not provided, will attempt to automatically detect the library name for the checkpoint.
         legacy (`bool`, defaults to `False`):
             Disable the use of position_ids for text-generation models that require it for batched generation. Also enable to export decoder only models in three files (without + with past and the merged model). This argument is introduced for backward compatibility and will be removed in a future release of Optimum.
         **kwargs_shapes (`Dict`):

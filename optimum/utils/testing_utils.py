@@ -24,7 +24,13 @@ from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
 import torch
 
-from . import is_accelerate_available, is_auto_gptq_available, is_diffusers_available, is_timm_available
+from . import (
+    is_accelerate_available,
+    is_auto_gptq_available,
+    is_diffusers_available,
+    is_sentence_transformers_available,
+    is_timm_available,
+)
 
 
 # Used to test the hub
@@ -135,6 +141,10 @@ def require_diffusers(test_case):
 
 def require_timm(test_case):
     return unittest.skipUnless(is_timm_available(), "test requires timm")(test_case)
+
+
+def require_sentence_transformers(test_case):
+    return unittest.skipUnless(is_sentence_transformers_available(), "test requires sentence-transformers")(test_case)
 
 
 def grid_parameters(

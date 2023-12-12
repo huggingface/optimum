@@ -293,3 +293,8 @@ PYTORCH_TIMM_MODEL = {
     "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
     "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
 }
+
+PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
+    "sentence-transformers-clip": "sentence-transformers/all-MiniLM-L6-v2",
+    "sentence-transformers-transformer": "sentence-transformers/clip-ViT-B-32-multilingual-v1",
+}
