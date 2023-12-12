@@ -290,7 +290,7 @@ class GPTQQuantizer(object):
         Args:
             model (`nn.Module`):
                 The model to quantize
-            tokenizer (Optional[`Any`], defaults to None):
+            tokenizer (Optional[`Any`], defaults to `None`):
                 The tokenizer to use in order to prepare the dataset. You can pass either:
                     - A custom tokenizer object.
                     - A string, the *model id* of a predefined tokenizer hosted inside a model repo on huggingface.co.
