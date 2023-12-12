@@ -98,10 +98,7 @@ def _get_models_to_test(export_models_dict: Dict):
     if is_torch_available() or is_tf_available():
         for model_type, model_names_tasks in export_models_dict.items():
             model_type = model_type.replace("_", "-")
-            if model_type[:7] == "resnext26ts":
-                task_config_mapping = TasksManager.get_supported_tasks_for_model_type("timm-default-config", "onnx")
-            else:
-                task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
+            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
 
             if isinstance(model_names_tasks, str):  # test export of all tasks on the same model
                 tasks = list(task_config_mapping.keys())
