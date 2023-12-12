@@ -286,6 +286,7 @@ PYTORCH_STABLE_DIFFUSION_MODEL = {
 }
 
 PYTORCH_TIMM_MODEL = {
+    "default-timm-config": "timm/resnext26ts.ra2_in1k",
     "resnext26ts": "timm/resnext26ts.ra2_in1k",
     "resnext50-32x4d": "timm/resnext50_32x4d.tv2_in1k",
     "resnext50d-32x4d": "timm/resnext50d_32x4d.bt_in1k",
