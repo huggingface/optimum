@@ -305,7 +305,7 @@ class GPTQTestNoBlockCaching(GPTQTest):
 
 class GPTQTestModuleQuant(GPTQTest):
     # all layers are quantized apart from self_attention.dense
-    modules_to_quantize_inside_block = [
+    modules_in_block_to_quantize = [
         ["self_attention.query_key_value"],
         ["mlp.dense_h_to_4h"],
         ["mlp.dense_4h_to_h"],

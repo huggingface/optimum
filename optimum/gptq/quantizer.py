@@ -77,7 +77,7 @@ class GPTQQuantizer(object):
         exllama_config: Dict[str, Any] = None,
         max_input_length: Optional[int] = None,
         cache_block_outputs: Optional[bool] = True,
-        modules_to_quantize_inside_block: Optional[List[List[str]]] = None,
+        modules_in_block_to_quantize: Optional[List[List[str]]] = None,
         *args,
         **kwargs,
     ):
@@ -124,9 +124,10 @@ class GPTQQuantizer(object):
             cache_block_outputs (`bool`, defaults to `True`):
                 Whether to cache block outputs to reuse as inputs for the succeeding block. It allows optimization of non-standard models
                 (e.g. ChatGLM) but can require more time.
-            modules_to_quantize_inside_block (`List[List[str]]`, *optional*, defaults to `None`):
-                List list of module names to quantize in the block specified. The block to quantize can be specified by setting
-                `block_name_to_quantize`. We will quantize each list sequentially. If not set, we will quantize all linear layers.
+            modules_in_block_to_quantize (`Optional[List[List[str]]]`, defaults to `None`):
+                List list of module names to quantize in the block specified. This argument is useful to exclude certain linear modules from being quantized.
+                The block to quantize can be specified by setting `block_name_to_quantize`. We will quantize each list sequentially.
+                If not set, we will quantize all linear layers. Example: `inside_layer_modules=[["self_attention.query_key_value"], ["mlp.dense_h_to_4h"]]`
         """
 
         self.bits = bits
@@ -147,7 +148,7 @@ class GPTQQuantizer(object):
         self.max_input_length = max_input_length
         self.quant_method = QuantizationMethod.GPTQ
         self.cache_block_outputs = cache_block_outputs
-        self.modules_to_quantize_inside_block = modules_to_quantize_inside_block
+        self.modules_in_block_to_quantize = modules_in_block_to_quantize
 
         self.serialization_keys = [
             "bits",
@@ -158,7 +159,7 @@ class GPTQQuantizer(object):
             "sym",
             "true_sequential",
             "quant_method",
-            "modules_to_quantize_inside_block",
+            "modules_in_block_to_quantize",
         ]
 
         if self.bits not in [2, 3, 4, 8]:
@@ -216,8 +217,8 @@ class GPTQQuantizer(object):
             self.block_name_to_quantize = get_block_name_with_pattern(model)
         block_name = self.block_name_to_quantize
         layers_to_be_replaced = get_layers(model, prefix=block_name)
-        if self.modules_to_quantize_inside_block is not None:
-            layers_to_keep = sum(self.modules_to_quantize_inside_block, [])
+        if self.modules_in_block_to_quantize is not None:
+            layers_to_keep = sum(self.modules_in_block_to_quantize, [])
             for name in list(layers_to_be_replaced.keys()):
                 if not any(name.endswith(layer) for layer in layers_to_keep):
                     logger.info(f"{name} has not been quantized. We don't convert it")
@@ -456,13 +457,13 @@ class GPTQQuantizer(object):
                 block = block.to(0)
             layers = get_layers(block)
             if (
-                isinstance(self.modules_to_quantize_inside_block, list)
-                and len(self.modules_to_quantize_inside_block) > 0
+                isinstance(self.modules_in_block_to_quantize, list)
+                and len(self.modules_in_block_to_quantize) > 0
             ):
                 if self.true_sequential:
-                    layers_name_list = self.modules_to_quantize_inside_block
+                    layers_name_list = self.modules_in_block_to_quantize
                 else:
-                    layers_name_list = [sum(self.modules_to_quantize_inside_block, [])]
+                    layers_name_list = [sum(self.modules_in_block_to_quantize, [])]
             else:
                 if self.true_sequential:
                     # lazy sequential but works well
