@@ -368,10 +368,10 @@ class DecoderModelPatcher(ModelPatcher):
         super().__exit__(exc_type, exc_value, traceback)
         if AttentionMaskConverter is not None:
             # TODO: Remove this _make_causal_mask patch if once transformers if much above 4.35
-            AttentionMaskConverter._make_causal_mask = self.original_make_causal
+            AttentionMaskConverter._make_causal_mask = staticmethod(self.original_make_causal)
 
             if _transformers_version > version.parse("4.35.99"):
-                AttentionMaskConverter._unmask_unattended = self.original_unmask_unattended
+                AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
 
         if _transformers_version > version.parse("4.35.99"):
             patch_everywhere(
