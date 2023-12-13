@@ -144,7 +144,6 @@ class GPTQTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname:
             self.quantizer.save(self.quantized_model, tmpdirname)
             self.quantized_model.config.save_pretrained(tmpdirname)
-            print(self.quantized_model.config)
             with init_empty_weights():
                 empty_model = AutoModelForCausalLM.from_config(
                     AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
