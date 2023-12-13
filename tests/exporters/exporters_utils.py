@@ -297,7 +297,6 @@ PYTORCH_TIMM_MODEL = {
         "timm/dla102.in1k": ["image-classification"],
         "timm/dpn107.mx_in1k": ["image-classification"],
         "timm/ecaresnet101d.miil_in1k": ["image-classification"],
-        "timm/tf_efficientnet_b0.in1k": ["image-classification"],
         "timm/efficientnet_b1_pruned.in1k": ["image-classification"],
         "timm/inception_resnet_v2.tf_ens_adv_in1k": ["image-classification"],
         "timm/fbnetc_100.rmsp_in1k": ["image-classification"],
