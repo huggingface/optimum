@@ -142,11 +142,15 @@ def _get_models_to_test(export_models_dict: Dict, library_name: str = "transform
                 # TODO: xlm-roberta model auto-infers text-generation, but we don't support it
                 # TODO: perceiver auto-infers default, but we don't support it (why?)
                 # TODO: encoder-decoder auto-infers text3text-generation, but it uses bert as decoder and does not support past key values
+                # TODO: vision-encoder-decoder tiny models have wrong labels on the Hub
+                # TODO: unispeech-sat tiny models have wrong labels on the Hub
                 if model_type not in [
                     "segformer",
                     "xlm-roberta",
                     "perceiver",
                     "encoder-decoder",
+                    "vision-encoder-decoder",
+                    "unispeech-sat"
                 ]:
                     models_to_test.append(
                         (f"{model_type}_no_task_{model_name}", model_type, model_name, "auto", "default", False, False)
