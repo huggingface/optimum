@@ -818,7 +818,7 @@ class DummyVisionEmbeddingsGenerator(DummyInputGenerator):
             output_channels if output_channels is not None else normalized_config.vision_config.output_channels
         )
 
-    def generate(self, input_name: str, framework: str = "pt"):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = [self.batch_size, self.output_channels, self.image_embedding_size, self.image_embedding_size]
         return self.random_float_tensor(shape, framework=framework)
 

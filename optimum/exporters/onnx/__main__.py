@@ -18,18 +18,20 @@ import argparse
 import os
 from pathlib import Path
 
+from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, AutoTokenizer
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
+from ...configuration_utils import _transformers_version
 from ...utils import DEFAULT_DUMMY_SHAPES, ONNX_WEIGHTS_NAME, logging
 from ...utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ...utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
 from .base import OnnxConfigWithPast
-from .constants import UNPICKABLE_ARCHS
+from .constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED, UNPICKABLE_ARCHS
 from .convert import export_models, validate_models_outputs
 from .utils import (
     MODEL_TYPES_REQUIRING_POSITION_IDS,
@@ -265,8 +267,7 @@ def main_export(
         _variant (`str`, defaults to `default`):
             Specify the variant of the ONNX export to use.
         library_name (`Optional[str]`, defaults to `None`):
-            The library of the model(`"tansformers"` or `"diffusers"` or `"timm"`). If not provided, will attempt to automatically detect
-            the library name for the checkpoint.
+            The library of the model (`"tansformers"` or `"diffusers"` or `"timm"` or `"sentence_transformers"`). If not provided, will attempt to automatically detect the library name for the checkpoint.
         legacy (`bool`, defaults to `False`):
             Disable the use of position_ids for text-generation models that require it for batched generation. Also enable to export decoder only models in three files (without + with past and the merged model). This argument is introduced for backward compatibility and will be removed in a future release of Optimum.
         **kwargs_shapes (`Dict`):
@@ -330,6 +331,8 @@ def main_export(
             )
 
     custom_architecture = False
+    loading_kwargs = {}
+
     if library_name == "transformers":
         config = AutoConfig.from_pretrained(
             model_name_or_path,
@@ -354,6 +357,10 @@ def main_export(
                 f"Asked to export a {model_type} model for the task {task}{autodetected_message}, but the Optimum ONNX exporter only supports the tasks {', '.join(model_tasks.keys())} for {model_type}. Please use a supported task. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the task {task} to be supported in the ONNX export for {model_type}."
             )
 
+        # TODO: Fix in Transformers so that SdpaAttention class can be exported to ONNX. `attn_implementation` is introduced in Transformers 4.36.
+        if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and _transformers_version >= version.parse("4.35.99"):
+            loading_kwargs["attn_implementation"] = "eager"
+
     model = TasksManager.get_model_from_task(
         task,
         model_name_or_path,
@@ -368,6 +375,7 @@ def main_export(
         torch_dtype=torch_dtype,
         device=device,
         library_name=library_name,
+        **loading_kwargs,
     )
 
     is_stable_diffusion = "stable-diffusion" in task

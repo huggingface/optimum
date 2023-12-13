@@ -43,18 +43,21 @@ MODELS_DICT = {
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "ernie": "hf-internal-testing/tiny-random-ErnieModel",
-    "falcon": "fxmarty/really-tiny-falcon-testing",
+    # NOTE: falcon directly supports SDPA in Transformers.
+    # "falcon": "fxmarty/really-tiny-falcon-testing",
     "fsmt": "hf-internal-testing/tiny-random-FSMTModel",
     "gpt2": "hf-internal-testing/tiny-random-GPT2Model",
     # NOTE: this tiny model does not use attention_softmax_in_fp32=True (contrary to e.g. starcoder)
-    "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeForCausalLM",
+    # NOTE: gpt_bigcode directy supports SDPA in Transformers.
+    # "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeForCausalLM",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "hubert": "ybelkada/hubert-tiny-random",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
-    "llama": "fxmarty/tiny-llama-fast-tokenizer",
-    "llama-gqa": "noamwies/llama-test-gqa-with-better-transformer",
+    # NOTE: llama directy supports SDPA in Transformers.
+    # "llama": "fxmarty/tiny-llama-fast-tokenizer",
+    # "llama-gqa": "noamwies/llama-test-gqa-with-better-transformer",
     "m2m_100": "hf-internal-testing/tiny-random-nllb",
     "marian": "fxmarty/tiny-marian",  # the other tiny ones have a too small max_position_embeddings
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
@@ -74,7 +77,8 @@ MODELS_DICT = {
     "vit_mae": "hf-internal-testing/tiny-random-ViTMAEModel",
     "vit_msn": "hf-internal-testing/tiny-random-ViTMSNModel",
     "wav2vec2": ("patrickvonplaten/wav2vec2_tiny_random", "ybelkada/tiny-wav2vec2-stable-ln"),
-    "whisper": "openai/whisper-tiny",
+    # NOTE: whisper directy supports SDPA in Transformers.
+    # "whisper": "openai/whisper-tiny",
     "xlm_roberta": "hf-internal-testing/tiny-xlm-roberta",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
 }

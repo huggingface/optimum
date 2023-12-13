@@ -16,11 +16,12 @@ import dataclasses
 import functools
 import inspect
 import math
+import sys
 import types
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+import transformers
 from packaging import version
-from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 from transformers.utils import is_torch_available
 
@@ -34,8 +35,11 @@ from ...utils import logging
 
 if _transformers_version > version.parse("4.34.99"):
     from transformers.modeling_attn_mask_utils import AttentionMaskConverter, _prepare_4d_causal_attention_mask
+if _transformers_version >= version.parse("4.36"):
+    from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask_for_sdpa
 else:
     _prepare_4d_causal_attention_mask = None
+    _prepare_4d_causal_attention_mask_for_sdpa = None
     AttentionMaskConverter = None
 
 if TYPE_CHECKING:
@@ -44,6 +48,25 @@ if TYPE_CHECKING:
     from .base import OnnxConfig
 
 logger = logging.get_logger(__name__)
+
+
+def patch_everywhere(attribute_name: str, patch: Any, module_name_prefix: Optional[str] = None):
+    """
+    Finds all occurences of `attribute_name` in the loaded modules and patches them with `patch`.
+
+    Args:
+        attribute_name (`str`):
+            The name of attribute to patch.
+        patch (`Any`):
+            The patch for the attribute.
+        module_name_prefix (`Optional[str]`, defaults to `None`):
+            If set, only module names starting with this prefix will be considered for patching.
+    """
+    for name, module in sys.modules.items():
+        if module_name_prefix is not None and not name.startswith(module_name_prefix):
+            continue
+        if hasattr(module, attribute_name):
+            setattr(module, attribute_name, patch)
 
 
 def override_arguments(args, kwargs, forward_signature, model_kwargs: Dict[str, Any]):
@@ -249,126 +272,10 @@ class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
             model.decoder.model.decoder.config.use_cache = True
 
 
-def falcon_model_forward_without_kv_reformatting(
-    self,
-    input_ids: Optional[torch.LongTensor] = None,
-    past_key_values: Optional[Tuple[Tuple[torch.Tensor, torch.Tensor], ...]] = None,
-    attention_mask: Optional[torch.Tensor] = None,
-    position_ids: Optional[torch.LongTensor] = None,
-    head_mask: Optional[torch.LongTensor] = None,
-    inputs_embeds: Optional[torch.LongTensor] = None,
-    use_cache: Optional[bool] = None,
-    output_attentions: Optional[bool] = None,
-    output_hidden_states: Optional[bool] = None,
-    return_dict: Optional[bool] = None,
+def _unmask_unattended_patched(
+    expanded_mask: torch.Tensor, attention_mask: torch.Tensor, unmasked_value: Union[bool, float]
 ):
-    # TODO: We may remove this patch once https://github.com/huggingface/transformers/pull/26933 is merged & released in Transformers.
-
-    output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-    output_hidden_states = (
-        output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-    )
-    use_cache = use_cache if use_cache is not None else self.config.use_cache
-    return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-    if input_ids is not None and inputs_embeds is not None:
-        raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
-    elif input_ids is not None:
-        batch_size, seq_length = input_ids.shape
-    elif inputs_embeds is not None:
-        batch_size, seq_length, _ = inputs_embeds.shape
-    else:
-        raise ValueError("You have to specify either input_ids or inputs_embeds")
-
-    if past_key_values is None:
-        past_key_values = tuple([None] * len(self.h))
-
-    # NOTE: here we removed the _convert_to_rw_cache call
-
-    # Prepare head mask if needed
-    # 1.0 in head_mask indicate we keep the head
-    # attention_probs has shape batch_size x num_heads x N x N
-    # head_mask has shape n_layer x batch x num_heads x N x N
-    head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
-
-    if inputs_embeds is None:
-        inputs_embeds = self.word_embeddings(input_ids)
-
-    hidden_states = inputs_embeds
-
-    presents = () if use_cache else None
-    all_self_attentions = () if output_attentions else None
-    all_hidden_states = () if output_hidden_states else None
-
-    # Compute alibi tensor: check build_alibi_tensor documentation
-    past_key_values_length = 0
-    if past_key_values[0] is not None:
-        past_key_values_length = past_key_values[0][0].shape[1]  # 1 because RW-cache, not standard format
-    if attention_mask is None:
-        attention_mask = torch.ones((batch_size, seq_length + past_key_values_length), device=hidden_states.device)
-    else:
-        attention_mask = attention_mask.to(hidden_states.device)
-
-    if self.use_alibi:
-        # NOTE: we use a patched build_alibi_tensor.
-        alibi = falcon_build_alibi_tensor_patched(attention_mask, self.num_heads, dtype=hidden_states.dtype)
-        # alibi = build_alibi_tensor(attention_mask, self.num_heads, dtype=hidden_states.dtype)
-    else:
-        alibi = None
-        if position_ids is None:
-            device = input_ids.device if input_ids is not None else inputs_embeds.device
-            position_ids = torch.arange(
-                past_key_values_length, seq_length + past_key_values_length, dtype=torch.long, device=device
-            )
-            # NOTE: here we use expand(batch_size, -1) instead of transformers view(-1, seq_length) that is bugged
-            position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
-        else:
-            position_ids = position_ids.view(-1, seq_length).long()
-
-    # 4d mask is passed through the layers
-    attention_mask = _prepare_4d_causal_attention_mask(
-        attention_mask, (batch_size, seq_length), inputs_embeds, past_key_values_length
-    )
-
-    for i, (block, layer_past) in enumerate(zip(self.h, past_key_values)):
-        if output_hidden_states:
-            all_hidden_states = all_hidden_states + (hidden_states,)
-
-        outputs = block(
-            hidden_states,
-            layer_past=layer_past,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            head_mask=head_mask[i],
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            alibi=alibi,
-        )
-
-        hidden_states = outputs[0]
-        if use_cache is True:
-            presents = presents + (outputs[1],)
-
-        if output_attentions:
-            all_self_attentions = all_self_attentions + (outputs[2 if use_cache else 1],)
-
-    # Add last hidden state
-    hidden_states = self.ln_f(hidden_states)
-
-    if output_hidden_states:
-        all_hidden_states = all_hidden_states + (hidden_states,)
-
-    # NOTE: here we removed the _convert_cache_to_standard_format call
-
-    if not return_dict:
-        return tuple(v for v in [hidden_states, presents, all_hidden_states, all_self_attentions] if v is not None)
-
-    return BaseModelOutputWithPastAndCrossAttentions(
-        last_hidden_state=hidden_states,
-        past_key_values=presents,
-        hidden_states=all_hidden_states,
-        attentions=all_self_attentions,
-    )
+    return expanded_mask
 
 
 def _make_causal_mask_patched(
@@ -403,24 +310,73 @@ def _make_causal_mask_patched(
     return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
 
 
-_make_causal_mask_patched = staticmethod(_make_causal_mask_patched)
+_make_causal_mask_patched_staticmethod = staticmethod(_make_causal_mask_patched)
+_unmask_unattended_patched_staticmethod = staticmethod(_unmask_unattended_patched)
+
+
+# Adapted from _prepare_4d_causal_attention_mask
+def _prepare_4d_causal_attention_mask_for_sdpa_patched(
+    attention_mask: Optional[torch.Tensor],
+    input_shape: Union[torch.Size, Tuple, List],
+    inputs_embeds: torch.Tensor,
+    past_key_values_length: int,
+    sliding_window: Optional[int] = None,
+):
+    """
+    Prepares the correct `attn_mask` argument to be used by `torch.nn.functional.scaled_dot_product_attention`.
+
+    In case no token is masked in the `attention_mask` argument, we simply set it to `None` for the cases `query_length == 1` and
+    `key_value_length == query_length`, and rely instead on SDPA `is_causal` argument to use causal/non-causal masks,
+    allowing to dispatch to the flash attention kernel (that can otherwise not be used if a custom `attn_mask` is passed).
+    """
+    attn_mask_converter = AttentionMaskConverter(is_causal=True, sliding_window=sliding_window)
+
+    key_value_length = input_shape[-1] + past_key_values_length
+
+    # 4d mask is passed through the layers
+    if attention_mask is not None:
+        attention_mask = attn_mask_converter.to_4d(
+            attention_mask, input_shape[-1], key_value_length=key_value_length, dtype=inputs_embeds.dtype
+        )
+    else:
+        attention_mask = attn_mask_converter.to_causal_4d(
+            input_shape[0], input_shape[-1], key_value_length, dtype=inputs_embeds.dtype, device=inputs_embeds.device
+        )
+
+    # NOTE: For the ONNX export we remove the setting of attention_mask to None in some specific cases, and we do NOT call _unmask_unattended
+    # that can not be exported to ONNX and is very specific to PyTorch memory-efficient attention backend anyway.
+
+    return attention_mask
 
 
 class DecoderModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
-        # TODO: Remove this if once transformers if much above 4.35
         if AttentionMaskConverter is not None:
-            AttentionMaskConverter._make_causal_mask = _make_causal_mask_patched
+            # TODO: Remove this _make_causal_mask patch if once transformers if much above 4.35
+            AttentionMaskConverter._make_causal_mask = _make_causal_mask_patched_staticmethod
+
+            if _transformers_version >= version.parse("4.36"):
+                AttentionMaskConverter._unmask_unattended = _unmask_unattended_patched_staticmethod
+
+        if _transformers_version >= version.parse("4.36"):
+            patch_everywhere(
+                "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
+            )
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        # TODO: Remove this if once transformers if much above 4.35
-        # TODO: We should unpatch it - however `self._make_causal_mask` may still be called later which raises issues with this simple patch strategy.
-        # We need to find a proper solution.
-        # if AttentionMaskConverter is not None:
-        #     AttentionMaskConverter._make_causal_mask = self.original_make_causal
-        pass
+        if AttentionMaskConverter is not None:
+            # TODO: Remove this _make_causal_mask patch if once transformers if much above 4.35
+            AttentionMaskConverter._make_causal_mask = staticmethod(self.original_make_causal)
+
+            if _transformers_version >= version.parse("4.36"):
+                AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
+
+        if _transformers_version >= version.parse("4.36"):
+            patch_everywhere(
+                "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa
+            )
 
     def __init__(
         self,
@@ -429,6 +385,10 @@ class DecoderModelPatcher(ModelPatcher):
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
+
+        if _transformers_version >= version.parse("4.36"):
+            self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
+            self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
 
         # TODO: Remove this if once transformers if much above 4.35
         if AttentionMaskConverter is not None:
@@ -472,8 +432,10 @@ class FalconModelPatcher(DecoderModelPatcher):
         self.patch_ops()
 
         if self.real_config.task == "text-generation":
-            self._model.transformer.forward = types.MethodType(
-                falcon_model_forward_without_kv_reformatting, self._model.transformer
+            patch_everywhere(
+                "build_alibi_tensor",
+                falcon_build_alibi_tensor_patched,
+                module_name_prefix="transformers.models.falcon.modeling_falcon",
             )
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -483,8 +445,10 @@ class FalconModelPatcher(DecoderModelPatcher):
         setattr(self._model, self.orig_forward_name, self.orig_forward)
 
         if self.real_config.task == "text-generation":
-            self._model.transformer.forward = types.MethodType(
-                self.original_model_transformer_forward, self._model.transformer
+            patch_everywhere(
+                "build_alibi_tensor",
+                self.build_alibi_tensor_original,
+                module_name_prefix="transformers.models.falcon.modeling_falcon",
             )
 
     def __init__(
@@ -494,40 +458,7 @@ class FalconModelPatcher(DecoderModelPatcher):
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
-
-        if config.task == "text-generation":
-            self.original_model_transformer_forward = model.transformer.forward
-
-        self._model = model
-
-        self.orig_forward_name = "forward" if hasattr(self._model, "forward") else "call"
-        self.orig_forward = getattr(self._model, self.orig_forward_name)
-
-        allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
-
-        @functools.wraps(self.orig_forward)
-        def patched_forward(*args, **kwargs):
-            model_kwargs = self.model_kwargs
-            # setting output_attentions=True in the model input to avoid calling torch.nn.functional.scaled_dot_product_attention
-            # in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/falcon/modeling_falcon.py#L425
-            model_kwargs["output_attentions"] = True
-            signature = inspect.signature(self.orig_forward)
-            args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=model_kwargs)
-
-            outputs = self.orig_forward(*args, **kwargs)
-
-            filterd_outputs = {}
-            for name, value in outputs.items():
-                onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
-                if (
-                    onnx_output_name in config.outputs
-                    or (allow_past_in_outputs and name.startswith("past_key_values"))
-                    or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
-                ):
-                    filterd_outputs[name] = value
-            return filterd_outputs
-
-        self.patched_forward = patched_forward
+        self.build_alibi_tensor_original = transformers.models.falcon.modeling_falcon.build_alibi_tensor
 
 
 class WavLMModelPatcher(ModelPatcher):
@@ -811,5 +742,55 @@ class SpeechT5ModelPatcher(ModelPatcher):
                         filterd_outputs[name] = tuple([v[:2] for v in value])
 
             return filterd_outputs
+
+        self.patched_forward = patched_forward
+
+
+class SentenceTransformersTransformerPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Dict[str, Any],
+    ):
+        super().__init__(config, model, model_kwargs)
+
+        def patched_forward(input_ids, attention_mask):
+            result = self.orig_forward({"input_ids": input_ids, "attention_mask": attention_mask})
+
+            if "input_ids" in result:
+                del result["input_ids"]
+            if "attention_mask" in result:
+                del result["attention_mask"]
+
+            return result
+
+        self.patched_forward = patched_forward
+
+
+class SentenceTransformersCLIPPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Dict[str, Any],
+    ):
+        super().__init__(config, model, model_kwargs)
+
+        def patched_forward(input_ids, attention_mask, pixel_values):
+            vision_outputs = model[0].model.vision_model(pixel_values=pixel_values)
+            image_embeds = model[0].model.visual_projection(vision_outputs[1])
+
+            text_outputs = model[0].model.text_model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+            )
+            text_embeds = model[0].model.text_projection(text_outputs[1])
+
+            if len(model) > 1:
+                image_embeds = model[1:](image_embeds)
+                text_embeds = model[1:](text_embeds)
+
+            return {"text_embeds": text_embeds, "image_embeds": image_embeds}
 
         self.patched_forward = patched_forward

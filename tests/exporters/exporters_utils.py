@@ -74,6 +74,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
         "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
     },
+    "esm": "hf-internal-testing/tiny-random-EsmModel",
     "falcon": {
         "fxmarty/really-tiny-falcon-testing": [
             "feature-extraction",
@@ -121,6 +122,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
+    "phi": "hf-internal-testing/tiny-random-PhiForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
@@ -128,7 +130,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
-    # "sam": "fxmarty/sam-vit-tiny-random",  # TODO: re-enable once PyTorch 2.1 is released, see https://github.com/huggingface/optimum/pull/1301
+    "sam": "fxmarty/sam-vit-tiny-random",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
@@ -323,4 +325,9 @@ PYTORCH_TIMM_MODEL = {
         "timm/wide_resnet101_2.tv_in1k": ["image-classification"],
         "timm/tresnet_l.miil_in1k": ["image-classification"],
     }
+}
+
+PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
+    "sentence-transformers-clip": "sentence-transformers/all-MiniLM-L6-v2",
+    "sentence-transformers-transformer": "sentence-transformers/clip-ViT-B-32-multilingual-v1",
 }

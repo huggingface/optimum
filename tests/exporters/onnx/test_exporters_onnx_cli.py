@@ -33,13 +33,18 @@ from optimum.onnxruntime import (
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
 )
-from optimum.utils.testing_utils import require_diffusers, require_timm
+from optimum.utils.testing_utils import require_diffusers, require_sentence_transformers, require_timm
 
 
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
-from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY, PYTORCH_STABLE_DIFFUSION_MODEL, PYTORCH_TIMM_MODEL
+from ..exporters_utils import (
+    PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
+    PYTORCH_STABLE_DIFFUSION_MODEL,
+    PYTORCH_TIMM_MODEL,
+)
 
 
 def _get_models_to_test(export_models_dict: Dict, library_name: str = "transformers"):
@@ -205,6 +210,23 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @pytest.mark.run_slow
     def test_exporters_cli_fp16_stable_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda", fp16=True)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_SENTENCE_TRANSFORMERS_MODEL))
+    @require_torch
+    @require_vision
+    @require_sentence_transformers
+    @pytest.mark.timm_test
+    def test_exporters_cli_pytorch_cpu_sentence_transformers(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_torch
