@@ -183,6 +183,20 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
     pass
 
 
+class EsmOnnxConfig(TextEncoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    ATOL_FOR_VALIDATION = 1e-4
+    DEFAULT_ONNX_OPSET = 12
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        dynamic_axis = {0: "batch_size", 1: "sequence_length"}
+        return {
+            "input_ids": dynamic_axis,
+            "attention_mask": dynamic_axis,
+        }
+
+
 class GPT2OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")

@@ -74,6 +74,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
         "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
     },
+    "esm": "hf-internal-testing/tiny-random-EsmModel",
     "falcon": {
         "fxmarty/really-tiny-falcon-testing": [
             "feature-extraction",

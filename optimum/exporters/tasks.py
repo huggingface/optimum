@@ -525,6 +525,13 @@ class TasksManager:
             "text2text-generation-with-past",
             onnx="EncoderDecoderOnnxConfig",
         ),
+        "esm": supported_tasks_mapping(
+            "feature-extraction",
+            "fill-mask",
+            "text-classification",
+            "token-classification",
+            onnx="EsmOnnxConfig",
+        ),
         "falcon": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
