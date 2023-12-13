@@ -99,6 +99,7 @@ class NormalizedSeq2SeqConfig(NormalizedTextConfig):
 class NormalizedVisionConfig(NormalizedConfig):
     IMAGE_SIZE = "image_size"
     NUM_CHANNELS = "num_channels"
+    INPUT_SIZE = "input_size"
 
 
 class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig):

@@ -73,6 +73,7 @@ def _get_submodels_and_onnx_configs(
     fn_get_submodels: Optional[Callable] = None,
     preprocessors: Optional[List[Any]] = None,
     legacy: bool = False,
+    library_name: str = "transformers",
     model_kwargs: Optional[Dict] = None,
 ):
     is_stable_diffusion = "stable-diffusion" in task
@@ -84,7 +85,7 @@ def _get_submodels_and_onnx_configs(
             )
         else:
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                model=model, exporter="onnx", task=task
+                model=model, exporter="onnx", task=task, library_name=library_name
             )
             onnx_config = onnx_config_constructor(
                 model.config,
@@ -425,7 +426,8 @@ def main_export(
     if (
         not custom_architecture
         and not is_stable_diffusion
-        and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
+        and task + "-with-past"
+        in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx", library_name=library_name)
     ):
         if original_task == "auto":  # Make -with-past the default if --task was not explicitely specified
             task = task + "-with-past"
@@ -467,6 +469,7 @@ def main_export(
         preprocessors=preprocessors,
         _variant=_variant,
         legacy=legacy,
+        library_name=library_name,
         model_kwargs=model_kwargs,
     )
 
