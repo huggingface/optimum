@@ -23,7 +23,12 @@ from transformers.testing_utils import slow
 
 from optimum.gptq import GPTQQuantizer, load_quantized_model
 from optimum.gptq.data import get_dataset
+from optimum.utils.import_utils import is_auto_gptq_available
 from optimum.utils.testing_utils import require_accelerate, require_auto_gptq, require_torch_gpu
+
+
+if is_auto_gptq_available():
+    from auto_gptq import AutoGPTQForCausalLM
 
 
 @slow
@@ -125,7 +130,9 @@ class GPTQTest(unittest.TestCase):
     def test_generate_quality(self):
         self.check_inference_correctness(self.quantized_model)
 
+    @require_torch_gpu
     @require_accelerate
+    @slow
     def test_serialization(self):
         """
         Test the serialization of the model and the loading of the quantized weights
@@ -148,6 +155,11 @@ class GPTQTest(unittest.TestCase):
                 exllama_config=self.exllama_config,
             )
             self.check_quantized_layers_type(quantized_model_from_saved, "cuda-old")
+
+            with torch.device("cuda"):
+                _ = AutoModelForCausalLM.from_pretrained(tmpdirname)
+            _ = AutoGPTQForCausalLM.from_quantized(tmpdirname)
+
             self.check_inference_correctness(quantized_model_from_saved)
 
 
@@ -177,6 +189,7 @@ class GPTQTestActOrder(GPTQTest):
         # act_order don't work with qlinear_cuda kernel
         pass
 
+    @require_torch_gpu
     def test_exllama_serialization(self):
         """
         Test the serialization of the model and the loading of the quantized weights with exllama kernel
@@ -195,6 +208,11 @@ class GPTQTestActOrder(GPTQTest):
                 empty_model, save_folder=tmpdirname, device_map={"": 0}, exllama_config={"version": 1}
             )
             self.check_quantized_layers_type(quantized_model_from_saved, "exllama")
+
+            with torch.device("cuda"):
+                _ = AutoModelForCausalLM.from_pretrained(tmpdirname)
+            _ = AutoGPTQForCausalLM.from_quantized(tmpdirname)
+
             self.check_inference_correctness(quantized_model_from_saved)
 
     def test_exllama_max_input_length(self):
@@ -245,6 +263,7 @@ class GPTQTestExllamav2(GPTQTest):
         # don't need to test
         pass
 
+    @require_torch_gpu
     def test_exllama_serialization(self):
         """
         Test the serialization of the model and the loading of the quantized weights with exllamav2 kernel
@@ -265,6 +284,11 @@ class GPTQTestExllamav2(GPTQTest):
                 device_map={"": 0},
             )
             self.check_quantized_layers_type(quantized_model_from_saved, "exllamav2")
+
+            with torch.device("cuda"):
+                _ = AutoModelForCausalLM.from_pretrained(tmpdirname)
+            _ = AutoGPTQForCausalLM.from_quantized(tmpdirname)
+
             self.check_inference_correctness(quantized_model_from_saved)
 
 

@@ -2699,6 +2699,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "beit",
         "convnext",
+        "convnextv2",
         "data2vec_vision",
         "deit",
         "levit",

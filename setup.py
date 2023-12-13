@@ -38,7 +38,7 @@ TESTS_REQUIRE = [
     "invisible-watermark",
 ]
 
-QUALITY_REQUIRE = ["black~=23.1", "ruff>=0.0.241,<=0.0.259"]
+QUALITY_REQUIRE = ["black~=23.1", "ruff==0.1.5"]
 
 BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision", "evaluate>=0.2.0"]
 
@@ -79,6 +79,7 @@ EXTRAS_REQUIRE = {
     "neuron": "optimum-neuron[neuron]",
     "neuronx": "optimum-neuron[neuronx]",
     "furiosa": "optimum-furiosa",
+    "amd": "optimum-amd",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,

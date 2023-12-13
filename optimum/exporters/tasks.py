@@ -424,6 +424,11 @@ class TasksManager:
             "image-classification",
             onnx="ConvNextOnnxConfig",
         ),
+        "convnextv2": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="ConvNextV2OnnxConfig",
+        ),
         "cvt": supported_tasks_mapping("feature-extraction", "image-classification", onnx="CvTOnnxConfig"),
         "data2vec-text": supported_tasks_mapping(
             "feature-extraction",
@@ -1768,6 +1773,7 @@ class TasksManager:
                 logger.info("Loading PyTorch model in TensorFlow before exporting.")
                 kwargs["from_pt"] = True
                 model = model_class.from_pretrained(model_name_or_path, **kwargs)
+
         return model
 
     @staticmethod

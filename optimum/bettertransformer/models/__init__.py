@@ -20,13 +20,10 @@ from .decoder_models import (
     BlenderbotAttentionLayerBetterTransformer,
     BloomAttentionLayerBetterTransformer,
     CodegenAttentionLayerBetterTransformer,
-    FalconAttentionLayerBetterTransformer,
     GPT2AttentionLayerBetterTransformer,
-    GPTBigCodeAttentionLayerBetterTransformer,
     GPTJAttentionLayerBetterTransformer,
     GPTNeoAttentionLayerBetterTransformer,
     GPTNeoXAttentionLayerBetterTransformer,
-    LlamaAttentionLayerBetterTransformer,
     M2M100AttentionLayerBetterTransformer,
     MarianAttentionLayerBetterTransformer,
     OPTAttentionLayerBetterTransformer,
@@ -45,15 +42,7 @@ from .encoder_models import (
     ViltLayerBetterTransformer,
     ViTLayerBetterTransformer,
     Wav2Vec2EncoderLayerBetterTransformer,
-    WhisperEncoderLayerBetterTransformer,
 )
-
-
-# TODO: remove once we are much higher than 4.31
-if check_if_transformers_greater("4.31"):
-    from .attention import _llama_prepare_decoder_attention_mask
-else:
-    from ...utils.dummy_bettertransformer_objects import _llama_prepare_decoder_attention_mask
 
 
 class BetterTransformerManager:
@@ -78,15 +67,12 @@ class BetterTransformerManager:
         "electra": {"ElectraLayer": BertLayerBetterTransformer},
         "ernie": {"ErnieLayer": BertLayerBetterTransformer},
         "fsmt": {"EncoderLayer": FSMTEncoderLayerBetterTransformer},
-        "falcon": {"FalconAttention": FalconAttentionLayerBetterTransformer},
         "gpt2": {"GPT2Attention": GPT2AttentionLayerBetterTransformer},
-        "gpt_bigcode": {"GPTBigCodeAttention": GPTBigCodeAttentionLayerBetterTransformer},
         "gptj": {"GPTJAttention": GPTJAttentionLayerBetterTransformer},
         "gpt_neo": {"GPTNeoSelfAttention": GPTNeoAttentionLayerBetterTransformer},
         "gpt_neox": {"GPTNeoXAttention": GPTNeoXAttentionLayerBetterTransformer},
         "hubert": {"HubertEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer},
         "layoutlm": {"LayoutLMLayer": BertLayerBetterTransformer},
-        "llama": {"LlamaAttention": LlamaAttentionLayerBetterTransformer},
         "m2m_100": {
             "M2M100EncoderLayer": MBartEncoderLayerBetterTransformer,
             "M2M100Attention": M2M100AttentionLayerBetterTransformer,
@@ -115,13 +101,12 @@ class BetterTransformerManager:
             "Wav2Vec2EncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
             "Wav2Vec2EncoderLayerStableLayerNorm": Wav2Vec2EncoderLayerBetterTransformer,
         },
-        "whisper": {"WhisperEncoderLayer": WhisperEncoderLayerBetterTransformer},
         "xlm-roberta": {"XLMRobertaLayer": BertLayerBetterTransformer},
         "yolos": {"YolosLayer": ViTLayerBetterTransformer},
     }
 
     OVERWRITE_METHODS = {
-        "llama": {"LlamaModel": ("_prepare_decoder_attention_mask", _llama_prepare_decoder_attention_mask)}
+        # "llama": {"LlamaModel": ("_prepare_decoder_attention_mask", _llama_prepare_decoder_attention_mask)}
     }
 
     EXCLUDE_FROM_TRANSFORM = {
@@ -144,15 +129,12 @@ class BetterTransformerManager:
         "bloom",
         "codegen",
         "gpt2",
-        "gpt_bigcode",
         "gptj",
         "gpt_neo",
         "gpt_neox",
-        "llama",
         "opt",
         "pegasus",
         "t5",
-        "falcon",
     }
 
     NOT_REQUIRES_STRICT_VALIDATION = {
@@ -161,15 +143,12 @@ class BetterTransformerManager:
         "bloom",
         "codegen",
         "gpt2",
-        "gpt_bigcode",
         "gptj",
         "gpt_neo",
         "gpt_neox",
-        "llama",
         "opt",
         "pegasus",
         "t5",
-        "falcon",
     }
 
     @staticmethod

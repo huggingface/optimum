@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
 import json
 import os
 from enum import Enum
@@ -35,7 +34,6 @@ from .utils import get_block_name_with_pattern, get_device, get_layers, get_prec
 
 if is_accelerate_available():
     from accelerate import (
-        Accelerator,
         cpu_offload_with_hook,
         load_checkpoint_and_dispatch,
     )
@@ -146,6 +144,17 @@ class GPTQQuantizer(object):
         self.quant_method = QuantizationMethod.GPTQ
         self.cache_block_outputs = cache_block_outputs
 
+        self.serialization_keys = [
+            "bits",
+            "dataset",
+            "group_size",
+            "damp_percent",
+            "desc_act",
+            "sym",
+            "true_sequential",
+            "quant_method",
+        ]
+
         if self.bits not in [2, 3, 4, 8]:
             raise ValueError("only support quantize to [2,3,4,8] bits.")
         if self.group_size != -1 and self.group_size <= 0:
@@ -169,7 +178,10 @@ class GPTQQuantizer(object):
         """
         Returns the args in dict format.
         """
-        return copy.deepcopy(self.__dict__)
+        gptq_dict = {}
+        for key in self.serialization_keys:
+            gptq_dict[key] = getattr(self, key)
+        return gptq_dict
 
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]):
@@ -600,7 +612,7 @@ class GPTQQuantizer(object):
 
         logger.info("Model packed.")
 
-    def save(self, model: nn.Module, save_dir: str, max_shard_size: str = "10GB", safe_serialization: bool = False):
+    def save(self, model: nn.Module, save_dir: str, max_shard_size: str = "10GB", safe_serialization: bool = True):
         """
         Save model state dict and configs
 
@@ -618,20 +630,12 @@ class GPTQQuantizer(object):
                 which will be bigger than `max_shard_size`.
 
                 </Tip>
-            safe_serialization (`bool`, defaults to `False`):
+            safe_serialization (`bool`, defaults to `True`):
                 Whether to save the model using `safetensors` or the traditional PyTorch way (that uses `pickle`).
 
         """
-
-        if not is_accelerate_available():
-            raise RuntimeError(
-                "You need to install accelerate in order to save a quantized model. You can do it with `pip install accelerate`"
-            )
-
         os.makedirs(save_dir, exist_ok=True)
-        # save model and config
-        accelerator = Accelerator()
-        accelerator.save_model(model, save_dir, max_shard_size=max_shard_size, safe_serialization=safe_serialization)
+        model.save_pretrained(save_dir, max_shard_size=max_shard_size, safe_serialization=safe_serialization)
         with open(os.path.join(save_dir, GPTQ_CONFIG), "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2)
 
