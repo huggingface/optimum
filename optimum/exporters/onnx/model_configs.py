@@ -234,6 +234,10 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
+class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     # This is because of the patching of torch.triu in AttentionMaskConverter, that exists from transformers>=4.35
     MIN_TRANSFORMERS_VERSION = version.parse("4.34.99")
