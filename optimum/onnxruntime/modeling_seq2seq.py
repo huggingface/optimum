@@ -34,7 +34,7 @@ from transformers import (
     AutoModelForVision2Seq,
     GenerationConfig,
     Pix2StructForConditionalGeneration,  # Pix2struct does not support AutoModel
-    )
+)
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.generation.logits_process import WhisperTimeStampLogitsProcessor
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
@@ -1755,7 +1755,7 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq):
 
                 if segment_input_slice.shape[-1] < num_segment_frames:
                     # pad to 3000 if necessary
-                    segment_input_slice = F.pad(
+                    segment_input_slice = torch.nn.functional.pad(
                         segment_input_slice, pad=(0, num_segment_frames - segment_input_slice.shape[-1])
                     )
 
@@ -1829,7 +1829,7 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq):
             max_total_length = max(max_total_length, len(sequences[-1]))
 
         for i in range(batch_size):
-            sequences[i] = F.pad(
+            sequences[i] = torch.nn.functional.pad(
                 sequences[i], pad=(0, max_total_length - len(sequences[i])), value=self.generation_config.pad_token_id
             )
 
