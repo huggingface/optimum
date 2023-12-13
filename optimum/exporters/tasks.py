@@ -1594,7 +1594,7 @@ class TasksManager:
 
         if library_name is None:
             raise ValueError(
-                "The library_name could not be automatically inferred. If using the command-line, please provide the argument --library {transformers,diffusers,timm,sentence_transformers}. Example: `--library diffusers`."
+                "The library name could not be automatically inferred. If using the command-line, please provide the argument --library {transformers,diffusers,timm,sentence_transformers}. Example: `--library diffusers`."
             )
 
         return library_name
