@@ -389,6 +389,19 @@ class TasksManager:
             onnx="CamembertOnnxConfig",
             tflite="CamembertTFLiteConfig",
         ),
+        "chinese-clip": supported_tasks_mapping(
+            "feature-extraction",
+            "zero-shot-image-classification",
+            onnx="ChineseCLIPOnnxConfig",
+        ),
+        "chinese-clip-text-model": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="ChineseCLIPTextOnnxConfig",
+        ),
+        "chinese-clip-text-with-projection": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="ChineseCLIPTextWithProjectionOnnxConfig",
+        ),
         "clip": supported_tasks_mapping(
             "feature-extraction",
             "zero-shot-image-classification",
