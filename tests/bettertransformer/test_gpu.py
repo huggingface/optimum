@@ -55,7 +55,6 @@ class TestSpeedup(unittest.TestCase):
     """
     TODO: test missing for:
 
-    - WhisperEncoderLayerBetterTransformer
     - ViTLayerBetterTransformer
     - ViltLayerBetterTransformer
     - Wav2Vec2EncoderLayerBetterTransformer

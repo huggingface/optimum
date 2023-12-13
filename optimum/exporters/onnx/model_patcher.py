@@ -35,7 +35,7 @@ from ...utils import logging
 
 if _transformers_version > version.parse("4.34.99"):
     from transformers.modeling_attn_mask_utils import AttentionMaskConverter, _prepare_4d_causal_attention_mask
-if _transformers_version > version.parse("4.35.99"):
+if _transformers_version >= version.parse("4.36"):
     from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask_for_sdpa
 else:
     _prepare_4d_causal_attention_mask = None
@@ -356,10 +356,10 @@ class DecoderModelPatcher(ModelPatcher):
             # TODO: Remove this _make_causal_mask patch if once transformers if much above 4.35
             AttentionMaskConverter._make_causal_mask = _make_causal_mask_patched_staticmethod
 
-            if _transformers_version > version.parse("4.35.99"):
+            if _transformers_version >= version.parse("4.36"):
                 AttentionMaskConverter._unmask_unattended = _unmask_unattended_patched_staticmethod
 
-        if _transformers_version > version.parse("4.35.99"):
+        if _transformers_version >= version.parse("4.36"):
             patch_everywhere(
                 "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
             )
@@ -370,10 +370,10 @@ class DecoderModelPatcher(ModelPatcher):
             # TODO: Remove this _make_causal_mask patch if once transformers if much above 4.35
             AttentionMaskConverter._make_causal_mask = staticmethod(self.original_make_causal)
 
-            if _transformers_version > version.parse("4.35.99"):
+            if _transformers_version >= version.parse("4.36"):
                 AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
 
-        if _transformers_version > version.parse("4.35.99"):
+        if _transformers_version >= version.parse("4.36"):
             patch_everywhere(
                 "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa
             )
@@ -386,7 +386,7 @@ class DecoderModelPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        if _transformers_version > version.parse("4.35.99"):
+        if _transformers_version >= version.parse("4.36"):
             self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
             self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
 
