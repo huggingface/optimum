@@ -85,8 +85,9 @@ class GPTQQuantizer(object):
             bits (`int`):
                 The number of bits to quantize to, supported numbers are (2, 3, 4, 8).
             dataset (`Union[List[str], str, Any]`, defaults to `None`):
-                The dataset used for quantization. You can provide your own dataset in a list of string or in a list of tokenized data or
-                just use the original datasets used in GPTQ paper ['wikitext2','c4','c4-new','ptb','ptb-new'].
+                The dataset used for quantization. You can provide your own dataset in a list of string or in a list of tokenized data
+                (e.g. [{ "input_ids": [ 1, 100, 15, ... ],"attention_mask": [ 1, 1, 1, ... ]},...])
+                or just use the original datasets used in GPTQ paper ['wikitext2','c4','c4-new','ptb','ptb-new'].
             group_size (int, defaults to 128):
                 The group size to use for quantization. Recommended value is 128 and -1 uses per-column quantization.
             damp_percent (`float`, defaults to `0.1`):
