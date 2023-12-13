@@ -128,7 +128,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
-    # "sam": "fxmarty/sam-vit-tiny-random",  # TODO: re-enable once PyTorch 2.1 is released, see https://github.com/huggingface/optimum/pull/1301
+    "sam": "fxmarty/sam-vit-tiny-random",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",

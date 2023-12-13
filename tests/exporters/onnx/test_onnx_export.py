@@ -46,6 +46,7 @@ from optimum.utils.testing_utils import grid_parameters, require_diffusers, requ
 
 from ..exporters_utils import (
     PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_STABLE_DIFFUSION_MODEL,
     PYTORCH_TIMM_MODEL,
     TENSORFLOW_EXPORT_MODELS,
@@ -312,9 +313,9 @@ class OnnxExportTestCase(TestCase):
             TasksManager._SUPPORTED_CLI_MODEL_TYPE
             - set(PYTORCH_EXPORT_MODELS_TINY.keys())
             - set(PYTORCH_TIMM_MODEL.keys())
+            - set(PYTORCH_SENTENCE_TRANSFORMERS_MODEL.keys())
         )
-        assert "sam" in missing_models_set  # See exporters_utils.py
-        if len(missing_models_set) > 1:
+        if len(missing_models_set) > 0:
             self.fail(f"Not testing all models. Missing models: {missing_models_set}")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
