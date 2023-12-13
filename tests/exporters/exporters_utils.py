@@ -74,6 +74,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
         "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
     },
+    "esm": "hf-internal-testing/tiny-random-EsmModel",
     "falcon": {
         "fxmarty/really-tiny-falcon-testing": [
             "feature-extraction",
@@ -121,6 +122,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
+    "phi": "hf-internal-testing/tiny-random-PhiForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",

@@ -77,6 +77,7 @@ class GPTQQuantizer(object):
         exllama_config: Dict[str, Any] = None,
         max_input_length: Optional[int] = None,
         cache_block_outputs: Optional[bool] = True,
+        modules_in_block_to_quantize: Optional[List[List[str]]] = None,
         *args,
         **kwargs,
     ):
@@ -107,7 +108,7 @@ class GPTQQuantizer(object):
             model_seqlen (`Optional[int]`, defaults to `None`):
                 The maximum sequence length that the model can take.
             block_name_to_quantize (`Optional[str]`, defaults to `None`):
-                The transformers block name to quantize.
+                The transformers block name to quantize. If None, we will infer the block name using common patterns (e.g. model.layers)
             module_name_preceding_first_block (`Optional[List[str]]`, defaults to `None`):
                 The layers that are preceding the first Transformer block.
             batch_size (`int`, defaults to `1`):
@@ -124,6 +125,10 @@ class GPTQQuantizer(object):
             cache_block_outputs (`bool`, defaults to `True`):
                 Whether to cache block outputs to reuse as inputs for the succeeding block. It allows optimization of non-standard models
                 (e.g. ChatGLM) but can require more time.
+            modules_in_block_to_quantize (`Optional[List[List[str]]]`, defaults to `None`):
+                List list of module names to quantize in the block specified. This argument is useful to exclude certain linear modules from being quantized.
+                The block to quantize can be specified by setting `block_name_to_quantize`. We will quantize each list sequentially.
+                If not set, we will quantize all linear layers. Example: `inside_layer_modules=[["self_attention.query_key_value"], ["mlp.dense_h_to_4h"]]`
         """
 
         self.bits = bits
@@ -144,6 +149,7 @@ class GPTQQuantizer(object):
         self.max_input_length = max_input_length
         self.quant_method = QuantizationMethod.GPTQ
         self.cache_block_outputs = cache_block_outputs
+        self.modules_in_block_to_quantize = modules_in_block_to_quantize
 
         self.serialization_keys = [
             "bits",
@@ -154,6 +160,7 @@ class GPTQQuantizer(object):
             "sym",
             "true_sequential",
             "quant_method",
+            "modules_in_block_to_quantize",
         ]
 
         if self.bits not in [2, 3, 4, 8]:
@@ -211,8 +218,15 @@ class GPTQQuantizer(object):
             self.block_name_to_quantize = get_block_name_with_pattern(model)
         block_name = self.block_name_to_quantize
         layers_to_be_replaced = get_layers(model, prefix=block_name)
+        if self.modules_in_block_to_quantize is not None:
+            layers_to_keep = sum(self.modules_in_block_to_quantize, [])
+            for name in list(layers_to_be_replaced.keys()):
+                if not any(name.endswith(layer) for layer in layers_to_keep):
+                    logger.info(
+                        f"Quantization disabled for {name} (only modules_in_block_to_quantize={self.modules_in_block_to_quantize} are quantized)"
+                    )
+                    del layers_to_be_replaced[name]
         self._replace_by_quant_layers(model, layers_to_be_replaced)
-
         return model
 
     def get_no_split_module_classes(self, model):
@@ -450,11 +464,17 @@ class GPTQQuantizer(object):
             if not has_device_map or get_device(block) == torch.device("cpu"):
                 block = block.to(0)
             layers = get_layers(block)
-            if self.true_sequential:
-                # lazy sequential but works well
-                layers_name_list = [[key] for key in layers.keys()]
+            if isinstance(self.modules_in_block_to_quantize, list) and len(self.modules_in_block_to_quantize) > 0:
+                if self.true_sequential:
+                    layers_name_list = self.modules_in_block_to_quantize
+                else:
+                    layers_name_list = [sum(self.modules_in_block_to_quantize, [])]
             else:
-                layers_name_list = [list(layers.keys())]
+                if self.true_sequential:
+                    # lazy sequential but works well
+                    layers_name_list = [[key] for key in layers.keys()]
+                else:
+                    layers_name_list = [list(layers.keys())]
             logger.info(f"Module to quantize {layers_name_list}")
             for subset_name_list in tqdm(layers_name_list, leave=False, desc="Quantizing layers inside the block"):
                 subset_layers = {name: layers[name] for name in subset_name_list}

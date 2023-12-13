@@ -54,9 +54,6 @@ _ORT_TO_NP_TYPE = {
     "tensor(double)": np.float64,
 }
 
-# TODO: this is likely bugged as Falcon handles both the MQA and non-MQA implem
-MULTI_QUERY_ATTN_MODELS = {"falcon", "gpt_bigcode"}
-
 
 def _is_gpu_available():
     """

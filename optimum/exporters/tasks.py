@@ -525,6 +525,13 @@ class TasksManager:
             "text2text-generation-with-past",
             onnx="EncoderDecoderOnnxConfig",
         ),
+        "esm": supported_tasks_mapping(
+            "feature-extraction",
+            "fill-mask",
+            "text-classification",
+            "token-classification",
+            onnx="EsmOnnxConfig",
+        ),
         "falcon": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -794,6 +801,13 @@ class TasksManager:
             "image-classification",
             "text-classification",
             onnx="PerceiverOnnxConfig",
+        ),
+        "phi": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            onnx="PhiOnnxConfig",
         ),
         "pix2struct": supported_tasks_mapping(
             "image-to-text",
@@ -1766,6 +1780,7 @@ class TasksManager:
                 logger.info("Loading PyTorch model in TensorFlow before exporting.")
                 kwargs["from_pt"] = True
                 model = model_class.from_pretrained(model_name_or_path, **kwargs)
+
         return model
 
     @staticmethod
