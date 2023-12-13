@@ -1773,6 +1773,7 @@ class TasksManager:
                 logger.info("Loading PyTorch model in TensorFlow before exporting.")
                 kwargs["from_pt"] = True
                 model = model_class.from_pretrained(model_name_or_path, **kwargs)
+
         return model
 
     @staticmethod
