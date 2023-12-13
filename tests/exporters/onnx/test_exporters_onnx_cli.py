@@ -85,7 +85,15 @@ def _get_models_to_test(export_models_dict: Dict, library_name: str = "transform
 
                     for variant in variants.keys():
                         models_to_test.append(
-                            (f"{model_type}_{task}_{variant}", model_type, model_name, task, variant, False, False)
+                            (
+                                f"{model_type}_{task}_{variant}_{model_name}",
+                                model_type,
+                                model_name,
+                                task,
+                                variant,
+                                False,
+                                False,
+                            )
                         )
 
                         # -with-past and monolith cases are absurd, so we don't test them as not supported
@@ -100,7 +108,7 @@ def _get_models_to_test(export_models_dict: Dict, library_name: str = "transform
                         ):
                             models_to_test.append(
                                 (
-                                    f"{model_type}_{task}_monolith_{variant}",
+                                    f"{model_type}_{task}_monolith_{variant}_{model_name}",
                                     model_type,
                                     model_name,
                                     task,
@@ -120,7 +128,7 @@ def _get_models_to_test(export_models_dict: Dict, library_name: str = "transform
                         ]:
                             models_to_test.append(
                                 (
-                                    f"{model_type}_{task}_no_postprocess_{variant}",
+                                    f"{model_type}_{task}_no_postprocess_{variant}_{model_name}",
                                     model_type,
                                     model_name,
                                     task,
@@ -130,19 +138,19 @@ def _get_models_to_test(export_models_dict: Dict, library_name: str = "transform
                                 )
                             )
 
-            # TODO: segformer task can not be automatically inferred
-            # TODO: xlm-roberta model auto-infers text-generation, but we don't support it
-            # TODO: perceiver auto-infers default, but we don't support it (why?)
-            # TODO: encoder-decoder auto-infers text3text-generation, but it uses bert as decoder and does not support past key values
-            if model_type not in [
-                "segformer",
-                "xlm-roberta",
-                "perceiver",
-                "encoder-decoder",
-            ]:
-                models_to_test.append(
-                    (f"{model_type}_no_task", model_type, model_name, "auto", "default", False, False)
-                )
+                # TODO: segformer task can not be automatically inferred
+                # TODO: xlm-roberta model auto-infers text-generation, but we don't support it
+                # TODO: perceiver auto-infers default, but we don't support it (why?)
+                # TODO: encoder-decoder auto-infers text3text-generation, but it uses bert as decoder and does not support past key values
+                if model_type not in [
+                    "segformer",
+                    "xlm-roberta",
+                    "perceiver",
+                    "encoder-decoder",
+                ]:
+                    models_to_test.append(
+                        (f"{model_type}_no_task_{model_name}", model_type, model_name, "auto", "default", False, False)
+                    )
 
         return sorted(models_to_test)
     else:
@@ -215,7 +223,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_torch
     @require_vision
     @require_sentence_transformers
-    @pytest.mark.timm_test
     def test_exporters_cli_pytorch_cpu_sentence_transformers(
         self,
         test_name: str,
@@ -232,7 +239,9 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_torch
     @require_vision
     @require_timm
+    @slow
     @pytest.mark.timm_test
+    @pytest.mark.run_slow
     def test_exporters_cli_pytorch_cpu_timm(
         self,
         test_name: str,
