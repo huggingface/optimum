@@ -238,6 +238,11 @@ class BetterTransformer(object):
 
         hf_config = model.config
 
+        if hf_config.model_type in ["falcon", "gpt_bigcode", "llama", "whisper"]:
+            raise ValueError(
+                f"Transformers now supports natively BetterTransformer optimizations (torch.nn.functional.scaled_dot_product_attention) for the model type {hf_config.model_type}. Please upgrade to transformers>=4.36 and torch>=2.1.1 to use it. Details: https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-and-memory-efficient-attention-through-pytorchs-scaleddotproductattention"
+            )
+
         if load_accelerate:
             # Remove the hooks from the original model to avoid weights being on `meta` device.
             remove_hook_from_module(model, recurse=True)
