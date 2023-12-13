@@ -1566,7 +1566,8 @@ class TasksManager:
             library_name = getattr(model_info, "library_name", None)
 
             # sentence-transformers package name is sentence_transformers
-            library_name = library_name.replace("-", "_")
+            if library_name is not None:
+                library_name = library_name.replace("-", "_")
 
         if library_name is None:
             all_files, _ = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
@@ -1587,7 +1588,7 @@ class TasksManager:
                     library_name = "timm"
                 elif hasattr(model_config, "_diffusers_version"):
                     library_name = "diffusers"
-                elif any(file_path.starswith("sentence_") for file_path in all_files):
+                elif any(file_path.startswith("sentence_") for file_path in all_files):
                     library_name = "sentence_transformers"
                 else:
                     library_name = "transformers"
