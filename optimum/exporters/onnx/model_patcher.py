@@ -758,6 +758,11 @@ class SentenceTransformersTransformerPatcher(ModelPatcher):
         def patched_forward(input_ids, attention_mask):
             result = self.orig_forward({"input_ids": input_ids, "attention_mask": attention_mask})
 
+            if "input_ids" in result:
+                del result["input_ids"]
+            if "attention_mask" in result:
+                del result["attention_mask"]
+
             return result
 
         self.patched_forward = patched_forward
