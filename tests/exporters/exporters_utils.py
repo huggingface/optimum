@@ -130,7 +130,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
-    # "sam": "fxmarty/sam-vit-tiny-random",  # TODO: re-enable once PyTorch 2.1 is released, see https://github.com/huggingface/optimum/pull/1301
+    "sam": "fxmarty/sam-vit-tiny-random",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
@@ -294,4 +294,9 @@ PYTORCH_TIMM_MODEL = {
     "resnext101-32x4d": "timm/resnext101_32x4d.gluon_in1k",
     "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
     "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
+}
+
+PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
+    "sentence-transformers-clip": "sentence-transformers/all-MiniLM-L6-v2",
+    "sentence-transformers-transformer": "sentence-transformers/clip-ViT-B-32-multilingual-v1",
 }

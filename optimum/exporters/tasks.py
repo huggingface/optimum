@@ -195,10 +195,16 @@ class TasksManager:
             "image-classification": "create_model",
         }
 
+        _SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
+            "feature-extraction": "SentenceTransformer",
+            "sentence-similarity": "SentenceTransformer",
+        }
+
         _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {
-            "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
             "diffusers": _DIFFUSERS_TASKS_TO_MODEL_LOADERS,
+            "sentence_transformers": _SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
             "timm": _TIMM_TASKS_TO_MODEL_LOADERS,
+            "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
         }
 
     if is_tf_available():
@@ -254,9 +260,10 @@ class TasksManager:
 
     # Reverse dictionaries str -> str, where several model loaders may map to the same task
     _LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP = {
-        "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
         "diffusers": get_model_loaders_to_tasks(_DIFFUSERS_TASKS_TO_MODEL_LOADERS),
+        "sentence_transformers": get_model_loaders_to_tasks(_SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
         "timm": get_model_loaders_to_tasks(_TIMM_TASKS_TO_MODEL_LOADERS),
+        "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
     }
     _LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP = {
         "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS),
@@ -871,6 +878,16 @@ class TasksManager:
             "semantic-segmentation",
             onnx="SegformerOnnxConfig",
         ),
+        "sentence-transformers-clip": supported_tasks_mapping(
+            "feature-extraction",
+            "sentence-similarity",
+            onnx="SentenceTransformersCLIPOnnxConfig",
+        ),
+        "sentence-transformers-transformer": supported_tasks_mapping(
+            "feature-extraction",
+            "sentence-similarity",
+            onnx="SentenceTransformersTransformerOnnxConfig",
+        ),
         "sew": supported_tasks_mapping(
             "feature-extraction",
             "automatic-speech-recognition",
@@ -1354,6 +1371,9 @@ class TasksManager:
         ):
             # stable diffusion case
             framework = "pt"
+        elif "config_sentence_transformers.json" in all_files:
+            # Sentence Transformers libary relies on PyTorch.
+            framework = "pt"
         else:
             if request_exception is not None:
                 raise RequestsConnectionError(
@@ -1559,6 +1579,10 @@ class TasksManager:
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             library_name = getattr(model_info, "library_name", None)
 
+            # sentence-transformers package name is sentence_transformers
+            if library_name is not None:
+                library_name = library_name.replace("-", "_")
+
         if library_name is None:
             all_files, _ = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
 
@@ -1578,16 +1602,15 @@ class TasksManager:
                     library_name = "timm"
                 elif hasattr(model_config, "_diffusers_version"):
                     library_name = "diffusers"
+                elif any(file_path.startswith("sentence_") for file_path in all_files):
+                    library_name = "sentence_transformers"
                 else:
                     library_name = "transformers"
 
         if library_name is None:
             raise ValueError(
-                "The library_name could not be automatically inferred. If using the command-line, please provide the argument --library (transformers,diffusers,timm)!"
+                "The library name could not be automatically inferred. If using the command-line, please provide the argument --library {transformers,diffusers,timm,sentence_transformers}. Example: `--library diffusers`."
             )
-
-        if library_name == "sentence-transformers":
-            return "transformers"
 
         return library_name
 
@@ -1647,6 +1670,17 @@ class TasksManager:
                 model_type = json.load(fp)["architecture"]
 
             setattr(model.config, "model_type", model_type)
+        elif library_name == "sentence_transformers":
+            if "Transformer" in model[0].__class__.__name__:
+                model.config = model[0].auto_model.config
+                model.config.model_type = "sentence-transformers-transformer"
+            elif "CLIP" in model[0].__class__.__name__:
+                model.config = model[0].model.config
+                model.config.model_type = "sentence-transformers-clip"
+            else:
+                raise ValueError(
+                    f"The export of a sentence-transformers model with the first module being {model[0].__class__.__name__} is currently not supported in Optimum. Please open an issue or submit a PR to add the support."
+                )
 
     @staticmethod
     def get_all_tasks():
@@ -1747,39 +1781,45 @@ class TasksManager:
 
         if library_name == "timm":
             model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
-            TasksManager.standardize_model_attributes(
-                model_name_or_path, model, subfolder, revision, cache_dir, library_name
+        elif library_name == "sentence_transformers":
+            cache_folder = model_kwargs.pop("cache_folder", None)
+            use_auth_token = model_kwargs.pop("use_auth_token", None)
+            model = model_class(
+                model_name_or_path, device=device, cache_folder=cache_folder, use_auth_token=use_auth_token
             )
-            return model
+        else:
+            try:
+                if framework == "pt":
+                    kwargs["torch_dtype"] = torch_dtype
 
-        try:
-            if framework == "pt":
-                kwargs["torch_dtype"] = torch_dtype
+                    if isinstance(device, str):
+                        device = torch.device(device)
+                    elif device is None:
+                        device = torch.device("cpu")
 
-                if isinstance(device, str):
-                    device = torch.device(device)
-                elif device is None:
-                    device = torch.device("cpu")
-
-                # TODO : fix EulerDiscreteScheduler loading to enable for SD models
-                if version.parse(torch.__version__) >= version.parse("2.0") and library_name != "diffusers":
-                    with device:
-                        # Initialize directly in the requested device, to save allocation time. Especially useful for large
-                        # models to initialize on cuda device.
-                        model = model_class.from_pretrained(model_name_or_path, **kwargs)
+                    # TODO : fix EulerDiscreteScheduler loading to enable for SD models
+                    if version.parse(torch.__version__) >= version.parse("2.0") and library_name != "diffusers":
+                        with device:
+                            # Initialize directly in the requested device, to save allocation time. Especially useful for large
+                            # models to initialize on cuda device.
+                            model = model_class.from_pretrained(model_name_or_path, **kwargs)
+                    else:
+                        model = model_class.from_pretrained(model_name_or_path, **kwargs).to(device)
                 else:
-                    model = model_class.from_pretrained(model_name_or_path, **kwargs).to(device)
-            else:
-                model = model_class.from_pretrained(model_name_or_path, **kwargs)
-        except OSError:
-            if framework == "pt":
-                logger.info("Loading TensorFlow model in PyTorch before exporting.")
-                kwargs["from_tf"] = True
-                model = model_class.from_pretrained(model_name_or_path, **kwargs)
-            else:
-                logger.info("Loading PyTorch model in TensorFlow before exporting.")
-                kwargs["from_pt"] = True
-                model = model_class.from_pretrained(model_name_or_path, **kwargs)
+                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
+            except OSError:
+                if framework == "pt":
+                    logger.info("Loading TensorFlow model in PyTorch before exporting.")
+                    kwargs["from_tf"] = True
+                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
+                else:
+                    logger.info("Loading PyTorch model in TensorFlow before exporting.")
+                    kwargs["from_pt"] = True
+                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
+
+        TasksManager.standardize_model_attributes(
+            model_name_or_path, model, subfolder, revision, cache_dir, library_name
+        )
 
         return model
 

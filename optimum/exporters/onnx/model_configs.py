@@ -63,6 +63,8 @@ from .config import (
 from .model_patcher import (
     FalconModelPatcher,
     SAMModelPatcher,
+    SentenceTransformersCLIPPatcher,
+    SentenceTransformersTransformerPatcher,
     SpeechT5ModelPatcher,
     VisionEncoderDecoderPatcher,
     WavLMModelPatcher,
@@ -799,6 +801,32 @@ class TimmResNext50d_32x4dOnnxConfig(TimmResNextOnnxConfig):
         return {"pixel_values": {0: "batch_size"}}
 
 
+class SentenceTransformersTransformerOnnxConfig(TextEncoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "token_embeddings": {0: "batch_size", 1: "sequence_length"},
+            "sentence_embedding": {0: "batch_size"},
+        }
+
+    # we need to set output_attentions=True in the model input to avoid calling
+    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
+    # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return SentenceTransformersTransformerPatcher(self, model, model_kwargs=model_kwargs)
+
+
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     TEXT_CONFIG = "text_config"
     VISION_CONFIG = "vision_config"
@@ -824,6 +852,20 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
             "text_embeds": {0: "text_batch_size"},
             "image_embeds": {0: "image_batch_size"},
         }
+
+
+class SentenceTransformersCLIPOnnxConfig(CLIPOnnxConfig):
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "text_embeds": {0: "text_batch_size"},
+            "image_embeds": {0: "image_batch_size"},
+        }
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return SentenceTransformersCLIPPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):

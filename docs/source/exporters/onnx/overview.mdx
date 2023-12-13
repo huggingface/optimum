@@ -14,7 +14,7 @@ specific language governing permissions and limitations under the License.
 
 🤗 Optimum handles the export of PyTorch or TensorFlow models to ONNX in the `exporters.onnx` module. It provides classes, functions, and a command line interface to perform the export easily.
 
-Supported architectures:
+Supported architectures from [🤗 Transformers](https://huggingface.co/docs/transformers/index):
 
 - AST
 - Audio Spectrogram Transformer
@@ -89,7 +89,6 @@ Supported architectures:
 - SpeechT5
 - Splinter
 - SqueezeBert
-- Stable Diffusion
 - Swin
 - T5
 - TROCR
@@ -105,9 +104,15 @@ Supported architectures:
 - XLM-Roberta
 - Yolos
 
-Supported architectures (Timm):
+Supported architectures from [🤗 Diffusers](https://huggingface.co/docs/diffusers/index):
+- Stable Diffusion
+
+Supported architectures from [🤗 Timm](https://huggingface.co/docs/timm/index):
 - Resnext50-32x4d
 - Resnext50d-32x4d
 - Resnext101-32x4d
 - Resnext101-32x8d
 - Resnext101-64x4d
+
+Supported architectures from [Sentence Transformers](https://github.com/UKPLab/sentence-transformers):
+- All Transformer and CLIP-based models.
