@@ -150,7 +150,7 @@ def _get_models_to_test(export_models_dict: Dict, library_name: str = "transform
                     "perceiver",
                     "encoder-decoder",
                     "vision-encoder-decoder",
-                    "unispeech-sat"
+                    "unispeech-sat",
                 ]:
                     models_to_test.append(
                         (f"{model_type}_no_task_{model_name}", model_type, model_name, "auto", "default", False, False)
