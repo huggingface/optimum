@@ -156,7 +156,10 @@ class GPTQTest(unittest.TestCase):
                 disable_exllama=self.disable_exllama,
                 exllama_config=self.exllama_config,
             )
-            self.check_quantized_layers_type(quantized_model_from_saved, "cuda-old")
+            if self.disable_exllama:
+                self.check_quantized_layers_type(quantized_model_from_saved, "cuda-old")
+            else:
+                self.check_quantized_layers_type(quantized_model_from_saved, "exllama")
 
             with torch.device("cuda"):
                 _ = AutoModelForCausalLM.from_pretrained(tmpdirname)
@@ -172,6 +175,7 @@ class GPTQTestExllama(GPTQTest):
     EXPECTED_OUTPUTS.add("Hello my name is John, I am a professional photographer and I")
     EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
     EXPECTED_OUTPUTS.add("Hello my name is John, I am a student in the University of")
+    EXPECTED_OUTPUTS.add("Hello my name is Nate and I am a new member of the")
 
 
 class GPTQTestActOrder(GPTQTest):
@@ -179,6 +183,7 @@ class GPTQTestActOrder(GPTQTest):
     EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
     EXPECTED_OUTPUTS.add("Hello my name is jessie and i am a very sweet and")
     EXPECTED_OUTPUTS.add("Hello my name is nathalie, I am a young girl from")
+    EXPECTED_OUTPUTS.add("Hello my name is\nI am a student of the University of the'")
 
     disable_exllama = True
     desc_act = True
@@ -256,6 +261,11 @@ class GPTQTestActOrder(GPTQTest):
 class GPTQTestExllamav2(GPTQTest):
     desc_act = False
     disable_exllama = True
+    EXPECTED_OUTPUTS = set()
+    EXPECTED_OUTPUTS.add("Hello my name is John, I am a professional photographer and I")
+    EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
+    EXPECTED_OUTPUTS.add("Hello my name is John, I am a student in the University of")
+    EXPECTED_OUTPUTS.add("Hello my name is Nate and I am a new member of the")
 
     def test_generate_quality(self):
         # don't need to test
@@ -300,6 +310,7 @@ class GPTQTestNoBlockCaching(GPTQTest):
     EXPECTED_OUTPUTS.add("Hello my name is John, I am a professional photographer and I")
     EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
     EXPECTED_OUTPUTS.add("Hello my name is John, I am a student in the University of")
+    EXPECTED_OUTPUTS.add("Hello my name is Aiden and I am a very good looking")
 
 
 class GPTQTestModuleQuant(GPTQTest):
