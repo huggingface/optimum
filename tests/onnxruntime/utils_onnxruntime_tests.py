@@ -95,7 +95,7 @@ MODEL_NAMES = {
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "sew": "hf-internal-testing/tiny-random-SEWModel",
-    "sew_d": "hf-internal-testing/tiny-random-SEWDModel",
+    "sew_d": "asapp/sew-d-tiny-100k-ft-ls100h",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "speech_to_text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
