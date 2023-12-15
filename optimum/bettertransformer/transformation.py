@@ -206,6 +206,12 @@ class BetterTransformer(object):
             The converted model if the conversion has been successful.
         """
 
+        hf_config = model.config
+        if hf_config.model_type in ["falcon", "gpt_bigcode", "llama", "whisper"]:
+            raise ValueError(
+                f"Transformers now supports natively BetterTransformer optimizations (torch.nn.functional.scaled_dot_product_attention) for the model type {hf_config.model_type}. Please upgrade to transformers>=4.36 and torch>=2.1.1 to use it. Details: https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-and-memory-efficient-attention-through-pytorchs-scaleddotproductattention"
+            )
+
         # Check if we have to load the model using `accelerate`
         if hasattr(model, "hf_device_map"):
             load_accelerate = True
@@ -234,13 +240,6 @@ class BetterTransformer(object):
         if parse(torch.__version__) <= parse("1.14"):
             raise ValueError(
                 f"BetterTransformer requires torch>=2.0 but {torch.__version__} is installed. Please upgrade PyTorch."
-            )
-
-        hf_config = model.config
-
-        if hf_config.model_type in ["falcon", "gpt_bigcode", "llama", "whisper"]:
-            raise ValueError(
-                f"Transformers now supports natively BetterTransformer optimizations (torch.nn.functional.scaled_dot_product_attention) for the model type {hf_config.model_type}. Please upgrade to transformers>=4.36 and torch>=2.1.1 to use it. Details: https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-and-memory-efficient-attention-through-pytorchs-scaleddotproductattention"
             )
 
         if load_accelerate:

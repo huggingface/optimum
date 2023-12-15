@@ -33,6 +33,16 @@ ALL_AUDIO_MODELS_TO_TEST = [
 ]
 
 
+class TestsWhisper(unittest.TestCase):
+    def test_error_message(self):
+        model = AutoModel.from_pretrained("openai/whisper-tiny")
+
+        with self.assertRaises(ValueError) as cm:
+            model = BetterTransformer.transform(model)
+
+        self.assertTrue("Transformers now supports natively BetterTransformer optimizations" in str(cm.exception))
+
+
 class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase):
     r"""
     Testing suite for Bark - tests all the tests defined in `BetterTransformersTestMixin`
