@@ -1448,7 +1448,6 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
                 inputs_or_outputs[f"{name}.{i}.encoder.value"] = {2: "encoder_sequence_length_out"}
 
 
-
 class VitsOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     ATOL_FOR_VALIDATION = 1e-4
