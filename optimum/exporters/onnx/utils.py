@@ -112,6 +112,7 @@ def check_onnxruntime_requirements(minimum_version: version.Version):
 
 def _get_submodels_for_export_stable_diffusion(
     pipeline: "StableDiffusionPipeline",
+    fuse_lora: str = None
 ) -> Dict[str, Union["PreTrainedModel", "ModelMixin"]]:
     """
     Returns the components of a Stable Diffusion model.
@@ -157,6 +158,10 @@ def _get_submodels_for_export_stable_diffusion(
     if text_encoder_2 is not None:
         text_encoder_2.config.output_hidden_states = True
         models_for_export["text_encoder_2"] = text_encoder_2
+
+    if fuse_lora is not None:
+        pipeline.load_lora_weights(fuse_lora)
+        pipeline.fuse_lora()
 
     return models_for_export
 
@@ -298,6 +303,7 @@ def get_stable_diffusion_models_for_export(
     pipeline: "StableDiffusionPipeline",
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
+    fuse_lora: str = None,
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]]:
     """
     Returns the components of a Stable Diffusion model and their subsequent onnx configs.
@@ -314,7 +320,7 @@ def get_stable_diffusion_models_for_export(
         `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `OnnxConfig`]: A Dict containing the model and
         onnx configs for the different components of the model.
     """
-    models_for_export = _get_submodels_for_export_stable_diffusion(pipeline)
+    models_for_export = _get_submodels_for_export_stable_diffusion(pipeline, fuse_lora=fuse_lora)
 
     # Text encoder
     if "text_encoder" in models_for_export:

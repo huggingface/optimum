@@ -150,6 +150,12 @@ def parse_args_onnx(parser):
             "Also disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum."
         ),
     )
+    optional_group.add_argument(
+        "--fuse_lora",
+        type=str,
+        default=None,
+        help=("For Stable Diffusion models only. LoRA to fuse before export."),
+    )
 
     input_group = parser.add_argument_group(
         "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input)."
@@ -258,6 +264,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             cache_dir=self.args.cache_dir,
             trust_remote_code=self.args.trust_remote_code,
             pad_token_id=self.args.pad_token_id,
+            fuse_lora=self.args.fuse_lora,
             for_ort=self.args.for_ort,
             use_subprocess=True,
             _variant=self.args.variant,
