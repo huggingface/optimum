@@ -168,7 +168,7 @@ class TasksManager:
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
             "image-classification": "AutoModelForImageClassification",
-            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
+            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation", "AutoModel"),
             "image-to-image": "AutoModelForImageToImage",
             "image-to-text": "AutoModelForVision2Seq",
             "mask-generation": "AutoModel",
@@ -412,6 +412,11 @@ class TasksManager:
         "clip-text-with-projection": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPTextWithProjectionOnnxConfig",
+        ),
+        "clipseg": supported_tasks_mapping(
+            "feature-extraction",
+            "image-segmentation",
+            onnx="CLIPSegOnnxConfig",
         ),
         "codegen": supported_tasks_mapping(
             "feature-extraction",
