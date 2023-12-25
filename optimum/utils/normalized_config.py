@@ -204,6 +204,7 @@ class NormalizedConfigManager:
         'roformer',
         'segformer',
         'squeezebert',
+        'table-transformer',
     """
 
     # Contribution note: Please add new models in alphabetical order

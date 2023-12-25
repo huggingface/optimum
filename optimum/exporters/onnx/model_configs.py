@@ -737,6 +737,10 @@ class DetrOnnxConfig(ViTOnnxConfig):
             return super().outputs
 
 
+class TableTransformerOnnxConfig(DetrOnnxConfig):
+    pass
+
+
 class YolosOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 
