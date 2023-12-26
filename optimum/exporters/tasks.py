@@ -168,7 +168,7 @@ class TasksManager:
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
             "image-classification": "AutoModelForImageClassification",
-            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
+            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation", "AutoModelForUniversalSegmentation"),
             "image-to-image": "AutoModelForImageToImage",
             "image-to-text": "AutoModelForVision2Seq",
             "mask-generation": "AutoModel",
@@ -797,6 +797,11 @@ class TasksManager:
             "text-generation-with-past",
             # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
             onnx="LlamaOnnxConfig",
+        ),
+        "oneformer": supported_tasks_mapping(
+            "feature-extraction",
+            "image-segmentation",
+            onnx="OneFormerOnnxConfig",
         ),
         "pegasus": supported_tasks_mapping(
             "feature-extraction",

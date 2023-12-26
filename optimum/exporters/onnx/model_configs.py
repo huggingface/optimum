@@ -737,6 +737,81 @@ class DetrOnnxConfig(ViTOnnxConfig):
             return super().outputs
 
 
+class OneFormerDummyInputGenerator(DummyVisionInputGenerator):
+    SUPPORTED_INPUT_NAMES = (
+        "pixel_values",
+        "pixel_mask",
+        "task_inputs",
+    )
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedVisionConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
+        width: int = DEFAULT_DUMMY_SHAPES["width"],
+        height: int = DEFAULT_DUMMY_SHAPES["height"],
+        **kwargs,
+    ):
+        super().__init__(
+            task=task,
+            normalized_config=normalized_config,
+            batch_size=batch_size,
+            num_channels=num_channels,
+            width=width,
+            height=height,
+            **kwargs,
+        )
+
+        self.task_seq_len = normalized_config.task_seq_len
+        self.vocab_size = normalized_config.vocab_size
+
+        from transformers.onnx.utils import get_preprocessor
+
+        preprocessor = get_preprocessor(normalized_config._name_or_path)
+        if preprocessor is not None and hasattr(preprocessor, "size"):
+            self.height = preprocessor.size.get("height", self.height)
+            self.width = preprocessor.size.get("width", self.width)
+
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == 'task_inputs':
+            return self.random_int_tensor(
+                shape=[self.batch_size, self.task_seq_len],
+                max_value=self.vocab_size,
+                framework=framework,
+                dtype=int_dtype,
+            )
+        else:
+            input_ = super().generate(
+                input_name=input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
+            )
+        return input_
+
+
+class OneFormerOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 16
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, OneFormerDummyInputGenerator)
+    NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig.with_args(allow_new=True, vocab_size="text_encoder_vocab_size")
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            # "pixel_mask": {0: "batch_size", 1: "height", 2: "width"},
+            "task_inputs": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "class_queries_logits": {0: "batch_size", 1: "num_queries"},
+            "masks_queries_logits": {0: "batch_size", 1: "num_queries", 2: "height", 3: "width"},
+            # "task_token": {0: "batch_size", 1: "hidden_dim"},
+        }
+
+
 class YolosOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 
