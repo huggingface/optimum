@@ -267,7 +267,6 @@ def _run_validation(
     if input_shapes is None:
         input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
     reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
-    reference_model_inputs = config.rename_ambiguous_inputs(reference_model_inputs)
 
     # Create ONNX Runtime session
     session_options = SessionOptions()
@@ -322,6 +321,7 @@ def _run_validation(
 
     # Some models may modify in place the inputs, hence the copy.
     copy_reference_model_inputs = copy.deepcopy(reference_model_inputs)
+    copy_reference_model_inputs = config.rename_ambiguous_inputs(copy_reference_model_inputs)
 
     with config.patch_model_for_export(reference_model, model_kwargs=model_kwargs):
         if is_torch_available() and isinstance(reference_model, nn.Module):

@@ -36,9 +36,9 @@ from ...utils import (
     DummyVisionEmbeddingsGenerator,
     DummyVisionEncoderDecoderPastKeyValuesGenerator,
     DummyVisionInputGenerator,
+    FalconDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
     MistralDummyPastKeyValuesGenerator,
-    MultiQueryPastKeyValuesGenerator,
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
@@ -63,6 +63,8 @@ from .config import (
 from .model_patcher import (
     FalconModelPatcher,
     SAMModelPatcher,
+    SentenceTransformersCLIPPatcher,
+    SentenceTransformersTransformerPatcher,
     SpeechT5ModelPatcher,
     VisionEncoderDecoderPatcher,
     WavLMModelPatcher,
@@ -183,6 +185,20 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
     pass
 
 
+class EsmOnnxConfig(TextEncoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    ATOL_FOR_VALIDATION = 1e-4
+    DEFAULT_ONNX_OPSET = 12
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        dynamic_axis = {0: "batch_size", 1: "sequence_length"}
+        return {
+            "input_ids": dynamic_axis,
+            "attention_mask": dynamic_axis,
+        }
+
+
 class GPT2OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
@@ -227,9 +243,14 @@ class OPTOnnxConfig(TextDecoderOnnxConfig):
 
 
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14  # Llama now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
+
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
-    DEFAULT_ONNX_OPSET = 13
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+
+class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
@@ -288,6 +309,7 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         GPTBigCodeDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DEFAULT_ONNX_OPSET = 14  # GPT BigCode now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     DUMMY_PKV_GENERATOR_CLASS = GPTBigCodeDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("gpt_bigcode")
 
@@ -314,15 +336,15 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 
 class FalconOnnxConfig(TextDecoderOnnxConfig):
-    # This is because of the patching that uses _prepare_4d_causal_attention_mask from transformers>=4.35
-    MIN_TRANSFORMERS_VERSION = version.parse("4.34.99")
+    # This is due to the cache refactoring for Falcon in 4.36
+    MIN_TRANSFORMERS_VERSION = version.parse("4.35.99")
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
-        MultiQueryPastKeyValuesGenerator,
+        FalconDummyPastKeyValuesGenerator,
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
-    DEFAULT_ONNX_OPSET = 14  # Falcon uses aten::triu that requires opset>=14
+    DEFAULT_ONNX_OPSET = 14  # Falcon uses aten::triu that requires opset>=14, and F.scaled_dot_product_attention
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    DUMMY_PKV_GENERATOR_CLASS = MultiQueryPastKeyValuesGenerator
+    DUMMY_PKV_GENERATOR_CLASS = FalconDummyPastKeyValuesGenerator
 
     def __init__(
         self,
@@ -370,27 +392,6 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
     ) -> "ModelPatcher":
         return FalconModelPatcher(self, model, model_kwargs=model_kwargs)
-
-    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
-        if direction not in ["inputs", "outputs"]:
-            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
-
-        if direction == "inputs":
-            decoder_sequence_name = "past_sequence_length"
-            name = "past_key_values"
-        else:
-            decoder_sequence_name = "past_sequence_length + 1"
-            name = "present"
-
-        for i in range(self._normalized_config.num_layers):
-            inputs_or_outputs[f"{name}.{i}.key"] = {
-                0: "batch_size x num_heads",
-                1: decoder_sequence_name,
-            }
-            inputs_or_outputs[f"{name}.{i}.value"] = {
-                0: "batch_size x num_heads",
-                1: decoder_sequence_name,
-            }
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
@@ -627,6 +628,7 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
 
 
 class BartOnnxConfig(M2M100OnnxConfig):
+    DEFAULT_ONNX_OPSET = 14  # Bart now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     pass
 
 
@@ -780,8 +782,26 @@ class DonutSwinOnnxConfig(ViTOnnxConfig):
     pass
 
 
-class TimmResNextOnnxConfig(ViTOnnxConfig):
+class TimmDefaultOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 12
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        preprocessors: Optional[List[Any]] = None,
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        legacy: bool = False,
+    ):
+        super().__init__(config, task, preprocessors, int_dtype, float_dtype, legacy)
+
+        pretrained_cfg = self._config
+        if hasattr(self._config, "pretrained_cfg"):
+            pretrained_cfg = self._config.pretrained_cfg
+
+        self._normalized_config = self.NORMALIZED_CONFIG_CLASS(pretrained_cfg)
 
     def rename_ambiguous_inputs(self, inputs):
         #  The input name in the model signature is `x, hence the export input name is updated.
@@ -790,13 +810,35 @@ class TimmResNextOnnxConfig(ViTOnnxConfig):
 
         return model_inputs
 
+    @property
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
+        return {"x": "pixel_values"}
 
-class TimmResNext50d_32x4dOnnxConfig(TimmResNextOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-3
+
+class SentenceTransformersTransformerOnnxConfig(TextEncoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        return {"pixel_values": {0: "batch_size"}}
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "token_embeddings": {0: "batch_size", 1: "sequence_length"},
+            "sentence_embedding": {0: "batch_size"},
+        }
+
+    # we need to set output_attentions=True in the model input to avoid calling
+    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
+    # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return SentenceTransformersTransformerPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
@@ -824,6 +866,20 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
             "text_embeds": {0: "text_batch_size"},
             "image_embeds": {0: "image_batch_size"},
         }
+
+
+class SentenceTransformersCLIPOnnxConfig(CLIPOnnxConfig):
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "text_embeds": {0: "text_batch_size"},
+            "image_embeds": {0: "image_batch_size"},
+        }
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return SentenceTransformersCLIPPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
@@ -1288,6 +1344,8 @@ class ASTOnnxConfig(OnnxConfig):
 
 
 class WhisperOnnxConfig(AudioToTextOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14  # Whisper now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
+
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
