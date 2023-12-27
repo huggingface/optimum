@@ -286,11 +286,12 @@ class OptimizedModel(PreTrainedModel):
     ) -> "OptimizedModel":
         """Overwrite this method in subclass to define how to load your model from vanilla transformers model"""
         raise NotImplementedError(
-            "Overwrite this method in subclass to define how to load your model from vanilla transformers model"
+            "`_from_transformers` method will be deprecated in a future release. Please override `_export` instead"
+            "to define how to load your model from vanilla transformers model"
         )
 
     @classmethod
-    def _from_timm(
+    def _export(
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
@@ -303,9 +304,9 @@ class OptimizedModel(PreTrainedModel):
         trust_remote_code: bool = False,
         **kwargs,
     ) -> "OptimizedModel":
-        """Overwrite this method in subclass to define how to load your model from vanilla timm model"""
+        """Overwrite this method in subclass to define how to load your model from vanilla hugging face model"""
         raise NotImplementedError(
-            "Overwrite this method in subclass to define how to load your model from vanilla timm model"
+            "Overwrite this method in subclass to define how to load your model from vanilla hugging face model"
         )
 
     @classmethod
@@ -393,10 +394,7 @@ class OptimizedModel(PreTrainedModel):
         elif export and trust_remote_code is None:
             trust_remote_code = False
 
-        if export:
-            from_pretrained_method = cls._from_timm if library_name == "timm" else cls._from_transformers
-        else:
-            from_pretrained_method = cls._from_pretrained
+        from_pretrained_method = cls._from_transformers if export else cls._from_pretrained
 
         return from_pretrained_method(
             model_id=model_id,

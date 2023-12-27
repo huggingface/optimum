@@ -540,42 +540,25 @@ class ORTModel(OptimizedModel):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
-        if task is None:
-            task = cls._auto_model_to_task(cls.auto_model_class)
-
-        save_dir = TemporaryDirectory()
-        save_dir_path = Path(save_dir.name)
-
-        main_export(
-            model_name_or_path=model_id,
-            output=save_dir_path,
-            task=task,
-            do_validation=False,
-            no_post_process=True,
-            subfolder=subfolder,
+        return cls._from_export(
+            model_id=model_id,
+            config=config,
             revision=revision,
             cache_dir=cache_dir,
-            use_auth_token=use_auth_token,
-            local_files_only=local_files_only,
             force_download=force_download,
+            use_auth_token=use_auth_token,
+            subfolder=subfolder,
+            local_files_only=local_files_only,
             trust_remote_code=trust_remote_code,
-        )
-
-        config.save_pretrained(save_dir_path)
-        maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
-
-        return cls._from_pretrained(
-            save_dir_path,
-            config,
-            use_io_binding=use_io_binding,
-            model_save_dir=save_dir,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
+            use_io_binding=use_io_binding,
+            task=task,
         )
 
     @classmethod
-    def _from_timm(
+    def _export(
         cls,
         model_id: str,
         config: "PretrainedConfig",
