@@ -540,7 +540,7 @@ class ORTModel(OptimizedModel):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
-        return cls._from_export(
+        return cls._export(
             model_id=model_id,
             config=config,
             revision=revision,

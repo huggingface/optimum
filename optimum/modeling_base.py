@@ -22,14 +22,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 from huggingface_hub import HfApi, HfFolder
-from transformers import AutoConfig, add_start_docstrings
+from transformers import AutoConfig, PretrainedConfig, add_start_docstrings
 
-from .exporters import TasksManager
 from .utils import CONFIG_NAME
 
 
 if TYPE_CHECKING:
-    from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
+    from transformers import PreTrainedModel, TFPreTrainedModel
 
 
 logger = logging.getLogger(__name__)
@@ -81,7 +80,7 @@ class OptimizedModel(PreTrainedModel):
     base_model_prefix = "optimized_model"
     config_name = CONFIG_NAME
 
-    def __init__(self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "PretrainedConfig"):
+    def __init__(self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: PretrainedConfig):
         super().__init__()
         self.model = model
         self.config = config
@@ -225,9 +224,9 @@ class OptimizedModel(PreTrainedModel):
         force_download: bool = False,
         subfolder: str = "",
         trust_remote_code: bool = False,
-    ) -> "PretrainedConfig":
+    ) -> PretrainedConfig:
         try:
-            config = AutoConfig.from_pretrained(
+            config = PretrainedConfig.from_pretrained(
                 pretrained_model_name_or_path=config_name_or_path,
                 revision=revision,
                 cache_dir=cache_dir,
@@ -239,7 +238,7 @@ class OptimizedModel(PreTrainedModel):
         except OSError as e:
             # if config not found in subfolder, search for it at the top level
             if subfolder != "":
-                config = AutoConfig.from_pretrained(
+                config = PretrainedConfig.from_pretrained(
                     pretrained_model_name_or_path=config_name_or_path,
                     revision=revision,
                     cache_dir=cache_dir,
@@ -258,7 +257,7 @@ class OptimizedModel(PreTrainedModel):
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -274,7 +273,7 @@ class OptimizedModel(PreTrainedModel):
     def _from_transformers(
         cls,
         model_id: Union[str, Path],
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -294,7 +293,7 @@ class OptimizedModel(PreTrainedModel):
     def _export(
         cls,
         model_id: Union[str, Path],
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -319,7 +318,7 @@ class OptimizedModel(PreTrainedModel):
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
         subfolder: str = "",
-        config: Optional["PretrainedConfig"] = None,
+        config: Optional[PretrainedConfig] = None,
         local_files_only: bool = False,
         trust_remote_code: bool = False,
         revision: Optional[str] = None,
@@ -346,19 +345,14 @@ class OptimizedModel(PreTrainedModel):
                 )
             model_id, revision = model_id.split("@")
 
-        library_name = TasksManager.infer_library_from_model(model_id, subfolder, revision, cache_dir)
-
-        if library_name == "timm":
-            config = TasksManager.get_config_from_model(model_id, subfolder, revision)
-
         if config is None:
             if os.path.isdir(os.path.join(model_id, subfolder)) and cls.config_name == CONFIG_NAME:
                 if CONFIG_NAME in os.listdir(os.path.join(model_id, subfolder)):
-                    config = AutoConfig.from_pretrained(
+                    config = PretrainedConfig.from_pretrained(
                         os.path.join(model_id, subfolder, CONFIG_NAME), trust_remote_code=trust_remote_code
                     )
                 elif CONFIG_NAME in os.listdir(model_id):
-                    config = AutoConfig.from_pretrained(
+                    config = PretrainedConfig.from_pretrained(
                         os.path.join(model_id, CONFIG_NAME), trust_remote_code=trust_remote_code
                     )
                     logger.info(
