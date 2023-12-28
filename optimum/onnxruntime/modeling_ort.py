@@ -540,6 +540,7 @@ class ORTModel(OptimizedModel):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
+        """ The method will be deprecated in future releases."""
         return cls._export(
             model_id=model_id,
             config=config,
