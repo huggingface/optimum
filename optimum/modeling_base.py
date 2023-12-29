@@ -147,6 +147,8 @@ class OptimizedModel(PreTrainedModel):
         Saves a model configuration into a directory, so that it can be re-loaded using the
         [`from_pretrained`] class method.
         """
+        if hasattr(self.config, "model_type"):
+            self.config.__class__.model_type = self.config.model_type
         self.config.save_pretrained(save_directory)
 
     def push_to_hub(
