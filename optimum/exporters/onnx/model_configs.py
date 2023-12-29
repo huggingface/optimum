@@ -1873,3 +1873,58 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
+
+class EncodecOnnxConfig(AudioOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyAudioInputGenerator
+    )
+    DEFAULT_ONNX_OPSET = 12
+
+    @property
+    def inputs(self):
+        return {
+            "input_ids": {0: "batch", 1: "sequence"},
+            "attention_mask": {0: "batch", 1: "sequence"},
+            "audio": {0: "batch", 1: "sequence", 2: "audio_features"},
+        }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "last_hidden_state": {0: "batch", 1: "sequence", 2: "hidden_size"},
+            "pooler_output": {0: "batch", 1: "hidden_size"},
+        }
+
+    @property
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
+        return {
+            "input_ids": "input_ids",
+            "attention_mask": "attention_mask",
+            "audio": "audio",
+        }
+
+    def generate_dummy_inputs_for_validation(
+        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        dummy_input_gen = self._create_dummy_input_generator_classes()
+        dummy_inputs = {}
+        for input_name in onnx_input_names:
+            dummy_input = self.overwrite_shape_and_generate_input(dummy_input_gen, input_name, "onnx", reference_model_inputs)
+            dummy_inputs[input_name] = dummy_input
+        return dummy_inputs
+
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        return [
+            DummyAudioInputGenerator(**kwargs)
+        ]
+
+    def overwrite_shape_and_generate_input(
+        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: Dict
+    ):
+        if input_name == "audio":
+            dummy_input_gen.sequence_length = input_shapes["input_ids"][1]
+            dummy_input_gen.audio_features_dim = input_shapes["audio"][2]
+        return dummy_input_gen.generate(
+            input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+        )
