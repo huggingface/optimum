@@ -209,7 +209,7 @@ class BetterTransformer(object):
         hf_config = model.config
         if hf_config.model_type in ["falcon", "gpt_bigcode", "llama", "whisper"]:
             raise ValueError(
-                f"Transformers now supports natively BetterTransformer optimizations (torch.nn.functional.scaled_dot_product_attention) for the model type {hf_config.model_type}. Please upgrade to transformers>=4.36 and torch>=2.1.1 to use it. Details: https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-and-memory-efficient-attention-through-pytorchs-scaleddotproductattention"
+                f"Transformers now supports natively BetterTransformer optimizations (torch.nn.functional.scaled_dot_product_attention) for the model type {hf_config.model_type}. As such, there is no need to use `model.to_bettertransformers()` or `BetterTransformer.transform(model)` from the Optimum library for these model types. Please upgrade to transformers>=4.36 and torch>=2.1.1 to enjoy these built-in optimizations. For more information, please refer to the documentation: https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-and-memory-efficient-attention-through-pytorchs-scaleddotproductattention."
             )
 
         # Check if we have to load the model using `accelerate`
