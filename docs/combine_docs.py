@@ -164,7 +164,10 @@ def main():
             # Extend table of contents sections with the subpackage name as the parent folder
             rename_subpackage_toc(subpackage, subpackage_toc)
             # Just keep the name of the partner in the TOC title
-            subpackage_toc[0]["title"] = subpackage_toc[0]["title"].split("Optimum ")[-1]
+            if subpackage == "amd":
+                subpackage_toc[0]["title"] = subpackage_toc[0]["title"].split("Optimum-")[-1]
+            else:
+                subpackage_toc[0]["title"] = subpackage_toc[0]["title"].split("Optimum ")[-1]
             if subpackage != "graphcore":
                 # Update optimum table of contents
                 base_toc.insert(1, subpackage_toc[0])

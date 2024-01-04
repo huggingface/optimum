@@ -64,6 +64,11 @@ jobs:
           repository: 'huggingface/optimum-furiosa'
           path: optimum-furiosa
 
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-amd'
+          path: optimum-amd
+
       - name: Setup environment
         run: |
           pip uninstall -y doc-builder
@@ -116,6 +121,14 @@ jobs:
           sudo apt update && sudo apt install -y furiosa-libnux
           doc-builder build optimum.furiosa docs/source/ --build_dir furiosa-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
           mv furiosa-doc-build ../optimum
+          cd ..
+
+      - name: Make AMD documentation
+        run: |
+          sudo docker system prune -a -f
+          cd optimum-amd
+          make doc BUILD_DIR=amd-doc-build VERSION=${{ env.VERSION }}
+          sudo mv amd-doc-build ../optimum
           cd ..
 
       - name: Make Optimum documentation
