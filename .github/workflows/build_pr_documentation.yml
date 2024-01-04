@@ -128,7 +128,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages graphcore habana intel neuron furiosa --version pr_$PR_NUMBER
+          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron habana furiosa graphcore --version pr_$PR_NUMBER
           sudo mv optimum-doc-build ../
           cd ..
 
