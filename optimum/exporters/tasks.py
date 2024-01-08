@@ -1403,7 +1403,7 @@ class TasksManager:
         else:
             raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
 
-        logger.info(f"Framework not specified. Using {framework} to export to ONNX.")
+        logger.info(f"Framework not specified. Using {framework} to export the model.")
 
         return framework
 
