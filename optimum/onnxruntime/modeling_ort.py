@@ -14,6 +14,7 @@
 """ORTModelForXXX classes, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers."""
 
 import logging
+import math
 import re
 import shutil
 from pathlib import Path
@@ -826,8 +827,10 @@ class ORTModel(OptimizedModel):
 
         return io_binding, output_shapes, output_buffers
 
-    def prepare_io_binding(self, *model_inputs, ordered_input_names):
-        return self._prepare_io_binding(self.model, ordered_input_names=ordered_input_names, *model_inputs)
+    def prepare_io_binding(self, *model_inputs, ordered_input_names, known_output_shapes=None):
+        return self._prepare_io_binding(
+            self.model, ordered_input_names=ordered_input_names, known_output_shapes=known_output_shapes, *model_inputs
+        )
 
     def raise_on_numpy_input_io_binding(self, use_torch: bool):
         """
@@ -1877,9 +1880,27 @@ class ORTModelForCTC(ORTModel):
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
         if self.device.type == "cuda" and self.use_io_binding:
-            raise NotImplementedError(
-                "IO Binding for ORTModelForCTC is currently not supported. Please open an issue or submit a PR to https://github.com/huggingface/optimum to have this feature added."
+            output_time_size = float(input_values[0].shape / np.prod(self.config.conv_stride))
+            if output_time_size.is_integer():
+                output_time_size = int(output_time_size - 1)
+            else:
+                output_time_size = math.floor(output_time_size)
+            known_output_shapes = {"logits": [input_values.shape[0], output_time_size, self.config.vocab_size]}
+
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_values,
+                ordered_input_names=self._ordered_input_names,
+                known_output_shapes=known_output_shapes,
             )
+
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            outputs = {}
+
+            return CausalLMOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
             if use_torch:
                 # converts pytorch inputs into numpy inputs for onnx
