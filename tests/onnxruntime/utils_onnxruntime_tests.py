@@ -149,7 +149,7 @@ MODEL_NAMES = {
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
     "wavlm": "hf-internal-testing/tiny-random-WavlmModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
-    "xlm_qa": "hf-internal-testing/tiny-random-XLMForQuestionAnsweringSimple",  # issue with default hf-internal-testing in QA pipeline post-processing
+    "xlm_qa": "hf-internal-testing/tiny-random-XLMForQuestionAnsweringSimple",  # issue with default hf-internal-testing in transformers QA pipeline post-processing
     "xlm_roberta": "hf-internal-testing/tiny-xlm-roberta",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
 }
