@@ -36,6 +36,8 @@ TESTS_REQUIRE = [
     "torchaudio",
     "einops",
     "invisible-watermark",
+    "timm",
+    "scikit-learn",
 ]
 
 QUALITY_REQUIRE = ["black~=23.1", "ruff==0.1.5"]

@@ -22,13 +22,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 from huggingface_hub import HfApi, HfFolder
-from transformers import AutoConfig, add_start_docstrings
+from transformers import AutoConfig, PretrainedConfig, add_start_docstrings
 
+from .exporters import TasksManager
 from .utils import CONFIG_NAME
 
 
 if TYPE_CHECKING:
-    from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
+    from transformers import PreTrainedModel, TFPreTrainedModel
 
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ class OptimizedModel(PreTrainedModel):
     base_model_prefix = "optimized_model"
     config_name = CONFIG_NAME
 
-    def __init__(self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "PretrainedConfig"):
+    def __init__(self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: PretrainedConfig):
         super().__init__()
         self.model = model
         self.config = config
@@ -224,7 +225,7 @@ class OptimizedModel(PreTrainedModel):
         force_download: bool = False,
         subfolder: str = "",
         trust_remote_code: bool = False,
-    ) -> "PretrainedConfig":
+    ) -> PretrainedConfig:
         try:
             config = AutoConfig.from_pretrained(
                 pretrained_model_name_or_path=config_name_or_path,
@@ -257,7 +258,7 @@ class OptimizedModel(PreTrainedModel):
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -273,7 +274,7 @@ class OptimizedModel(PreTrainedModel):
     def _from_transformers(
         cls,
         model_id: Union[str, Path],
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -285,7 +286,28 @@ class OptimizedModel(PreTrainedModel):
     ) -> "OptimizedModel":
         """Overwrite this method in subclass to define how to load your model from vanilla transformers model"""
         raise NotImplementedError(
-            "Overwrite this method in subclass to define how to load your model from vanilla transformers model"
+            "`_from_transformers` method will be deprecated in a future release. Please override `_export` instead"
+            "to define how to load your model from vanilla transformers model"
+        )
+
+    @classmethod
+    @abstractmethod
+    def _export(
+        cls,
+        model_id: Union[str, Path],
+        config: PretrainedConfig,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
+        force_download: bool = False,
+        cache_dir: Optional[str] = None,
+        subfolder: str = "",
+        local_files_only: bool = False,
+        trust_remote_code: bool = False,
+        **kwargs,
+    ) -> "OptimizedModel":
+        """Overwrite this method in subclass to define how to load your model from vanilla hugging face model"""
+        raise NotImplementedError(
+            "Overwrite this method in subclass to define how to load your model from vanilla hugging face model"
         )
 
     @classmethod
@@ -298,7 +320,7 @@ class OptimizedModel(PreTrainedModel):
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
         subfolder: str = "",
-        config: Optional["PretrainedConfig"] = None,
+        config: Optional[PretrainedConfig] = None,
         local_files_only: bool = False,
         trust_remote_code: bool = False,
         revision: Optional[str] = None,
@@ -324,6 +346,11 @@ class OptimizedModel(PreTrainedModel):
                     f"The argument `revision` was set to {revision} but will be ignored for {model_id.split('@')[1]}"
                 )
             model_id, revision = model_id.split("@")
+
+        library_name = TasksManager.infer_library_from_model(model_id, subfolder, revision, cache_dir)
+
+        if library_name == "timm":
+            config = PretrainedConfig.from_pretrained(model_id, subfolder, revision)
 
         if config is None:
             if os.path.isdir(os.path.join(model_id, subfolder)) and cls.config_name == CONFIG_NAME:
@@ -369,6 +396,7 @@ class OptimizedModel(PreTrainedModel):
             trust_remote_code = False
 
         from_pretrained_method = cls._from_transformers if export else cls._from_pretrained
+
         return from_pretrained_method(
             model_id=model_id,
             config=config,
