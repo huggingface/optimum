@@ -1250,7 +1250,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         "roberta",
         "roformer",
         "squeezebert",
-        "xlm",
+        "xlm_qa",
         "xlm_roberta",
     ]
 
