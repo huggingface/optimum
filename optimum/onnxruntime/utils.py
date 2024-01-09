@@ -13,7 +13,6 @@
 #  limitations under the License.
 """Utility functions, classes and constants for ONNX Runtime."""
 
-import importlib.util
 import os
 import re
 from enum import Enum
@@ -27,6 +26,7 @@ from transformers.utils import logging
 
 import onnxruntime as ort
 
+from ...utils.import_utils import _is_package_available
 from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
 
 
@@ -83,7 +83,7 @@ def is_cupy_available():
     """
     Checks if onnxruntime-training is available.
     """
-    return importlib.util.find_spec("cupy") is not None
+    return _is_package_available("cupy")
 
 
 class ORTConfigManager:
