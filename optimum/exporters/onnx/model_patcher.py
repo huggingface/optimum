@@ -551,6 +551,8 @@ class SAMModelPatcher(ModelPatcher):
                             "image_positional_embeddings": image_positional_embeddings,
                         }
                 else:
+                    if input_points is None:
+                        raise ValueError("input_points is required to export the prompt encoder / mask decoder.")
 
                     sparse_embeddings, dense_embeddings = model.prompt_encoder(
                         input_points=input_points,
