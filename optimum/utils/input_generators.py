@@ -182,6 +182,58 @@ class DummyInputGenerator(ABC):
 
     @staticmethod
     @check_framework_is_available
+    def random_mask_tensor(shape: List[int], padding_side: str = "right", framework: str = "pt", dtype: str = "int64"):
+        """
+        Generates a mask tensor either right or left padded.
+
+        Args:
+            shape (`List[int]`):
+                The shape of the random tensor.
+            padding_side (`str`, defaults to "right"):
+                The side on which the padding is applied.
+            framework (`str`, defaults to `"pt"`):
+                The requested framework.
+            dtype (`str`, defaults to `"int64"`):
+                The dtype of the generated integer tensor. Could be "int64", "int32", "int8".
+
+        Returns:
+            A random mask tensor either left padded or right padded in the requested framework.
+        """
+        mask_length = random.randint(1, shape[1] - 1)
+        if framework == "pt":
+            mask_tensor = torch.cat(
+                [
+                    torch.ones(shape[0], shape[1] - mask_length, dtype=DTYPE_MAPPER.pt(dtype)),
+                    torch.zeros(shape[0], mask_length, dtype=DTYPE_MAPPER.pt(dtype)),
+                ],
+                dim=1,
+            )
+            if padding_side == "left":
+                mask_tensor = torch.flip(mask_tensor, [1])
+        elif framework == "tf":
+            mask_tensor = tf.concat(
+                [
+                    tf.ones((shape[0], shape[1] - mask_length), dtype=DTYPE_MAPPER.tf(dtype)),
+                    tf.zeros((shape[0], mask_length), dtype=DTYPE_MAPPER.tf(dtype)),
+                ],
+                axis=1,
+            )
+            if padding_side == "left":
+                mask_tensor = tf.reverse(mask_tensor, [1])
+        else:
+            mask_tensor = np.concatenate(
+                [
+                    np.ones((shape[0], shape[1] - mask_length), dtype=DTYPE_MAPPER.np(dtype)),
+                    np.zeros((shape[0], mask_length), dtype=DTYPE_MAPPER.np(dtype)),
+                ],
+                axis=1,
+            )
+            if padding_side == "left":
+                mask_tensor = np.flip(mask_tensor, [1])
+        return mask_tensor
+
+    @staticmethod
+    @check_framework_is_available
     def random_float_tensor(
         shape: List[int], min_value: float = 0, max_value: float = 1, framework: str = "pt", dtype: str = "fp32"
     ):
@@ -364,13 +416,23 @@ class DummyTextInputGenerator(DummyInputGenerator):
         else:
             self.num_choices = num_choices
 
-    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+    def generate(
+        self,
+        input_name: str,
+        framework: str = "pt",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        padding_side: str = "right",
+    ):
         min_value = 0
         max_value = 2 if input_name != "input_ids" else self.vocab_size
         shape = [self.batch_size, self.sequence_length]
         if self.task == "multiple-choice":
             shape = [self.batch_size, self.num_choices, self.sequence_length]
-        return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework, dtype=int_dtype)
+        if "mask" in input_name:
+            return self.random_mask_tensor(shape, padding_side=padding_side, framework=framework, dtype=int_dtype)
+        else:
+            return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework, dtype=int_dtype)
 
 
 class DummyDecoderTextInputGenerator(DummyTextInputGenerator):
