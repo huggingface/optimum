@@ -59,7 +59,10 @@ ORT_QUANTIZE_MINIMUM_VERSION = packaging.version.parse("1.4.0")
 
 
 _onnx_available = _is_package_available("onnx")
-_onnxruntime_available = _is_package_available("onnxruntime")
+
+# importlib.metadata.version seem to not be robust with the ONNX Runtime extensions (`onnxruntime-gpu`, etc.)
+_onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
+
 _pydantic_available = _is_package_available("pydantic")
 _accelerate_available = _is_package_available("accelerate")
 _diffusers_available = _is_package_available("diffusers")
