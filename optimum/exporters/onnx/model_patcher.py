@@ -762,6 +762,8 @@ class SentenceTransformersTransformerPatcher(ModelPatcher):
                 del result["input_ids"]
             if "attention_mask" in result:
                 del result["attention_mask"]
+            if "all_layer_embeddings" in result:
+                del result["all_layer_embeddings"]
 
             return result
 
