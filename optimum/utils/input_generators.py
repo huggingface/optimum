@@ -199,37 +199,38 @@ class DummyInputGenerator(ABC):
         Returns:
             A random mask tensor either left padded or right padded in the requested framework.
         """
-        mask_length = random.randint(1, shape[1] - 1)
+        shape = tuple(shape)
+        mask_length = random.randint(1, shape[-1] - 1)
         if framework == "pt":
             mask_tensor = torch.cat(
                 [
-                    torch.ones(shape[0], shape[1] - mask_length, dtype=DTYPE_MAPPER.pt(dtype)),
-                    torch.zeros(shape[0], mask_length, dtype=DTYPE_MAPPER.pt(dtype)),
+                    torch.ones(*shape[:-1], shape[-1] - mask_length, dtype=DTYPE_MAPPER.pt(dtype)),
+                    torch.zeros(*shape[:-1], mask_length, dtype=DTYPE_MAPPER.pt(dtype)),
                 ],
-                dim=1,
+                dim=-1,
             )
             if padding_side == "left":
-                mask_tensor = torch.flip(mask_tensor, [1])
+                mask_tensor = torch.flip(mask_tensor, [-1])
         elif framework == "tf":
             mask_tensor = tf.concat(
                 [
-                    tf.ones((shape[0], shape[1] - mask_length), dtype=DTYPE_MAPPER.tf(dtype)),
-                    tf.zeros((shape[0], mask_length), dtype=DTYPE_MAPPER.tf(dtype)),
+                    tf.ones((*shape[:-1], shape[-1] - mask_length), dtype=DTYPE_MAPPER.tf(dtype)),
+                    tf.zeros((*shape[:-1], mask_length), dtype=DTYPE_MAPPER.tf(dtype)),
                 ],
-                axis=1,
+                axis=-1,
             )
             if padding_side == "left":
-                mask_tensor = tf.reverse(mask_tensor, [1])
+                mask_tensor = tf.reverse(mask_tensor, [-1])
         else:
             mask_tensor = np.concatenate(
                 [
-                    np.ones((shape[0], shape[1] - mask_length), dtype=DTYPE_MAPPER.np(dtype)),
-                    np.zeros((shape[0], mask_length), dtype=DTYPE_MAPPER.np(dtype)),
+                    np.ones((*shape[:-1], shape[-1] - mask_length), dtype=DTYPE_MAPPER.np(dtype)),
+                    np.zeros((*shape[:-1], mask_length), dtype=DTYPE_MAPPER.np(dtype)),
                 ],
-                axis=1,
+                axis=-1,
             )
             if padding_side == "left":
-                mask_tensor = np.flip(mask_tensor, [1])
+                mask_tensor = np.flip(mask_tensor, [-1])
         return mask_tensor
 
     @staticmethod
@@ -396,6 +397,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         random_batch_size_range: Optional[Tuple[int, int]] = None,
         random_sequence_length_range: Optional[Tuple[int, int]] = None,
         random_num_choices_range: Optional[Tuple[int, int]] = None,
+        padding_side: str = "right",
         **kwargs,
     ):
         self.task = task
@@ -415,6 +417,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
             self.num_choices = random.randint(low, high)
         else:
             self.num_choices = num_choices
+        self.padding_side = padding_side
 
     def generate(
         self,
@@ -422,7 +425,6 @@ class DummyTextInputGenerator(DummyInputGenerator):
         framework: str = "pt",
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
-        padding_side: str = "right",
     ):
         min_value = 0
         max_value = 2 if input_name != "input_ids" else self.vocab_size
@@ -430,7 +432,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         if self.task == "multiple-choice":
             shape = [self.batch_size, self.num_choices, self.sequence_length]
         if "mask" in input_name:
-            return self.random_mask_tensor(shape, padding_side=padding_side, framework=framework, dtype=int_dtype)
+            return self.random_mask_tensor(shape, padding_side=self.padding_side, framework=framework, dtype=int_dtype)
         else:
             return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework, dtype=int_dtype)
 
