@@ -29,6 +29,7 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
+from ..utils import CONFIG_NAME
 from ..utils.import_utils import is_onnx_available
 
 
@@ -1402,7 +1403,7 @@ class TasksManager:
         else:
             raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
 
-        logger.info(f"Framework not specified. Using {framework} to export to ONNX.")
+        logger.info(f"Framework not specified. Using {framework} to export the model.")
 
         return framework
 
@@ -1554,7 +1555,7 @@ class TasksManager:
     @classmethod
     def infer_library_from_model(
         cls,
-        model_name_or_path: str,
+        model_name_or_path: Union[str, Path],
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
@@ -1597,15 +1598,10 @@ class TasksManager:
 
             if "model_index.json" in all_files:
                 library_name = "diffusers"
-            elif "config.json" in all_files:
-                config_path = full_model_path / "config.json"
-
-                if not full_model_path.is_dir():
-                    config_path = huggingface_hub.hf_hub_download(
-                        model_name_or_path, "config.json", subfolder=subfolder, revision=revision
-                    )
-
-                model_config = PretrainedConfig.from_json_file(config_path)
+            elif CONFIG_NAME in all_files:
+                model_config = PretrainedConfig.from_pretrained(
+                    model_name_or_path, subfolder=subfolder, revision=revision
+                )
 
                 if hasattr(model_config, "pretrained_cfg") or hasattr(model_config, "architecture"):
                     library_name = "timm"
