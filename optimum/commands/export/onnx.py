@@ -150,6 +150,9 @@ def parse_args_onnx(parser):
             "Also disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum."
         ),
     )
+    optional_group.add_argument(
+        "--no_dynamic_axes", action="store_true", help="Disable dynamic axes during ONNX export"
+    )
 
     input_group = parser.add_argument_group(
         "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input)."
@@ -263,6 +266,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             _variant=self.args.variant,
             library_name=self.args.library_name,
             legacy=self.args.legacy,
+            no_dynamic_axes=self.args.no_dynamic_axes,
             model_kwargs=self.args.model_kwargs,
             **input_shapes,
         )
