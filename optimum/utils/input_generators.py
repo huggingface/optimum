@@ -836,7 +836,7 @@ class DummyPointsGenerator(DummyInputGenerator):
     Generates dummy time step inputs.
     """
 
-    SUPPORTED_INPUT_NAMES = ("input_points",)
+    SUPPORTED_INPUT_NAMES = ("input_points", "input_labels")
 
     def __init__(
         self,
@@ -854,8 +854,12 @@ class DummyPointsGenerator(DummyInputGenerator):
         self.nb_points_per_image = nb_points_per_image
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        shape = [self.batch_size, self.point_batch_size, self.nb_points_per_image, 2]
-        return self.random_float_tensor(shape, framework=framework, dtype=float_dtype)
+        if input_name == "input_points":
+            shape = [self.batch_size, self.point_batch_size, self.nb_points_per_image, 2]
+            return self.random_float_tensor(shape, framework=framework, dtype=float_dtype)
+        else:  # input_labels
+            shape = [self.batch_size, self.point_batch_size, self.nb_points_per_image]
+            return self.random_int_tensor(shape, min_value=0, max_value=1, framework=framework, dtype=int_dtype)
 
 
 class DummyVisionEmbeddingsGenerator(DummyInputGenerator):
