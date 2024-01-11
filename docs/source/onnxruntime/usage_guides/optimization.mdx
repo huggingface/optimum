@@ -79,6 +79,12 @@ Here is a list of the possible optimizations you can enable:
 - Add Bias and Gelu / FastGelu fusion with `disable_bias_gelu_fusion=False`,
 - Gelu approximation with `enable_gelu_approximation=True`.
 
+<Tip>
+
+Attention fusion is designed for right-side padding for BERT-like architectures (eg. BERT, RoBERTa, VIT, etc.) and for left-side padding for generative models (GPT-like). If you are not following the convention, please set `use_raw_attention_mask=True` to avoid potential accuracy issues but sacrifice the performance.
+
+</Tip>
+
 While [`~onnxruntime.configuration.OptimizationConfig`] gives you full control on how to do optimization, it can be hard to know what to enable / disable. Instead, you can use [`~onnxruntime.configuration.AutoOptimizationConfig`] which provides four common optimization levels:
 - O1: basic general optimizations.
 - O2: basic and extended general optimizations, transformers-specific fusions.
