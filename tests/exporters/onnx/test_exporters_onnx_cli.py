@@ -265,9 +265,9 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_torch
     @require_vision
     @require_timm
-    # @slow
+    @slow
     @pytest.mark.timm_test
-    # @pytest.mark.run_slow
+    @pytest.mark.run_slow
     def test_exporters_cli_pytorch_cpu_timm_no_dynamic_axes(
         self,
         test_name: str,
