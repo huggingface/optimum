@@ -1682,9 +1682,11 @@ class TasksManager:
             if "Transformer" in model[0].__class__.__name__:
                 model.config = model[0].auto_model.config
                 model.config.model_type = "sentence-transformers-transformer"
+                model.config.__class__.model_type = "sentence-transformers-transformer"
             elif "CLIP" in model[0].__class__.__name__:
                 model.config = model[0].model.config
                 model.config.model_type = "sentence-transformers-clip"
+                model.config.__class__.model_type = "sentence-transformers-clip"
             else:
                 raise ValueError(
                     f"The export of a sentence-transformers model with the first module being {model[0].__class__.__name__} is currently not supported in Optimum. Please open an issue or submit a PR to add the support."
