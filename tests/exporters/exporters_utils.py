@@ -325,3 +325,11 @@ PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
     "sentence-transformers-clip": "sentence-transformers/all-MiniLM-L6-v2",
     "sentence-transformers-transformer": "sentence-transformers/clip-ViT-B-32-multilingual-v1",
 }
+
+
+PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES = {
+    "default-timm-config": {
+        "timm/ese_vovnet39b.ra_in1k": ["image-classification"],
+        "timm/ese_vovnet19b_dw.ra_in1k": ["image-classification"],
+    }
+}

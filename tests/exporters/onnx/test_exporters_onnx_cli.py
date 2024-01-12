@@ -44,6 +44,7 @@ from ..exporters_utils import (
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_STABLE_DIFFUSION_MODEL,
     PYTORCH_TIMM_MODEL,
+    PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
 )
 
 
@@ -179,6 +180,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         device: str = "cpu",
         fp16: bool = False,
         variant: str = "default",
+        no_dynamic_axes: bool = False,
         model_kwargs: Optional[Dict] = None,
     ):
         with TemporaryDirectory() as tmpdir:
@@ -193,6 +195,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     monolith=monolith,
                     no_post_process=no_post_process,
                     _variant=variant,
+                    no_dynamic_axes=no_dynamic_axes,
                     model_kwargs=model_kwargs,
                 )
             except MinimumVersionError as e:
@@ -257,6 +260,25 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         no_post_process: bool,
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES, library_name="timm"))
+    @require_torch
+    @require_vision
+    @require_timm
+    # @slow
+    @pytest.mark.timm_test
+    # @pytest.mark.run_slow
+    def test_exporters_cli_pytorch_cpu_timm_no_dynamic_axes(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, no_dynamic_axes=True)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_torch_gpu
