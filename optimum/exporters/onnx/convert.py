@@ -96,7 +96,6 @@ def validate_models_outputs(
     onnx_files_subpaths: Optional[List[str]] = None,
     input_shapes: Optional[Dict] = None,
     device: str = "cpu",
-    dtype: Optional["torch.dtype"] = None,
     use_subprocess: Optional[bool] = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ):
@@ -120,8 +119,6 @@ def validate_models_outputs(
             If specified, allows to use specific shapes to validate the ONNX model on.
         device (`str`, defaults to `"cpu"`):
             The device on which the ONNX models will be validated. Either `cpu` or `cuda`. Validation on a CUDA device is supported only for PyTorch.
-        dtype (`Optional[torch.dtype]`, defaults to `None`):
-            Data type of the inputs to perform validation on. Validation on float16 is supported only for PyTorch.
         use_subprocess (`Optional[bool]`, defaults to `True`):
             Launch validation of each exported model in a subprocess.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
@@ -162,7 +159,6 @@ def validate_models_outputs(
                 atol=atol,
                 input_shapes=input_shapes,
                 device=device,
-                dtype=dtype,
                 use_subprocess=use_subprocess,
                 model_kwargs=model_kwargs,
             )
@@ -183,7 +179,6 @@ def validate_model_outputs(
     atol: Optional[float] = None,
     input_shapes: Optional[Dict] = None,
     device: str = "cpu",
-    dtype: Optional["torch.dtype"] = None,
     use_subprocess: Optional[bool] = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ):
@@ -217,7 +212,7 @@ def validate_model_outputs(
         mp.set_start_method("spawn", force=True)
 
         io_process = ValidationProcess(
-            config, reference_model, onnx_model, onnx_named_outputs, atol, input_shapes, device, dtype, model_kwargs
+            config, reference_model, onnx_model, onnx_named_outputs, atol, input_shapes, device, model_kwargs
         )
         io_process.start()
         io_process.join()
@@ -234,7 +229,6 @@ def validate_model_outputs(
             atol,
             input_shapes,
             device,
-            dtype,
             model_kwargs=model_kwargs,
         )
 
@@ -247,7 +241,6 @@ def _run_validation(
     atol: Optional[float] = None,
     input_shapes: Optional[Dict] = None,
     device: str = "cpu",
-    dtype: Optional["torch.dtype"] = None,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ):
     from onnxruntime import GraphOptimizationLevel, SessionOptions
@@ -439,7 +432,6 @@ class ValidationProcess(mp.Process):
         atol: Optional[float] = None,
         input_shapes: Optional[Dict] = None,
         device: str = "cpu",
-        dtype: Optional["torch.dtype"] = None,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
@@ -452,7 +444,6 @@ class ValidationProcess(mp.Process):
         self.atol = atol
         self.input_shapes = input_shapes
         self.device = device
-        self.dtype = dtype
         self.model_kwargs = model_kwargs
 
     def run(self):
@@ -465,7 +456,6 @@ class ValidationProcess(mp.Process):
                 atol=self.atol,
                 input_shapes=self.input_shapes,
                 device=self.device,
-                dtype=self.dtype,
                 model_kwargs=self.model_kwargs,
             )
         except Exception as e:
@@ -486,7 +476,6 @@ def export_pytorch(
     opset: int,
     output: Path,
     device: str = "cpu",
-    dtype: Optional["torch.dtype"] = None,
     input_shapes: Optional[Dict] = None,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
@@ -505,8 +494,6 @@ def export_pytorch(
         device (`str`, defaults to `"cpu"`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
-        dtype (`Optional[torch.dtype]`, defaults to `None`):
-            Data type to remap the model inputs to. PyTorch-only. Only `torch.float16` is supported.
         input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
@@ -847,12 +834,6 @@ def export(
                 f" got: {torch.__version__}"
             )
 
-        torch_dtype = None
-        if dtype == "fp16":
-            torch_dtype = torch.float16
-        elif dtype is not None:
-            raise ValueError("Unsupported dtype, supported dtypes are: `torch.float16`.")
-
         export_output = export_pytorch(
             model,
             config,
@@ -860,7 +841,6 @@ def export(
             output,
             device=device,
             input_shapes=input_shapes,
-            dtype=torch_dtype,
             model_kwargs=model_kwargs,
         )
 
