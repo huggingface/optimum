@@ -16,7 +16,7 @@ REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
     "transformers[sentencepiece]>=4.26.0",
-    "torch>=1.9",
+    "torch>=1.11",
     "packaging",
     "numpy",
     "huggingface_hub>=0.8.0",
