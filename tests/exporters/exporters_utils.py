@@ -322,6 +322,6 @@ PYTORCH_TIMM_MODEL = {
 }
 
 PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
-    "sentence-transformers-clip": "sentence-transformers/all-MiniLM-L6-v2",
-    "sentence-transformers-transformer": "sentence-transformers/clip-ViT-B-32-multilingual-v1",
+    "sentence-transformers-transformer": "sentence-transformers/all-MiniLM-L6-v2",
+    "sentence-transformers-clip": "sentence-transformers/clip-ViT-B-32-multilingual-v1",
 }
