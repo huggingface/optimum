@@ -136,7 +136,7 @@ def get_c4(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
     elif split == "validation":
         data = load_dataset(
             "allenai/c4",
-            split="train",
+            split="validation",
             data_files={"validation": "en/c4-validation.00000-of-00008.json.gz"},
         )
     dataset = []
@@ -161,7 +161,7 @@ def get_c4_new(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train")
     elif split == "validation":
         data = load_dataset(
             "allenai/c4",
-            split="train",
+            split="validation",
             data_files={"validation": "en/c4-validation.00000-of-00008.json.gz"},
         )
     dataset = []
