@@ -447,11 +447,6 @@ def main_export(
             f" `--task {task_non_past} --monolith`, or `--task {task}` without the monolith argument."
         )
 
-    if library_name == "timm" and no_dynamic_axes is False and "vovnet" in model_type:
-        raise ValueError(
-            f"The export of {model_type} is not supported with dynamic axes. Please pass --no-dynamic-axes to export the model with fixed shapes"
-        )
-
     if original_task == "auto":
         synonyms_for_task = sorted(TasksManager.synonyms_for_task(task))
         if synonyms_for_task:
