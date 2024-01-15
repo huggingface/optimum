@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   authorize:
-    if: (github.event.action == 'labeled' && github.event.label.name == 'build-pr-doc') || github.event_name != 'pull_request_target' || (! github.event.pull_request.head.repo.fork)
+    if: (github.event.action == 'labeled' && github.event.label.name == 'build-pr-doc') || github.event_name != 'pull_request_target' || (! github.event.pull_request_target.head.repo.fork)
     runs-on: ubuntu-latest
     steps:
       - run: true
@@ -27,10 +27,10 @@ jobs:
     needs: authorize
     runs-on: ubuntu-latest
     env:
-      COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+      COMMIT_SHA: ${{ github.event.pull_request_target.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
       EVENT_CONTEXT: ${{ toJSON(github.event) }}
-      PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
+      PR_CLONE_URL: ${{ github.event.pull_request_target.head.repo.clone_url }}
 
     steps:
       - uses: actions/checkout@v2
@@ -42,7 +42,7 @@ jobs:
         with:
           repository: 'huggingface/optimum'
           path: optimum
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.event.pull_request_target.merge_commit_sha }}
 
       - uses: actions/checkout@v2
         with:
