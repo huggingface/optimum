@@ -18,11 +18,27 @@ import inspect
 import sys
 from collections import OrderedDict
 from contextlib import contextmanager
-from typing import Union
+from typing import Tuple, Union
 
 import numpy as np
 import packaging
 from transformers.utils import is_torch_available
+
+
+def _is_package_available(pkg_name: str, return_version: bool = False) -> Union[Tuple[bool, str], bool]:
+    # Check we're not importing a "pkg_name" directory somewhere but the actual library by trying to grab the version
+    package_exists = importlib.util.find_spec(pkg_name) is not None
+    package_version = "N/A"
+    if package_exists:
+        try:
+            package_version = importlib.metadata.version(pkg_name)
+            package_exists = True
+        except importlib.metadata.PackageNotFoundError:
+            package_exists = False
+    if return_version:
+        return package_exists, package_version
+    else:
+        return package_exists
 
 
 # The package importlib_metadata is in a different place, depending on the python version.
@@ -42,14 +58,17 @@ AUTOGPTQ_MINIMUM_VERSION = packaging.version.parse("0.4.99")  # Allows 0.5.0.dev
 ORT_QUANTIZE_MINIMUM_VERSION = packaging.version.parse("1.4.0")
 
 
-_onnx_available = importlib.util.find_spec("onnx") is not None
+_onnx_available = _is_package_available("onnx")
+
+# importlib.metadata.version seem to not be robust with the ONNX Runtime extensions (`onnxruntime-gpu`, etc.)
 _onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
-_pydantic_available = importlib.util.find_spec("pydantic") is not None
-_accelerate_available = importlib.util.find_spec("accelerate") is not None
-_diffusers_available = importlib.util.find_spec("diffusers") is not None
-_auto_gptq_available = importlib.util.find_spec("auto_gptq") is not None
-_timm_available = importlib.util.find_spec("timm") is not None
-_sentence_transformers_available = importlib.util.find_spec("sentence_transformers") is not None
+
+_pydantic_available = _is_package_available("pydantic")
+_accelerate_available = _is_package_available("accelerate")
+_diffusers_available = _is_package_available("diffusers")
+_auto_gptq_available = _is_package_available("auto_gptq")
+_timm_available = _is_package_available("timm")
+_sentence_transformers_available = _is_package_available("sentence_transformers")
 
 torch_version = None
 if is_torch_available():

@@ -147,7 +147,7 @@ class DistilBertOnnxConfig(BertOnnxConfig):
 
 
 class MPNetOnnxConfig(DistilBertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 12
+    DEFAULT_ONNX_OPSET = 12  # For lower opsets, results in: Type 'tensor(int64)' of input parameter (/0/auto_model/encoder/Add_1_output_0) of operator (Min) in node (/0/auto_model/encoder/Min) is invalid.
 
 
 class RobertaOnnxConfig(DistilBertOnnxConfig):
@@ -817,6 +817,7 @@ class TimmDefaultOnnxConfig(ViTOnnxConfig):
 
 class SentenceTransformersTransformerOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    DEFAULT_ONNX_OPSET = 14  # Some bottleneck transformers models require a specific ONNX opset to be successfully exported. We put a rather high opset here for the export to work for all architectures.
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1674,6 +1675,7 @@ class SamOnnxConfig(OnnxConfig):
             inputs = {
                 "pixel_values": {0: "batch_size"},
                 "input_points": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
+                "input_labels": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
             }
         else:
             if self.vision_encoder:
@@ -1683,6 +1685,7 @@ class SamOnnxConfig(OnnxConfig):
                     "image_positional_embeddings": {0: "batch_size"},
                     "image_embeddings": {0: "batch_size"},
                     "input_points": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
+                    "input_labels": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
                 }
         return inputs
 
