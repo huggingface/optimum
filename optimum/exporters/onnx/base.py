@@ -214,6 +214,7 @@ class OnnxConfig(ExportConfig, ABC):
         self._preprocessors = preprocessors
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
         self.variant = "default"
+        self.fuse_lora = None
         self.legacy = legacy
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
@@ -260,6 +261,17 @@ class OnnxConfig(ExportConfig, ABC):
         different users would like to export the model differently (with different inputs/outputs, model splitted in several ONNX or not, etc.).
         """
         return self._variant
+
+    @property
+    def fuse_lora(self) -> str:
+        """
+        For Stable Diffusion models only. LoRA to fuse before export.
+        """
+        return self._fuse_lora
+
+    @fuse_lora.setter
+    def fuse_lora(self, value: str):
+        self._fuse_lora = value
 
     @variant.setter
     def variant(self, value: str):

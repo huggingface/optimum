@@ -68,6 +68,7 @@ def _get_submodels_and_onnx_configs(
     custom_onnx_configs: Dict,
     custom_architecture: bool,
     _variant: str,
+    fuse_lora: Optional[str] = None,
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
     fn_get_submodels: Optional[Callable] = None,
@@ -81,7 +82,7 @@ def _get_submodels_and_onnx_configs(
         if is_stable_diffusion:
             onnx_config = None
             models_and_onnx_configs = get_stable_diffusion_models_for_export(
-                model, int_dtype=int_dtype, float_dtype=float_dtype
+                model, int_dtype=int_dtype, float_dtype=float_dtype, fuse_lora=fuse_lora
             )
         else:
             onnx_config_constructor = TasksManager.get_exporter_config_constructor(
@@ -176,6 +177,7 @@ def main_export(
     cache_dir: Optional[str] = None,
     trust_remote_code: bool = False,
     pad_token_id: Optional[int] = None,
+    fuse_lora: Optional[str] = None,
     subfolder: str = "",
     revision: str = "main",
     force_download: bool = False,
@@ -236,6 +238,8 @@ def main_export(
             model repository.
         pad_token_id (`Optional[int]`, defaults to `None`):
             This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess it.
+        fuse_lora (`Optional[str]`, defaults to `None`):
+            For Stable Diffusion models only. LoRA to fuse before export.
         subfolder (`str`, defaults to `""`):
             In case the relevant files are located inside a subfolder of the model repo either locally or on huggingface.co, you can
             specify the folder name here.
@@ -468,6 +472,7 @@ def main_export(
         fn_get_submodels=fn_get_submodels,
         preprocessors=preprocessors,
         _variant=_variant,
+        fuse_lora=fuse_lora,
         legacy=legacy,
         library_name=library_name,
         model_kwargs=model_kwargs,
