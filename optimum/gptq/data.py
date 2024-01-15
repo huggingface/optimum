@@ -132,15 +132,11 @@ def get_wikitext2(tokenizer: Any, seqlen: int, nsamples: int, split: str = "trai
 
 def get_c4(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
     if split == "train":
-        data = load_dataset(
-            "allenai/c4", "allenai--c4", data_files={"train": "en/c4-train.00000-of-01024.json.gz"}, split="train"
-        )
+        data = load_dataset("allenai/c4", data_files={"train": "en/c4-train.00000-of-01024.json.gz"})
     elif split == "validation":
         data = load_dataset(
             "allenai/c4",
-            "allenai--c4",
             data_files={"validation": "en/c4-validation.00000-of-00008.json.gz"},
-            split="validation",
         )
     dataset = []
     for _ in range(nsamples):
@@ -160,15 +156,11 @@ def get_c4(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
 
 def get_c4_new(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
     if split == "train":
-        data = load_dataset(
-            "allenai/c4", "allenai--c4", data_files={"train": "en/c4-train.00000-of-01024.json.gz"}, split="train"
-        )
+        data = load_dataset("allenai/c4", data_files={"train": "en/c4-train.00000-of-01024.json.gz"})
     elif split == "validation":
         data = load_dataset(
             "allenai/c4",
-            "allenai--c4",
             data_files={"validation": "en/c4-validation.00000-of-00008.json.gz"},
-            split="validation",
         )
     dataset = []
     for _ in range(nsamples):
