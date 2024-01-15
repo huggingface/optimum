@@ -2,8 +2,6 @@
 
 # Hugging Face Optimum
 
-TEST
-
 🤗 Optimum is an extension of 🤗 Transformers and Diffusers, providing a set of optimization tools enabling maximum efficiency to train and run models on targeted hardware, while keeping things easy to use.
 
 ## Installation
