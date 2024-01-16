@@ -39,16 +39,12 @@ from optimum.utils.testing_utils import require_diffusers, require_sentence_tran
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
-<<<<<<< HEAD
-from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY, PYTORCH_STABLE_DIFFUSION_MODEL, PYTORCH_TIMM_MODEL, PYTORCH_OPEN_CLIP_MODEL
-=======
 from ..exporters_utils import (
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_STABLE_DIFFUSION_MODEL,
     PYTORCH_TIMM_MODEL,
 )
->>>>>>> main
 
 
 def _get_models_to_test(export_models_dict: Dict, library_name: str = "transformers"):
