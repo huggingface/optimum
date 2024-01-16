@@ -248,3 +248,19 @@ image = refiner(prompt=prompt, image=image[None, :]).images[0]
 image.save("sailing_ship.png")
 ```
 
+
+
+## Latent Consistency Models
+
+### Text-to-Image
+
+Here is an example of how you can load a Latent Consistency Models (LCMs) from [SimianLuo/LCM_Dreamshaper_v7](https://huggingface.co/SimianLuo/LCM_Dreamshaper_v7) and run inference using ONNX Runtime :
+
+```python
+from optimum.onnxruntime import ORTLatentConsistencyModelPipeline
+
+model_id = "SimianLuo/LCM_Dreamshaper_v7"
+pipeline = ORTLatentConsistencyModelPipeline.from_pretrained(model_id, export=True)
+prompt = "sailing ship in storm by Leonardo da Vinci"
+images = pipeline(prompt, num_inference_steps=4, guidance_scale=8.0).images
+```

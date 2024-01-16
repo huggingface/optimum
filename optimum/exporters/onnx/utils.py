@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 import torch
 from packaging import version
+from transformers.models.speecht5.modeling_speecht5 import SpeechT5HifiGan
 from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import (
@@ -29,7 +30,6 @@ from ...utils import (
     logging,
 )
 from ...utils.import_utils import _diffusers_version
-from ...utils.modeling_utils import _prepare_attn_mask, _prepare_decoder_attention_mask  # noqa: F401
 from ..tasks import TasksManager
 from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
@@ -68,6 +68,7 @@ if TYPE_CHECKING:
 
 MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "codegen",
+    "falcon",
     "gpt2",
     "gpt-bigcode",
     "gpt-neo",
@@ -75,6 +76,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "gptj",
     "imagegpt",
     "llama",
+    "phi",
     "mistral",
 }
 
@@ -129,8 +131,10 @@ def _get_submodels_for_export_stable_diffusion(
         models_for_export["text_encoder"] = pipeline.text_encoder
 
     # U-NET
-    # PyTorch does not support the ONNX export of torch.nn.functional.scaled_dot_product_attention
-    pipeline.unet.set_attn_processor(AttnProcessor())
+    # ONNX export of torch.nn.functional.scaled_dot_product_attention not supported for < v2.1.0
+    is_torch_greater_or_equal_than_2_1 = version.parse(torch.__version__) >= version.parse("2.1.0")
+    if not is_torch_greater_or_equal_than_2_1:
+        pipeline.unet.set_attn_processor(AttnProcessor())
     pipeline.unet.config.text_encoder_projection_dim = projection_dim
     # The U-NET time_ids inputs shapes depends on the value of `requires_aesthetics_score`
     # https://github.com/huggingface/diffusers/blob/v0.18.2/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl_img2img.py#L571
@@ -139,14 +143,14 @@ def _get_submodels_for_export_stable_diffusion(
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
     vae_encoder = copy.deepcopy(pipeline.vae)
-    if not version.parse(torch.__version__) >= version.parse("2.1.0"):
+    if not is_torch_greater_or_equal_than_2_1:
         vae_encoder = override_diffusers_2_0_attn_processors(vae_encoder)
     vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample)["latent_dist"].sample()}
     models_for_export["vae_encoder"] = vae_encoder
 
     # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
     vae_decoder = copy.deepcopy(pipeline.vae)
-    if not version.parse(torch.__version__) >= version.parse("2.1.0"):
+    if not is_torch_greater_or_equal_than_2_1:
         vae_decoder = override_diffusers_2_0_attn_processors(vae_decoder)
     vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
     models_for_export["vae_decoder"] = vae_decoder
@@ -252,9 +256,12 @@ def get_decoder_models_for_export(
 
     models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past, legacy=legacy)
 
-    onnx_kwargs = {"task": config.task, "float_dtype": config.float_dtype, "int_dtype": config.int_dtype}
-    if model.config.model_type.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
-        onnx_kwargs["no_position_ids"] = config.no_position_ids
+    onnx_kwargs = {
+        "task": config.task,
+        "float_dtype": config.float_dtype,
+        "int_dtype": config.int_dtype,
+        "legacy": legacy,
+    }
 
     if legacy:
         onnx_config = config.__class__(
@@ -376,7 +383,7 @@ def _get_submodels_for_export_sam(model, variant):
     if variant == "monolith":
         models_for_export["model"] = model
     else:
-        # We use the model patcher to patch their forward method.
+        # We rather use the model patcher to patch their forward method.
         models_for_export["vision_encoder"] = model
         models_for_export["prompt_encoder_mask_decoder"] = model
 
@@ -387,20 +394,78 @@ def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel
     models_for_export = _get_submodels_for_export_sam(model, config.variant)
 
     if config.variant == "monolith":
-        onnx_config = config.__class__(model.config, task=config.task)
+        onnx_config = config.__class__(model.config, task=config.task, legacy=config.legacy)
         models_for_export["model"] = (models_for_export["model"], onnx_config)
     else:
         vision_encoder_onnx_config = config.__class__(
-            model.config, task=config.task, variant=config.variant, vision_encoder=True
+            model.config, task=config.task, variant=config.variant, vision_encoder=True, legacy=config.legacy
         )
         prompt_encoder_mask_decoder_onnx_config = config.__class__(
-            model.config, task=config.task, variant=config.variant, vision_encoder=False
+            model.config, task=config.task, variant=config.variant, vision_encoder=False, legacy=config.legacy
         )
         models_for_export["vision_encoder"] = (models_for_export["vision_encoder"], vision_encoder_onnx_config)
         models_for_export["prompt_encoder_mask_decoder"] = (
             models_for_export["prompt_encoder_mask_decoder"],
             prompt_encoder_mask_decoder_onnx_config,
         )
+
+    return models_for_export
+
+
+def get_speecht5_models_for_export(
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "OnnxConfig", model_kwargs: Optional[Dict]
+):
+    if model_kwargs is None or "vocoder" not in model_kwargs:
+        raise ValueError(
+            'The ONNX export of SpeechT5 requires a vocoder. Please pass `--model-kwargs \'{"vocoder": "vocoder_model_name_or_path"}\'` from the command line, or `model_kwargs={"vocoder": "vocoder_model_name_or_path"}` if calling main_export.'
+        )
+
+    models_for_export = {}
+
+    # We rather use the model patcher to patch their forward method.
+    models_for_export["encoder_model"] = model
+    models_for_export["decoder_model"] = model
+
+    if config.variant == "with-past":
+        models_for_export["decoder_with_past_model"] = model
+
+    # TODO: more flexibility in the vocoder class?
+    vocoder = SpeechT5HifiGan.from_pretrained(model_kwargs["vocoder"]).eval()
+    model_kwargs["vocoder_model"] = vocoder
+
+    models_for_export["decoder_postnet_and_vocoder"] = model
+
+    encoder_onnx_config = config.with_behavior("encoder")
+
+    use_past = config.variant == "with-past"
+    decoder_onnx_config = config.with_behavior("decoder", use_past=use_past, use_past_in_inputs=False)
+
+    models_for_export[ONNX_ENCODER_NAME] = (models_for_export[ONNX_ENCODER_NAME], encoder_onnx_config)
+    models_for_export[ONNX_DECODER_NAME] = (models_for_export[ONNX_DECODER_NAME], decoder_onnx_config)
+    if config.variant == "with-past":
+        decoder_onnx_config_with_past = config.with_behavior("decoder", use_past=True, use_past_in_inputs=True)
+        models_for_export[ONNX_DECODER_WITH_PAST_NAME] = (
+            models_for_export[ONNX_DECODER_WITH_PAST_NAME],
+            decoder_onnx_config_with_past,
+        )
+
+    postnet_and_vocoder_onnx_config = config.__class__(
+        config._config,
+        task=config.task,
+        int_dtype=config.int_dtype,
+        float_dtype=config.float_dtype,
+        use_past=use_past,
+        use_past_in_inputs=False,  # Irrelevant here.
+        behavior=config._behavior,  # Irrelevant here.
+        preprocessors=config._preprocessors,
+        is_postnet_and_vocoder=True,
+        legacy=config.legacy,
+    )
+    postnet_and_vocoder_onnx_config.variant = config.variant
+    models_for_export["decoder_postnet_and_vocoder"] = (
+        models_for_export["decoder_postnet_and_vocoder"],
+        postnet_and_vocoder_onnx_config,
+    )
 
     return models_for_export
 

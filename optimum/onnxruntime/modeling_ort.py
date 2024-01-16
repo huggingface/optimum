@@ -308,16 +308,20 @@ class ORTModel(OptimizedModel):
         if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
             return self
 
-        if device.type == "cuda" and self._use_io_binding is False:
+        self.device = device
+        provider = get_provider_for_device(self.device)
+        validate_provider_availability(provider)  # raise error if the provider is not available
+
+        # IOBinding is only supported for CPU and CUDA Execution Providers.
+        if device.type == "cuda" and self._use_io_binding is False and provider == "CUDAExecutionProvider":
             self.use_io_binding = True
             logger.info(
                 "use_io_binding was set to False, setting it to True because it can provide a huge speedup on GPUs. "
                 "It is possible to disable this feature manually by setting the use_io_binding attribute back to False."
             )
 
-        self.device = device
-        provider = get_provider_for_device(self.device)
-        validate_provider_availability(provider)  # raise error if the provider is not available
+        if provider == "ROCMExecutionProvider":
+            self.use_io_binding = False
 
         self.model.set_providers([provider], provider_options=[provider_options])
         self.providers = self.model.get_providers()
@@ -520,6 +524,42 @@ class ORTModel(OptimizedModel):
 
     @classmethod
     def _from_transformers(
+        cls,
+        model_id: str,
+        config: "PretrainedConfig",
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
+        force_download: bool = False,
+        cache_dir: Optional[str] = None,
+        subfolder: str = "",
+        local_files_only: bool = False,
+        trust_remote_code: bool = False,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[ort.SessionOptions] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
+        use_io_binding: Optional[bool] = None,
+        task: Optional[str] = None,
+    ) -> "ORTModel":
+        """The method will be deprecated in future releases."""
+        return cls._export(
+            model_id=model_id,
+            config=config,
+            revision=revision,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            use_auth_token=use_auth_token,
+            subfolder=subfolder,
+            local_files_only=local_files_only,
+            trust_remote_code=trust_remote_code,
+            provider=provider,
+            session_options=session_options,
+            provider_options=provider_options,
+            use_io_binding=use_io_binding,
+            task=task,
+        )
+
+    @classmethod
+    def _export(
         cls,
         model_id: str,
         config: "PretrainedConfig",
@@ -1530,7 +1570,7 @@ IMAGE_CLASSIFICATION_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForImageClassification(ORTModel):
     """
-    ONNX Model for image-classification tasks. This class officially supports beit, convnext, data2vec_vision, deit, levit, mobilenet_v1, mobilenet_v2, mobilevit, poolformer, resnet, segformer, swin, vit.
+    ONNX Model for image-classification tasks. This class officially supports beit, convnext, convnextv2, data2vec_vision, deit, levit, mobilenet_v1, mobilenet_v2, mobilevit, poolformer, resnet, segformer, swin, vit.
     """
 
     auto_model_class = AutoModelForImageClassification

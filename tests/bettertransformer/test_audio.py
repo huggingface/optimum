@@ -19,19 +19,28 @@ import pytest
 import torch
 from parameterized import parameterized
 from testing_utils import MODELS_DICT, BetterTransformersTestMixin
-from transformers import AutoFeatureExtractor, AutoModel, AutoProcessor, set_seed
+from transformers import AutoModel, AutoProcessor, set_seed
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils.testing_utils import grid_parameters, require_torch_gpu
 
 
 ALL_AUDIO_MODELS_TO_TEST = [
-    "openai/whisper-tiny",
     "patrickvonplaten/wav2vec2_tiny_random",
     "ybelkada/hubert-tiny-random",
     "ybelkada/tiny-wav2vec2-stable-ln",
     "ylacombe/bark-small",
 ]
+
+
+class TestsWhisper(unittest.TestCase):
+    def test_error_message(self):
+        model = AutoModel.from_pretrained("openai/whisper-tiny")
+
+        with self.assertRaises(ValueError) as cm:
+            model = BetterTransformer.transform(model)
+
+        self.assertTrue("Transformers now supports natively BetterTransformer optimizations" in str(cm.exception))
 
 
 class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase):
@@ -170,55 +179,6 @@ class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase)
     def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
         model_id = MODELS_DICT[model_type]
         self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
-
-
-class BetterTransformersWhisperTest(BetterTransformersTestMixin, unittest.TestCase):
-    r"""
-    Testing suite for Whisper - tests all the tests defined in `BetterTransformersTestMixin`
-    Since `Whisper` uses slightly different inputs than other audio models, it is preferrable
-    to define its own testing class.
-    """
-    SUPPORTED_ARCH = ["whisper"]
-
-    FULL_GRID = {
-        "model_type": SUPPORTED_ARCH,
-        "keep_original_model": [True, False],
-    }
-
-    def _generate_random_audio_data(self):
-        np.random.seed(10)
-        t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
-        # generate pure sine wave at 220 Hz
-        audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
-        return audio_data
-
-    def prepare_inputs_for_class(self, model_id, model_type):
-        input_audio = self._generate_random_audio_data()
-
-        feature_extractor = AutoFeatureExtractor.from_pretrained(model_id)
-
-        input_dict = {
-            "input_features": feature_extractor(input_audio, return_tensors="pt").input_features,
-            "decoder_input_ids": torch.LongTensor([0]),
-        }
-        return input_dict
-
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_invert_modules(self, test_name: str, model_type: str, keep_original_model=False):
-        model_id = MODELS_DICT[model_type]
-        self._test_invert_modules(model_id=model_id, keep_original_model=keep_original_model)
-
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_save_load_invertible(self, test_name: str, model_type: str, keep_original_model=False):
-        model_id = MODELS_DICT[model_type]
-        self._test_save_load_invertible(model_id=model_id, keep_original_model=keep_original_model)
-
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_invert_model_logits(self, test_name: str, model_type: str, keep_original_model=False):
-        model_id = MODELS_DICT[model_type]
-        self._test_invert_model_logits(
-            model_id=model_id, model_type=model_type, keep_original_model=keep_original_model
-        )
 
 
 class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase):

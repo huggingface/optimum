@@ -49,6 +49,11 @@ jobs:
           repository: 'huggingface/optimum-furiosa'
           path: optimum-furiosa
 
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-amd'
+          path: optimum-amd
+
       - name: Set environment variables
         run: |
           cd optimum
@@ -116,6 +121,14 @@ jobs:
           mv furiosa-doc-build ../optimum
           cd ..
 
+      - name: Make AMD documentation
+        run: |
+          sudo docker system prune -a -f
+          cd optimum-amd
+          make doc BUILD_DIR=amd-doc-build VERSION=${{ env.VERSION }}
+          sudo mv amd-doc-build ../optimum
+          cd ..
+
       - name: Make Optimum documentation
         run: |
           sudo docker system prune -a -f
@@ -129,7 +142,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages graphcore habana intel neuron furiosa --version ${{ env.VERSION }}
+          sudo python docs/combine_docs.py --subpackages graphcore habana intel neuron furiosa amd --version ${{ env.VERSION }}
           cd ..
 
       - name: Push to repositories

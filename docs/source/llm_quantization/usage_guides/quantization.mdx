@@ -76,7 +76,7 @@ quantized_model = load_quantized_model(empty_model, save_folder=save_folder, dev
 
 ### Exllama kernels for faster inference
 
-For 4-bit model, you can use the exllama kernels in order to a faster inference speed. It is activated by default. If you want to change its value, you just need to pass `disable_exllama` in [`~optimum.gptq.load_quantized_model`]. In order to use these kernels, you need to have the entire model on gpus.
+With the release of exllamav2 kernels, you can get faster inference speed compared to exllama kernels for 4-bit model. It is activated by default: `disable_exllamav2=False` in [`~optimum.gptq.load_quantized_model`]. In order to use these kernels, you need to have the entire model on gpus.
 
 ```py
 from optimum.gptq import GPTQQuantizer, load_quantized_model
@@ -86,10 +86,25 @@ from accelerate import init_empty_weights
 with init_empty_weights():
     empty_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
 empty_model.tie_weights()
-quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto", disable_exllama=False)
+quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto")
 ```
 
-Note that only 4-bit models are supported with exllama kernels for now. Furthermore, it is recommended to disable the exllama kernel when you are finetuning your model with peft.
+If you wish to use exllama kernels, you will have to change the version by setting `exllama_config`:
+
+```py
+from optimum.gptq import GPTQQuantizer, load_quantized_model
+import torch
+
+from accelerate import init_empty_weights
+with init_empty_weights():
+    empty_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
+empty_model.tie_weights()
+quantized_model = load_quantized_model(empty_model, save_folder=save_folder, device_map="auto", exllama_config = {"version":1})
+```
+
+Note that only 4-bit models are supported with exllama/exllamav2 kernels for now. Furthermore, it is recommended to disable exllama/exllamav2 kernels when you are finetuning your model with peft.
+
+You can find the benchmark of these kernels [here](https://github.com/huggingface/optimum/tree/main/tests/benchmark#gptq-benchmark)
 
 #### Fine-tune a quantized model
 

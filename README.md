@@ -16,11 +16,12 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 
 | Accelerator                                                                                                            | Installation                                      |
 |:-----------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------|
-| [ONNX Runtime](https://onnxruntime.ai/docs/)                                                                           | `pip install --upgrade-strategy eager optimum[onnxruntime]`       |
-| [Intel Neural Compressor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html)       | `pip install --upgrade-strategy eager optimum[neural-compressor]`|
-| [OpenVINO](https://docs.openvino.ai/latest/index.html)                                                                 | `pip install --upgrade-strategy eager optimum[openvino,nncf]`    |
-| [Habana Gaudi Processor (HPU)](https://habana.ai/training/)                                                            | `pip install --upgrade-strategy eager optimum[habana]`           |
-| [FuriosaAI](https://www.furiosa.ai/)                                                                                   | `pip install --upgrade-strategy eager optimum[furiosa]`          |
+| [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/overview)                                                                           | `pip install --upgrade-strategy eager optimum[onnxruntime]`       |
+| [Intel Neural Compressor](https://huggingface.co/docs/optimum/intel/index)       | `pip install --upgrade-strategy eager optimum[neural-compressor]`|
+| [OpenVINO](https://huggingface.co/docs/optimum/intel/index)                                                                 | `pip install --upgrade-strategy eager optimum[openvino,nncf]`    |
+| [AMD Instinct GPUs and Ryzen AI NPU](https://huggingface.co/docs/optimum/amd/index)                     | `pip install --upgrade-strategy eager optimum[amd]`              |
+| [Habana Gaudi Processor (HPU)](https://huggingface.co/docs/optimum/habana/index)                                                            | `pip install --upgrade-strategy eager optimum[habana]`           |
+| [FuriosaAI](https://huggingface.co/docs/optimum/furiosa/index)                                                                                   | `pip install --upgrade-strategy eager optimum[furiosa]`          |
 
 The `--upgrade-strategy eager` option is needed to ensure the different packages are upgraded to the latest possible version.
 
@@ -62,7 +63,19 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 
 ### OpenVINO
 
-This requires to install the OpenVINO extra by doing `pip install --upgrade-strategy eager optimum[openvino,nncf]`
+Before you begin, make sure you have all the necessary libraries installed :
+
+```bash
+pip install --upgrade-strategy eager optimum[openvino,nncf]
+```
+
+It is possible to export 🤗 Transformers and Diffusers models to the OpenVINO format easily:
+
+```bash
+optimum-cli export openvino --model distilbert-base-uncased-finetuned-sst-2-english distilbert_sst2_ov
+```
+
+If you add `--int8`, the weights will be quantized to INT8. Static quantization can also be applied on the activations using [NNCF](https://github.com/openvinotoolkit/nncf), more information can be found in the [documentation](https://huggingface.co/docs/optimum/main/en/intel/optimization_ov).
 
 To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class. To load a PyTorch checkpoint and convert it to the OpenVINO format on-the-fly, you can set `export=True` when loading your model.
 
@@ -74,8 +87,7 @@ To load a model and run inference with OpenVINO Runtime, you can just replace yo
   model_id = "distilbert-base-uncased-finetuned-sst-2-english"
   tokenizer = AutoTokenizer.from_pretrained(model_id)
 - model = AutoModelForSequenceClassification.from_pretrained(model_id)
-+ model = OVModelForSequenceClassification.from_pretrained(model_id, export=True)
-  model.save_pretrained("./distilbert")
++ model = OVModelForSequenceClassification.from_pretrained("distilbert_sst2_ov")
 
   classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
   results = classifier("He's a dreadful magician.")
@@ -85,7 +97,11 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 ### Neural Compressor
 
-This requires to install the Neural Compressor extra by doing `pip install --upgrade-strategy eager optimum[neural-compressor]`
+Before you begin, make sure you have all the necessary libraries installed :
+
+```bash
+pip install --upgrade-strategy eager optimum[neural-compressor]
+```
 
 Dynamic quantization can be applied on your model:
 
@@ -105,9 +121,13 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 ### ONNX + ONNX Runtime
 
-This requires to install the ONNX Runtime extra by doing `pip install optimum[exporters,onnxruntime]`
+Before you begin, make sure you have all the necessary libraries installed :
 
-It is possible to export 🤗 Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
+```bash
+pip install optimum[exporters,onnxruntime]
+```
+
+It is possible to export 🤗 Transformers and Diffusers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
 
 ```plain
 optimum-cli export onnx -m deepset/roberta-base-squad2 --optimize O2 roberta_base_qa_onnx
@@ -149,7 +169,11 @@ More details on how to run ONNX models with `ORTModelForXXX` classes [here](http
 
 ### TensorFlow Lite
 
-This requires to install the Exporters extra by doing `pip install optimum[exporters-tf]`
+Before you begin, make sure you have all the necessary libraries installed :
+
+```bash
+pip install optimum[exporters-tf]
+```
 
 Just as for ONNX, it is possible to export models to [TensorFlow Lite](https://www.tensorflow.org/lite) and quantize them:
 
@@ -170,7 +194,11 @@ We support many providers:
 
 ### Habana
 
-This requires to install the Habana extra by doing `pip install --upgrade-strategy eager optimum[habana]`
+Before you begin, make sure you have all the necessary libraries installed :
+
+```bash
+pip install --upgrade-strategy eager optimum[habana]
+```
 
 ```diff
 - from transformers import Trainer, TrainingArguments
@@ -227,7 +255,6 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
       model=model,
       args=training_args,
       train_dataset=train_dataset,
-+     feature="sequence-classification", # The model type to export to ONNX
       ...
   )
 

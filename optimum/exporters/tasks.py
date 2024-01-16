@@ -29,6 +29,7 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
+from ..utils import CONFIG_NAME
 from ..utils.import_utils import is_onnx_available
 
 
@@ -159,26 +160,29 @@ class TasksManager:
         # task in a Hub repo that has no pipeline_tag, and no transformersInfo.pipeline_tag, as we then rely on
         # on transformersInfo["auto_model"] and this dictionary.
         _TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
+            "audio-classification": "AutoModelForAudioClassification",
+            "audio-frame-classification": "AutoModelForAudioFrameClassification",
+            "audio-xvector": "AutoModelForAudioXVector",
+            "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
             "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
+            "depth-estimation": "AutoModelForDepthEstimation",
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
+            "image-classification": "AutoModelForImageClassification",
+            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
+            "image-to-image": "AutoModelForImageToImage",
+            "image-to-text": "AutoModelForVision2Seq",
+            "mask-generation": "AutoModel",
+            "masked-im": "AutoModelForMaskedImageModeling",
+            "multiple-choice": "AutoModelForMultipleChoice",
+            "object-detection": "AutoModelForObjectDetection",
+            "question-answering": "AutoModelForQuestionAnswering",
+            "semantic-segmentation": "AutoModelForSemanticSegmentation",
+            "text-to-audio": "AutoModelForTextToSpectrogram",
             "text-generation": "AutoModelForCausalLM",
             "text2text-generation": "AutoModelForSeq2SeqLM",
             "text-classification": "AutoModelForSequenceClassification",
             "token-classification": "AutoModelForTokenClassification",
-            "multiple-choice": "AutoModelForMultipleChoice",
-            "object-detection": "AutoModelForObjectDetection",
-            "question-answering": "AutoModelForQuestionAnswering",
-            "image-classification": "AutoModelForImageClassification",
-            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
-            "mask-generation": "AutoModel",
-            "masked-im": "AutoModelForMaskedImageModeling",
-            "semantic-segmentation": "AutoModelForSemanticSegmentation",
-            "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
-            "audio-classification": "AutoModelForAudioClassification",
-            "audio-frame-classification": "AutoModelForAudioFrameClassification",
-            "audio-xvector": "AutoModelForAudioXVector",
-            "image-to-text": "AutoModelForVision2Seq",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
@@ -195,12 +199,18 @@ class TasksManager:
         _OPEN_CLIP_TASKS_TO_MODEL_LOADERS = {
             "zero-shot-image-classification": "create_model_and_transforms",
         }
+        
+        _SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
+            "feature-extraction": "SentenceTransformer",
+            "sentence-similarity": "SentenceTransformer",
+        }
 
         _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {
-            "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
             "diffusers": _DIFFUSERS_TASKS_TO_MODEL_LOADERS,
+            "sentence_transformers": _SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
             "timm": _TIMM_TASKS_TO_MODEL_LOADERS,
             "open_clip": _OPEN_CLIP_TASKS_TO_MODEL_LOADERS,
+            "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
         }
 
     if is_tf_available():
@@ -234,30 +244,32 @@ class TasksManager:
         }
 
     _SYNONYM_TASK_MAP = {
-        "sequence-classification": "text-classification",
+        "audio-ctc": "automatic-speech-recognition",
         "causal-lm": "text-generation",
         "causal-lm-with-past": "text-generation-with-past",
-        "seq2seq-lm": "text2text-generation",
-        "seq2seq-lm-with-past": "text2text-generation-with-past",
-        "speech2seq-lm": "automatic-speech-recognition",
-        "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
-        "masked-lm": "fill-mask",
-        "mask-generation": "feature-extraction",
-        "vision2seq-lm": "image-to-text",
         "default": "feature-extraction",
         "default-with-past": "feature-extraction-with-past",
-        "audio-ctc": "automatic-speech-recognition",
-        "translation": "text2text-generation",
+        "masked-lm": "fill-mask",
+        "mask-generation": "feature-extraction",
         "sentence-similarity": "feature-extraction",
+        "seq2seq-lm": "text2text-generation",
+        "seq2seq-lm-with-past": "text2text-generation-with-past",
+        "sequence-classification": "text-classification",
+        "speech2seq-lm": "automatic-speech-recognition",
+        "speech2seq-lm-with-past": "automatic-speech-recognition-with-past",
         "summarization": "text2text-generation",
+        "text-to-speech": "text-to-audio",
+        "translation": "text2text-generation",
+        "vision2seq-lm": "image-to-text",
         "zero-shot-classification": "text-classification",
     }
 
     # Reverse dictionaries str -> str, where several model loaders may map to the same task
     _LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP = {
-        "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
         "diffusers": get_model_loaders_to_tasks(_DIFFUSERS_TASKS_TO_MODEL_LOADERS),
+        "sentence_transformers": get_model_loaders_to_tasks(_SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
         "timm": get_model_loaders_to_tasks(_TIMM_TASKS_TO_MODEL_LOADERS),
+        "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
     }
     _LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP = {
         "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS),
@@ -273,13 +285,17 @@ class TasksManager:
 
     # TODO: why feature-extraction-with-past is here?
     _ENCODER_DECODER_TASKS = (
-        "text2text-generation",
         "automatic-speech-recognition",
-        "image-to-text",
-        "feature-extraction-with-past",
-        "visual-question-answering",
         "document-question-answering",
+        "feature-extraction-with-past",
+        "image-to-text",
+        "text2text-generation",
+        "visual-question-answering",
     )
+
+    _MODEL_TYPE_FOR_DEFAULT_CONFIG = {
+        "timm": "default-timm-config",
+    }
 
     # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
@@ -429,6 +445,11 @@ class TasksManager:
             "image-classification",
             onnx="ConvNextOnnxConfig",
         ),
+        "convnextv2": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="ConvNextV2OnnxConfig",
+        ),
         "cvt": supported_tasks_mapping("feature-extraction", "image-classification", onnx="CvTOnnxConfig"),
         "data2vec-text": supported_tasks_mapping(
             "feature-extraction",
@@ -503,6 +524,11 @@ class TasksManager:
             "feature-extraction",
             onnx="DonutSwinOnnxConfig",
         ),
+        "dpt": supported_tasks_mapping(
+            "feature-extraction",
+            "depth-estimation",
+            onnx="DptOnnxConfig",
+        ),
         "electra": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -520,6 +546,22 @@ class TasksManager:
             "text2text-generation-with-past",
             onnx="EncoderDecoderOnnxConfig",
         ),
+        "esm": supported_tasks_mapping(
+            "feature-extraction",
+            "fill-mask",
+            "text-classification",
+            "token-classification",
+            onnx="EsmOnnxConfig",
+        ),
+        "falcon": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "question-answering",
+            "text-generation",
+            "text-generation-with-past",
+            "token-classification",
+            onnx="FalconOnnxConfig",
+        ),
         "flaubert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -529,6 +571,11 @@ class TasksManager:
             "question-answering",
             onnx="FlaubertOnnxConfig",
             tflite="FlaubertTFLiteConfig",
+        ),
+        "glpn": supported_tasks_mapping(
+            "feature-extraction",
+            "depth-estimation",
+            onnx="GlpnOnnxConfig",
         ),
         "gpt2": supported_tasks_mapping(
             "feature-extraction",
@@ -776,6 +823,13 @@ class TasksManager:
             "text-classification",
             onnx="PerceiverOnnxConfig",
         ),
+        "phi": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            onnx="PhiOnnxConfig",
+        ),
         "pix2struct": supported_tasks_mapping(
             "image-to-text",
             "image-to-text-with-past",
@@ -796,12 +850,7 @@ class TasksManager:
         "resnet": supported_tasks_mapping(
             "feature-extraction", "image-classification", onnx="ResNetOnnxConfig", tflite="ResNetTFLiteConfig"
         ),
-        "resnext26ts": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
-        "resnext50-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
-        "resnext50d-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNext50d_32x4dOnnxConfig"),
-        "resnext101-32x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
-        "resnext101-32x8d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
-        "resnext101-64x4d": supported_tasks_mapping("image-classification", onnx="TimmResNextOnnxConfig"),
+        "default-timm-config": supported_tasks_mapping("image-classification", onnx="TimmDefaultOnnxConfig"),
         "roberta": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -838,6 +887,16 @@ class TasksManager:
             "semantic-segmentation",
             onnx="SegformerOnnxConfig",
         ),
+        "sentence-transformers-clip": supported_tasks_mapping(
+            "feature-extraction",
+            "sentence-similarity",
+            onnx="SentenceTransformersCLIPOnnxConfig",
+        ),
+        "sentence-transformers-transformer": supported_tasks_mapping(
+            "feature-extraction",
+            "sentence-similarity",
+            onnx="SentenceTransformersTransformerOnnxConfig",
+        ),
         "sew": supported_tasks_mapping(
             "feature-extraction",
             "automatic-speech-recognition",
@@ -856,6 +915,11 @@ class TasksManager:
             "automatic-speech-recognition",
             "automatic-speech-recognition-with-past",
             onnx="Speech2TextOnnxConfig",
+        ),
+        # TODO: SpeechT5 can also support audio-to-audio and automatic-speech-recognition.
+        "speecht5": supported_tasks_mapping(
+            "text-to-audio",
+            onnx="SpeechT5OnnxConfig",
         ),
         "splinter": supported_tasks_mapping(
             "feature-extraction",
@@ -876,6 +940,11 @@ class TasksManager:
             "image-classification",
             "masked-im",
             onnx="SwinOnnxConfig",
+        ),
+        "swin2sr": supported_tasks_mapping(
+            "feature-extraction",
+            "image-to-image",
+            onnx="Swin2srOnnxConfig",
         ),
         "t5": supported_tasks_mapping(
             "feature-extraction",
@@ -1048,7 +1117,7 @@ class TasksManager:
 
     @staticmethod
     def get_supported_tasks_for_model_type(
-        model_type: str, exporter: str, model_name: Optional[str] = None
+        model_type: str, exporter: str, model_name: Optional[str] = None, library_name: str = "transformers"
     ) -> TaskNameToExportConfigDict:
         """
         Retrieves the `task -> exporter backend config constructors` map from the model type.
@@ -1060,27 +1129,37 @@ class TasksManager:
                 The name of the exporter.
             model_name (`Optional[str]`, defaults to `None`):
                 The name attribute of the model object, only used for the exception message.
+            library_name (defaults to `transformers`):
+                 The library name of the model.
 
         Returns:
             `TaskNameToExportConfigDict`: The dictionary mapping each task to a corresponding `ExportConfig`
             constructor.
         """
-        model_type = model_type.lower()
+        model_type = model_type.lower().replace("_", "-")
         model_type_and_model_name = f"{model_type} ({model_name})" if model_name else model_type
+
+        default_model_type = None
+        if library_name in TasksManager._MODEL_TYPE_FOR_DEFAULT_CONFIG:
+            default_model_type = TasksManager._MODEL_TYPE_FOR_DEFAULT_CONFIG[library_name]
+
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
-            raise KeyError(
-                f"{model_type_and_model_name} is not supported yet. "
-                f"Only {TasksManager._SUPPORTED_MODEL_TYPE} are supported. "
-                f"If you want to support {model_type} please propose a PR or open up an issue."
-            )
-        elif exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
+            if default_model_type is not None:
+                model_type = default_model_type
+            else:
+                raise KeyError(
+                    f"{model_type_and_model_name} is not supported yet for {library_name}. "
+                    f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
+                    f"If you want to support {model_type} please propose a PR or open up an issue."
+                )
+        if exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet with the {exporter} backend. "
                 f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE[model_type].keys())} are supported. "
                 f"If you want to support {exporter} please propose a PR or open up an issue."
             )
-        else:
-            return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
+
+        return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
 
     @staticmethod
     def get_supported_model_type_for_task(task: str, exporter: str) -> List[str]:
@@ -1311,6 +1390,9 @@ class TasksManager:
         ):
             # stable diffusion case
             framework = "pt"
+        elif "config_sentence_transformers.json" in all_files:
+            # Sentence Transformers libary relies on PyTorch.
+            framework = "pt"
         else:
             if request_exception is not None:
                 raise RequestsConnectionError(
@@ -1330,7 +1412,7 @@ class TasksManager:
         else:
             raise EnvironmentError("Neither PyTorch nor TensorFlow found in environment. Cannot export model.")
 
-        logger.info(f"Framework not specified. Using {framework} to export to ONNX.")
+        logger.info(f"Framework not specified. Using {framework} to export the model.")
 
         return framework
 
@@ -1400,13 +1482,10 @@ class TasksManager:
                     "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
                 )
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
-            if model_info.library_name == "diffusers":
-                # TODO : getattr(model_info, "model_index") defining auto_model_class_name currently set to None
-                for task in ("stable-diffusion-xl", "stable-diffusion"):
-                    if task in model_info.tags:
-                        inferred_task_name = task
-                        break
-            elif model_info.library_name == "timm":
+            if getattr(model_info, "library_name", None) == "diffusers":
+                class_name = model_info.config["diffusers"]["class_name"]
+                inferred_task_name = "stable-diffusion-xl" if "StableDiffusionXL" in class_name else "stable-diffusion"
+            elif getattr(model_info, "library_name", None) == "timm":
                 inferred_task_name = "image-classification"
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
@@ -1485,7 +1564,7 @@ class TasksManager:
     @classmethod
     def infer_library_from_model(
         cls,
-        model_name_or_path: str,
+        model_name_or_path: Union[str, Path],
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
@@ -1519,35 +1598,33 @@ class TasksManager:
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
             library_name = getattr(model_info, "library_name", None)
 
+            # sentence-transformers package name is sentence_transformers
+            if library_name is not None:
+                library_name = library_name.replace("-", "_")
+
         if library_name is None:
             all_files, _ = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
 
             if "model_index.json" in all_files:
                 library_name = "diffusers"
-            elif "config.json" in all_files:
-                config_path = full_model_path / "config.json"
+            elif CONFIG_NAME in all_files:
+                model_config = PretrainedConfig.from_pretrained(
+                    model_name_or_path, subfolder=subfolder, revision=revision
+                )
 
-                if not full_model_path.is_dir():
-                    config_path = huggingface_hub.hf_hub_download(
-                        model_name_or_path, "config.json", subfolder=subfolder, revision=revision
-                    )
-
-                model_config = PretrainedConfig.from_json_file(config_path)
-
-                if hasattr(model_config, "pretrained_cfg"):
+                if hasattr(model_config, "pretrained_cfg") or hasattr(model_config, "architecture"):
                     library_name = "timm"
                 elif hasattr(model_config, "_diffusers_version"):
                     library_name = "diffusers"
+                elif any(file_path.startswith("sentence_") for file_path in all_files):
+                    library_name = "sentence_transformers"
                 else:
                     library_name = "transformers"
 
         if library_name is None:
-            ValueError(
-                "The library_name could not be automatically inferred. If using the command-line, please provide the argument --library (transformers,diffusers,timm)!"
+            raise ValueError(
+                "The library name could not be automatically inferred. If using the command-line, please provide the argument --library {transformers,diffusers,timm,sentence_transformers}. Example: `--library diffusers`."
             )
-
-        if library_name == "sentence-transformers":
-            return "transformers"
 
         return library_name
 
@@ -1599,6 +1676,9 @@ class TasksManager:
 
             model_config = PretrainedConfig.from_json_file(config_path)
 
+            if hasattr(model_config, "pretrained_cfg"):
+                model_config.pretrained_cfg = PretrainedConfig.from_dict(model_config.pretrained_cfg)
+
             # Set config as in transformers
             setattr(model, "config", model_config)
 
@@ -1609,7 +1689,18 @@ class TasksManager:
             else:
                 model_type = "open-clip"
 
-            setattr(model.config, "model_type", model_type)        
+            setattr(model.config, "model_type", model_type)
+        elif library_name == "sentence_transformers":
+            if "Transformer" in model[0].__class__.__name__:
+                model.config = model[0].auto_model.config
+                model.config.model_type = "sentence-transformers-transformer"
+            elif "CLIP" in model[0].__class__.__name__:
+                model.config = model[0].model.config
+                model.config.model_type = "sentence-transformers-clip"
+            else:
+                raise ValueError(
+                    f"The export of a sentence-transformers model with the first module being {model[0].__class__.__name__} is currently not supported in Optimum. Please open an issue or submit a PR to add the support."
+                )
 
     @staticmethod
     def get_all_tasks():
@@ -1710,47 +1801,55 @@ class TasksManager:
 
         if library_name == "timm":
             model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
-            TasksManager.standardize_model_attributes(
-                model_name_or_path, model, subfolder, revision, cache_dir, library_name
+            model = model.to(torch_dtype).to(device)
+        elif library_name == "sentence_transformers":
+            cache_folder = model_kwargs.pop("cache_folder", None)
+            use_auth_token = model_kwargs.pop("use_auth_token", None)
+            model = model_class(
+                model_name_or_path, device=device, cache_folder=cache_folder, use_auth_token=use_auth_token
             )
             return model
-        
-        if library_name == "open_clip":
+        elif library_name == "open_clip":
             model, _, _ = model_class(f"hf-hub:{model_name_or_path}", cache_dir=cache_dir, output_dict=True)
             TasksManager.standardize_model_attributes(
                 model_name_or_path, model, subfolder, revision, cache_dir, library_name
             )
             return model
 
+        else:
+            try:
+                if framework == "pt":
+                    kwargs["torch_dtype"] = torch_dtype
 
-        try:
-            if framework == "pt":
-                kwargs["torch_dtype"] = torch_dtype
+                    if isinstance(device, str):
+                        device = torch.device(device)
+                    elif device is None:
+                        device = torch.device("cpu")
 
-                if isinstance(device, str):
-                    device = torch.device(device)
-                elif device is None:
-                    device = torch.device("cpu")
-
-                # TODO : fix EulerDiscreteScheduler loading to enable for SD models
-                if version.parse(torch.__version__) >= version.parse("2.0") and library_name != "diffusers":
-                    with device:
-                        # Initialize directly in the requested device, to save allocation time. Especially useful for large
-                        # models to initialize on cuda device.
-                        model = model_class.from_pretrained(model_name_or_path, **kwargs)
+                    # TODO : fix EulerDiscreteScheduler loading to enable for SD models
+                    if version.parse(torch.__version__) >= version.parse("2.0") and library_name != "diffusers":
+                        with device:
+                            # Initialize directly in the requested device, to save allocation time. Especially useful for large
+                            # models to initialize on cuda device.
+                            model = model_class.from_pretrained(model_name_or_path, **kwargs)
+                    else:
+                        model = model_class.from_pretrained(model_name_or_path, **kwargs).to(device)
                 else:
-                    model = model_class.from_pretrained(model_name_or_path, **kwargs).to(device)
-            else:
-                model = model_class.from_pretrained(model_name_or_path, **kwargs)
-        except OSError:
-            if framework == "pt":
-                logger.info("Loading TensorFlow model in PyTorch before exporting.")
-                kwargs["from_tf"] = True
-                model = model_class.from_pretrained(model_name_or_path, **kwargs)
-            else:
-                logger.info("Loading PyTorch model in TensorFlow before exporting.")
-                kwargs["from_pt"] = True
-                model = model_class.from_pretrained(model_name_or_path, **kwargs)
+                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
+            except OSError:
+                if framework == "pt":
+                    logger.info("Loading TensorFlow model in PyTorch before exporting.")
+                    kwargs["from_tf"] = True
+                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
+                else:
+                    logger.info("Loading PyTorch model in TensorFlow before exporting.")
+                    kwargs["from_pt"] = True
+                    model = model_class.from_pretrained(model_name_or_path, **kwargs)
+
+        TasksManager.standardize_model_attributes(
+            model_name_or_path, model, subfolder, revision, cache_dir, library_name
+        )
+
         return model
 
     @staticmethod
@@ -1761,6 +1860,7 @@ class TasksManager:
         model_type: Optional[str] = None,
         model_name: Optional[str] = None,
         exporter_config_kwargs: Optional[Dict[str, Any]] = None,
+        library_name: str = "transformers",
     ) -> ExportConfigConstructor:
         """
         Gets the `ExportConfigConstructor` for a model (or alternatively for a model type) and task combination.
@@ -1794,7 +1894,9 @@ class TasksManager:
             model_type = model_type.replace("_", "-")
             model_name = getattr(model, "name", model_name)
 
-        model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter, model_name=model_name)
+        model_tasks = TasksManager.get_supported_tasks_for_model_type(
+            model_type, exporter, model_name=model_name, library_name=library_name
+        )
 
         if task not in model_tasks:
             synonyms = TasksManager.synonyms_for_task(task)
@@ -1807,6 +1909,9 @@ class TasksManager:
                     f"{model_type} doesn't support task {task} for the {exporter} backend."
                     f" Supported tasks are: {', '.join(model_tasks.keys())}."
                 )
+
+        if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
+            model_type = TasksManager._MODEL_TYPE_FOR_DEFAULT_CONFIG[library_name]
 
         exporter_config_constructor = TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
         if exporter_config_kwargs is not None:

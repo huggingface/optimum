@@ -18,11 +18,27 @@ import inspect
 import sys
 from collections import OrderedDict
 from contextlib import contextmanager
-from typing import Union
+from typing import Tuple, Union
 
 import numpy as np
 import packaging
 from transformers.utils import is_torch_available
+
+
+def _is_package_available(pkg_name: str, return_version: bool = False) -> Union[Tuple[bool, str], bool]:
+    # Check we're not importing a "pkg_name" directory somewhere but the actual library by trying to grab the version
+    package_exists = importlib.util.find_spec(pkg_name) is not None
+    package_version = "N/A"
+    if package_exists:
+        try:
+            package_version = importlib.metadata.version(pkg_name)
+            package_exists = True
+        except importlib.metadata.PackageNotFoundError:
+            package_exists = False
+    if return_version:
+        return package_exists, package_version
+    else:
+        return package_exists
 
 
 # The package importlib_metadata is in a different place, depending on the python version.
@@ -35,21 +51,33 @@ else:
 TORCH_MINIMUM_VERSION = packaging.version.parse("1.11.0")
 TRANSFORMERS_MINIMUM_VERSION = packaging.version.parse("4.25.0")
 DIFFUSERS_MINIMUM_VERSION = packaging.version.parse("0.18.0")
-AUTOGPTQ_MINIMUM_VERSION = packaging.version.parse("0.4.2")
+AUTOGPTQ_MINIMUM_VERSION = packaging.version.parse("0.4.99")  # Allows 0.5.0.dev0
 
 
 # This is the minimal required version to support some ONNX Runtime features
 ORT_QUANTIZE_MINIMUM_VERSION = packaging.version.parse("1.4.0")
 
 
-_onnx_available = importlib.util.find_spec("onnx") is not None
+_onnx_available = _is_package_available("onnx")
+
+# importlib.metadata.version seem to not be robust with the ONNX Runtime extensions (`onnxruntime-gpu`, etc.)
 _onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
+<<<<<<< HEAD
 _pydantic_available = importlib.util.find_spec("pydantic") is not None
 _accelerate_available = importlib.util.find_spec("accelerate") is not None
 _diffusers_available = importlib.util.find_spec("diffusers") is not None
 _auto_gptq_available = importlib.util.find_spec("auto_gptq") is not None
 _timm_available = importlib.util.find_spec("diffusers") is not None
 _open_clip_available = importlib.util.find_spec("open_clip") is not None
+=======
+
+_pydantic_available = _is_package_available("pydantic")
+_accelerate_available = _is_package_available("accelerate")
+_diffusers_available = _is_package_available("diffusers")
+_auto_gptq_available = _is_package_available("auto_gptq")
+_timm_available = _is_package_available("timm")
+_sentence_transformers_available = _is_package_available("sentence_transformers")
+>>>>>>> main
 
 torch_version = None
 if is_torch_available():
@@ -108,18 +136,23 @@ def is_timm_available():
     return _timm_available
 
 
+<<<<<<< HEAD
 def is_open_clip_available():
     return _open_clip_available
+=======
+def is_sentence_transformers_available():
+    return _sentence_transformers_available
+>>>>>>> main
 
 
 def is_auto_gptq_available():
     if _auto_gptq_available:
         version_autogptq = packaging.version.parse(importlib_metadata.version("auto_gptq"))
-        if AUTOGPTQ_MINIMUM_VERSION <= version_autogptq:
+        if AUTOGPTQ_MINIMUM_VERSION < version_autogptq:
             return True
         else:
             raise ImportError(
-                f"Found an incompatible version of auto-gptq. Found version {version_autogptq}, but only {AUTOGPTQ_MINIMUM_VERSION} and above are supported"
+                f"Found an incompatible version of auto-gptq. Found version {version_autogptq}, but only version above {AUTOGPTQ_MINIMUM_VERSION} are supported"
             )
 
 

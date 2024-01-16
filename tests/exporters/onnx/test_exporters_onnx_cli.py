@@ -33,20 +33,31 @@ from optimum.onnxruntime import (
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
 )
-from optimum.utils.testing_utils import require_diffusers, require_timm
+from optimum.utils.testing_utils import require_diffusers, require_sentence_transformers, require_timm
 
 
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
+<<<<<<< HEAD
 from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY, PYTORCH_STABLE_DIFFUSION_MODEL, PYTORCH_TIMM_MODEL, PYTORCH_OPEN_CLIP_MODEL
+=======
+from ..exporters_utils import (
+    PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
+    PYTORCH_STABLE_DIFFUSION_MODEL,
+    PYTORCH_TIMM_MODEL,
+)
+>>>>>>> main
 
 
-def _get_models_to_test(export_models_dict: Dict):
+def _get_models_to_test(export_models_dict: Dict, library_name: str = "transformers"):
     models_to_test = []
     if is_torch_available():
         for model_type, model_names_tasks in export_models_dict.items():
-            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
+            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(
+                model_type, "onnx", library_name=library_name
+            )
 
             if isinstance(model_names_tasks, str):  # test export of all tasks on the same model
                 tasks = list(task_config_mapping.keys())
@@ -67,7 +78,7 @@ def _get_models_to_test(export_models_dict: Dict):
                         # The model uses bert as decoder and does not support past key values
                         continue
                     onnx_config_class = TasksManager.get_exporter_config_constructor(
-                        "onnx", task=task, model_type=model_type
+                        "onnx", task=task, model_type=model_type, library_name=library_name
                     )
 
                     # Refer to https://github.com/huggingface/optimum/blob/0b08a1fd19005b7334aa923433b3544bd2b11ff2/optimum/exporters/tasks.py#L65
@@ -78,7 +89,15 @@ def _get_models_to_test(export_models_dict: Dict):
 
                     for variant in variants.keys():
                         models_to_test.append(
-                            (f"{model_type}_{task}_{variant}", model_type, model_name, task, variant, False, False)
+                            (
+                                f"{model_type}_{task}_{variant}_{model_name}",
+                                model_type,
+                                model_name,
+                                task,
+                                variant,
+                                False,
+                                False,
+                            )
                         )
 
                         # -with-past and monolith cases are absurd, so we don't test them as not supported
@@ -93,7 +112,7 @@ def _get_models_to_test(export_models_dict: Dict):
                         ):
                             models_to_test.append(
                                 (
-                                    f"{model_type}_{task}_monolith_{variant}",
+                                    f"{model_type}_{task}_monolith_{variant}_{model_name}",
                                     model_type,
                                     model_name,
                                     task,
@@ -113,7 +132,7 @@ def _get_models_to_test(export_models_dict: Dict):
                         ]:
                             models_to_test.append(
                                 (
-                                    f"{model_type}_{task}_no_postprocess_{variant}",
+                                    f"{model_type}_{task}_no_postprocess_{variant}_{model_name}",
                                     model_type,
                                     model_name,
                                     task,
@@ -123,19 +142,23 @@ def _get_models_to_test(export_models_dict: Dict):
                                 )
                             )
 
-            # TODO: segformer task can not be automatically inferred
-            # TODO: xlm-roberta model auto-infers text-generation, but we don't support it
-            # TODO: perceiver auto-infers default, but we don't support it (why?)
-            # TODO: encoder-decoder auto-infers text3text-generation, but it uses bert as decoder and does not support past key values
-            if model_type not in [
-                "segformer",
-                "xlm-roberta",
-                "perceiver",
-                "encoder-decoder",
-            ]:
-                models_to_test.append(
-                    (f"{model_type}_no_task", model_type, model_name, "auto", "default", False, False)
-                )
+                # TODO: segformer task can not be automatically inferred
+                # TODO: xlm-roberta model auto-infers text-generation, but we don't support it
+                # TODO: perceiver auto-infers default, but we don't support it (why?)
+                # TODO: encoder-decoder auto-infers text3text-generation, but it uses bert as decoder and does not support past key values
+                # TODO: vision-encoder-decoder tiny models have wrong labels on the Hub
+                # TODO: unispeech-sat tiny models have wrong labels on the Hub
+                if model_type not in [
+                    "segformer",
+                    "xlm-roberta",
+                    "perceiver",
+                    "encoder-decoder",
+                    "vision-encoder-decoder",
+                    "unispeech-sat",
+                ]:
+                    models_to_test.append(
+                        (f"{model_type}_no_task_{model_name}", model_type, model_name, "auto", "default", False, False)
+                    )
 
         return sorted(models_to_test)
     else:
@@ -160,6 +183,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         device: str = "cpu",
         fp16: bool = False,
         variant: str = "default",
+        model_kwargs: Optional[Dict] = None,
     ):
         with TemporaryDirectory() as tmpdir:
             try:
@@ -173,6 +197,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     monolith=monolith,
                     no_post_process=no_post_process,
                     _variant=variant,
+                    model_kwargs=model_kwargs,
                 )
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
@@ -202,11 +227,29 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_fp16_stable_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda", fp16=True)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @parameterized.expand(_get_models_to_test(PYTORCH_SENTENCE_TRANSFORMERS_MODEL))
+    @require_torch
+    @require_vision
+    @require_sentence_transformers
+    def test_exporters_cli_pytorch_cpu_sentence_transformers(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_torch
     @require_vision
     @require_timm
+    @slow
     @pytest.mark.timm_test
+    @pytest.mark.run_slow
     def test_exporters_cli_pytorch_cpu_timm(
         self,
         test_name: str,
@@ -219,7 +262,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_torch_gpu
     @require_vision
     @require_timm
@@ -238,7 +281,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", variant=variant)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_torch_gpu
     @require_vision
     @require_timm
@@ -298,7 +341,12 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         # masked-im models use MaskedImageModelingOutput
         if model_type in ["vit", "deit"] and task == "masked-im":
             self.skipTest("Temporarily disabled upon transformers 4.28 release")
-        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
+
+        model_kwargs = None
+        if model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+
+        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, model_kwargs=model_kwargs)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_vision
@@ -322,7 +370,13 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         if model_type == "sam":
             self.skipTest("sam export on cuda is not supported due to a bug in PyTorch")
 
-        self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", variant=variant)
+        model_kwargs = None
+        if model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+
+        self._onnx_export(
+            model_name, task, monolith, no_post_process, device="cuda", variant=variant, model_kwargs=model_kwargs
+        )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
@@ -339,10 +393,20 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         monolith: bool,
         no_post_process: bool,
     ):
+        model_kwargs = None
+        if model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+
         for optimization_level in ["O1", "O2", "O3"]:
             try:
                 self._onnx_export(
-                    model_name, task, monolith, no_post_process, optimization_level=optimization_level, variant=variant
+                    model_name,
+                    task,
+                    monolith,
+                    no_post_process,
+                    optimization_level=optimization_level,
+                    variant=variant,
+                    model_kwargs=model_kwargs,
                 )
             except NotImplementedError as e:
                 if "Tried to use ORTOptimizer for the model type" in str(
@@ -376,9 +440,20 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         if model_type == "sam":
             self.skipTest("sam export on cuda is not supported due to a bug in PyTorch")
 
+        model_kwargs = None
+        if model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+
         try:
             self._onnx_export(
-                model_name, task, monolith, no_post_process, optimization_level="O4", device="cuda", variant=variant
+                model_name,
+                task,
+                monolith,
+                no_post_process,
+                optimization_level="O4",
+                device="cuda",
+                variant=variant,
+                model_kwargs=model_kwargs,
             )
         except NotImplementedError as e:
             if "Tried to use ORTOptimizer for the model type" in str(
@@ -495,6 +570,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
         if model_type == "ibert":
             self.skipTest("ibert can not be supported in fp16")
+
+        # TODO: test once https://github.com/pytorch/pytorch/pull/110078 is fixed
+        if model_type == "speecht5":
+            self.skipTest("speecht5 can not be supported in fp16 due to a pytorch bug")
 
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, fp16=True, device="cuda")
 

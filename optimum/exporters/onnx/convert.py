@@ -38,6 +38,7 @@ from ...utils import (
 )
 from ..error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
 from .base import OnnxConfig
+from .model_configs import SpeechT5OnnxConfig
 from .utils import PickableInferenceSession, recursive_to_device
 
 
@@ -45,7 +46,6 @@ if is_torch_available():
     import torch
     import torch.nn as nn
     from transformers.modeling_utils import PreTrainedModel
-    from transformers.pytorch_utils import is_torch_less_than_1_11
 
 if is_diffusers_available():
     from diffusers import ModelMixin
@@ -142,7 +142,6 @@ def validate_models_outputs(
     if use_subprocess:
         logger.info("Validating models in subprocesses...")
     exceptions = []  # run all validations before raising
-    onnx_paths = []
     for i, model_name in enumerate(models_and_onnx_configs.keys()):
         submodel, sub_onnx_config = models_and_onnx_configs[model_name]
         onnx_model_path = (
@@ -150,7 +149,6 @@ def validate_models_outputs(
             if onnx_files_subpaths is not None
             else output_dir.joinpath(model_name + ".onnx")
         )
-        onnx_paths.append(onnx_model_path)
         try:
             # Model validation is done in subprocesses, as ONNX Runtime has the bad habit of
             # not releasing memory once an InferenceSession is initialized.
@@ -168,12 +166,12 @@ def validate_models_outputs(
                 model_kwargs=model_kwargs,
             )
         except Exception as e:
-            exceptions.append(e)
+            exceptions.append((onnx_model_path, e))
 
     if len(exceptions) != 0:
         for i, exception in enumerate(exceptions[:-1]):
-            logger.error(f"Validation {i} for the model {onnx_paths[i].as_posix()} raised: {exception}")
-        raise exceptions[-1]
+            logger.error(f"Validation for the model {exception[0].as_posix()} raised: {exception[1]}")
+        raise exceptions[-1][1]
 
 
 def validate_model_outputs(
@@ -268,7 +266,6 @@ def _run_validation(
     if input_shapes is None:
         input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
     reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
-    reference_model_inputs = config.rename_ambiguous_inputs(reference_model_inputs)
 
     # Create ONNX Runtime session
     session_options = SessionOptions()
@@ -323,6 +320,7 @@ def _run_validation(
 
     # Some models may modify in place the inputs, hence the copy.
     copy_reference_model_inputs = copy.deepcopy(reference_model_inputs)
+    copy_reference_model_inputs = config.rename_ambiguous_inputs(copy_reference_model_inputs)
 
     with config.patch_model_for_export(reference_model, model_kwargs=model_kwargs):
         if is_torch_available() and isinstance(reference_model, nn.Module):
@@ -423,9 +421,11 @@ def _run_validation(
 
     if value_failures:
         msg = "\n".join(f"- {t[0]}: max diff = {t[1]}" for t in value_failures)
-        raise AtolError(
-            f"The maximum absolute difference between the output of the reference model and the ONNX exported model is not within the set tolerance {atol}:\n{msg}"
-        )
+        atol_msg = f"The maximum absolute difference between the output of the reference model and the ONNX exported model is not within the set tolerance {atol}:\n{msg}"
+
+        if isinstance(config, SpeechT5OnnxConfig):
+            atol_msg += "\nIMPORTANT NOTE: SpeechT5 uses a dropout at inference and the output validation of ONNX Runtime inference vs PyTorch is expected to fail. Reference: https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L727"
+        raise AtolError(atol_msg)
 
 
 class ValidationProcess(mp.Process):
@@ -526,7 +526,7 @@ def export_pytorch(
 
     with torch.no_grad():
         model.config.return_dict = True
-        model.eval()
+        model = model.eval()
 
         # Check if we need to override certain configuration item
         if config.values_override is not None:
@@ -555,62 +555,57 @@ def export_pytorch(
 
         dummy_inputs = config.rename_ambiguous_inputs(dummy_inputs)
 
-        # PyTorch deprecated the `enable_onnx_checker` and `use_external_data_format` arguments in v1.11,
-        # so we check the torch version for backwards compatibility
-        if is_torch_less_than_1_11:
-            raise RuntimeError("The ONNX export using the PyTorch framework is only supported for v1.11+")
-        else:
-            with config.patch_model_for_export(model, model_kwargs=model_kwargs):
-                check_dummy_inputs_are_allowed(model, dummy_inputs)
+        with config.patch_model_for_export(model, model_kwargs=model_kwargs):
+            check_dummy_inputs_are_allowed(model, dummy_inputs)
 
-                inputs = config.ordered_inputs(model)
-                input_names = list(inputs.keys())
-                output_names = list(config.outputs.keys())
+            inputs = config.ordered_inputs(model)
+            input_names = list(inputs.keys())
+            output_names = list(config.outputs.keys())
 
-                # Export can work with named args but the dict containing named args has to be the last element of the args
-                # tuple.
-                onnx_export(
-                    model,
-                    (dummy_inputs,),
-                    f=output.as_posix(),
-                    input_names=input_names,
-                    output_names=output_names,
-                    dynamic_axes=dict(chain(inputs.items(), config.outputs.items())),
-                    do_constant_folding=True,
-                    opset_version=opset,
-                )
+            # Export can work with named args but the dict containing named args has to be the last element of the args
+            # tuple.
+            onnx_export(
+                model,
+                (dummy_inputs,),
+                f=output.as_posix(),
+                input_names=input_names,
+                output_names=output_names,
+                dynamic_axes=dict(chain(inputs.items(), config.outputs.items())),
+                do_constant_folding=True,
+                opset_version=opset,
+            )
 
-            # check if external data was exported
-            # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
-            onnx_model = onnx.load(str(output), load_external_data=False)
-            model_uses_external_data = check_model_uses_external_data(onnx_model)
+        # check if external data was exported
+        # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
+        onnx_model = onnx.load(str(output), load_external_data=False)
+        model_uses_external_data = check_model_uses_external_data(onnx_model)
 
-            if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
-                tensors_paths = _get_onnx_external_data_tensors(onnx_model)
-                logger.info("Saving external data to one file...")
+        if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
+            tensors_paths = _get_onnx_external_data_tensors(onnx_model)
+            logger.info("Saving external data to one file...")
 
-                # try free model memory
-                del model
-                del onnx_model
-                gc.collect()
-                if device.type == "cuda" and torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+            # try free model memory
+            del model
+            del onnx_model
+            gc.collect()
+            if device.type == "cuda" and torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
-                onnx_model = onnx.load(
-                    str(output), load_external_data=True
-                )  # this will probably be too memory heavy for large models
-                onnx.save(
-                    onnx_model,
-                    str(output),
-                    save_as_external_data=True,
-                    all_tensors_to_one_file=True,
-                    location=output.name + "_data",
-                    size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0,
-                )
+            onnx_model = onnx.load(
+                str(output), load_external_data=True
+            )  # this will probably be too memory heavy for large models
+            onnx.save(
+                onnx_model,
+                str(output),
+                save_as_external_data=True,
+                all_tensors_to_one_file=True,
+                location=output.name + "_data",
+                size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0,
+            )
 
-                # delete previous external data
-                for tensor in tensors_paths:
-                    os.remove(output.parent / tensor)
+            # delete previous external data
+            for tensor in tensors_paths:
+                os.remove(output.parent / tensor)
 
     return input_names, output_names
 
@@ -634,7 +629,7 @@ def export_tensorflow(
             The version of the ONNX operator set to use.
         output (`Path`):
             Directory to store the exported ONNX model.
-        device (`str`, *optional*, defaults to `cpu`):
+        device (`Optional[str]`, defaults to `"cpu"`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
 
@@ -789,7 +784,7 @@ def export(
             Directory to store the exported ONNX model.
         opset (`Optional[int]`, defaults to `None`):
             The version of the ONNX operator set to use.
-        device (`str`, *optional*, defaults to `cpu`):
+        device (`Optional[str]`, defaults to `"cpu"`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
         input_shapes (`Optional[Dict]`, defaults to `None`):
