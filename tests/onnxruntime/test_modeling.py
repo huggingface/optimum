@@ -3309,7 +3309,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
 
     def _generate_random_audio_data(self):
         np.random.seed(10)
-        t = np.linspace(0, 5.0, int(5.0 * 22050), endpoint=False)
+        t = np.linspace(0, 5.0, int(5.0 * 16000), endpoint=False)
         # generate pure sine wave at 220 Hz
         audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
         return audio_data
@@ -3349,6 +3349,36 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
 
             # compare tensor outputs
             self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
+    def test_compare_to_io_binding(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+
+        onnx_model = ORTModelForCTC.from_pretrained(
+            self.onnx_model_dirs[model_arch],
+            use_io_binding=False,
+        )  # .to("cuda")
+        io_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True)  # .to("cuda")
+
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        data = self._generate_random_audio_data()
+
+        input_values = processor(data, return_tensors="pt")
+        onnx_outputs = onnx_model(**input_values)
+        io_outputs = io_model(**input_values)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), io_outputs.logits, atol=1e-4))
 
         gc.collect()
 
