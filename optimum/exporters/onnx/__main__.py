@@ -76,9 +76,8 @@ def _get_submodels_and_onnx_configs(
     library_name: str = "transformers",
     model_kwargs: Optional[Dict] = None,
 ):
-    is_stable_diffusion = "stable-diffusion" in task
     if not custom_architecture:
-        if is_stable_diffusion:
+        if library_name == "diffusers":
             onnx_config = None
             models_and_onnx_configs = get_stable_diffusion_models_for_export(
                 model, int_dtype=int_dtype, float_dtype=float_dtype
@@ -129,7 +128,7 @@ def _get_submodels_and_onnx_configs(
         if fn_get_submodels is not None:
             submodels_for_export = fn_get_submodels(model)
         else:
-            if is_stable_diffusion:
+            if library_name == "diffusers":
                 submodels_for_export = _get_submodels_for_export_stable_diffusion(model)
             elif (
                 model.config.is_encoder_decoder
@@ -382,12 +381,7 @@ def main_export(
         **loading_kwargs,
     )
 
-    is_stable_diffusion = "stable-diffusion" in task
-
-    # TODO: What is this? This should be in tasks.py?
-    if is_stable_diffusion:
-        model_type = "stable-diffusion"
-    elif hasattr(model.config, "export_model_type"):
+    if hasattr(model.config, "export_model_type"):
         model_type = model.config.export_model_type.replace("_", "-")
     else:
         model_type = model.config.model_type.replace("_", "-")
@@ -416,7 +410,7 @@ def main_export(
             f"legacy=True was specified in the ONNX export, although the model {model_name_or_path} (model type {model_type}) requires position_ids for batched inference. Passing `legacy=True` is strongly discouraged, and this option will be removed in a future release. Reference: https://github.com/huggingface/optimum/pull/1381"
         )
 
-    if not is_stable_diffusion:
+    if library_name != "diffusers":
         if model_type in TasksManager._UNSUPPORTED_CLI_MODEL_TYPE:
             raise ValueError(
                 f"{model_type} is not supported yet. Only {list(TasksManager._SUPPORTED_CLI_MODEL_TYPE.keys())} are supported. "
@@ -436,7 +430,7 @@ def main_export(
 
     if (
         not custom_architecture
-        and not is_stable_diffusion
+        and library_name != "diffusers"
         and task + "-with-past"
         in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx", library_name=library_name)
     ):
@@ -484,7 +478,7 @@ def main_export(
         model_kwargs=model_kwargs,
     )
 
-    if not is_stable_diffusion:
+    if library_name != "diffusers":
         needs_pad_token_id = (
             isinstance(onnx_config, OnnxConfigWithPast)
             and getattr(model.config, "pad_token_id", None) is None
@@ -582,7 +576,7 @@ def main_export(
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating stable diffusion separately is quite ugly
-    if not no_post_process and not is_stable_diffusion:
+    if not no_post_process and library_name != "diffusers":
         try:
             logger.info("Post-processing the exported models...")
             models_and_onnx_configs, onnx_files_subpaths = onnx_config.post_process_exported_models(
@@ -593,7 +587,7 @@ def main_export(
                 f"The post-processing of the ONNX export failed. The export can still be performed by passing the option --no-post-process. Detailed error: {e}"
             )
 
-    if is_stable_diffusion:
+    if library_name == "diffusers":
         use_subprocess = (
             False  # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
         )

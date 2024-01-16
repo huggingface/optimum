@@ -1698,7 +1698,9 @@ class TasksManager:
         full_model_path = Path(model_name_or_path) / subfolder
         is_local = full_model_path.is_dir()
 
-        if library_name == "timm":
+        if library_name == "diffusers":
+            model.config.export_model_type = "stable-diffusion"
+        elif library_name == "timm":
             # Retrieve model config
             config_path = full_model_path / "config.json"
 
