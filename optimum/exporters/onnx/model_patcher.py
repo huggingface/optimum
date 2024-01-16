@@ -510,6 +510,7 @@ class SAMModelPatcher(ModelPatcher):
         def patched_forward(
             pixel_values=None,
             input_points=None,
+            input_labels=None,
             image_embeddings=None,
             image_positional_embeddings=None,
             return_dict=True,
@@ -519,6 +520,7 @@ class SAMModelPatcher(ModelPatcher):
                 return self.orig_forward(
                     pixel_values=pixel_values,
                     input_points=input_points,
+                    input_labels=input_labels,
                     image_embeddings=image_embeddings,
                     return_dict=return_dict,
                     **kwargs,
@@ -549,11 +551,7 @@ class SAMModelPatcher(ModelPatcher):
                             "image_positional_embeddings": image_positional_embeddings,
                         }
                 else:
-                    if input_points is not None:
-                        input_labels = torch.ones_like(
-                            input_points[:, :, :, 0], dtype=torch.int, device=input_points.device
-                        )
-                    else:
+                    if input_points is None:
                         raise ValueError("input_points is required to export the prompt encoder / mask decoder.")
 
                     sparse_embeddings, dense_embeddings = model.prompt_encoder(
