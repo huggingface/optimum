@@ -325,3 +325,7 @@ PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
     "sentence-transformers-clip": "sentence-transformers/all-MiniLM-L6-v2",
     "sentence-transformers-transformer": "sentence-transformers/clip-ViT-B-32-multilingual-v1",
 }
+
+PYTORCH_OPEN_CLIP_MODEL = {
+    "open-clip": "laion/CLIP-ViT-B-16-laion2B-s34B-b88K",
+}

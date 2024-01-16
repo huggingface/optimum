@@ -28,6 +28,7 @@ from . import (
     is_accelerate_available,
     is_auto_gptq_available,
     is_diffusers_available,
+    is_open_clip_available,
     is_sentence_transformers_available,
     is_timm_available,
 )
@@ -141,6 +142,10 @@ def require_diffusers(test_case):
 
 def require_timm(test_case):
     return unittest.skipUnless(is_timm_available(), "test requires timm")(test_case)
+
+
+def require_open_clip(test_case):
+    return unittest.skipUnless(is_open_clip_available(), "test requires open_clip")(test_case)
 
 
 def require_sentence_transformers(test_case):

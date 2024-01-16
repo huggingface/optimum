@@ -14,6 +14,7 @@
 # limitations under the License.
 import dataclasses
 import functools
+import importlib.util
 import inspect
 import math
 import sys
@@ -25,6 +26,7 @@ from packaging import version
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 from transformers.utils import is_torch_available
 
+from ...utils.import_utils import is_open_clip_available
 
 if is_torch_available():
     import torch
@@ -794,3 +796,37 @@ class SentenceTransformersCLIPPatcher(ModelPatcher):
             return {"text_embeds": text_embeds, "image_embeds": image_embeds}
 
         self.patched_forward = patched_forward
+
+if is_open_clip_available():
+    import open_clip
+
+def _text_global_pool_patched(x, text: Optional[torch.Tensor] = None, pool_type: str = 'argmax'):
+    if pool_type == 'first':
+        pooled, tokens = x[:, 0], x[:, 1:]
+    elif pool_type == 'last':
+        pooled, tokens = x[:, -1], x[:, :-1]
+    elif pool_type == 'argmax':
+        text = text.to(dtype=torch.int32)  # ONNX Runtime is unable to run argmax with int64 input, hence this cast.
+        # take features from the eot embedding (eot_token is the highest number in each sequence)
+        assert text is not None
+        pooled, tokens = x[torch.arange(x.shape[0]), text.argmax(dim=-1)], x
+    else:
+        pooled = tokens = x
+    return pooled, tokens
+
+
+class OpenCLIPModelPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        self.original_text_global_pool = open_clip.transformer.text_global_pool
+
+    def __enter__(self):
+        open_clip.transformer.text_global_pool.__code__ = _text_global_pool_patched.__code__
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        open_clip.transformer.text_global_pool.__code__ = self.original_text_global_pool.__code__
+

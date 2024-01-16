@@ -62,6 +62,7 @@ from .config import (
 )
 from .model_patcher import (
     FalconModelPatcher,
+    OpenCLIPModelPatcher,
     SAMModelPatcher,
     SentenceTransformersCLIPPatcher,
     SentenceTransformersTransformerPatcher,
@@ -867,6 +868,52 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
             "text_embeds": {0: "text_batch_size"},
             "image_embeds": {0: "image_batch_size"},
         }
+
+
+class OpenCLIPOnnxConfig(CLIPOnnxConfig):
+    DEFAULT_ONNX_OPSET = 18
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "text_batch_size"},
+            "pixel_values": {0: "image_batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "attention_mask": {0: "text_batch_size"},
+        }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "text_features": {0: "text_batch_size"},
+            "image_features": {0: "image_batch_size"},
+            "logit_scale": {},
+        }
+
+    def rename_ambiguous_inputs(self, inputs):
+        model_inputs = {}
+        model_inputs["image"] = inputs["pixel_values"]
+        model_inputs["text"] = inputs["input_ids"]
+        return model_inputs
+
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        # override sequence_length shape here in the kwargs
+        kwargs["sequence_length"] = self._preprocessors[0].model_max_length
+        return super().generate_dummy_inputs(framework, **kwargs)
+
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        if "attention_mask" in reference_model_inputs:
+            reference_model_inputs.pop("attention_mask")
+        if "image" in onnx_input_names and "pixel_values" in reference_model_inputs:
+            reference_model_inputs["image"] = reference_model_inputs.pop("pixel_values")
+        if "text" in onnx_input_names and "input_ids" in reference_model_inputs:
+            reference_model_inputs["text"] = reference_model_inputs.pop("input_ids")
+        return super().generate_dummy_inputs_for_validation(reference_model_inputs)
+        
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return OpenCLIPModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class SentenceTransformersCLIPOnnxConfig(CLIPOnnxConfig):

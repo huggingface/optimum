@@ -196,6 +196,10 @@ class TasksManager:
             "image-classification": "create_model",
         }
 
+        _OPEN_CLIP_TASKS_TO_MODEL_LOADERS = {
+            "zero-shot-image-classification": "create_model_and_transforms",
+        }
+        
         _SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS = {
             "feature-extraction": "SentenceTransformer",
             "sentence-similarity": "SentenceTransformer",
@@ -205,6 +209,7 @@ class TasksManager:
             "diffusers": _DIFFUSERS_TASKS_TO_MODEL_LOADERS,
             "sentence_transformers": _SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
             "timm": _TIMM_TASKS_TO_MODEL_LOADERS,
+            "open_clip": _OPEN_CLIP_TASKS_TO_MODEL_LOADERS,
             "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
         }
 
@@ -400,6 +405,10 @@ class TasksManager:
             "question-answering",
             onnx="CamembertOnnxConfig",
             tflite="CamembertTFLiteConfig",
+        ),
+        "open-clip": supported_tasks_mapping(
+            "zero-shot-image-classification",
+            onnx="OpenCLIPOnnxConfig",
         ),
         "clip": supported_tasks_mapping(
             "feature-extraction",
@@ -1656,7 +1665,7 @@ class TasksManager:
         full_model_path = Path(model_name_or_path) / subfolder
         is_local = full_model_path.is_dir()
 
-        if library_name == "timm":
+        if library_name == "timm" or library_name == "open_clip":
             # Retrieve model config
             config_path = full_model_path / "config.json"
 
@@ -1673,9 +1682,12 @@ class TasksManager:
             # Set config as in transformers
             setattr(model, "config", model_config)
 
-            # Update model_type for model
-            with open(config_path) as fp:
-                model_type = json.load(fp)["architecture"]
+            if library_name == "timm":
+                # Update model_type for model
+                with open(config_path) as fp:
+                    model_type = json.load(fp)["architecture"]
+            else:
+                model_type = "open-clip"
 
             setattr(model.config, "model_type", model_type)
         elif library_name == "sentence_transformers":
@@ -1796,6 +1808,14 @@ class TasksManager:
             model = model_class(
                 model_name_or_path, device=device, cache_folder=cache_folder, use_auth_token=use_auth_token
             )
+            return model
+        elif library_name == "open_clip":
+            model, _, _ = model_class(f"hf-hub:{model_name_or_path}", cache_dir=cache_dir, output_dict=True)
+            TasksManager.standardize_model_attributes(
+                model_name_or_path, model, subfolder, revision, cache_dir, library_name
+            )
+            return model
+
         else:
             try:
                 if framework == "pt":

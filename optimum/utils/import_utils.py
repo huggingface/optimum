@@ -69,6 +69,7 @@ _diffusers_available = _is_package_available("diffusers")
 _auto_gptq_available = _is_package_available("auto_gptq")
 _timm_available = _is_package_available("timm")
 _sentence_transformers_available = _is_package_available("sentence_transformers")
+_open_clip_available = _is_package_available("open_clip")
 
 torch_version = None
 if is_torch_available():
@@ -125,6 +126,10 @@ def is_diffusers_available():
 
 def is_timm_available():
     return _timm_available
+
+
+def is_open_clip_available():
+    return _open_clip_available
 
 
 def is_sentence_transformers_available():
