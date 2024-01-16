@@ -1675,6 +1675,7 @@ class SamOnnxConfig(OnnxConfig):
             inputs = {
                 "pixel_values": {0: "batch_size"},
                 "input_points": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
+                "input_labels": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
             }
         else:
             if self.vision_encoder:
@@ -1684,6 +1685,7 @@ class SamOnnxConfig(OnnxConfig):
                     "image_positional_embeddings": {0: "batch_size"},
                     "image_embeddings": {0: "batch_size"},
                     "input_points": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
+                    "input_labels": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
                 }
         return inputs
 
