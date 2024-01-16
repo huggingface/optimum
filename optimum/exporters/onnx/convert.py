@@ -564,7 +564,6 @@ def export_pytorch(
             inputs = config.ordered_inputs(model)
             input_names = list(inputs.keys())
             output_names = list(config.outputs.keys())
-            
 
             if no_dynamic_axes:
                 dynamix_axes = None
