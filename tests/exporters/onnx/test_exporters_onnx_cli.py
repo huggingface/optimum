@@ -47,7 +47,7 @@ from ..exporters_utils import (
 )
 
 
-def _get_models_to_test(export_models_dict: Dict, library_name: str = "transformers"):
+def _get_models_to_test(export_models_dict: Dict, library_name: str):
     models_to_test = []
     if is_torch_available():
         for model_type, model_names_tasks in export_models_dict.items():
@@ -223,7 +223,9 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_fp16_stable_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda", fp16=True)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_SENTENCE_TRANSFORMERS_MODEL))
+    @parameterized.expand(
+        _get_models_to_test(PYTORCH_SENTENCE_TRANSFORMERS_MODEL, library_name="sentence_transformers")
+    )
     @require_torch
     @require_vision
     @require_sentence_transformers
@@ -296,7 +298,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", fp16=True)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_torch
     @require_vision
     def test_exporters_cli_pytorch_cpu(
@@ -322,7 +324,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, model_kwargs=model_kwargs)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_vision
     @require_torch_gpu
     @pytest.mark.gpu_test
@@ -352,7 +354,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             model_name, task, monolith, no_post_process, device="cuda", variant=variant, model_kwargs=model_kwargs
         )
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_torch
     @require_vision
     @slow
@@ -390,7 +392,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 else:
                     raise e
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_torch_gpu
     @require_vision
     @slow
@@ -505,7 +507,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             model = onnx.load(Path(tmpdirname) / ONNX_DECODER_MERGED_NAME)
             self.assertNotIn("position_ids", {node.name for node in model.graph.input})
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_vision
     @require_torch_gpu
     @slow
