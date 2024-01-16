@@ -1880,12 +1880,17 @@ class ORTModelForCTC(ORTModel):
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
         if self.device.type == "cuda" and self.use_io_binding:
-            output_time_size = float(input_values[0].shape / np.prod(self.config.conv_stride))
-            if output_time_size.is_integer():
-                output_time_size = int(output_time_size - 1)
-            else:
-                output_time_size = math.floor(output_time_size)
-            known_output_shapes = {"logits": [input_values.shape[0], output_time_size, self.config.vocab_size]}
+            input_size = input_values.shape[1]
+            output_sizes = []
+
+            def _conv_output_size(input_size, kernel_size, stride):
+                return (input_size - kernel_size) // stride + 1
+
+            for kernel_size, stride in zip(self.config.conv_kernel, self.config.conv_stride):
+                input_size = _conv_output_size(input_size, kernel_size, stride)
+                output_sizes.append(input_size)
+
+            known_output_shapes = {"logits": [input_values.shape[0], output_sizes[-1], self.config.vocab_size]}
 
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_values,
