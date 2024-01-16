@@ -62,14 +62,6 @@ _onnx_available = _is_package_available("onnx")
 
 # importlib.metadata.version seem to not be robust with the ONNX Runtime extensions (`onnxruntime-gpu`, etc.)
 _onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
-<<<<<<< HEAD
-_pydantic_available = importlib.util.find_spec("pydantic") is not None
-_accelerate_available = importlib.util.find_spec("accelerate") is not None
-_diffusers_available = importlib.util.find_spec("diffusers") is not None
-_auto_gptq_available = importlib.util.find_spec("auto_gptq") is not None
-_timm_available = importlib.util.find_spec("diffusers") is not None
-_open_clip_available = importlib.util.find_spec("open_clip") is not None
-=======
 
 _pydantic_available = _is_package_available("pydantic")
 _accelerate_available = _is_package_available("accelerate")
@@ -77,7 +69,7 @@ _diffusers_available = _is_package_available("diffusers")
 _auto_gptq_available = _is_package_available("auto_gptq")
 _timm_available = _is_package_available("timm")
 _sentence_transformers_available = _is_package_available("sentence_transformers")
->>>>>>> main
+_open_clip_available = _is_package_available("open_clip")
 
 torch_version = None
 if is_torch_available():
@@ -136,13 +128,12 @@ def is_timm_available():
     return _timm_available
 
 
-<<<<<<< HEAD
 def is_open_clip_available():
     return _open_clip_available
-=======
+
+
 def is_sentence_transformers_available():
     return _sentence_transformers_available
->>>>>>> main
 
 
 def is_auto_gptq_available():
