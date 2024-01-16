@@ -133,7 +133,7 @@ def parse_args_onnx(parser):
     optional_group.add_argument(
         "--library-name",
         type=str,
-        choices=["transformers", "diffusers", "timm"],
+        choices=["transformers", "diffusers", "timm", "sentence_transformers"],
         default=None,
         help=("The library on the model." " If not provided, will attempt to infer the local checkpoint's library"),
     )

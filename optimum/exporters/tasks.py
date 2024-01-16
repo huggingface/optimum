@@ -292,6 +292,46 @@ class TasksManager:
         "timm": "default-timm-config",
     }
 
+    _DIFFUSERS_SUPPORTED_MODEL_TYPE = {
+        "clip-text-model": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="CLIPTextOnnxConfig",
+        ),
+        "clip-text-with-projection": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="CLIPTextWithProjectionOnnxConfig",
+        ),
+        "unet": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="UNetOnnxConfig",
+        ),
+        "vae-encoder": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="VaeEncoderOnnxConfig",
+        ),
+        "vae-decoder": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="VaeDecoderOnnxConfig",
+        ),
+    }
+
+    _TIMM_SUPPORTED_MODEL_TYPE = {
+        "default-timm-config": supported_tasks_mapping("image-classification", onnx="TimmDefaultOnnxConfig"),
+    }
+
+    _SENTENCE_TRANSFORMERS_SUPPORTED_MODEL_TYPE = {
+        "clip": supported_tasks_mapping(
+            "feature-extraction",
+            "sentence-similarity",
+            onnx="SentenceTransformersCLIPOnnxConfig",
+        ),
+        "transformer": supported_tasks_mapping(
+            "feature-extraction",
+            "sentence-similarity",
+            onnx="SentenceTransformersTransformerOnnxConfig",
+        ),
+    }
+
     # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
     _SUPPORTED_MODEL_TYPE = {
@@ -405,14 +445,6 @@ class TasksManager:
             "feature-extraction",
             "zero-shot-image-classification",
             onnx="CLIPOnnxConfig",
-        ),
-        "clip-text-model": supported_tasks_mapping(
-            "feature-extraction",
-            onnx="CLIPTextOnnxConfig",
-        ),
-        "clip-text-with-projection": supported_tasks_mapping(
-            "feature-extraction",
-            onnx="CLIPTextWithProjectionOnnxConfig",
         ),
         "codegen": supported_tasks_mapping(
             "feature-extraction",
@@ -841,7 +873,6 @@ class TasksManager:
         "resnet": supported_tasks_mapping(
             "feature-extraction", "image-classification", onnx="ResNetOnnxConfig", tflite="ResNetTFLiteConfig"
         ),
-        "default-timm-config": supported_tasks_mapping("image-classification", onnx="TimmDefaultOnnxConfig"),
         "roberta": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -877,16 +908,6 @@ class TasksManager:
             "image-segmentation",
             "semantic-segmentation",
             onnx="SegformerOnnxConfig",
-        ),
-        "sentence-transformers-clip": supported_tasks_mapping(
-            "feature-extraction",
-            "sentence-similarity",
-            onnx="SentenceTransformersCLIPOnnxConfig",
-        ),
-        "sentence-transformers-transformer": supported_tasks_mapping(
-            "feature-extraction",
-            "sentence-similarity",
-            onnx="SentenceTransformersTransformerOnnxConfig",
         ),
         "sew": supported_tasks_mapping(
             "feature-extraction",
@@ -951,10 +972,6 @@ class TasksManager:
             "image-to-text-with-past",
             onnx="TrOCROnnxConfig",
         ),
-        "unet": supported_tasks_mapping(
-            "semantic-segmentation",
-            onnx="UNetOnnxConfig",
-        ),
         "unispeech": supported_tasks_mapping(
             "feature-extraction",
             "automatic-speech-recognition",
@@ -968,14 +985,6 @@ class TasksManager:
             "audio-frame-classification",
             "audio-xvector",
             onnx="UniSpeechSATOnnxConfig",
-        ),
-        "vae-encoder": supported_tasks_mapping(
-            "semantic-segmentation",
-            onnx="VaeEncoderOnnxConfig",
-        ),
-        "vae-decoder": supported_tasks_mapping(
-            "semantic-segmentation",
-            onnx="VaeDecoderOnnxConfig",
         ),
         "vision-encoder-decoder": supported_tasks_mapping(
             "image-to-text",
@@ -1048,15 +1057,26 @@ class TasksManager:
             onnx="YolosOnnxConfig",
         ),
     }
+    _LIBRARY_TO_SUPPORTED_MODEL_TYPES = {
+        "diffusers": _DIFFUSERS_SUPPORTED_MODEL_TYPE,
+        "sentence_transformers": _SENTENCE_TRANSFORMERS_SUPPORTED_MODEL_TYPE,
+        "timm": _TIMM_SUPPORTED_MODEL_TYPE,
+        "transformers": _SUPPORTED_MODEL_TYPE,
+    }
     _UNSUPPORTED_CLI_MODEL_TYPE = {
         "unet",
         "vae-encoder",
         "vae-decoder",
         "clip-text-model",
         "clip-text-with-projection",
-        "trocr",
+        "trocr",  # TODO: why?
     }
-    _SUPPORTED_CLI_MODEL_TYPE = set(_SUPPORTED_MODEL_TYPE.keys()) - _UNSUPPORTED_CLI_MODEL_TYPE
+    _SUPPORTED_CLI_MODEL_TYPE = (
+        set(_SUPPORTED_MODEL_TYPE.keys())
+        | set(_DIFFUSERS_SUPPORTED_MODEL_TYPE.keys())
+        | set(_TIMM_SUPPORTED_MODEL_TYPE.keys())
+        | set(_SENTENCE_TRANSFORMERS_SUPPORTED_MODEL_TYPE.keys())
+    ) - _UNSUPPORTED_CLI_MODEL_TYPE
 
     @classmethod
     def create_register(
@@ -1085,9 +1105,15 @@ class TasksManager:
             ```
         """
 
-        def wrapper(model_type: str, *supported_tasks: str) -> Callable[[Type], Type]:
+        def wrapper(
+            model_type: str, *supported_tasks: str, library_name: str = "transformers"
+        ) -> Callable[[Type], Type]:
             def decorator(config_cls: Type) -> Type:
-                mapping = cls._SUPPORTED_MODEL_TYPE.get(model_type, {})
+                supported_model_type_for_library = TasksManager._LIBRARY_TO_SUPPORTED_MODEL_TYPES[
+                    library_name
+                ]  # This is a pointer.
+
+                mapping = supported_model_type_for_library.get(model_type, {})
                 mapping_backend = mapping.get(backend, {})
                 for task in supported_tasks:
                     if task not in cls.get_all_tasks():
@@ -1099,7 +1125,7 @@ class TasksManager:
                         continue
                     mapping_backend[task] = make_backend_config_constructor_for_task(config_cls, task)
                 mapping[backend] = mapping_backend
-                cls._SUPPORTED_MODEL_TYPE[model_type] = mapping
+                supported_model_type_for_library[model_type] = mapping
                 return config_cls
 
             return decorator
@@ -1108,7 +1134,7 @@ class TasksManager:
 
     @staticmethod
     def get_supported_tasks_for_model_type(
-        model_type: str, exporter: str, model_name: Optional[str] = None, library_name: str = "transformers"
+        model_type: str, exporter: str, model_name: Optional[str] = None, library_name: Optional[str] = None
     ) -> TaskNameToExportConfigDict:
         """
         Retrieves the `task -> exporter backend config constructors` map from the model type.
@@ -1120,13 +1146,29 @@ class TasksManager:
                 The name of the exporter.
             model_name (`Optional[str]`, defaults to `None`):
                 The name attribute of the model object, only used for the exception message.
-            library_name (defaults to `transformers`):
-                 The library name of the model.
+            library_name (`Optional[str]`, defaults to `None`):
+                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
 
         Returns:
             `TaskNameToExportConfigDict`: The dictionary mapping each task to a corresponding `ExportConfig`
             constructor.
         """
+        if library_name is None:
+            logger.warning(
+                'Not passing the argument `library_name` to `get_supported_tasks_for_model_type` is deprecated and the support will be removed in a future version of Optimum. Please specify a `library_name`. Defaulting to `"transformers`.'
+            )
+
+            # We are screwed if different dictionaries have the same keys.
+            supported_model_type_for_library = {
+                **TasksManager._DIFFUSERS_SUPPORTED_MODEL_TYPE,
+                **TasksManager._TIMM_SUPPORTED_MODEL_TYPE,
+                **TasksManager._SENTENCE_TRANSFORMERS_SUPPORTED_MODEL_TYPE,
+                **TasksManager._SUPPORTED_MODEL_TYPE,
+            }
+            library_name = "transformers"
+        else:
+            supported_model_type_for_library = TasksManager._LIBRARY_TO_SUPPORTED_MODEL_TYPES[library_name]
+
         model_type = model_type.lower().replace("_", "-")
         model_type_and_model_name = f"{model_type} ({model_name})" if model_name else model_type
 
@@ -1134,28 +1176,28 @@ class TasksManager:
         if library_name in TasksManager._MODEL_TYPE_FOR_DEFAULT_CONFIG:
             default_model_type = TasksManager._MODEL_TYPE_FOR_DEFAULT_CONFIG[library_name]
 
-        if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
+        if model_type not in supported_model_type_for_library:
             if default_model_type is not None:
                 model_type = default_model_type
             else:
                 raise KeyError(
                     f"{model_type_and_model_name} is not supported yet for {library_name}. "
-                    f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE.keys())} are supported. "
+                    f"Only {list(supported_model_type_for_library.keys())} are supported for the library {library_name}. "
                     f"If you want to support {model_type} please propose a PR or open up an issue."
                 )
-        if exporter not in TasksManager._SUPPORTED_MODEL_TYPE[model_type]:
+        if exporter not in supported_model_type_for_library[model_type]:
             raise KeyError(
                 f"{model_type_and_model_name} is not supported yet with the {exporter} backend. "
-                f"Only {list(TasksManager._SUPPORTED_MODEL_TYPE[model_type].keys())} are supported. "
+                f"Only {list(supported_model_type_for_library[model_type].keys())} are supported. "
                 f"If you want to support {exporter} please propose a PR or open up an issue."
             )
 
-        return TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter]
+        return supported_model_type_for_library[model_type][exporter]
 
     @staticmethod
     def get_supported_model_type_for_task(task: str, exporter: str) -> List[str]:
         """
-        Returns the list of supported architectures by the exporter for a given task.
+        Returns the list of supported architectures by the exporter for a given task. Transformers-specific.
         """
         return [
             model_type.replace("-", "_")
@@ -1217,7 +1259,7 @@ class TasksManager:
                 parameter is useful for example for "automatic-speech-recognition", that may map to
                 AutoModelForSpeechSeq2Seq or to AutoModelForCTC.
             library (`str`, defaults to `transformers`):
-                 The library name of the model.
+                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
 
         Returns:
             The AutoModel class corresponding to the task.
@@ -1559,7 +1601,7 @@ class TasksManager:
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
-        library_name: str = None,
+        library_name: Optional[str] = None,
     ):
         """
         Infers the library from the model repo.
@@ -1576,7 +1618,7 @@ class TasksManager:
             cache_dir (`Optional[str]`, *optional*):
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
             library_name (`Optional[str]`, *optional*):
-                 The library name of the model.
+                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
         Returns:
             `str`: The library name automatically detected from the model repo.
         """
@@ -1627,7 +1669,7 @@ class TasksManager:
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
-        library_name: str = None,
+        library_name: Optional[str] = None,
     ):
         """
         Updates the model for export. This function is suitable to make required changes to the models from different
@@ -1647,7 +1689,7 @@ class TasksManager:
             cache_dir (`Optional[str]`, *optional*):
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
             library_name (`Optional[str]`, *optional*)::
-                 The library name of the model.
+                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
         """
         library_name = TasksManager.infer_library_from_model(
             model_name_or_path, subfolder, revision, cache_dir, library_name
@@ -1677,17 +1719,18 @@ class TasksManager:
             with open(config_path) as fp:
                 model_type = json.load(fp)["architecture"]
 
-            setattr(model.config, "model_type", model_type)
+            # `model_type` is a class attribute in Transformers, let's avoid modifying it.
+            model.config.export_model_type = model_type
         elif library_name == "sentence_transformers":
             if "Transformer" in model[0].__class__.__name__:
                 model.config = model[0].auto_model.config
-                model.config.model_type = "sentence-transformers-transformer"
+                model.config.export_model_type = "transformer"
             elif "CLIP" in model[0].__class__.__name__:
                 model.config = model[0].model.config
-                model.config.model_type = "sentence-transformers-clip"
+                model.config.export_model_type = "clip"
             else:
                 raise ValueError(
-                    f"The export of a sentence-transformers model with the first module being {model[0].__class__.__name__} is currently not supported in Optimum. Please open an issue or submit a PR to add the support."
+                    f"The export of a sentence_transformers model with the first module being {model[0].__class__.__name__} is currently not supported in Optimum. Please open an issue or submit a PR to add the support."
                 )
 
     @staticmethod
@@ -1750,8 +1793,8 @@ class TasksManager:
                 Device to initialize the model on. PyTorch-only argument. For PyTorch, defaults to "cpu".
             model_kwargs (`Dict[str, Any]`, *optional*):
                 Keyword arguments to pass to the model `.from_pretrained()` method.
-            library_name (`Optional[str]`, *optional*):
-                 The library name of the model. See `TasksManager.infer_library_from_model` for the priority should
+            library_name (`Optional[str]`, defaults to `None`):
+                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers". See `TasksManager.infer_library_from_model` for the priority should
                 none be provided.
 
         Returns:
@@ -1840,7 +1883,7 @@ class TasksManager:
         model_type: Optional[str] = None,
         model_name: Optional[str] = None,
         exporter_config_kwargs: Optional[Dict[str, Any]] = None,
-        library_name: str = "transformers",
+        library_name: Optional[str] = None,
     ) -> ExportConfigConstructor:
         """
         Gets the `ExportConfigConstructor` for a model (or alternatively for a model type) and task combination.
@@ -1856,17 +1899,39 @@ class TasksManager:
                 The model type to retrieve the config for.
             model_name (`Optional[str]`, defaults to `None`):
                 The name attribute of the model object, only used for the exception message.
-            exporter_config_kwargs(`Optional[Dict[str, Any]]`, defaults to `None`):
+            exporter_config_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
                 Arguments that will be passed to the exporter config class when building the config constructor.
+            library_name (`Optional[str]`, defaults to `None`):
+                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
 
         Returns:
             `ExportConfigConstructor`: The `ExportConfig` constructor for the requested backend.
         """
+        if library_name is None:
+            logger.warning(
+                'Not passing the argument `library_name` to `get_supported_tasks_for_model_type` is deprecated and the support will be removed in a future version of Optimum. Please specify a `library_name`. Defaulting to `"transformers`.'
+            )
+
+            # We are screwed if different dictionaries have the same keys.
+            supported_model_type_for_library = {
+                **TasksManager._DIFFUSERS_SUPPORTED_MODEL_TYPE,
+                **TasksManager._TIMM_SUPPORTED_MODEL_TYPE,
+                **TasksManager._SENTENCE_TRANSFORMERS_SUPPORTED_MODEL_TYPE,
+                **TasksManager._SUPPORTED_MODEL_TYPE,
+            }
+            library_name = "transformers"
+        else:
+            supported_model_type_for_library = TasksManager._LIBRARY_TO_SUPPORTED_MODEL_TYPES[library_name]
+
         if model is None and model_type is None:
             raise ValueError("Either a model_type or model should be provided to retrieve the export config.")
 
         if model_type is None:
-            model_type = getattr(model.config, "model_type", model_type)
+            if hasattr(model.config, "export_model_type"):
+                # We can specifiy a custom `export_model_type` attribute in the config. Useful for timm, sentence_transformers
+                model_type = model.config.export_model_type
+            else:
+                model_type = getattr(model.config, "model_type", None)
 
             if model_type is None:
                 raise ValueError("Model type cannot be inferred. Please provide the model_type for the model!")
@@ -1890,10 +1955,10 @@ class TasksManager:
                     f" Supported tasks are: {', '.join(model_tasks.keys())}."
                 )
 
-        if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
+        if model_type not in supported_model_type_for_library:
             model_type = TasksManager._MODEL_TYPE_FOR_DEFAULT_CONFIG[library_name]
 
-        exporter_config_constructor = TasksManager._SUPPORTED_MODEL_TYPE[model_type][exporter][task]
+        exporter_config_constructor = supported_model_type_for_library[model_type][exporter][task]
         if exporter_config_kwargs is not None:
             exporter_config_constructor = partial(exporter_config_constructor, **exporter_config_kwargs)
 

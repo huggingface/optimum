@@ -347,12 +347,16 @@ def main_export(
         model_type = config.model_type.replace("_", "-")
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             custom_architecture = True
-        elif task not in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx"):
+        elif task not in TasksManager.get_supported_tasks_for_model_type(
+            model_type, "onnx", library_name=library_name
+        ):
             if original_task == "auto":
                 autodetected_message = " (auto-detected)"
             else:
                 autodetected_message = ""
-            model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter="onnx")
+            model_tasks = TasksManager.get_supported_tasks_for_model_type(
+                model_type, exporter="onnx", library_name=library_name
+            )
             raise ValueError(
                 f"Asked to export a {model_type} model for the task {task}{autodetected_message}, but the Optimum ONNX exporter only supports the tasks {', '.join(model_tasks.keys())} for {model_type}. Please use a supported task. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the task {task} to be supported in the ONNX export for {model_type}."
             )
@@ -379,7 +383,14 @@ def main_export(
     )
 
     is_stable_diffusion = "stable-diffusion" in task
-    model_type = "stable-diffusion" if is_stable_diffusion else model.config.model_type.replace("_", "-")
+
+    # TODO: What is this? This should be in tasks.py?
+    if is_stable_diffusion:
+        model_type = "stable-diffusion"
+    elif hasattr(model.config, "export_model_type"):
+        model_type = model.config.export_model_type.replace("_", "-")
+    else:
+        model_type = model.config.model_type.replace("_", "-")
 
     # For MODEL_TO_PATCH_FOR_PAST architectures, when exporting the model with an input of sequence length of 1, a tracer that does not handle
     # controlflows will trace incorrectly the mask generation, resulting in incorrect attention masks for other sequence lengthss.
