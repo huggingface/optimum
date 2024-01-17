@@ -492,13 +492,16 @@ def _onnx_export(
     dtype = model.dtype if library_name in {"transformers", "diffusers"} else model.config.torch_dtype
     float_dtype = "fp16" if "float16" in str(dtype) else "fp32"
 
-    task = TasksManager._infer_task_from_model_or_model_class(model)
+    # TODO : _infer_task_from_model_or_model_class should also infer task from timm model 
+    if library_name == "timm":
+        task = "image-classification"
+    else:
+        task = TasksManager._infer_task_from_model_or_model_class(model)
 
     if task.endswith("text-generation") and not monolith and model.config.use_cache:
         task += "with-past"
 
-    is_stable_diffusion = "stable-diffusion" in task
-    model_type = "stable-diffusion" if is_stable_diffusion else model.config.model_type.replace("_", "-")
+    model_type = "stable-diffusion" if library_name == "diffusers" else model.config.model_type.replace("_", "-")
     custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE
 
     if task.startswith("text-generation") and model.config.is_encoder_decoder:
@@ -513,7 +516,7 @@ def _onnx_export(
             f"legacy=True was specified in the ONNX export, although the model {model_type} requires position_ids for batched inference. Passing `legacy=True` is strongly discouraged, and this option will be removed in a future release. Reference: https://github.com/huggingface/optimum/pull/1381"
         )
 
-    if not is_stable_diffusion and model_type in TasksManager._UNSUPPORTED_CLI_MODEL_TYPE:
+    if library_name != "diffusers" and model_type in TasksManager._UNSUPPORTED_CLI_MODEL_TYPE:
         raise ValueError(
             f"{model_type} is not supported yet. Only {list(TasksManager._SUPPORTED_CLI_MODEL_TYPE.keys())} are supported. "
             f"If you want to support {model_type} please propose a PR or open up an issue."
@@ -559,7 +562,7 @@ def _onnx_export(
         model_kwargs=model_kwargs,
     )
 
-    if not is_stable_diffusion:
+    if library_name != "diffusers":
 
         # Ensure the requested opset is sufficient
         if opset is None:
@@ -634,7 +637,7 @@ def _onnx_export(
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating stable diffusion separately is quite ugly
-    if not no_post_process and not is_stable_diffusion:
+    if not no_post_process and library_name != "diffusers":
         try:
             logger.info("Post-processing the exported models...")
             models_and_onnx_configs, onnx_files_subpaths = onnx_config.post_process_exported_models(
@@ -645,7 +648,7 @@ def _onnx_export(
                 f"The post-processing of the ONNX export failed. The export can still be performed by passing the option --no-post-process. Detailed error: {e}"
             )
 
-    if is_stable_diffusion:
+    if library_name == "diffusers":
         use_subprocess = (
             False  # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
         )
