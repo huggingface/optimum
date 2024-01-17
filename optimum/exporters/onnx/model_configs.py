@@ -849,7 +849,7 @@ class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
 
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
-    DEFAULT_ONNX_OPSET = 14
+    DEFAULT_ONNX_OPSET = 12
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
