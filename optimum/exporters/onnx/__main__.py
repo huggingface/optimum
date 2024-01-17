@@ -490,7 +490,7 @@ def _onnx_export(
         task = TasksManager._infer_task_from_model_or_model_class(model)
 
     if task.endswith("text-generation") and not monolith and model.config.use_cache:
-        task += "with-past"
+        task += "-with-past"
 
     model_type = "stable-diffusion" if library_name == "diffusers" else model.config.model_type.replace("_", "-")
     custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE
