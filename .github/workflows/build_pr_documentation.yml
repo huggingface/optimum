@@ -5,6 +5,7 @@ name: Build PR documentation
 on:
   workflow_dispatch:
   pull_request_target:
+    branches: [ main ]
     types: [ opened, synchronize, reopened, labeled ]
     paths:
       - "optimum/**.py"
@@ -126,7 +127,7 @@ jobs:
         run: |
           sudo docker system prune -a -f
           cd optimum-amd
-          make doc BUILD_DIR=amd-doc-build VERSION=${{ env.VERSION }}
+          make doc BUILD_DIR=amd-doc-build VERSION=pr_$PR_NUMBER
           sudo mv amd-doc-build ../optimum
           cd ..
 
