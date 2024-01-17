@@ -488,6 +488,7 @@ def _onnx_export(
         task = "image-classification"
     else:
         task = TasksManager._infer_task_from_model_or_model_class(model)
+    task = TasksManager.map_from_synonym(task)
 
     if task.endswith("text-generation") and not monolith and model.config.use_cache:
         task += "-with-past"
