@@ -30,7 +30,6 @@ from ...utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ...utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from ..error_utils import AtolError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
-from .base import OnnxConfigWithPast
 from .constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED, UNPICKABLE_ARCHS
 from .convert import export_models, validate_models_outputs
 from .utils import (
@@ -292,14 +291,10 @@ def main_export(
     if (framework == "tf" and fp16 is True) or not is_torch_available():
         raise ValueError("The --fp16 option is supported only for PyTorch.")
 
-    if fp16:
-        if device == "cpu":
-            raise ValueError(
-                "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
-            )
-        float_dtype = "fp16"
-    else:
-        float_dtype = "fp32"
+    if fp16 and device == "cpu":
+        raise ValueError(
+            "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
+        )
 
     output = Path(output)
     if not output.exists():
@@ -459,12 +454,13 @@ def main_export(
         legacy=legacy,
         preprocessors=preprocessors,
         device=device,
+        no_dynamic_axes=no_dynamic_axes,
         **kwargs_shapes,
     )
 
 
 def _onnx_export(
-    model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+    model: Union["PreTrainedModel", "TFPreTrainedModel"],
     output: Union[str, Path],
     opset: Optional[int] = None,
     optimize: Optional[str] = None,
@@ -479,12 +475,11 @@ def _onnx_export(
     legacy: bool = False,
     preprocessors: List = None,
     device: str = "cpu",
+    no_dynamic_axes: bool = False,
     **kwargs_shapes,
 ):
     library_name = TasksManager.infer_library_from_model(model)
-
-    framework = "pt" if is_torch_available() and isinstance(model, torch.nn.Module) else "tf"
-
+    # framework = "pt" if is_torch_available() and isinstance(model, torch.nn.Module) else "tf"
     dtype = model.dtype if library_name in {"transformers", "diffusers"} else model.config.torch_dtype
     float_dtype = "fp16" if "float16" in str(dtype) else "fp32"
 
