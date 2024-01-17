@@ -46,7 +46,6 @@ if is_torch_available():
     import torch
     import torch.nn as nn
     from transformers.modeling_utils import PreTrainedModel
-    from transformers.pytorch_utils import is_torch_less_than_1_11
 
 if is_diffusers_available():
     from diffusers import ModelMixin
@@ -477,6 +476,7 @@ def export_pytorch(
     output: Path,
     device: str = "cpu",
     input_shapes: Optional[Dict] = None,
+    no_dynamic_axes: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -496,6 +496,8 @@ def export_pytorch(
             export on CUDA devices.
         input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
+        no_dynamic_axes (bool, defaults to `False`):
+            If True, disables the use of dynamic axes during ONNX export.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -543,62 +545,62 @@ def export_pytorch(
 
         dummy_inputs = config.rename_ambiguous_inputs(dummy_inputs)
 
-        # PyTorch deprecated the `enable_onnx_checker` and `use_external_data_format` arguments in v1.11,
-        # so we check the torch version for backwards compatibility
-        if is_torch_less_than_1_11:
-            raise RuntimeError("The ONNX export using the PyTorch framework is only supported for v1.11+")
-        else:
-            with config.patch_model_for_export(model, model_kwargs=model_kwargs):
-                check_dummy_inputs_are_allowed(model, dummy_inputs)
+        with config.patch_model_for_export(model, model_kwargs=model_kwargs):
+            check_dummy_inputs_are_allowed(model, dummy_inputs)
 
-                inputs = config.ordered_inputs(model)
-                input_names = list(inputs.keys())
-                output_names = list(config.outputs.keys())
+            inputs = config.ordered_inputs(model)
+            input_names = list(inputs.keys())
+            output_names = list(config.outputs.keys())
 
-                # Export can work with named args but the dict containing named args has to be the last element of the args
-                # tuple.
-                onnx_export(
-                    model,
-                    (dummy_inputs,),
-                    f=output.as_posix(),
-                    input_names=input_names,
-                    output_names=output_names,
-                    dynamic_axes=dict(chain(inputs.items(), config.outputs.items())),
-                    do_constant_folding=True,
-                    opset_version=opset,
-                )
+            if no_dynamic_axes:
+                dynamix_axes = None
+            else:
+                dynamix_axes = dict(chain(inputs.items(), config.outputs.items()))
 
-            # check if external data was exported
-            # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
-            onnx_model = onnx.load(str(output), load_external_data=False)
-            model_uses_external_data = check_model_uses_external_data(onnx_model)
+            # Export can work with named args but the dict containing named args has to be the last element of the args
+            # tuple.
+            onnx_export(
+                model,
+                (dummy_inputs,),
+                f=output.as_posix(),
+                input_names=input_names,
+                output_names=output_names,
+                dynamic_axes=dynamix_axes,
+                do_constant_folding=True,
+                opset_version=opset,
+            )
 
-            if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
-                tensors_paths = _get_onnx_external_data_tensors(onnx_model)
-                logger.info("Saving external data to one file...")
+        # check if external data was exported
+        # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
+        onnx_model = onnx.load(str(output), load_external_data=False)
+        model_uses_external_data = check_model_uses_external_data(onnx_model)
 
-                # try free model memory
-                del model
-                del onnx_model
-                gc.collect()
-                if device.type == "cuda" and torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+        if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
+            tensors_paths = _get_onnx_external_data_tensors(onnx_model)
+            logger.info("Saving external data to one file...")
 
-                onnx_model = onnx.load(
-                    str(output), load_external_data=True
-                )  # this will probably be too memory heavy for large models
-                onnx.save(
-                    onnx_model,
-                    str(output),
-                    save_as_external_data=True,
-                    all_tensors_to_one_file=True,
-                    location=output.name + "_data",
-                    size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0,
-                )
+            # try free model memory
+            del model
+            del onnx_model
+            gc.collect()
+            if device.type == "cuda" and torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
-                # delete previous external data
-                for tensor in tensors_paths:
-                    os.remove(output.parent / tensor)
+            onnx_model = onnx.load(
+                str(output), load_external_data=True
+            )  # this will probably be too memory heavy for large models
+            onnx.save(
+                onnx_model,
+                str(output),
+                save_as_external_data=True,
+                all_tensors_to_one_file=True,
+                location=output.name + "_data",
+                size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0,
+            )
+
+            # delete previous external data
+            for tensor in tensors_paths:
+                os.remove(output.parent / tensor)
 
     return input_names, output_names
 
@@ -687,6 +689,7 @@ def export_models(
     input_shapes: Optional[Dict] = None,
     disable_dynamic_axes_fix: Optional[bool] = False,
     dtype: Optional[str] = None,
+    no_dynamic_axes: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[List[str]], List[List[str]]]:
     """
@@ -713,6 +716,8 @@ def export_models(
             Whether to disable the default dynamic axes fixing.
         dtype (`Optional[str]`, defaults to `None`):
             Data type to remap the model inputs to. PyTorch-only. Only `fp16` is supported.
+        no_dynamic_axes (bool, defaults to `False`):
+            If True, disables the use of dynamic axes during ONNX export.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -746,6 +751,7 @@ def export_models(
                 input_shapes=input_shapes,
                 disable_dynamic_axes_fix=disable_dynamic_axes_fix,
                 dtype=dtype,
+                no_dynamic_axes=no_dynamic_axes,
                 model_kwargs=model_kwargs,
             )
         )
@@ -763,6 +769,7 @@ def export(
     input_shapes: Optional[Dict] = None,
     disable_dynamic_axes_fix: Optional[bool] = False,
     dtype: Optional[str] = None,
+    no_dynamic_axes: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -786,6 +793,8 @@ def export(
             Whether to disable the default dynamic axes fixing.
         dtype (`Optional[str]`, defaults to `None`):
             Data type to remap the model inputs to. PyTorch-only. Only `fp16` is supported.
+        no_dynamic_axes (bool, defaults to `False`):
+            If True, disables the use of dynamic axes during ONNX export.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -841,6 +850,7 @@ def export(
             output,
             device=device,
             input_shapes=input_shapes,
+            no_dynamic_axes=no_dynamic_axes,
             model_kwargs=model_kwargs,
         )
 
