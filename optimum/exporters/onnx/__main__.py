@@ -325,10 +325,11 @@ def main_export(
 
     framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
 
-    library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder=subfolder, library_name=library_name)
+    library_name = TasksManager.infer_library_from_model(
+        model_name_or_path, subfolder=subfolder, library_name=library_name
+    )
 
     torch_dtype = None if fp16 is False else torch.float16
-
 
     if task.endswith("-with-past") and monolith:
         task_non_past = task.replace("-with-past", "")
@@ -408,7 +409,11 @@ def main_export(
         **loading_kwargs,
     )
 
-    needs_pad_token_id = task == "text-classification" and getattr(model.config, "pad_token_id", None) and getattr(model.config, "is_decoder", False)
+    needs_pad_token_id = (
+        task == "text-classification"
+        and getattr(model.config, "pad_token_id", None)
+        and getattr(model.config, "is_decoder", False)
+    )
 
     if needs_pad_token_id:
         if pad_token_id is not None:
@@ -492,7 +497,7 @@ def _onnx_export(
     dtype = model.dtype if library_name in {"transformers", "diffusers"} else model.config.torch_dtype
     float_dtype = "fp16" if "float16" in str(dtype) else "fp32"
 
-    # TODO : _infer_task_from_model_or_model_class should also infer task from timm model 
+    # TODO : _infer_task_from_model_or_model_class should also infer task from timm model
     if library_name == "timm":
         task = "image-classification"
     else:
@@ -563,7 +568,6 @@ def _onnx_export(
     )
 
     if library_name != "diffusers":
-
         # Ensure the requested opset is sufficient
         if opset is None:
             opset = onnx_config.DEFAULT_ONNX_OPSET
