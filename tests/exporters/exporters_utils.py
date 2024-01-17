@@ -28,6 +28,11 @@ VALIDATE_EXPORT_ON_SHAPES_FAST = {
     "num_choices": [4],
 }
 
+NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS = {
+    "batch_size": [1, 3, 5],
+    "num_choices": [2, 4],
+    "sequence_length": [8, 33, 96],
+}
 
 PYTORCH_EXPORT_MODELS_TINY = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
@@ -324,4 +329,20 @@ PYTORCH_TIMM_MODEL = {
 PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
     "sentence-transformers-clip": "sentence-transformers/all-MiniLM-L6-v2",
     "sentence-transformers-transformer": "sentence-transformers/clip-ViT-B-32-multilingual-v1",
+}
+
+
+PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES = {
+    "albert": "hf-internal-testing/tiny-random-AlbertModel",
+    "gpt2": "hf-internal-testing/tiny-random-gpt2",
+    "roberta": "hf-internal-testing/tiny-random-RobertaModel",
+    "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
+}
+
+
+PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES = {
+    "default-timm-config": {
+        "timm/ese_vovnet39b.ra_in1k": ["image-classification"],
+        "timm/ese_vovnet19b_dw.ra_in1k": ["image-classification"],
+    }
 }

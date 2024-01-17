@@ -190,6 +190,7 @@ def main_export(
     _variant: str = "default",
     library_name: Optional[str] = None,
     legacy: bool = False,
+    no_dynamic_axes: bool = False,
     **kwargs_shapes,
 ):
     """
@@ -270,6 +271,8 @@ def main_export(
             The library of the model (`"transformers"` or `"diffusers"` or `"timm"` or `"sentence_transformers"`). If not provided, will attempt to automatically detect the library name for the checkpoint.
         legacy (`bool`, defaults to `False`):
             Disable the use of position_ids for text-generation models that require it for batched generation. Also enable to export decoder only models in three files (without + with past and the merged model). This argument is introduced for backward compatibility and will be removed in a future release of Optimum.
+        no_dynamic_axes (bool, defaults to `False`):
+            If True, disables the use of dynamic axes during ONNX export.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -556,6 +559,7 @@ def main_export(
         input_shapes=input_shapes,
         device=device,
         dtype="fp16" if fp16 is True else None,
+        no_dynamic_axes=no_dynamic_axes,
         model_kwargs=model_kwargs,
     )
 
