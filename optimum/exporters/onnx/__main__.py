@@ -61,18 +61,6 @@ logger = logging.get_logger()
 logger.setLevel(logging.INFO)
 
 
-def infer_library_from_model(model):
-    if hasattr(model.config, "pretrained_cfg") or hasattr(model.config, "architecture"):
-        library_name = "timm"
-    elif hasattr(model.config, "_diffusers_version"):
-        library_name = "diffusers"
-    elif hasattr(model, "_model_config"):  # model._get_name "SentenceTransformer"
-        library_name = "sentence_transformers"
-    else:
-        library_name = "transformers"
-    return library_name
-
-
 def _get_submodels_and_onnx_configs(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
     task: str,
@@ -446,8 +434,8 @@ def main_export(
                 f" if needed, please pass `--task {task}-with-past` to export using the past key values."
             )
 
-    if task.endswith("with-past"):
-        model.config.use_cache = True
+    if task.startswith("text-generation"):
+        model.config.use_cache = task.endswith("with-past")
 
     # The preprocessors are loaded as they may be useful to export the model. Notably, some of the static input shapes may be stored in the
     # preprocessors config.
@@ -493,7 +481,7 @@ def _onnx_export(
     device: str = "cpu",
     **kwargs_shapes,
 ):
-    library_name = infer_library_from_model(model)
+    library_name = TasksManager.infer_library_from_model(model)
 
     framework = "pt" if is_torch_available() and isinstance(model, torch.nn.Module) else "tf"
 
