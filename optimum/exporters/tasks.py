@@ -1508,7 +1508,9 @@ class TasksManager:
 
         if is_local:
             # TODO: maybe implement that.
-            raise RuntimeError("Cannot infer the task from a local directory yet, please specify the task manually.")
+            raise RuntimeError(
+                f"Cannot infer the task from a local directory yet, please specify the task manually ({', '.join(TasksManager.get_all_tasks())})."
+            )
         else:
             if subfolder != "":
                 raise RuntimeError(
@@ -1649,10 +1651,13 @@ class TasksManager:
                     library_name = "timm"
                 elif hasattr(model_config, "_diffusers_version"):
                     library_name = "diffusers"
-                elif any(file_path.startswith("sentence_") for file_path in all_files):
-                    library_name = "sentence_transformers"
-                else:
-                    library_name = "transformers"
+            elif (
+                any(file_path.startswith("sentence_") for file_path in all_files)
+                or "config_sentence_transformers.json" in all_files
+            ):
+                library_name = "sentence_transformers"
+            else:
+                library_name = "transformers"
 
         if library_name is None:
             raise ValueError(
