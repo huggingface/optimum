@@ -394,7 +394,7 @@ class OptimizedModel(PreTrainedModel):
         elif export and trust_remote_code is None:
             trust_remote_code = False
 
-        from_pretrained_method = cls._export if export else cls._from_pretrained
+        from_pretrained_method = cls._from_transformers if export else cls._from_pretrained
 
         return from_pretrained_method(
             model_id=model_id,

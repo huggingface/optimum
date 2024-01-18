@@ -370,7 +370,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         )
 
     @classmethod
-    def _export(
+    def _from_transformers(
         cls,
         model_id: str,
         config: Optional[str] = None,
