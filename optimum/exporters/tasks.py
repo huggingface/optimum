@@ -1557,7 +1557,7 @@ class TasksManager:
     def _infer_library_from_model(model: Union["PreTrainedModel", "TFPreTrainedModel"]):
         if hasattr(model.config, "pretrained_cfg") or hasattr(model.config, "architecture"):
             library_name = "timm"
-        elif hasattr(model.config, "_diffusers_version") or getattr(model, "config_name") == "model_index.json":
+        elif hasattr(model.config, "_diffusers_version") or getattr(model, "config_name", "") == "model_index.json":
             library_name = "diffusers"
         elif hasattr(model, "_model_config"):
             library_name = "sentence_transformers"
