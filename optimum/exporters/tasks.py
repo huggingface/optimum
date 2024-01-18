@@ -1449,8 +1449,9 @@ class TasksManager:
             if auto_cls is None:
                 continue
             model_mapping = auto_cls._model_mapping._model_mapping
+            flatten = lambda val: sum(map(flatten, val), []) if isinstance(val, (tuple, list)) else [val.lower()]
             # Lowercase to avoid mismatch between MptForCausalLM and MPTForCausalLM
-            if target_name.lower() in (mapping.lower() for mapping in model_mapping.values()):
+            if target_name.lower() in flatten(list(model_mapping.values())):
                 task_name = task
                 break
         if task_name is None:
