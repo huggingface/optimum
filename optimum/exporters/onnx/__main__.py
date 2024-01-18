@@ -314,7 +314,6 @@ def main_export(
     library_name = TasksManager.infer_library_from_model(
         model_name_or_path, subfolder=subfolder, library_name=library_name
     )
-
     torch_dtype = None if fp16 is False else torch.float16
 
     if task.endswith("-with-past") and monolith:
@@ -345,6 +344,7 @@ def main_export(
             possible_synonyms = ""
         logger.info(f"Automatic task detection to {task}{possible_synonyms}.")
 
+    custom_architecture = False
     loading_kwargs = {}
     if library_name == "transformers":
         config = AutoConfig.from_pretrained(
@@ -359,17 +359,14 @@ def main_export(
         )
         model_type = config.model_type.replace("_", "-")
 
-        if model_type not in TasksManager._SUPPORTED_MODEL_TYPE and original_task == "auto":
-            raise ValueError(
-                f'Automatic task detection is not supported with custom architectures. Please specify the `task` argument. Suggestion: task="{task}" (or task="{task}-with-past" if the model is decoder-based and supports KV cache)'
-            )
-
-        model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter="onnx")
-        if model_type in TasksManager._SUPPORTED_MODEL_TYPE and task not in model_tasks:
+        if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
+            custom_architecture = True
+        elif task not in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx"):
             if original_task == "auto":
                 autodetected_message = " (auto-detected)"
             else:
                 autodetected_message = ""
+            model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter="onnx")
             raise ValueError(
                 f"Asked to export a {model_type} model for the task {task}{autodetected_message}, but the Optimum ONNX exporter only supports the tasks {', '.join(model_tasks.keys())} for {model_type}. Please use a supported task. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the task {task} to be supported in the ONNX export for {model_type}."
             )
@@ -414,23 +411,25 @@ def main_export(
                 )
 
     model_type = "stable-diffusion" if "stable-diffusion" in task else model.config.model_type.replace("_", "-")
-
     if (
-        model_type in TasksManager._SUPPORTED_MODEL_TYPE
-        and not monolith
+        not custom_architecture
+        and library_name != "diffusers"
         and task + "-with-past"
         in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx", library_name=library_name)
     ):
-        if original_task == "auto":  # Make -with-past the default if --task was not explicitely specified
+        if (
+            original_task == "auto" and not monolith
+        ):  # Make -with-past the default if --task was not explicitely specified
             task = task + "-with-past"
         else:
             logger.info(
                 f"The task `{task}` was manually specified, and past key values will not be reused in the decoding."
                 f" if needed, please pass `--task {task}-with-past` to export using the past key values."
             )
+            model.config.use_cache = False
 
-    if task.startswith("text-generation"):
-        model.config.use_cache = task.endswith("with-past")
+    if task.endswith("with-past"):
+        model.config.use_cache = True
 
     # The preprocessors are loaded as they may be useful to export the model. Notably, some of the static input shapes may be stored in the
     # preprocessors config.
@@ -438,7 +437,7 @@ def main_export(
         model_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code
     )
 
-    _onnx_export(
+    _export(
         model=model,
         output=output,
         opset=opset,
@@ -459,7 +458,7 @@ def main_export(
     )
 
 
-def _onnx_export(
+def _export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
     output: Union[str, Path],
     opset: Optional[int] = None,
@@ -482,6 +481,14 @@ def _onnx_export(
     # framework = "pt" if is_torch_available() and isinstance(model, torch.nn.Module) else "tf"
     dtype = model.dtype if library_name in {"transformers", "diffusers"} else model.config.torch_dtype
     float_dtype = "fp16" if "float16" in str(dtype) else "fp32"
+    model_type = "stable-diffusion" if library_name == "diffusers" else model.config.model_type.replace("_", "-")
+    custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE
+
+    # TODO: support onnx_config.py in the model repo
+    if custom_architecture and custom_onnx_configs is None:
+        raise ValueError(
+            f"Trying to export a {model.config.model_type} model, that is a custom or unsupported architecture, but no custom onnx configuration was passed as `custom_onnx_configs`. Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models for an example on how to export custom models. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the model type {model.config.model_type} to be supported natively in the ONNX export."
+        )
 
     # TODO : _infer_task_from_model_or_model_class should also infer task from timm model
     if library_name == "timm":
@@ -490,11 +497,14 @@ def _onnx_export(
         task = TasksManager._infer_task_from_model_or_model_class(model)
     task = TasksManager.map_from_synonym(task)
 
-    if task.endswith("text-generation") and not monolith and model.config.use_cache:
+    if (
+        library_name != "diffusers"
+        and task + "-with-past"
+        in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx", library_name=library_name)
+        and not monolith
+        and model.config.use_cache
+    ):
         task += "-with-past"
-
-    model_type = "stable-diffusion" if library_name == "diffusers" else model.config.model_type.replace("_", "-")
-    custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE
 
     if task.startswith("text-generation") and model.config.is_encoder_decoder:
         raise ValueError(
@@ -512,12 +522,6 @@ def _onnx_export(
         raise ValueError(
             f"{model_type} is not supported yet. Only {list(TasksManager._SUPPORTED_CLI_MODEL_TYPE.keys())} are supported. "
             f"If you want to support {model_type} please propose a PR or open up an issue."
-        )
-
-    # TODO: support onnx_config.py in the model repo
-    if custom_architecture and custom_onnx_configs is None:
-        raise ValueError(
-            f"Trying to export a {model.config.model_type} model, that is a custom or unsupported architecture for the task {task}, but no custom onnx configuration was passed as `custom_onnx_configs`. Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models for an example on how to export custom models. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the model type {model.config.model_type} to be supported natively in the ONNX export."
         )
 
     # For MODEL_TO_PATCH_FOR_PAST architectures, when exporting the model with an input of sequence length of 1, a tracer that does not handle
