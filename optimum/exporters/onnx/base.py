@@ -539,13 +539,14 @@ class OnnxConfig(ExportConfig, ABC):
             if is_accelerate_available():
                 logger.info("Deduplicating shared (tied) weights...")
                 for subpath, key in zip(onnx_files_subpaths, models_and_onnx_configs):
-                    onnx_model = onnx.load(os.path.join(path, subpath))
-
                     torch_model = models_and_onnx_configs[key][0]
                     tied_params = find_tied_parameters(torch_model)
-                    remove_duplicate_weights_from_tied_info(
-                        onnx_model, torch_model, tied_params, save_path=os.path.join(path, subpath)
-                    )
+
+                    if len(tied_params) > 0:
+                        onnx_model = onnx.load(os.path.join(path, subpath))
+                        remove_duplicate_weights_from_tied_info(
+                            onnx_model, torch_model, tied_params, save_path=os.path.join(path, subpath)
+                        )
             else:
                 logger.warning(
                     "Weight deduplication check in the ONNX export requires accelerate. Please install accelerate to run it."
