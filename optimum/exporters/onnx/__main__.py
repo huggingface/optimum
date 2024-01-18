@@ -437,7 +437,7 @@ def main_export(
         model_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code
     )
 
-    _export(
+    onnx_export(
         model=model,
         output=output,
         opset=opset,
@@ -458,7 +458,7 @@ def main_export(
     )
 
 
-def _export(
+def onnx_export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
     output: Union[str, Path],
     opset: Optional[int] = None,
