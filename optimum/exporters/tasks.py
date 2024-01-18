@@ -1553,29 +1553,8 @@ class TasksManager:
 
         return task
 
-    @classmethod
-    def infer_library_from_model(
-        cls,
-        model: Union[str, Path, "PreTrainedModel", "TFPreTrainedModel"],
-        subfolder: str = "",
-        revision: Optional[str] = None,
-        cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
-        library_name: str = None,
-    ) -> str:
-        if library_name is not None:
-            return library_name
-
-        if isinstance(model, (str, Path)):
-            library_name = cls._infer_library_from_model_name_or_path(
-                model, subfolder=subfolder, revision=revision, cache_dir=cache_dir
-            )
-        else:
-            library_name = cls._infer_library_from_model(model)
-
-        return library_name
-
-    @classmethod
-    def _infer_library_from_model(cls, model: Union["PreTrainedModel", "TFPreTrainedModel"]):
+    @staticmethod
+    def _infer_library_from_model(model: Union["PreTrainedModel", "TFPreTrainedModel"]):
         if hasattr(model.config, "pretrained_cfg") or hasattr(model.config, "architecture"):
             library_name = "timm"
         elif hasattr(model.config, "_diffusers_version") or getattr(model, "config_name") == "model_index.json":
@@ -1587,12 +1566,13 @@ class TasksManager:
         return library_name
 
     @classmethod
-    def _infer_library_from_model_name_or_path(
+    def infer_library_from_model(
         cls,
         model_name_or_path: Union[str, Path],
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
+        library_name: str = None,
     ):
         """
         Infers the library from the model repo.
@@ -1608,10 +1588,14 @@ class TasksManager:
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
             cache_dir (`Optional[str]`, *optional*):
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            library_name (`Optional[str]`, *optional*):
+                 The library name of the model.
         Returns:
             `str`: The library name automatically detected from the model repo.
         """
-        library_name = None
+        if library_name is not None:
+            return library_name
+
         full_model_path = Path(model_name_or_path) / subfolder
 
         if not full_model_path.is_dir():
