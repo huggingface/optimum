@@ -563,8 +563,9 @@ def onnx_export(
         if opset is None:
             opset = onnx_config.DEFAULT_ONNX_OPSET
         elif opset < onnx_config.DEFAULT_ONNX_OPSET:
-            raise ValueError(
-                f"Opset {opset} is not sufficient to export {model_type}. At least {onnx_config.DEFAULT_ONNX_OPSET} is required."
+            logger.warning(
+                f"Opset {opset} is lower than the recommended minmum opset ({onnx_config.DEFAULT_ONNX_OPSET}) to export {model_type}. "
+                f"The ONNX export may fail or the exported model may be suboptimal."
             )
         if atol is None:
             atol = onnx_config.ATOL_FOR_VALIDATION
