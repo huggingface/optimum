@@ -42,7 +42,6 @@ jobs:
         with:
           repository: 'huggingface/optimum'
           path: optimum
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - uses: actions/checkout@v2
         with:
