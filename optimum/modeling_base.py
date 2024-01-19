@@ -291,7 +291,6 @@ class OptimizedModel(PreTrainedModel):
         )
 
     @classmethod
-    @abstractmethod
     def _export(
         cls,
         model_id: Union[str, Path],
