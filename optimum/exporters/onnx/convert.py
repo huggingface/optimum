@@ -487,6 +487,7 @@ def export_pytorch(
     device: str = "cpu",
     dtype: Optional["torch.dtype"] = None,
     input_shapes: Optional[Dict] = None,
+    no_dynamic_axes: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -508,6 +509,8 @@ def export_pytorch(
             Data type to remap the model inputs to. PyTorch-only. Only `torch.float16` is supported.
         input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
+        no_dynamic_axes (bool, defaults to `False`):
+            If True, disables the use of dynamic axes during ONNX export.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -562,6 +565,11 @@ def export_pytorch(
             input_names = list(inputs.keys())
             output_names = list(config.outputs.keys())
 
+            if no_dynamic_axes:
+                dynamix_axes = None
+            else:
+                dynamix_axes = dict(chain(inputs.items(), config.outputs.items()))
+
             # Export can work with named args but the dict containing named args has to be the last element of the args
             # tuple.
             onnx_export(
@@ -570,7 +578,7 @@ def export_pytorch(
                 f=output.as_posix(),
                 input_names=input_names,
                 output_names=output_names,
-                dynamic_axes=dict(chain(inputs.items(), config.outputs.items())),
+                dynamic_axes=dynamix_axes,
                 do_constant_folding=True,
                 opset_version=opset,
             )
@@ -694,6 +702,7 @@ def export_models(
     input_shapes: Optional[Dict] = None,
     disable_dynamic_axes_fix: Optional[bool] = False,
     dtype: Optional[str] = None,
+    no_dynamic_axes: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[List[str]], List[List[str]]]:
     """
@@ -720,6 +729,8 @@ def export_models(
             Whether to disable the default dynamic axes fixing.
         dtype (`Optional[str]`, defaults to `None`):
             Data type to remap the model inputs to. PyTorch-only. Only `fp16` is supported.
+        no_dynamic_axes (bool, defaults to `False`):
+            If True, disables the use of dynamic axes during ONNX export.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -753,6 +764,7 @@ def export_models(
                 input_shapes=input_shapes,
                 disable_dynamic_axes_fix=disable_dynamic_axes_fix,
                 dtype=dtype,
+                no_dynamic_axes=no_dynamic_axes,
                 model_kwargs=model_kwargs,
             )
         )
@@ -770,6 +782,7 @@ def export(
     input_shapes: Optional[Dict] = None,
     disable_dynamic_axes_fix: Optional[bool] = False,
     dtype: Optional[str] = None,
+    no_dynamic_axes: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -793,6 +806,8 @@ def export(
             Whether to disable the default dynamic axes fixing.
         dtype (`Optional[str]`, defaults to `None`):
             Data type to remap the model inputs to. PyTorch-only. Only `fp16` is supported.
+        no_dynamic_axes (bool, defaults to `False`):
+            If True, disables the use of dynamic axes during ONNX export.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -855,6 +870,7 @@ def export(
             device=device,
             input_shapes=input_shapes,
             dtype=torch_dtype,
+            no_dynamic_axes=no_dynamic_axes,
             model_kwargs=model_kwargs,
         )
 
