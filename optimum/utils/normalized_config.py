@@ -185,6 +185,7 @@ class NormalizedConfigManager:
     TODO: missing normalized configs (currently not useful)
         ['beit',
         'clip',
+        'clipseg',
         'convbert',
         'convnext',
         'convnextv2',

@@ -414,6 +414,11 @@ class TasksManager:
             "feature-extraction",
             onnx="CLIPTextWithProjectionOnnxConfig",
         ),
+        "clipseg": supported_tasks_mapping(
+            "feature-extraction",
+            "image-segmentation",
+            onnx="CLIPSegOnnxConfig",
+        ),
         "codegen": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",

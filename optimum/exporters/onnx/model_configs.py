@@ -937,6 +937,62 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
         return dummy_inputs
 
 
+class CLIPSegDummyInputGenerator(DummyVisionInputGenerator):
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedVisionConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
+        width: int = DEFAULT_DUMMY_SHAPES["width"],
+        height: int = DEFAULT_DUMMY_SHAPES["height"],
+        **kwargs,
+    ):
+        super().__init__(
+            task=task,
+            normalized_config=normalized_config,
+            batch_size=batch_size,
+            num_channels=num_channels,
+            width=width,
+            height=height,
+            **kwargs,
+        )
+
+        from transformers.onnx.utils import get_preprocessor
+
+        image_processor = get_preprocessor(normalized_config._name_or_path).image_processor
+        if image_processor is not None and hasattr(image_processor, "size"):
+            self.height = image_processor.size.get("height", self.height)
+            self.width = image_processor.size.get("width", self.width)
+
+
+class CLIPSegNormalizedConfig(NormalizedTextAndVisionConfig):
+    TEXT_CONFIG = "text_config"
+    VISION_CONFIG = "vision_config"
+
+
+class CLIPSegOnnxConfig(TextAndVisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = CLIPSegNormalizedConfig
+    DEFAULT_ONNX_OPSET = 14
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        CLIPSegDummyInputGenerator,
+    ) + TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+            "pixel_values": {0: "image_batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "logits": {0: "num_queries"},
+        }
+
+
 class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
