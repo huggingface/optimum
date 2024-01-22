@@ -171,6 +171,8 @@ class GPTQTest(unittest.TestCase):
 class GPTQTestCPUInit(GPTQTest):
     device_map_for_quantization = "cpu"
 
+    def test_generate_quality(self):
+        self.check_inference_correctness(self.quantized_model.to(0))
 
 class GPTQTestExllama(GPTQTest):
     disable_exllama = False
