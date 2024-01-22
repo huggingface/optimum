@@ -43,6 +43,7 @@ from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTE
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
 from optimum.exporters.onnx.utils import get_speecht5_models_for_export
 from optimum.utils import ONNX_WEIGHTS_NAME, DummyPastKeyValuesGenerator, NormalizedTextConfig
+from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
 from ..exporters_utils import (
@@ -613,7 +614,7 @@ class OnnxExportModelTest(TestCase):
         else:
             config = AutoConfig.from_pretrained(model_name)
             model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
-            model = model_class.from_config(config, **loading_kwargs)
+            model = model_class.from_pretrained(model_name, **loading_kwargs)
 
         # Dynamic axes aren't supported for YOLO-like models. This means they cannot be exported to ONNX on CUDA devices.
         # See: https://github.com/ultralytics/yolov5/pull/8378
@@ -625,6 +626,11 @@ class OnnxExportModelTest(TestCase):
         else:
             model_kwargs = None
 
+        if model.config.model_type == "pix2struct":
+            preprocessors = maybe_load_preprocessors(model_name)
+        else:
+            preprocessors = None
+
         with TemporaryDirectory() as tmpdirname:
             onnx_export(
                 model=model,
@@ -633,6 +639,7 @@ class OnnxExportModelTest(TestCase):
                 do_validation=True,
                 model_kwargs=model_kwargs,
                 device=device,
+                preprocessors=preprocessors,
                 task=task,
             )
 
