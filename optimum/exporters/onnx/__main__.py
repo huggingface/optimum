@@ -479,7 +479,6 @@ def onnx_export(
     task: Optional[str] = None,
     **kwargs_shapes,
 ):
-
     library_name = TasksManager._infer_library_from_model(model)
     # framework = "pt" if is_torch_available() and isinstance(model, torch.nn.Module) else "tf"
     dtype = model.dtype if library_name in {"transformers", "diffusers"} else model.config.torch_dtype
