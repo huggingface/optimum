@@ -54,7 +54,7 @@ class GPTQTest(unittest.TestCase):
     exllama_config = None
     cache_block_outputs = True
     modules_to_quantize_inside_block = None
-
+    device_map_for_quantization = {"": 0}
     dataset = [
         "auto-gptq is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
     ]
@@ -66,7 +66,7 @@ class GPTQTest(unittest.TestCase):
         Setup quantized model
         """
         cls.model_fp16 = AutoModelForCausalLM.from_pretrained(
-            cls.model_name, torch_dtype=torch.float16, device_map={"": 0}
+            cls.model_name, torch_dtype=torch.float16, device_map=cls.device_map_for_quantization
         )
         cls.mem_fp16 = cls.model_fp16.get_memory_footprint()
 
@@ -166,6 +166,10 @@ class GPTQTest(unittest.TestCase):
             _ = AutoGPTQForCausalLM.from_quantized(tmpdirname)
 
             self.check_inference_correctness(quantized_model_from_saved)
+
+
+class GPTQTestCPUInit(GPTQTest):
+    device_map_for_quantization = "cpu"
 
 
 class GPTQTestExllama(GPTQTest):
