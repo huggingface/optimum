@@ -454,6 +454,7 @@ def main_export(
         preprocessors=preprocessors,
         device=device,
         no_dynamic_axes=no_dynamic_axes,
+        task=task,
         **kwargs_shapes,
     )
 
@@ -475,8 +476,10 @@ def onnx_export(
     preprocessors: List = None,
     device: str = "cpu",
     no_dynamic_axes: bool = False,
+    task: Optional[str] = None,
     **kwargs_shapes,
 ):
+
     library_name = TasksManager._infer_library_from_model(model)
     # framework = "pt" if is_torch_available() and isinstance(model, torch.nn.Module) else "tf"
     dtype = model.dtype if library_name in {"transformers", "diffusers"} else model.config.torch_dtype
@@ -490,11 +493,12 @@ def onnx_export(
             f"Trying to export a {model.config.model_type} model, that is a custom or unsupported architecture, but no custom onnx configuration was passed as `custom_onnx_configs`. Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models for an example on how to export custom models. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the model type {model.config.model_type} to be supported natively in the ONNX export."
         )
 
-    # TODO : _infer_task_from_model_or_model_class should also infer task from timm model
-    if library_name == "timm":
-        task = "image-classification"
-    else:
-        task = TasksManager._infer_task_from_model_or_model_class(model)
+    if task is None:
+        # TODO : _infer_task_from_model_or_model_class should also infer task from timm model
+        if library_name == "timm":
+            task = "image-classification"
+        else:
+            task = TasksManager._infer_task_from_model_or_model_class(model)
     task = TasksManager.map_from_synonym(task)
 
     if (
