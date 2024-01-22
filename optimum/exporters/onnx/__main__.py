@@ -486,6 +486,7 @@ def onnx_export(
     float_dtype = "fp16" if "float16" in str(dtype) else "fp32"
     model_type = "stable-diffusion" if library_name == "diffusers" else model.config.model_type.replace("_", "-")
     custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE
+    task = TasksManager.map_from_synonym(task)
 
     # TODO: support onnx_config.py in the model repo
     if custom_architecture and custom_onnx_configs is None:
@@ -499,16 +500,15 @@ def onnx_export(
             task = "image-classification"
         else:
             task = TasksManager._infer_task_from_model_or_model_class(model)
-    task = TasksManager.map_from_synonym(task)
 
-    if (
-        library_name != "diffusers"
-        and task + "-with-past"
-        in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx", library_name=library_name)
-        and not monolith
-        and model.config.use_cache
-    ):
-        task += "-with-past"
+        if (
+            library_name != "diffusers"
+            and task + "-with-past"
+            in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx", library_name=library_name)
+            and not monolith
+            and model.config.use_cache
+        ):
+            task += "-with-past"
 
     if task.startswith("text-generation") and model.config.is_encoder_decoder:
         raise ValueError(
