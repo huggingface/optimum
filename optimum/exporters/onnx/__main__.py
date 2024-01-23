@@ -454,6 +454,7 @@ def main_export(
         device=device,
         no_dynamic_axes=no_dynamic_axes,
         task=task,
+        use_subprocess=use_subprocess,
         **kwargs_shapes,
     )
 
@@ -476,6 +477,7 @@ def onnx_export(
     device: str = "cpu",
     no_dynamic_axes: bool = False,
     task: Optional[str] = None,
+    use_subprocess: bool = False,
     **kwargs_shapes,
 ):
     library_name = TasksManager._infer_library_from_model(model)
@@ -647,9 +649,8 @@ def onnx_export(
             )
 
     if library_name == "diffusers":
-        use_subprocess = (
-            False  # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
-        )
+        # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
+        use_subprocess = False
     elif model.config.model_type in UNPICKABLE_ARCHS:
         # Pickling is bugged for nn.utils.weight_norm: https://github.com/pytorch/pytorch/issues/102983
         # TODO: fix "Cowardly refusing to serialize non-leaf tensor" error for wav2vec2-conformer
