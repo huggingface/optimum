@@ -417,9 +417,8 @@ def main_export(
         and task + "-with-past"
         in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx", library_name=library_name)
     ):
-        if (
-            original_task == "auto" and not monolith
-        ):  # Make -with-past the default if --task was not explicitely specified
+        # Make -with-past the default if --task was not explicitely specified
+        if original_task == "auto" and not monolith:
             task = task + "-with-past"
         else:
             logger.info(
