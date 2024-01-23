@@ -647,7 +647,7 @@ class OnnxExportModelTest(TestCase):
     @require_torch
     @require_vision
     @slow
-    def test_pytorch_export(
+    def test_pytorch_export_on_cpu(
         self,
         test_name,
         model_type,
@@ -666,4 +666,32 @@ class OnnxExportModelTest(TestCase):
             task,
             monolith,
             device="cpu",
+        )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_torch
+    @require_vision
+    @require_torch_gpu
+    @slow
+    @pytest.mark.run_slow
+    @pytest.mark.gpu_test
+    def test_pytorch_export_on_cuda(
+        self,
+        test_name,
+        model_type,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        monolith,
+    ):
+        if model_type == "speecht5" and monolith:
+            self.skipTest("unsupported export")
+
+        self._onnx_export(
+            test_name,
+            model_type,
+            model_name,
+            task,
+            monolith,
+            device="cuda",
         )
