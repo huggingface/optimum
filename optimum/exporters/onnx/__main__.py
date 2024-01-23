@@ -21,6 +21,7 @@ from pathlib import Path
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, AutoTokenizer
+from transformers.modeling_utils import get_parameter_dtype
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
@@ -481,7 +482,7 @@ def onnx_export(
     **kwargs_shapes,
 ):
     library_name = TasksManager._infer_library_from_model(model)
-    dtype = model.dtype if library_name in {"transformers", "diffusers"} else model.config.torch_dtype
+    dtype = model.dtype if library_name in {"transformers", "diffusers"} else get_parameter_dtype(model)
     float_dtype = "fp16" if "float16" in str(dtype) else "fp32"
     model_type = "stable-diffusion" if library_name == "diffusers" else model.config.model_type.replace("_", "-")
     custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE
