@@ -646,6 +646,7 @@ class OnnxExportModelTest(TestCase):
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
+    @slow
     def test_pytorch_export(
         self,
         test_name,
