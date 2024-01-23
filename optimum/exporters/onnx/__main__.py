@@ -335,15 +335,6 @@ def main_export(
                 f"The task could not be automatically inferred as this is available only for models hosted on the Hugging Face Hub. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
-    if original_task == "auto":
-        synonyms_for_task = sorted(TasksManager.synonyms_for_task(task))
-        if synonyms_for_task:
-            synonyms_for_task = ", ".join(synonyms_for_task)
-            possible_synonyms = f" (possible synonyms are: {synonyms_for_task})"
-        else:
-            possible_synonyms = ""
-        logger.info(f"Automatic task detection to {task}{possible_synonyms}.")
-
     custom_architecture = False
     loading_kwargs = {}
     if library_name == "transformers":
@@ -429,6 +420,15 @@ def main_export(
 
     if task.endswith("with-past"):
         model.config.use_cache = True
+
+    if original_task == "auto":
+        synonyms_for_task = sorted(TasksManager.synonyms_for_task(task))
+        if synonyms_for_task:
+            synonyms_for_task = ", ".join(synonyms_for_task)
+            possible_synonyms = f" (possible synonyms are: {synonyms_for_task})"
+        else:
+            possible_synonyms = ""
+        logger.info(f"Automatic task detection to {task}{possible_synonyms}.")
 
     # The preprocessors are loaded as they may be useful to export the model. Notably, some of the static input shapes may be stored in the
     # preprocessors config.
