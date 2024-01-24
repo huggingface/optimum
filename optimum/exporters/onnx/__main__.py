@@ -297,10 +297,6 @@ def main_export(
             "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
         )
 
-    output = Path(output)
-    if not output.exists():
-        output.mkdir(parents=True)
-
     if for_ort:
         logger.warning(
             "The option --for-ort was passed, but its behavior is now the default in the ONNX exporter"
@@ -528,6 +524,10 @@ def onnx_export(
             f"{model_type} is not supported yet. Only {list(TasksManager._SUPPORTED_CLI_MODEL_TYPE.keys())} are supported. "
             f"If you want to support {model_type} please propose a PR or open up an issue."
         )
+
+    output = Path(output)
+    if not output.exists():
+        output.mkdir(parents=True)
 
     # For MODEL_TO_PATCH_FOR_PAST architectures, when exporting the model with an input of sequence length of 1, a tracer that does not handle
     # controlflows will trace incorrectly the mask generation, resulting in incorrect attention masks for other sequence lengthss.
