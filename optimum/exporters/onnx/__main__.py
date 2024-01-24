@@ -482,7 +482,8 @@ def onnx_export(
     **kwargs_shapes,
 ):
     library_name = TasksManager._infer_library_from_model(model)
-    dtype = model.dtype if library_name in {"transformers", "diffusers"} else get_parameter_dtype(model)
+    framework = "pt" if is_torch_available() and isinstance(model, torch.nn.Module) else "tf"
+    dtype = get_parameter_dtype(model) if framework == "pt" else model.dtype
     float_dtype = "fp16" if "float16" in str(dtype) else "fp32"
     model_type = "stable-diffusion" if library_name == "diffusers" else model.config.model_type.replace("_", "-")
     custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE
