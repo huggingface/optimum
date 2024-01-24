@@ -488,6 +488,11 @@ class TasksManager:
         "deit": supported_tasks_mapping(
             "feature-extraction", "image-classification", "masked-im", onnx="DeiTOnnxConfig"
         ),
+        "depth-anything": supported_tasks_mapping(
+            "feature-extraction",
+            "depth-estimation",
+            onnx="DepthAnythingOnnxConfig",
+        ),
         "detr": supported_tasks_mapping(
             "feature-extraction",
             "object-detection",

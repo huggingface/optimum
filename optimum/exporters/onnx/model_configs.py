@@ -753,6 +753,10 @@ class DptOnnxConfig(ViTOnnxConfig):
     pass
 
 
+class DepthAnythingOnnxConfig(ViTOnnxConfig):
+    pass
+
+
 class GlpnOnnxConfig(ViTOnnxConfig):
     pass
 
