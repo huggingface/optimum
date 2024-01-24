@@ -538,16 +538,6 @@ def onnx_export(
             kwargs_shapes[input_name] if input_name in kwargs_shapes else DEFAULT_DUMMY_SHAPES[input_name]
         )
 
-        # TODO: this may be moved rather to the OnnxConfig to avoid bloating this script.
-        if (
-            model_type in MODEL_TO_PATCH_FOR_PAST
-            and input_name == "sequence_length"
-            and kwargs_shapes.get(input_name) == 1
-        ):
-            raise ValueError(
-                f"Exporting with a sequence length of 1 a {model_type} model is not supported and can yield unexpected results."
-            )
-
     onnx_config, models_and_onnx_configs = _get_submodels_and_onnx_configs(
         model=model,
         task=task,

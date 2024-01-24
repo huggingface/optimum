@@ -200,7 +200,7 @@ class DummyInputGenerator(ABC):
             A random mask tensor either left padded or right padded in the requested framework.
         """
         shape = tuple(shape)
-        mask_length = random.randint(1, shape[-1] - 1)
+        mask_length = random.randint(1, (shape[-1] - 1 or 1))
         if framework == "pt":
             mask_tensor = torch.cat(
                 [
