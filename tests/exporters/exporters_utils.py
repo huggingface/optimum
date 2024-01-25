@@ -70,6 +70,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel",
     "detr": "hf-internal-testing/tiny-random-DetrModel",  # hf-internal-testing/tiny-random-detr is larger
+    "deformable-detr": "hf-internal-testing/tiny-random-DeformableDetrModel",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "dpt": "hf-internal-testing/tiny-random-DPTModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",

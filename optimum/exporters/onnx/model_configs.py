@@ -736,6 +736,12 @@ class DetrOnnxConfig(ViTOnnxConfig):
         else:
             return super().outputs
 
+class DeformableDetrOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 16
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {**super().inputs, "pixel_mask": {0: "batch_size"}}
 
 class YolosOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
