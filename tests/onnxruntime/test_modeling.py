@@ -1227,7 +1227,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
-        "bart",  # see tasks.py
+        "bart", 
         "bert",
         # "big_bird",
         # "bigbird_pegasus",
