@@ -504,11 +504,6 @@ class TasksManager:
             onnx="DistilBertOnnxConfig",
             tflite="DistilBertTFLiteConfig",
         ),
-        "dit": supported_tasks_mapping(
-            "feature-extraction",
-            "image-classification",
-            onnx="DiTOnnxConfig",
-        ),
         "donut": supported_tasks_mapping(
             "image-to-text",
             "image-to-text-with-past",
