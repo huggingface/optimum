@@ -66,6 +66,7 @@ DEFAULT_DUMMY_SHAPES = {
     "feature_size": 80,
     "nb_max_frames": 3000,
     "audio_sequence_length": 16000,
+    "target_length": 200,
 }
 
 
@@ -716,6 +717,7 @@ class DummyAudioInputGenerator(DummyInputGenerator):
         feature_size: int = DEFAULT_DUMMY_SHAPES["feature_size"],
         nb_max_frames: int = DEFAULT_DUMMY_SHAPES["nb_max_frames"],
         audio_sequence_length: int = DEFAULT_DUMMY_SHAPES["audio_sequence_length"],
+        target_length: int = DEFAULT_DUMMY_SHAPES["target_length"],
         **kwargs,
     ):
         self.task = task
@@ -723,11 +725,14 @@ class DummyAudioInputGenerator(DummyInputGenerator):
 
         if hasattr(self.normalized_config, "feature_size"):
             self.feature_size = self.normalized_config.feature_size
+        elif hasattr(self.normalized_config, "feature_projection_input_dim"):
+            self.feature_size = self.normalized_config.feature_projection_input_dim
         else:
             self.feature_size = feature_size
         self.nb_max_frames = nb_max_frames
         self.batch_size = batch_size
         self.sequence_length = audio_sequence_length
+        self.target_length = target_length
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name == "input_values":  # raw waveform
@@ -739,8 +744,13 @@ class DummyAudioInputGenerator(DummyInputGenerator):
                 dtype=float_dtype,
             )
         else:
+            if self.normalized_config.model_type == "wav2vec2-bert":
+                shape = [self.batch_size, self.target_length, self.feature_size]
+            else:
+                shape = [self.batch_size, self.feature_size, self.nb_max_frames]
+
             return self.random_float_tensor(
-                shape=[self.batch_size, self.feature_size, self.nb_max_frames],
+                shape=shape,
                 min_value=-1,
                 max_value=1,
                 framework=framework,

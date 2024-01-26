@@ -1286,7 +1286,11 @@ class Wav2Vec2ConformerOnnxConfig(HubertOnnxConfig):
 
 
 class Wav2Vec2BertOnnxConfig(Wav2Vec2OnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 12
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"input_features": {0: "batch_size", 1: "sequence_length"}}
 
 
 class SEWOnnxConfig(HubertOnnxConfig):
