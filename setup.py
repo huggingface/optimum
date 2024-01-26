@@ -38,6 +38,7 @@ TESTS_REQUIRE = [
     "invisible-watermark",
     "timm",
     "scikit-learn",
+    "rjieba",
 ]
 
 QUALITY_REQUIRE = ["black~=23.1", "ruff==0.1.5"]
