@@ -2698,7 +2698,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "beit",
-        "dit",
         "convnext",
         "convnextv2",
         "data2vec_vision",
