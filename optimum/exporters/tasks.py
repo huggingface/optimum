@@ -944,6 +944,11 @@ class TasksManager:
             "text2text-generation-with-past",
             onnx="T5OnnxConfig",
         ),
+        "table-transformer": supported_tasks_mapping(
+            "feature-extraction",
+            "object-detection",
+            onnx="TableTransformerOnnxConfig",
+        ),
         "trocr": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
