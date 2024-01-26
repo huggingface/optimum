@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
 import json
 import os
 from enum import Enum
@@ -35,7 +34,6 @@ from .utils import get_block_name_with_pattern, get_device, get_layers, get_prec
 
 if is_accelerate_available():
     from accelerate import (
-        Accelerator,
         cpu_offload_with_hook,
         load_checkpoint_and_dispatch,
     )
@@ -79,6 +77,7 @@ class GPTQQuantizer(object):
         exllama_config: Dict[str, Any] = None,
         max_input_length: Optional[int] = None,
         cache_block_outputs: Optional[bool] = True,
+        modules_in_block_to_quantize: Optional[List[List[str]]] = None,
         *args,
         **kwargs,
     ):
@@ -86,9 +85,10 @@ class GPTQQuantizer(object):
         Args:
             bits (`int`):
                 The number of bits to quantize to, supported numbers are (2, 3, 4, 8).
-            dataset (`Union[List[str],str]`, defaults to None):
-                The dataset used for quantization. You can provide your own dataset in a list of string or just use the original datasets used
-                in GPTQ paper ['wikitext2','c4','c4-new','ptb','ptb-new'].
+            dataset (`Union[List[str], str, Any]`, defaults to `None`):
+                The dataset used for quantization. You can provide your own dataset in a list of string or in a list of tokenized data
+                (e.g. [{ "input_ids": [ 1, 100, 15, ... ],"attention_mask": [ 1, 1, 1, ... ]},...])
+                or just use the original datasets used in GPTQ paper ['wikitext2','c4','c4-new','ptb','ptb-new'].
             group_size (int, defaults to 128):
                 The group size to use for quantization. Recommended value is 128 and -1 uses per-column quantization.
             damp_percent (`float`, defaults to `0.1`):
@@ -108,7 +108,7 @@ class GPTQQuantizer(object):
             model_seqlen (`Optional[int]`, defaults to `None`):
                 The maximum sequence length that the model can take.
             block_name_to_quantize (`Optional[str]`, defaults to `None`):
-                The transformers block name to quantize.
+                The transformers block name to quantize. If None, we will infer the block name using common patterns (e.g. model.layers)
             module_name_preceding_first_block (`Optional[List[str]]`, defaults to `None`):
                 The layers that are preceding the first Transformer block.
             batch_size (`int`, defaults to `1`):
@@ -125,6 +125,10 @@ class GPTQQuantizer(object):
             cache_block_outputs (`bool`, defaults to `True`):
                 Whether to cache block outputs to reuse as inputs for the succeeding block. It allows optimization of non-standard models
                 (e.g. ChatGLM) but can require more time.
+            modules_in_block_to_quantize (`Optional[List[List[str]]]`, defaults to `None`):
+                List list of module names to quantize in the block specified. This argument is useful to exclude certain linear modules from being quantized.
+                The block to quantize can be specified by setting `block_name_to_quantize`. We will quantize each list sequentially.
+                If not set, we will quantize all linear layers. Example: `inside_layer_modules=[["self_attention.query_key_value"], ["mlp.dense_h_to_4h"]]`
         """
 
         self.bits = bits
@@ -145,6 +149,19 @@ class GPTQQuantizer(object):
         self.max_input_length = max_input_length
         self.quant_method = QuantizationMethod.GPTQ
         self.cache_block_outputs = cache_block_outputs
+        self.modules_in_block_to_quantize = modules_in_block_to_quantize
+
+        self.serialization_keys = [
+            "bits",
+            "dataset",
+            "group_size",
+            "damp_percent",
+            "desc_act",
+            "sym",
+            "true_sequential",
+            "quant_method",
+            "modules_in_block_to_quantize",
+        ]
 
         if self.bits not in [2, 3, 4, 8]:
             raise ValueError("only support quantize to [2,3,4,8] bits.")
@@ -169,7 +186,10 @@ class GPTQQuantizer(object):
         """
         Returns the args in dict format.
         """
-        return copy.deepcopy(self.__dict__)
+        gptq_dict = {}
+        for key in self.serialization_keys:
+            gptq_dict[key] = getattr(self, key)
+        return gptq_dict
 
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]):
@@ -198,8 +218,15 @@ class GPTQQuantizer(object):
             self.block_name_to_quantize = get_block_name_with_pattern(model)
         block_name = self.block_name_to_quantize
         layers_to_be_replaced = get_layers(model, prefix=block_name)
+        if self.modules_in_block_to_quantize is not None:
+            layers_to_keep = sum(self.modules_in_block_to_quantize, [])
+            for name in list(layers_to_be_replaced.keys()):
+                if not any(name.endswith(layer) for layer in layers_to_keep):
+                    logger.info(
+                        f"Quantization disabled for {name} (only modules_in_block_to_quantize={self.modules_in_block_to_quantize} are quantized)"
+                    )
+                    del layers_to_be_replaced[name]
         self._replace_by_quant_layers(model, layers_to_be_replaced)
-
         return model
 
     def get_no_split_module_classes(self, model):
@@ -271,14 +298,14 @@ class GPTQQuantizer(object):
             self._replace_by_quant_layers(child, names, name + "." + name1 if name != "" else name1)
 
     @torch.no_grad()
-    def quantize_model(self, model: nn.Module, tokenizer: Any):
+    def quantize_model(self, model: nn.Module, tokenizer: Optional[Any] = None):
         """
         Quantizes the model using the dataset
 
         Args:
             model (`nn.Module`):
                 The model to quantize
-            tokenizer (`Any`):
+            tokenizer (Optional[`Any`], defaults to `None`):
                 The tokenizer to use in order to prepare the dataset. You can pass either:
                     - A custom tokenizer object.
                     - A string, the *model id* of a predefined tokenizer hosted inside a model repo on huggingface.co.
@@ -329,23 +356,29 @@ class GPTQQuantizer(object):
         device = get_device(model)
 
         # Step 1: Prepare the data
-        if isinstance(tokenizer, str):
-            try:
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer)
-            except Exception:
-                raise ValueError(
-                    f"""We were not able to get the tokenizer using `AutoTokenizer.from_pretrained`
-                    with the string that you have passed {tokenizer}. If you have a custom tokenizer, you can pass it as input.
-                    For now, we only support quantization for text model. Support for vision, speech and multimodel will come later."""
-                )
-        if self.dataset is None:
-            raise ValueError("You need to pass `dataset` in order to quantize your model")
-        elif isinstance(self.dataset, str):
-            dataset = get_dataset(self.dataset, tokenizer, seqlen=self.model_seqlen, split="train")
-        elif isinstance(self.dataset, list):
-            dataset = [tokenizer(data, return_tensors="pt") for data in self.dataset]
+        if isinstance(self.dataset, list) and not isinstance(self.dataset[0], str):
+            dataset = self.dataset
+            logger.info("GPTQQuantizer dataset appears to be already tokenized. Skipping tokenization.")
         else:
-            raise ValueError("You need to pass a list of string or a string for `dataset`")
+            if isinstance(tokenizer, str):
+                try:
+                    tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+                except Exception:
+                    raise ValueError(
+                        f"""We were not able to get the tokenizer using `AutoTokenizer.from_pretrained`
+                        with the string that you have passed {tokenizer}. If you have a custom tokenizer, you can pass it as input.
+                        For now, we only support quantization for text model. Support for vision, speech and multimodel will come later."""
+                    )
+            if self.dataset is None:
+                raise ValueError("You need to pass `dataset` in order to quantize your model")
+            elif isinstance(self.dataset, str):
+                dataset = get_dataset(self.dataset, tokenizer, seqlen=self.model_seqlen, split="train")
+            elif isinstance(self.dataset, list):
+                dataset = [tokenizer(data, return_tensors="pt") for data in self.dataset]
+            else:
+                raise ValueError(
+                    f"You need to pass a list of string, a list of tokenized data or a string for `dataset`. Found: {type(self.dataset)}."
+                )
 
         dataset = prepare_dataset(dataset, pad_token_id=self.pad_token_id, batch_size=self.batch_size)
 
@@ -432,11 +465,17 @@ class GPTQQuantizer(object):
             if not has_device_map or get_device(block) == torch.device("cpu"):
                 block = block.to(0)
             layers = get_layers(block)
-            if self.true_sequential:
-                # lazy sequential but works well
-                layers_name_list = [[key] for key in layers.keys()]
+            if isinstance(self.modules_in_block_to_quantize, list) and len(self.modules_in_block_to_quantize) > 0:
+                if self.true_sequential:
+                    layers_name_list = self.modules_in_block_to_quantize
+                else:
+                    layers_name_list = [sum(self.modules_in_block_to_quantize, [])]
             else:
-                layers_name_list = [list(layers.keys())]
+                if self.true_sequential:
+                    # lazy sequential but works well
+                    layers_name_list = [[key] for key in layers.keys()]
+                else:
+                    layers_name_list = [list(layers.keys())]
             logger.info(f"Module to quantize {layers_name_list}")
             for subset_name_list in tqdm(layers_name_list, leave=False, desc="Quantizing layers inside the block"):
                 subset_layers = {name: layers[name] for name in subset_name_list}
@@ -600,7 +639,7 @@ class GPTQQuantizer(object):
 
         logger.info("Model packed.")
 
-    def save(self, model: nn.Module, save_dir: str, max_shard_size: str = "10GB", safe_serialization: bool = False):
+    def save(self, model: nn.Module, save_dir: str, max_shard_size: str = "10GB", safe_serialization: bool = True):
         """
         Save model state dict and configs
 
@@ -618,20 +657,12 @@ class GPTQQuantizer(object):
                 which will be bigger than `max_shard_size`.
 
                 </Tip>
-            safe_serialization (`bool`, defaults to `False`):
+            safe_serialization (`bool`, defaults to `True`):
                 Whether to save the model using `safetensors` or the traditional PyTorch way (that uses `pickle`).
 
         """
-
-        if not is_accelerate_available():
-            raise RuntimeError(
-                "You need to install accelerate in order to save a quantized model. You can do it with `pip install accelerate`"
-            )
-
         os.makedirs(save_dir, exist_ok=True)
-        # save model and config
-        accelerator = Accelerator()
-        accelerator.save_model(model, save_dir, max_shard_size=max_shard_size, safe_serialization=safe_serialization)
+        model.save_pretrained(save_dir, max_shard_size=max_shard_size, safe_serialization=safe_serialization)
         with open(os.path.join(save_dir, GPTQ_CONFIG), "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2)
 
