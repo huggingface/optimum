@@ -33,20 +33,30 @@ from optimum.onnxruntime import (
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
 )
-from optimum.utils.testing_utils import require_diffusers, require_timm
+from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_sentence_transformers, require_timm
 
 
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
-from ..exporters_utils import PYTORCH_EXPORT_MODELS_TINY, PYTORCH_STABLE_DIFFUSION_MODEL, PYTORCH_TIMM_MODEL
+from ..exporters_utils import (
+    NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
+    PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
+    PYTORCH_STABLE_DIFFUSION_MODEL,
+    PYTORCH_TIMM_MODEL,
+    PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
+    PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES,
+)
 
 
-def _get_models_to_test(export_models_dict: Dict):
+def _get_models_to_test(export_models_dict: Dict, library_name: str = "transformers"):
     models_to_test = []
     if is_torch_available():
         for model_type, model_names_tasks in export_models_dict.items():
-            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
+            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(
+                model_type, "onnx", library_name=library_name
+            )
 
             if isinstance(model_names_tasks, str):  # test export of all tasks on the same model
                 tasks = list(task_config_mapping.keys())
@@ -67,7 +77,7 @@ def _get_models_to_test(export_models_dict: Dict):
                         # The model uses bert as decoder and does not support past key values
                         continue
                     onnx_config_class = TasksManager.get_exporter_config_constructor(
-                        "onnx", task=task, model_type=model_type
+                        "onnx", task=task, model_type=model_type, library_name=library_name
                     )
 
                     # Refer to https://github.com/huggingface/optimum/blob/0b08a1fd19005b7334aa923433b3544bd2b11ff2/optimum/exporters/tasks.py#L65
@@ -78,7 +88,15 @@ def _get_models_to_test(export_models_dict: Dict):
 
                     for variant in variants.keys():
                         models_to_test.append(
-                            (f"{model_type}_{task}_{variant}", model_type, model_name, task, variant, False, False)
+                            (
+                                f"{model_type}_{task}_{variant}_{model_name}",
+                                model_type,
+                                model_name,
+                                task,
+                                variant,
+                                False,
+                                False,
+                            )
                         )
 
                         # -with-past and monolith cases are absurd, so we don't test them as not supported
@@ -93,7 +111,7 @@ def _get_models_to_test(export_models_dict: Dict):
                         ):
                             models_to_test.append(
                                 (
-                                    f"{model_type}_{task}_monolith_{variant}",
+                                    f"{model_type}_{task}_monolith_{variant}_{model_name}",
                                     model_type,
                                     model_name,
                                     task,
@@ -113,7 +131,7 @@ def _get_models_to_test(export_models_dict: Dict):
                         ]:
                             models_to_test.append(
                                 (
-                                    f"{model_type}_{task}_no_postprocess_{variant}",
+                                    f"{model_type}_{task}_no_postprocess_{variant}_{model_name}",
                                     model_type,
                                     model_name,
                                     task,
@@ -123,19 +141,23 @@ def _get_models_to_test(export_models_dict: Dict):
                                 )
                             )
 
-            # TODO: segformer task can not be automatically inferred
-            # TODO: xlm-roberta model auto-infers text-generation, but we don't support it
-            # TODO: perceiver auto-infers default, but we don't support it (why?)
-            # TODO: encoder-decoder auto-infers text3text-generation, but it uses bert as decoder and does not support past key values
-            if model_type not in [
-                "segformer",
-                "xlm-roberta",
-                "perceiver",
-                "encoder-decoder",
-            ]:
-                models_to_test.append(
-                    (f"{model_type}_no_task", model_type, model_name, "auto", "default", False, False)
-                )
+                # TODO: segformer task can not be automatically inferred
+                # TODO: xlm-roberta model auto-infers text-generation, but we don't support it
+                # TODO: perceiver auto-infers default, but we don't support it (why?)
+                # TODO: encoder-decoder auto-infers text3text-generation, but it uses bert as decoder and does not support past key values
+                # TODO: vision-encoder-decoder tiny models have wrong labels on the Hub
+                # TODO: unispeech-sat tiny models have wrong labels on the Hub
+                if model_type not in [
+                    "segformer",
+                    "xlm-roberta",
+                    "perceiver",
+                    "encoder-decoder",
+                    "vision-encoder-decoder",
+                    "unispeech-sat",
+                ]:
+                    models_to_test.append(
+                        (f"{model_type}_no_task_{model_name}", model_type, model_name, "auto", "default", False, False)
+                    )
 
         return sorted(models_to_test)
     else:
@@ -160,6 +182,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         device: str = "cpu",
         fp16: bool = False,
         variant: str = "default",
+        no_dynamic_axes: bool = False,
         model_kwargs: Optional[Dict] = None,
     ):
         with TemporaryDirectory() as tmpdir:
@@ -174,8 +197,51 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     monolith=monolith,
                     no_post_process=no_post_process,
                     _variant=variant,
+                    no_dynamic_axes=no_dynamic_axes,
                     model_kwargs=model_kwargs,
                 )
+            except MinimumVersionError as e:
+                pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
+
+    def _onnx_export_no_dynamic_axes(
+        self,
+        model_name: str,
+        task: str,
+        input_shape: dict,
+        input_shape_for_validation: tuple,
+        monolith: bool = False,
+        no_post_process: bool = False,
+        optimization_level: Optional[str] = None,
+        device: str = "cpu",
+        fp16: bool = False,
+        variant: str = "default",
+        model_kwargs: Optional[Dict] = None,
+    ):
+        with TemporaryDirectory() as tmpdir:
+            try:
+                main_export(
+                    model_name_or_path=model_name,
+                    output=tmpdir,
+                    task=task,
+                    device=device,
+                    fp16=fp16,
+                    optimize=optimization_level,
+                    monolith=monolith,
+                    no_post_process=no_post_process,
+                    _variant=variant,
+                    no_dynamic_axes=True,
+                    model_kwargs=model_kwargs,
+                    **input_shape,
+                )
+
+                model = onnx.load(Path(tmpdir) / "model.onnx")
+
+                is_dynamic = any(dim.dim_param for dim in model.graph.input[0].type.tensor_type.shape.dim)
+                self.assertFalse(is_dynamic)
+
+                model_input_shape = [dim.dim_value for dim in model.graph.input[0].type.tensor_type.shape.dim]
+                self.assertEqual(model_input_shape, input_shape_for_validation)
+
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
 
@@ -204,11 +270,29 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_fp16_stable_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda", fp16=True)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @parameterized.expand(_get_models_to_test(PYTORCH_SENTENCE_TRANSFORMERS_MODEL))
+    @require_torch
+    @require_vision
+    @require_sentence_transformers
+    def test_exporters_cli_pytorch_cpu_sentence_transformers(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_torch
     @require_vision
     @require_timm
+    @slow
     @pytest.mark.timm_test
+    @pytest.mark.run_slow
     def test_exporters_cli_pytorch_cpu_timm(
         self,
         test_name: str,
@@ -221,7 +305,33 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES, library_name="timm"))
+    @require_torch
+    @require_vision
+    @require_timm
+    @slow
+    @pytest.mark.timm_test
+    @pytest.mark.run_slow
+    def test_exporters_cli_pytorch_cpu_timm_no_dynamic_axes(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        input_shapes_iterator = grid_parameters({"batch_size": [1, 3, 5]}, yield_dict=True, add_test_name=False)
+        for input_shape in input_shapes_iterator:
+            # NOTE: The timm models use input shapes from the model config, so we need to fix the other shapes of the model.
+            input_shape_for_validation = [input_shape["batch_size"], 3, 224, 224]
+
+            self._onnx_export_no_dynamic_axes(
+                model_name, task, input_shape, input_shape_for_validation, monolith, no_post_process, variant=variant
+            )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_torch_gpu
     @require_vision
     @require_timm
@@ -240,7 +350,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", variant=variant)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_torch_gpu
     @require_vision
     @require_timm
@@ -284,6 +394,36 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
 
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, model_kwargs=model_kwargs)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES))
+    @require_torch
+    @require_vision
+    def test_exporters_cli_pytorch_cpu_no_dynamic_axes(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        input_shapes_iterator = grid_parameters(
+            NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS, yield_dict=True, add_test_name=False
+        )
+        for input_shape in input_shapes_iterator:
+            if task == "multiple-choice":
+                input_shape_for_validation = [
+                    input_shape["batch_size"],
+                    input_shape["num_choices"],
+                    input_shape["sequence_length"],
+                ]
+            else:
+                input_shape_for_validation = [input_shape["batch_size"], input_shape["sequence_length"]]
+
+            self._onnx_export_no_dynamic_axes(
+                model_name, task, input_shape, input_shape_for_validation, monolith, no_post_process, variant=variant
+            )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_vision

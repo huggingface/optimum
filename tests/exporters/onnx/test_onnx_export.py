@@ -36,16 +36,19 @@ from optimum.exporters.onnx import (
     get_stable_diffusion_models_for_export,
     validate_models_outputs,
 )
-from optimum.exporters.onnx.__main__ import main_export
+from optimum.exporters.onnx.__main__ import main_export, onnx_export
 from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
+from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
 from optimum.exporters.onnx.utils import get_speecht5_models_for_export
 from optimum.utils import ONNX_WEIGHTS_NAME, DummyPastKeyValuesGenerator, NormalizedTextConfig
-from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_timm
+from optimum.utils.save_utils import maybe_load_preprocessors
+from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
 from ..exporters_utils import (
     PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_STABLE_DIFFUSION_MODEL,
     PYTORCH_TIMM_MODEL,
     TENSORFLOW_EXPORT_MODELS,
@@ -93,12 +96,14 @@ class OnnxConfigTestCase(TestCase):
     # TODO: insert relevant tests here.
 
 
-def _get_models_to_test(export_models_dict: Dict):
+def _get_models_to_test(export_models_dict: Dict, library_name: str = "transformers"):
     models_to_test = []
     if is_torch_available() or is_tf_available():
         for model_type, model_names_tasks in export_models_dict.items():
             model_type = model_type.replace("_", "-")
-            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
+            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(
+                model_type, "onnx", library_name=library_name
+            )
 
             if isinstance(model_names_tasks, str):  # test export of all tasks on the same model
                 tasks = list(task_config_mapping.keys())
@@ -120,7 +125,11 @@ def _get_models_to_test(export_models_dict: Dict):
                         continue
 
                     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                        model_type=model_type, exporter="onnx", task=task, model_name=model_name
+                        model_type=model_type,
+                        exporter="onnx",
+                        task=task,
+                        model_name=model_name,
+                        library_name=library_name,
                     )
 
                     models_to_test.append(
@@ -312,9 +321,9 @@ class OnnxExportTestCase(TestCase):
             TasksManager._SUPPORTED_CLI_MODEL_TYPE
             - set(PYTORCH_EXPORT_MODELS_TINY.keys())
             - set(PYTORCH_TIMM_MODEL.keys())
+            - set(PYTORCH_SENTENCE_TRANSFORMERS_MODEL.keys())
         )
-        assert "sam" in missing_models_set  # See exporters_utils.py
-        if len(missing_models_set) > 1:
+        if len(missing_models_set) > 0:
             self.fail(f"Not testing all models. Missing models: {missing_models_set}")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
@@ -405,61 +414,6 @@ class OnnxExportTestCase(TestCase):
     @pytest.mark.gpu_test
     def test_pytorch_export_for_stable_diffusion_models_cuda(self, model_type, model_name):
         self._onnx_export_sd(model_type, model_name, device="cuda")
-
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
-    @require_torch
-    @require_vision
-    @require_timm
-    @pytest.mark.run_slow
-    @pytest.mark.timm_test
-    @slow
-    def test_pytorch_export_for_timm_on_cpu(
-        self,
-        test_name,
-        model_type,
-        model_name,
-        task,
-        onnx_config_class_constructor,
-        monolith: bool,
-    ):
-        self._onnx_export(
-            test_name,
-            model_type,
-            model_name,
-            task,
-            onnx_config_class_constructor,
-            shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
-            monolith=monolith,
-        )
-
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
-    @require_torch
-    @require_vision
-    @require_timm
-    @require_torch_gpu
-    @slow
-    @pytest.mark.timm_test
-    @pytest.mark.run_slow
-    @pytest.mark.gpu_test
-    def test_pytorch_export_for_timm_on_cuda(
-        self,
-        test_name,
-        model_type,
-        model_name,
-        task,
-        onnx_config_class_constructor,
-        monolith: bool,
-    ):
-        self._onnx_export(
-            test_name,
-            model_type,
-            model_name,
-            task,
-            onnx_config_class_constructor,
-            device="cuda",
-            shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
-            monolith=monolith,
-        )
 
 
 class CustomWhisperOnnxConfig(WhisperOnnxConfig):
@@ -634,3 +588,110 @@ class OnnxCustomExport(TestCase):
                 )
 
         self.assertIn("custom or unsupported architecture", str(context.exception))
+
+
+class OnnxExportModelTest(TestCase):
+    """
+    Integration tests ensuring supported models are correctly exported with export_model
+    """
+
+    def _onnx_export(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        monolith: bool,
+        device="cpu",
+    ):
+        library_name = TasksManager.infer_library_from_model(model_name)
+        loading_kwargs = {"attn_implementation": "eager"} if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED else {}
+
+        if library_name == "timm":
+            model_class = TasksManager.get_model_class_for_task(task, library=library_name)
+            model = model_class(f"hf_hub:{model_name}", pretrained=True, exportable=True)
+            TasksManager.standardize_model_attributes(model_name, model, library_name=library_name)
+        else:
+            config = AutoConfig.from_pretrained(model_name)
+            model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
+            model = model_class.from_pretrained(model_name, **loading_kwargs)
+
+        # Dynamic axes aren't supported for YOLO-like models. This means they cannot be exported to ONNX on CUDA devices.
+        # See: https://github.com/ultralytics/yolov5/pull/8378
+        if model.__class__.__name__.startswith("Yolos") and device != "cpu":
+            return
+
+        if model.config.model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+        else:
+            model_kwargs = None
+
+        if model.config.model_type == "pix2struct":
+            preprocessors = maybe_load_preprocessors(model_name)
+        else:
+            preprocessors = None
+
+        with TemporaryDirectory() as tmpdirname:
+            onnx_export(
+                model=model,
+                output=Path(tmpdirname),
+                monolith=monolith,
+                do_validation=True,
+                model_kwargs=model_kwargs,
+                device=device,
+                preprocessors=preprocessors,
+                task=task,
+            )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_torch
+    @require_vision
+    @slow
+    def test_pytorch_export_on_cpu(
+        self,
+        test_name,
+        model_type,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        monolith,
+    ):
+        if model_type == "speecht5" and monolith:
+            self.skipTest("unsupported export")
+
+        self._onnx_export(
+            test_name,
+            model_type,
+            model_name,
+            task,
+            monolith,
+            device="cpu",
+        )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_torch
+    @require_vision
+    @require_torch_gpu
+    @slow
+    @pytest.mark.run_slow
+    @pytest.mark.gpu_test
+    def test_pytorch_export_on_cuda(
+        self,
+        test_name,
+        model_type,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        monolith,
+    ):
+        if model_type == "speecht5" and monolith:
+            self.skipTest("unsupported export")
+
+        self._onnx_export(
+            test_name,
+            model_type,
+            model_name,
+            task,
+            monolith,
+            device="cuda",
+        )

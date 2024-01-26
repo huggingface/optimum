@@ -46,7 +46,6 @@ if is_torch_available():
     import torch
     import torch.nn as nn
     from transformers.modeling_utils import PreTrainedModel
-    from transformers.pytorch_utils import is_torch_less_than_1_11
 
 if is_diffusers_available():
     from diffusers import ModelMixin
@@ -96,7 +95,6 @@ def validate_models_outputs(
     onnx_files_subpaths: Optional[List[str]] = None,
     input_shapes: Optional[Dict] = None,
     device: str = "cpu",
-    dtype: Optional["torch.dtype"] = None,
     use_subprocess: Optional[bool] = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ):
@@ -120,8 +118,6 @@ def validate_models_outputs(
             If specified, allows to use specific shapes to validate the ONNX model on.
         device (`str`, defaults to `"cpu"`):
             The device on which the ONNX models will be validated. Either `cpu` or `cuda`. Validation on a CUDA device is supported only for PyTorch.
-        dtype (`Optional[torch.dtype]`, defaults to `None`):
-            Data type of the inputs to perform validation on. Validation on float16 is supported only for PyTorch.
         use_subprocess (`Optional[bool]`, defaults to `True`):
             Launch validation of each exported model in a subprocess.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
@@ -162,7 +158,6 @@ def validate_models_outputs(
                 atol=atol,
                 input_shapes=input_shapes,
                 device=device,
-                dtype=dtype,
                 use_subprocess=use_subprocess,
                 model_kwargs=model_kwargs,
             )
@@ -183,7 +178,6 @@ def validate_model_outputs(
     atol: Optional[float] = None,
     input_shapes: Optional[Dict] = None,
     device: str = "cpu",
-    dtype: Optional["torch.dtype"] = None,
     use_subprocess: Optional[bool] = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ):
@@ -217,7 +211,7 @@ def validate_model_outputs(
         mp.set_start_method("spawn", force=True)
 
         io_process = ValidationProcess(
-            config, reference_model, onnx_model, onnx_named_outputs, atol, input_shapes, device, dtype, model_kwargs
+            config, reference_model, onnx_model, onnx_named_outputs, atol, input_shapes, device, model_kwargs
         )
         io_process.start()
         io_process.join()
@@ -234,7 +228,6 @@ def validate_model_outputs(
             atol,
             input_shapes,
             device,
-            dtype,
             model_kwargs=model_kwargs,
         )
 
@@ -247,7 +240,6 @@ def _run_validation(
     atol: Optional[float] = None,
     input_shapes: Optional[Dict] = None,
     device: str = "cpu",
-    dtype: Optional["torch.dtype"] = None,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ):
     from onnxruntime import GraphOptimizationLevel, SessionOptions
@@ -267,7 +259,6 @@ def _run_validation(
     if input_shapes is None:
         input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
     reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
-    reference_model_inputs = config.rename_ambiguous_inputs(reference_model_inputs)
 
     # Create ONNX Runtime session
     session_options = SessionOptions()
@@ -322,6 +313,7 @@ def _run_validation(
 
     # Some models may modify in place the inputs, hence the copy.
     copy_reference_model_inputs = copy.deepcopy(reference_model_inputs)
+    copy_reference_model_inputs = config.rename_ambiguous_inputs(copy_reference_model_inputs)
 
     with config.patch_model_for_export(reference_model, model_kwargs=model_kwargs):
         if is_torch_available() and isinstance(reference_model, nn.Module):
@@ -439,7 +431,6 @@ class ValidationProcess(mp.Process):
         atol: Optional[float] = None,
         input_shapes: Optional[Dict] = None,
         device: str = "cpu",
-        dtype: Optional["torch.dtype"] = None,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
@@ -452,7 +443,6 @@ class ValidationProcess(mp.Process):
         self.atol = atol
         self.input_shapes = input_shapes
         self.device = device
-        self.dtype = dtype
         self.model_kwargs = model_kwargs
 
     def run(self):
@@ -465,7 +455,6 @@ class ValidationProcess(mp.Process):
                 atol=self.atol,
                 input_shapes=self.input_shapes,
                 device=self.device,
-                dtype=self.dtype,
                 model_kwargs=self.model_kwargs,
             )
         except Exception as e:
@@ -486,8 +475,8 @@ def export_pytorch(
     opset: int,
     output: Path,
     device: str = "cpu",
-    dtype: Optional["torch.dtype"] = None,
     input_shapes: Optional[Dict] = None,
+    no_dynamic_axes: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -505,10 +494,10 @@ def export_pytorch(
         device (`str`, defaults to `"cpu"`):
             The device on which the ONNX model will be exported. Either `cpu` or `cuda`. Only PyTorch is supported for
             export on CUDA devices.
-        dtype (`Optional[torch.dtype]`, defaults to `None`):
-            Data type to remap the model inputs to. PyTorch-only. Only `torch.float16` is supported.
         input_shapes (`Optional[Dict]`, defaults to `None`):
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
+        no_dynamic_axes (bool, defaults to `False`):
+            If True, disables the use of dynamic axes during ONNX export.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -556,62 +545,62 @@ def export_pytorch(
 
         dummy_inputs = config.rename_ambiguous_inputs(dummy_inputs)
 
-        # PyTorch deprecated the `enable_onnx_checker` and `use_external_data_format` arguments in v1.11,
-        # so we check the torch version for backwards compatibility
-        if is_torch_less_than_1_11:
-            raise RuntimeError("The ONNX export using the PyTorch framework is only supported for v1.11+")
-        else:
-            with config.patch_model_for_export(model, model_kwargs=model_kwargs):
-                check_dummy_inputs_are_allowed(model, dummy_inputs)
+        with config.patch_model_for_export(model, model_kwargs=model_kwargs):
+            check_dummy_inputs_are_allowed(model, dummy_inputs)
 
-                inputs = config.ordered_inputs(model)
-                input_names = list(inputs.keys())
-                output_names = list(config.outputs.keys())
+            inputs = config.ordered_inputs(model)
+            input_names = list(inputs.keys())
+            output_names = list(config.outputs.keys())
 
-                # Export can work with named args but the dict containing named args has to be the last element of the args
-                # tuple.
-                onnx_export(
-                    model,
-                    (dummy_inputs,),
-                    f=output.as_posix(),
-                    input_names=input_names,
-                    output_names=output_names,
-                    dynamic_axes=dict(chain(inputs.items(), config.outputs.items())),
-                    do_constant_folding=True,
-                    opset_version=opset,
-                )
+            if no_dynamic_axes:
+                dynamix_axes = None
+            else:
+                dynamix_axes = dict(chain(inputs.items(), config.outputs.items()))
 
-            # check if external data was exported
-            # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
-            onnx_model = onnx.load(str(output), load_external_data=False)
-            model_uses_external_data = check_model_uses_external_data(onnx_model)
+            # Export can work with named args but the dict containing named args has to be the last element of the args
+            # tuple.
+            onnx_export(
+                model,
+                (dummy_inputs,),
+                f=output.as_posix(),
+                input_names=input_names,
+                output_names=output_names,
+                dynamic_axes=dynamix_axes,
+                do_constant_folding=True,
+                opset_version=opset,
+            )
 
-            if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
-                tensors_paths = _get_onnx_external_data_tensors(onnx_model)
-                logger.info("Saving external data to one file...")
+        # check if external data was exported
+        # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
+        onnx_model = onnx.load(str(output), load_external_data=False)
+        model_uses_external_data = check_model_uses_external_data(onnx_model)
 
-                # try free model memory
-                del model
-                del onnx_model
-                gc.collect()
-                if device.type == "cuda" and torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+        if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
+            tensors_paths = _get_onnx_external_data_tensors(onnx_model)
+            logger.info("Saving external data to one file...")
 
-                onnx_model = onnx.load(
-                    str(output), load_external_data=True
-                )  # this will probably be too memory heavy for large models
-                onnx.save(
-                    onnx_model,
-                    str(output),
-                    save_as_external_data=True,
-                    all_tensors_to_one_file=True,
-                    location=output.name + "_data",
-                    size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0,
-                )
+            # try free model memory
+            del model
+            del onnx_model
+            gc.collect()
+            if device.type == "cuda" and torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
-                # delete previous external data
-                for tensor in tensors_paths:
-                    os.remove(output.parent / tensor)
+            onnx_model = onnx.load(
+                str(output), load_external_data=True
+            )  # this will probably be too memory heavy for large models
+            onnx.save(
+                onnx_model,
+                str(output),
+                save_as_external_data=True,
+                all_tensors_to_one_file=True,
+                location=output.name + "_data",
+                size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0,
+            )
+
+            # delete previous external data
+            for tensor in tensors_paths:
+                os.remove(output.parent / tensor)
 
     return input_names, output_names
 
@@ -700,6 +689,7 @@ def export_models(
     input_shapes: Optional[Dict] = None,
     disable_dynamic_axes_fix: Optional[bool] = False,
     dtype: Optional[str] = None,
+    no_dynamic_axes: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[List[str]], List[List[str]]]:
     """
@@ -726,6 +716,8 @@ def export_models(
             Whether to disable the default dynamic axes fixing.
         dtype (`Optional[str]`, defaults to `None`):
             Data type to remap the model inputs to. PyTorch-only. Only `fp16` is supported.
+        no_dynamic_axes (bool, defaults to `False`):
+            If True, disables the use of dynamic axes during ONNX export.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -759,6 +751,7 @@ def export_models(
                 input_shapes=input_shapes,
                 disable_dynamic_axes_fix=disable_dynamic_axes_fix,
                 dtype=dtype,
+                no_dynamic_axes=no_dynamic_axes,
                 model_kwargs=model_kwargs,
             )
         )
@@ -776,6 +769,7 @@ def export(
     input_shapes: Optional[Dict] = None,
     disable_dynamic_axes_fix: Optional[bool] = False,
     dtype: Optional[str] = None,
+    no_dynamic_axes: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -799,6 +793,8 @@ def export(
             Whether to disable the default dynamic axes fixing.
         dtype (`Optional[str]`, defaults to `None`):
             Data type to remap the model inputs to. PyTorch-only. Only `fp16` is supported.
+        no_dynamic_axes (bool, defaults to `False`):
+            If True, disables the use of dynamic axes during ONNX export.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -847,12 +843,6 @@ def export(
                 f" got: {torch.__version__}"
             )
 
-        torch_dtype = None
-        if dtype == "fp16":
-            torch_dtype = torch.float16
-        elif dtype is not None:
-            raise ValueError("Unsupported dtype, supported dtypes are: `torch.float16`.")
-
         export_output = export_pytorch(
             model,
             config,
@@ -860,7 +850,7 @@ def export(
             output,
             device=device,
             input_shapes=input_shapes,
-            dtype=torch_dtype,
+            no_dynamic_axes=no_dynamic_axes,
             model_kwargs=model_kwargs,
         )
 
