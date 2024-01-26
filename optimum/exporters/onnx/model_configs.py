@@ -1280,6 +1280,10 @@ class Wav2Vec2ConformerOnnxConfig(HubertOnnxConfig):
     pass
 
 
+class Wav2Vec2BertOnnxConfig(Wav2Vec2OnnxConfig):
+    pass
+
+
 class SEWOnnxConfig(HubertOnnxConfig):
     pass
 

@@ -1007,6 +1007,12 @@ class TasksManager:
             "audio-xvector",
             onnx="Wav2Vec2OnnxConfig",
         ),
+        "wav2vec2-bert": supported_tasks_mapping(
+            "feature-extraction",
+            "automatic-speech-recognition",
+            "audio-classification",
+            onnx="Wav2Vec2BertOnnxConfig",
+        ),
         "wav2vec2-conformer": supported_tasks_mapping(
             "feature-extraction",
             "automatic-speech-recognition",
