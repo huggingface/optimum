@@ -151,7 +151,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         self.use_fp16 = False
         for inp in model.get_inputs():
-            if (inp.name == "past_key_values" or inp.name in self.key_value_input_names) and inp.type == "tensor(float16)":
+            if (
+                inp.name == "past_key_values" or inp.name in self.key_value_input_names
+            ) and inp.type == "tensor(float16)":
                 self.use_fp16 = True
                 break
 

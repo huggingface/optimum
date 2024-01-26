@@ -14,7 +14,6 @@
 """ORTModelForXXX classes, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers."""
 
 import logging
-import math
 import re
 import shutil
 from pathlib import Path
