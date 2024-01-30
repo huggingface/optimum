@@ -68,12 +68,12 @@ def _get_submodels_and_onnx_configs(
     custom_onnx_configs: Dict,
     custom_architecture: bool,
     _variant: str,
+    library_name: str,
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
     fn_get_submodels: Optional[Callable] = None,
     preprocessors: Optional[List[Any]] = None,
     legacy: bool = False,
-    library_name: str = "transformers",
     model_kwargs: Optional[Dict] = None,
 ):
     if not custom_architecture:
