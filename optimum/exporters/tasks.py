@@ -317,10 +317,8 @@ class TasksManager:
             "text-generation-with-past",
             "text2text-generation",
             "text2text-generation-with-past",
-            # text-classification and question-answering can be supported, but the ONNX export is currently broken due to a regression in PyTorch 2.1.
-            # Reference: https://github.com/pytorch/pytorch/issues/110597.
-            # "text-classification",
-            # "question-answering",
+            "text-classification",
+            "question-answering",
             onnx="BartOnnxConfig",
         ),
         # BEiT cannot be used with the masked image modeling autoclass, so this task is excluded here
