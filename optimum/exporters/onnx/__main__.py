@@ -166,6 +166,7 @@ def main_export(
     task: str = "auto",
     opset: Optional[int] = None,
     device: str = "cpu",
+    dtype: Optional[str] = None,
     fp16: Optional[bool] = False,
     optimize: Optional[str] = None,
     monolith: bool = False,
@@ -215,6 +216,8 @@ def main_export(
             The device to use to do the export. Defaults to "cpu".
         fp16 (`Optional[bool]`, defaults to `"False"`):
             Use half precision during the export. PyTorch-only, requires `device="cuda"`.
+        dtype (`Optional[str]`, defaults to `None`):
+            The floating point precision to use for the export. Supported options: `"fp32"` (float32), `"fp16"` (float16), `"bf16"` (bfloat16). Defaults to `"fp32"`.
         optimize (`Optional[str]`, defaults to `None`):
             Allows to run ONNX Runtime optimizations directly during the export. Some of these optimizations are specific to
             ONNX Runtime, and the resulting ONNX will not be usable with other runtime as OpenVINO or TensorRT.
@@ -282,16 +285,31 @@ def main_export(
     >>> main_export("gpt2", output="gpt2_onnx/")
     ```
     """
+
+    if fp16:
+        if dtype is not None:
+            raise ValueError(
+                f'Both the arguments `fp16` ({fp16}) and `dtype` ({dtype}) were specified in the ONNX export, which is not supported. Please specify only `dtype`. Possible options: "fp32" (default), "fp16", "bf16".'
+            )
+
+        logger.warning(
+            'The argument `fp16` is deprecated in the ONNX export. Please use the argument `dtype="fp16"` instead, or `--dtype fp16` from the command-line.'
+        )
+
+        dtype = "fp16"
+    elif dtype is None:
+        dtype = "fp32"  # Defaults to float32.
+
     if optimize == "O4" and device != "cuda":
         raise ValueError(
             "Requested O4 optimization, but this optimization requires to do the export on GPU."
             " Please pass the argument `--device cuda`."
         )
 
-    if (framework == "tf" and fp16 is True) or not is_torch_available():
+    if (framework == "tf" and fp16) or not is_torch_available():
         raise ValueError("The --fp16 option is supported only for PyTorch.")
 
-    if fp16 and device == "cpu":
+    if dtype == "fp16" and device == "cpu":
         raise ValueError(
             "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
         )
@@ -310,7 +328,13 @@ def main_export(
     library_name = TasksManager.infer_library_from_model(
         model_name_or_path, subfolder=subfolder, library_name=library_name
     )
-    torch_dtype = None if fp16 is False else torch.float16
+
+    torch_dtype = None
+    if framework == "pt":
+        if dtype == "fp16":
+            torch_dtype = torch.float16
+        elif dtype == "bf16":
+            torch_dtype = torch.bfloat16
 
     if task.endswith("-with-past") and monolith:
         task_non_past = task.replace("-with-past", "")
@@ -333,7 +357,6 @@ def main_export(
 
     custom_architecture = False
     loading_kwargs = {}
-
     if library_name == "transformers":
         config = AutoConfig.from_pretrained(
             model_name_or_path,
@@ -489,9 +512,15 @@ def onnx_export(
 ):
     library_name = TasksManager._infer_library_from_model(model)
     framework = "pt" if is_torch_available() and isinstance(model, torch.nn.Module) else "tf"
+
     dtype = get_parameter_dtype(model) if framework == "pt" else model.dtype
-    float_dtype = "fp16" if "float16" in str(dtype) else "fp32"
-    task = TasksManager.map_from_synonym(task)
+
+    if "bfloat16" in str(dtype):
+        float_dtype = "bf16"
+    elif "float16" in str(dtype):
+        float_dtype = "fp16"
+    else:
+        float_dtype = "fp32"
 
     if "stable-diffusion" in task:
         model_type = "stable-diffusion"
@@ -501,6 +530,7 @@ def onnx_export(
         model_type = model.config.model_type.replace("_", "-")
 
     custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE
+    task = TasksManager.map_from_synonym(task)
 
     # TODO: support onnx_config.py in the model repo
     if custom_architecture and custom_onnx_configs is None:
@@ -632,6 +662,11 @@ def onnx_export(
 
         model.save_config(output)
 
+    if float_dtype == "bf16":
+        logger.warning(
+            f"Exporting the model {model.__class__.__name__} in bfloat16 float dtype. After the export, ONNX Runtime InferenceSession with CPU/CUDA execution provider likely does not implement all operators for the bfloat16 data type, and the loading is likely to fail."
+        )
+
     _, onnx_outputs = export_models(
         models_and_onnx_configs=models_and_onnx_configs,
         opset=opset,
@@ -639,7 +674,7 @@ def onnx_export(
         output_names=onnx_files_subpaths,
         input_shapes=input_shapes,
         device=device,
-        dtype="fp16" if float_dtype == "fp16" else None,
+        dtype=float_dtype,
         no_dynamic_axes=no_dynamic_axes,
         model_kwargs=model_kwargs,
     )

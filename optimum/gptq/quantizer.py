@@ -357,6 +357,7 @@ class GPTQQuantizer(object):
 
         # Step 1: Prepare the data
         if isinstance(self.dataset, list) and not isinstance(self.dataset[0], str):
+            dataset = self.dataset
             logger.info("GPTQQuantizer dataset appears to be already tokenized. Skipping tokenization.")
         else:
             if isinstance(tokenizer, str):

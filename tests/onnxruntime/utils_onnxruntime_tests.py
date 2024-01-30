@@ -139,6 +139,7 @@ MODEL_NAMES = {
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "t5": "hf-internal-testing/tiny-random-t5",
+    "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
     "trocr": "microsoft/trocr-small-handwritten",
     "unispeech": "hf-internal-testing/tiny-random-unispeech",
     "unispeech_sat": "hf-internal-testing/tiny-random-UnispeechSatModel",
