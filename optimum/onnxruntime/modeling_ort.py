@@ -994,8 +994,14 @@ class ORTModelForFeatureExtraction(ORTModel):
                 onnx_inputs["token_type_ids"] = token_type_ids
 
             outputs = self.model.run(None, onnx_inputs)
+            
+            last_hidden_state = None
+            
+            if "last_hidden_state" in self.output_names:
+                last_hidden_state = outputs[self.output_names["last_hidden_state"]]
+            else:
+                last_hidden_state = outputs[0]
 
-            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
             if use_torch:
                 last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
 
