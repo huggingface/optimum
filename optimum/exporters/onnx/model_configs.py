@@ -629,6 +629,7 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
 
 class BartOnnxConfig(M2M100OnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Bart now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
+    MIN_TORCH_VERSION = version.parse("2.1.2")
     pass
 
 
@@ -735,6 +736,10 @@ class DetrOnnxConfig(ViTOnnxConfig):
             }
         else:
             return super().outputs
+
+
+class TableTransformerOnnxConfig(DetrOnnxConfig):
+    pass
 
 
 class YolosOnnxConfig(ViTOnnxConfig):

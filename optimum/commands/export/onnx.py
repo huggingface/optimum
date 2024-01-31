@@ -63,6 +63,13 @@ def parse_args_onnx(parser):
         help="Use half precision during the export. PyTorch-only, requires `--device cuda`.",
     )
     optional_group.add_argument(
+        "--dtype",
+        type=str,
+        default=None,
+        choices=["fp32", "fp16", "bf16"],
+        help="The floating point precision to use for the export. Supported options: fp32 (float32), fp16 (float16), bf16 (bfloat16).",
+    )
+    optional_group.add_argument(
         "--optimize",
         type=str,
         default=None,
@@ -253,6 +260,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             opset=self.args.opset,
             device=self.args.device,
             fp16=self.args.fp16,
+            dtype=self.args.dtype,
             optimize=self.args.optimize,
             monolith=self.args.monolith,
             no_post_process=self.args.no_post_process,

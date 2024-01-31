@@ -1227,7 +1227,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
-        # "bart",  # see tasks.py
+        "bart", 
         "bert",
         # "big_bird",
         # "bigbird_pegasus",
@@ -1592,7 +1592,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
-        # "bart",  # see tasks.py
+        "bart", 
         "bert",
         # "big_bird",
         # "bigbird_pegasus",
@@ -3349,6 +3349,36 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
 
             # compare tensor outputs
             self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
+    def test_compare_to_io_binding(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+
+        onnx_model = ORTModelForCTC.from_pretrained(
+            self.onnx_model_dirs[model_arch],
+            use_io_binding=False,
+        ).to("cuda")
+        onnx_model.use_io_binding = False
+        io_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to("cuda")
+
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        data = self._generate_random_audio_data()
+        input_values = processor(data, return_tensors="pt")
+        onnx_outputs = onnx_model(**input_values)
+        io_outputs = io_model(**input_values)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), io_outputs.logits, atol=1e-1))
 
         gc.collect()
 
