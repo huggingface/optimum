@@ -54,7 +54,7 @@ class GPTQTest(unittest.TestCase):
     exllama_config = None
     cache_block_outputs = True
     modules_to_quantize_inside_block = None
-    device_map_for_quantization = {"": 0}
+    device_map_for_quantization = "cuda"
     dataset = [
         "auto-gptq is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
     ]
@@ -173,6 +173,7 @@ class GPTQTestCPUInit(GPTQTest):
 
     def test_generate_quality(self):
         self.check_inference_correctness(self.quantized_model.to(0))
+
 
 class GPTQTestExllama(GPTQTest):
     disable_exllama = False
