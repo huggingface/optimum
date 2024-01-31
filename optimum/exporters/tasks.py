@@ -1933,7 +1933,7 @@ class TasksManager:
         """
         if library_name is None:
             logger.warning(
-                'Not passing the argument `library_name` to `get_supported_tasks_for_model_type` is deprecated and the support will be removed in a future version of Optimum. Please specify a `library_name`. Defaulting to `"transformers`.'
+                "Passing the argument `library_name` to `get_supported_tasks_for_model_type` is required, but got library_name=None. Defaulting to `transformers`. An error will be raised in a future version of Optimum if `library_name` is not provided."
             )
 
             # We are screwed if different dictionaries have the same keys.
