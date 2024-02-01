@@ -1660,14 +1660,21 @@ class TasksManager:
             if "model_index.json" in all_files:
                 library_name = "diffusers"
             elif CONFIG_NAME in all_files:
-                model_config = PretrainedConfig.from_pretrained(
-                    model_name_or_path, subfolder=subfolder, revision=revision
-                )
+                # We do not use PretrainedConfig.from_pretrained which has unwanted warnings about model type.
+                kwargs = {
+                    "subfolder": subfolder,
+                    "revision": revision,
+                    "cache_dir": cache_dir,
+                }
+                config_dict, kwargs = PretrainedConfig.get_config_dict(model_name_or_path, **kwargs)
+                model_config = PretrainedConfig.from_dict(config_dict, **kwargs)
 
                 if hasattr(model_config, "pretrained_cfg") or hasattr(model_config, "architecture"):
                     library_name = "timm"
                 elif hasattr(model_config, "_diffusers_version"):
                     library_name = "diffusers"
+                else:
+                    library_name = "transformers"
             elif (
                 any(file_path.startswith("sentence_") for file_path in all_files)
                 or "config_sentence_transformers.json" in all_files
