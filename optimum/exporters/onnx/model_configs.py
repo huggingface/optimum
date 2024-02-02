@@ -203,16 +203,6 @@ class GPT2OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
-    @property
-    def values_override(self) -> Optional[Dict[str, Any]]:
-        pad_value_override = {}
-        if not getattr(self._config, "pad_token_id", None):
-            pad_value_override = {"pad_token_id": 0}
-        super_values_override = super().values_override
-        if super_values_override:
-            return {**super_values_override, **pad_value_override}
-        return pad_value_override
-
 
 class GPTJOnnxConfig(GPT2OnnxConfig):
     pass
