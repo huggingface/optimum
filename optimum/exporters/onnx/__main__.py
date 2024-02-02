@@ -415,17 +415,14 @@ def main_export(
         and getattr(model.config, "pad_token_id", None) is None
     )
 
-    if needs_pad_token_id:
-        if pad_token_id is not None:
-            model.config.pad_token_id = pad_token_id
-        else:
-            try:
-                tok = AutoTokenizer.from_pretrained(model_name_or_path)
-                model.config.pad_token_id = tok.pad_token_id
-            except Exception:
-                raise ValueError(
-                    "Could not infer the pad token id, which is needed in this case, please provide it with the --pad_token_id argument"
-                )
+    if needs_pad_token_id and pad_token_id is None:
+        tok = AutoTokenizer.from_pretrained(model_name_or_path)
+        pad_token_id = getattr(tok, "pad_token_id", None)
+        if pad_token_id is None:
+            raise ValueError(
+                "Could not infer the pad token id, which is needed in this case, please provide it with the --pad_token_id argument"
+            )
+        model.config.pad_token_id = pad_token_id
 
     if "stable-diffusion" in task:
         model_type = "stable-diffusion"
