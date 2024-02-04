@@ -1648,6 +1648,8 @@ class SamOnnxConfig(OnnxConfig):
     VARIANTS = {
         "monolith": "All the SAM model components are exported as a single model.onnx.",
         "split": "The vision encoder is exported as a separate vision_encoder.onnx, and the prompt encoder and mask decoder are exported as a prompt_encoder_mask_decoder.onnx. This allows to encoder the image only once for multiple point queries.",
+        "split-with-boxes": "The same as `split`, but with `input_boxes` instead of `input_points`.",
+        "split-with-points-and-boxes": "The same as `split`, but with `input_points` as well as `input_boxes`.",
     }
     DEFAULT_VARIANT = "split"
 
@@ -1681,6 +1683,7 @@ class SamOnnxConfig(OnnxConfig):
                 "pixel_values": {0: "batch_size"},
                 "input_points": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
                 "input_labels": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
+                "input_boxes": {0: "batch_size", 1: "nb_boxes_per_image"},
             }
         else:
             if self.vision_encoder:
@@ -1689,9 +1692,15 @@ class SamOnnxConfig(OnnxConfig):
                 inputs = {
                     "image_positional_embeddings": {0: "batch_size"},
                     "image_embeddings": {0: "batch_size"},
-                    "input_points": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
-                    "input_labels": {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"},
                 }
+
+                if self.variant == "split" or "points" in self.variant:
+                    inputs["input_points"] = {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"}
+                    inputs["input_labels"] = {0: "batch_size", 1: "point_batch_size", 2: "nb_points_per_image"}
+
+                if "boxes" in self.variant:
+                    inputs['input_boxes'] = {0: "batch_size", 1: "nb_boxes_per_image"}
+
         return inputs
 
     @property

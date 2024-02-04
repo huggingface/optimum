@@ -511,6 +511,7 @@ class SAMModelPatcher(ModelPatcher):
             pixel_values=None,
             input_points=None,
             input_labels=None,
+            input_boxes=None,
             image_embeddings=None,
             image_positional_embeddings=None,
             return_dict=True,
@@ -521,11 +522,12 @@ class SAMModelPatcher(ModelPatcher):
                     pixel_values=pixel_values,
                     input_points=input_points,
                     input_labels=input_labels,
+                    input_boxes=input_boxes,
                     image_embeddings=image_embeddings,
                     return_dict=return_dict,
                     **kwargs,
                 )
-            elif config.variant == "split":
+            else: # "split":
                 # return_dict = get_argument(args, kwargs, signature, "return_dict")
                 if config.vision_encoder:
                     # pixel_values = get_argument(args, kwargs, signature, "pixel_values")
@@ -551,13 +553,13 @@ class SAMModelPatcher(ModelPatcher):
                             "image_positional_embeddings": image_positional_embeddings,
                         }
                 else:
-                    if input_points is None:
-                        raise ValueError("input_points is required to export the prompt encoder / mask decoder.")
+                    if input_points is None and input_boxes is None:
+                        raise ValueError("`input_points` or `input_boxes` is required to export the prompt encoder / mask decoder.")
 
                     sparse_embeddings, dense_embeddings = model.prompt_encoder(
                         input_points=input_points,
                         input_labels=input_labels,
-                        input_boxes=None,  # Not supported in the ONNX export
+                        input_boxes=input_boxes,
                         input_masks=None,  # Not supported in the ONNX export
                     )
 
