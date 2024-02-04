@@ -1705,7 +1705,7 @@ class SamOnnxConfig(OnnxConfig):
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        if self.variant == "split" and self.vision_encoder:
+        if self.variant != "monolith" and self.vision_encoder:
             return {"image_embeddings": {0: "batch_size"}, "image_positional_embeddings": {0: "batch_size"}}
         else:
             return {
