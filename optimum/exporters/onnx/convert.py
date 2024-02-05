@@ -477,6 +477,7 @@ def export_pytorch(
     device: str = "cpu",
     input_shapes: Optional[Dict] = None,
     no_dynamic_axes: bool = False,
+    do_constant_folding: bool = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -498,6 +499,8 @@ def export_pytorch(
             If specified, allows to use specific shapes for the example input provided to the ONNX exporter.
         no_dynamic_axes (bool, defaults to `False`):
             If True, disables the use of dynamic axes during ONNX export.
+        do_constant_folding (bool, defaults to `True`):
+            PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -566,7 +569,7 @@ def export_pytorch(
                 input_names=input_names,
                 output_names=output_names,
                 dynamic_axes=dynamix_axes,
-                do_constant_folding=True,
+                do_constant_folding=do_constant_folding,
                 opset_version=opset,
             )
 
@@ -690,6 +693,7 @@ def export_models(
     disable_dynamic_axes_fix: Optional[bool] = False,
     dtype: Optional[str] = None,
     no_dynamic_axes: bool = False,
+    do_constant_folding: bool = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[List[str]], List[List[str]]]:
     """
@@ -718,6 +722,8 @@ def export_models(
             Data type to remap the model inputs to. PyTorch-only. Only `fp16` is supported.
         no_dynamic_axes (bool, defaults to `False`):
             If True, disables the use of dynamic axes during ONNX export.
+        do_constant_folding (bool, defaults to `True`):
+            PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -752,6 +758,7 @@ def export_models(
                 disable_dynamic_axes_fix=disable_dynamic_axes_fix,
                 dtype=dtype,
                 no_dynamic_axes=no_dynamic_axes,
+                do_constant_folding=do_constant_folding,
                 model_kwargs=model_kwargs,
             )
         )
@@ -770,6 +777,7 @@ def export(
     disable_dynamic_axes_fix: Optional[bool] = False,
     dtype: Optional[str] = None,
     no_dynamic_axes: bool = False,
+    do_constant_folding: bool = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -795,6 +803,8 @@ def export(
             Data type to remap the model inputs to. PyTorch-only. Only `fp16` is supported.
         no_dynamic_axes (bool, defaults to `False`):
             If True, disables the use of dynamic axes during ONNX export.
+        do_constant_folding (bool, defaults to `True`):
+            PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -851,6 +861,7 @@ def export(
             device=device,
             input_shapes=input_shapes,
             no_dynamic_axes=no_dynamic_axes,
+            do_constant_folding=do_constant_folding,
             model_kwargs=model_kwargs,
         )
 
