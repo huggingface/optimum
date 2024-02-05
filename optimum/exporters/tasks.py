@@ -831,6 +831,14 @@ class TasksManager:
             "image-classification",
             onnx="PoolFormerOnnxConfig",
         ),
+        "qwen2": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
+            onnx="Qwen2OnnxConfig",
+        ),
         "regnet": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
