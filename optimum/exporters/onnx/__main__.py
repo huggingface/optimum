@@ -191,6 +191,7 @@ def main_export(
     library_name: Optional[str] = None,
     legacy: bool = False,
     no_dynamic_axes: bool = False,
+    do_constant_folding: bool = True,
     **kwargs_shapes,
 ):
     """
@@ -275,6 +276,8 @@ def main_export(
             Disable the use of position_ids for text-generation models that require it for batched generation. Also enable to export decoder only models in three files (without + with past and the merged model). This argument is introduced for backward compatibility and will be removed in a future release of Optimum.
         no_dynamic_axes (bool, defaults to `False`):
             If True, disables the use of dynamic axes during ONNX export.
+        do_constant_folding (bool, defaults to `True`):
+            PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -485,6 +488,7 @@ def main_export(
         no_dynamic_axes=no_dynamic_axes,
         task=task,
         use_subprocess=use_subprocess,
+        do_constant_folding=do_constant_folding,
         **kwargs_shapes,
     )
 
@@ -508,6 +512,7 @@ def onnx_export(
     no_dynamic_axes: bool = False,
     task: Optional[str] = None,
     use_subprocess: bool = False,
+    do_constant_folding: bool = True,
     **kwargs_shapes,
 ):
     library_name = TasksManager._infer_library_from_model(model)
@@ -676,6 +681,7 @@ def onnx_export(
         device=device,
         dtype=float_dtype,
         no_dynamic_axes=no_dynamic_axes,
+        do_constant_folding=do_constant_folding,
         model_kwargs=model_kwargs,
     )
 
@@ -775,6 +781,7 @@ def main():
         for_ort=args.for_ort,
         library_name=args.library_name,
         legacy=args.legacy,
+        do_constant_folding=not args.no_constant_folding,
         **input_shapes,
     )
 
