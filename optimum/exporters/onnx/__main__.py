@@ -766,7 +766,7 @@ def main():
         for_ort=args.for_ort,
         library_name=args.library_name,
         legacy=args.legacy,
-        do_constant_folding=args.no_constant_folding,
+        do_constant_folding=not args.no_constant_folding,
         **input_shapes,
     )
 
