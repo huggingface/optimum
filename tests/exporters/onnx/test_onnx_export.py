@@ -34,9 +34,10 @@ from optimum.exporters.onnx import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
     get_stable_diffusion_models_for_export,
+    main_export,
+    onnx_export_from_model,
     validate_models_outputs,
 )
-from optimum.exporters.onnx.__main__ import main_export, onnx_export
 from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
@@ -632,7 +633,7 @@ class OnnxExportModelTest(TestCase):
             preprocessors = None
 
         with TemporaryDirectory() as tmpdirname:
-            onnx_export(
+            onnx_export_from_model(
                 model=model,
                 output=Path(tmpdirname),
                 monolith=monolith,

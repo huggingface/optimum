@@ -26,7 +26,7 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, is_t
 from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
 
 from optimum.exporters.error_utils import MinimumVersionError
-from optimum.exporters.onnx.__main__ import main_export
+from optimum.exporters.onnx import main_export
 from optimum.onnxruntime import (
     ONNX_DECODER_MERGED_NAME,
     ONNX_DECODER_NAME,

@@ -250,7 +250,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
         return parse_args_onnx(parser)
 
     def run(self):
-        from ...exporters.onnx.__main__ import main_export
+        from ...exporters.onnx import main_export
 
         # Get the shapes to be used to generate dummy inputs
         input_shapes = {}

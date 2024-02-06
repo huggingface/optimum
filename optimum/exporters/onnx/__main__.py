@@ -38,7 +38,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
 
 
 if TYPE_CHECKING:
-
     from .base import OnnxConfig
 
 logger = logging.get_logger()
