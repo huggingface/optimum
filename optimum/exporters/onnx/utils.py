@@ -323,6 +323,7 @@ def get_stable_diffusion_models_for_export(
         text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
             model=pipeline.text_encoder,
             exporter="onnx",
+            library_name="diffusers",
             task="feature-extraction",
         )
         text_encoder_onnx_config = text_encoder_config_constructor(
@@ -334,6 +335,7 @@ def get_stable_diffusion_models_for_export(
     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
         model=pipeline.unet,
         exporter="onnx",
+        library_name="diffusers",
         task="semantic-segmentation",
         model_type="unet",
     )
@@ -345,6 +347,7 @@ def get_stable_diffusion_models_for_export(
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_encoder,
         exporter="onnx",
+        library_name="diffusers",
         task="semantic-segmentation",
         model_type="vae-encoder",
     )
@@ -356,6 +359,7 @@ def get_stable_diffusion_models_for_export(
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_decoder,
         exporter="onnx",
+        library_name="diffusers",
         task="semantic-segmentation",
         model_type="vae-decoder",
     )
@@ -366,6 +370,7 @@ def get_stable_diffusion_models_for_export(
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(
             model=pipeline.text_encoder_2,
             exporter="onnx",
+            library_name="diffusers",
             task="feature-extraction",
             model_type="clip-text-with-projection",
         )

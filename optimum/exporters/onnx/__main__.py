@@ -68,17 +68,16 @@ def _get_submodels_and_onnx_configs(
     custom_onnx_configs: Dict,
     custom_architecture: bool,
     _variant: str,
+    library_name: str,
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
     fn_get_submodels: Optional[Callable] = None,
     preprocessors: Optional[List[Any]] = None,
     legacy: bool = False,
-    library_name: str = "transformers",
     model_kwargs: Optional[Dict] = None,
 ):
-    is_stable_diffusion = "stable-diffusion" in task
     if not custom_architecture:
-        if is_stable_diffusion:
+        if library_name == "diffusers":
             onnx_config = None
             models_and_onnx_configs = get_stable_diffusion_models_for_export(
                 model, int_dtype=int_dtype, float_dtype=float_dtype
@@ -129,7 +128,7 @@ def _get_submodels_and_onnx_configs(
         if fn_get_submodels is not None:
             submodels_for_export = fn_get_submodels(model)
         else:
-            if is_stable_diffusion:
+            if library_name == "diffusers":
                 submodels_for_export = _get_submodels_for_export_stable_diffusion(model)
             elif (
                 model.config.is_encoder_decoder
@@ -373,12 +372,16 @@ def main_export(
 
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             custom_architecture = True
-        elif task not in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx"):
+        elif task not in TasksManager.get_supported_tasks_for_model_type(
+            model_type, "onnx", library_name=library_name
+        ):
             if original_task == "auto":
                 autodetected_message = " (auto-detected)"
             else:
                 autodetected_message = ""
-            model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter="onnx")
+            model_tasks = TasksManager.get_supported_tasks_for_model_type(
+                model_type, exporter="onnx", library_name=library_name
+            )
             raise ValueError(
                 f"Asked to export a {model_type} model for the task {task}{autodetected_message}, but the Optimum ONNX exporter only supports the tasks {', '.join(model_tasks.keys())} for {model_type}. Please use a supported task. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the task {task} to be supported in the ONNX export for {model_type}."
             )
@@ -422,7 +425,13 @@ def main_export(
                     "Could not infer the pad token id, which is needed in this case, please provide it with the --pad_token_id argument"
                 )
 
-    model_type = "stable-diffusion" if "stable-diffusion" in task else model.config.model_type.replace("_", "-")
+    if "stable-diffusion" in task:
+        model_type = "stable-diffusion"
+    elif hasattr(model.config, "export_model_type"):
+        model_type = model.config.export_model_type.replace("_", "-")
+    else:
+        model_type = model.config.model_type.replace("_", "-")
+
     if (
         not custom_architecture
         and library_name != "diffusers"
@@ -513,14 +522,20 @@ def onnx_export(
     else:
         float_dtype = "fp32"
 
-    model_type = "stable-diffusion" if library_name == "diffusers" else model.config.model_type.replace("_", "-")
+    if "stable-diffusion" in task:
+        model_type = "stable-diffusion"
+    elif hasattr(model.config, "export_model_type"):
+        model_type = model.config.export_model_type.replace("_", "-")
+    else:
+        model_type = model.config.model_type.replace("_", "-")
+
     custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE
     task = TasksManager.map_from_synonym(task)
 
     # TODO: support onnx_config.py in the model repo
     if custom_architecture and custom_onnx_configs is None:
         raise ValueError(
-            f"Trying to export a {model.config.model_type} model, that is a custom or unsupported architecture, but no custom onnx configuration was passed as `custom_onnx_configs`. Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models for an example on how to export custom models. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the model type {model.config.model_type} to be supported natively in the ONNX export."
+            f"Trying to export a {model_type} model, that is a custom or unsupported architecture, but no custom onnx configuration was passed as `custom_onnx_configs`. Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models for an example on how to export custom models. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the model type {model_type} to be supported natively in the ONNX export."
         )
 
     if task is None:
@@ -690,7 +705,7 @@ def onnx_export(
     if library_name == "diffusers":
         # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
         use_subprocess = False
-    elif model.config.model_type in UNPICKABLE_ARCHS:
+    elif model_type in UNPICKABLE_ARCHS:
         # Pickling is bugged for nn.utils.weight_norm: https://github.com/pytorch/pytorch/issues/102983
         # TODO: fix "Cowardly refusing to serialize non-leaf tensor" error for wav2vec2-conformer
         use_subprocess = False
