@@ -1227,7 +1227,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
-        "bart", 
+        "bart",
         "bert",
         # "big_bird",
         # "bigbird_pegasus",
@@ -1592,7 +1592,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
-        "bart", 
+        "bart",
         "bert",
         # "big_bird",
         # "bigbird_pegasus",
