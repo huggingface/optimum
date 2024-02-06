@@ -410,10 +410,7 @@ def main_export(
         **loading_kwargs,
     )
 
-    needs_pad_token_id = (
-        task == "text-classification"
-        and getattr(model.config, "pad_token_id", None) is None
-    )
+    needs_pad_token_id = task == "text-classification" and getattr(model.config, "pad_token_id", None) is None
 
     if needs_pad_token_id:
         if pad_token_id is not None:
