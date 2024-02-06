@@ -1718,6 +1718,8 @@ class TasksManager:
             library_name (`Optional[str]`, *optional*)::
                 The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
         """
+        # TODO: make model_name_or_path an optional argument here.
+
         library_name = TasksManager.infer_library_from_model(
             model_name_or_path, subfolder, revision, cache_dir, library_name
         )
