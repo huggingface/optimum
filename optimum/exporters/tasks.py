@@ -1602,8 +1602,15 @@ class TasksManager:
         return task
 
     @staticmethod
-    def _infer_library_from_model(model: Union["PreTrainedModel", "TFPreTrainedModel"]):
-        if hasattr(model.config, "pretrained_cfg") or hasattr(model.config, "architecture"):
+    def _infer_library_from_model(model: Union["PreTrainedModel", "TFPreTrainedModel"], library: Optional[str] = None):
+        if library_name is not None:
+            return library_name
+
+        if (
+            hasattr(model, "pretrained_cfg")
+            or hasattr(model.config, "pretrained_cfg")
+            or hasattr(model.config, "architecture")
+        ):
             library_name = "timm"
         elif hasattr(model.config, "_diffusers_version") or getattr(model, "config_name", "") == "model_index.json":
             library_name = "diffusers"
@@ -1705,6 +1712,8 @@ class TasksManager:
             library_name (`Optional[str]`, *optional*)::
                 The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
         """
+        library_name = TasksManager._infer_library_from_model(model, library_name)
+
         if library_name == "diffusers":
             model.config.export_model_type = "stable-diffusion"
         elif library_name == "timm":
