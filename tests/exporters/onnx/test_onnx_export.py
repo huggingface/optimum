@@ -185,7 +185,7 @@ class OnnxExportTestCase(TestCase):
         if library_name == "timm":
             model_class = TasksManager.get_model_class_for_task(task, library=library_name)
             model = model_class(f"hf_hub:{model_name}", pretrained=True, exportable=True)
-            TasksManager.standardize_model_attributes(model_name, model, library_name=library_name)
+            TasksManager.standardize_model_attributes(model, library_name=library_name)
         else:
             config = AutoConfig.from_pretrained(model_name)
             model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
@@ -611,7 +611,7 @@ class OnnxExportModelTest(TestCase):
         if library_name == "timm":
             model_class = TasksManager.get_model_class_for_task(task, library=library_name)
             model = model_class(f"hf_hub:{model_name}", pretrained=True, exportable=True)
-            TasksManager.standardize_model_attributes(model_name, model, library_name=library_name)
+            TasksManager.standardize_model_attributes(model, library_name=library_name)
         else:
             config = AutoConfig.from_pretrained(model_name)
             model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))

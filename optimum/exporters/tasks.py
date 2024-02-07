@@ -17,7 +17,6 @@
 import importlib
 import inspect
 import itertools
-import json
 import os
 from functools import partial
 from pathlib import Path
@@ -1645,44 +1644,33 @@ class TasksManager:
         if library_name is not None:
             return library_name
 
-        full_model_path = Path(model_name_or_path) / subfolder
+        all_files, _ = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
 
-        if not full_model_path.is_dir():
-            model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
-            library_name = getattr(model_info, "library_name", None)
+        if "model_index.json" in all_files:
+            library_name = "diffusers"
+        elif CONFIG_NAME in all_files:
+            # We do not use PretrainedConfig.from_pretrained which has unwanted warnings about model type.
+            kwargs = {
+                "subfolder": subfolder,
+                "revision": revision,
+                "cache_dir": cache_dir,
+            }
+            config_dict, kwargs = PretrainedConfig.get_config_dict(model_name_or_path, **kwargs)
+            model_config = PretrainedConfig.from_dict(config_dict, **kwargs)
 
-            # sentence-transformers package name is sentence_transformers
-            if library_name is not None:
-                library_name = library_name.replace("-", "_")
-
-        if library_name is None:
-            all_files, _ = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
-
-            if "model_index.json" in all_files:
+            if hasattr(model_config, "pretrained_cfg") or hasattr(model_config, "architecture"):
+                library_name = "timm"
+            elif hasattr(model_config, "_diffusers_version"):
                 library_name = "diffusers"
-            elif CONFIG_NAME in all_files:
-                # We do not use PretrainedConfig.from_pretrained which has unwanted warnings about model type.
-                kwargs = {
-                    "subfolder": subfolder,
-                    "revision": revision,
-                    "cache_dir": cache_dir,
-                }
-                config_dict, kwargs = PretrainedConfig.get_config_dict(model_name_or_path, **kwargs)
-                model_config = PretrainedConfig.from_dict(config_dict, **kwargs)
-
-                if hasattr(model_config, "pretrained_cfg") or hasattr(model_config, "architecture"):
-                    library_name = "timm"
-                elif hasattr(model_config, "_diffusers_version"):
-                    library_name = "diffusers"
-                else:
-                    library_name = "transformers"
-            elif (
-                any(file_path.startswith("sentence_") for file_path in all_files)
-                or "config_sentence_transformers.json" in all_files
-            ):
-                library_name = "sentence_transformers"
             else:
                 library_name = "transformers"
+        elif (
+            any(file_path.startswith("sentence_") for file_path in all_files)
+            or "config_sentence_transformers.json" in all_files
+        ):
+            library_name = "sentence_transformers"
+        else:
+            library_name = "transformers"
 
         if library_name is None:
             raise ValueError(
@@ -1694,11 +1682,7 @@ class TasksManager:
     @classmethod
     def standardize_model_attributes(
         cls,
-        model_name_or_path: Union[str, Path],
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        subfolder: str = "",
-        revision: Optional[str] = None,
-        cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
         library_name: Optional[str] = None,
     ):
         """
@@ -1721,40 +1705,18 @@ class TasksManager:
             library_name (`Optional[str]`, *optional*)::
                 The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
         """
-        # TODO: make model_name_or_path an optional argument here.
-
-        library_name = TasksManager.infer_library_from_model(
-            model_name_or_path, subfolder, revision, cache_dir, library_name
-        )
-
-        full_model_path = Path(model_name_or_path) / subfolder
-        is_local = full_model_path.is_dir()
-
         if library_name == "diffusers":
             model.config.export_model_type = "stable-diffusion"
         elif library_name == "timm":
             # Retrieve model config
-            config_path = full_model_path / "config.json"
-
-            if not is_local:
-                config_path = huggingface_hub.hf_hub_download(
-                    model_name_or_path, "config.json", subfolder=subfolder, revision=revision
-                )
-
-            model_config = PretrainedConfig.from_json_file(config_path)
-
-            if hasattr(model_config, "pretrained_cfg"):
-                model_config.pretrained_cfg = PretrainedConfig.from_dict(model_config.pretrained_cfg)
+            model_config = PretrainedConfig.from_dict(model.pretrained_cfg)
 
             # Set config as in transformers
             setattr(model, "config", model_config)
 
-            # Update model_type for model
-            with open(config_path) as fp:
-                model_type = json.load(fp)["architecture"]
-
             # `model_type` is a class attribute in Transformers, let's avoid modifying it.
-            model.config.export_model_type = model_type
+            model.config.export_model_type = model.pretrained_cfg["architecture"]
+
         elif library_name == "sentence_transformers":
             if "Transformer" in model[0].__class__.__name__:
                 model.config = model[0].auto_model.config
@@ -1903,9 +1865,7 @@ class TasksManager:
                     kwargs["from_pt"] = True
                     model = model_class.from_pretrained(model_name_or_path, **kwargs)
 
-        TasksManager.standardize_model_attributes(
-            model_name_or_path, model, subfolder, revision, cache_dir, library_name
-        )
+        TasksManager.standardize_model_attributes(model, library_name)
 
         return model
 
