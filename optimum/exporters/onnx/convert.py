@@ -1036,22 +1036,6 @@ def onnx_export_from_model(
             f"Trying to export a {model_type} model, that is a custom or unsupported architecture, but no custom onnx configuration was passed as `custom_onnx_configs`. Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models for an example on how to export custom models. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the model type {model_type} to be supported natively in the ONNX export."
         )
 
-    if task is None:
-        # TODO : _infer_task_from_model_or_model_class should also infer task from timm model
-        if library_name == "timm":
-            task = "image-classification"
-        else:
-            task = TasksManager._infer_task_from_model_or_model_class(model)
-
-        if (
-            library_name != "diffusers"
-            and task + "-with-past"
-            in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx", library_name=library_name)
-            and not monolith
-            and model.config.use_cache
-        ):
-            task += "-with-past"
-
     if task.startswith("text-generation") and model.config.is_encoder_decoder:
         raise ValueError(
             f"model.config.is_encoder_decoder is True and task is `{task}`, which are incompatible. If the task was auto-inferred, please fill a bug report"
