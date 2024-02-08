@@ -1522,10 +1522,12 @@ class TasksManager:
                     "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
                 )
             model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
-            if getattr(model_info, "library_name", None) == "diffusers":
+            library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
+
+            if library_name == "diffusers":
                 class_name = model_info.config["diffusers"]["class_name"]
                 inferred_task_name = "stable-diffusion-xl" if "StableDiffusionXL" in class_name else "stable-diffusion"
-            elif getattr(model_info, "library_name", None) == "timm":
+            elif library_name == "timm":
                 inferred_task_name = "image-classification"
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
@@ -1543,13 +1545,9 @@ class TasksManager:
                         # transformersInfo does not always have a pipeline_tag attribute
                         class_name_prefix = ""
                         if is_torch_available():
-                            tasks_to_automodels = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP[
-                                model_info.library_name
-                            ]
+                            tasks_to_automodels = TasksManager._LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP[library_name]
                         else:
-                            tasks_to_automodels = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP[
-                                model_info.library_name
-                            ]
+                            tasks_to_automodels = TasksManager._LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP[library_name]
                             class_name_prefix = "TF"
 
                         auto_model_class_name = transformers_info["auto_model"]
