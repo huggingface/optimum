@@ -211,7 +211,6 @@ def main_export(
     task = TasksManager.map_from_synonym(task)
 
     framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
-
     library_name = TasksManager.infer_library_from_model(
         model_name_or_path, subfolder=subfolder, library_name=library_name
     )

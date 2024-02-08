@@ -988,7 +988,7 @@ def onnx_export_from_model(
     """
     library_name = TasksManager._infer_library_from_model(model)
 
-    # TODO: call standardize_model_attributes here once its model_name_or_path argument is optional.
+    TasksManager.standardize_model_attributes(model, library_name)
 
     if hasattr(model.config, "export_model_type"):
         model_type = model.config.export_model_type.replace("_", "-")
