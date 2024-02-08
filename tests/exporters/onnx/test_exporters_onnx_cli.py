@@ -185,6 +185,12 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         no_dynamic_axes: bool = False,
         model_kwargs: Optional[Dict] = None,
     ):
+        # We need to set this to some value to be able to test the outputs values for batch size > 1.
+        if task == "text-classification":
+            pad_token_id = 0
+        else:
+            pad_token_id = None
+
         with TemporaryDirectory() as tmpdir:
             try:
                 main_export(
@@ -198,6 +204,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     no_post_process=no_post_process,
                     _variant=variant,
                     no_dynamic_axes=no_dynamic_axes,
+                    pad_token_id=pad_token_id,
                     model_kwargs=model_kwargs,
                 )
             except MinimumVersionError as e:

@@ -603,7 +603,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
+            "text-classification",
             "token-classification",
             onnx="GPT2OnnxConfig",
         ),
@@ -612,7 +612,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            # "text-classification",  # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
+            "text-classification",
             "token-classification",
             onnx="GPTBigCodeOnnxConfig",
         ),
@@ -622,7 +622,7 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "question-answering",
-            # "text-classification",  # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
+            "text-classification",
             onnx="GPTJOnnxConfig",
         ),
         "gpt-neo": supported_tasks_mapping(
@@ -630,7 +630,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
+            "text-classification",
             onnx="GPTNeoOnnxConfig",
         ),
         "gpt-neox": supported_tasks_mapping(
@@ -638,6 +638,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
+            "text-classification",
             onnx="GPTNeoXOnnxConfig",
         ),
         "groupvit": supported_tasks_mapping(
@@ -734,7 +735,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            # "text-classification",
+            "text-classification",
             onnx="MistralOnnxConfig",
         ),
         # TODO: enable once the missing operator is supported.
@@ -782,6 +783,7 @@ class TasksManager:
         "mpt": supported_tasks_mapping(
             "text-generation",
             "text-generation-with-past",
+            "text-classification",
             onnx="MPTOnnxConfig",
         ),
         "mt5": supported_tasks_mapping(
@@ -818,7 +820,7 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "question-answering",
-            # "text-classification",  # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
+            "text-classification",
             onnx="OPTOnnxConfig",
         ),
         "llama": supported_tasks_mapping(
@@ -826,7 +828,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
-            # "text-classification",    # TODO: maybe reenable once fixed. See: https://github.com/huggingface/optimum/pull/1308
+            "text-classification",
             onnx="LlamaOnnxConfig",
         ),
         "pegasus": supported_tasks_mapping(
@@ -849,6 +851,7 @@ class TasksManager:
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
+            "text-classification",
             onnx="PhiOnnxConfig",
         ),
         "pix2struct": supported_tasks_mapping(
