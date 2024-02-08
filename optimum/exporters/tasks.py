@@ -1603,8 +1603,8 @@ class TasksManager:
 
     @staticmethod
     def _infer_library_from_model(model: Union["PreTrainedModel", "TFPreTrainedModel"], library: Optional[str] = None):
-        if library_name is not None:
-            return library_name
+        if library is not None:
+            return library
 
         if (
             hasattr(model, "pretrained_cfg")
