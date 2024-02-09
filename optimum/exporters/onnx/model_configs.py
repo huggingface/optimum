@@ -1085,6 +1085,10 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
         return outputs
 
 
+class OwlV2OnnxConfig(OwlViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14
+
+
 class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         allow_new=True,
