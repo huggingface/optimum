@@ -23,4 +23,4 @@ COPY . /workspace/optimum
 RUN pip install /workspace/optimum[onnxruntime-gpu,tests]
 
 ENV TEST_LEVEL=1
-CMD pytest onnxruntime/test_*.py --durations=0 -s -vvvvv -m gpu_test
+CMD pytest onnxruntime/test_*.py --durations=0 -s -vvvvv -m cuda_ep_test -m trt_ep_test

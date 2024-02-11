@@ -89,6 +89,7 @@ class ORTOptimizerTestMixin(unittest.TestCase):
 class ORTOptimizerTest(unittest.TestCase):
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
         # (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
@@ -340,7 +341,7 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
         )
     )
     @require_torch_gpu
-    @pytest.mark.gpu_test
+    @pytest.mark.cuda_ep_test
     def test_optimization_levels_gpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
         for use_io_binding in [False, True]:
             # TODO: investigate why marian with IO Binding fails
@@ -457,7 +458,7 @@ class ORTOptimizerForSpeechSeq2SeqIntegrationTest(ORTOptimizerTestMixin):
         )
     )
     @require_torch_gpu
-    @pytest.mark.gpu_test
+    @pytest.mark.cuda_ep_test
     def test_optimization_levels_gpu(
         self, test_name: str, model_arch: str, use_cache: bool, use_io_binding: bool, optimization_level: str
     ):
@@ -570,7 +571,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         grid_parameters({**FULL_GRID, "use_cache": [True], "optimization_level": ["O1", "O2", "O3", "O4"]})
     )
     @require_torch_gpu
-    @pytest.mark.gpu_test
+    @pytest.mark.cuda_ep_test
     def test_optimization_levels_gpu(
         self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool, optimization_level: str
     ):

@@ -36,7 +36,7 @@ from ..utils.save_utils import maybe_save_preprocessors
 from .constants import DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN, DECODER_WITH_PAST_ONNX_FILE_PATTERN
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .models.bloom import bloom_convert_to_bloom_cache, bloom_convert_to_standard_cache
-from .utils import MULTI_QUERY_ATTN_MODELS, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_WEIGHTS_NAME
+from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_WEIGHTS_NAME
 
 
 if TYPE_CHECKING:
@@ -147,10 +147,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         self.generation_config = generation_config
         self.onnx_paths = [self.model_path]
         self.use_merged = "use_cache_branch" in self.inputs_names
+        self.model_type = self.config.model_type
 
         self.use_fp16 = False
         for inp in model.get_inputs():
-            if inp.name == "past_key_values" and inp.type == "tensor(float16)":
+            if (
+                inp.name == "past_key_values" or inp.name in self.key_value_input_names
+            ) and inp.type == "tensor(float16)":
                 self.use_fp16 = True
                 break
 
@@ -204,9 +207,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         loss = None
         if self.use_cache:
             if past_key_values is not None:
-                input_ids = input_ids[:, -1:]
-                # Flatten the past_key_values (no need to flatten for models using multi-query attn)
-                if self.config.model_type not in MULTI_QUERY_ATTN_MODELS:
+                # Flatten the past_key_values (gpt_bigcode has fused key/value cache, so no need to flatten it)
+                if self.model_type != "gpt_bigcode":
                     past_key_values = tuple(
                         past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
                     )
@@ -300,7 +302,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if "loss" in self.output_names:
                 loss = torch.from_numpy(outputs[self.output_names["loss"]]).to(self.device)
 
-        if self.use_cache and self.config.model_type not in MULTI_QUERY_ATTN_MODELS:
+        if self.use_cache and self.model_type != "gpt_bigcode":
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
             # per decoder layer
             past_key_values = tuple(
@@ -328,19 +330,21 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if use_torch and use_cache_branch is not None:
             use_cache_branch = use_cache_branch.to(self.device)
 
+        pkv_output_shape = {}
         # Generate dummy past for the first forward if uses a merged decoder
         if past_key_values is None:
             batch_size = input_ids.shape[0]
-            if self.config.model_type in {"mistral", "llama"}:
+            if self.model_type in {"mistral", "llama"}:
                 num_attention_heads = self.normalized_config.num_key_value_heads
             else:
                 num_attention_heads = self.normalized_config.num_attention_heads
             embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
 
             dtype = constructor.float16 if self.use_fp16 else constructor.float32
+
             # TODO: find a way to better handle this controlflow, this is EXTREMELY UGLY.
             # "1" is the dummy sequence length
-            if self.config.model_type == "bloom":
+            if self.model_type == "bloom":
                 shape_value = (batch_size * num_attention_heads, 0, embed_size_per_head)
                 shape_key = (batch_size * num_attention_heads, embed_size_per_head, 0)
                 key = constructor.zeros(shape_key, dtype=dtype)
@@ -353,7 +357,14 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 past_key_values = tuple(
                     key_or_value for _ in range(len(self.key_value_input_names) // 2) for key_or_value in [key, value]
                 )
-            elif self.config.model_type == "gpt_bigcode":
+
+                for name, value in zip(self.key_value_output_names, past_key_values):
+                    shape = [*value.shape]
+                    index = 1 if "value" in name else 2
+
+                    shape[index] += sequence_length
+                    pkv_output_shape[name] = shape
+            elif self.model_type == "gpt_bigcode":
                 # GPT BigCode uses muti-query attention, and has the specificity of putting both key and value in the same cache tensor.
                 shape_key_and_value = (batch_size, 0, embed_size_per_head * 2)
                 key_and_value = constructor.zeros(shape_key_and_value, dtype=dtype)
@@ -362,16 +373,15 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     key_and_value = key_and_value.to(self.device)
 
                 past_key_values = tuple(key_and_value for _ in range(len(self.key_value_input_names)))
-            elif self.config.model_type == "falcon":
-                shape = (batch_size * self.num_key_value_heads, 0, embed_size_per_head)
-                key_or_value = constructor.zeros(shape, dtype=dtype)
 
-                if use_torch:
-                    key_or_value = key_or_value.to(self.device)
-
-                past_key_values = tuple(key_or_value for _ in range(len(self.key_value_input_names)))
+                for name, value in zip(self.key_value_output_names, past_key_values):
+                    shape = [*value.shape]
+                    shape[1] += sequence_length
+                    pkv_output_shape[name] = shape
             else:
-                shape = (batch_size, num_attention_heads, 0, embed_size_per_head)
+                num_key_value_heads = self.num_key_value_heads if self.model_type == "falcon" else num_attention_heads
+
+                shape = (batch_size, num_key_value_heads, 0, embed_size_per_head)
                 key_or_value = constructor.zeros(shape, dtype=dtype)
 
                 if use_torch:
@@ -379,18 +389,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
                 past_key_values = tuple(key_or_value for _ in range(len(self.key_value_input_names)))
 
-        pkv_output_shape = {}
-        for name, value in zip(self.key_value_output_names, past_key_values):
-            shape = [*value.shape]
-            index = (
-                1
-                if self.config.model_type in MULTI_QUERY_ATTN_MODELS
-                or (self.config.model_type == "bloom" and "value" in name)
-                else 2
-            )
-
-            shape[index] += sequence_length
-            pkv_output_shape[name] = shape
+                for name, value in zip(self.key_value_output_names, past_key_values):
+                    shape = [*value.shape]
+                    shape[2] += sequence_length
+                    pkv_output_shape[name] = shape
 
         return use_cache_branch, past_key_values, pkv_output_shape
 
@@ -473,7 +475,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
             if file_name == ONNX_DECODER_WITH_PAST_NAME and config.model_type in MODEL_TO_PATCH_FOR_PAST:
                 raise ValueError(
-                    f"{ONNX_DECODER_WITH_PAST_NAME} not supported for the following architecture : {', '.join(MODEL_TO_PATCH_FOR_PAST)}. Please re-export your model or set use_cache=False."
+                    f"ONNX Runtime inference using {ONNX_DECODER_WITH_PAST_NAME} has been deprecated for {config.model_type} architecture. Please re-export your model with optimum>=1.14.0 or set use_cache=False. For details about the deprecation, please refer to https://github.com/huggingface/optimum/releases/tag/v1.14.0."
                 )
 
             regular_file_names = []
@@ -549,6 +551,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             init_cls = ORTMPTForCausalLM
         elif config.model_type == "opt":
             init_cls = ORTOPTForCausalLM
+        elif config.model_type == "gpt_bigcode":
+            init_cls = ORTGPTBigCodeForCausalLM
         else:
             init_cls = ORTModelForCausalLM
 
@@ -630,8 +634,17 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
-        # if model is used as a decoder in encoder-decoder model, the decoder attention mask is created on the fly
+        if past_key_values is not None:
+            past_length = past_key_values[0][0].shape[2]
+            # Some generation methods already pass only the last input ID
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                # Default to old behavior: keep only final ID
+                remove_prefix_length = input_ids.shape[1] - 1
+            input_ids = input_ids[:, remove_prefix_length:]
 
+        # if model is used as a decoder in encoder-decoder model, the decoder attention mask is created on the fly
         attention_mask = kwargs.get("attention_mask", None)
         use_cache = kwargs.get("use_cache", None)
 
@@ -664,9 +677,62 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         return True
 
 
+class ORTGPTBigCodeForCausalLM(ORTModelForCausalLM):
+    # Adapted from transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBigCodeForCausalLM.prepare_inputs_for_generation
+    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
+        # Omit tokens covered by past_key_values
+        if past_key_values:
+            if self.config.multi_query:
+                past_length = past_key_values[0].shape[1]
+            else:
+                past_length = past_key_values[0].shape[2]
+
+            # Some generation methods already pass only the last input ID
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                # Default to old behavior: keep only final ID
+                remove_prefix_length = input_ids.shape[1] - 1
+
+            input_ids = input_ids[:, remove_prefix_length:]
+
+        attention_mask = kwargs.get("attention_mask", None)
+        position_ids = kwargs.get("position_ids", None)
+
+        if attention_mask is not None and position_ids is None:
+            # create position_ids on the fly for batch generation
+            position_ids = attention_mask.long().cumsum(-1) - 1
+            position_ids.masked_fill_(attention_mask == 0, 1)
+            if past_key_values:
+                position_ids = position_ids[:, -input_ids.shape[1] :]
+        else:
+            position_ids = None
+
+        model_inputs = {"input_ids": input_ids}
+        model_inputs.update(
+            {
+                "past_key_values": past_key_values,
+                "use_cache": kwargs.get("use_cache"),
+                "position_ids": position_ids,
+                "attention_mask": attention_mask,
+            }
+        )
+        return model_inputs
+
+
 class ORTBloomForCausalLM(ORTModelForCausalLM):
     # Adapted from transformers.models.bloom.modeling_bloom.BloomForCausalLM.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
+        if past_key_values is not None:
+            past_length = past_key_values[0][0].shape[2]
+            # Some generation methods already pass only the last input ID
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                # Default to old behavior: keep only final ID
+                remove_prefix_length = input_ids.shape[1] - 1
+            input_ids = input_ids[:, remove_prefix_length:]
+
         attention_mask = kwargs.get("attention_mask", None)
         use_cache = kwargs.get("use_cache", None)
 
@@ -706,6 +772,16 @@ class ORTBloomForCausalLM(ORTModelForCausalLM):
 class ORTOPTForCausalLM(ORTModelForCausalLM):
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
+        if past_key_values is not None:
+            past_length = past_key_values[0][0].shape[2]
+            # Some generation methods already pass only the last input ID
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                # Default to old behavior: keep only final ID
+                remove_prefix_length = input_ids.shape[1] - 1
+            input_ids = input_ids[:, remove_prefix_length:]
+
         attention_mask = kwargs.get("attention_mask", None)
         use_cache = kwargs.get("use_cache", None)
 
@@ -721,6 +797,16 @@ class ORTOPTForCausalLM(ORTModelForCausalLM):
 class ORTMPTForCausalLM(ORTModelForCausalLM):
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
+        if past_key_values is not None:
+            past_length = past_key_values[0][0].shape[2]
+            # Some generation methods already pass only the last input ID
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                # Default to old behavior: keep only final ID
+                remove_prefix_length = input_ids.shape[1] - 1
+            input_ids = input_ids[:, remove_prefix_length:]
+
         attention_mask = kwargs.get("attention_mask", None)
         use_cache = kwargs.get("use_cache", None)
 
@@ -758,8 +844,9 @@ class ORTFalconForCausalLM(ORTModelForCausalLM):
         self.num_key_value_heads = (
             config.num_kv_heads if (config.new_decoder_architecture or not config.multi_query) else 1
         )
+        self.use_alibi = config.alibi
 
-    # Copied from https://github.com/huggingface/transformers/pull/26199
+    # Copied from transformers.models.falcon.modeling_falcon.FalconForCausalLM._reorder_cache
     def _reorder_cache(
         self, past: Tuple[Tuple[torch.Tensor, torch.Tensor], ...], beam_idx: torch.LongTensor
     ) -> Tuple[Tuple[torch.Tensor, torch.Tensor], ...]:
@@ -767,9 +854,9 @@ class ORTFalconForCausalLM(ORTModelForCausalLM):
         This function is used to re-order the `past_key_values` cache if [`~PreTrainedModel.beam_search`] or
         [`~PreTrainedModel.beam_sample`] is called. This is required to match `past_key_values` with the correct
         beam_idx at every generation step.
+
         Output shares the same memory storage as `past`.
         """
-        standardized_past = self._convert_cache_to_standard_format(past, batch_size=len(beam_idx))
 
         # Get a copy of `beam_idx` on all the devices where we need those indices.
         device_to_beam_idx = {
@@ -780,11 +867,11 @@ class ORTFalconForCausalLM(ORTModelForCausalLM):
                 layer_past[0].index_select(0, device_to_beam_idx[layer_past[0].device]),
                 layer_past[1].index_select(0, device_to_beam_idx[layer_past[0].device]),
             )
-            for layer_past in standardized_past
+            for layer_past in past
         )
-        return self._convert_to_rw_cache(reordered_past)
+        return reordered_past
 
-    # Copied from https://github.com/huggingface/transformers/pull/26199
+    # Adapted from transformers.models.falcon.modeling_falcon.FalconForCausalLM.prepare_inputs_for_generation
     def prepare_inputs_for_generation(
         self,
         input_ids: torch.LongTensor,
@@ -794,19 +881,24 @@ class ORTFalconForCausalLM(ORTModelForCausalLM):
         **kwargs,
     ) -> dict:
         if past_key_values is not None:
-            input_ids = input_ids[:, -1:]
+            past_length = past_key_values[0][0].shape[2]
 
-            # the cache may be in the stardard format (e.g. in contrastive search), convert to falcon's format if needed
-            if len(past_key_values[0][0].shape) == 4:
-                past_key_values = self._convert_to_rw_cache(past_key_values)
+            # Some generation methods already pass only the last input ID
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                # Default to old behavior: keep only final ID
+                remove_prefix_length = input_ids.shape[1] - 1
+
+            input_ids = input_ids[:, remove_prefix_length:]
 
         # Note: versions of Falcon with alibi do not use position_ids. It is used with RoPE.
-        if not self.config.alibi and attention_mask is not None and position_ids is None:
+        if not self.use_alibi and attention_mask is not None and position_ids is None:
             # create position_ids on the fly for batch generation
             position_ids = attention_mask.long().cumsum(-1) - 1
             position_ids.masked_fill_(attention_mask == 0, 1)
             if past_key_values:
-                position_ids = position_ids[:, -1].unsqueeze(-1)
+                position_ids = position_ids[:, -input_ids.shape[1] :]
 
         return {
             "input_ids": input_ids,

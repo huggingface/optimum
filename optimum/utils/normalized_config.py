@@ -85,6 +85,10 @@ class NormalizedTextConfig(NormalizedConfig):
     EOS_TOKEN_ID = "eos_token_id"
 
 
+class NormalizedTextConfigWithGQA(NormalizedTextConfig):
+    NUM_KEY_VALUE_HEADS = "num_key_value_heads"
+
+
 class NormalizedSeq2SeqConfig(NormalizedTextConfig):
     ENCODER_NUM_LAYERS = NormalizedTextConfig.NUM_LAYERS
     DECODER_NUM_LAYERS = NormalizedTextConfig.NUM_LAYERS
@@ -95,6 +99,7 @@ class NormalizedSeq2SeqConfig(NormalizedTextConfig):
 class NormalizedVisionConfig(NormalizedConfig):
     IMAGE_SIZE = "image_size"
     NUM_CHANNELS = "num_channels"
+    INPUT_SIZE = "input_size"
 
 
 class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig):
@@ -166,8 +171,6 @@ SpeechToTextLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
     allow_new=True,
 )
 
-MistralNormalizedTextConfig = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
-
 
 class NormalizedConfigManager:
     """
@@ -184,6 +187,7 @@ class NormalizedConfigManager:
         'clip',
         'convbert',
         'convnext',
+        'convnextv2',
         'data2vec-text',
         'data2vec-vision',
         'detr',
@@ -200,6 +204,7 @@ class NormalizedConfigManager:
         'roformer',
         'segformer',
         'squeezebert',
+        'table-transformer',
     """
 
     # Contribution note: Please add new models in alphabetical order
@@ -227,19 +232,21 @@ class NormalizedConfigManager:
         "gpt-bigcode": GPTBigCodeNormalizedTextConfig,
         "gpt-neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
         "gpt-neox": NormalizedTextConfig,
-        "llama": NormalizedTextConfig,
+        "llama": NormalizedTextConfigWithGQA,
         "gptj": GPT2LikeNormalizedTextConfig,
         "imagegpt": GPT2LikeNormalizedTextConfig,
         "longt5": T5LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
-        "mistral": MistralNormalizedTextConfig,
+        "mistral": NormalizedTextConfigWithGQA,
+        "mixtral": NormalizedTextConfigWithGQA,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m-100": BartLikeNormalizedTextConfig,
         "nystromformer": NormalizedTextConfig,
         "opt": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
         "pix2struct": Pix2StructNormalizedTextConfig,
+        "phi": NormalizedTextConfig,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,

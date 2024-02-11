@@ -30,6 +30,8 @@
       title: How to accelerate training
     - local: onnxruntime/usage_guides/gpu
       title: Accelerated inference on NVIDIA GPUs
+    - local: onnxruntime/usage_guides/amdgpu
+      title: Accelerated inference on AMD GPUs
     title: How-to guides
     isExpanded: false
   - sections:

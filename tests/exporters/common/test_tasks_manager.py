@@ -33,6 +33,15 @@ class TasksManagerTestCase(TestCase):
         for mappings in TasksManager._SUPPORTED_MODEL_TYPE.values():
             for class_ in mappings.get(backend, {}).values():
                 registered_classes.add(class_.func.__name__)
+        for mappings in TasksManager._TIMM_SUPPORTED_MODEL_TYPE.values():
+            for class_ in mappings.get(backend, {}).values():
+                registered_classes.add(class_.func.__name__)
+        for mappings in TasksManager._SENTENCE_TRANSFORMERS_SUPPORTED_MODEL_TYPE.values():
+            for class_ in mappings.get(backend, {}).values():
+                registered_classes.add(class_.func.__name__)
+        for mappings in TasksManager._DIFFUSERS_SUPPORTED_MODEL_TYPE.values():
+            for class_ in mappings.get(backend, {}).values():
+                registered_classes.add(class_.func.__name__)
 
         if classes_to_ignore is None:
             classes_to_ignore = set()

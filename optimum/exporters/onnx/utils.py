@@ -15,7 +15,7 @@
 """Utility functions."""
 
 import copy
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 from packaging import version
@@ -30,7 +30,6 @@ from ...utils import (
     logging,
 )
 from ...utils.import_utils import _diffusers_version
-from ...utils.modeling_utils import _prepare_attn_mask, _prepare_decoder_attention_mask  # noqa: F401
 from ..tasks import TasksManager
 from .constants import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
 
@@ -77,6 +76,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "gptj",
     "imagegpt",
     "llama",
+    "phi",
     "mistral",
 }
 
@@ -131,8 +131,10 @@ def _get_submodels_for_export_stable_diffusion(
         models_for_export["text_encoder"] = pipeline.text_encoder
 
     # U-NET
-    # PyTorch does not support the ONNX export of torch.nn.functional.scaled_dot_product_attention
-    pipeline.unet.set_attn_processor(AttnProcessor())
+    # ONNX export of torch.nn.functional.scaled_dot_product_attention not supported for < v2.1.0
+    is_torch_greater_or_equal_than_2_1 = version.parse(torch.__version__) >= version.parse("2.1.0")
+    if not is_torch_greater_or_equal_than_2_1:
+        pipeline.unet.set_attn_processor(AttnProcessor())
     pipeline.unet.config.text_encoder_projection_dim = projection_dim
     # The U-NET time_ids inputs shapes depends on the value of `requires_aesthetics_score`
     # https://github.com/huggingface/diffusers/blob/v0.18.2/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl_img2img.py#L571
@@ -141,14 +143,14 @@ def _get_submodels_for_export_stable_diffusion(
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
     vae_encoder = copy.deepcopy(pipeline.vae)
-    if not version.parse(torch.__version__) >= version.parse("2.1.0"):
+    if not is_torch_greater_or_equal_than_2_1:
         vae_encoder = override_diffusers_2_0_attn_processors(vae_encoder)
     vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample)["latent_dist"].sample()}
     models_for_export["vae_encoder"] = vae_encoder
 
     # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
     vae_decoder = copy.deepcopy(pipeline.vae)
-    if not version.parse(torch.__version__) >= version.parse("2.1.0"):
+    if not is_torch_greater_or_equal_than_2_1:
         vae_decoder = override_diffusers_2_0_attn_processors(vae_decoder)
     vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
     models_for_export["vae_decoder"] = vae_decoder
@@ -254,9 +256,12 @@ def get_decoder_models_for_export(
 
     models_for_export = _get_submodels_for_export_decoder(model, use_past=config.use_past, legacy=legacy)
 
-    onnx_kwargs = {"task": config.task, "float_dtype": config.float_dtype, "int_dtype": config.int_dtype}
-    if model.config.model_type.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
-        onnx_kwargs["no_position_ids"] = config.no_position_ids
+    onnx_kwargs = {
+        "task": config.task,
+        "float_dtype": config.float_dtype,
+        "int_dtype": config.int_dtype,
+        "legacy": legacy,
+    }
 
     if legacy:
         onnx_config = config.__class__(
@@ -318,6 +323,7 @@ def get_stable_diffusion_models_for_export(
         text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
             model=pipeline.text_encoder,
             exporter="onnx",
+            library_name="diffusers",
             task="feature-extraction",
         )
         text_encoder_onnx_config = text_encoder_config_constructor(
@@ -329,6 +335,7 @@ def get_stable_diffusion_models_for_export(
     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
         model=pipeline.unet,
         exporter="onnx",
+        library_name="diffusers",
         task="semantic-segmentation",
         model_type="unet",
     )
@@ -340,6 +347,7 @@ def get_stable_diffusion_models_for_export(
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_encoder,
         exporter="onnx",
+        library_name="diffusers",
         task="semantic-segmentation",
         model_type="vae-encoder",
     )
@@ -351,6 +359,7 @@ def get_stable_diffusion_models_for_export(
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_decoder,
         exporter="onnx",
+        library_name="diffusers",
         task="semantic-segmentation",
         model_type="vae-decoder",
     )
@@ -361,6 +370,7 @@ def get_stable_diffusion_models_for_export(
         onnx_config_constructor = TasksManager.get_exporter_config_constructor(
             model=pipeline.text_encoder_2,
             exporter="onnx",
+            library_name="diffusers",
             task="feature-extraction",
             model_type="clip-text-with-projection",
         )
@@ -389,14 +399,14 @@ def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel
     models_for_export = _get_submodels_for_export_sam(model, config.variant)
 
     if config.variant == "monolith":
-        onnx_config = config.__class__(model.config, task=config.task)
+        onnx_config = config.__class__(model.config, task=config.task, legacy=config.legacy)
         models_for_export["model"] = (models_for_export["model"], onnx_config)
     else:
         vision_encoder_onnx_config = config.__class__(
-            model.config, task=config.task, variant=config.variant, vision_encoder=True
+            model.config, task=config.task, variant=config.variant, vision_encoder=True, legacy=config.legacy
         )
         prompt_encoder_mask_decoder_onnx_config = config.__class__(
-            model.config, task=config.task, variant=config.variant, vision_encoder=False
+            model.config, task=config.task, variant=config.variant, vision_encoder=False, legacy=config.legacy
         )
         models_for_export["vision_encoder"] = (models_for_export["vision_encoder"], vision_encoder_onnx_config)
         models_for_export["prompt_encoder_mask_decoder"] = (
@@ -454,6 +464,7 @@ def get_speecht5_models_for_export(
         behavior=config._behavior,  # Irrelevant here.
         preprocessors=config._preprocessors,
         is_postnet_and_vocoder=True,
+        legacy=config.legacy,
     )
     postnet_and_vocoder_onnx_config.variant = config.variant
     models_for_export["decoder_postnet_and_vocoder"] = (
@@ -549,3 +560,102 @@ class PickableInferenceSession:  # This is a wrapper to make the current Inferen
 
         self.model_path = values["model_path"]
         self.sess = ort.InferenceSession(self.model_path, sess_options=self.sess_options, providers=self.providers)
+
+
+def _get_submodels_and_onnx_configs(
+    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    task: str,
+    monolith: bool,
+    custom_onnx_configs: Dict,
+    custom_architecture: bool,
+    _variant: str,
+    library_name: str,
+    int_dtype: str = "int64",
+    float_dtype: str = "fp32",
+    fn_get_submodels: Optional[Callable] = None,
+    preprocessors: Optional[List[Any]] = None,
+    legacy: bool = False,
+    model_kwargs: Optional[Dict] = None,
+):
+    if not custom_architecture:
+        if library_name == "diffusers":
+            onnx_config = None
+            models_and_onnx_configs = get_stable_diffusion_models_for_export(
+                model, int_dtype=int_dtype, float_dtype=float_dtype
+            )
+        else:
+            onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                model=model, exporter="onnx", task=task, library_name=library_name
+            )
+            onnx_config = onnx_config_constructor(
+                model.config,
+                int_dtype=int_dtype,
+                float_dtype=float_dtype,
+                preprocessors=preprocessors,
+                legacy=legacy,
+            )
+
+            onnx_config.variant = _variant
+            all_variants = "\n".join(
+                [f"    - {name}: {description}" for name, description in onnx_config.VARIANTS.items()]
+            )
+            logger.info(f"Using the export variant {onnx_config.variant}. Available variants are:\n{all_variants}")
+
+            # TODO: this succession of if/else strongly suggests a refactor is needed.
+            if (
+                model.config.is_encoder_decoder
+                and task.startswith(TasksManager._ENCODER_DECODER_TASKS)
+                and not monolith
+            ):
+                models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
+            elif task.startswith("text-generation") and not monolith:
+                models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config, legacy=legacy)
+            elif model.config.model_type == "sam":
+                models_and_onnx_configs = get_sam_models_for_export(model, onnx_config)
+            elif model.config.model_type == "speecht5":
+                models_and_onnx_configs = get_speecht5_models_for_export(model, onnx_config, model_kwargs)
+            else:
+                models_and_onnx_configs = {"model": (model, onnx_config)}
+
+        # When specifying custom ONNX configs for supported transformers architectures, we do
+        # not force to specify a custom ONNX config for each submodel.
+        for key, custom_onnx_config in custom_onnx_configs.items():
+            models_and_onnx_configs[key] = (models_and_onnx_configs[key][0], custom_onnx_config)
+    else:
+        onnx_config = None
+        submodels_for_export = None
+        models_and_onnx_configs = {}
+
+        if fn_get_submodels is not None:
+            submodels_for_export = fn_get_submodels(model)
+        else:
+            if library_name == "diffusers":
+                submodels_for_export = _get_submodels_for_export_stable_diffusion(model)
+            elif (
+                model.config.is_encoder_decoder
+                and task.startswith(TasksManager._ENCODER_DECODER_TASKS)
+                and not monolith
+            ):
+                submodels_for_export = _get_submodels_for_export_encoder_decoder(
+                    model, use_past=task.endswith("-with-past")
+                )
+            elif task.startswith("text-generation") and not monolith:
+                submodels_for_export = _get_submodels_for_export_decoder(model, use_past=task.endswith("-with-past"))
+            else:
+                submodels_for_export = {"model": model}
+
+        if submodels_for_export.keys() != custom_onnx_configs.keys():
+            logger.error(f"ONNX custom configs for: {', '.join(custom_onnx_configs.keys())}")
+            logger.error(f"Submodels to export: {', '.join(submodels_for_export.keys())}")
+            raise ValueError(
+                "Trying to export a custom model, but could not find as many custom ONNX configs as the number of submodels to export. Please specifiy the fn_get_submodels argument, that should return a dictionary of submodules with as many items as the provided custom_onnx_configs dictionary."
+            )
+
+        for key, custom_onnx_config in custom_onnx_configs.items():
+            models_and_onnx_configs[key] = (submodels_for_export[key], custom_onnx_config)
+
+    # Default to the first ONNX config for stable-diffusion and custom architecture case.
+    if onnx_config is None:
+        onnx_config = next(iter(models_and_onnx_configs.values()))[1]
+
+    return onnx_config, models_and_onnx_configs

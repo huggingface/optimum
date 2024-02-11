@@ -35,10 +35,13 @@ from ...utils import (
 )
 from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from .model_patcher import DecoderModelPatcher
 
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel
+
+    from .model_patcher import ModelPatcher
 
     if is_tf_available():
         from transformers import TFPreTrainedModel
@@ -75,7 +78,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         preprocessors: Optional[List[Any]] = None,
-        no_position_ids: bool = False,
+        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -85,9 +88,8 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             preprocessors=preprocessors,
+            legacy=legacy,
         )
-        # TODO: remove no_position_ids once optimum is sufficiently above 1.13
-        self.no_position_ids = no_position_ids
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -154,6 +156,12 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
         return models_and_onnx_configs, onnx_files_subpaths
 
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        # Refer to DecoderModelPatcher.
+        return DecoderModelPatcher(self, model, model_kwargs=model_kwargs)
+
 
 class TextDecoderWithPositionIdsOnnxConfig(TextDecoderOnnxConfig):
     @property
@@ -163,7 +171,7 @@ class TextDecoderWithPositionIdsOnnxConfig(TextDecoderOnnxConfig):
         # Decoders based on GPT2 require a position_ids input to avoid
         # generating wrong position_ids in the model itself:
         # https://github.com/huggingface/transformers/blob/v4.33.1/src/transformers/models/gpt2/modeling_gpt2.py#L802
-        if not self.no_position_ids and self.task in ["text-generation", "feature-extraction"]:
+        if not self.legacy and self.task in ["text-generation", "feature-extraction"]:
             common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_inputs
@@ -316,6 +324,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: Optional[List[Any]] = None,
+        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -326,6 +335,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=preprocessors,
+            legacy=legacy,
         )
 
         from ..tasks import TasksManager
@@ -334,7 +344,10 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         # Set up the encoder ONNX config.
         encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            exporter="onnx", task="feature-extraction", model_type=config.encoder.model_type
+            exporter="onnx",
+            task="feature-extraction",
+            model_type=config.encoder.model_type,
+            library_name="transformers",
         )
         self._encoder_onnx_config = encoder_onnx_config_constructor(
             config.encoder, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
@@ -343,7 +356,10 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         # Set up the decoder ONNX config.
         decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            exporter="onnx", task="feature-extraction", model_type=config.decoder.model_type
+            exporter="onnx",
+            task="feature-extraction",
+            model_type=config.decoder.model_type,
+            library_name="transformers",
         )
         kwargs = {}
         if issubclass(decoder_onnx_config_constructor.func, OnnxConfigWithPast):
