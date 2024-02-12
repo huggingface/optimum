@@ -134,6 +134,7 @@ def main():
             )
 
             # Load subpackage table of contents
+            print("HERE", subpackage_path)
             subpackage_toc_path = next(subpackage_path.rglob("_toctree.yml"))
             with open(subpackage_toc_path, "r") as f:
                 subpackage_toc = yaml.safe_load(f)
