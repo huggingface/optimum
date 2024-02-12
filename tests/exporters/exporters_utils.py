@@ -142,6 +142,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "swin2sr": "hf-internal-testing/tiny-random-Swin2SRModel",
     "t5": "hf-internal-testing/tiny-random-t5",
+    "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
     "vit": "hf-internal-testing/tiny-random-vit",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
     "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
@@ -254,6 +255,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "squeezebert": "squeezebert/squeezebert-uncased",
     "swin": "microsoft/swin-tiny-patch4-window7-224",
     "t5": "t5-small",
+    "table-transformer": "microsoft/table-transformer-detection",
     "vit": "google/vit-base-patch16-224",
     "yolos": "hustvl/yolos-tiny",
     "whisper": "openai/whisper-tiny.en",
@@ -327,8 +329,8 @@ PYTORCH_TIMM_MODEL = {
 }
 
 PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
-    "sentence-transformers-clip": "sentence-transformers/all-MiniLM-L6-v2",
-    "sentence-transformers-transformer": "sentence-transformers/clip-ViT-B-32-multilingual-v1",
+    "clip": "sentence-transformers/clip-ViT-B-32",
+    "transformer": "sentence-transformers/all-MiniLM-L6-v2",
 }
 
 
