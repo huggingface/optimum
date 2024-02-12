@@ -194,8 +194,8 @@ def check_if_diffusers_greater(target_version: str) -> bool:
 
 
 @contextmanager
-def require_numpy_strictly_lower(version: str, message: str):
-    if not version.parse(np.__version__) < version.parse(version):
+def require_numpy_strictly_lower(package_version: str, message: str):
+    if not version.parse(np.__version__) < version.parse(package_version):
         raise ImportError(
             f"Found an incompatible version of numpy. Found version {np.__version__}, but expected numpy<{version}. {message}"
         )
