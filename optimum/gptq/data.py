@@ -117,7 +117,8 @@ def get_wikitext2(tokenizer: Any, seqlen: int, nsamples: int, split: str = "trai
         data = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
     elif split == "validation":
         data = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
-    text = "".join([" \n" if s == "" else s for s in data["text"]])
+    # length of 288059 should be enough
+    text = "".join([" \n" if s == "" else s for s in data["text"][:1000]])
 
     enc = tokenizer(text, return_tensors="pt")
     dataset = []

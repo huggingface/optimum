@@ -344,7 +344,10 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         # Set up the encoder ONNX config.
         encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            exporter="onnx", task="feature-extraction", model_type=config.encoder.model_type
+            exporter="onnx",
+            task="feature-extraction",
+            model_type=config.encoder.model_type,
+            library_name="transformers",
         )
         self._encoder_onnx_config = encoder_onnx_config_constructor(
             config.encoder, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
@@ -353,7 +356,10 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         # Set up the decoder ONNX config.
         decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-            exporter="onnx", task="feature-extraction", model_type=config.decoder.model_type
+            exporter="onnx",
+            task="feature-extraction",
+            model_type=config.decoder.model_type,
+            library_name="transformers",
         )
         kwargs = {}
         if issubclass(decoder_onnx_config_constructor.func, OnnxConfigWithPast):

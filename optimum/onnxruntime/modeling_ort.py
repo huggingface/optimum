@@ -826,8 +826,10 @@ class ORTModel(OptimizedModel):
 
         return io_binding, output_shapes, output_buffers
 
-    def prepare_io_binding(self, *model_inputs, ordered_input_names):
-        return self._prepare_io_binding(self.model, ordered_input_names=ordered_input_names, *model_inputs)
+    def prepare_io_binding(self, *model_inputs, ordered_input_names, known_output_shapes=None):
+        return self._prepare_io_binding(
+            self.model, ordered_input_names=ordered_input_names, known_output_shapes=known_output_shapes, *model_inputs
+        )
 
     def raise_on_numpy_input_io_binding(self, use_torch: bool):
         """
@@ -999,6 +1001,60 @@ class ORTModelForFeatureExtraction(ORTModel):
 
             # converts output to namedtuple for pipelines post-processing
             return BaseModelOutput(last_hidden_state=last_hidden_state)
+
+    @classmethod
+    def _export(
+        cls,
+        model_id: str,
+        config: "PretrainedConfig",
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
+        force_download: bool = False,
+        cache_dir: Optional[str] = None,
+        subfolder: str = "",
+        local_files_only: bool = False,
+        trust_remote_code: bool = False,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[ort.SessionOptions] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
+        use_io_binding: Optional[bool] = None,
+        task: Optional[str] = None,
+    ) -> "ORTModel":
+        if task is None:
+            task = cls._auto_model_to_task(cls.auto_model_class)
+
+        save_dir = TemporaryDirectory()
+        save_dir_path = Path(save_dir.name)
+
+        # ORTModelForFeatureExtraction works with Transformers type of models, thus even sentence-transformers models are loaded as such.
+        main_export(
+            model_name_or_path=model_id,
+            output=save_dir_path,
+            task=task,
+            do_validation=False,
+            no_post_process=True,
+            subfolder=subfolder,
+            revision=revision,
+            cache_dir=cache_dir,
+            use_auth_token=use_auth_token,
+            local_files_only=local_files_only,
+            force_download=force_download,
+            trust_remote_code=trust_remote_code,
+            library_name="transformers",
+        )
+
+        config.save_pretrained(save_dir_path)
+        maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
+
+        return cls._from_pretrained(
+            save_dir_path,
+            config,
+            use_io_binding=use_io_binding,
+            model_save_dir=save_dir,
+            provider=provider,
+            session_options=session_options,
+            provider_options=provider_options,
+        )
 
 
 MASKED_LM_EXAMPLE = r"""
@@ -1877,9 +1933,32 @@ class ORTModelForCTC(ORTModel):
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
         if self.device.type == "cuda" and self.use_io_binding:
-            raise NotImplementedError(
-                "IO Binding for ORTModelForCTC is currently not supported. Please open an issue or submit a PR to https://github.com/huggingface/optimum to have this feature added."
+            input_size = input_values.shape[1]
+            output_sizes = []
+
+            def _conv_output_size(input_size, kernel_size, stride):
+                return (input_size - kernel_size) // stride + 1
+
+            for kernel_size, stride in zip(self.config.conv_kernel, self.config.conv_stride):
+                input_size = _conv_output_size(input_size, kernel_size, stride)
+                output_sizes.append(input_size)
+
+            known_output_shapes = {"logits": [input_values.shape[0], output_sizes[-1], self.config.vocab_size]}
+
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_values,
+                ordered_input_names=self._ordered_input_names,
+                known_output_shapes=known_output_shapes,
             )
+
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            outputs = {}
+
+            return CausalLMOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
             if use_torch:
                 # converts pytorch inputs into numpy inputs for onnx

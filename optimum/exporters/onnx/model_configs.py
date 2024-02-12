@@ -203,16 +203,6 @@ class GPT2OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
-    @property
-    def values_override(self) -> Optional[Dict[str, Any]]:
-        pad_value_override = {}
-        if not getattr(self._config, "pad_token_id", None):
-            pad_value_override = {"pad_token_id": 0}
-        super_values_override = super().values_override
-        if super_values_override:
-            return {**super_values_override, **pad_value_override}
-        return pad_value_override
-
 
 class GPTJOnnxConfig(GPT2OnnxConfig):
     pass
@@ -629,6 +619,7 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
 
 class BartOnnxConfig(M2M100OnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Bart now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
+    MIN_TORCH_VERSION = version.parse("2.1.2")
     pass
 
 
@@ -737,6 +728,10 @@ class DetrOnnxConfig(ViTOnnxConfig):
             return super().outputs
 
 
+class TableTransformerOnnxConfig(DetrOnnxConfig):
+    pass
+
+
 class YolosOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 
@@ -785,23 +780,6 @@ class DonutSwinOnnxConfig(ViTOnnxConfig):
 class TimmDefaultOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     DEFAULT_ONNX_OPSET = 12
-
-    def __init__(
-        self,
-        config: "PretrainedConfig",
-        task: str = "feature-extraction",
-        preprocessors: Optional[List[Any]] = None,
-        int_dtype: str = "int64",
-        float_dtype: str = "fp32",
-        legacy: bool = False,
-    ):
-        super().__init__(config, task, preprocessors, int_dtype, float_dtype, legacy)
-
-        pretrained_cfg = self._config
-        if hasattr(self._config, "pretrained_cfg"):
-            pretrained_cfg = self._config.pretrained_cfg
-
-        self._normalized_config = self.NORMALIZED_CONFIG_CLASS(pretrained_cfg)
 
     def rename_ambiguous_inputs(self, inputs):
         #  The input name in the model signature is `x, hence the export input name is updated.
