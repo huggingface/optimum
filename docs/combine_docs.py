@@ -122,7 +122,9 @@ def main():
             subpackage_path = Path(f"{subpackage}-doc-build")
 
             # The doc of Furiosa will be missing for PRs
+            print("111", subpackage_path == "furiosa", subpackage_path.is_dir())
             if subpackage_path == "furiosa" and not subpackage_path.is_dir():
+                print("AAA")
                 continue
 
             # Copy all HTML files from subpackage into optimum
