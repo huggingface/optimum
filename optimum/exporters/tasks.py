@@ -1841,8 +1841,13 @@ class TasksManager:
         elif library_name == "sentence_transformers":
             cache_folder = model_kwargs.pop("cache_folder", None)
             use_auth_token = model_kwargs.pop("use_auth_token", None)
+            trust_remote_code = model_kwargs.pop("trust_remote_code", False)
             model = model_class(
-                model_name_or_path, device=device, cache_folder=cache_folder, use_auth_token=use_auth_token
+                model_name_or_path,
+                device=device,
+                cache_folder=cache_folder,
+                use_auth_token=use_auth_token,
+                trust_remote_code=trust_remote_code,
             )
         else:
             try:
