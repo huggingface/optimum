@@ -122,9 +122,7 @@ def main():
             subpackage_path = Path(f"{subpackage}-doc-build")
 
             # The doc of Furiosa will be missing for PRs
-            print("111", subpackage_path == "furiosa", subpackage_path.is_dir())
-            if subpackage_path == "furiosa" and not subpackage_path.is_dir():
-                print("AAA")
+            if subpackage == "furiosa" and not subpackage_path.is_dir():
                 continue
 
             # Copy all HTML files from subpackage into optimum
@@ -136,7 +134,6 @@ def main():
             )
 
             # Load subpackage table of contents
-            print("HERE", subpackage_path)
             subpackage_toc_path = next(subpackage_path.rglob("_toctree.yml"))
             with open(subpackage_toc_path, "r") as f:
                 subpackage_toc = yaml.safe_load(f)
