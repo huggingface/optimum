@@ -64,8 +64,6 @@ jobs:
           df -h
           sudo apt-get autoremove -y >/dev/null 2>&1
           sudo apt-get clean
-          sudo apt-get autoremove -y >/dev/null 2>&1
-          sudo apt-get autoclean -y >/dev/null 2>&1
           df -h
           echo "https://github.com/actions/virtual-environments/issues/709"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
