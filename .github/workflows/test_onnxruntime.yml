@@ -25,6 +25,7 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Free disk space
+      if: matrix.os == 'ubuntu-20.04'
       run: |
           df -h
           sudo apt-get update
