@@ -115,7 +115,8 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
             self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
             gc.collect()
 
-    @unittest.skipIf(parse(ort_version) == Version("1.16.0"), "not supported with this onnxruntime version")
+    # NOTE: Will be fixed in 1.17.1, reference: https://github.com/microsoft/onnxruntime/pull/19421
+    @unittest.skipIf(parse(ort_version) == Version("1.17.0"), "not supported with this onnxruntime version")
     def test_dynamic_quantization_subgraphs(self):
         qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=True)
         tmp_dir = tempfile.mkdtemp()
