@@ -5,6 +5,13 @@ import time
 
 import numpy as np
 import torch
+from auto_gptq import AutoGPTQForCausalLM
+from auto_gptq.modeling._base import BaseGPTQForCausalLM
+from auto_gptq.nn_modules.qlinear.qlinear_cuda import QuantLinear as CudaQuantLinear
+from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import QuantLinear as CudaOldQuantLinear
+from auto_gptq.nn_modules.qlinear.qlinear_exllama import QuantLinear as ExllamaQuantLinear
+from auto_gptq.nn_modules.qlinear.qlinear_exllamav2 import QuantLinear as ExllamaV2QuantLinear
+from auto_gptq.nn_modules.qlinear.qlinear_marlin import QuantLinear as MarlinQuantLinear
 from auto_gptq.utils import Perplexity
 from memory_tracker import MemoryTracker
 from tqdm import tqdm
@@ -17,16 +24,7 @@ from transformers import (
     GenerationConfig,
 )
 
-from auto_gptq import AutoGPTQForCausalLM
-from auto_gptq.modeling._base import BaseGPTQForCausalLM
-
 from optimum.exporters import TasksManager
-
-from auto_gptq.nn_modules.qlinear.qlinear_cuda import QuantLinear as CudaQuantLinear
-from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import QuantLinear as CudaOldQuantLinear
-from auto_gptq.nn_modules.qlinear.qlinear_exllama import QuantLinear as ExllamaQuantLinear
-from auto_gptq.nn_modules.qlinear.qlinear_exllamav2 import QuantLinear as ExllamaV2QuantLinear
-from auto_gptq.nn_modules.qlinear.qlinear_marlin import QuantLinear as MarlinQuantLinear
 
 
 def get_parser():
@@ -357,7 +355,7 @@ if args.gptq:
         disable_exllamav2=not use_exllama_v2,
         use_marlin=use_marlin,
         inject_fused_attention=False,
-        inject_fused_mlp=False
+        inject_fused_mlp=False,
     )
 
 elif args.bitsandbytes:
@@ -378,12 +376,13 @@ bits = None
 group_size = None
 kernel = None
 
+
 def raise_if_module_not_found(model: torch.nn.Module, layer_class, layer_name):
-        for _, module in model.named_modules():
-            if isinstance(module, layer_class):
-                break
-        else:
-            raise ValueError(f"{layer_name} layer not found")
+    for _, module in model.named_modules():
+        if isinstance(module, layer_class):
+            break
+    else:
+        raise ValueError(f"{layer_name} layer not found")
 
 
 if args.gptq:
