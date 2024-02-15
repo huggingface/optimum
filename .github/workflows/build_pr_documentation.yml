@@ -49,10 +49,10 @@ jobs:
           repository: 'huggingface/optimum-habana'
           path: optimum-habana
 
-      - uses: actions/checkout@v2
-        with:
-          repository: 'huggingface/optimum-graphcore'
-          path: optimum-graphcore
+      #- uses: actions/checkout@v2
+        #with:
+          #repository: 'huggingface/optimum-graphcore'
+          #path: optimum-graphcore
 
       - uses: actions/checkout@v2
         with:
@@ -73,12 +73,12 @@ jobs:
           pip install black
           cd ..
 
-      - name: Make Graphcore documentation
-        run: |
-          cd optimum-graphcore
-          make doc BUILD_DIR=graphcore-doc-build VERSION=pr_$PR_NUMBER
-          sudo mv graphcore-doc-build ../optimum
-          cd ..
+      #- name: Make Graphcore documentation
+        #run: |
+          #cd optimum-graphcore
+          #make doc BUILD_DIR=graphcore-doc-build VERSION=pr_$PR_NUMBER
+          #sudo mv graphcore-doc-build ../optimum
+          #cd ..
 
       - name: Make Habana documentation
         run: |
@@ -128,7 +128,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages graphcore habana intel neuron furiosa --version pr_$PR_NUMBER
+          sudo python docs/combine_docs.py --subpackages habana intel neuron furiosa --version pr_$PR_NUMBER
           sudo mv optimum-doc-build ../
           cd ..
 
