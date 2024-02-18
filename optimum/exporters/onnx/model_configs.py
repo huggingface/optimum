@@ -257,6 +257,10 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
 
 
+class StableLMEpochOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+
 class MPTOnnxConfig(TextDecoderOnnxConfig):
     # MPT does not require position_ids input.
     DEFAULT_ONNX_OPSET = 13
