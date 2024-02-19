@@ -1086,7 +1086,7 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
 
 
 class OwlV2OnnxConfig(OwlViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14
+    pass
 
 
 class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
