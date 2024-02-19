@@ -266,7 +266,8 @@ class BetterTransformer(object):
             model_fast = replace_to_bettertransformer(model, hf_config)
             model = None
 
-        if BetterTransformerManager.requires_nested_tensor(model_fast.config.model_type):
+        model_type = BetterTransformerManager.get_model_type(model_fast.config)
+        if BetterTransformerManager.requires_nested_tensor(model_type):
             set_last_layer(model_fast)
 
         # Add a class arguments, we might need to identify whether the model
