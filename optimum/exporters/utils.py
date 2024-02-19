@@ -474,17 +474,17 @@ def _get_submodels_and_export_configs(
     preprocessors: Optional[List[Any]] = None,
     legacy: bool = False,
     model_kwargs: Optional[Dict] = None,
-    exporter_type: str = "onnx",
+    exporter: str = "onnx",
 ):
     if not custom_architecture:
         if library_name == "diffusers":
             export_config = None
             models_and_export_configs = get_stable_diffusion_models_for_export(
-                model, int_dtype=int_dtype, float_dtype=float_dtype, exporter_type=exporter_type
+                model, int_dtype=int_dtype, float_dtype=float_dtype, exporter_type=exporter
             )
         else:
             export_config_constructor = TasksManager.get_exporter_config_constructor(
-                model=model, exporter=exporter_type, task=task, library_name=library_name
+                model=model, exporter=exporter, task=task, library_name=library_name
             )
             export_config = export_config_constructor(
                 model.config,
@@ -539,17 +539,15 @@ def _get_submodels_and_export_configs(
                     model, use_past=task.endswith("-with-past")
                 )
             elif task.startswith("text-generation") and not monolith:
-                submodels_for_export = _get_submodels_for_export_decoder(
-                    model, use_past=task.endswit_get_submodels_and_export_configsh("-with-past")
-                )
+                submodels_for_export = _get_submodels_for_export_decoder(model, use_past=task.endswith("-with-past"))
             else:
                 submodels_for_export = {"model": model}
 
         if submodels_for_export.keys() != custom_export_configs.keys():
-            logger.error(f"{exporter_type.upper()} custom configs for: {', '.join(custom_export_configs.keys())}")
+            logger.error(f"{exporter.upper()} custom configs for: {', '.join(custom_export_configs.keys())}")
             logger.error(f"Submodels to export: {', '.join(submodels_for_export.keys())}")
             raise ValueError(
-                f"Trying to export a custom model, but could not find as many custom {exporter_type.upper()} configs as the number of submodels to export. Please specifiy the fn_get_submodels argument, that should return a dictionary of submodules with as many items as the provided custom_export_configs dictionary."
+                f"Trying to export a custom model, but could not find as many custom {exporter.upper()} configs as the number of submodels to export. Please specifiy the fn_get_submodels argument, that should return a dictionary of submodules with as many items as the provided custom_export_configs dictionary."
             )
 
         for key, custom_export_config in custom_export_configs.items():

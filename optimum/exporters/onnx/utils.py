@@ -28,7 +28,7 @@ from ...utils import (
     logging,
 )
 from ...utils.import_utils import _diffusers_version
-from ..model_preparation import _get_submodels_and_export_configs
+from ..utils import _get_submodels_and_export_configs
 
 
 logger = logging.get_logger()
@@ -188,5 +188,5 @@ def _get_submodels_and_onnx_configs(
         preprocessors,
         legacy,
         model_kwargs,
-        exporter_type="onnx",
+        exporter="onnx",
     )
