@@ -36,11 +36,6 @@ jobs:
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-graphcore'
-          path: optimum-graphcore
-
-      - uses: actions/checkout@v2
-        with:
           repository: 'huggingface/optimum-intel'
           path: optimum-intel
 
@@ -53,6 +48,47 @@ jobs:
         with:
           repository: 'huggingface/optimum-amd'
           path: optimum-amd
+
+      - name: Free disk space
+        run: |
+          df -h
+          sudo apt-get update
+          sudo apt-get purge -y '^apache.*'
+          sudo apt-get purge -y '^imagemagick.*'
+          sudo apt-get purge -y '^dotnet.*'
+          sudo apt-get purge -y '^aspnetcore.*'
+          sudo apt-get purge -y 'php.*'
+          sudo apt-get purge -y '^temurin.*'
+          sudo apt-get purge -y '^mysql.*'
+          sudo apt-get purge -y '^java.*'
+          sudo apt-get purge -y '^openjdk.*'
+          sudo apt-get purge -y microsoft-edge-stable google-cloud-cli azure-cli google-chrome-stable firefox powershell mono-devel
+          df -h
+          sudo apt-get autoremove -y >/dev/null 2>&1
+          sudo apt-get clean
+          df -h
+          echo "https://github.com/actions/virtual-environments/issues/709"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+          echo "remove big /usr/local"
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
+          df -h
+          echo "remove /usr/share leftovers"
+          sudo rm -rf /usr/share/dotnet/sdk > /dev/null 2>&1
+          sudo rm -rf /usr/share/dotnet/shared > /dev/null 2>&1
+          sudo rm -rf /usr/share/swift > /dev/null 2>&1
+          df -h
+          echo "remove other leftovers"
+          sudo rm -rf /var/lib/mysql > /dev/null 2>&1
+          sudo rm -rf /home/runner/.dotnet > /dev/null 2>&1
+          sudo rm -rf /home/runneradmin/.dotnet > /dev/null 2>&1
+          sudo rm -rf /etc/skel/.dotnet > /dev/null 2>&1
+          sudo rm -rf /usr/local/.ghcup > /dev/null 2>&1
+          sudo rm -rf /usr/local/aws-cli > /dev/null 2>&1
+          sudo rm -rf /usr/lib/heroku > /dev/null 2>&1
+          sudo rm -rf /usr/local/share/chromium > /dev/null 2>&1
+          df -h
 
       - name: Set environment variables
         run: |
@@ -75,13 +111,6 @@ jobs:
           git pull origin main
           pip install .
           pip install black
-          cd ..
-
-      - name: Make Graphcore documentation
-        run: |
-          cd optimum-graphcore
-          make doc BUILD_DIR=graphcore-doc-build VERSION=${{ env.VERSION }}
-          sudo mv graphcore-doc-build ../optimum
           cd ..
 
       - name: Make Habana documentation
@@ -142,7 +171,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages graphcore habana intel neuron furiosa amd --version ${{ env.VERSION }}
+          sudo python docs/combine_docs.py --subpackages habana intel neuron furiosa amd --version ${{ env.VERSION }}
           cd ..
 
       - name: Push to repositories

@@ -95,7 +95,8 @@ class TestCLI(unittest.TestCase):
                 # f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder-decoder --avx2 -o {tempdir}/quantized_encoder_decoder",
             ]
 
-            if parse(ort_version) != Version("1.16.0"):
+            if parse(ort_version) != Version("1.16.0") and parse(ort_version) != Version("1.17.0"):
+                # Failing on onnxruntime==1.17.0, will be fixed on 1.17.1: https://github.com/microsoft/onnxruntime/pull/19421
                 export_commands.append(
                     f"optimum-cli export onnx --model hf-internal-testing/tiny-random-t5 {tempdir}/encoder-decoder"
                 )
