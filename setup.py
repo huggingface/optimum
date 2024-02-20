@@ -38,6 +38,7 @@ TESTS_REQUIRE = [
     "invisible-watermark",
     "timm",
     "scikit-learn",
+    "rjieba",
 ]
 
 QUALITY_REQUIRE = ["black~=23.1", "ruff==0.1.5"]
@@ -72,12 +73,12 @@ EXTRAS_REQUIRE = {
         "numpy<1.24.0",
     ],
     "diffusers": ["diffusers"],
-    "intel": "optimum-intel>=1.12.0",
-    "openvino": "optimum-intel[openvino]>=1.12.0",
-    "nncf": "optimum-intel[nncf]>=1.12.0",
-    "neural-compressor": "optimum-intel[neural-compressor]>=1.12.0",
+    "intel": "optimum-intel>=1.15.0",
+    "openvino": "optimum-intel[openvino]>=1.15.0",
+    "nncf": "optimum-intel[nncf]>=1.15.0",
+    "neural-compressor": "optimum-intel[neural-compressor]>=1.15.0",
     "graphcore": "optimum-graphcore",
-    "habana": ["optimum-habana", "transformers >= 4.33.0, < 4.35.0"],
+    "habana": ["optimum-habana", "transformers >= 4.37.0, < 4.38.0"],
     "neuron": "optimum-neuron[neuron]",
     "neuronx": "optimum-neuron[neuronx]",
     "furiosa": "optimum-furiosa",

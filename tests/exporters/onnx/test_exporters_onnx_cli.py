@@ -26,28 +26,31 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, is_t
 from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
 
 from optimum.exporters.error_utils import MinimumVersionError
-from optimum.exporters.onnx.__main__ import main_export
+from optimum.exporters.onnx import main_export
 from optimum.onnxruntime import (
     ONNX_DECODER_MERGED_NAME,
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
 )
-from optimum.utils.testing_utils import require_diffusers, require_sentence_transformers, require_timm
+from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_sentence_transformers, require_timm
 
 
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
 
 from ..exporters_utils import (
+    NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_STABLE_DIFFUSION_MODEL,
     PYTORCH_TIMM_MODEL,
+    PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
+    PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES,
 )
 
 
-def _get_models_to_test(export_models_dict: Dict, library_name: str = "transformers"):
+def _get_models_to_test(export_models_dict: Dict, library_name: str):
     models_to_test = []
     if is_torch_available():
         for model_type, model_names_tasks in export_models_dict.items():
@@ -179,6 +182,46 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         device: str = "cpu",
         fp16: bool = False,
         variant: str = "default",
+        no_dynamic_axes: bool = False,
+        model_kwargs: Optional[Dict] = None,
+    ):
+        # We need to set this to some value to be able to test the outputs values for batch size > 1.
+        if task == "text-classification":
+            pad_token_id = 0
+        else:
+            pad_token_id = None
+
+        with TemporaryDirectory() as tmpdir:
+            try:
+                main_export(
+                    model_name_or_path=model_name,
+                    output=tmpdir,
+                    task=task,
+                    device=device,
+                    fp16=fp16,
+                    optimize=optimization_level,
+                    monolith=monolith,
+                    no_post_process=no_post_process,
+                    _variant=variant,
+                    no_dynamic_axes=no_dynamic_axes,
+                    pad_token_id=pad_token_id,
+                    model_kwargs=model_kwargs,
+                )
+            except MinimumVersionError as e:
+                pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
+
+    def _onnx_export_no_dynamic_axes(
+        self,
+        model_name: str,
+        task: str,
+        input_shape: dict,
+        input_shape_for_validation: tuple,
+        monolith: bool = False,
+        no_post_process: bool = False,
+        optimization_level: Optional[str] = None,
+        device: str = "cpu",
+        fp16: bool = False,
+        variant: str = "default",
         model_kwargs: Optional[Dict] = None,
     ):
         with TemporaryDirectory() as tmpdir:
@@ -193,8 +236,19 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     monolith=monolith,
                     no_post_process=no_post_process,
                     _variant=variant,
+                    no_dynamic_axes=True,
                     model_kwargs=model_kwargs,
+                    **input_shape,
                 )
+
+                model = onnx.load(Path(tmpdir) / "model.onnx")
+
+                is_dynamic = any(dim.dim_param for dim in model.graph.input[0].type.tensor_type.shape.dim)
+                self.assertFalse(is_dynamic)
+
+                model_input_shape = [dim.dim_value for dim in model.graph.input[0].type.tensor_type.shape.dim]
+                self.assertEqual(model_input_shape, input_shape_for_validation)
+
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
 
@@ -223,7 +277,9 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_exporters_cli_fp16_stable_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda", fp16=True)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_SENTENCE_TRANSFORMERS_MODEL))
+    @parameterized.expand(
+        _get_models_to_test(PYTORCH_SENTENCE_TRANSFORMERS_MODEL, library_name="sentence_transformers")
+    )
     @require_torch
     @require_vision
     @require_sentence_transformers
@@ -257,6 +313,32 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         no_post_process: bool,
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES, library_name="timm"))
+    @require_torch
+    @require_vision
+    @require_timm
+    @slow
+    @pytest.mark.timm_test
+    @pytest.mark.run_slow
+    def test_exporters_cli_pytorch_cpu_timm_no_dynamic_axes(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        input_shapes_iterator = grid_parameters({"batch_size": [1, 3, 5]}, yield_dict=True, add_test_name=False)
+        for input_shape in input_shapes_iterator:
+            # NOTE: The timm models use input shapes from the model config, so we need to fix the other shapes of the model.
+            input_shape_for_validation = [input_shape["batch_size"], 3, 224, 224]
+
+            self._onnx_export_no_dynamic_axes(
+                model_name, task, input_shape, input_shape_for_validation, monolith, no_post_process, variant=variant
+            )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_torch_gpu
@@ -296,7 +378,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", fp16=True)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_torch
     @require_vision
     def test_exporters_cli_pytorch_cpu(
@@ -322,7 +404,37 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, model_kwargs=model_kwargs)
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @parameterized.expand(_get_models_to_test(PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES, library_name="transformers"))
+    @require_torch
+    @require_vision
+    def test_exporters_cli_pytorch_cpu_no_dynamic_axes(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        input_shapes_iterator = grid_parameters(
+            NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS, yield_dict=True, add_test_name=False
+        )
+        for input_shape in input_shapes_iterator:
+            if task == "multiple-choice":
+                input_shape_for_validation = [
+                    input_shape["batch_size"],
+                    input_shape["num_choices"],
+                    input_shape["sequence_length"],
+                ]
+            else:
+                input_shape_for_validation = [input_shape["batch_size"], input_shape["sequence_length"]]
+
+            self._onnx_export_no_dynamic_axes(
+                model_name, task, input_shape, input_shape_for_validation, monolith, no_post_process, variant=variant
+            )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_vision
     @require_torch_gpu
     @pytest.mark.gpu_test
@@ -352,7 +464,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             model_name, task, monolith, no_post_process, device="cuda", variant=variant, model_kwargs=model_kwargs
         )
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_torch
     @require_vision
     @slow
@@ -390,7 +502,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 else:
                     raise e
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_torch_gpu
     @require_vision
     @slow
@@ -505,7 +617,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             model = onnx.load(Path(tmpdirname) / ONNX_DECODER_MERGED_NAME)
             self.assertNotIn("position_ids", {node.name for node in model.graph.input})
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_vision
     @require_torch_gpu
     @slow

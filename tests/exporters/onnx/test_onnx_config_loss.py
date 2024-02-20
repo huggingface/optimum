@@ -48,8 +48,9 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
         model_checkpoint = "hf-internal-testing/tiny-random-bert"
         models = {
             AutoModelForSequenceClassification.from_pretrained(model_checkpoint),
-            TFAutoModelForSequenceClassification.from_pretrained(model_checkpoint),
         }
+        if is_tf_available():
+            models.add(TFAutoModelForSequenceClassification.from_pretrained(model_checkpoint))
 
         for model in models:
             with self.subTest(model=model):
@@ -123,9 +124,6 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                     gc.collect()
 
     def test_onnx_decoder_model_with_config_with_loss(self):
-        self.skipTest(
-            "Skipping due to a bug introduced in transformers with https://github.com/huggingface/transformers/pull/24979, argmax on int64 is not supported by ONNX"
-        )
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Prepare model and dataset
             model_checkpoint = "hf-internal-testing/tiny-random-gpt2"

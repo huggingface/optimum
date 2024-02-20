@@ -332,20 +332,23 @@ class GPTQQuantizer(object):
             use_cache = model.config.use_cache
             model.config.use_cache = False
 
+        # If the model has a device_map, we don't move to model. We have already dispatched the hook that will do the work
         if hasattr(model, "hf_device_map"):
             devices = list(model.hf_device_map.values())
+            has_device_map = True
             if "disk" in devices:
                 raise ValueError("disk offload is not supported with GPTQ quantization")
-            if "cpu" in devices and len(model.hf_device_map) > 1:
-                logger.info("Cpu offload is not recommended. There might be some issues with the memory")
-                hook = None
-                for name, device in model.hf_device_map.items():
-                    if device == "cpu":
-                        module = recurse_getattr(model, name)
-                        remove_hook_from_module(module, recurse=True)
-                        module, hook = cpu_offload_with_hook(module, prev_module_hook=hook)
-            # If the model has a device_map, we don't move to model. We have already dispatched the hook that will do the work
-            has_device_map = True
+            if "cpu" in devices or torch.device("cpu") in devices:
+                if len(model.hf_device_map) > 1:
+                    logger.info("Cpu offload is not recommended. There might be some issues with the memory")
+                    hook = None
+                    for name, device in model.hf_device_map.items():
+                        if device == "cpu":
+                            module = recurse_getattr(model, name)
+                            remove_hook_from_module(module, recurse=True)
+                            module, hook = cpu_offload_with_hook(module, prev_module_hook=hook)
+                else:
+                    has_device_map = False
 
         if hasattr(model, "dtype"):
             self.use_cuda_fp16 = model.dtype == torch.float16
@@ -357,6 +360,7 @@ class GPTQQuantizer(object):
 
         # Step 1: Prepare the data
         if isinstance(self.dataset, list) and not isinstance(self.dataset[0], str):
+            dataset = self.dataset
             logger.info("GPTQQuantizer dataset appears to be already tokenized. Skipping tokenization.")
         else:
             if isinstance(tokenizer, str):
