@@ -6,6 +6,9 @@ from typing import Dict, List
 import yaml
 
 
+SUBPACKAGE_TOC_INSERT_INDEX = 2
+
+
 parser = argparse.ArgumentParser(
     description="Script to combine doc builds from subpackages with base doc build of Optimum. "
     "Assumes all subpackage doc builds are present in the root of the `optimum` repo."
@@ -89,7 +92,7 @@ def add_neuron_doc(base_toc: List):
     """
     # Update optimum table of contents
     base_toc.insert(
-        1,
+        SUBPACKAGE_TOC_INSERT_INDEX,
         {
             "sections": [
                 {
@@ -150,7 +153,7 @@ def main():
                 subpackage_toc[0]["title"] = subpackage_toc[0]["title"].split("Optimum ")[-1]
             if subpackage != "graphcore":
                 # Update optimum table of contents
-                base_toc.insert(2, subpackage_toc[0])
+                base_toc.insert(SUBPACKAGE_TOC_INSERT_INDEX, subpackage_toc[0])
 
     # Write final table of contents
     with open(base_toc_path, "w") as f:
