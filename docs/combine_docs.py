@@ -105,31 +105,6 @@ def add_neuron_doc(base_toc: List):
     )
 
 
-def add_nvidia_doc(base_toc: List):
-    """
-    Extends the table of content with a section about Optimum Neuron.
-
-    Args:
-        base_toc (List): table of content for the doc of Optimum.
-    """
-    # Update optimum table of contents
-    base_toc.insert(
-        1,
-        {
-            "sections": [
-                {
-                    # Ideally this should directly point at https://huggingface.co/docs/optimum-neuron/index
-                    # Current hacky solution is to have a redirection in _redirects.yml
-                    "local": "nvidia_overview",
-                    "title": "🤗 Optimum Nvidia",
-                }
-            ],
-            "title": "Nvidia",
-            "isExpanded": False,
-        },
-    )
-
-
 def main():
     args = parser.parse_args()
     optimum_path = Path("optimum-doc-build")
@@ -145,7 +120,8 @@ def main():
             add_neuron_doc(base_toc)
         elif subpackage == "nvidia":
             # At the moment, Optimum Nvidia's doc is the README of the GitHub repo
-            add_nvidia_doc(base_toc)
+            # It is linked to in optimum/docs/source/nvidia_overview.mdx
+            continue
         else:
             subpackage_path = Path(f"{subpackage}-doc-build")
 

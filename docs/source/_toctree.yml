@@ -13,6 +13,11 @@
     title: Conceptual guides
   title: Overview
 - sections:
+  - local: nvidia_overview
+    title: 🤗 Optimum Nvidia
+  title: Nvidia
+  isExpanded: false
+- sections:
   - local: onnxruntime/overview
     title: Overview
   - local: onnxruntime/quickstart
