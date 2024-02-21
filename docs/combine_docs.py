@@ -120,7 +120,7 @@ def add_nvidia_doc(base_toc: List):
                 {
                     # Ideally this should directly point at https://huggingface.co/docs/optimum-neuron/index
                     # Current hacky solution is to have a redirection in _redirects.yml
-                    "local": "https://github.com/huggingface/optimum-nvidia",
+                    "local": "nvidia_overview",
                     "title": "🤗 Optimum Nvidia",
                 }
             ],
