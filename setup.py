@@ -23,9 +23,10 @@ REQUIRED_PKGS = [
     "datasets",
 ]
 
+# TODO: unpin pytest once https://github.com/huggingface/transformers/pull/29154 is merged & released
 TESTS_REQUIRE = [
     "accelerate",
-    "pytest",
+    "pytest<=7.4.4",
     "requests",
     "parameterized",
     "pytest-xdist",
