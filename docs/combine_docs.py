@@ -150,7 +150,7 @@ def main():
                 subpackage_toc[0]["title"] = subpackage_toc[0]["title"].split("Optimum ")[-1]
             if subpackage != "graphcore":
                 # Update optimum table of contents
-                base_toc.insert(1, subpackage_toc[0])
+                base_toc.insert(2, subpackage_toc[0])
 
     # Write final table of contents
     with open(base_toc_path, "w") as f:
