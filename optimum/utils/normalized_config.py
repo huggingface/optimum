@@ -253,6 +253,7 @@ class NormalizedConfigManager:
         "roberta": NormalizedTextConfig,
         "speech-to-text": SpeechToTextLikeNormalizedTextConfig,
         "splinter": NormalizedTextConfig,
+        "stablelm-epoch": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
         "trocr": TrOCRLikeNormalizedTextConfig,
         "whisper": WhisperLikeNormalizedTextConfig,
