@@ -77,6 +77,7 @@ def main_export(
     legacy: bool = False,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
+    dynamo: bool = False,
     **kwargs_shapes,
 ):
     """
@@ -163,6 +164,8 @@ def main_export(
             If True, disables the use of dynamic axes during ONNX export.
         do_constant_folding (bool, defaults to `True`):
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
+        dynamo (bool, default to `False):
+            PyTorch-specific argument. If `True`, export with the new Dynamo ONNX Exporter introduced in PyTorch 2+.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -369,6 +372,7 @@ def main_export(
         task=task,
         use_subprocess=use_subprocess,
         do_constant_folding=do_constant_folding,
+        dynamo=dynamo,
         **kwargs_shapes,
     )
 
@@ -405,6 +409,7 @@ def main():
         library_name=args.library_name,
         legacy=args.legacy,
         do_constant_folding=not args.no_constant_folding,
+        dynamo=args.dynamo,
         **input_shapes,
     )
 
