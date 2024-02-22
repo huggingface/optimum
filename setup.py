@@ -62,8 +62,8 @@ EXTRAS_REQUIRE = {
         "protobuf>=3.20.1",
         "accelerate",  # ORTTrainer requires it.
     ],
-    "exporters": ["onnx", "onnxruntime", "timm"],
-    "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
+    "exporters": ["onnx", "onnxruntime", "onnxscript", "timm"],
+    "exporters-gpu": ["onnx", "onnxruntime-gpu", "onnxscript", "timm"],
     "exporters-tf": [
         "tensorflow>=2.4,<=2.12.1",
         "tf2onnx",
