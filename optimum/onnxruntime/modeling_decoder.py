@@ -334,7 +334,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # Generate dummy past for the first forward if uses a merged decoder
         if past_key_values is None:
             batch_size = input_ids.shape[0]
-            if self.model_type in {"mistral", "llama"}:
+            if self.model_type in {"gemma", "mistral", "llama"}:
                 num_attention_heads = self.normalized_config.num_key_value_heads
             else:
                 num_attention_heads = self.normalized_config.num_attention_heads
