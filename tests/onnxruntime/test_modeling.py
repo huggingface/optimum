@@ -2236,6 +2236,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "bloom",
         "codegen",
         "falcon",
+        "gemma",
         "gpt2",
         "gpt_bigcode",
         "gpt_neo",
@@ -2300,7 +2301,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         task = "text-generation-with-past"
 
-        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
+        if task not in TasksManager.get_supported_tasks_for_model_type(
+            model_arch.replace("_", "-"), exporter="onnx", library_name="transformers"
+        ):
             self.skipTest("Unsupported export case")
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -3626,7 +3629,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
         if "text2text-generation-with-past" not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx"
+            model_arch.replace("_", "-"), exporter="onnx", library_name="transformers"
         ):
             self.skipTest("Unsupported -with-past export case")
 
@@ -3656,7 +3659,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         task = "text2text-generation-with-past"
 
         if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
-            self.skipTest("Unsupported export case")
+            self.skipTest("Unsupported export case", library_name="transformers")
 
         model_ids = self._get_model_ids(model_arch)
         for model_id in model_ids:
@@ -4192,7 +4195,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
         if "automatic-speech-recognition-with-past" not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx"
+            model_arch.replace("_", "-"), exporter="onnx", library_name="transformers"
         ):
             self.skipTest("Unsupported -with-past export case")
 
@@ -4214,7 +4217,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         task = "automatic-speech-recognition-with-past"
 
         if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
-            self.skipTest("Unsupported export case")
+            self.skipTest("Unsupported export case", library_name="transformers")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             main_export(model_id, tmpdir, task=task)

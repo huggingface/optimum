@@ -240,6 +240,10 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
+class GemmaOnnxConfig(LlamaOnnxConfig):
+    pass
+
+
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
