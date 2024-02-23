@@ -76,10 +76,12 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
                     ort_sess = onnxruntime.InferenceSession(
                         onnx_model_path.as_posix(),
                         providers=[
-                            "CUDAExecutionProvider"
-                            if torch.cuda.is_available()
-                            and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
-                            else "CPUExecutionProvider"
+                            (
+                                "CUDAExecutionProvider"
+                                if torch.cuda.is_available()
+                                and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
+                                else "CPUExecutionProvider"
+                            )
                         ],
                     )
                     framework = "pt" if isinstance(model, PreTrainedModel) else "tf"
@@ -145,9 +147,12 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             ort_sess = onnxruntime.InferenceSession(
                 onnx_model_path.as_posix(),
                 providers=[
-                    "CUDAExecutionProvider"
-                    if torch.cuda.is_available() and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
-                    else "CPUExecutionProvider"
+                    (
+                        "CUDAExecutionProvider"
+                        if torch.cuda.is_available()
+                        and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
+                        else "CPUExecutionProvider"
+                    )
                 ],
             )
 
@@ -206,9 +211,12 @@ class TestOnnxConfigWithLoss(unittest.TestCase):
             ort_sess = onnxruntime.InferenceSession(
                 onnx_model_path.as_posix(),
                 providers=[
-                    "CUDAExecutionProvider"
-                    if torch.cuda.is_available() and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
-                    else "CPUExecutionProvider"
+                    (
+                        "CUDAExecutionProvider"
+                        if torch.cuda.is_available()
+                        and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
+                        else "CPUExecutionProvider"
+                    )
                 ],
             )
             batch = 3
