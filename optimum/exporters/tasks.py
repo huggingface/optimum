@@ -947,13 +947,13 @@ class TasksManager:
             "question-answering",
             onnx="SqueezeBertOnnxConfig",
         ),
-        "stablelm-epoch": supported_tasks_mapping(
+        "stablelm": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
             "text-generation",
             "text-generation-with-past",
             "text-classification",
-            onnx="StableLMEpochOnnxConfig",
+            onnx="StableLmOnnxConfig",
         ),
         "swin": supported_tasks_mapping(
             "feature-extraction",

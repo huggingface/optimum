@@ -257,10 +257,6 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
 
 
-class StableLMEpochOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-
-
 class MPTOnnxConfig(TextDecoderOnnxConfig):
     # MPT does not require position_ids input.
     DEFAULT_ONNX_OPSET = 13
@@ -386,6 +382,14 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
     ) -> "ModelPatcher":
         return FalconModelPatcher(self, model, model_kwargs=model_kwargs)
+
+
+class StableLmOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.37.99")
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        num_key_value_heads="num_key_value_heads",
+        allow_new=True,
+    )
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
