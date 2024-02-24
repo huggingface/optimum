@@ -78,7 +78,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "llama",
     "phi",
     "mistral",
-    "stablelm-epoch"
+    "stablelm"
 }
 
 
