@@ -127,6 +127,7 @@ class ORTConfigManager:
         "nystromformer": "bert",
         "pegasus": "bert",
         "roberta": "bert",
+        "stablelm": "gpt2",
         "t5": "bert",
         "vit": "vit",
         "whisper": "bart",
