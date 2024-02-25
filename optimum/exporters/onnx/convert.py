@@ -16,6 +16,7 @@
 
 import copy
 import gc
+import importlib
 import multiprocessing as mp
 import os
 import traceback
@@ -546,7 +547,11 @@ def export_pytorch(
         # Check that inputs match, and order them properly
         dummy_inputs = config.generate_dummy_inputs(framework="pt", **input_shapes)
 
-        device = torch.device(device)
+        if device == "dml" and importlib.util.find_spec("torch_directml"):
+            torch_directml = importlib.import_module("torch_directml")
+            device = torch_directml.device()
+        else:
+            device = torch.device(device)
 
         def remap(value):
             if isinstance(value, torch.Tensor):

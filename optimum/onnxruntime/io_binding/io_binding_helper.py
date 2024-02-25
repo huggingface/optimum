@@ -11,6 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import importlib
 import logging
 import traceback
 from typing import TYPE_CHECKING
@@ -145,8 +146,12 @@ class IOBindingHelper:
     @staticmethod
     def get_device_index(device):
         if isinstance(device, str):
-            # could be 'cuda:0', 'cuda:1', or 'cpu'. with cpu, set index=0
-            device = torch.device(device)
+            if device == "dml" and importlib.util.find_spec("torch_directml"):
+                torch_directml = importlib.import_module("torch_directml")
+                device = torch_directml.device()
+            else:
+                # could be 'cuda:0', 'cuda:1', or 'cpu'. with cpu, set index=0
+                device = torch.device(device)
         elif isinstance(device, int):
             return device
         return 0 if device.index is None else device.index

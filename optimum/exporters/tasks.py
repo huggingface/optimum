@@ -1855,7 +1855,11 @@ class TasksManager:
                     kwargs["torch_dtype"] = torch_dtype
 
                     if isinstance(device, str):
-                        device = torch.device(device)
+                        if device == "dml" and importlib.util.find_spec("torch_directml"):
+                            torch_directml = importlib.import_module("torch_directml")
+                            device = torch_directml.device()
+                        else:
+                            device = torch.device(device)
                     elif device is None:
                         device = torch.device("cpu")
 
