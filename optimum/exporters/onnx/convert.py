@@ -554,7 +554,7 @@ def export_pytorch(
 
             return value
 
-        if device.type == "cuda" and torch.cuda.is_available():
+        if device.type == "cuda" and torch.cuda.is_available() or device.type == "privateuseone":
             model.to(device)
             dummy_inputs = tree_map(remap, dummy_inputs)
 
