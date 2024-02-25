@@ -158,10 +158,6 @@ def main():
         parser.print_help()
         exit(1)
 
-    if args.device == "dml":
-        import torch_directml
-        args.device = torch_directml.device()
-
     # Run
     service = args.func(args)
     service.run()
