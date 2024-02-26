@@ -51,7 +51,6 @@ from transformers.utils.versions import require_version
 from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
 
 
-
 """ Fine-tuning a 🤗 Transformers model for image classification"""
 
 logger = logging.getLogger(__name__)
