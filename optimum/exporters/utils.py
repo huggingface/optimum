@@ -262,7 +262,7 @@ def get_stable_diffusion_models_for_export(
     pipeline: "StableDiffusionPipeline",
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
-    exporter_type: str = "onnx",
+    exporter: str = "onnx",
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "ExportConfig"]]:
     """
     Returns the components of a Stable Diffusion model and their subsequent export configs.
@@ -285,7 +285,7 @@ def get_stable_diffusion_models_for_export(
     if "text_encoder" in models_for_export:
         text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
             model=pipeline.text_encoder,
-            exporter=exporter_type,
+            exporter=exporter,
             library_name="diffusers",
             task="feature-extraction",
         )
@@ -297,7 +297,7 @@ def get_stable_diffusion_models_for_export(
     # U-NET
     export_config_constructor = TasksManager.get_exporter_config_constructor(
         model=pipeline.unet,
-        exporter=exporter_type,
+        exporter=exporter,
         library_name="diffusers",
         task="semantic-segmentation",
         model_type="unet",
@@ -309,7 +309,7 @@ def get_stable_diffusion_models_for_export(
     vae_encoder = models_for_export["vae_encoder"]
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_encoder,
-        exporter=exporter_type,
+        exporter=exporter,
         library_name="diffusers",
         task="semantic-segmentation",
         model_type="vae-encoder",
@@ -321,7 +321,7 @@ def get_stable_diffusion_models_for_export(
     vae_decoder = models_for_export["vae_decoder"]
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_decoder,
-        exporter=exporter_type,
+        exporter=exporter,
         library_name="diffusers",
         task="semantic-segmentation",
         model_type="vae-decoder",
@@ -332,7 +332,7 @@ def get_stable_diffusion_models_for_export(
     if "text_encoder_2" in models_for_export:
         export_config_constructor = TasksManager.get_exporter_config_constructor(
             model=pipeline.text_encoder_2,
-            exporter=exporter_type,
+            exporter=exporter,
             library_name="diffusers",
             task="feature-extraction",
             model_type="clip-text-with-projection",
@@ -480,7 +480,7 @@ def _get_submodels_and_export_configs(
         if library_name == "diffusers":
             export_config = None
             models_and_export_configs = get_stable_diffusion_models_for_export(
-                model, int_dtype=int_dtype, float_dtype=float_dtype, exporter_type=exporter
+                model, int_dtype=int_dtype, float_dtype=float_dtype, exporter=exporter
             )
         else:
             export_config_constructor = TasksManager.get_exporter_config_constructor(
