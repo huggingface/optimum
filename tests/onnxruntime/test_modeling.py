@@ -3127,6 +3127,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         "wavlm",
         "wav2vec2",
         "wav2vec2-conformer",
+        "whisper",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}

@@ -1342,9 +1342,15 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = super().inputs
-        if self._behavior is ConfigBehavior.DECODER and self.use_past_in_inputs is False:
-            common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / 2"
+        if self.task == "audio-classification":
+            common_inputs = {"input_features": {0: "batch_size"}}
+        else:
+            common_inputs = super().inputs
+            if self._behavior is not ConfigBehavior.DECODER:
+                common_inputs["input_features"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
+
+            if self._behavior is ConfigBehavior.DECODER and self.use_past_in_inputs is False:
+                common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / 2"
         return common_inputs
 
     @property
