@@ -592,6 +592,14 @@ class TasksManager:
             onnx="FlaubertOnnxConfig",
             tflite="FlaubertTFLiteConfig",
         ),
+        "gemma": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            onnx="GemmaOnnxConfig",
+        ),
         "glpn": supported_tasks_mapping(
             "feature-extraction",
             "depth-estimation",

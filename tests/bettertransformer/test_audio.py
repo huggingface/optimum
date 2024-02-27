@@ -49,6 +49,7 @@ class BetterTransformersBarkTest(BetterTransformersTestMixin, unittest.TestCase)
     Since `Bark` is a text-to-speech model, it is preferrable
     to define its own testing class.
     """
+
     SUPPORTED_ARCH = ["bark"]
 
     FULL_GRID = {
@@ -185,6 +186,7 @@ class BetterTransformersAudioTest(BetterTransformersTestMixin, unittest.TestCase
     r"""
     Testing suite for Audio models - tests all the tests defined in `BetterTransformersTestMixin`
     """
+
     SUPPORTED_ARCH = ["wav2vec2", "hubert"]
 
     FULL_GRID = {
