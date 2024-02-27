@@ -21,7 +21,13 @@ from transformers.utils import _LazyModule
 _import_structure = {
     "base": ["OnnxConfig", "OnnxConfigWithLoss", "OnnxConfigWithPast", "OnnxSeq2SeqConfigWithPast"],
     "config": ["TextDecoderOnnxConfig", "TextEncoderOnnxConfig", "TextSeq2SeqOnnxConfig"],
-    "convert": ["export", "export_models", "validate_model_outputs", "validate_models_outputs"],
+    "convert": [
+        "export",
+        "export_models",
+        "validate_model_outputs",
+        "validate_models_outputs",
+        "onnx_export_from_model",
+    ],
     "utils": [
         "get_decoder_models_for_export",
         "get_encoder_decoder_models_for_export",
@@ -34,7 +40,13 @@ _import_structure = {
 if TYPE_CHECKING:
     from .base import OnnxConfig, OnnxConfigWithLoss, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast  # noqa
     from .config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig  # noqa
-    from .convert import export, export_models, validate_model_outputs, validate_models_outputs  # noqa
+    from .convert import (
+        export,
+        export_models,
+        validate_model_outputs,
+        validate_models_outputs,
+        onnx_export_from_model,
+    )  # noqa
     from .utils import (
         get_decoder_models_for_export,
         get_encoder_decoder_models_for_export,

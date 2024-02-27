@@ -48,7 +48,7 @@ from optimum.onnxruntime.modeling_diffusion import (
 )
 from optimum.pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from optimum.utils.import_utils import _diffusers_version
-from optimum.utils.testing_utils import grid_parameters, require_diffusers
+from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_ort_rocm
 
 
 if parse(_diffusers_version) > Version("0.21.4"):
@@ -124,9 +124,29 @@ class ORTStableDiffusionPipelineBase(ORTModelTestMixin):
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
     )
     @require_torch_gpu
-    @pytest.mark.gpu_test
+    @pytest.mark.cuda_ep_test
     @require_diffusers
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch}
+        self._setup(model_args)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        height, width, batch_size = 32, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+        outputs = pipeline(**inputs).images
+        # Verify model devices
+        self.assertEqual(pipeline.device.type.lower(), "cuda")
+        # Verify model outptus
+        self.assertIsInstance(outputs, np.ndarray)
+        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["ROCMExecutionProvider"]})
+    )
+    @require_torch_gpu
+    @require_ort_rocm
+    @pytest.mark.rocm_ep_test
+    @require_diffusers
+    def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, provider: str):
         model_args = {"test_name": test_name, "model_arch": model_arch}
         self._setup(model_args)
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
