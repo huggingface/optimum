@@ -878,7 +878,7 @@ class ORTModel(OptimizedModel):
                 hf_hub_download(
                     repo_id=model_path.as_posix(),
                     subfolder=subfolder,
-                    filename=file_name + "_data",
+                    filename=file_name + ".data",
                     use_auth_token=use_auth_token,
                     revision=revision,
                     cache_dir=cache_dir,
