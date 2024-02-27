@@ -1362,6 +1362,16 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
             common_outputs["last_hidden_state"][1] = f"{common_outputs['last_hidden_state'][1]} / 2"
         return common_outputs
 
+    @property
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
+        if self._behavior is ConfigBehavior.DECODER:
+            return {
+                "decoder_input_ids": "input_ids",
+                "encoder_outputs": "encoder_hidden_states",
+                "attention_mask": "encoder_attention_mask",
+            }
+        return {}
+
 
 class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
     # TODO: Transformers batched generation for Speecht5 is BROKEN (https://github.com/huggingface/transformers/pull/25943),
