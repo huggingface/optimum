@@ -28,7 +28,24 @@ from ...utils import (
     logging,
 )
 from ...utils.import_utils import _diffusers_version
-from ..utils import _get_submodels_and_export_configs
+from ..utils import (
+    _get_submodels_and_export_configs,
+)
+from ..utils import (
+    get_decoder_models_for_export as _get_decoder_models_for_export,
+)
+from ..utils import (
+    get_encoder_decoder_models_for_export as _get_encoder_decoder_models_for_export,
+)
+from ..utils import (
+    get_sam_models_for_export as _get_sam_models_for_export,
+)
+from ..utils import (
+    get_speecht5_models_for_export as _get_speecht5_models_for_export,
+)
+from ..utils import (
+    get_stable_diffusion_models_for_export as _get_stable_diffusion_models_for_export,
+)
 
 
 logger = logging.get_logger()
@@ -42,11 +59,16 @@ if is_diffusers_available():
         )
 
 if TYPE_CHECKING:
+    from ..base import ExportConfig
+
     if is_torch_available():
         from transformers.modeling_utils import PreTrainedModel
 
     if is_tf_available():
         from transformers.modeling_tf_utils import TFPreTrainedModel
+
+    if is_diffusers_available():
+        from diffusers import ModelMixin, StableDiffusionPipeline
 
 
 MODEL_TYPES_REQUIRING_POSITION_IDS = {
@@ -190,3 +212,43 @@ def _get_submodels_and_onnx_configs(
         model_kwargs,
         exporter="onnx",
     )
+
+
+DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT = "The usage of `optimum.exporters.onnx.utils.get_{model_type}_models_for_export` is deprecated and will be removed in a future release, please use `optimum.exporters.utils.get_{model_type}_models_for_export` instead."
+
+
+def get_stable_diffusion_models_for_export(
+    pipeline: "StableDiffusionPipeline",
+    int_dtype: str = "int64",
+    float_dtype: str = "fp32",
+) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "ExportConfig"]]:
+    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="stable_diffusion"))
+    return _get_stable_diffusion_models_for_export(pipeline, int_dtype, float_dtype, exporter="onnx")
+
+
+def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"):
+    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="sam"))
+    return _get_sam_models_for_export(model, config)
+
+
+def get_speecht5_models_for_export(
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig", model_kwargs: Optional[Dict]
+):
+    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="speecht5"))
+    return _get_speecht5_models_for_export(model, config)
+
+
+def get_encoder_decoder_models_for_export(
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"
+) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExportConfig"]]:
+    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(mode_type="encoder_decoder"))
+    return _get_encoder_decoder_models_for_export(model, config)
+
+
+def get_decoder_models_for_export(
+    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    config: "ExportConfig",
+    legacy: bool = False,
+) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExportConfig"]]:
+    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="decoder"))
+    return _get_decoder_models_for_export(model, config, legacy)
