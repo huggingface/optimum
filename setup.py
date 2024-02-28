@@ -61,8 +61,17 @@ EXTRAS_REQUIRE = {
         "protobuf>=3.20.1",
         "accelerate",  # ORTTrainer requires it.
     ],
+    "onnxruntime-directml": [
+        "onnx",
+        "onnxruntime-directml>=1.11.0",
+        "datasets>=1.2.1",
+        "evaluate",
+        "protobuf>=3.20.1",
+        "accelerate",  # ORTTrainer requires it.
+    ],
     "exporters": ["onnx", "onnxruntime", "timm"],
     "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
+    "exporters-directml": ["onnx", "onnxruntime-directml", "timm"],
     "exporters-tf": [
         "tensorflow>=2.4,<=2.12.1",
         "tf2onnx",
