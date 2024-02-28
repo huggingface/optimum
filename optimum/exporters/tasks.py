@@ -1062,6 +1062,7 @@ class TasksManager:
         "whisper": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
+            "audio-classification",
             "automatic-speech-recognition",
             "automatic-speech-recognition-with-past",
             onnx="WhisperOnnxConfig",
