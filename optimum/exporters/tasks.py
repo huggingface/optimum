@@ -592,6 +592,14 @@ class TasksManager:
             onnx="FlaubertOnnxConfig",
             tflite="FlaubertTFLiteConfig",
         ),
+        "gemma": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            onnx="GemmaOnnxConfig",
+        ),
         "glpn": supported_tasks_mapping(
             "feature-extraction",
             "depth-estimation",
@@ -1121,10 +1129,11 @@ class TasksManager:
                 mapping = supported_model_type_for_library.get(model_type, {})
                 mapping_backend = mapping.get(backend, {})
                 for task in supported_tasks:
-                    if task not in cls.get_all_tasks():
+                    normalized_task = task.replace("-with-past", "")
+                    if normalized_task not in cls.get_all_tasks():
                         known_tasks = ", ".join(cls.get_all_tasks())
                         raise ValueError(
-                            f'The TasksManager does not know the task called "{task}", known tasks: {known_tasks}.'
+                            f'The TasksManager does not know the task called "{normalized_task}", known tasks: {known_tasks}.'
                         )
                     if not overwrite_existing and task in mapping_backend:
                         continue

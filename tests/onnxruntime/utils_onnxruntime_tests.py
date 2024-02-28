@@ -97,6 +97,7 @@ MODEL_NAMES = {
     },
     "falcon": "fxmarty/really-tiny-falcon-testing",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
+    "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
@@ -176,21 +177,23 @@ class ORTModelTestMixin(unittest.TestCase):
         model_arch = model_args["model_arch"]
         model_arch_and_params = model_args["test_name"]
 
-        # TODO: this should actually be checked in ORTModel!
-        task = self.TASK
-        if "use_cache" in model_args and model_args["use_cache"] is True:
-            task = task + "-with-past"
-
-        if "use_cache" in model_args and task not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx"
-        ):
-            self.skipTest("Unsupported export case")
-
         model_ids = MODEL_NAMES[model_arch]
         if isinstance(model_ids, dict):
             model_ids = list(model_ids.keys())
         else:
             model_ids = [model_ids]
+
+        # TODO: this should actually be checked in ORTModel!
+        task = self.TASK
+        if "use_cache" in model_args and model_args["use_cache"] is True:
+            task = task + "-with-past"
+
+        library_name = TasksManager.infer_library_from_model(model_ids[0])
+
+        if "use_cache" in model_args and task not in TasksManager.get_supported_tasks_for_model_type(
+            model_arch.replace("_", "-"), exporter="onnx", library_name=library_name
+        ):
+            self.skipTest("Unsupported export case")
 
         if model_arch_and_params not in self.onnx_model_dirs:
             self.onnx_model_dirs[model_arch_and_params] = {}

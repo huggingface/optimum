@@ -334,11 +334,14 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # Generate dummy past for the first forward if uses a merged decoder
         if past_key_values is None:
             batch_size = input_ids.shape[0]
-            if self.model_type in {"mistral", "llama"}:
+            embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
+            if self.model_type == "gemma":
+                num_attention_heads = self.normalized_config.num_key_value_heads
+                embed_size_per_head = self.normalized_config.head_dim
+            elif self.model_type in {"gemma", "mistral", "llama"}:
                 num_attention_heads = self.normalized_config.num_key_value_heads
             else:
                 num_attention_heads = self.normalized_config.num_attention_heads
-            embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
 
             dtype = constructor.float16 if self.use_fp16 else constructor.float32
 
@@ -718,6 +721,13 @@ class ORTGPTBigCodeForCausalLM(ORTModelForCausalLM):
             }
         )
         return model_inputs
+
+    # Copied from transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBigCodeForCausalLM._reorder_cache
+    @staticmethod
+    def _reorder_cache(
+        past_key_values: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor
+    ) -> Tuple[Tuple[torch.Tensor]]:
+        return tuple(layer_past.index_select(0, beam_idx.to(layer_past.device)) for layer_past in past_key_values)
 
 
 class ORTBloomForCausalLM(ORTModelForCausalLM):
