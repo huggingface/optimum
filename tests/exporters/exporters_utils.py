@@ -332,7 +332,10 @@ PYTORCH_TIMM_MODEL = {
 
 PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
     "clip": "sentence-transformers/clip-ViT-B-32",
-    "transformer": "sentence-transformers/all-MiniLM-L6-v2",
+    "transformer": {
+        "sentence-transformers/all-MiniLM-L6-v2": ["feature-extraction", "sentence-similarity"],
+        "fxmarty/tiny-dummy-mistral-sentence-transformer": ["feature-extraction", "sentence-similarity"],
+    },
 }
 
 
