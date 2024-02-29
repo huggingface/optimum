@@ -37,6 +37,7 @@ from ...utils import (
     DummyVisionEncoderDecoderPastKeyValuesGenerator,
     DummyVisionInputGenerator,
     FalconDummyPastKeyValuesGenerator,
+    GemmaDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
     MistralDummyPastKeyValuesGenerator,
     NormalizedConfig,
@@ -238,6 +239,12 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+
+class GemmaOnnxConfig(LlamaOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
+    pass
 
 
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -1339,9 +1346,15 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = super().inputs
-        if self._behavior is ConfigBehavior.DECODER and self.use_past_in_inputs is False:
-            common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / 2"
+        if self.task == "audio-classification":
+            common_inputs = {"input_features": {0: "batch_size"}}
+        else:
+            common_inputs = super().inputs
+            if self._behavior is not ConfigBehavior.DECODER:
+                common_inputs["input_features"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
+
+            if self._behavior is ConfigBehavior.DECODER and self.use_past_in_inputs is False:
+                common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / 2"
         return common_inputs
 
     @property
