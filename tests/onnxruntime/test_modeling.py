@@ -1435,6 +1435,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         "flaubert",
         "ibert",
         "mobilebert",
+        "mpnet",
         "perceiver_text",
         "roberta",
         "roformer",
@@ -1976,7 +1977,16 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["albert", "bert", "camembert", "distilbert", "electra", "roberta", "xlm_roberta"]
+    SUPPORTED_ARCHITECTURES = [
+        "albert",
+        "bert",
+        "camembert",
+        "distilbert",
+        "electra",
+        "mpnet",
+        "roberta",
+        "xlm_roberta",
+    ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForFeatureExtraction

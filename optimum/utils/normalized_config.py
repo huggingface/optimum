@@ -241,6 +241,7 @@ class NormalizedConfigManager:
         "mbart": BartLikeNormalizedTextConfig,
         "mistral": NormalizedTextConfigWithGQA,
         "mixtral": NormalizedTextConfigWithGQA,
+        "mpnet": NormalizedTextConfig,
         "mpt": MPTNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m-100": BartLikeNormalizedTextConfig,
