@@ -747,7 +747,7 @@ class ORTTrainer(Trainer):
                             _grad_norm = self.optimizer.clip_master_grads(args.max_grad_norm)
                         elif hasattr(self.optimizer, "clip_grad_norm"):
                             # Some optimizers (like the sharded optimizer) have a specific way to do gradient clipping
-                            _grad_norm = elf.optimizer.clip_grad_norm(args.max_grad_norm)
+                            _grad_norm = self.optimizer.clip_grad_norm(args.max_grad_norm)
                         elif hasattr(model, "clip_grad_norm_"):
                             # Some models (like FullyShardedDDP) have a specific way to do gradient clipping
                             _grad_norm = model.clip_grad_norm_(args.max_grad_norm)
