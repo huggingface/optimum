@@ -832,6 +832,11 @@ class TasksManager:
             "token-classification",
             onnx="NystromformerOnnxConfig",
         ),
+        "owlv2": supported_tasks_mapping(
+            "feature-extraction",
+            "zero-shot-object-detection",
+            onnx="OwlV2OnnxConfig",
+        ),
         "owlvit": supported_tasks_mapping(
             "feature-extraction",
             "zero-shot-object-detection",

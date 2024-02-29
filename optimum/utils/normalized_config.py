@@ -199,6 +199,7 @@ class NormalizedConfigManager:
         'levit',
         'mobilebert',
         'mobilevit',
+        'owlv2',
         'owlvit',
         'perceiver',
         'roformer',
