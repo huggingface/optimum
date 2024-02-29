@@ -27,6 +27,7 @@ class BetterTransformersVisionTest(BetterTransformersTestMixin, unittest.TestCas
     r"""
     Testing suite for Vision Models - tests all the tests defined in `BetterTransformersTestMixin`
     """
+
     SUPPORTED_ARCH = ["blip-2", "clip", "clip_text_model", "deit", "vilt", "vit", "vit_mae", "vit_msn", "yolos"]
 
     def prepare_inputs_for_class(self, model_id, model_type, batch_size=3, **preprocessor_kwargs):

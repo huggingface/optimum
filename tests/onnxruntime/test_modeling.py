@@ -27,6 +27,7 @@ import onnx
 import onnxruntime
 import pytest
 import requests
+import timm
 import torch
 from huggingface_hub.constants import default_cache_path
 from parameterized import parameterized
@@ -1226,7 +1227,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
-        # "bart",  # see tasks.py
+        "bart",
         "bert",
         # "big_bird",
         # "bigbird_pegasus",
@@ -1249,7 +1250,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         "roberta",
         "roformer",
         "squeezebert",
-        "xlm",
+        "xlm_qa",
         "xlm_roberta",
     ]
 
@@ -1434,6 +1435,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         "flaubert",
         "ibert",
         "mobilebert",
+        "mpnet",
         "perceiver_text",
         "roberta",
         "roformer",
@@ -1591,7 +1593,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
-        # "bart",  # see tasks.py
+        "bart",
         "bert",
         # "big_bird",
         # "bigbird_pegasus",
@@ -1975,7 +1977,16 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["albert", "bert", "camembert", "distilbert", "electra", "roberta", "xlm_roberta"]
+    SUPPORTED_ARCHITECTURES = [
+        "albert",
+        "bert",
+        "camembert",
+        "distilbert",
+        "electra",
+        "mpnet",
+        "roberta",
+        "xlm_roberta",
+    ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForFeatureExtraction
@@ -2235,6 +2246,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "bloom",
         "codegen",
         "falcon",
+        "gemma",
         "gpt2",
         "gpt_bigcode",
         "gpt_neo",
@@ -2299,7 +2311,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         task = "text-generation-with-past"
 
-        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
+        if task not in TasksManager.get_supported_tasks_for_model_type(
+            model_arch.replace("_", "-"), exporter="onnx", library_name="transformers"
+        ):
             self.skipTest("Unsupported export case")
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -2318,8 +2332,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertNotIn(ONNX_DECODER_WITH_PAST_NAME, folder_contents)
             self.assertNotIn(ONNX_WEIGHTS_NAME, folder_contents)
 
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
+    @parameterized.expand(grid_parameters({**FULL_GRID, "num_beams": [1, 3]}))
+    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, num_beams: int):
         use_io_binding = None
         if use_cache is False:
             use_io_binding = False
@@ -2380,17 +2394,19 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         if model_arch == "falcon":
             # TODO: remove once https://github.com/huggingface/transformers/pull/26873 is released, falcon is broken in transformers
             new_tokens = 5
+
         onnx_outputs = onnx_model.generate(
             **tokens,
-            num_beams=1,
+            num_beams=num_beams,
             do_sample=False,
             min_new_tokens=new_tokens,
             max_new_tokens=new_tokens,
             eos_token_id=None,
         )
+
         transformers_outputs = transformers_model.generate(
             **tokens,
-            num_beams=1,
+            num_beams=num_beams,
             do_sample=False,
             min_new_tokens=new_tokens,
             max_new_tokens=new_tokens,
@@ -2699,6 +2715,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "beit",
         "convnext",
+        "convnextv2",
         "data2vec_vision",
         "deit",
         "levit",
@@ -2713,15 +2730,80 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "vit",
     ]
 
+    TIMM_SUPPORTED_ARCHITECTURES = ["default-timm-config"]
+
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForImageClassification
     TASK = "image-classification"
+
+    def _get_model_ids(self, model_arch):
+        model_ids = MODEL_NAMES[model_arch]
+        if isinstance(model_ids, dict):
+            model_ids = list(model_ids.keys())
+        else:
+            model_ids = [model_ids]
+        return model_ids
+
+    def _get_onnx_model_dir(self, model_id, model_arch, test_name):
+        onnx_model_dir = self.onnx_model_dirs[test_name]
+        if isinstance(MODEL_NAMES[model_arch], dict):
+            onnx_model_dir = onnx_model_dir[model_id]
+
+        return onnx_model_dir
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("only supports the tasks", str(context.exception))
+
+    @parameterized.expand(TIMM_SUPPORTED_ARCHITECTURES)
+    @pytest.mark.run_slow
+    @pytest.mark.timm_test
+    @slow
+    def test_compare_to_timm(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+
+        self._setup(model_args)
+
+        model_ids = self._get_model_ids(model_arch)
+        for model_id in model_ids:
+            onnx_model = ORTModelForImageClassification.from_pretrained(
+                self._get_onnx_model_dir(model_id, model_arch, model_arch)
+            )
+
+            self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
+            self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+            set_seed(SEED)
+            timm_model = timm.create_model(model_id, pretrained=True)
+            timm_model = timm_model.eval()
+
+            # get model specific transforms (normalization, resize)
+            data_config = timm.data.resolve_model_data_config(timm_model)
+            transforms = timm.data.create_transform(**data_config, is_training=False)
+
+            url = (
+                "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/beignets-task-guide.png"
+            )
+            image = Image.open(requests.get(url, stream=True).raw)
+            inputs = transforms(image).unsqueeze(0)
+
+            with torch.no_grad():
+                timm_outputs = timm_model(inputs)
+
+            for input_type in ["pt", "np"]:
+                if input_type == "np":
+                    inputs = inputs.cpu().detach().numpy()
+                onnx_outputs = onnx_model(inputs)
+
+                self.assertIn("logits", onnx_outputs)
+                self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+                # compare tensor outputs
+                self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), timm_outputs, atol=1e-4))
+
+        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -3055,6 +3137,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         "wavlm",
         "wav2vec2",
         "wav2vec2-conformer",
+        "whisper",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
@@ -3282,6 +3365,36 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
 
             # compare tensor outputs
             self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
+    def test_compare_to_io_binding(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+
+        onnx_model = ORTModelForCTC.from_pretrained(
+            self.onnx_model_dirs[model_arch],
+            use_io_binding=False,
+        ).to("cuda")
+        onnx_model.use_io_binding = False
+        io_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to("cuda")
+
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        data = self._generate_random_audio_data()
+        input_values = processor(data, return_tensors="pt")
+        onnx_outputs = onnx_model(**input_values)
+        io_outputs = io_model(**input_values)
+
+        self.assertTrue("logits" in io_outputs)
+        self.assertIsInstance(io_outputs.logits, torch.Tensor)
+
+        # compare tensor outputs
+        self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), io_outputs.logits, atol=1e-1))
 
         gc.collect()
 
@@ -3529,7 +3642,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
         if "text2text-generation-with-past" not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx"
+            model_arch.replace("_", "-"), exporter="onnx", library_name="transformers"
         ):
             self.skipTest("Unsupported -with-past export case")
 
@@ -3559,7 +3672,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         task = "text2text-generation-with-past"
 
         if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
-            self.skipTest("Unsupported export case")
+            self.skipTest("Unsupported export case", library_name="transformers")
 
         model_ids = self._get_model_ids(model_arch)
         for model_id in model_ids:
@@ -4023,11 +4136,23 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "use_cache": [True],
+                "use_merged": [False, True],
+                "num_beams": [1, 3],
+            }
+        )
     )
     @require_torch_gpu
     def test_compare_generation_to_io_binding(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
+        self,
+        test_name: str,
+        model_arch: str,
+        use_cache: bool,
+        use_merged: bool,
+        num_beams: int,
     ):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -4059,8 +4184,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
             tokenizer = get_preprocessor(model_id)
             tokens = tokenizer("This is a sample output", return_tensors="pt").to("cuda")
-            onnx_outputs = onnx_model.generate(**tokens, num_beams=5)
-            io_outputs = io_model.generate(**tokens, num_beams=5)
+            onnx_outputs = onnx_model.generate(**tokens, num_beams=num_beams)
+            io_outputs = io_model.generate(**tokens, num_beams=num_beams)
 
             # compare tensor outputs
             self.assertTrue(torch.equal(onnx_outputs, io_outputs))
@@ -4095,7 +4220,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_merge_from_transformers_and_save(self, model_arch):
         if "automatic-speech-recognition-with-past" not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx"
+            model_arch.replace("_", "-"), exporter="onnx", library_name="transformers"
         ):
             self.skipTest("Unsupported -with-past export case")
 
@@ -4117,7 +4242,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         task = "automatic-speech-recognition-with-past"
 
         if task not in TasksManager.get_supported_tasks_for_model_type(model_arch.replace("_", "-"), exporter="onnx"):
-            self.skipTest("Unsupported export case")
+            self.skipTest("Unsupported export case", library_name="transformers")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             main_export(model_id, tmpdir, task=task)
@@ -4455,12 +4580,24 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "use_cache": [True],
+                "use_merged": [False, True],
+                "num_beams": [1, 5],
+            }
+        )
     )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_compare_generation_to_io_binding(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
+        self,
+        test_name: str,
+        model_arch: str,
+        use_cache: bool,
+        use_merged: bool,
+        num_beams: int,
     ):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -4486,8 +4623,8 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         data = self._generate_random_audio_data()
         features = processor.feature_extractor(data, return_tensors="pt").to("cuda")
 
-        onnx_outputs = onnx_model.generate(**features, num_beams=5)
-        io_outputs = io_model.generate(**features, num_beams=5)
+        onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
+        io_outputs = io_model.generate(**features, num_beams=num_beams)
 
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))
@@ -4820,12 +4957,19 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "use_cache": [True],
+                "use_merged": [False, True],
+                "num_beams": [1, 3],
+            }
+        )
     )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_compare_generation_to_io_binding(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, num_beams: int
     ):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -4851,8 +4995,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         data = self._get_sample_image()
         features = feature_extractor(data, return_tensors="pt").to("cuda")
 
-        onnx_outputs = onnx_model.generate(**features, num_beams=5)
-        io_outputs = io_model.generate(**features, num_beams=5)
+        onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
+        io_outputs = io_model.generate(**features, num_beams=num_beams)
 
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))
@@ -5236,10 +5380,22 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "use_cache": [True],
+                "use_merged": [False, True],
+                "num_beams": [1, 3],
+            }
+        )
     )
     def test_compare_generation_to_io_binding(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
+        self,
+        test_name: str,
+        model_arch: str,
+        use_cache: bool,
+        use_merged: bool,
+        num_beams: int,
     ):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -5262,8 +5418,8 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt")
         del inputs["decoder_attention_mask"]
         del inputs["decoder_input_ids"]
-        onnx_outputs = onnx_model.generate(**inputs, num_beams=5)
-        io_outputs = io_model.generate(**inputs, num_beams=5)
+        onnx_outputs = onnx_model.generate(**inputs, num_beams=num_beams)
+        io_outputs = io_model.generate(**inputs, num_beams=num_beams)
 
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))

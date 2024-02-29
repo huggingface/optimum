@@ -15,147 +15,33 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 import argparse
-import os
 from pathlib import Path
 
+from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, AutoTokenizer
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
-from ...utils import DEFAULT_DUMMY_SHAPES, ONNX_WEIGHTS_NAME, logging
-from ...utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
-from ...utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
-from ..error_utils import AtolError, OutputMatchError, ShapeError
+from ...configuration_utils import _transformers_version
+from ...utils import DEFAULT_DUMMY_SHAPES, logging
+from ...utils.save_utils import maybe_load_preprocessors
 from ..tasks import TasksManager
-from .base import OnnxConfigWithPast
-from .constants import UNPICKABLE_ARCHS
-from .convert import export_models, validate_models_outputs
-from .utils import (
-    MODEL_TYPES_REQUIRING_POSITION_IDS,
-    _get_submodels_for_export_decoder,
-    _get_submodels_for_export_encoder_decoder,
-    _get_submodels_for_export_stable_diffusion,
-    get_decoder_models_for_export,
-    get_encoder_decoder_models_for_export,
-    get_sam_models_for_export,
-    get_speecht5_models_for_export,
-    get_stable_diffusion_models_for_export,
-)
+from .constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
+from .convert import onnx_export_from_model
 
 
 if is_torch_available():
     import torch
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
 
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, TFPreTrainedModel
-
     from .base import OnnxConfig
 
 logger = logging.get_logger()
 logger.setLevel(logging.INFO)
-
-
-def _get_submodels_and_onnx_configs(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"],
-    task: str,
-    monolith: bool,
-    custom_onnx_configs: Dict,
-    custom_architecture: bool,
-    _variant: str,
-    int_dtype: str = "int64",
-    float_dtype: str = "fp32",
-    fn_get_submodels: Optional[Callable] = None,
-    preprocessors: Optional[List[Any]] = None,
-    legacy: bool = False,
-    model_kwargs: Optional[Dict] = None,
-):
-    is_stable_diffusion = "stable-diffusion" in task
-    if not custom_architecture:
-        if is_stable_diffusion:
-            onnx_config = None
-            models_and_onnx_configs = get_stable_diffusion_models_for_export(
-                model, int_dtype=int_dtype, float_dtype=float_dtype
-            )
-        else:
-            onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                model=model, exporter="onnx", task=task
-            )
-            onnx_config = onnx_config_constructor(
-                model.config,
-                int_dtype=int_dtype,
-                float_dtype=float_dtype,
-                preprocessors=preprocessors,
-                legacy=legacy,
-            )
-
-            onnx_config.variant = _variant
-            all_variants = "\n".join(
-                [f"    - {name}: {description}" for name, description in onnx_config.VARIANTS.items()]
-            )
-            logger.info(f"Using the export variant {onnx_config.variant}. Available variants are:\n{all_variants}")
-
-            # TODO: this succession of if/else strongly suggests a refactor is needed.
-            if (
-                model.config.is_encoder_decoder
-                and task.startswith(TasksManager._ENCODER_DECODER_TASKS)
-                and not monolith
-            ):
-                models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
-            elif task.startswith("text-generation") and not monolith:
-                models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config, legacy=legacy)
-            elif model.config.model_type == "sam":
-                models_and_onnx_configs = get_sam_models_for_export(model, onnx_config)
-            elif model.config.model_type == "speecht5":
-                models_and_onnx_configs = get_speecht5_models_for_export(model, onnx_config, model_kwargs)
-            else:
-                models_and_onnx_configs = {"model": (model, onnx_config)}
-
-        # When specifying custom ONNX configs for supported transformers architectures, we do
-        # not force to specify a custom ONNX config for each submodel.
-        for key, custom_onnx_config in custom_onnx_configs.items():
-            models_and_onnx_configs[key] = (models_and_onnx_configs[key][0], custom_onnx_config)
-    else:
-        onnx_config = None
-        submodels_for_export = None
-        models_and_onnx_configs = {}
-
-        if fn_get_submodels is not None:
-            submodels_for_export = fn_get_submodels(model)
-        else:
-            if is_stable_diffusion:
-                submodels_for_export = _get_submodels_for_export_stable_diffusion(model)
-            elif (
-                model.config.is_encoder_decoder
-                and task.startswith(TasksManager._ENCODER_DECODER_TASKS)
-                and not monolith
-            ):
-                submodels_for_export = _get_submodels_for_export_encoder_decoder(
-                    model, use_past=task.endswith("-with-past")
-                )
-            elif task.startswith("text-generation") and not monolith:
-                submodels_for_export = _get_submodels_for_export_decoder(model, use_past=task.endswith("-with-past"))
-            else:
-                submodels_for_export = {"model": model}
-
-        if submodels_for_export.keys() != custom_onnx_configs.keys():
-            logger.error(f"ONNX custom configs for: {', '.join(custom_onnx_configs.keys())}")
-            logger.error(f"Submodels to export: {', '.join(submodels_for_export.keys())}")
-            raise ValueError(
-                "Trying to export a custom model, but could not find as many custom ONNX configs as the number of submodels to export. Please specifiy the fn_get_submodels argument, that should return a dictionary of submodules with as many items as the provided custom_onnx_configs dictionary."
-            )
-
-        for key, custom_onnx_config in custom_onnx_configs.items():
-            models_and_onnx_configs[key] = (submodels_for_export[key], custom_onnx_config)
-
-    # Default to the first ONNX config for stable-diffusion and custom architecture case.
-    if onnx_config is None:
-        onnx_config = next(iter(models_and_onnx_configs.values()))[1]
-
-    return onnx_config, models_and_onnx_configs
 
 
 def main_export(
@@ -164,6 +50,7 @@ def main_export(
     task: str = "auto",
     opset: Optional[int] = None,
     device: str = "cpu",
+    dtype: Optional[str] = None,
     fp16: Optional[bool] = False,
     optimize: Optional[str] = None,
     monolith: bool = False,
@@ -187,16 +74,18 @@ def main_export(
     _variant: str = "default",
     library_name: Optional[str] = None,
     legacy: bool = False,
+    no_dynamic_axes: bool = False,
+    do_constant_folding: bool = True,
     **kwargs_shapes,
 ):
     """
-    Full-suite ONNX export.
+    Full-suite ONNX export function, exporting **from a model ID on Hugging Face Hub or a local model repository**.
 
     Args:
         > Required parameters
 
         model_name_or_path (`str`):
-            Model ID on huggingface.co or path on disk to the model repository to export.
+            Model ID on huggingface.co or path on disk to the model repository to export. Example: `model_name_or_path="BAAI/bge-m3"` or `mode_name_or_path="/path/to/model_folder`.
         output (`Union[str, Path]`):
             Path indicating the directory where to store the generated ONNX model.
 
@@ -212,6 +101,8 @@ def main_export(
             The device to use to do the export. Defaults to "cpu".
         fp16 (`Optional[bool]`, defaults to `"False"`):
             Use half precision during the export. PyTorch-only, requires `device="cuda"`.
+        dtype (`Optional[str]`, defaults to `None`):
+            The floating point precision to use for the export. Supported options: `"fp32"` (float32), `"fp16"` (float16), `"bf16"` (bfloat16). Defaults to `"fp32"`.
         optimize (`Optional[str]`, defaults to `None`):
             Allows to run ONNX Runtime optimizations directly during the export. Some of these optimizations are specific to
             ONNX Runtime, and the resulting ONNX will not be usable with other runtime as OpenVINO or TensorRT.
@@ -264,10 +155,13 @@ def main_export(
         _variant (`str`, defaults to `default`):
             Specify the variant of the ONNX export to use.
         library_name (`Optional[str]`, defaults to `None`):
-            The library of the model(`"tansformers"` or `"diffusers"` or `"timm"`). If not provided, will attempt to automatically detect
-            the library name for the checkpoint.
+            The library of the model (`"transformers"` or `"diffusers"` or `"timm"` or `"sentence_transformers"`). If not provided, will attempt to automatically detect the library name for the checkpoint.
         legacy (`bool`, defaults to `False`):
             Disable the use of position_ids for text-generation models that require it for batched generation. Also enable to export decoder only models in three files (without + with past and the merged model). This argument is introduced for backward compatibility and will be removed in a future release of Optimum.
+        no_dynamic_axes (bool, defaults to `False`):
+            If True, disables the use of dynamic axes during ONNX export.
+        do_constant_folding (bool, defaults to `True`):
+            PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -278,27 +172,34 @@ def main_export(
     >>> main_export("gpt2", output="gpt2_onnx/")
     ```
     """
+
+    if fp16:
+        if dtype is not None:
+            raise ValueError(
+                f'Both the arguments `fp16` ({fp16}) and `dtype` ({dtype}) were specified in the ONNX export, which is not supported. Please specify only `dtype`. Possible options: "fp32" (default), "fp16", "bf16".'
+            )
+
+        logger.warning(
+            'The argument `fp16` is deprecated in the ONNX export. Please use the argument `dtype="fp16"` instead, or `--dtype fp16` from the command-line.'
+        )
+
+        dtype = "fp16"
+    elif dtype is None:
+        dtype = "fp32"  # Defaults to float32.
+
     if optimize == "O4" and device != "cuda":
         raise ValueError(
             "Requested O4 optimization, but this optimization requires to do the export on GPU."
             " Please pass the argument `--device cuda`."
         )
 
-    if (framework == "tf" and fp16 is True) or not is_torch_available():
+    if (framework == "tf" and fp16) or not is_torch_available():
         raise ValueError("The --fp16 option is supported only for PyTorch.")
 
-    if fp16:
-        if device == "cpu":
-            raise ValueError(
-                "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
-            )
-        float_dtype = "fp16"
-    else:
-        float_dtype = "fp32"
-
-    output = Path(output)
-    if not output.exists():
-        output.mkdir(parents=True)
+    if dtype == "fp16" and device == "cpu":
+        raise ValueError(
+            "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
+        )
 
     if for_ort:
         logger.warning(
@@ -314,7 +215,19 @@ def main_export(
         model_name_or_path, subfolder=subfolder, library_name=library_name
     )
 
-    torch_dtype = None if fp16 is False else torch.float16
+    torch_dtype = None
+    if framework == "pt":
+        if dtype == "fp16":
+            torch_dtype = torch.float16
+        elif dtype == "bf16":
+            torch_dtype = torch.bfloat16
+
+    if task.endswith("-with-past") and monolith:
+        task_non_past = task.replace("-with-past", "")
+        raise ValueError(
+            f"The task {task} is not compatible with the --monolith argument. Please either use"
+            f" `--task {task_non_past} --monolith`, or `--task {task}` without the monolith argument."
+        )
 
     if task == "auto":
         try:
@@ -329,6 +242,7 @@ def main_export(
             )
 
     custom_architecture = False
+    loading_kwargs = {}
     if library_name == "transformers":
         config = AutoConfig.from_pretrained(
             model_name_or_path,
@@ -341,17 +255,26 @@ def main_export(
             trust_remote_code=trust_remote_code,
         )
         model_type = config.model_type.replace("_", "-")
+
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             custom_architecture = True
-        elif task not in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx"):
+        elif task not in TasksManager.get_supported_tasks_for_model_type(
+            model_type, "onnx", library_name=library_name
+        ):
             if original_task == "auto":
                 autodetected_message = " (auto-detected)"
             else:
                 autodetected_message = ""
-            model_tasks = TasksManager.get_supported_tasks_for_model_type(model_type, exporter="onnx")
+            model_tasks = TasksManager.get_supported_tasks_for_model_type(
+                model_type, exporter="onnx", library_name=library_name
+            )
             raise ValueError(
                 f"Asked to export a {model_type} model for the task {task}{autodetected_message}, but the Optimum ONNX exporter only supports the tasks {', '.join(model_tasks.keys())} for {model_type}. Please use a supported task. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the task {task} to be supported in the ONNX export for {model_type}."
             )
+
+        # TODO: Fix in Transformers so that SdpaAttention class can be exported to ONNX. `attn_implementation` is introduced in Transformers 4.36.
+        if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and _transformers_version >= version.parse("4.35.99"):
+            loading_kwargs["attn_implementation"] = "eager"
 
     model = TasksManager.get_model_from_task(
         task,
@@ -367,72 +290,48 @@ def main_export(
         torch_dtype=torch_dtype,
         device=device,
         library_name=library_name,
+        **loading_kwargs,
     )
 
-    is_stable_diffusion = "stable-diffusion" in task
-    model_type = "stable-diffusion" if is_stable_diffusion else model.config.model_type.replace("_", "-")
+    needs_pad_token_id = task == "text-classification" and getattr(model.config, "pad_token_id", None) is None
 
-    # For MODEL_TO_PATCH_FOR_PAST architectures, when exporting the model with an input of sequence length of 1, a tracer that does not handle
-    # controlflows will trace incorrectly the mask generation, resulting in incorrect attention masks for other sequence lengthss.
-    # Reference: https://github.com/huggingface/transformers/blob/af3de8d87c717c4bb090f037d0d89413c195a42f/src/transformers/modeling_attn_mask_utils.py#L94
-    input_shapes = {}
-    for input_name in DEFAULT_DUMMY_SHAPES.keys():
-        input_shapes[input_name] = (
-            kwargs_shapes[input_name] if input_name in kwargs_shapes else DEFAULT_DUMMY_SHAPES[input_name]
-        )
+    if needs_pad_token_id:
+        if pad_token_id is not None:
+            model.config.pad_token_id = pad_token_id
+        else:
+            tok = AutoTokenizer.from_pretrained(model_name_or_path)
+            pad_token_id = getattr(tok, "pad_token_id", None)
+            if pad_token_id is None:
+                raise ValueError(
+                    "Could not infer the pad token id, which is needed in this case, please provide it with the --pad_token_id argument"
+                )
+            model.config.pad_token_id = pad_token_id
 
-        # TODO: this may be moved rather to the OnnxConfig to avoid bloating this script.
-        if (
-            model_type in MODEL_TO_PATCH_FOR_PAST
-            and input_name == "sequence_length"
-            and kwargs_shapes.get(input_name) == 1
-        ):
-            raise ValueError(
-                f"Exporting with a sequence length of 1 a {model_type} model is not supported and can yield unexpected results."
-            )
-
-    if legacy and model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and task.startswith("text-generation"):
-        logger.warning(
-            f"legacy=True was specified in the ONNX export, although the model {model_name_or_path} (model type {model_type}) requires position_ids for batched inference. Passing `legacy=True` is strongly discouraged, and this option will be removed in a future release. Reference: https://github.com/huggingface/optimum/pull/1381"
-        )
-
-    if not is_stable_diffusion:
-        if model_type in TasksManager._UNSUPPORTED_CLI_MODEL_TYPE:
-            raise ValueError(
-                f"{model_type} is not supported yet. Only {list(TasksManager._SUPPORTED_CLI_MODEL_TYPE.keys())} are supported. "
-                f"If you want to support {model_type} please propose a PR or open up an issue."
-            )
-
-    # TODO: support onnx_config.py in the model repo
-    if custom_architecture and custom_onnx_configs is None:
-        raise ValueError(
-            f"Trying to export a {model.config.model_type} model, that is a custom or unsupported architecture for the task {task}, but no custom onnx configuration was passed as `custom_onnx_configs`. Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models for an example on how to export custom models. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the model type {model.config.model_type} to be supported natively in the ONNX export."
-        )
-
-    if custom_architecture and original_task == "auto":
-        raise ValueError(
-            f'Automatic task detection is not supported with custom architectures. Please specify the `task` argument. Suggestion: task="{task}" (or task="{task}-with-past" if the model is decoder-based and supports KV cache)'
-        )
+    if "stable-diffusion" in task:
+        model_type = "stable-diffusion"
+    elif hasattr(model.config, "export_model_type"):
+        model_type = model.config.export_model_type.replace("_", "-")
+    else:
+        model_type = model.config.model_type.replace("_", "-")
 
     if (
         not custom_architecture
-        and not is_stable_diffusion
-        and task + "-with-past" in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
+        and library_name != "diffusers"
+        and task + "-with-past"
+        in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx", library_name=library_name)
     ):
-        if original_task == "auto":  # Make -with-past the default if --task was not explicitely specified
+        # Make -with-past the default if --task was not explicitely specified
+        if original_task == "auto" and not monolith:
             task = task + "-with-past"
         else:
             logger.info(
                 f"The task `{task}` was manually specified, and past key values will not be reused in the decoding."
                 f" if needed, please pass `--task {task}-with-past` to export using the past key values."
             )
+            model.config.use_cache = False
 
-    if task.endswith("-with-past") and monolith is True:
-        task_non_past = task.replace("-with-past", "")
-        raise ValueError(
-            f"The task {task} is not compatible with the --monolith argument. Please either use"
-            f" `--task {task_non_past} --monolith`, or `--task {task}` without the monolith argument."
-        )
+    if task.endswith("with-past"):
+        model.config.use_cache = True
 
     if original_task == "auto":
         synonyms_for_task = sorted(TasksManager.synonyms_for_task(task))
@@ -448,171 +347,29 @@ def main_export(
     preprocessors = maybe_load_preprocessors(
         model_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code
     )
-    onnx_config, models_and_onnx_configs = _get_submodels_and_onnx_configs(
+
+    onnx_export_from_model(
         model=model,
-        task=task,
+        output=output,
+        opset=opset,
+        optimize=optimize,
         monolith=monolith,
-        custom_onnx_configs=custom_onnx_configs if custom_onnx_configs is not None else {},
-        custom_architecture=custom_architecture,
-        float_dtype=float_dtype,
+        no_post_process=no_post_process,
+        atol=atol,
+        do_validation=do_validation,
+        model_kwargs=model_kwargs,
+        custom_onnx_configs=custom_onnx_configs,
         fn_get_submodels=fn_get_submodels,
-        preprocessors=preprocessors,
         _variant=_variant,
         legacy=legacy,
-        model_kwargs=model_kwargs,
-    )
-
-    if not is_stable_diffusion:
-        needs_pad_token_id = (
-            isinstance(onnx_config, OnnxConfigWithPast)
-            and getattr(model.config, "pad_token_id", None) is None
-            and task in ["text-classification"]
-        )
-        if needs_pad_token_id:
-            if pad_token_id is not None:
-                model.config.pad_token_id = pad_token_id
-            else:
-                try:
-                    tok = AutoTokenizer.from_pretrained(model_name_or_path)
-                    model.config.pad_token_id = tok.pad_token_id
-                except Exception:
-                    raise ValueError(
-                        "Could not infer the pad token id, which is needed in this case, please provide it with the --pad_token_id argument"
-                    )
-
-        # Ensure the requested opset is sufficient
-        if opset is None:
-            opset = onnx_config.DEFAULT_ONNX_OPSET
-
-        if opset < onnx_config.DEFAULT_ONNX_OPSET:
-            raise ValueError(
-                f"Opset {opset} is not sufficient to export {model_type}. "
-                f"At least {onnx_config.DEFAULT_ONNX_OPSET} is required."
-            )
-        if atol is None:
-            atol = onnx_config.ATOL_FOR_VALIDATION
-            if isinstance(atol, dict):
-                atol = atol[task.replace("-with-past", "")]
-
-        # Saving the model config and preprocessor as this is needed sometimes.
-        model.config.save_pretrained(output)
-        generation_config = getattr(model, "generation_config", None)
-        if generation_config is not None:
-            generation_config.save_pretrained(output)
-        maybe_save_preprocessors(model_name_or_path, output)
-
-        if model.config.is_encoder_decoder and task.startswith("text-generation"):
-            raise ValueError(
-                f"model.config.is_encoder_decoder is True and task is `{task}`, which are incompatible. If the task was auto-inferred, please fill a bug report"
-                f"at https://github.com/huggingface/optimum, if --task was explicitely passed, make sure you selected the right task for the model,"
-                f" referring to `optimum.exporters.tasks.TaskManager`'s `_TRANSFORMERS_TASKS_TO_MODEL_LOADERS`."
-            )
-
-        onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
-    else:
-        # save the subcomponent configuration
-        for model_name in models_and_onnx_configs:
-            subcomponent = models_and_onnx_configs[model_name][0]
-            if hasattr(subcomponent, "save_config"):
-                subcomponent.save_config(output / model_name)
-            elif hasattr(subcomponent, "config") and hasattr(subcomponent.config, "save_pretrained"):
-                subcomponent.config.save_pretrained(output / model_name)
-
-        onnx_files_subpaths = [os.path.join(name_dir, ONNX_WEIGHTS_NAME) for name_dir in models_and_onnx_configs]
-
-        # Saving the additional components needed to perform inference.
-        model.scheduler.save_pretrained(output.joinpath("scheduler"))
-
-        feature_extractor = getattr(model, "feature_extractor", None)
-        if feature_extractor is not None:
-            feature_extractor.save_pretrained(output.joinpath("feature_extractor"))
-
-        tokenizer = getattr(model, "tokenizer", None)
-        if tokenizer is not None:
-            tokenizer.save_pretrained(output.joinpath("tokenizer"))
-
-        tokenizer_2 = getattr(model, "tokenizer_2", None)
-        if tokenizer_2 is not None:
-            tokenizer_2.save_pretrained(output.joinpath("tokenizer_2"))
-
-        model.save_config(output)
-
-    _, onnx_outputs = export_models(
-        models_and_onnx_configs=models_and_onnx_configs,
-        opset=opset,
-        output_dir=output,
-        output_names=onnx_files_subpaths,
-        input_shapes=input_shapes,
+        preprocessors=preprocessors,
         device=device,
-        dtype="fp16" if fp16 is True else None,
-        model_kwargs=model_kwargs,
+        no_dynamic_axes=no_dynamic_axes,
+        task=task,
+        use_subprocess=use_subprocess,
+        do_constant_folding=do_constant_folding,
+        **kwargs_shapes,
     )
-
-    if optimize is not None:
-        from ...onnxruntime import AutoOptimizationConfig, ORTOptimizer
-
-        optimizer = ORTOptimizer.from_pretrained(output, file_names=onnx_files_subpaths)
-
-        optimization_config = AutoOptimizationConfig.with_optimization_level(optimization_level=optimize)
-
-        optimization_config.disable_shape_inference = True
-        optimizer.optimize(save_dir=output, optimization_config=optimization_config, file_suffix="")
-
-    # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
-    # TODO: treating stable diffusion separately is quite ugly
-    if not no_post_process and not is_stable_diffusion:
-        try:
-            logger.info("Post-processing the exported models...")
-            models_and_onnx_configs, onnx_files_subpaths = onnx_config.post_process_exported_models(
-                output, models_and_onnx_configs, onnx_files_subpaths
-            )
-        except Exception as e:
-            raise Exception(
-                f"The post-processing of the ONNX export failed. The export can still be performed by passing the option --no-post-process. Detailed error: {e}"
-            )
-
-    if is_stable_diffusion:
-        use_subprocess = (
-            False  # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
-        )
-    elif model.config.model_type in UNPICKABLE_ARCHS:
-        # Pickling is bugged for nn.utils.weight_norm: https://github.com/pytorch/pytorch/issues/102983
-        # TODO: fix "Cowardly refusing to serialize non-leaf tensor" error for wav2vec2-conformer
-        use_subprocess = False
-
-    if device == "cpu":
-        # Using multiprocessing for validation is useful only on CUDA EP that leaks memory.
-        use_subprocess = False
-
-    if do_validation is True:
-        try:
-            validate_models_outputs(
-                models_and_onnx_configs=models_and_onnx_configs,
-                onnx_named_outputs=onnx_outputs,
-                atol=atol,
-                output_dir=output,
-                onnx_files_subpaths=onnx_files_subpaths,
-                input_shapes=input_shapes,
-                device=device,
-                dtype=torch_dtype,
-                use_subprocess=use_subprocess,
-                model_kwargs=model_kwargs,
-            )
-            logger.info(f"The ONNX export succeeded and the exported model was saved at: {output.as_posix()}")
-        except ShapeError as e:
-            raise e
-        except AtolError as e:
-            logger.warning(
-                f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {output.as_posix()}"
-            )
-        except OutputMatchError as e:
-            logger.warning(
-                f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {output.as_posix()}"
-            )
-        except Exception as e:
-            raise Exception(
-                f"An error occured during validation, but the model was saved nonetheless at {output.as_posix()}. Detailed error: {e}."
-            )
 
 
 def main():
@@ -646,6 +403,7 @@ def main():
         for_ort=args.for_ort,
         library_name=args.library_name,
         legacy=args.legacy,
+        do_constant_folding=not args.no_constant_folding,
         **input_shapes,
     )
 
