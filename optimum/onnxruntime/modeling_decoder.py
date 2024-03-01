@@ -536,6 +536,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 all_tensors_to_one_file=True,
                 location=model_cache_path.name + "_data",
                 size_threshold=0,
+                convert_attribute=True,
             )
         del onnx_model
 

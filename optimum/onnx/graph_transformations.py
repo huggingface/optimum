@@ -157,7 +157,11 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
                 # The new model may be below the maximum protobuf size, overwritting a model that was larger. Hence this os.remove.
                 os.remove(external_path)
 
-            onnx.save(model, save_path)
+            onnx.save(
+                model,
+                save_path,
+                convert_attribute=True,
+            )
     elif save_path is not None:
         # path/to/model.onnx
         save_path = Path(save_path).as_posix()
@@ -177,6 +181,7 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
             save_as_external_data=True,
             all_tensors_to_one_file=True,
             location=external_file_name,
+            convert_attribute=True,
         )
         try:
             onnx.checker.check_model(save_path)
