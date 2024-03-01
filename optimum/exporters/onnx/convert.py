@@ -610,7 +610,7 @@ def export_pytorch(
                 save_as_external_data=True,
                 all_tensors_to_one_file=True,
                 location=output.name + "_data",
-                size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0,
+                size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 100,
                 convert_attribute=True,
             )
 
