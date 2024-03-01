@@ -937,9 +937,12 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.vae_encoder.session.get_providers()[0], "ROCMExecutionProvider")
         self.assertListEqual(model.providers, ["ROCMExecutionProvider", "CPUExecutionProvider"])
 
-    @require_hf_token
     def test_load_model_from_hub_private(self):
-        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, use_auth_token=os.environ.get("HF_AUTH_TOKEN", None))
+        subprocess.run("huggingface-cli logout", shell=True)
+        # Read token of fxmartyclone (dummy user).
+        token = "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"
+
+        model = ORTModelForCustomTasks.from_pretrained("fxmartyclone/tiny-onnx-private-2", use_auth_token=token)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
