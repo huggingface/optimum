@@ -937,21 +937,23 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     force_download=force_download,
                     local_files_only=local_files_only,
                 )
-                # try download external data
-                try:
-                    hf_hub_download(
-                        repo_id=model_id,
-                        subfolder=subfolder,
-                        filename=filename + "_data",
-                        use_auth_token=use_auth_token,
-                        revision=revision,
-                        cache_dir=cache_dir,
-                        force_download=force_download,
-                        local_files_only=local_files_only,
-                    )
-                except EntryNotFoundError:
-                    # model doesn't use external data
-                    pass
+                # The optimizer could have saved external data with the `.data` suffix.
+                for suffix in ["_data", ".data"]:
+                    # try download external data
+                    try:
+                        hf_hub_download(
+                            repo_id=model_id,
+                            subfolder=subfolder,
+                            filename=filename + suffix,
+                            use_auth_token=use_auth_token,
+                            revision=revision,
+                            cache_dir=cache_dir,
+                            force_download=force_download,
+                            local_files_only=local_files_only,
+                        )
+                    except EntryNotFoundError:
+                        # model doesn't use external data
+                        pass
 
                 paths[attr_name] = Path(model_cache_path).name
             new_model_save_dir = Path(model_cache_path).parent

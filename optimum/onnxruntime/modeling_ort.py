@@ -873,21 +873,23 @@ class ORTModel(OptimizedModel):
                 force_download=force_download,
                 local_files_only=local_files_only,
             )
-            # try download external data
-            try:
-                hf_hub_download(
-                    repo_id=model_path.as_posix(),
-                    subfolder=subfolder,
-                    filename=file_name + "_data",
-                    use_auth_token=use_auth_token,
-                    revision=revision,
-                    cache_dir=cache_dir,
-                    force_download=force_download,
-                    local_files_only=local_files_only,
-                )
-            except EntryNotFoundError:
-                # model doesn't use external data
-                pass
+            # The optimizer could have saved external data with the `.data` suffix.
+            for suffix in ["_data", ".data"]:
+                # try download external data
+                try:
+                    hf_hub_download(
+                        repo_id=model_path.as_posix(),
+                        subfolder=subfolder,
+                        filename=file_name + suffix,
+                        use_auth_token=use_auth_token,
+                        revision=revision,
+                        cache_dir=cache_dir,
+                        force_download=force_download,
+                        local_files_only=local_files_only,
+                    )
+                except EntryNotFoundError:
+                    # model doesn't use external data
+                    pass
 
             model_cache_path = Path(model_cache_path)
             preprocessors = maybe_load_preprocessors(model_path.as_posix(), subfolder=subfolder)
