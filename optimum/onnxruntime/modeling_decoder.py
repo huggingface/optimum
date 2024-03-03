@@ -536,6 +536,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 all_tensors_to_one_file=True,
                 location=model_cache_path.name + "_data",
                 size_threshold=0,
+                convert_attribute=True,
             )
         del onnx_model
 
@@ -721,6 +722,13 @@ class ORTGPTBigCodeForCausalLM(ORTModelForCausalLM):
             }
         )
         return model_inputs
+
+    # Copied from transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBigCodeForCausalLM._reorder_cache
+    @staticmethod
+    def _reorder_cache(
+        past_key_values: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor
+    ) -> Tuple[Tuple[torch.Tensor]]:
+        return tuple(layer_past.index_select(0, beam_idx.to(layer_past.device)) for layer_past in past_key_values)
 
 
 class ORTBloomForCausalLM(ORTModelForCausalLM):

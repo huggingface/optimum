@@ -918,9 +918,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             attribute_name_to_filename = {
                 "last_encoder_model_name": encoder_path.name,
                 "last_decoder_model_name": decoder_path.name if use_merged is False else None,
-                "last_decoder_with_past_model_name": decoder_with_past_path.name
-                if (use_merged is False and use_cache is True)
-                else None,
+                "last_decoder_with_past_model_name": (
+                    decoder_with_past_path.name if (use_merged is False and use_cache is True) else None
+                ),
                 "last_decoder_merged_name": decoder_merged_path.name if use_merged is True else None,
             }
             paths = {}
