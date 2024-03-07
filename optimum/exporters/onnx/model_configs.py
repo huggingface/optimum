@@ -233,6 +233,11 @@ class OPTOnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
+class Qwen2OnnxConfig(TextDecoderOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Llama now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 

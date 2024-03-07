@@ -851,6 +851,15 @@ class TasksManager:
             "text-classification",
             onnx="OPTOnnxConfig",
         ),
+        "qwen2": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "question-answering",
+            "text-classification",
+            onnx="Qwen2OnnxConfig",
+        ),
         "llama": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
