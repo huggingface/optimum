@@ -354,7 +354,8 @@ class GPTQQuantizer(object):
             self.use_cuda_fp16 = model.dtype == torch.float16
 
         if self.model_seqlen is None:
-            self.model_seqlen = get_seqlen(model)
+            # We allow a max value of 4028 to avoid passing data with huge length to the model during the calibration step
+            self.model_seqlen = min(4028, get_seqlen(model))
 
         device = get_device(model)
 
