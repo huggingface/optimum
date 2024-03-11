@@ -51,6 +51,7 @@ if is_torch_available():
 if is_accelerate_available():
     from transformers.trainer_pt_utils import AcceleratorConfig
 
+
 class ORTOptimizerNames(ExplicitEnum):
     """
     Stores the acceptable string identifiers for optimizers in `onnxruntime.training.optim`.
