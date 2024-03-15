@@ -362,7 +362,9 @@ class TasksManager:
             onnx="BartOnnxConfig",
         ),
         # BEiT cannot be used with the masked image modeling autoclass, so this task is excluded here
-        "beit": supported_tasks_mapping("feature-extraction", "image-classification", onnx="BeitOnnxConfig"),
+        "beit": supported_tasks_mapping(
+            "feature-extraction", "image-classification", onnx="BeitOnnxConfig"
+        ),
         "bert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -557,6 +559,8 @@ class TasksManager:
             "feature-extraction",
             "image-feature-extraction",
             "depth-estimation",
+            "image-segmentation",
+            "semantic-segmentation",
             onnx="DptOnnxConfig",
         ),
         "electra": supported_tasks_mapping(

@@ -2961,7 +2961,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ("segformer",)
+    SUPPORTED_ARCHITECTURES = ("segformer", "dpt")
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForSemanticSegmentation
