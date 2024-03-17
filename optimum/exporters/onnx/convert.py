@@ -615,7 +615,8 @@ def export_pytorch(
                 save_as_external_data=True,
                 all_tensors_to_one_file=True,
                 location=output.name + "_data",
-                size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 0,
+                size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 100,
+                convert_attribute=True,
             )
 
             # delete previous external data
@@ -693,7 +694,11 @@ def export_tensorflow(
 
     with config.patch_model_for_export(model):
         onnx_model, _ = tf2onnx.convert.from_keras(model, input_signature, opset=opset)
-    onnx.save(onnx_model, output.as_posix())
+    onnx.save(
+        onnx_model,
+        output.as_posix(),
+        convert_attribute=True,
+    )
 
     return input_names, output_names
 

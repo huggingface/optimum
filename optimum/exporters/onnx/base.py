@@ -151,6 +151,7 @@ class OnnxConfig(ExportConfig, ABC):
         "feature-extraction": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
+        "image-feature-extraction": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "image-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
         "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-to-image": OrderedDict(
@@ -341,7 +342,11 @@ class OnnxConfig(ExportConfig, ABC):
                 dims = onnx_model.graph.output[output_idx].type.tensor_type.shape.dim
                 dims[dim_idx].dim_value = outputs[output_idx].shape[dim_idx]
 
-            onnx.save(onnx_model, model_path.as_posix())
+            onnx.save(
+                onnx_model,
+                model_path.as_posix(),
+                convert_attribute=True,
+            )
             del onnx_model
             gc.collect()
 

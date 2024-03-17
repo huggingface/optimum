@@ -122,6 +122,7 @@ class ORTConfigManager:
         "marian": "bart",
         "mbart": "bart",
         "mistral": "gpt2",
+        "mpnet": "bert",
         "mt5": "bart",
         "m2m-100": "bart",
         "nystromformer": "bert",
