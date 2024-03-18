@@ -557,6 +557,8 @@ class TasksManager:
             "feature-extraction",
             "image-feature-extraction",
             "depth-estimation",
+            "image-segmentation",
+            "semantic-segmentation",
             onnx="DptOnnxConfig",
         ),
         "electra": supported_tasks_mapping(
