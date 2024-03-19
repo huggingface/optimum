@@ -557,6 +557,8 @@ class TasksManager:
             "feature-extraction",
             "image-feature-extraction",
             "depth-estimation",
+            "image-segmentation",
+            "semantic-segmentation",
             onnx="DptOnnxConfig",
         ),
         "electra": supported_tasks_mapping(
@@ -1385,6 +1387,7 @@ class TasksManager:
         model_name_or_path: Union[str, Path],
         subfolder: str = "",
         cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
+        use_auth_token: Optional[str] = None,
     ):
         request_exception = None
         full_model_path = Path(model_name_or_path) / subfolder
@@ -1398,7 +1401,9 @@ class TasksManager:
             try:
                 if not isinstance(model_name_or_path, str):
                     model_name_or_path = str(model_name_or_path)
-                all_files = huggingface_hub.list_repo_files(model_name_or_path, repo_type="model")
+                all_files = huggingface_hub.list_repo_files(
+                    model_name_or_path, repo_type="model", token=use_auth_token
+                )
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
             except RequestsConnectionError as e:  # Hub not accessible
@@ -1679,6 +1684,7 @@ class TasksManager:
         revision: Optional[str] = None,
         cache_dir: str = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE,
         library_name: Optional[str] = None,
+        use_auth_token: Optional[str] = None,
     ):
         """
         Infers the library from the model repo.
@@ -1696,13 +1702,17 @@ class TasksManager:
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
             library_name (`Optional[str]`, *optional*):
                 The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
+            use_auth_token (`Optional[str]`, defaults to `None`):
+                The token to use as HTTP bearer authorization for remote files.
         Returns:
             `str`: The library name automatically detected from the model repo.
         """
         if library_name is not None:
             return library_name
 
-        all_files, _ = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
+        all_files, _ = TasksManager.get_model_files(
+            model_name_or_path, subfolder, cache_dir, use_auth_token=use_auth_token
+        )
 
         if "model_index.json" in all_files:
             library_name = "diffusers"
@@ -1717,6 +1727,7 @@ class TasksManager:
                 "subfolder": subfolder,
                 "revision": revision,
                 "cache_dir": cache_dir,
+                "use_auth_token": use_auth_token,
             }
             config_dict, kwargs = PretrainedConfig.get_config_dict(model_name_or_path, **kwargs)
             model_config = PretrainedConfig.from_dict(config_dict, **kwargs)

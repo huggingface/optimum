@@ -87,6 +87,7 @@ MODEL_NAMES = {
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
     "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "detr": "hf-internal-testing/tiny-random-detr",
+    "dpt": "hf-internal-testing/tiny-random-DPTModel",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "encoder-decoder": {
