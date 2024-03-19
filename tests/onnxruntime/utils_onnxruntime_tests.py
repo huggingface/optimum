@@ -89,7 +89,7 @@ MODEL_NAMES = {
     "detr": "hf-internal-testing/tiny-random-detr",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
-    "ernie": "hf-internal-testing/tiny-random-ErnieMModel",
+    "ernie": "hf-internal-testing/tiny-random-ErnieModel",
     "encoder-decoder": {
         "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": [
             "text2text-generation",
