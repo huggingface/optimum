@@ -391,6 +391,16 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
         return FalconModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
+class StableLmOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.37.99")
+
+    DEFAULT_ONNX_OPSET = 13
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        num_key_value_heads="num_key_value_heads",
+        allow_new=True,
+    )
+
+
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         encoder_shape = (
