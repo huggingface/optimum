@@ -1983,6 +1983,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         "camembert",
         "distilbert",
         "electra",
+        "ernie",
         "mpnet",
         "roberta",
         "xlm_roberta",
