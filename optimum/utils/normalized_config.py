@@ -264,6 +264,11 @@ class NormalizedConfigManager:
         "whisper": WhisperLikeNormalizedTextConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
+        "mpt": MPTNormalizedTextConfig,
+        "baichuan": NormalizedTextConfig,
+        "qwen": NormalizedTextConfig,
+        "chatglm": NormalizedTextConfig.with_args(num_layers="num_layers"),
+
     }
 
     @classmethod
