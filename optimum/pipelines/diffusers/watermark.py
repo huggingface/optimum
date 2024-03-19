@@ -18,6 +18,10 @@ class StableDiffusionXLWatermarker:
         if images.shape[-1] < 256:
             return images
 
+        # cv2 doesn't support float16
+        if images.dtype == np.float16:
+            images = images.astype(np.float32)
+
         images = (255 * (images / 2 + 0.5)).transpose((0, 2, 3, 1))
 
         images = np.array([self.encoder.encode(image, "dwtDct") for image in images]).transpose((0, 3, 1, 2))

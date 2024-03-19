@@ -39,7 +39,6 @@ class TypeHelper(ORTTypeHelper):
     `OrtValue` data types to the data types of other frameworks (NumPy, PyTorch, etc).
     """
 
-    # TODO: Current DLPack doesn't support boolean tensor, use uint8 as workaround, remove after it is supported.
     @staticmethod
     def ort_type_to_numpy_type(ort_type: str):
         ort_type_to_numpy_type_map = {

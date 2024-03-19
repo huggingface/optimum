@@ -149,7 +149,9 @@ class BetterTransformerBaseLayer:
                         continue
 
                     if module not in self.keys_to_ignore:
-                        parameter = current_weight[i * split_index : (i + 1) * split_index]
+                        # TODO: remove the clone once https://github.com/huggingface/transformers/pull/27314 & https://github.com/huggingface/safetensors/pull/379 are released.
+                        # Safetensors is bugged when using views of tensors.
+                        parameter = current_weight[i * split_index : (i + 1) * split_index].clone()
                         if isinstance(recurse_getattr(module, subparam_name), torch.nn.Parameter):
                             parameter = torch.nn.Parameter(parameter)
                         recurse_setattr(module, subparam_name, parameter)

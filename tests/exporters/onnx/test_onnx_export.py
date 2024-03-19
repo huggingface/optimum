@@ -14,11 +14,11 @@
 # limitations under the License.
 import gc
 import os
+from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict
 from unittest import TestCase
-from unittest.mock import patch
 
 import onnx
 import pytest
@@ -34,17 +34,22 @@ from optimum.exporters.onnx import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
     get_stable_diffusion_models_for_export,
+    main_export,
+    onnx_export_from_model,
     validate_models_outputs,
 )
-from optimum.exporters.onnx.__main__ import main_export
 from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
+from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
+from optimum.exporters.onnx.utils import get_speecht5_models_for_export
 from optimum.utils import ONNX_WEIGHTS_NAME, DummyPastKeyValuesGenerator, NormalizedTextConfig
-from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_timm
+from optimum.utils.save_utils import maybe_load_preprocessors
+from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
 from ..exporters_utils import (
     PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_STABLE_DIFFUSION_MODEL,
     PYTORCH_TIMM_MODEL,
     TENSORFLOW_EXPORT_MODELS,
@@ -92,60 +97,14 @@ class OnnxConfigTestCase(TestCase):
     # TODO: insert relevant tests here.
 
 
-class OnnxConfigWithPastTestCase(TestCase):
-    """
-    Cover the tests for model which have use_cache task (i.e. "with_past" for ONNX)
-    """
-
-    SUPPORTED_WITH_PAST_CONFIGS = ()
-
-    @patch.multiple(OnnxConfigWithPast, __abstractmethods__=set())
-    def test_use_past(self):
-        """
-        Ensures the use_past variable is correctly being set.
-        """
-        for name, config in OnnxConfigWithPastTestCase.SUPPORTED_WITH_PAST_CONFIGS:
-            with self.subTest(name):
-                self.assertFalse(
-                    OnnxConfigWithPast(config()).use_past,
-                    "OnnxConfigWithPast should not use_past",
-                )
-
-                self.assertTrue(
-                    OnnxConfigWithPast.with_past(config()).use_past,
-                    "OnnxConfigWithPast should use_past",
-                )
-
-    @patch.multiple(OnnxConfigWithPast, __abstractmethods__=set())
-    def test_values_override(self):
-        """
-        Ensures the use_past variable correctly set the `use_cache` value in model's configuration.
-        """
-        for name, config in OnnxConfigWithPastTestCase.SUPPORTED_WITH_PAST_CONFIGS:
-            with self.subTest(name):
-                # Without past
-                onnx_config_default = OnnxConfigWithPast(config())
-                self.assertIsNotNone(onnx_config_default.values_override, "values_override should not be None")
-                self.assertIn("use_cache", onnx_config_default.values_override, "use_cache should be present")
-                self.assertFalse(
-                    onnx_config_default.values_override["use_cache"], "use_cache should be False if not using past"
-                )
-
-                # With past
-                onnx_config_default = OnnxConfigWithPast.with_past(config())
-                self.assertIsNotNone(onnx_config_default.values_override, "values_override should not be None")
-                self.assertIn("use_cache", onnx_config_default.values_override, "use_cache should be present")
-                self.assertTrue(
-                    onnx_config_default.values_override["use_cache"], "use_cache should be False if not using past"
-                )
-
-
-def _get_models_to_test(export_models_dict: Dict):
+def _get_models_to_test(export_models_dict: Dict, library_name: str = "transformers"):
     models_to_test = []
     if is_torch_available() or is_tf_available():
         for model_type, model_names_tasks in export_models_dict.items():
             model_type = model_type.replace("_", "-")
-            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(model_type, "onnx")
+            task_config_mapping = TasksManager.get_supported_tasks_for_model_type(
+                model_type, "onnx", library_name=library_name
+            )
 
             if isinstance(model_names_tasks, str):  # test export of all tasks on the same model
                 tasks = list(task_config_mapping.keys())
@@ -167,7 +126,11 @@ def _get_models_to_test(export_models_dict: Dict):
                         continue
 
                     onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                        model_type=model_type, exporter="onnx", task=task, model_name=model_name
+                        model_type=model_type,
+                        exporter="onnx",
+                        task=task,
+                        model_name=model_name,
+                        library_name=library_name,
                     )
 
                     models_to_test.append(
@@ -222,7 +185,7 @@ class OnnxExportTestCase(TestCase):
         if library_name == "timm":
             model_class = TasksManager.get_model_class_for_task(task, library=library_name)
             model = model_class(f"hf_hub:{model_name}", pretrained=True, exportable=True)
-            TasksManager.standardize_model_attributes(model_name, model, library_name=library_name)
+            TasksManager.standardize_model_attributes(model, library_name=library_name)
         else:
             config = AutoConfig.from_pretrained(model_name)
             model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
@@ -264,6 +227,7 @@ class OnnxExportTestCase(TestCase):
         if isinstance(atol, dict):
             atol = atol[task.replace("-with-past", "")]
 
+        model_kwargs = None
         if (
             model.config.is_encoder_decoder
             and task.startswith(
@@ -279,6 +243,9 @@ class OnnxExportTestCase(TestCase):
             models_and_onnx_configs = get_encoder_decoder_models_for_export(model, onnx_config)
         elif task.startswith("text-generation") and monolith is False:
             models_and_onnx_configs = get_decoder_models_for_export(model, onnx_config)
+        elif model.config.model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+            models_and_onnx_configs = get_speecht5_models_for_export(model, onnx_config, model_kwargs)
         else:
             models_and_onnx_configs = {"model": (model, onnx_config)}
 
@@ -288,6 +255,7 @@ class OnnxExportTestCase(TestCase):
                 opset=onnx_config.DEFAULT_ONNX_OPSET,
                 output_dir=Path(tmpdirname),
                 device=device,
+                model_kwargs=model_kwargs,
             )
             input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True, add_test_name=False)
             for input_shapes in input_shapes_iterator:
@@ -317,6 +285,7 @@ class OnnxExportTestCase(TestCase):
                         output_dir=Path(tmpdirname),
                         input_shapes=input_shapes,
                         device=device,
+                        model_kwargs=model_kwargs,
                     )
                 except AtolError as e:
                     print(f"The ONNX export succeeded with the warning: {e}")
@@ -353,9 +322,9 @@ class OnnxExportTestCase(TestCase):
             TasksManager._SUPPORTED_CLI_MODEL_TYPE
             - set(PYTORCH_EXPORT_MODELS_TINY.keys())
             - set(PYTORCH_TIMM_MODEL.keys())
+            - set(PYTORCH_SENTENCE_TRANSFORMERS_MODEL.keys())
         )
-        assert "sam" in missing_models_set  # See exporters_utils.py
-        if len(missing_models_set) > 1:
+        if len(missing_models_set) > 0:
             self.fail(f"Not testing all models. Missing models: {missing_models_set}")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
@@ -366,15 +335,18 @@ class OnnxExportTestCase(TestCase):
     def test_pytorch_export_on_cpu(
         self,
         test_name,
-        name,
+        model_type,
         model_name,
         task,
         onnx_config_class_constructor,
         monolith: bool,
     ):
+        if model_type == "speecht5" and monolith:
+            self.skipTest("unsupported export")
+
         self._onnx_export(
             test_name,
-            name,
+            model_type,
             model_name,
             task,
             onnx_config_class_constructor,
@@ -392,15 +364,18 @@ class OnnxExportTestCase(TestCase):
     def test_pytorch_export_on_cuda(
         self,
         test_name,
-        name,
+        model_type,
         model_name,
         task,
         onnx_config_class_constructor,
         monolith: bool,
     ):
+        if model_type == "speecht5" and monolith:
+            self.skipTest("unsupported export")
+
         self._onnx_export(
             test_name,
-            name,
+            model_type,
             model_name,
             task,
             onnx_config_class_constructor,
@@ -415,11 +390,13 @@ class OnnxExportTestCase(TestCase):
     @require_tf
     @require_vision
     @pytest.mark.tensorflow_test
-    def test_tensorflow_export(self, test_name, name, model_name, task, onnx_config_class_constructor, monolith: bool):
+    def test_tensorflow_export(
+        self, test_name, model_type, model_name, task, onnx_config_class_constructor, monolith: bool
+    ):
         if monolith is False:
             return 0
 
-        self._onnx_export(test_name, name, model_name, task, onnx_config_class_constructor, monolith=monolith)
+        self._onnx_export(test_name, model_type, model_name, task, onnx_config_class_constructor, monolith=monolith)
 
     @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
     @require_torch
@@ -438,61 +415,6 @@ class OnnxExportTestCase(TestCase):
     @pytest.mark.gpu_test
     def test_pytorch_export_for_stable_diffusion_models_cuda(self, model_type, model_name):
         self._onnx_export_sd(model_type, model_name, device="cuda")
-
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
-    @require_torch
-    @require_vision
-    @require_timm
-    @pytest.mark.run_slow
-    @pytest.mark.timm_test
-    @slow
-    def test_pytorch_export_for_timm_on_cpu(
-        self,
-        test_name,
-        name,
-        model_name,
-        task,
-        onnx_config_class_constructor,
-        monolith: bool,
-    ):
-        self._onnx_export(
-            test_name,
-            name,
-            model_name,
-            task,
-            onnx_config_class_constructor,
-            shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
-            monolith=monolith,
-        )
-
-    @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL))
-    @require_torch
-    @require_vision
-    @require_timm
-    @require_torch_gpu
-    @slow
-    @pytest.mark.timm_test
-    @pytest.mark.run_slow
-    @pytest.mark.gpu_test
-    def test_pytorch_export_for_timm_on_cuda(
-        self,
-        test_name,
-        name,
-        model_name,
-        task,
-        onnx_config_class_constructor,
-        monolith: bool,
-    ):
-        self._onnx_export(
-            test_name,
-            name,
-            model_name,
-            task,
-            onnx_config_class_constructor,
-            device="cuda",
-            shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
-            monolith=monolith,
-        )
 
 
 class CustomWhisperOnnxConfig(WhisperOnnxConfig):
@@ -578,8 +500,8 @@ class CustomMPTOnnxConfig(TextDecoderOnnxConfig):
             inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 2: decoder_sequence_name}
 
 
-def fn_get_submodels_custom(model):
-    return {"decoder_model": model, "decoder_with_past_model": model}
+def fn_get_submodels_custom(model, legacy=False):
+    return {"decoder_model": model, "decoder_with_past_model": model} if legacy else {"model": model}
 
 
 class OnnxCustomExport(TestCase):
@@ -621,31 +543,37 @@ class OnnxCustomExport(TestCase):
     def test_custom_export_trust_remote(self, fn_get_submodels):
         model_id = "fxmarty/tiny-mpt-random-remote-code"
         config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
-
         onnx_config = CustomMPTOnnxConfig(
             config=config,
             task="text-generation",
+            use_past=True,
             use_past_in_inputs=False,
-            use_present_in_outputs=True,
         )
         onnx_config_with_past = CustomMPTOnnxConfig(config, task="text-generation", use_past=True)
 
-        custom_onnx_configs = {
-            "decoder_model": onnx_config,
-            "decoder_with_past_model": onnx_config_with_past,
-        }
+        for legacy in (True, False):
+            if legacy:
+                custom_onnx_configs = {
+                    "decoder_model": onnx_config,
+                    "decoder_with_past_model": onnx_config_with_past,
+                }
+            else:
+                custom_onnx_configs = {
+                    "model": onnx_config_with_past,
+                }
 
-        with TemporaryDirectory() as tmpdirname:
-            main_export(
-                model_id,
-                output=tmpdirname,
-                task="text-generation-with-past",
-                trust_remote_code=True,
-                custom_onnx_configs=custom_onnx_configs,
-                no_post_process=True,
-                fn_get_submodels=fn_get_submodels,
-                opset=14,
-            )
+            with TemporaryDirectory() as tmpdirname:
+                main_export(
+                    model_id,
+                    output=tmpdirname,
+                    task="text-generation-with-past",
+                    trust_remote_code=True,
+                    custom_onnx_configs=custom_onnx_configs,
+                    no_post_process=True,
+                    fn_get_submodels=partial(fn_get_submodels, legacy=legacy) if fn_get_submodels else None,
+                    legacy=legacy,
+                    opset=14,
+                )
 
     def test_custom_export_trust_remote_error(self):
         model_id = "mohitsha/tiny-ernie-random-remote-code"
@@ -661,3 +589,110 @@ class OnnxCustomExport(TestCase):
                 )
 
         self.assertIn("custom or unsupported architecture", str(context.exception))
+
+
+class OnnxExportModelTest(TestCase):
+    """
+    Integration tests ensuring supported models are correctly exported with export_model
+    """
+
+    def _onnx_export(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        monolith: bool,
+        device="cpu",
+    ):
+        library_name = TasksManager.infer_library_from_model(model_name)
+        loading_kwargs = {"attn_implementation": "eager"} if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED else {}
+
+        if library_name == "timm":
+            model_class = TasksManager.get_model_class_for_task(task, library=library_name)
+            model = model_class(f"hf_hub:{model_name}", pretrained=True, exportable=True)
+            TasksManager.standardize_model_attributes(model, library_name=library_name)
+        else:
+            config = AutoConfig.from_pretrained(model_name)
+            model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
+            model = model_class.from_pretrained(model_name, **loading_kwargs)
+
+        # Dynamic axes aren't supported for YOLO-like models. This means they cannot be exported to ONNX on CUDA devices.
+        # See: https://github.com/ultralytics/yolov5/pull/8378
+        if model.__class__.__name__.startswith("Yolos") and device != "cpu":
+            return
+
+        if model.config.model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+        else:
+            model_kwargs = None
+
+        if model.config.model_type == "pix2struct":
+            preprocessors = maybe_load_preprocessors(model_name)
+        else:
+            preprocessors = None
+
+        with TemporaryDirectory() as tmpdirname:
+            onnx_export_from_model(
+                model=model,
+                output=Path(tmpdirname),
+                monolith=monolith,
+                do_validation=True,
+                model_kwargs=model_kwargs,
+                device=device,
+                preprocessors=preprocessors,
+                task=task,
+            )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_torch
+    @require_vision
+    @slow
+    def test_pytorch_export_on_cpu(
+        self,
+        test_name,
+        model_type,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        monolith,
+    ):
+        if model_type == "speecht5" and monolith:
+            self.skipTest("unsupported export")
+
+        self._onnx_export(
+            test_name,
+            model_type,
+            model_name,
+            task,
+            monolith,
+            device="cpu",
+        )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
+    @require_torch
+    @require_vision
+    @require_torch_gpu
+    @slow
+    @pytest.mark.run_slow
+    @pytest.mark.gpu_test
+    def test_pytorch_export_on_cuda(
+        self,
+        test_name,
+        model_type,
+        model_name,
+        task,
+        onnx_config_class_constructor,
+        monolith,
+    ):
+        if model_type == "speecht5" and monolith:
+            self.skipTest("unsupported export")
+
+        self._onnx_export(
+            test_name,
+            model_type,
+            model_name,
+            task,
+            monolith,
+            device="cuda",
+        )

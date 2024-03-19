@@ -37,6 +37,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
     - if the converted model produces the same logits as the original model.
     - if the converted model is faster than the original model.
     """
+
     SUPPORTED_ARCH = [
         "albert",
         "bert",

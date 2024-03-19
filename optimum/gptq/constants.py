@@ -20,4 +20,4 @@ BLOCK_PATTERNS = [
     "model.layers",
 ]
 
-GPTQ_CONFIG = "quantization_config.json"
+GPTQ_CONFIG = "quantize_config.json"

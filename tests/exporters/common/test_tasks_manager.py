@@ -33,6 +33,15 @@ class TasksManagerTestCase(TestCase):
         for mappings in TasksManager._SUPPORTED_MODEL_TYPE.values():
             for class_ in mappings.get(backend, {}).values():
                 registered_classes.add(class_.func.__name__)
+        for mappings in TasksManager._TIMM_SUPPORTED_MODEL_TYPE.values():
+            for class_ in mappings.get(backend, {}).values():
+                registered_classes.add(class_.func.__name__)
+        for mappings in TasksManager._SENTENCE_TRANSFORMERS_SUPPORTED_MODEL_TYPE.values():
+            for class_ in mappings.get(backend, {}).values():
+                registered_classes.add(class_.func.__name__)
+        for mappings in TasksManager._DIFFUSERS_SUPPORTED_MODEL_TYPE.values():
+            for class_ in mappings.get(backend, {}).values():
+                registered_classes.add(class_.func.__name__)
 
         if classes_to_ignore is None:
             classes_to_ignore = set()
@@ -168,3 +177,13 @@ class TasksManagerTestCase(TestCase):
 
         model = TasksManager.get_model_from_task("question-answering", "uclanlp/visualbert-vqa")
         self.assertTrue(isinstance(model, VisualBertForQuestionAnswering))
+
+    def test_library_detection(self):
+        self.assertEqual(
+            TasksManager.infer_library_from_model("intfloat/multilingual-e5-large"), "sentence_transformers"
+        )
+        self.assertEqual(
+            TasksManager.infer_library_from_model("stabilityai/stable-diffusion-xl-base-1.0"), "diffusers"
+        )
+        self.assertEqual(TasksManager.infer_library_from_model("gpt2"), "transformers")
+        self.assertEqual(TasksManager.infer_library_from_model("timm/mobilenetv3_large_100.ra_in1k"), "timm")

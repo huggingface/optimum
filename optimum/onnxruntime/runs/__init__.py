@@ -65,9 +65,9 @@ class OnnxRuntimeRun(Run):
             ref_keys=run_config["dataset"]["ref_keys"],
             task_args=run_config["task_args"],
             static_quantization=self.static_quantization,
-            num_calibration_samples=run_config["calibration"]["num_calibration_samples"]
-            if self.static_quantization
-            else None,
+            num_calibration_samples=(
+                run_config["calibration"]["num_calibration_samples"] if self.static_quantization else None
+            ),
             config=trfs_model.config,
             max_eval_samples=run_config["max_eval_samples"],
         )

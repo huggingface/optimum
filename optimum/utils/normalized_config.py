@@ -85,6 +85,10 @@ class NormalizedTextConfig(NormalizedConfig):
     EOS_TOKEN_ID = "eos_token_id"
 
 
+class NormalizedTextConfigWithGQA(NormalizedTextConfig):
+    NUM_KEY_VALUE_HEADS = "num_key_value_heads"
+
+
 class NormalizedSeq2SeqConfig(NormalizedTextConfig):
     ENCODER_NUM_LAYERS = NormalizedTextConfig.NUM_LAYERS
     DECODER_NUM_LAYERS = NormalizedTextConfig.NUM_LAYERS
@@ -95,6 +99,7 @@ class NormalizedSeq2SeqConfig(NormalizedTextConfig):
 class NormalizedVisionConfig(NormalizedConfig):
     IMAGE_SIZE = "image_size"
     NUM_CHANNELS = "num_channels"
+    INPUT_SIZE = "input_size"
 
 
 class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig):
@@ -153,11 +158,10 @@ WhisperLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     hidden_size="d_model",
 )
 
-TrOCRLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
-    decoder_num_layers="decoder_layers",
+TrOCRLikeNormalizedTextConfig = NormalizedTextConfig.with_args(
     num_layers="decoder_layers",
-    decoder_num_attention_heads="decoder_attention_heads",
-    hidden_size="cross_attention_hidden_size",
+    num_attention_heads="decoder_attention_heads",
+    hidden_size="hidden_size",
 )
 
 SpeechToTextLikeNormalizedTextConfig = NormalizedSeq2SeqConfig.with_args(
@@ -183,6 +187,7 @@ class NormalizedConfigManager:
         'clip',
         'convbert',
         'convnext',
+        'convnextv2',
         'data2vec-text',
         'data2vec-vision',
         'detr',
@@ -194,11 +199,13 @@ class NormalizedConfigManager:
         'levit',
         'mobilebert',
         'mobilevit',
+        'owlv2',
         'owlvit',
         'perceiver',
         'roformer',
         'segformer',
         'squeezebert',
+        'table-transformer',
     """
 
     # Contribution note: Please add new models in alphabetical order
@@ -209,9 +216,9 @@ class NormalizedConfigManager:
         # "big_bird": NormalizedTextConfig,
         # "bigbird_pegasus": BartLikeNormalizedTextConfig,
         "blenderbot": BartLikeNormalizedTextConfig,
-        "blenderbot_small": BartLikeNormalizedTextConfig,
+        "blenderbot-small": BartLikeNormalizedTextConfig,
         "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
-        "falcon": NormalizedTextConfig.with_args(num_layers="num_hidden_layers", num_attention_heads="num_kv_heads"),
+        "falcon": NormalizedTextConfig,
         "camembert": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "cvt": NormalizedVisionConfig,
@@ -222,37 +229,41 @@ class NormalizedConfigManager:
         "donut-swin": NormalizedVisionConfig,
         "electra": NormalizedTextConfig,
         "encoder-decoder": NormalizedEncoderDecoderConfig,
+        "gemma": NormalizedTextConfigWithGQA,
         "gpt2": GPT2LikeNormalizedTextConfig,
-        "gpt-bigcode": GPT2LikeNormalizedTextConfig,
-        "gpt_neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
-        "gpt_neox": NormalizedTextConfig,
-        "llama": NormalizedTextConfig,
+        "gpt-bigcode": GPTBigCodeNormalizedTextConfig,
+        "gpt-neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
+        "gpt-neox": NormalizedTextConfig,
         "gptj": GPT2LikeNormalizedTextConfig,
         "imagegpt": GPT2LikeNormalizedTextConfig,
+        "llama": NormalizedTextConfigWithGQA,
         "longt5": T5LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
+        "mistral": NormalizedTextConfigWithGQA,
+        "mixtral": NormalizedTextConfigWithGQA,
+        "mpnet": NormalizedTextConfig,
+        "mpt": MPTNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
-        "m2m_100": BartLikeNormalizedTextConfig,
+        "m2m-100": BartLikeNormalizedTextConfig,
         "nystromformer": NormalizedTextConfig,
         "opt": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
         "pix2struct": Pix2StructNormalizedTextConfig,
+        "phi": NormalizedTextConfig,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
-        "speech_to_text": SpeechToTextLikeNormalizedTextConfig,
+        "speech-to-text": SpeechToTextLikeNormalizedTextConfig,
         "splinter": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
         "trocr": TrOCRLikeNormalizedTextConfig,
-        "whisper": WhisperLikeNormalizedTextConfig,
         "vision-encoder-decoder": NormalizedEncoderDecoderConfig,
         "vit": NormalizedVisionConfig,
+        "whisper": WhisperLikeNormalizedTextConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
-        "mpt": MPTNormalizedTextConfig,
-        "gpt_bigcode": GPTBigCodeNormalizedTextConfig,
     }
 
     @classmethod
@@ -266,5 +277,6 @@ class NormalizedConfigManager:
 
     @classmethod
     def get_normalized_config_class(cls, model_type: str) -> Type:
+        model_type = model_type.replace("_", "-")
         cls.check_supported_model(model_type)
         return cls._conf[model_type]

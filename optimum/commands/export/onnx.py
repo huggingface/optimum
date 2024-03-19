@@ -14,6 +14,7 @@
 """Defines the command line for the export with ONNX."""
 
 import argparse
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -60,6 +61,13 @@ def parse_args_onnx(parser):
         "--fp16",
         action="store_true",
         help="Use half precision during the export. PyTorch-only, requires `--device cuda`.",
+    )
+    optional_group.add_argument(
+        "--dtype",
+        type=str,
+        default=None,
+        choices=["fp32", "fp16", "bf16"],
+        help="The floating point precision to use for the export. Supported options: fp32 (float32), fp16 (float16), bf16 (bfloat16).",
     )
     optional_group.add_argument(
         "--optimize",
@@ -128,6 +136,34 @@ def parse_args_onnx(parser):
             "This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess"
             " it."
         ),
+    )
+    optional_group.add_argument(
+        "--library-name",
+        type=str,
+        choices=["transformers", "diffusers", "timm", "sentence_transformers"],
+        default=None,
+        help=("The library on the model." " If not provided, will attempt to infer the local checkpoint's library"),
+    )
+    optional_group.add_argument(
+        "--model-kwargs",
+        type=json.loads,
+        help=("Any kwargs passed to the model forward, or used to customize the export for a given model."),
+    )
+    optional_group.add_argument(
+        "--legacy",
+        action="store_true",
+        help=(
+            "Export decoder only models in three files (without + with past and the resulting merged model)."
+            "Also disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum."
+        ),
+    )
+    optional_group.add_argument(
+        "--no-dynamic-axes", action="store_true", help="Disable dynamic axes during ONNX export"
+    )
+    optional_group.add_argument(
+        "--no-constant-folding",
+        action="store_true",
+        help="PyTorch-only argument. Disables PyTorch ONNX export constant folding.",
     )
 
     input_group = parser.add_argument_group(
@@ -203,13 +239,6 @@ def parse_args_onnx(parser):
         default=DEFAULT_DUMMY_SHAPES["nb_points_per_image"],
         help="For Segment Anything. It corresponds to the number of points per segmentation masks.",
     )
-    optional_group.add_argument(
-        "--library_name",
-        type=str,
-        choices=["transformers", "diffusers", "timm"],
-        default=None,
-        help=("The library on the model." " If not provided, will attempt to infer the local checkpoint's library"),
-    )
 
     # deprecated argument
     parser.add_argument("--for-ort", action="store_true", help=argparse.SUPPRESS)
@@ -221,7 +250,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
         return parse_args_onnx(parser)
 
     def run(self):
-        from ...exporters.onnx.__main__ import main_export
+        from ...exporters.onnx import main_export
 
         # Get the shapes to be used to generate dummy inputs
         input_shapes = {}
@@ -236,6 +265,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             opset=self.args.opset,
             device=self.args.device,
             fp16=self.args.fp16,
+            dtype=self.args.dtype,
             optimize=self.args.optimize,
             monolith=self.args.monolith,
             no_post_process=self.args.no_post_process,
@@ -248,5 +278,9 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             use_subprocess=True,
             _variant=self.args.variant,
             library_name=self.args.library_name,
+            legacy=self.args.legacy,
+            no_dynamic_axes=self.args.no_dynamic_axes,
+            model_kwargs=self.args.model_kwargs,
+            do_constant_folding=not self.args.no_constant_folding,
             **input_shapes,
         )

@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install and update tools to minimize security vulnerabilities
 RUN apt-get update
 RUN apt-get install -y software-properties-common wget apt-utils patchelf git libprotobuf-dev protobuf-compiler cmake \
-    bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion libopenmpi-dev && \
+    bzip2 ca-certificates libglib2.0-0 libxext6 libsm6 libxrender1 mercurial subversion libopenmpi-dev ffmpeg && \
     apt-get clean
 RUN unattended-upgrade
 RUN apt-get autoremove -y
@@ -23,4 +23,4 @@ COPY . /workspace/optimum
 RUN pip install /workspace/optimum[onnxruntime-gpu,tests]
 
 ENV TEST_LEVEL=1
-CMD pytest onnxruntime/test_*.py --durations=0 -s -vvvvv -m gpu_test
+CMD pytest onnxruntime/test_*.py --durations=0 -s -vvvvv -m cuda_ep_test -m trt_ep_test

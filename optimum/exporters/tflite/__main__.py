@@ -62,7 +62,9 @@ def main():
         task, args.model, framework="tf", cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
     )
 
-    tflite_config_constructor = TasksManager.get_exporter_config_constructor(model=model, exporter="tflite", task=task)
+    tflite_config_constructor = TasksManager.get_exporter_config_constructor(
+        model=model, exporter="tflite", task=task, library_name="transformers"
+    )
     # TODO: find a cleaner way to do this.
     shapes = {name: getattr(args, name) for name in tflite_config_constructor.func.get_mandatory_axes_for_task(task)}
     tflite_config = tflite_config_constructor(model.config, **shapes)

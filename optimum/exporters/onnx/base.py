@@ -140,17 +140,23 @@ class OnnxConfig(ExportConfig, ABC):
     MIN_TRANSFORMERS_VERSION = GLOBAL_MIN_TRANSFORMERS_VERSION
     PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
     VARIANTS = {"default": "The default ONNX variant."}
+    DEFAULT_VARIANT = "default"
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "automatic-speech-recognition": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
+        "depth-estimation": OrderedDict({"predicted_depth": {0: "batch_size", 1: "height", 2: "width"}}),
         "document-question-answering": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "feature-extraction": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
+        "image-feature-extraction": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "image-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
         "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "image-to-image": OrderedDict(
+            {"reconstruction": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+        ),
         "mask-generation": OrderedDict({"logits": {0: "batch_size"}}),
         "masked-im": OrderedDict(
             {"reconstruction" if check_if_transformers_greater("4.29.0") else "logits": {0: "batch_size"}}
@@ -199,11 +205,8 @@ class OnnxConfig(ExportConfig, ABC):
         preprocessors: Optional[List[Any]] = None,
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
+        legacy: bool = False,
     ):
-        if task not in self._TASK_TO_COMMON_OUTPUTS:
-            raise ValueError(
-                f"{task} is not a supported task, supported tasks: {', '.join(self._TASK_TO_COMMON_OUTPUTS.keys())}"
-            )
         self.task = task
         self.int_dtype = int_dtype
         self.float_dtype = float_dtype
@@ -211,6 +214,8 @@ class OnnxConfig(ExportConfig, ABC):
         self._config = config
         self._preprocessors = preprocessors
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
+        self.variant = "default"
+        self.legacy = legacy
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
         """
@@ -337,7 +342,11 @@ class OnnxConfig(ExportConfig, ABC):
                 dims = onnx_model.graph.output[output_idx].type.tensor_type.shape.dim
                 dims[dim_idx].dim_value = outputs[output_idx].shape[dim_idx]
 
-            onnx.save(onnx_model, model_path.as_posix())
+            onnx.save(
+                onnx_model,
+                model_path.as_posix(),
+                convert_attribute=True,
+            )
             del onnx_model
             gc.collect()
 
@@ -437,7 +446,7 @@ class OnnxConfig(ExportConfig, ABC):
             sig = inspect.signature(model.call)
 
         for param in sig.parameters:
-            param_regex = re.compile(rf"{param}(\.\d*)?")
+            param_regex = re.compile(rf"{param}(\..*)?$")
             to_insert = []
             for name, dynamic_axes in inputs.items():
                 if re.match(param_regex, name):
@@ -535,13 +544,14 @@ class OnnxConfig(ExportConfig, ABC):
             if is_accelerate_available():
                 logger.info("Deduplicating shared (tied) weights...")
                 for subpath, key in zip(onnx_files_subpaths, models_and_onnx_configs):
-                    onnx_model = onnx.load(os.path.join(path, subpath))
-
                     torch_model = models_and_onnx_configs[key][0]
                     tied_params = find_tied_parameters(torch_model)
-                    remove_duplicate_weights_from_tied_info(
-                        onnx_model, torch_model, tied_params, save_path=os.path.join(path, subpath)
-                    )
+
+                    if len(tied_params) > 0:
+                        onnx_model = onnx.load(os.path.join(path, subpath))
+                        remove_duplicate_weights_from_tied_info(
+                            onnx_model, torch_model, tied_params, save_path=os.path.join(path, subpath)
+                        )
             else:
                 logger.warning(
                     "Weight deduplication check in the ONNX export requires accelerate. Please install accelerate to run it."
@@ -556,8 +566,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     """
 
     PAD_ATTENTION_MASK_TO_PAST: bool = False
-    USE_PAST_IN_INPUTS: Optional[bool] = None
-    USE_PRESENT_IN_OUTPUTS: Optional[bool] = None
+    SUPPORTS_PAST: bool = True
 
     def __init__(
         self,
@@ -566,81 +575,42 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         use_past: bool = False,
-        use_past_in_inputs: Optional[bool] = None,
-        use_present_in_outputs: Optional[bool] = None,
+        use_past_in_inputs: bool = False,
         preprocessors: Optional[List[Any]] = None,
+        legacy: bool = False,
     ):
         self.use_past = use_past
-        if use_past_in_inputs is None:
-            use_past_in_inputs = self.USE_PAST_IN_INPUTS
-        if use_present_in_outputs is None:
-            use_present_in_outputs = self.USE_PRESENT_IN_OUTPUTS
-        self.use_past_in_inputs = use_past if use_past_in_inputs is None else use_past_in_inputs
-        self.use_present_in_outputs = use_past if use_present_in_outputs is None else use_present_in_outputs
+        self.use_past_in_inputs = use_past_in_inputs
 
-        if use_past != self.use_past_in_inputs:
-            logger.warning(
-                f"use_past = {use_past} is different than use_past_in_inputs = {use_past_in_inputs}, the value of "
-                "use_past_in_inputs will used for the inputs."
-            )
-
-        if use_past != self.use_present_in_outputs:
-            logger.warning(
-                f"use_past = {use_past} is different than use_present_in_outputs = {use_present_in_outputs}, the value "
-                "of use_present_in_outputs value will be used for the outputs."
-            )
         self.is_merged = False
         self.use_cache_branch = None
         super().__init__(
-            config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
-        )
-
-    @classmethod
-    def with_past(
-        cls,
-        config: "PretrainedConfig",
-        task: str = "feature-extraction",
-        int_dtype: str = "int64",
-        float_dtype: str = "fp32",
-        preprocessors: Optional[List[Any]] = None,
-    ) -> "OnnxConfigWithPast":
-        """
-        Instantiates a [`~optimum.exporters.onnx.OnnxConfig`] with `use_past` attribute set to `True`.
-
-        Args:
-            config (`transformers.PretrainedConfig`):
-                The underlying model's config to use when exporting to ONNX.
-            task (`str`, defaults to `"feature-extraction"`):
-                The task the model should be exported for.
-            int_dtype (`str`, defaults to `"int64"`):
-                The data type of integer tensors, could be ["int64", "int32", "int8"], default to "int64".
-            float_dtype (`str`, defaults to `"fp32"`):
-                The data type of float tensors, could be ["fp32", "fp16", "bf16"], default to "fp32".
-
-        Returns:
-            [`~optimum.exporters.onnx.OnnxConfig`]: The onnx config with `.use_past = True`
-        """
-        return cls(
-            config, task=task, int_dtype=int_dtype, float_dtype=float_dtype, use_past=True, preprocessors=preprocessors
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            preprocessors=preprocessors,
+            legacy=legacy,
         )
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        if self.use_past is False:
+        if not self.use_past_in_inputs:
             common_outputs = super().outputs
         # In the other cases, the sequence_length axis is not dynamic, always of length 1
         elif self.task == "feature-extraction":
             common_outputs = OrderedDict({"last_hidden_state": {0: "batch_size"}})
         else:
-            common_outputs = OrderedDict({"logits": {0: "batch_size"}})
-        if self.use_present_in_outputs:
+            common_outputs = OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}})
+        if self.use_past:
+            # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
             self.add_past_key_values(common_outputs, direction="outputs")
         return common_outputs
 
     @property
     def values_override(self) -> Optional[Dict[str, Any]]:
         if hasattr(self._config, "use_cache"):
-            return {"use_cache": self.use_past_in_inputs or self.use_present_in_outputs}
+            return {"use_cache": self.use_past}
 
     @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
@@ -648,7 +618,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         dummy_inputs = {}
         input_names = [key for key in self.inputs.keys() if not key.startswith("past_key_values")]
-        if self.use_past:
+        if self.use_past_in_inputs and self.use_cache_branch is not False:
             input_names.append("past_key_values")
 
         for input_name in input_names:
@@ -676,11 +646,11 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             and "attention_mask" in dummy_inputs
         ):
             # Obtain the past sequence length from the value instead of the key (Bloom).
-            past_length = dummy_inputs["past_key_values"][0][1].shape[-2]
+            past_present_length = dummy_inputs["input_ids"].shape[1] + dummy_inputs["past_key_values"][0][1].shape[-2]
 
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],
-                desired_length=past_length + 1,
+                desired_length=past_present_length,
                 dim=1,
                 dtype=dummy_inputs["attention_mask"].dtype,
             )
@@ -706,17 +676,18 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
         # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
+
+        # TODO: The check `self.task != "text-generation" and self.legacy` is added following the use of a single ONNX for both without/with KV cache, without subgraphs.
+        # This overwrite may be moved to OnnxSeq2SeqConfigWithPast, but I am afraid it would break encoder-decoder models.
         if (
-            self.use_past is True
+            self.use_past
+            and self.use_past_in_inputs
             and self.use_cache_branch is not False
-            and input_name in ["decoder_input_ids", "input_ids"]
+            and input_name in ["decoder_input_ids", "input_ids", "position_ids"]
+            and ((self.task == "text-generation" and self.legacy) or self.task != "text-generation")
         ):
             sequence_length = dummy_input_gen.sequence_length
-            if "sequence_length" in input_shapes and input_shapes["sequence_length"] != 1:
-                logger.info(
-                    f"Asked a sequence length of {input_shapes['sequence_length']}, but a sequence length of 1 "
-                    f"will be used with use_past == True for `{input_name}`."
-                )
+            # Use a sequence length of 1 when the KV cache is already populated.
             dummy_input_gen.sequence_length = 1
             dummy_input = dummy_input_gen.generate(
                 input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
@@ -816,10 +787,10 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         use_past: bool = False,
-        use_past_in_inputs: Optional[bool] = None,
-        use_present_in_outputs: Optional[bool] = None,
+        use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: Optional[List[Any]] = None,
+        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -828,26 +799,20 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             float_dtype=float_dtype,
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
-            use_present_in_outputs=use_present_in_outputs,
             preprocessors=preprocessors,
+            legacy=legacy,
         )
         self._behavior = behavior
-        self.override_attributes_for_behavior()
 
-    def override_attributes_for_behavior(self):
-        """Override this to specify custom attribute change for a given behavior."""
         if self._behavior is ConfigBehavior.ENCODER:
             self.task = "feature-extraction"
             self.use_past_in_inputs = False
-            self.use_present_in_outputs = False
-        if self._behavior is ConfigBehavior.DECODER:
-            self.use_past_in_inputs = self.use_past
-            self.use_present_in_outputs = True
 
     def with_behavior(
         self,
         behavior: Union[str, ConfigBehavior],
         use_past: bool = False,
+        use_past_in_inputs: bool = False,
     ) -> "OnnxSeq2SeqConfigWithPast":
         """
         Creates a copy of the current OnnxConfig but with a different `ConfigBehavior` and `use_past` value.
@@ -856,22 +821,29 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             behavior ([`ConfigBehavior`]):
                 The behavior to use for the new instance.
             use_past (`bool`, defaults to `False`):
-                Whether or not the new instance should use past.
+                Whether or not the ONNX config to instantiate is for a model using KV cache.
+            use_past_in_inputs (`bool`, defaults to `False`):
+                Whether the KV cache is to be passed as an input to the ONNX.
 
         Returns:
             `OnnxSeq2SeqConfigWithPast`
         """
         if isinstance(behavior, str) and not isinstance(behavior, ConfigBehavior):
             behavior = ConfigBehavior(behavior)
-        return self.__class__(
+
+        onnx_config = self.__class__(
             self._config,
             task=self.task,
             int_dtype=self.int_dtype,
             float_dtype=self.float_dtype,
             use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=self._preprocessors,
+            legacy=self.legacy,
         )
+        onnx_config.variant = self.variant
+        return onnx_config
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
@@ -895,7 +867,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                     new_axes_names[axis_idx] = axis_name
             common_outputs[name] = new_axes_names
 
-        if self.use_present_in_outputs:
+        if self.use_past:
+            # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
             self.add_past_key_values(common_outputs, direction="outputs")
 
         return common_outputs
@@ -917,7 +890,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
             if (
                 self.is_merged is True
-                or (self._behavior is ConfigBehavior.DECODER and self.use_past is False)
+                or (self._behavior is ConfigBehavior.DECODER and not self.use_past_in_inputs)
                 or direction == "inputs"
             ):
                 # TODO: we only need to call it encoder_sequence_length_out in the merge case - but at torch.onnx.export()
@@ -955,8 +928,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             path, models_and_onnx_configs, onnx_files_subpaths
         )
 
-        # Attempt to merge only if the decoder was exported without/with past
-        if self.use_past is True and len(models_and_onnx_configs) == 3:
+        # Attempt to merge only if the decoder was exported without/with past, and ignore seq2seq models exported with text-generation task
+        if len(onnx_files_subpaths) >= 3 and self.use_past is True:
             decoder_path = Path(path, onnx_files_subpaths[1])
             decoder_with_past_path = Path(path, onnx_files_subpaths[2])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
@@ -975,20 +948,22 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             # In order to do the validation of the two branches on the same file
             encoder_path = onnx_files_subpaths[0]
 
-            onnx_files_subpaths = [encoder_path, decoder_merged_path.name, decoder_merged_path.name]
+            onnx_files_subpaths_new = [encoder_path, decoder_merged_path.name, decoder_merged_path.name]
+            onnx_files_subpaths_new.extend(onnx_files_subpaths[3:])
 
             # We validate the two branches of the decoder model then
             models_and_onnx_configs[ONNX_DECODER_NAME][1].is_merged = True
             models_and_onnx_configs[ONNX_DECODER_NAME][1].use_cache_branch = False
 
             # Past key values won't be generated by default, but added in the input
-            models_and_onnx_configs[ONNX_DECODER_NAME][1].use_past = False
             models_and_onnx_configs[ONNX_DECODER_NAME][1].use_past_in_inputs = True
 
             models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].use_cache_branch = True
             models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].is_merged = True
+        else:
+            onnx_files_subpaths_new = onnx_files_subpaths
 
-        return models_and_onnx_configs, onnx_files_subpaths
+        return models_and_onnx_configs, onnx_files_subpaths_new
 
     def generate_dummy_inputs_for_validation(
         self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
@@ -1053,13 +1028,15 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
 
     DUMMY_EXTRA_INPUT_GENERATOR_CLASSES = (DummyLabelsGenerator,)
 
-    def __init__(self, config: OnnxConfig, int_dtype: str = "int64", float_dtype: str = "fp32"):
+    def __init__(self, config: OnnxConfig, int_dtype: str = "int64", float_dtype: str = "fp32", legacy: bool = False):
         self._onnx_config = config
         self.task = self._onnx_config.task
         self.int_dtype = int_dtype
         self.float_dtype = float_dtype
         self._normalized_config = self._onnx_config._normalized_config
         self.PATCHING_SPECS = self._onnx_config.PATCHING_SPECS
+        self.variant = "default"
+        self.legacy = legacy
 
     @classmethod
     def from_onnx_config(cls, config: OnnxConfig) -> "OnnxConfigWithLoss":
@@ -1086,7 +1063,11 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         batch_size = dummy_inputs[input_name].shape[0]
 
         # TODO: doesn't this break attention_mask generation?
-        if isinstance(self._onnx_config, OnnxConfigWithPast) and self._onnx_config.use_past_in_inputs is True:
+        if (
+            isinstance(self._onnx_config, OnnxConfigWithPast)
+            and self._onnx_config.use_past_in_inputs is True
+            and self.task != "text-generation"
+        ):
             kwargs["sequence_length"] = 1
         else:
             for input_name, dynamic_axes in self._tasks_to_extra_inputs[self.task].items():

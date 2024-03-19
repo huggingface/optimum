@@ -252,11 +252,11 @@ class QuantizationConfig:
         reduce_range (`bool`, defaults to `False`):
             Whether to use reduce-range 7-bits integers instead of 8-bits integers.
         nodes_to_quantize (`List[str]`, defaults to `[]`):
-            List of the nodes names to quantize.
+            List of the nodes names to quantize. When unspecified, all nodes will be quantized. If empty, all nodes being operators from `operators_to_quantize` will be quantized.
         nodes_to_exclude (`List[str]`, defaults to `[]`):
-            List of the nodes names to exclude when applying quantization.
+            List of the nodes names to exclude when applying quantization. The list of nodes in a model can be found loading the ONNX model through onnx.load, or through visual inspection with [netron](https://github.com/lutzroeder/netron).
         operators_to_quantize (`List[str]`):
-            List of the operators types to quantize. Defaults to all quantizable operators for the given quantization mode and format.
+            List of the operators types to quantize. Defaults to all quantizable operators for the given quantization mode and format. Quantizable operators can be found at https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/python/tools/quantization/registry.py.
         qdq_add_pair_to_weight (`bool`, defaults to `False`):
             By default, floating-point weights are quantized and feed to solely inserted DeQuantizeLinear node.
             If set to True, the floating-point weights will remain and both QuantizeLinear / DeQuantizeLinear nodes
@@ -404,9 +404,9 @@ class AutoQuantizationConfig:
             nodes_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to quantize. If `None`, all nodes being operators from `operators_to_quantize` will be quantized.
             nodes_to_exclude (`Optional[List[str]]`, defaults to `None`):
-                Specific nodes to exclude from quantization.
+                Specific nodes to exclude from quantization. The list of nodes in a model can be found loading the ONNX model through onnx.load, or through visual inspection with [netron](https://github.com/lutzroeder/netron).
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
-                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
+                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized. Quantizable operators can be found at https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/python/tools/quantization/registry.py.
         """
         format, mode, operators_to_quantize = default_quantization_parameters(
             is_static, operators_to_quantize=operators_to_quantize
@@ -462,9 +462,9 @@ class AutoQuantizationConfig:
             nodes_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to quantize. If `None`, all nodes being operators from `operators_to_quantize` will be quantized.
             nodes_to_exclude (`Optional[List[str]]`, defaults to `None`):
-                Specific nodes to exclude from quantization.
+                Specific nodes to exclude from quantization. The list of nodes in a model can be found loading the ONNX model through onnx.load, or through visual inspection with [netron](https://github.com/lutzroeder/netron).
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
-                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
+                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized. Quantizable operators can be found at https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/python/tools/quantization/registry.py.
         """
         format, mode, operators_to_quantize = default_quantization_parameters(
             is_static, operators_to_quantize=operators_to_quantize
@@ -518,9 +518,9 @@ class AutoQuantizationConfig:
             nodes_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to quantize. If `None`, all nodes being operators from `operators_to_quantize` will be quantized.
             nodes_to_exclude (`Optional[List[str]]`, defaults to `None`):
-                Specific nodes to exclude from quantization.
+                Specific nodes to exclude from quantization. The list of nodes in a model can be found loading the ONNX model through onnx.load, or through visual inspection with [netron](https://github.com/lutzroeder/netron).
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
-                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
+                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized. Quantizable operators can be found at https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/python/tools/quantization/registry.py.
         """
         format, mode, operators_to_quantize = default_quantization_parameters(
             is_static, operators_to_quantize=operators_to_quantize
@@ -575,9 +575,9 @@ class AutoQuantizationConfig:
             nodes_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to quantize. If `None`, all nodes being operators from `operators_to_quantize` will be quantized.
             nodes_to_exclude (`Optional[List[str]]`, defaults to `None`):
-                Specific nodes to exclude from quantization.
+                Specific nodes to exclude from quantization. The list of nodes in a model can be found loading the ONNX model through onnx.load, or through visual inspection with [netron](https://github.com/lutzroeder/netron).
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
-                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
+                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized. Quantizable operators can be found at https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/python/tools/quantization/registry.py.
         """
         format, mode, operators_to_quantize = default_quantization_parameters(
             is_static, operators_to_quantize=operators_to_quantize
@@ -615,9 +615,9 @@ class AutoQuantizationConfig:
             nodes_to_quantize (`Optional[List[str]]`, defaults to `None`):
                 Specific nodes to quantize. If `None`, all nodes being operators from `operators_to_quantize` will be quantized.
             nodes_to_exclude (`Optional[List[str]]`, defaults to `None`):
-                Specific nodes to exclude from quantization.
+                Specific nodes to exclude from quantization. The list of nodes in a model can be found loading the ONNX model through onnx.load, or through visual inspection with [netron](https://github.com/lutzroeder/netron).
             operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
-                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized.
+                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized. Quantizable operators can be found at https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/python/tools/quantization/registry.py.
         """
         format, mode, operators_to_quantize = default_quantization_parameters(
             is_static=True, operators_to_quantize=operators_to_quantize
@@ -708,6 +708,8 @@ class OptimizationConfig:
             Do not fuse GroupNorm. Only works for model_type=unet.
         disable_packed_kv (`bool`, defaults to `True`):
             Do not use packed kv in cross attention. Only works for model_type=unet.
+        disable_rotary_embeddings (`bool`, defaults to `False`):
+            Whether to disable Rotary Embedding fusion.
     """
 
     optimization_level: int = 1
@@ -751,6 +753,9 @@ class OptimizationConfig:
     use_raw_attention_mask: bool = False
     disable_group_norm_fusion: bool = True
     disable_packed_kv: bool = True
+
+    # ONNX Runtime 1.16.2 arguments
+    disable_rotary_embeddings: bool = False
 
     def __post_init__(self):
         def deprecate_renamed_attribute(old_name, new_name, mapping_func=None):
@@ -801,6 +806,7 @@ class OptimizationConfig:
             "use_raw_attention_mask": "use_raw_attention_mask",
             "enable_gemm_fast_gelu_fusion": "enable_gemm_fast_gelu",
             "use_multi_head_attention": "use_multi_head_attention",
+            "disable_rotary_embeddings": "disable_rotary_embeddings",
         }
         for attr_name, fusion_attr_name in attribute_map.items():
             setattr(args, fusion_attr_name, getattr(self, attr_name))

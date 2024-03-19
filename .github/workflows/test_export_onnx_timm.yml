@@ -2,8 +2,8 @@ name: Exporters ONNX Timm / Python - Test
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
+  schedule:
+    - cron: 0 7 * * * # every day at 7am
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -30,5 +30,5 @@ jobs:
     - name: Test with unittest
       working-directory: tests
       run: |
-        pytest exporters/onnx/test_onnx_*.py -s -n auto -m "timm_test" --durations=0
+        RUN_SLOW=1 pytest exporters/onnx/ -s -n auto -k "timm" --durations=0
 
