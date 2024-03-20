@@ -2258,6 +2258,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "llama",
         "mistral",
         "mpt",
+        "qwen2",
     ]
 
     FULL_GRID = {
