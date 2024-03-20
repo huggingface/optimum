@@ -82,8 +82,9 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "gptj",
     "imagegpt",
     "llama",
-    "phi",
     "mistral",
+    "phi",
+    "qwen2",
 }
 
 
