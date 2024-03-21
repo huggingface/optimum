@@ -188,7 +188,9 @@ class TasksManager:
 
         _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
             "stable-diffusion": "StableDiffusionPipeline",
-            "stable-diffusion-xl": "StableDiffusionXLImg2ImgPipeline",
+            "stable-diffusion-xl": "StableDiffusionXLPipeline",
+            "stable-diffusion-xl-refiner": "StableDiffusionXLImg2ImgPipeline",
+            "latent-consistency": "LatentConsistencyModelPipeline",
         }
 
         _TIMM_TASKS_TO_MODEL_LOADERS = {
