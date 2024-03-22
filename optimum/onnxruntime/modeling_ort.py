@@ -43,6 +43,7 @@ from transformers.file_utils import add_end_docstrings, add_start_docstrings, ad
 from transformers.modeling_outputs import (
     BaseModelOutput,
     CausalLMOutput,
+    GenerationMixin,
     ImageClassifierOutput,
     MaskedLMOutput,
     ModelOutput,
@@ -52,7 +53,6 @@ from transformers.modeling_outputs import (
     SequenceClassifierOutput,
     TokenClassifierOutput,
     XVectorOutput,
-    GenerationMixin,
 )
 
 import onnxruntime as ort
