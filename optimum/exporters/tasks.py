@@ -706,9 +706,7 @@ class TasksManager:
             "token-classification",
             onnx="LiltOnnxConfig",
         ),
-        "levit": supported_tasks_mapping(
-            "feature-extraction", "image-classification", onnx="LevitOnnxConfig"
-        ),
+        "levit": supported_tasks_mapping("feature-extraction", "image-classification", onnx="LevitOnnxConfig"),
         "longt5": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
