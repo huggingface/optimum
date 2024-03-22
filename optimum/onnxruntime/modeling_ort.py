@@ -38,12 +38,12 @@ from transformers import (
     AutoModelForSemanticSegmentation,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
+    GenerationMixin,
 )
 from transformers.file_utils import add_end_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import (
     BaseModelOutput,
     CausalLMOutput,
-    GenerationMixin,
     ImageClassifierOutput,
     MaskedLMOutput,
     ModelOutput,
