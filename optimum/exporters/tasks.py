@@ -222,6 +222,7 @@ class TasksManager:
             "multiple-choice": "TFAutoModelForMultipleChoice",
             "object-detection": "TFAutoModelForObjectDetection",
             "question-answering": "TFAutoModelForQuestionAnswering",
+            "image-feature-extraction": "TFAutoModel",
             "image-segmentation": "TFAutoModelForImageSegmentation",
             "masked-im": "TFAutoModelForMaskedImageModeling",
             "semantic-segmentation": "TFAutoModelForSemanticSegmentation",

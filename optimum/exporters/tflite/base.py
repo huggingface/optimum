@@ -160,6 +160,7 @@ class TFLiteConfig(ExportConfig, ABC):
         "text-generation": ["logits"],
         "feature-extraction": ["last_hidden_state"],
         "image-classification": ["logits"],
+        "image-feature-extraction": ["last_hidden_state"],
         "image-segmentation": ["logits", "pred_boxes", "pred_masks"],
         "masked-im": ["logits"],
         "fill-mask": ["logits"],
