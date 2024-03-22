@@ -38,6 +38,7 @@ from transformers import (
     AutoModelForSemanticSegmentation,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
+    GenerationMixin,
 )
 from transformers.file_utils import add_end_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import (
@@ -893,6 +894,12 @@ class ORTModel(OptimizedModel):
             preprocessors = maybe_load_preprocessors(model_path.as_posix(), subfolder=subfolder)
 
         return model_cache_path, preprocessors
+
+    def can_generate(self) -> bool:
+        """
+        Returns whether this model can generate sequences with `.generate()`.
+        """
+        return isinstance(self, GenerationMixin)
 
 
 FEATURE_EXTRACTION_EXAMPLE = r"""

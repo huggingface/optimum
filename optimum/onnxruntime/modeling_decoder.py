@@ -676,10 +676,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             for layer_past in past
         )
 
-    def can_generate(self):
-        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
-        return True
-
 
 class ORTGPTBigCodeForCausalLM(ORTModelForCausalLM):
     # Adapted from transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBigCodeForCausalLM.prepare_inputs_for_generation
