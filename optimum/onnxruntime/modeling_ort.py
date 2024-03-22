@@ -52,6 +52,7 @@ from transformers.modeling_outputs import (
     SequenceClassifierOutput,
     TokenClassifierOutput,
     XVectorOutput,
+    GenerationMixin,
 )
 
 import onnxruntime as ort
@@ -893,6 +894,12 @@ class ORTModel(OptimizedModel):
             preprocessors = maybe_load_preprocessors(model_path.as_posix(), subfolder=subfolder)
 
         return model_cache_path, preprocessors
+
+    def can_generate(self) -> bool:
+        """
+        Returns whether this model can generate sequences with `.generate()`.
+        """
+        return isinstance(self, GenerationMixin)
 
 
 FEATURE_EXTRACTION_EXAMPLE = r"""
