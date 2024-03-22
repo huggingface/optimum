@@ -168,7 +168,6 @@ class TasksManager:
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
             "image-classification": "AutoModelForImageClassification",
-            "image-feature-extraction": "AutoModel",
             "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
             "image-to-image": "AutoModelForImageToImage",
             "image-to-text": "AutoModelForVision2Seq",
@@ -257,6 +256,7 @@ class TasksManager:
         "translation": "text2text-generation",
         "vision2seq-lm": "image-to-text",
         "zero-shot-classification": "text-classification",
+        "image-feature-extraction": "feature-extraction",
     }
 
     # Reverse dictionaries str -> str, where several model loaders may map to the same task
@@ -463,13 +463,11 @@ class TasksManager:
         ),
         "convnext": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "image-classification",
             onnx="ConvNextOnnxConfig",
         ),
         "convnextv2": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "image-classification",
             onnx="ConvNextV2OnnxConfig",
         ),
@@ -486,7 +484,6 @@ class TasksManager:
         "data2vec-vision": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
-            "image-feature-extraction",
             # ONNX doesn't support `adaptive_avg_pool2d` yet
             # "semantic-segmentation",
             onnx="Data2VecVisionOnnxConfig",
@@ -520,7 +517,6 @@ class TasksManager:
         ),
         "deit": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "image-classification",
             "masked-im",
             onnx="DeiTOnnxConfig",
@@ -528,7 +524,6 @@ class TasksManager:
         "detr": supported_tasks_mapping(
             "feature-extraction",
             "object-detection",
-            "image-feature-extraction",
             "image-segmentation",
             onnx="DetrOnnxConfig",
         ),
@@ -555,7 +550,6 @@ class TasksManager:
         ),
         "dpt": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "depth-estimation",
             "image-segmentation",
             "semantic-segmentation",
@@ -614,7 +608,6 @@ class TasksManager:
         ),
         "glpn": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "depth-estimation",
             onnx="GlpnOnnxConfig",
         ),
@@ -682,7 +675,6 @@ class TasksManager:
         ),
         "imagegpt": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "image-classification",
             onnx="ImageGPTOnnxConfig",
         ),
@@ -715,7 +707,7 @@ class TasksManager:
             onnx="LiltOnnxConfig",
         ),
         "levit": supported_tasks_mapping(
-            "feature-extraction", "image-classification", "image-feature-extraction", onnx="LevitOnnxConfig"
+            "feature-extraction", "image-classification", onnx="LevitOnnxConfig"
         ),
         "longt5": supported_tasks_mapping(
             "feature-extraction",
@@ -780,19 +772,17 @@ class TasksManager:
         "mobilevit": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
-            "image-feature-extraction",
             "image-segmentation",
             onnx="MobileViTOnnxConfig",
         ),
         "mobilenet-v1": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "image-classification",
             onnx="MobileNetV1OnnxConfig",
         ),
         "mobilenet-v2": supported_tasks_mapping(
+            "feature-extraction",
             "image-classification",
-            "image-feature-extraction",
             onnx="MobileNetV2OnnxConfig",
         ),
         "mpnet": supported_tasks_mapping(
@@ -901,20 +891,17 @@ class TasksManager:
         ),
         "poolformer": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "image-classification",
             onnx="PoolFormerOnnxConfig",
         ),
         "regnet": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "image-classification",
             onnx="RegNetOnnxConfig",
         ),
         "resnet": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
-            "image-feature-extraction",
             onnx="ResNetOnnxConfig",
             tflite="ResNetTFLiteConfig",
         ),
@@ -950,7 +937,6 @@ class TasksManager:
         "segformer": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
-            "image-feature-extraction",
             "image-segmentation",
             "semantic-segmentation",
             onnx="SegformerOnnxConfig",
@@ -995,14 +981,12 @@ class TasksManager:
         ),
         "swin": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "image-classification",
             "masked-im",
             onnx="SwinOnnxConfig",
         ),
         "swin2sr": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "image-to-image",
             onnx="Swin2srOnnxConfig",
         ),
@@ -1015,7 +999,6 @@ class TasksManager:
         ),
         "table-transformer": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "object-detection",
             onnx="TableTransformerOnnxConfig",
         ),
@@ -1048,7 +1031,7 @@ class TasksManager:
             onnx="VisionEncoderDecoderOnnxConfig",
         ),
         "vit": supported_tasks_mapping(
-            "feature-extraction", "image-classification", "image-feature-extraction", "masked-im", onnx="ViTOnnxConfig"
+            "feature-extraction", "image-classification", "masked-im", onnx="ViTOnnxConfig"
         ),
         "wavlm": supported_tasks_mapping(
             "feature-extraction",
@@ -1108,7 +1091,6 @@ class TasksManager:
         ),
         "yolos": supported_tasks_mapping(
             "feature-extraction",
-            "image-feature-extraction",
             "object-detection",
             onnx="YolosOnnxConfig",
         ),
