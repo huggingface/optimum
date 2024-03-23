@@ -705,6 +705,10 @@ class BeitOnnxConfig(ViTOnnxConfig):
     pass
 
 
+class DiTOnnxConfig(BeitOnnxConfig):
+    pass
+
+
 class ConvNextOnnxConfig(ViTOnnxConfig):
     pass
 
