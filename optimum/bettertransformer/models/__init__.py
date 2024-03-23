@@ -71,7 +71,10 @@ class BetterTransformerManager:
         "gptj": {"GPTJAttention": GPTJAttentionLayerBetterTransformer},
         "gpt_neo": {"GPTNeoSelfAttention": GPTNeoAttentionLayerBetterTransformer},
         "gpt_neox": {"GPTNeoXAttention": GPTNeoXAttentionLayerBetterTransformer},
-        "hubert": {"HubertEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer},
+        "hubert": {
+            "HubertEncoderLayer": Wav2Vec2EncoderLayerBetterTransformer,
+            "HubertEncoderLayerStableLayerNorm": Wav2Vec2EncoderLayerBetterTransformer,
+        },
         "layoutlm": {"LayoutLMLayer": BertLayerBetterTransformer},
         "m2m_100": {
             "M2M100EncoderLayer": MBartEncoderLayerBetterTransformer,
