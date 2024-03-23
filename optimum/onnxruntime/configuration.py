@@ -13,12 +13,13 @@
 #  limitations under the License.
 """Configuration classes for graph optimization and quantization with ONNX Runtime."""
 
+import copy
 import os
 import warnings
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from datasets import Dataset
 from packaging.version import Version, parse
@@ -352,6 +353,35 @@ def ensure_valid_data_type_or_raise(
             "OnnxRuntime static quantization does not support "
             "activations_dtype = QuantType.QInt8 with weights_dtype = QuantType.QUInt8."
         )
+
+
+def set_quantization_parameters(quantization: dict):
+    """
+    Converts `QuantFormat`, `QuantizationMode`, `QuantType` to string for serialization.
+    So, each onnx runtime config parameters is had to name each classes's class attribute names
+    And, It is inplace function (not return)
+
+    Example: onnxruntime/onnxruntime/python/tools/quantization/quant_utils.py
+        - QuantFormat.QOperator         = "QOperator"
+        - QuantFormat.QDQ               = "QDQ"
+        - QuantizationMode.IntegerOps   = "IntegerOps"
+        - QuantizationMode.QLinearOps   = "QLinearOps"
+        - QuantType.QInt8               = "QInt8"
+        - QuantType.QUInt8              = "QUInt8"
+
+    Args:
+        quant_config (dict): string base quantization config dict.
+
+    Returns:
+        quant_config : QuantizationConfig typehint set dict.
+    """
+    format = getattr(QuantFormat, quantization.get("format", ""), None)
+    mode = getattr(QuantizationMode, quantization.get("mode", ""), None)
+    quantization["format"], quantization["mode"] = default_quantization_parameters(
+        quantization.get("is_static", False), format, mode
+    )
+    quantization["activations_dtype"] = getattr(QuantType, quantization.get("activations_dtype", "QUInt8"))
+    quantization["weights_dtype"] = getattr(QuantType, quantization.get("weights_dtype", "QInt8"))
 
 
 def default_quantization_parameters(
@@ -980,12 +1010,11 @@ class ORTConfig(BaseConfig):
         quantization: Optional[QuantizationConfig] = None,
         **kwargs,
     ):
-        super().__init__()
         self.opset = opset
         self.use_external_data_format = use_external_data_format
         self.one_external_file = one_external_file
-        self.optimization = self.dataclass_to_dict(optimization)
-        self.quantization = self.dataclass_to_dict(quantization)
+        self.optimization = optimization
+        self.quantization = quantization
         self.optimum_version = kwargs.pop("optimum_version", None)
 
     @staticmethod
@@ -1002,3 +1031,22 @@ class ORTConfig(BaseConfig):
                 v = [elem.name if isinstance(elem, Enum) else elem for elem in v]
             new_config[k] = v
         return new_config
+
+    def to_dict(self) -> Dict[str, Any]:
+        clone: ORTConfig = copy.deepcopy(self)
+        clone.optimization = self.dataclass_to_dict(clone.optimization)
+        clone.quantization = self.dataclass_to_dict(clone.quantization)
+        return BaseConfig.to_dict(clone)
+
+    @classmethod
+    def from_dict(cls, config_dict: Dict[str, Any], **kwargs) -> "ORTConfig":
+        config = super().from_dict(config_dict, **kwargs)
+
+        if config.optimization:
+            config.optimization: OptimizationConfig = OptimizationConfig(**config.optimization)
+
+        if config.quantization:
+            set_quantization_parameters(config.quantization)
+            config.quantization: QuantizationConfig = QuantizationConfig(**config.quantization)
+
+        return config
