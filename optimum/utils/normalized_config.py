@@ -235,6 +235,7 @@ class NormalizedConfigManager:
         "gpt-neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
         "gpt-neox": NormalizedTextConfig,
         "gptj": GPT2LikeNormalizedTextConfig,
+        "HelpingAI": NormalizedTextConfig,
         "imagegpt": GPT2LikeNormalizedTextConfig,
         "llama": NormalizedTextConfigWithGQA,
         "longt5": T5LikeNormalizedTextConfig,
