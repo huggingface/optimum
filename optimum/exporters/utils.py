@@ -344,6 +344,28 @@ def get_stable_diffusion_models_for_export(
 
     return models_for_export
 
+def get_musicgen_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"):
+    models_for_export = # TODO
+
+    text_encoder_config = config.__class__(model.config, task=config.task, legacy=False)  # TODO: not support legacy
+    models_for_export["text_encoder"] = (models_for_export["text_encoder"], text_encoder_config)
+
+    audio_encoder_config = config.__class__(model.config, task=config.task, legacy=False)  # TODO: not support legacy
+    models_for_export["audio_encoder"] = (models_for_export["audio_encoder"], audio_encoder_config)
+    
+    use_past = config.variant == "with-past"
+    decoder_export_config = config.with_behavior("decoder", use_past=use_past, use_past_in_inputs=False)
+    models_for_export[DECODER_NAME] = (models_for_export[DECODER_NAME], decoder_export_config)
+
+    if config.variant == "with-past":
+        decoder_export_config_with_past = config.with_behavior("decoder", use_past=True, use_past_in_inputs=True)
+        models_for_export[DECODER_WITH_PAST_NAME] = (
+            models_for_export[DECODER_WITH_PAST_NAME],
+            decoder_export_config_with_past,
+        )
+
+    return models_for_export
+
 
 def _get_submodels_for_export_sam(model, variant):
     models_for_export = {}

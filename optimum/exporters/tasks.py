@@ -806,6 +806,11 @@ class TasksManager:
             "text2text-generation-with-past",
             onnx="MT5OnnxConfig",
         ),
+        "musicgen": supported_tasks_mapping(
+            "text-to-audio",
+            "text-to-audio-with-past",
+            onnx="MusicgenOnnxConfig",
+        ),
         "m2m-100": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",

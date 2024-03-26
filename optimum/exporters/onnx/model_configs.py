@@ -14,7 +14,7 @@
 # limitations under the License.
 """Model specific ONNX configurations."""
 import random
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union, Literal
 
 from packaging import version
 from transformers.utils import is_tf_available
@@ -1369,6 +1369,86 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
             # For Whisper, we need to name the second axis as encoder_sequence_length / 2 as the axis name is used for
             # dummy input generation
             common_outputs["last_hidden_state"][1] = f"{common_outputs['last_hidden_state'][1]} / 2"
+        return common_outputs
+
+
+class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
+    VARIANTS = {
+        "with-past": "The export follows the Transformers implementation using the KV cache, with the following components exported:\n\t - text_encoder.onnx: corresponds to the text encoder part in https://github.com/huggingface/transformers/blob/f01e1609bf4dba146d1347c1368c8c49df8636f6/src/transformers/models/musicgen/modeling_musicgen.py#L1455.\n\t - audio_encoder.onnx: corresponds to the audio decoder part in https://github.com/huggingface/transformers/blob/f01e1609bf4dba146d1347c1368c8c49df8636f6/src/transformers/models/musicgen/modeling_musicgen.py#L1456.\n\t - decoder_with_past_model.onnx: The Musicgen decoder, with past_key_values input (KV cache filled).",
+        "without-past": "The same as `with-past`, just without KV cache support. This is not a recommended export as slower than `with-past`.",
+    }
+    DEFAULT_VARIANT = "with-past"
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        use_past: bool = False,
+        use_past_in_inputs: bool = False,
+        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+        preprocessors: Optional[List[Any]] = None,
+        model_part: Optional[Literal["text_encoder", "audio_encoder", "decoder"]] = None,
+        legacy: bool = False,
+    ):
+        super().__init__(
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            behavior=behavior,
+            preprocessors=preprocessors,
+            legacy=legacy,
+        )
+        if legacy:
+            raise ValueError("Musicgen does not support legacy=True.")
+        
+        if model_part in ["text_encoder", "audio_encoder"] and behavior != ConfigBehavior.ENCODER:
+            raise ValueError(f"model_part is {model_part} and behavior is {behavior}. This is not supported, please open an issue at https://github.com/huggingface/optimum/issues.")
+
+        if model_part == "decoder" and behavior != ConfigBehavior.DECODER:
+            raise ValueError(f"model_part is {model_part} and behavior is {behavior}. This is not supported, please open an issue at https://github.com/huggingface/optimum/issues.")
+
+        if behavior == ConfigBehavior.MONOLITH:
+            raise ValueError("Musicgen does not support behavior=ConfigBehavior.MONOLITH. Please open an issue at https://github.com/huggingface/optimum/issues.")
+
+        self.model_part = model_part
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = {}
+
+        # Batched inference is not supported in Transformers.
+        if self.model_part == "text_encoder":
+        elif self.model_part == "audio_encoder":
+        elif self._behavior is ConfigBehavior.DECODER:
+            if self.variant == "with-past" and self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+        else:
+            raise ValueError(
+                "This should not happen. Please open an issue at https://github.com/huggingface/optimum/issues."
+            )
+
+        return common_inputs
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        common_outputs = {}
+
+        if self.model_part == "text_encoder":
+        elif self.model_part == "audio_encoder":
+        elif self._behavior is ConfigBehavior.DECODER:
+            if self.variant == "with-past" and self.use_past:
+                # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
+                self.add_past_key_values(common_outputs, direction="outputs")
+        else:
+            raise ValueError(
+                "This should not happen. Please open an issue at https://github.com/huggingface/optimum/issues."
+            )
+
         return common_outputs
 
 
