@@ -75,6 +75,8 @@ from .normalized_config import (
     NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
+    NormalizedTextAndAudioConfig,
     NormalizedTextConfig,
     NormalizedVisionConfig,
+    NormalizedAudioConfig,
 )
