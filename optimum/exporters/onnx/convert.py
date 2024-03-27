@@ -258,7 +258,7 @@ def _run_validation(
 
     model_kwargs = model_kwargs if model_kwargs is not None else {}
 
-    logger.info(f"Validating ONNX model {onnx_model.as_posix()}...")
+    logger.info(f"\nValidating ONNX model {onnx_model.as_posix()}...")
 
     if atol is None:
         atol = config.ATOL_FOR_VALIDATION
@@ -764,7 +764,9 @@ def export_models(
         output_path = output_dir / output_name
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"Exporting submodel {i}/{len(models_and_onnx_configs)}: {submodel.__class__.__name__}")
+        logger.info(
+            f"\n***** Exporting submodel {i}/{len(models_and_onnx_configs)}: {submodel.__class__.__name__} *****"
+        )
         outputs.append(
             export(
                 model=submodel,
