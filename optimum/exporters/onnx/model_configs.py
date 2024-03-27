@@ -1391,7 +1391,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
     DEFAULT_ONNX_OPSET = 13  # Needed to avoid a bug in T5 encoder SelfAttention.
 
     VARIANTS = {
-        "text-conditional-with-past": "Exports Musicgen to ONNX to generate audio samples conditioned on a text prompt (Reference: https://huggingface.co/docs/transformers/model_doc/musicgen#text-conditional-generation). This uses the decoder KV cache. The following subcomponents are exported:\n\t\t* text_encoder.onnx: corresponds to the text encoder part in https://github.com/huggingface/transformers/blob/v4.39.1/src/transformers/models/musicgen/modeling_musicgen.py#L1457.\n\t\t* audio_encoder_decode.onnx: corresponds to the Encodec audio encoder part in https://github.com/huggingface/transformers/blob/v4.39.1/src/transformers/models/musicgen/modeling_musicgen.py#L2472-L2480.\n\t\t* decoder_model.onnx: The Musicgen decoder, without past key values input, and computing cross attention.\n\t\t* decoder_with_past_model.onnx: The Musicgen decoder, with past_key_values input (KV cache filled), not computing cross attention.\n\t\t* decoder_model_merged.onnx: The two previous models fused in one, to avoid duplicating weights. A boolean input `use_cache_branch` allows to select the branch to use. In the first forward pass where the KV cache is empty, dummy past key values inputs need to be passed and are ignored with use_cache_branch=False.",
+        "text-conditional-with-past": "Exports Musicgen to ONNX to generate audio samples conditioned on a text prompt (Reference: https://huggingface.co/docs/transformers/model_doc/musicgen#text-conditional-generation). This uses the decoder KV cache. The following subcomponents are exported:\n\t\t* text_encoder.onnx: corresponds to the text encoder part in https://github.com/huggingface/transformers/blob/v4.39.1/src/transformers/models/musicgen/modeling_musicgen.py#L1457.\n\t\t* encodec_decode.onnx: corresponds to the Encodec audio encoder part in https://github.com/huggingface/transformers/blob/v4.39.1/src/transformers/models/musicgen/modeling_musicgen.py#L2472-L2480.\n\t\t* decoder_model.onnx: The Musicgen decoder, without past key values input, and computing cross attention.\n\t\t* decoder_with_past_model.onnx: The Musicgen decoder, with past_key_values input (KV cache filled), not computing cross attention.\n\t\t* decoder_model_merged.onnx: The two previous models fused in one, to avoid duplicating weights. A boolean input `use_cache_branch` allows to select the branch to use. In the first forward pass where the KV cache is empty, dummy past key values inputs need to be passed and are ignored with use_cache_branch=False.",
     }
     # TODO: support audio-prompted generation (- audio_encoder_encode.onnx: corresponds to the audio encoder part in https://github.com/huggingface/transformers/blob/f01e1609bf4dba146d1347c1368c8c49df8636f6/src/transformers/models/musicgen/modeling_musicgen.py#L2087.\n\t)
     # With that, we have full Encodec support.
@@ -1417,7 +1417,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.ENCODER,
         preprocessors: Optional[List[Any]] = None,
-        model_part: Optional[Literal["text_encoder", "audio_encoder_decode", "decoder"]] = None,
+        model_part: Optional[Literal["text_encoder", "encodec_decode", "decoder"]] = None,
         legacy: bool = False,
         variant: str = "text-conditional-with-past",
     ):
@@ -1435,7 +1435,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
         if legacy:
             raise ValueError("Musicgen does not support legacy=True.")
 
-        if model_part in ["text_encoder", "audio_encoder_decode"] and behavior != ConfigBehavior.ENCODER:
+        if model_part in ["text_encoder", "encodec_decode"] and behavior != ConfigBehavior.ENCODER:
             raise ValueError(
                 f"model_part is {model_part} and behavior is {behavior}. This is not supported, please open an issue at https://github.com/huggingface/optimum/issues."
             )
@@ -1478,7 +1478,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
                 "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
             }
-        elif self.model_part == "audio_encoder_decode":
+        elif self.model_part == "encodec_decode":
             # 0: always 1 for chunk_length_s=None, 2: num_quantizers fixed.
             common_inputs = {"audio_codes": {1: "batch_size", 3: "chunk_length"}}
         elif self._behavior is ConfigBehavior.DECODER:
@@ -1510,7 +1510,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         if self.model_part == "text_encoder":
             common_outputs = super().outputs
-        elif self.model_part == "audio_encoder_decode":
+        elif self.model_part == "encodec_decode":
             common_outputs["audio_values"] = {0: "batch_size", 2: "audio_length"}
         elif self._behavior is ConfigBehavior.DECODER:
             common_outputs = super().outputs
@@ -1601,11 +1601,11 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
             # In order to do the validation of the two branches on the same file
             text_encoder_path = onnx_files_subpaths[0]
-            audio_encoder_decode_path = onnx_files_subpaths[1]
+            encodec_decode_path = onnx_files_subpaths[1]
 
             onnx_files_subpaths_new = [
                 text_encoder_path,
-                audio_encoder_decode_path,
+                encodec_decode_path,
                 decoder_merged_path.name,
                 decoder_merged_path.name,
             ]

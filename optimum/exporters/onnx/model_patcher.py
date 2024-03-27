@@ -806,7 +806,7 @@ class MusicgenModelPatcher(Seq2SeqModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        if config.model_part == "audio_encoder_decode":
+        if config.model_part == "encodec_decode":
             # EncodecModel.forward -> EncodecModel.decode
             @functools.wraps(self.orig_forward)
             def patched_forward(

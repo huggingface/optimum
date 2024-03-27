@@ -348,7 +348,7 @@ def get_stable_diffusion_models_for_export(
 def get_musicgen_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"):
     models_for_export = {
         "text_encoder": model.text_encoder,
-        "audio_encoder_decode": model.audio_encoder,
+        "encodec_decode": model.audio_encoder,
         # For the decoder, we do not pass model.decoder because we may need to export model.enc_to_dec_proj
         DECODER_NAME: model,
         DECODER_WITH_PAST_NAME: model,
@@ -360,9 +360,9 @@ def get_musicgen_models_for_export(model: Union["PreTrainedModel", "TFPreTrained
     models_for_export["text_encoder"] = (models_for_export["text_encoder"], text_encoder_config)
 
     audio_encoder_config = config.__class__(
-        model.config, task=config.task, legacy=False, model_part="audio_encoder_decode", variant=config.variant
+        model.config, task=config.task, legacy=False, model_part="encodec_decode", variant=config.variant
     )
-    models_for_export["audio_encoder_decode"] = (models_for_export["audio_encoder_decode"], audio_encoder_config)
+    models_for_export["encodec_decode"] = (models_for_export["encodec_decode"], audio_encoder_config)
 
     use_past = "with-past" in config.variant
     decoder_export_config = config.with_behavior("decoder", use_past=use_past, use_past_in_inputs=False)
