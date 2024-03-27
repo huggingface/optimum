@@ -254,7 +254,6 @@ class Seq2SeqModelPatcher(ModelPatcher):
                         elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
                             # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
                             filterd_outputs[name] = tuple([v[:2] for v in value])
-
             return filterd_outputs
 
         self.patched_forward = patched_forward
@@ -796,3 +795,50 @@ class SentenceTransformersCLIPPatcher(ModelPatcher):
             return {"text_embeds": text_embeds, "image_embeds": image_embeds}
 
         self.patched_forward = patched_forward
+
+
+class MusicgenModelPatcher(Seq2SeqModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+
+        if config.model_part == "audio_encoder_decode":
+            # EncodecModel.forward -> EncodecModel.decode
+            @functools.wraps(self.orig_forward)
+            def patched_forward(
+                input_values: Optional["torch.Tensor"] = None,
+                padding_mask: Optional["torch.Tensor"] = None,
+                audio_codes: Optional["torch.Tensor"] = None,
+                bandwidth: Optional[float] = None,
+                audio_scales: Optional["torch.Tensor"] = None,
+                return_dict: Optional[bool] = None,
+            ):
+                chunk_length = self.real_config._config.audio_encoder.chunk_length
+                if chunk_length is None:
+                    if audio_scales is not None:
+                        audio_scales = audio_scales[0]
+
+                    if len(audio_codes) != 1:
+                        raise ValueError(f"Expected one frame, got {len(audio_codes)}")
+                    audio_values = self._model._decode_frame(audio_codes[0], audio_scales)
+                else:
+                    raise ValueError("Not supported, a meaningful error should have been raised ahead.")
+                    decoded_frames = []
+
+                    for frame, scale in zip(audio_codes, audio_scales):
+                        frames = self._model._decode_frame(frame, scale)
+                        decoded_frames.append(frames)
+
+                    audio_values = self._model._linear_overlap_add(decoded_frames, self.config.chunk_stride or 1)
+
+                # truncate based on padding mask
+                if padding_mask is not None and padding_mask.shape[-1] < audio_values.shape[-1]:
+                    audio_values = audio_values[..., : padding_mask.shape[-1]]
+
+                return {"audio_values": audio_values}
+
+            self.patched_forward = patched_forward

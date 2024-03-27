@@ -14,16 +14,20 @@
 # limitations under the License.
 """Model specific ONNX configurations."""
 import random
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union, Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
 
 from packaging import version
 from transformers.utils import is_tf_available
 
+from ...onnx import merge_decoders
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     BloomDummyPastKeyValuesGenerator,
     DummyAudioInputGenerator,
+    DummyCodegenDecoderTextInputGenerator,
     DummyDecoderTextInputGenerator,
+    DummyEncodecInputGenerator,
     DummyInputGenerator,
     DummyPastKeyValuesGenerator,
     DummyPix2StructInputGenerator,
@@ -46,6 +50,7 @@ from ...utils import (
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedVisionConfig,
+    is_diffusers_available,
     logging,
 )
 from ...utils.normalized_config import NormalizedConfigManager
@@ -61,8 +66,10 @@ from .config import (
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
+from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import (
     FalconModelPatcher,
+    MusicgenModelPatcher,
     SAMModelPatcher,
     SentenceTransformersCLIPPatcher,
     SentenceTransformersTransformerPatcher,
@@ -80,6 +87,9 @@ if TYPE_CHECKING:
 
     if is_tf_available():
         from transformers.modeling_tf_utils import TFPreTrainedModel
+
+    if is_diffusers_available():
+        from diffusers import ModelMixin
 
 logger = logging.get_logger(__name__)
 
@@ -1373,11 +1383,29 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
 
 
 class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
+    # NOTE: Several warnings during the export are not to worry about:
+    # * for i, indices in enumerate(codes): --> can be unrolled, fixed length (num_quantizers).
+    # * max_pad = max(padding_left, padding_right) --> does not impact later controlflows.
+    # if length <= max_pad:  --> appears to be always False for Musicgen.
+
+    DEFAULT_ONNX_OPSET = 13  # Needed to avoid a bug in T5 encoder SelfAttention.
+
     VARIANTS = {
-        "with-past": "The export follows the Transformers implementation using the KV cache, with the following components exported:\n\t - text_encoder.onnx: corresponds to the text encoder part in https://github.com/huggingface/transformers/blob/f01e1609bf4dba146d1347c1368c8c49df8636f6/src/transformers/models/musicgen/modeling_musicgen.py#L1455.\n\t - audio_encoder.onnx: corresponds to the audio decoder part in https://github.com/huggingface/transformers/blob/f01e1609bf4dba146d1347c1368c8c49df8636f6/src/transformers/models/musicgen/modeling_musicgen.py#L1456.\n\t - decoder_with_past_model.onnx: The Musicgen decoder, with past_key_values input (KV cache filled).",
-        "without-past": "The same as `with-past`, just without KV cache support. This is not a recommended export as slower than `with-past`.",
+        "text-conditional-with-past": "Exports Musicgen to ONNX to generate audio samples conditioned on a text prompt (Reference: https://huggingface.co/docs/transformers/model_doc/musicgen#text-conditional-generation). This uses the decoder KV cache. The following subcomponents are exported:\n\t\t* text_encoder.onnx: corresponds to the text encoder part in https://github.com/huggingface/transformers/blob/v4.39.1/src/transformers/models/musicgen/modeling_musicgen.py#L1457.\n\t\t* audio_encoder_decode.onnx: corresponds to the Encodec audio encoder part in https://github.com/huggingface/transformers/blob/v4.39.1/src/transformers/models/musicgen/modeling_musicgen.py#L2472-L2480.\n\t\t* decoder_model.onnx: The Musicgen decoder, without past key values input, and computing cross attention.\n\t\t* decoder_with_past_model.onnx: The Musicgen decoder, with past_key_values input (KV cache filled), not computing cross attention.\n\t\t* decoder_model_merged.onnx: The two previous models fused in one, to avoid duplicating weights. A boolean input `use_cache_branch` allows to select the branch to use. In the first forward pass where the KV cache is empty, dummy past key values inputs need to be passed and are ignored with use_cache_branch=False.",
     }
-    DEFAULT_VARIANT = "with-past"
+    # TODO: support audio-prompted generation (- audio_encoder_encode.onnx: corresponds to the audio encoder part in https://github.com/huggingface/transformers/blob/f01e1609bf4dba146d1347c1368c8c49df8636f6/src/transformers/models/musicgen/modeling_musicgen.py#L2087.\n\t)
+    # With that, we have full Encodec support.
+    DEFAULT_VARIANT = "text-conditional-with-past"
+
+    NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTextInputGenerator,
+        DummyCodegenDecoderTextInputGenerator,
+        DummySeq2SeqPastKeyValuesGenerator,
+        DummyEncodecInputGenerator,
+    )
+    DUMMY_PKV_GENERATOR_CLASS = DummySeq2SeqPastKeyValuesGenerator
 
     def __init__(
         self,
@@ -1387,10 +1415,11 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
         float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: bool = False,
-        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+        behavior: ConfigBehavior = ConfigBehavior.ENCODER,
         preprocessors: Optional[List[Any]] = None,
-        model_part: Optional[Literal["text_encoder", "audio_encoder", "decoder"]] = None,
+        model_part: Optional[Literal["text_encoder", "audio_encoder_decode", "decoder"]] = None,
         legacy: bool = False,
+        variant: str = "text-conditional-with-past",
     ):
         super().__init__(
             config=config,
@@ -1405,28 +1434,69 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
         )
         if legacy:
             raise ValueError("Musicgen does not support legacy=True.")
-        
-        if model_part in ["text_encoder", "audio_encoder"] and behavior != ConfigBehavior.ENCODER:
-            raise ValueError(f"model_part is {model_part} and behavior is {behavior}. This is not supported, please open an issue at https://github.com/huggingface/optimum/issues.")
+
+        if model_part in ["text_encoder", "audio_encoder_decode"] and behavior != ConfigBehavior.ENCODER:
+            raise ValueError(
+                f"model_part is {model_part} and behavior is {behavior}. This is not supported, please open an issue at https://github.com/huggingface/optimum/issues."
+            )
 
         if model_part == "decoder" and behavior != ConfigBehavior.DECODER:
-            raise ValueError(f"model_part is {model_part} and behavior is {behavior}. This is not supported, please open an issue at https://github.com/huggingface/optimum/issues.")
+            raise ValueError(
+                f"model_part is {model_part} and behavior is {behavior}. This is not supported, please open an issue at https://github.com/huggingface/optimum/issues."
+            )
 
         if behavior == ConfigBehavior.MONOLITH:
-            raise ValueError("Musicgen does not support behavior=ConfigBehavior.MONOLITH. Please open an issue at https://github.com/huggingface/optimum/issues.")
+            raise ValueError(
+                "Musicgen does not support behavior=ConfigBehavior.MONOLITH. Please open an issue at https://github.com/huggingface/optimum/issues."
+            )
+
+        if config.audio_encoder.model_type != "encodec":
+            raise ValueError(
+                f"Optimum ONNX export for Musicgen supports only Encodec as the audio encoder, got: {config.audio_encoder.model_type}. Please open an issue at https://github.com/huggingface/optimum/issues."
+            )
+
+        # Handling it would require to trace the audio_encoder.decode with torch.jit.script as we than have an unrollable loop.
+        if config.audio_encoder.chunk_length_s is not None:
+            raise ValueError(
+                f"Musicgen ONNX export currently does not support audio_encoder.chunk_length_s not None (got {config.audio_encoder.chunk_length_s}). Please open an issue at https://github.com/huggingface/optimum/issues."
+            )
 
         self.model_part = model_part
+        if self.model_part == "decoder":
+            self.use_past = True  # without past is not supported, hard-code it here.
+
+        self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = NormalizedConfig(self._config.text_encoder)
+        self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = NormalizedConfig(self._config.decoder)
+        self._normalized_config.decoder_num_layers = self._config.decoder.num_hidden_layers
+        self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.num_layers = self._config.decoder.num_hidden_layers
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = {}
-
         # Batched inference is not supported in Transformers.
         if self.model_part == "text_encoder":
-        elif self.model_part == "audio_encoder":
+            common_inputs = {
+                "input_ids": {0: "batch_size", 1: "encoder_sequence_length"},
+                "attention_mask": {0: "batch_size", 1: "encoder_sequence_length"},
+            }
+        elif self.model_part == "audio_encoder_decode":
+            # 0: always 1 for chunk_length_s=None, 2: num_quantizers fixed.
+            common_inputs = {"audio_codes": {1: "batch_size", 3: "chunk_length"}}
         elif self._behavior is ConfigBehavior.DECODER:
-            if self.variant == "with-past" and self.use_past_in_inputs:
+            # Naming it total_batch_size as in case we use guidance_scale, the dimension 0 may be larger than simply the batch_size.
+            # Reference: https://github.com/huggingface/transformers/blob/31c575bcf13c2b85b65d652dd1b5b401f99be999/src/transformers/models/musicgen/modeling_musicgen.py#L1932-L1935
+            common_inputs = {
+                "decoder_input_ids": {0: "total_batch_size_x_num_codebooks"},
+                "encoder_outputs": {0: "total_batch_size", 1: "encoder_sequence_length"},
+            }
+            if self.use_past_in_inputs:
+                # TODO: validate the axis name for attention_mask
+                # common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
                 self.add_past_key_values(common_inputs, direction="inputs")
+            else:
+                common_inputs["decoder_input_ids"] = {
+                    0: "total_batch_size_x_num_codebooks",
+                    1: "decoder_sequence_length",
+                }
         else:
             raise ValueError(
                 "This should not happen. Please open an issue at https://github.com/huggingface/optimum/issues."
@@ -1439,11 +1509,17 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
         common_outputs = {}
 
         if self.model_part == "text_encoder":
-        elif self.model_part == "audio_encoder":
+            common_outputs = super().outputs
+        elif self.model_part == "audio_encoder_decode":
+            common_outputs["audio_values"] = {0: "batch_size", 2: "audio_length"}
         elif self._behavior is ConfigBehavior.DECODER:
-            if self.variant == "with-past" and self.use_past:
-                # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
-                self.add_past_key_values(common_outputs, direction="outputs")
+            common_outputs = super().outputs
+
+            # MusicgenForConditionalGeneration output is named logits, not last_hidden_state.
+            # Rename last_hidden_state -> logits while keeping the order.
+            common_outputs = {
+                "logits" if name == "last_hidden_state" else name: value for name, value in common_outputs.items()
+            }
         else:
             raise ValueError(
                 "This should not happen. Please open an issue at https://github.com/huggingface/optimum/issues."
@@ -1451,11 +1527,107 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return common_outputs
 
+    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
+        if direction not in ["inputs", "outputs"]:
+            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+
+        if direction == "inputs":
+            decoder_sequence_name = "past_decoder_sequence_length"
+            name = "past_key_values"
+        else:
+            decoder_sequence_name = "past_decoder_sequence_length + 1"
+            name = "present"
+
+        for i in range(self._normalized_config.decoder_num_layers):
+            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "total_batch_size", 2: decoder_sequence_name}
+            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "total_batch_size", 2: decoder_sequence_name}
+
+            if (
+                self.is_merged is True
+                or (self._behavior is ConfigBehavior.DECODER and not self.use_past_in_inputs)
+                or direction == "inputs"
+            ):
+                # TODO: we only need to call it encoder_sequence_length_out in the merge case - but at torch.onnx.export()
+                # time we have currently no case to check whether we will merge at a later step or not (self.is_merged is
+                # not yet set at this time)
+                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {
+                    0: "total_batch_size",
+                    2: "encoder_sequence_length_out",
+                }
+                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {
+                    0: "total_batch_size",
+                    2: "encoder_sequence_length_out",
+                }
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return MusicgenModelPatcher(self, model, model_kwargs=model_kwargs)
+
+    @property
+    def torch_to_onnx_input_map(self) -> Dict[str, str]:
+        if self._behavior is ConfigBehavior.DECODER:
+            return {
+                "decoder_input_ids": "input_ids",
+                "encoder_outputs": "encoder_hidden_states",
+                "attention_mask": "encoder_attention_mask",
+            }
+        return {}
+
+    def post_process_exported_models(
+        self,
+        path: Path,
+        models_and_onnx_configs: Dict[
+            str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+        ],
+        onnx_files_subpaths: List[str],
+    ):
+        # Attempt to merge only if the decoder was exported without/with past, and ignore seq2seq models exported with text-generation task
+        if "with-past" in self.variant:
+            decoder_path = Path(path, onnx_files_subpaths[2])
+            decoder_with_past_path = Path(path, onnx_files_subpaths[3])
+            decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
+            try:
+                # The decoder with past does not output the cross attention past key values as they are constant,
+                # hence the need for strict=False
+                merge_decoders(
+                    decoder=decoder_path,
+                    decoder_with_past=decoder_with_past_path,
+                    save_path=decoder_merged_path,
+                    strict=False,
+                )
+            except Exception as e:
+                raise Exception(f"Unable to merge decoders. Detailed error: {e}")
+
+            # In order to do the validation of the two branches on the same file
+            text_encoder_path = onnx_files_subpaths[0]
+            audio_encoder_decode_path = onnx_files_subpaths[1]
+
+            onnx_files_subpaths_new = [
+                text_encoder_path,
+                audio_encoder_decode_path,
+                decoder_merged_path.name,
+                decoder_merged_path.name,
+            ]
+
+            # We validate the two branches of the decoder model then
+            models_and_onnx_configs[ONNX_DECODER_NAME][1].is_merged = True
+            models_and_onnx_configs[ONNX_DECODER_NAME][1].use_cache_branch = False
+
+            # Past key values won't be generated by default, but added in the input
+            models_and_onnx_configs[ONNX_DECODER_NAME][1].use_past_in_inputs = True
+
+            models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].use_cache_branch = True
+            models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].is_merged = True
+        else:
+            onnx_files_subpaths_new = onnx_files_subpaths
+
+        return models_and_onnx_configs, onnx_files_subpaths_new
+
 
 class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
     # TODO: Transformers batched generation for Speecht5 is BROKEN (https://github.com/huggingface/transformers/pull/25943),
     # so we won't support for now.
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(decoder_num_layers="decoder_layers")
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         hidden_size="hidden_size",
         num_attention_heads="encoder_attention_heads",  # TODO: bugged in case encoder and decoder have different number of heads

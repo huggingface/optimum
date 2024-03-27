@@ -177,7 +177,7 @@ class TasksManager:
             "object-detection": "AutoModelForObjectDetection",
             "question-answering": "AutoModelForQuestionAnswering",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
-            "text-to-audio": "AutoModelForTextToSpectrogram",
+            "text-to-audio": ("AutoModelForTextToSpectrogram", "AutoModelForTextToWaveform"),
             "text-generation": "AutoModelForCausalLM",
             "text2text-generation": "AutoModelForSeq2SeqLM",
             "text-classification": "AutoModelForSequenceClassification",
@@ -334,6 +334,7 @@ class TasksManager:
 
     # TODO: some models here support text-generation export but are not supported in ORTModelForCausalLM
     # Set of model topologies we support associated to the tasks supported by each topology and the factory
+    # TODO: remove `-with-past` tasks and rather rely on `variant`.
     _SUPPORTED_MODEL_TYPE = {
         "audio-spectrogram-transformer": supported_tasks_mapping(
             "feature-extraction",
@@ -807,8 +808,7 @@ class TasksManager:
             onnx="MT5OnnxConfig",
         ),
         "musicgen": supported_tasks_mapping(
-            "text-to-audio",
-            "text-to-audio-with-past",
+            "text-to-audio",  # "variant" handles the "-with-past". We should generalize that.
             onnx="MusicgenOnnxConfig",
         ),
         "m2m-100": supported_tasks_mapping(
