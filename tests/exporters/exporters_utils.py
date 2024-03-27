@@ -120,6 +120,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
+    "musicgen": "hf-internal-testing/tiny-random-MusicgenForConditionalGeneration",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "owlv2": "hf-internal-testing/tiny-random-Owlv2Model",
@@ -244,6 +245,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "mobilevit": "apple/mobilevit-small",
     "mpt": "mosaicml/mpt-7b",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
+    "musicgen": "facebook/musicgen-small",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "owlv2": "google/owlv2-base-patch16",
     "owlvit": "google/owlvit-base-patch32",
