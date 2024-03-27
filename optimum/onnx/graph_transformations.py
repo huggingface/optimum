@@ -313,7 +313,10 @@ def merge_decoders(
             opset_imports.append(opset_import)
             opset_domains.add(opset_import.domain)
 
-    merged_model = onnx.helper.make_model(merged_graph, producer_name=producer_name, opset_imports=opset_imports)
+    # TODO: update IR version in the future.
+    merged_model = onnx.helper.make_model_gen_version(
+        merged_graph, producer_name=producer_name, opset_imports=opset_imports, ir_version=9
+    )
 
     check_and_save_model(merged_model, save_path=save_path)
 
