@@ -30,6 +30,7 @@ UNPICKABLE_ARCHS = [
     "unispeech",
     "unispeech-sat",
     "wav2vec2",
+    "wav2vec2-bert",
     "wav2vec2-conformer",
     "wavlm",
 ]
