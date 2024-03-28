@@ -437,6 +437,56 @@ class DummyTextInputGenerator(DummyInputGenerator):
             return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework, dtype=int_dtype)
 
 
+class DummyXPathSeqInputGenerator(DummyTextInputGenerator):
+    """
+    Generates dummy xpath sequences.
+    """
+
+    SUPPORTED_INPUT_NAMES = (
+        "xpath_tags_seq",
+        "xpath_subs_seq",
+    )
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedTextConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        sequence_length: int = DEFAULT_DUMMY_SHAPES["sequence_length"],
+        num_choices: int = DEFAULT_DUMMY_SHAPES["num_choices"],
+        random_batch_size_range: Optional[Tuple[int, int]] = None,
+        random_sequence_length_range: Optional[Tuple[int, int]] = None,
+        random_num_choices_range: Optional[Tuple[int, int]] = None,
+        padding_side: str = "right",
+        **kwargs,
+    ):
+        super().__init__(
+            task,
+            normalized_config,
+            batch_size=batch_size,
+            sequence_length=sequence_length,
+            num_choices=num_choices,
+            random_batch_size_range=random_batch_size_range,
+            random_sequence_length_range=random_sequence_length_range,
+            random_num_choices_range=random_num_choices_range,
+            padding_side=padding_side,
+            **kwargs
+        )
+        self.max_depth = normalized_config.max_depth
+
+    def generate(
+        self,
+        input_name: str,
+        framework: str = "pt",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+    ):
+        min_value = 0
+        max_value = 216 if input_name == "xpath_tags_seq" else 1001  # padding token ids
+        shape = [self.batch_size, self.sequence_length, self.max_depth]
+        return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework, dtype=int_dtype)
+
+
 class DummyDecoderTextInputGenerator(DummyTextInputGenerator):
     """
     Generates dummy decoder text inputs.
