@@ -534,6 +534,7 @@ class ORTLatentConsistencyModelPipelineTest(ORTModelTestMixin):
         self.assertIsInstance(ort_pipeline.vae_encoder, ORTModelVaeEncoder)
         self.assertIsInstance(ort_pipeline.unet, ORTModelUnet)
         self.assertIsInstance(ort_pipeline.config, Dict)
+        self.assertIsInstance(ort_pipeline.safety_checker, ORTModelForImageClassification)
 
         pipeline = LatentConsistencyModelPipeline.from_pretrained(MODEL_NAMES[model_arch])
         batch_size, num_images_per_prompt, height, width = 2, 2, 64, 32

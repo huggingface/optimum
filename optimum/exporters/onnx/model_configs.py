@@ -1047,6 +1047,19 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
             "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
         }
 
+class StableDiffusionSafetyCheckerOnnxConfig(CLIPOnnxConfig):
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "clip_input": {0: "batch", 1: "channels", 2: "height", 3: "width"},
+            "images": {0: "batch", 1: "height", 2: "width", 3: "channels"},
+        }
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "out_images": {0: "text_batch_size"},
+            "has_nsfw_concepts": {0: "image_batch_size"},
+        }
 
 class GroupViTOnnxConfig(CLIPOnnxConfig):
     pass

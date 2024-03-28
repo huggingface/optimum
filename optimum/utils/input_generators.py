@@ -655,6 +655,8 @@ class DummyVisionInputGenerator(DummyInputGenerator):
         "pixel_mask",
         "sample",
         "latent_sample",
+        "clip_input",
+        "image",
     )
 
     def __init__(

@@ -122,6 +122,10 @@ def _get_submodels_for_export_stable_diffusion(
         text_encoder_2.config.output_hidden_states = True
         models_for_export["text_encoder_2"] = text_encoder_2
 
+    safety_checker = getattr(pipeline, "safety_checker", None)
+    if safety_checker is not None:
+        models_for_export["safety_checker"] = safety_checker
+
     return models_for_export
 
 
@@ -341,6 +345,19 @@ def get_stable_diffusion_models_for_export(
             pipeline.text_encoder_2.config, int_dtype=int_dtype, float_dtype=float_dtype
         )
         models_for_export["text_encoder_2"] = (models_for_export["text_encoder_2"], export_config)
+
+    if "safety_checker" in models_for_export:
+        export_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=pipeline.safety_checker,
+            exporter=exporter,
+            library_name="diffusers",
+            task="image-classification",
+            model_type="safety-checker",
+        )
+        export_config = export_config_constructor(
+            pipeline.safety_checker.config, int_dtype=int_dtype, float_dtype=float_dtype
+        )
+        models_for_export["safety_checker"] = (models_for_export["safety_checker"], export_config)
 
     return models_for_export
 
