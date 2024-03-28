@@ -1560,7 +1560,7 @@ class TasksManager:
             library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
 
             if library_name == "diffusers":
-                class_name = model_info.config["diffusers"]["class_name"]
+                class_name = model_info.config["diffusers"]["_class_name"]
                 inferred_task_name = "stable-diffusion-xl" if "StableDiffusionXL" in class_name else "stable-diffusion"
             elif library_name == "timm":
                 inferred_task_name = "image-classification"
