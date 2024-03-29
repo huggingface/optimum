@@ -1276,6 +1276,11 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Modul
         if config.do_stable_layer_norm:
             self.norm_first = True
 
+        self.dropout = config.attention_dropout
+        self.activation_dropout = config.activation_dropout
+        self.attention_head_size = config.hidden_size // config.num_attention_heads
+        self.act_fn_callable = ACT2FN[config.hidden_act]
+
         self.validate_bettertransformer()
 
     def forward(self, hidden_states, attention_mask, output_attentions: bool, **__):
@@ -1320,8 +1325,80 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Modul
             if hidden_states.is_nested and self.is_last_layer:
                 hidden_states = hidden_states.to_padded_tensor(0.0)
         else:
-            raise NotImplementedError(
-                "Training and Autocast are not implemented for BetterTransformer + Wav2Vec2. Please open an issue."
+            # Reference implmentation: https://github.com/huggingface/transformers/blob/ba56ed0869eb4bbeb1c04af7f62a04350150e8d4/src/transformers/models/wav2vec2/modeling_wav2vec2.py#L669
+
+            # Implementation:
+            # 1. Calculate attention -> apply attention to hidden states
+            # 2. Normalize (using layer_norm weights and biases)
+            # 3. Feed Forward 
+            #   3.1 Intermediate layer (Linear -> Activation -> Dropout)
+            #   3.2 Output layer (Linear -> Dropout)
+            # 4. Normalize (using final_layer_norm weights and biases)
+            # Side Note: Turns out Wav2Vec2EncoderLayerBetterTransformer the same implementation as MBartEncoderLayerBetterTransformer, except they switched step 1 and 2 for some reason
+
+            # Step 1: Calculate attention -> apply attention to hidden states
+            residual = hidden_states
+
+            qkv = F.linear(hidden_states, weight=self.in_proj_weight, bias=self.in_proj_bias)
+            qkv = qkv.view(qkv.size()[:-1] + (3, self.num_heads, self.attention_head_size)).permute(2, 0, 3, 1, 4)
+            query, key, value = qkv[0], qkv[1], qkv[2]
+
+            # NOTE: In PyTorch 2.0, passing an attention_mask will automatically dispatch
+            # to the "math" path and will NOT use flash attention / memory-efficient attention.
+            # We should support xformers / Hazy-flash / rocm-flash directly and stop relying on PyTorch to do the work.
+            if self.training:
+                attention_mask = None
+            attention_out = F.scaled_dot_product_attention(
+                query,
+                key,
+                value,
+                attn_mask=attention_mask,
+                is_causal=False,
+                dropout_p=self.dropout if self.training else 0.0,
+            )
+
+            attention_out = attention_out.permute(0, 2, 1, 3).contiguous()
+            new_attention_out_shape = attention_out.size()[:-2] + (self.num_heads * self.attention_head_size,)
+            attention_out = attention_out.view(new_attention_out_shape)
+
+            hidden_states = F.dropout(
+                F.linear(attention_out, self.out_proj_weight, self.out_proj_bias)
+            )
+            hidden_states = residual + hidden_states
+
+            # Step 2: Normalize (using layer_norm weights and biases)
+            hidden_states = F.layer_norm(
+                hidden_states,
+                normalized_shape=self.norm1_weight.shape,
+                weight=self.norm1_weight,
+                bias=self.norm1_bias,
+                eps=self.norm1_eps
+            )
+
+            # Step 3: Feed Forward
+            residual = hidden_states
+            #   3.1 Intermediate layer (Linear -> Activation -> Dropout)
+            hidden_states = F.dropout(
+                self.act_fn_callable(F.linear(hidden_states, self.linear1_weight, self.linear1_bias)),
+                p=self.activation_dropout,
+                training=self.training,
+            )
+
+            #   3.2 Output layer (Linear -> Dropout)
+            hidden_states = F.dropout(
+                F.linear(hidden_states, self.linear2_weight, self.linear2_bias),
+                p=self.dropout,
+                training=self.training,
+            )
+            hidden_states = residual + hidden_states
+
+            # Step 4. Normalize (using final_layer_norm weights and biases)
+            hidden_states = F.layer_norm(
+                hidden_states,
+                normalized_shape=self.norm2_weight.shape,
+                weight=self.norm2_weight,
+                bias=self.norm2_bias,
+                eps=self.norm2_eps
             )
         return (hidden_states,)
 
