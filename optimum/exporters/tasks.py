@@ -444,6 +444,10 @@ class TasksManager:
             "zero-shot-image-classification",
             onnx="CLIPOnnxConfig",
         ),
+        "clip-vision-model": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="CLIPVisionOnnxConfig",
+        ),
         "codegen": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -856,6 +860,11 @@ class TasksManager:
             "text-generation-with-past",
             "text-classification",
             onnx="LlamaOnnxConfig",
+        ),
+        "llava": supported_tasks_mapping(
+            "image-to-text",
+            "image-to-text-with-past",
+            onnx="LlavaOnnxConfig",
         ),
         "pegasus": supported_tasks_mapping(
             "feature-extraction",
@@ -2003,6 +2012,7 @@ class TasksManager:
                     f"{model_type} doesn't support task {task} for the {exporter} backend."
                     f" Supported tasks are: {', '.join(model_tasks.keys())}."
                 )
+                
 
         if model_type not in supported_model_type_for_library:
             model_type = TasksManager._MODEL_TYPE_FOR_DEFAULT_CONFIG[library_name]

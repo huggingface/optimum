@@ -14,10 +14,11 @@
 # limitations under the License.
 """Model specific ONNX configurations."""
 import random
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from packaging import version
 from transformers.utils import is_tf_available
+
 
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
@@ -238,7 +239,8 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    NORMALIZED_CONFIG_CLASS =  NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
+
 
 
 class Qwen2OnnxConfig(LlamaOnnxConfig):
@@ -926,6 +928,9 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
             dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
         return dummy_inputs
 
+
+class CLIPVisionOnnxConfig(ViTOnnxConfig):
+    pass
 
 class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
@@ -1876,3 +1881,150 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
+    
+
+class LlavaOnnxConfig(OnnxConfigWithPast):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
+    NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
+    DEFAULT_ONNX_OPSET = 14
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "image-to-text-with-past",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        use_past: bool = False,
+        use_past_in_inputs: bool = False,
+        behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
+        preprocessors: Optional[List[Any]] = None,
+        legacy: bool = False,
+    ):
+        super().__init__(config, task, int_dtype, float_dtype, use_past, use_past_in_inputs, preprocessors, legacy)
+
+        if legacy:
+            raise ValueError("LLavaOnnxConfig is only supported in legacy mode.")
+
+        self._behavior = behavior
+
+        if behavior is ConfigBehavior.ENCODER:
+            raise ValueError("LLava does not support encoder-only export.")
+
+        # Local import to avoid circular imports.
+        from optimum.exporters.tasks import TasksManager
+
+        # Set up the encoder ONNX config.
+        encoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+            exporter="onnx",
+            task="feature-extraction",
+            model_type=config.vision_config.model_type.replace("_", "-"),
+            library_name="transformers",
+        )
+        self._encoder_onnx_config = encoder_onnx_config_constructor(
+            config.vision_config, int_dtype=int_dtype, float_dtype=float_dtype, preprocessors=preprocessors
+        )
+
+        self._normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS = self._encoder_onnx_config._normalized_config
+
+        # Set up the decoder ONNX config.
+        task = "text-generation-with-past" if use_past else "text-generation"
+        decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+            exporter="onnx",
+            task=task,
+            model_type=config.text_config.model_type.replace("_", "-"),
+            library_name="transformers",
+        )
+        self._decoder_onnx_config = decoder_onnx_config_constructor(
+            config.text_config,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            preprocessors=preprocessors,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+        )
+
+        self.is_decoder_with_past = issubclass(decoder_onnx_config_constructor.func, OnnxConfigWithPast)
+        if not self.is_decoder_with_past:
+            raise ValueError("LLava does not support decoder without past_key_values input.")
+
+        self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
+        
+        self.DUMMY_INPUT_GENERATOR_CLASSES += self._decoder_onnx_config.DUMMY_INPUT_GENERATOR_CLASSES
+
+    def with_behavior(
+        self,
+        behavior: Union[str, ConfigBehavior],
+        use_past: bool = False,
+        use_past_in_inputs: bool = False,
+    ) -> OnnxConfigWithPast:
+        if isinstance(behavior, str) and not isinstance(behavior, ConfigBehavior):
+            behavior = ConfigBehavior(behavior)
+
+        onnx_config = self.__class__(
+            self._config,
+            task=self.task,
+            int_dtype=self.int_dtype,
+            float_dtype=self.float_dtype,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            behavior=behavior,
+            preprocessors=self._preprocessors,
+            legacy=self.legacy,
+        )
+        return onnx_config
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = {}
+
+        common_inputs = {
+            "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "input_ids": {0: "batch_size", 1: "decoder_sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "decoder_sequence_length"},
+        }
+        
+
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["input_ids"] = {0: "batch_size"}
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
+
+        return common_inputs
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        outputs = {
+            "logits": {0: "batch_size", 1: "decoder_sequence_length", 2: "vocab_size"},
+        }
+        self.add_past_key_values(outputs, direction="outputs")
+        return outputs
+
+    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
+        if self.is_decoder_with_past:
+            return self._decoder_onnx_config.add_past_key_values(inputs_or_outputs, direction)
+
+    def flatten_past_key_values(self, flattened_output, name, idx, t):
+        if self.is_decoder_with_past:
+            return self._decoder_onnx_config.flatten_past_key_values(flattened_output, name, idx, t)
+
+    def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
+        return self._decoder_onnx_config.flatten_output_collection_property(name, field)
+
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
+        
+        if "pixel_values" in dummy_inputs:
+            input_ids = dummy_inputs["input_ids"]
+            mask = (input_ids == self._config.image_token_index)
+            input_ids[mask] = self._config.pad_token_id
+            
+            if self._behavior is ConfigBehavior.MONOLITH:
+                input_ids[:,1] = self._config.image_token_index
+            
+            dummy_inputs["input_ids"] = input_ids
+        
+        
+        return dummy_inputs
+        
+        
+        

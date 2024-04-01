@@ -438,6 +438,19 @@ def get_speecht5_models_for_export(
     return models_for_export
 
 
+def get_llava_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"):
+    models_for_export = {}
+
+    # monolith_export_config = config.with_behavior("monolith", use_past=config.use_past, use_past_in_inputs=False)
+    # models_for_export["model"] = (model, monolith_export_config)
+
+    if config.use_past:
+        decoder_export_config_with_past = config.with_behavior("decoder", use_past=True, use_past_in_inputs=True)
+        models_for_export[DECODER_NAME] = (model, decoder_export_config_with_past)
+
+    return models_for_export
+
+
 def override_diffusers_2_0_attn_processors(model):
     for _, submodule in model.named_modules():
         if isinstance(submodule, Attention):
@@ -513,6 +526,8 @@ def _get_submodels_and_export_configs(
                 models_and_export_configs = get_sam_models_for_export(model, export_config)
             elif model.config.model_type == "speecht5":
                 models_and_export_configs = get_speecht5_models_for_export(model, export_config, model_kwargs)
+            elif model.config.model_type == "llava":
+                models_and_export_configs = get_llava_models_for_export(model, export_config)
             else:
                 models_and_export_configs = {"model": (model, export_config)}
 
