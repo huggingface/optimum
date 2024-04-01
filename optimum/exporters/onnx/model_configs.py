@@ -16,10 +16,10 @@
 import random
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
 
-from optimum.exporters.onnx.model_patcher import ModelPatcher
 from packaging import version
 from transformers.utils import is_tf_available
 
+from optimum.exporters.onnx.model_patcher import ModelPatcher
 
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
@@ -240,8 +240,7 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
-    NORMALIZED_CONFIG_CLASS =  NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
-
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
 
 
 class Qwen2OnnxConfig(LlamaOnnxConfig):
@@ -932,6 +931,7 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
 
 class CLIPVisionOnnxConfig(ViTOnnxConfig):
     pass
+
 
 class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
@@ -1882,7 +1882,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
-    
+
 
 class LlavaOnnxConfig(OnnxConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
@@ -1949,7 +1949,7 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
             raise ValueError("LLava does not support decoder without past_key_values input.")
 
         self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
-        
+
         self.DUMMY_INPUT_GENERATOR_CLASSES += self._decoder_onnx_config.DUMMY_INPUT_GENERATOR_CLASSES
 
     def with_behavior(
@@ -1983,7 +1983,6 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
             "input_ids": {0: "batch_size", 1: "decoder_sequence_length"},
             "attention_mask": {0: "batch_size", 1: "decoder_sequence_length"},
         }
-        
 
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["input_ids"] = {0: "batch_size"}
@@ -2013,24 +2012,25 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
 
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
-        
+
         if "pixel_values" in dummy_inputs:
             input_ids = dummy_inputs["input_ids"]
-            mask = (input_ids == self._config.image_token_index)
+            mask = input_ids == self._config.image_token_index
             input_ids[mask] = self._config.pad_token_id
-            
+
             if self._behavior is ConfigBehavior.MONOLITH:
-                input_ids[:,1] = self._config.image_token_index
-            
+                input_ids[:, 1] = self._config.image_token_index
+
             dummy_inputs["input_ids"] = input_ids
-        
-        
+
         return dummy_inputs
-    
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None) -> Dict[str, Any]:
+
+    def generate_dummy_inputs_for_validation(
+        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         dummy_inputs = super().generate_dummy_inputs_for_validation(reference_model_inputs, onnx_input_names)
-        
+
         if self._behavior is ConfigBehavior.DECODER:
             dummy_inputs.pop("pixel_values")
-            
+
         return dummy_inputs
