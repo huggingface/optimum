@@ -16,6 +16,7 @@
 import random
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
 
+from optimum.exporters.onnx.model_patcher import ModelPatcher
 from packaging import version
 from transformers.utils import is_tf_available
 
@@ -2025,6 +2026,11 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
         
         
         return dummy_inputs
+    
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None) -> Dict[str, Any]:
+        dummy_inputs = super().generate_dummy_inputs_for_validation(reference_model_inputs, onnx_input_names)
         
-        
-        
+        if self._behavior is ConfigBehavior.DECODER:
+            dummy_inputs.pop("pixel_values")
+            
+        return dummy_inputs

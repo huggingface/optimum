@@ -563,8 +563,6 @@ def export_pytorch(
         with config.patch_model_for_export(model, model_kwargs=model_kwargs):
             check_dummy_inputs_are_allowed(model, dummy_inputs)
 
-            from pdb import set_trace; set_trace()
-
             inputs = config.ordered_inputs(model)
             input_names = list(inputs.keys())
             output_names = list(config.outputs.keys())
