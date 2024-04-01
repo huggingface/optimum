@@ -1325,7 +1325,8 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Modul
             if hidden_states.is_nested and self.is_last_layer:
                 hidden_states = hidden_states.to_padded_tensor(0.0)
         else:
-            # Reference implmentation: https://github.com/huggingface/transformers/blob/ba56ed0869eb4bbeb1c04af7f62a04350150e8d4/src/transformers/models/wav2vec2/modeling_wav2vec2.py#L669
+            # Reference implmentation: 
+            # https://github.com/huggingface/transformers/blob/ba56ed0869eb4bbeb1c04af7f62a04350150e8d4/src/transformers/models/wav2vec2/modeling_wav2vec2.py#L669
 
             # Implementation:
             # 1. Calculate attention -> apply attention to hidden states
@@ -1334,7 +1335,6 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Modul
             #   3.1 Intermediate layer (Linear -> Activation -> Dropout)
             #   3.2 Output layer (Linear -> Dropout)
             # 4. Normalize (using final_layer_norm weights and biases)
-            # Side Note: Turns out Wav2Vec2EncoderLayerBetterTransformer the same implementation as MBartEncoderLayerBetterTransformer, except they switched step 1 and 2 for some reason
 
             # Step 1: Calculate attention -> apply attention to hidden states
             residual = hidden_states
