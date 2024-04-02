@@ -453,12 +453,11 @@ def patched_merge_input_ids_with_image_features(
     # 5. Fill the embeddings corresponding to the images. Anything that is still zeros needs filling
     image_to_overwrite = torch.all(final_embedding == 0, dim=-1)
 
-    # ModelPatcher Fix: Exporting the operator 'aten::__iand_' not supported
+    # ModelPatcher Fix: Exporting the operator 'aten::__iand_' not supported AND cumsum inut should be INT not BOOL
     # image_to_overwrite &= image_to_overwrite.cumsum(-1) - 1 >= nb_image_pad[:, None].to(target_device)
-    image_to_overwrite2 = torch.all(final_embedding == 0, dim=-1)
-    image_to_overwrite3 = image_to_overwrite2.to(final_attention_mask.dtype)
-    mask = image_to_overwrite3.cumsum(-1) - 1 >= nb_image_pad[:, None].to(target_device)
-    image_to_overwrite = image_to_overwrite2 * mask
+    image_to_overwrite_int = image_to_overwrite.to(final_attention_mask.dtype)
+    mask = image_to_overwrite_int.cumsum(-1) - 1 >= nb_image_pad[:, None].to(target_device)
+    image_to_overwrite *= mask
 
     if image_to_overwrite.sum() != image_features.shape[:-1].numel():
         raise ValueError(
