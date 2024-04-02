@@ -1276,7 +1276,8 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Modul
         if config.do_stable_layer_norm:
             self.norm_first = True
 
-        self.dropout = config.attention_dropout
+        self.attention_dropout = config.attention_dropout
+        self.hidden_dropout = config.hidden_dropout
         self.activation_dropout = config.activation_dropout
         self.attention_head_size = config.hidden_size // config.num_attention_heads
         self.act_fn_callable = ACT2FN[config.hidden_act]
@@ -1354,16 +1355,15 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Modul
                 value,
                 attn_mask=attention_mask,
                 is_causal=False,
-                dropout_p=self.dropout if self.training else 0.0,
+                dropout_p=self.attention_dropout,
             )
 
             attention_out = attention_out.permute(0, 2, 1, 3).contiguous()
             new_attention_out_shape = attention_out.size()[:-2] + (self.num_heads * self.attention_head_size,)
             attention_out = attention_out.view(new_attention_out_shape)
 
-            hidden_states = F.dropout(
-                F.linear(attention_out, self.out_proj_weight, self.out_proj_bias)
-            )
+            hidden_states =  F.linear(attention_out, self.out_proj_weight, self.out_proj_bias)
+            hidden_states = F.dropout(hidden_states, p=self.hidden_dropout)
             hidden_states = residual + hidden_states
 
             # Step 2: Normalize (using layer_norm weights and biases)
@@ -1387,7 +1387,7 @@ class Wav2Vec2EncoderLayerBetterTransformer(BetterTransformerBaseLayer, nn.Modul
             #   3.2 Output layer (Linear -> Dropout)
             hidden_states = F.dropout(
                 F.linear(hidden_states, self.linear2_weight, self.linear2_bias),
-                p=self.dropout,
+                p=self.hidden_dropout,
                 training=self.training,
             )
             hidden_states = residual + hidden_states
