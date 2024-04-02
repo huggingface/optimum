@@ -19,8 +19,6 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Un
 from packaging import version
 from transformers.utils import is_tf_available
 
-from optimum.exporters.onnx.model_patcher import ModelPatcher
-
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     BloomDummyPastKeyValuesGenerator,
@@ -65,6 +63,7 @@ from .config import (
 )
 from .model_patcher import (
     FalconModelPatcher,
+    LlavaModelPatcher,
     SAMModelPatcher,
     SentenceTransformersCLIPPatcher,
     SentenceTransformersTransformerPatcher,
@@ -1996,7 +1995,8 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
         outputs = {
             "logits": {0: "batch_size", 1: "decoder_sequence_length", 2: "vocab_size"},
         }
-        self.add_past_key_values(outputs, direction="outputs")
+        if self.use_past:
+            self.add_past_key_values(outputs, direction="outputs")
         return outputs
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
@@ -2034,3 +2034,8 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
             dummy_inputs.pop("pixel_values")
 
         return dummy_inputs
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return LlavaModelPatcher(self, model, model_kwargs=model_kwargs)

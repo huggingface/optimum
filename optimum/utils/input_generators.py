@@ -36,6 +36,7 @@ if is_torch_available():
 
 if is_tf_available():
     import tensorflow as tf
+torch.manual_seed(0)
 
 
 def check_framework_is_available(func):
