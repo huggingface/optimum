@@ -14,14 +14,16 @@ python -m pip install optimum
 
 If you'd like to use the accelerator-specific features of 🤗 Optimum, you can install the required dependencies according to the table below:
 
-| Accelerator                                                                                                            | Installation                                      |
-|:-----------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------|
-| [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/overview)                                                                           | `pip install --upgrade-strategy eager optimum[onnxruntime]`       |
-| [Intel Neural Compressor](https://huggingface.co/docs/optimum/intel/index)       | `pip install --upgrade-strategy eager optimum[neural-compressor]`|
-| [OpenVINO](https://huggingface.co/docs/optimum/intel/index)                                                                 | `pip install --upgrade-strategy eager optimum[openvino,nncf]`    |
-| [AMD Instinct GPUs and Ryzen AI NPU](https://huggingface.co/docs/optimum/amd/index)                     | `pip install --upgrade-strategy eager optimum[amd]`              |
-| [Habana Gaudi Processor (HPU)](https://huggingface.co/docs/optimum/habana/index)                                                            | `pip install --upgrade-strategy eager optimum[habana]`           |
-| [FuriosaAI](https://huggingface.co/docs/optimum/furiosa/index)                                                                                   | `pip install --upgrade-strategy eager optimum[furiosa]`          |
+| Accelerator                                                                                                            | Installation                                                      |
+|:-----------------------------------------------------------------------------------------------------------------------|:------------------------------------------------------------------|
+| [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/overview)                                               | `pip install --upgrade-strategy eager optimum[onnxruntime]`       |
+| [Intel Neural Compressor](https://huggingface.co/docs/optimum/intel/index)                                             | `pip install --upgrade-strategy eager optimum[neural-compressor]` |
+| [OpenVINO](https://huggingface.co/docs/optimum/intel/index)                                                            | `pip install --upgrade-strategy eager optimum[openvino,nncf]`     |
+| [NVIDIA TensorRT-LLM](https://huggingface.co/docs/optimum/main/en/nvidia_overview)                                     | `docker run -it --gpus all --ipc host huggingface/optimum-nvidia` |
+| [AMD Instinct GPUs and Ryzen AI NPU](https://huggingface.co/docs/optimum/amd/index)                                    | `pip install --upgrade-strategy eager optimum[amd]`               |
+| [AWS Trainum & Inferentia](https://huggingface.co/docs/optimum-neuron/index)                                           | `pip install --upgrade-strategy eager optimum[neuronx]`           |
+| [Habana Gaudi Processor (HPU)](https://huggingface.co/docs/optimum/habana/index)                                       | `pip install --upgrade-strategy eager optimum[habana]`            |
+| [FuriosaAI](https://huggingface.co/docs/optimum/furiosa/index)                                                         | `pip install --upgrade-strategy eager optimum[furiosa]`           |
 
 The `--upgrade-strategy eager` option is needed to ensure the different packages are upgraded to the latest possible version.
 
@@ -45,6 +47,8 @@ python -m pip install optimum[onnxruntime]@git+https://github.com/huggingface/op
 - TensorFlow Lite
 - [OpenVINO](https://huggingface.co/docs/optimum/intel/inference)
 - Habana first-gen Gaudi / Gaudi2, more details [here](https://huggingface.co/docs/optimum/main/en/habana/usage_guides/accelerate_inference)
+- AWS Inferentia 2 / Inferentia 1, more details [here](https://huggingface.co/docs/optimum-neuron/en/guides/models)
+- NVIDIA TensorRT-LLM , more details [here](https://huggingface.co/blog/optimum-nvidia)
 
 The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimizations can be done both programmatically and with a command line.
 
@@ -190,6 +194,7 @@ optimum-cli export tflite \
 We support many providers:
 
 - Habana's Gaudi processors
+- AWS Trainium instances, check [here](https://huggingface.co/docs/optimum-neuron/en/guides/distributed_training)
 - ONNX Runtime (optimized for GPUs)
 
 ### Habana
