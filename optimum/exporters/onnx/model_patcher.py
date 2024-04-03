@@ -482,6 +482,8 @@ def patched_merge_input_ids_with_image_features(
     if labels is None:
         final_labels = None
 
+    final_attention_mask = final_attention_mask.to(position_ids.dtype)
+
     return final_embedding, final_attention_mask, final_labels, position_ids
 
 
@@ -489,9 +491,6 @@ class LlavaModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
         self.patch_ops()
-        # self._model._merge_input_ids_with_image_features = types.MethodType(
-        #     patched_merge_input_ids_with_image_features, self._model
-        # )
         setattr(
             self._model,
             "_merge_input_ids_with_image_features",
@@ -501,7 +500,6 @@ class LlavaModelPatcher(ModelPatcher):
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
         self.restore_ops()
-
         setattr(self._model, self.orig_forward_name, self.orig_forward)
         setattr(
             self._model,
@@ -517,6 +515,99 @@ class LlavaModelPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
         self.original_merge_input_ids_with_image_features = self._model._merge_input_ids_with_image_features
+
+        def patched_forward(
+            input_ids=None,
+            pixel_values=None,
+            attention_mask=None,
+            position_ids=None,
+            past_key_values=None,
+            inputs_embeds=None,
+        ):
+            vision_feature_layer = model.config.vision_feature_layer
+            vision_feature_select_strategy = model.config.vision_feature_select_strategy
+
+            if config._behavior == "encoder":
+                inputs_embeds = model.get_input_embeddings()(input_ids)
+
+                image_outputs = model.vision_tower(pixel_values, output_hidden_states=True)
+                selected_image_feature = image_outputs.hidden_states[vision_feature_layer]
+
+                if vision_feature_select_strategy == "default":
+                    selected_image_feature = selected_image_feature[:, 1:]
+                elif vision_feature_select_strategy == "full":
+                    selected_image_feature = selected_image_feature
+                else:
+                    raise ValueError(f"Unexpected select feature strategy: {vision_feature_select_strategy}")
+
+                image_features = model.multi_modal_projector(selected_image_feature)
+                inputs_embeds, attention_mask, labels, position_ids = model._merge_input_ids_with_image_features(
+                    image_features, inputs_embeds, input_ids, attention_mask, None
+                )
+
+                result = {
+                    "inputs_embeds": inputs_embeds,
+                    "decoder_attention_mask": attention_mask,
+                    "position_ids": position_ids,
+                }
+            elif config._behavior == "decoder" and config.decoder_preprocessing is True:
+                inputs_embeds = model.get_input_embeddings()(input_ids)
+
+                first_layer_past_key_value = past_key_values
+                # Sum all dimensions of head_dim (-2) to avoid random errors such as: https://github.com/huggingface/transformers/pull/28032#issuecomment-1863691941
+                batch_index, non_attended_tokens = torch.where(first_layer_past_key_value.float().sum(-2) == 0)
+
+                # Get the target length
+                past_length = first_layer_past_key_value.shape[-1]
+
+                extended_attention_mask = torch.ones(
+                    (attention_mask.shape[0], past_length),
+                    dtype=attention_mask.dtype,
+                    device=attention_mask.device,
+                )
+
+                # Filter out only the tokens that can be un-attended, this can happen
+                # if one uses Llava + Fused modules where the cache on the
+                # first iteration is already big enough, or if one passes custom cache
+                valid_indices = non_attended_tokens < extended_attention_mask.size(-1)
+                new_batch_index = batch_index[valid_indices]
+                new_non_attended_tokens = non_attended_tokens[valid_indices]
+
+                # Zero-out the places where we don't need to attend
+                extended_attention_mask[new_batch_index, new_non_attended_tokens] = 0
+
+                attention_mask = torch.cat((extended_attention_mask, attention_mask[:, -1:]), dim=1)
+                position_ids = torch.sum(attention_mask, dim=1).unsqueeze(-1) - 1
+
+                result = {
+                    "inputs_embeds": inputs_embeds,
+                    "decoder_attention_mask": attention_mask,
+                    "position_ids": position_ids,
+                }
+
+            elif config._behavior == "decoder":
+                outputs = model.language_model(
+                    attention_mask=attention_mask,
+                    position_ids=position_ids,
+                    past_key_values=past_key_values,
+                    inputs_embeds=inputs_embeds,
+                    use_cache=None,
+                    output_hidden_states=False,
+                    return_dict=True,
+                )
+
+                past_key_values = outputs.past_key_values
+                logits = outputs[0]
+
+                result = {
+                    "logits": logits,
+                    "past_key_values": past_key_values,
+                }
+
+            return result
+
+        if config.variant == "optimized":
+            self.patched_forward = patched_forward
 
 
 def falcon_build_alibi_tensor_patched(

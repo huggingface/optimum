@@ -1888,6 +1888,18 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     DEFAULT_ONNX_OPSET = 14
 
+    VARIANTS = {
+        "default": "The export follows the Transformers implementation of forward in LlavaModelForConditionalGeneration, with the following components exported:\n\t - "
+        "model.onnx: corresponds to the vision encoder + projection + decoder in a single file without past key value support in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2544-L2556.\n\t - "
+        "decoder_model.onnx: corresponds to the decoder part in with past_key_values input https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2572-L2602.",
+        "optimized": "The export follows the memory optimized implementation of Transformers forward. This is a recommended export as decoder is exported only once`. It has the following components exported:\n\t - "
+        "encoder_model.onnx: corresponds to the vision encoder + projection + decoder in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2544-L2556.\n\t - "
+        "decoder_model.onnx: corresponds to the decoder part in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2572-L2602.\n\t - "
+        "attention_position_id_generator.onnx: corresponds to attention_mask and position_ids generation when past_key_values is provided in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2572-L2602.",
+    }
+
+    DEFAULT_VARIANT = "default"
+
     def __init__(
         self,
         config: "PretrainedConfig",
@@ -1898,7 +1910,9 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: Optional[List[Any]] = None,
+        variant: str = "default",
         legacy: bool = False,
+        decoder_preprocessing: Optional[bool] = None,
     ):
         super().__init__(config, task, int_dtype, float_dtype, use_past, use_past_in_inputs, preprocessors, legacy)
 
@@ -1906,9 +1920,11 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
             raise ValueError("LLavaOnnxConfig is only supported in legacy mode.")
 
         self._behavior = behavior
+        self.variant = variant
+        self.decoder_preprocessing = decoder_preprocessing
 
-        if behavior is ConfigBehavior.ENCODER:
-            raise ValueError("LLava does not support encoder-only export.")
+        if variant == "default" and behavior is ConfigBehavior.ENCODER:
+            raise ValueError(f"LLava does not support encoder-only export for variant {variant}.")
 
         # Local import to avoid circular imports.
         from optimum.exporters.tasks import TasksManager
@@ -1930,7 +1946,7 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
         task = "text-generation-with-past" if use_past else "text-generation"
         decoder_onnx_config_constructor = TasksManager.get_exporter_config_constructor(
             exporter="onnx",
-            task=task,
+            task="feature-extraction",
             model_type=config.text_config.model_type.replace("_", "-"),
             library_name="transformers",
         )
@@ -1956,6 +1972,7 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
         behavior: Union[str, ConfigBehavior],
         use_past: bool = False,
         use_past_in_inputs: bool = False,
+        decoder_preprocessing: Optional[bool] = None,
     ) -> OnnxConfigWithPast:
         if isinstance(behavior, str) and not isinstance(behavior, ConfigBehavior):
             behavior = ConfigBehavior(behavior)
@@ -1969,35 +1986,98 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=self._preprocessors,
+            variant=self.variant,
             legacy=self.legacy,
+            decoder_preprocessing=decoder_preprocessing,
         )
         return onnx_config
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = {}
-
         common_inputs = {
             "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
-            "input_ids": {0: "batch_size", 1: "decoder_sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "decoder_sequence_length"},
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
         }
 
-        if self._behavior is ConfigBehavior.DECODER:
-            common_inputs["input_ids"] = {0: "batch_size"}
-            if self.use_past_in_inputs:
-                self.add_past_key_values(common_inputs, direction="inputs")
+        if self.variant == "default":
+            if self._behavior is ConfigBehavior.DECODER:
+                common_inputs["input_ids"] = {0: "batch_size"}
+
+                if self.use_past_in_inputs:
+                    self.add_past_key_values(common_inputs, direction="inputs")
+
+        elif self.variant == "optimized":
+            if self._behavior is ConfigBehavior.DECODER:
+                common_inputs = {
+                    "inputs_embeds": {0: "batch_size", 1: "decoder_sequence_length", 2: "hidden_size"},
+                    "attention_mask": {0: "batch_size", 1: "decoder_sequence_length"},
+                    "position_ids": {0: "batch_size", 1: "decoder_sequence_length"},
+                }
+
+                if self.use_past_in_inputs:
+                    self.add_past_key_values(common_inputs, direction="inputs")
+
+                if self.decoder_preprocessing is True:
+                    common_inputs.pop("inputs_embeds")
+                    common_inputs.pop("position_ids")
+                    common_inputs["input_ids"] = {0: "batch_size"}
+                    common_inputs["attention_mask"] = common_inputs.pop("attention_mask")
+
+                    pkv_names = [key for key in common_inputs.keys() if key.startswith("past_key_values")][1:]
+                    for pkv_name in pkv_names:
+                        common_inputs.pop(pkv_name)
 
         return common_inputs
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        outputs = {
-            "logits": {0: "batch_size", 1: "decoder_sequence_length", 2: "vocab_size"},
-        }
-        if self.use_past:
-            self.add_past_key_values(outputs, direction="outputs")
+        if self.variant == "default":
+            outputs = {
+                "logits": {0: "batch_size", 1: "decoder_sequence_length", 2: "vocab_size"},
+            }
+            if self.use_past:
+                self.add_past_key_values(outputs, direction="outputs")
+        elif self.variant == "optimized":
+            if self._behavior is ConfigBehavior.ENCODER:
+                outputs = {
+                    "inputs_embeds": {0: "batch_size", 1: "decoder_sequence_length", 2: "hidden_size"},
+                    "decoder_attention_mask": {0: "batch_size", 1: "decoder_sequence_length"},
+                    "position_ids": {0: "batch_size", 1: "decoder_sequence_length"},
+                }
+            elif self._behavior is ConfigBehavior.DECODER and self.decoder_preprocessing is True:
+                outputs = {
+                    "inputs_embeds": {0: "batch_size", 2: "hidden_size"},
+                    "decoder_attention_mask": {0: "batch_size", 1: "past_decoder_sequence_length + 1"},
+                    "position_ids": {0: "batch_size"},
+                }
+            elif self._behavior is ConfigBehavior.DECODER:
+                outputs = {
+                    "logits": {0: "batch_size", 1: "decoder_sequence_length", 2: "vocab_size"},
+                }
+                if self.use_past:
+                    self.add_past_key_values(outputs, direction="outputs")
+
         return outputs
+
+    def overwrite_shape_and_generate_input(
+        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: Dict
+    ):
+        if self.use_past and self.use_past_in_inputs and input_name == "input_ids":
+            if self.variant == "default" or (self.variant == "optimized" and self.decoder_preprocessing is True):
+                sequence_length = dummy_input_gen.sequence_length
+                # Use a sequence length of 1 when the KV cache is already populated.
+                dummy_input_gen.sequence_length = 1
+                dummy_input = dummy_input_gen.generate(
+                    input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+                )
+                dummy_input_gen.sequence_length = sequence_length
+        else:
+            dummy_input = dummy_input_gen.generate(
+                input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+            )
+
+        return dummy_input
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
         if self.is_decoder_with_past:
@@ -2011,6 +2091,8 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
 
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        self.PAD_ATTENTION_MASK_TO_PAST = self._decoder_onnx_config.PAD_ATTENTION_MASK_TO_PAST
+
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
 
         if "pixel_values" in dummy_inputs:
@@ -2018,10 +2100,17 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
             mask = input_ids == self._config.image_token_index
             input_ids[mask] = self._config.pad_token_id
 
-            if self._behavior is ConfigBehavior.MONOLITH:
+            if self._behavior is ConfigBehavior.MONOLITH or self._behavior is ConfigBehavior.ENCODER:
                 input_ids[:, 1] = self._config.image_token_index
 
             dummy_inputs["input_ids"] = input_ids
+
+        if (
+            self.variant == "optimized"
+            and self._behavior is ConfigBehavior.DECODER
+            and self.decoder_preprocessing is True
+        ):
+            dummy_inputs["past_key_values"] = dummy_inputs["past_key_values"][0][0][:, :, :, 0]
 
         return dummy_inputs
 
@@ -2030,8 +2119,15 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
     ) -> Dict[str, Any]:
         dummy_inputs = super().generate_dummy_inputs_for_validation(reference_model_inputs, onnx_input_names)
 
-        if self._behavior is ConfigBehavior.DECODER:
+        if self.variant == "default" and self._behavior is ConfigBehavior.DECODER:
             dummy_inputs.pop("pixel_values")
+
+        if (
+            self.variant == "optimized"
+            and self._behavior is ConfigBehavior.DECODER
+            and self.decoder_preprocessing is True
+        ):
+            dummy_inputs["past_key_values.0.key"] = dummy_inputs.pop("past_key_values")
 
         return dummy_inputs
 

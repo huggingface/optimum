@@ -441,12 +441,27 @@ def get_speecht5_models_for_export(
 def get_llava_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"):
     models_for_export = {}
 
-    monolith_export_config = config.with_behavior("monolith", use_past=config.use_past, use_past_in_inputs=False)
-    models_for_export["model"] = (model, monolith_export_config)
+    if config.variant == "default":
+        monolith_export_config = config.with_behavior("monolith", use_past=config.use_past, use_past_in_inputs=False)
+        models_for_export["model"] = (model, monolith_export_config)
 
-    if config.use_past:
-        decoder_export_config_with_past = config.with_behavior("decoder", use_past=True, use_past_in_inputs=True)
-        models_for_export[DECODER_NAME] = (model, decoder_export_config_with_past)
+        if config.use_past:
+            decoder_export_config_with_past = config.with_behavior("decoder", use_past=True, use_past_in_inputs=True)
+            models_for_export[DECODER_NAME] = (model, decoder_export_config_with_past)
+    elif config.variant == "optimized":
+        encoder_export_config = config.with_behavior("encoder")
+        models_for_export[ENCODER_NAME] = (model, encoder_export_config)
+
+        decoder_export_config = config.with_behavior(
+            "decoder", use_past=config.use_past, use_past_in_inputs=config.use_past
+        )
+        models_for_export[DECODER_NAME] = (model, decoder_export_config)
+
+        if config.use_past:
+            decoder_preprocess_export_config = config.with_behavior(
+                "decoder", use_past=config.use_past, use_past_in_inputs=config.use_past, decoder_preprocessing=True
+            )
+            models_for_export["attention_position_id_generator"] = (model, decoder_preprocess_export_config)
 
     return models_for_export
 
