@@ -1563,7 +1563,12 @@ class TasksManager:
 
             if library_name == "diffusers":
                 class_name = model_info.config["diffusers"]["class_name"]
-                inferred_task_name = "stable-diffusion-xl" if "StableDiffusionXL" in class_name else "stable-diffusion"
+                if "LatentConsistency" in class_name:
+                    inferred_task_name = "latent-consistency"
+                elif "StableDiffusionXL" in class_name:
+                    inferred_task_name = f"stable-diffusion-xl{'-refiner' if 'Img2Img' in class_name else ''}"
+                else:
+                    inferred_task_name = "stable-diffusion"
             elif library_name == "timm":
                 inferred_task_name = "image-classification"
             else:
