@@ -461,7 +461,7 @@ def get_llava_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedMod
             decoder_preprocess_export_config = config.with_behavior(
                 "decoder", use_past=config.use_past, use_past_in_inputs=config.use_past, decoder_preprocessing=True
             )
-            models_for_export["attention_position_id_generator"] = (model, decoder_preprocess_export_config)
+            models_for_export["decoder_input_processor_model"] = (model, decoder_preprocess_export_config)
 
     return models_for_export
 

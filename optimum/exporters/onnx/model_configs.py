@@ -1889,13 +1889,13 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
     DEFAULT_ONNX_OPSET = 14
 
     VARIANTS = {
-        "default": "The export follows the Transformers implementation of forward in LlavaModelForConditionalGeneration, with the following components exported:\n\t - "
+        "transformers": "The export follows the Transformers implementation of forward in LlavaModelForConditionalGeneration, with the following components exported:\n\t - "
         "model.onnx: corresponds to the vision encoder + projection + decoder in a single file without past key value support in https://github.com/huggingface/transformers/blob/v4.39.3/src/transformers/models/llava/modeling_llava.py#L360-L519.\n\t - "
         "decoder_model.onnx: corresponds to the decoder part in with past_key_values input https://github.com/huggingface/transformers/blob/v4.39.3/src/transformers/models/llava/modeling_llava.py#L449-L489.",
         "optimized": "The export follows the memory optimized implementation of Transformers forward. This is a recommended export as decoder is exported only once`. It has the following components exported:\n\t - "
         "encoder_model.onnx: corresponds to the vision encoder + projection + decoder in https://github.com/huggingface/transformers/blob/v4.39.3/src/transformers/models/llava/modeling_llava.py#L421-L445.\n\t - "
         "decoder_model.onnx: corresponds to the decoder part in https://github.com/huggingface/transformers/blob/v4.39.3/src/transformers/models/llava/modeling_llava.py#L480-L489.\n\t - "
-        "attention_position_id_generator.onnx: corresponds to attention_mask and position_ids generation when past_key_values is provided in https://github.com/huggingface/transformers/blob/v4.39.3/src/transformers/models/llava/modeling_llava.py#L421-L478.",
+        "decoder_input_processor.onnx: corresponds to decoder input generation when past_key_values is provided in https://github.com/huggingface/transformers/blob/v4.39.3/src/transformers/models/llava/modeling_llava.py#L421-L478.",
     }
 
     DEFAULT_VARIANT = "optimized"
@@ -2000,7 +2000,7 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
             "attention_mask": {0: "batch_size", 1: "sequence_length"},
         }
 
-        if self.variant == "default":
+        if self.variant == "transformers":
             if self._behavior is ConfigBehavior.DECODER:
                 common_inputs["input_ids"] = {0: "batch_size"}
 
@@ -2032,7 +2032,7 @@ class LlavaOnnxConfig(OnnxConfigWithPast):
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        if self.variant == "default":
+        if self.variant == "transformers":
             outputs = {
                 "logits": {0: "batch_size", 1: "decoder_sequence_length", 2: "vocab_size"},
             }
