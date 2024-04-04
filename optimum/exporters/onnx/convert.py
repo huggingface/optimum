@@ -765,7 +765,7 @@ def export_models(
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         logger.info(
-            f"\n***** Exporting submodel {i}/{len(models_and_onnx_configs)}: {submodel.__class__.__name__} *****"
+            f"\n***** Exporting submodel {i + 1}/{len(models_and_onnx_configs)}: {submodel.__class__.__name__} *****"
         )
         outputs.append(
             export(
