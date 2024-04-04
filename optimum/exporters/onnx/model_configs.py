@@ -1469,6 +1469,12 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
         self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = NormalizedConfig(self._config.decoder)
         self._normalized_config.decoder_num_layers = self._config.decoder.num_hidden_layers
         self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.num_layers = self._config.decoder.num_hidden_layers
+        self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.encoder_num_attention_heads = (
+            self._config.decoder.num_attention_heads
+        )
+        self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.decoder_num_attention_heads = (
+            self._config.decoder.num_attention_heads
+        )
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:

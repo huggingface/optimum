@@ -586,11 +586,12 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
         )
 
         if isinstance(normalized_config, NormalizedEncoderDecoderConfig):
+            # encoder_num_attention_heads / decoder_num_attention_heads are bad names, they rather refer to cross / self attention num heads.
             self.encoder_num_attention_heads = (
-                self.normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS.num_attention_heads
+                self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.encoder_num_attention_heads
             )
             self.decoder_num_attention_heads = (
-                self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.num_attention_heads
+                self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.decoder_num_attention_heads
             )
             self.encoder_hidden_size = self.normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS.hidden_size
             self.decoder_hidden_size = self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.hidden_size
