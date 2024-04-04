@@ -52,6 +52,7 @@ from .input_generators import (
     DummyDecoderTextInputGenerator,
     DummyEncodecInputGenerator,
     DummyInputGenerator,
+    DummyIntGenerator,
     DummyLabelsGenerator,
     DummyPastKeyValuesGenerator,
     DummyPix2StructInputGenerator,

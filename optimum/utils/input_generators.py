@@ -403,7 +403,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         self.task = task
 
         if isinstance(normalized_config, NormalizedEncoderDecoderConfig):
-            self.vocab_size = normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS.vocab_size
+            self.vocab_size = normalized_config.vocab_size
         else:
             self.vocab_size = normalized_config.vocab_size
 
@@ -423,6 +423,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         else:
             self.num_choices = num_choices
         self.padding_side = padding_side
+        self.normalized_config = normalized_config
 
     def generate(
         self,
@@ -1317,3 +1318,27 @@ class DummyEncodecInputGenerator(DummyInputGenerator):
             framework=framework,
             dtype=int_dtype,
         )
+
+
+class DummyIntGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = (
+        "pad_token_id",
+        "max_length",
+    )
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedTextConfig,
+        **kwargs,
+    ):
+        pass
+
+    def generate(
+        self,
+        input_name: str,
+        framework: str = "pt",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+    ):
+        return self.random_int_tensor(shape=(1,), min_value=20, max_value=22, framework=framework, dtype=int_dtype)

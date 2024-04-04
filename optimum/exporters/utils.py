@@ -352,6 +352,7 @@ def get_musicgen_models_for_export(model: Union["PreTrainedModel", "TFPreTrained
         # For the decoder, we do not pass model.decoder because we may need to export model.enc_to_dec_proj
         DECODER_NAME: model,
         DECODER_WITH_PAST_NAME: model,
+        "build_delay_pattern_mask": model.decoder,
     }
 
     text_encoder_config = config.__class__(
@@ -376,6 +377,14 @@ def get_musicgen_models_for_export(model: Union["PreTrainedModel", "TFPreTrained
             models_for_export[DECODER_WITH_PAST_NAME],
             decoder_export_config_with_past,
         )
+
+    build_delay_pattern_mask_config = config.__class__(
+        model.config, task=config.task, legacy=False, model_part="build_delay_pattern_mask", variant=config.variant
+    )
+    models_for_export["build_delay_pattern_mask"] = (
+        models_for_export["build_delay_pattern_mask"],
+        build_delay_pattern_mask_config,
+    )
 
     return models_for_export
 
