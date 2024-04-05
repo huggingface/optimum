@@ -594,7 +594,8 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
             self.decoder_num_attention_heads = (
                 self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.decoder_num_attention_heads
             )
-            self.encoder_hidden_size = self.normalized_config.ENCODER_NORMALIZED_CONFIG_CLASS.hidden_size
+            # Same, `encoder_hidden_size` and `decoder_hidden_size` are bad names.
+            self.encoder_hidden_size = self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.hidden_size
             self.decoder_hidden_size = self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.hidden_size
             self.decoder_num_layers = self.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.num_layers
         else:

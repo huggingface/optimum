@@ -1506,6 +1506,11 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
             common_inputs = {
                 "decoder_input_ids": {0: "total_batch_size_x_num_codebooks"},
                 "encoder_outputs": {0: "total_batch_size", 1: "encoder_sequence_length"},
+                # MusicgenForConditionalGeneration maps attention_mask to encoder_attention_mask.
+                "attention_mask": {
+                    0: "batch_size",
+                    1: "encoder_sequence_length",
+                },
             }
             if self.use_past_in_inputs:
                 # TODO: validate the axis name for attention_mask
@@ -1657,12 +1662,16 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 original_batch_size * dummy_input_gen.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.num_codebooks
             )
 
-        dummy_input = dummy_input_gen.generate(
-            input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
-        )
+            dummy_input = dummy_input_gen.generate(
+                input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+            )
 
-        if self.model_part == "build_delay_pattern_mask" and input_name == "input_ids":
             dummy_input_gen.batch_size = original_batch_size
+
+        else:
+            dummy_input = super().overwrite_shape_and_generate_input(
+                dummy_input_gen, input_name, framework, input_shapes
+            )
 
         return dummy_input
 
