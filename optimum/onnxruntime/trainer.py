@@ -459,7 +459,14 @@ class ORTTrainer(Trainer):
 
         # Wrap the model with `ORTModule`
         logger.info("Wrap ORTModule for ONNX Runtime training.")
-        model = ORTModule(self.model)
+        if self.args.save_onnx:
+            from torch_ort import DebugOptions
+
+            model = ORTModule(
+                self.model, DebugOptions(save_onnx=self.args.save_onnx, onnx_prefix=self.args.onnx_prefix)
+            )
+        else:
+            model = ORTModule(self.model)
         self.model_wrapped = model
         self.model = model
 
