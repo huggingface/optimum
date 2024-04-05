@@ -110,7 +110,7 @@ def add_neuron_doc(base_toc: List):
 
 def add_tpu_doc(base_toc: List):
     """
-    Extends the table of content with a section about Optimum Neuron.
+    Extends the table of content with a section about Optimum TPU.
 
     Args:
         base_toc (List): table of content for the doc of Optimum.
