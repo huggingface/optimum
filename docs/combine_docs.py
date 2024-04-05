@@ -127,7 +127,7 @@ def add_tpu_doc(base_toc: List):
                     "title": "🤗 Optimum TPU",
                 }
             ],
-            "title": "TPU",
+            "title": "Google TPUs",
             "isExpanded": False,
         },
     )
