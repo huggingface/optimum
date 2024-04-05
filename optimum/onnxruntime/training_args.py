@@ -44,9 +44,14 @@ from transformers.utils import (
 )
 from transformers.utils.generic import strtobool
 
+from ..utils.import_utils import check_if_transformers_greater
+
 
 if is_torch_available():
     import torch
+
+if is_accelerate_available() and check_if_transformers_greater("4.38.0"):
+    from transformers.trainer_pt_utils import AcceleratorConfig
 
 
 class ORTOptimizerNames(ExplicitEnum):
@@ -397,6 +402,7 @@ class ORTTrainingArguments(TrainingArguments):
         ):
             raise ValueError("`min_num_params` and `transformer_layer_cls_to_wrap` are mutually exclusive.")
         self.fsdp_config["xla"] = self.fsdp_config.get("xla", False)
+        self.fsdp_config["xla_fsdp_v2"] = self.fsdp_config.get("xla_fsdp_v2", False)
         self.fsdp_config["xla_fsdp_grad_ckpt"] = self.fsdp_config.get("xla_fsdp_grad_ckpt", False)
         if self.fsdp_config["xla"]:
             if len(self.fsdp) > 0:
@@ -444,6 +450,30 @@ class ORTTrainingArguments(TrainingArguments):
             os.environ[f"{prefix}FORWARD_PREFETCH"] = self.fsdp_config.get("forward_prefect", "false")
             os.environ[f"{prefix}SYNC_MODULE_STATES"] = self.fsdp_config.get("sync_module_states", "true")
             os.environ[f"{prefix}USE_ORIG_PARAMS"] = self.fsdp_config.get("use_orig_params", "false")
+
+        if is_accelerate_available() and check_if_transformers_greater("4.38.0"):
+            if not isinstance(self.accelerator_config, (AcceleratorConfig)):
+                if self.accelerator_config is None:
+                    self.accelerator_config = AcceleratorConfig()
+                elif isinstance(self.accelerator_config, dict):
+                    self.accelerator_config = AcceleratorConfig(**self.accelerator_config)
+                else:
+                    self.accelerator_config = AcceleratorConfig.from_json_file(self.accelerator_config)
+            if self.dispatch_batches is not None:
+                warnings.warn(
+                    "Using `--dispatch_batches` is deprecated and will be removed in version 4.41 of 🤗 Transformers. Use"
+                    " `--accelerator_config {'dispatch_batches':VALUE} instead",
+                    FutureWarning,
+                )
+                self.accelerator_config.dispatch_batches = self.dispatch_batches
+
+            if self.split_batches is not None:
+                warnings.warn(
+                    "Using `--split_batches` is deprecated and will be removed in version 4.41 of 🤗 Transformers. Use"
+                    " `--accelerator_config {'split_batches':VALUE} instead",
+                    FutureWarning,
+                )
+                self.accelerator_config.split_batches = self.split_batches
 
         if self.tpu_metrics_debug:
             warnings.warn(

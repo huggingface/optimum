@@ -13,7 +13,6 @@
 #  limitations under the License.
 """Utility functions, classes and constants for ONNX Runtime."""
 
-import importlib.util
 import os
 import re
 from enum import Enum
@@ -28,6 +27,7 @@ from transformers.utils import logging
 import onnxruntime as ort
 
 from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
+from ..utils.import_utils import _is_package_available
 
 
 logger = logging.get_logger(__name__)
@@ -53,9 +53,6 @@ _ORT_TO_NP_TYPE = {
     "tensor(float)": np.float32,
     "tensor(double)": np.float64,
 }
-
-# TODO: this is likely bugged as Falcon handles both the MQA and non-MQA implem
-MULTI_QUERY_ATTN_MODELS = {"falcon", "gpt_bigcode"}
 
 
 def _is_gpu_available():
@@ -86,7 +83,7 @@ def is_cupy_available():
     """
     Checks if onnxruntime-training is available.
     """
-    return importlib.util.find_spec("cupy") is not None
+    return _is_package_available("cupy")
 
 
 class ORTConfigManager:
@@ -125,6 +122,7 @@ class ORTConfigManager:
         "marian": "bart",
         "mbart": "bart",
         "mistral": "gpt2",
+        "mpnet": "bert",
         "mt5": "bart",
         "m2m-100": "bart",
         "nystromformer": "bert",

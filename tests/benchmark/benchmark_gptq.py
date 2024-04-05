@@ -5,6 +5,13 @@ import time
 
 import numpy as np
 import torch
+from auto_gptq import AutoGPTQForCausalLM
+from auto_gptq.modeling._base import BaseGPTQForCausalLM
+from auto_gptq.nn_modules.qlinear.qlinear_cuda import QuantLinear as CudaQuantLinear
+from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import QuantLinear as CudaOldQuantLinear
+from auto_gptq.nn_modules.qlinear.qlinear_exllama import QuantLinear as ExllamaQuantLinear
+from auto_gptq.nn_modules.qlinear.qlinear_exllamav2 import QuantLinear as ExllamaV2QuantLinear
+from auto_gptq.nn_modules.qlinear.qlinear_marlin import QuantLinear as MarlinQuantLinear
 from auto_gptq.utils import Perplexity
 from memory_tracker import MemoryTracker
 from tqdm import tqdm
@@ -15,7 +22,6 @@ from transformers import (
     AutoTokenizer,
     BitsAndBytesConfig,
     GenerationConfig,
-    GPTQConfig,
 )
 
 from optimum.exporters import TasksManager
@@ -58,11 +64,19 @@ def get_parser():
         default=256,
         help="",
     )
-    parser.add_argument(
+
+    inference_phase_group = parser.add_argument_group("Inference phase")
+    inference_phase_group.add_argument(
         "--prefill",
         action="store_true",
         help="For decoder models, benchmark only the prefill step with `prompt_length`.",
     )
+    inference_phase_group.add_argument(
+        "--decode",
+        action="store_true",
+        help="For decoder models, benchmark only the decode step (simulated using a prompt length of 1 & KV cache).",
+    )
+
     parser.add_argument(
         "--gptq",
         action="store_true",
@@ -82,6 +96,11 @@ def get_parser():
         "--use-exllama",
         action="store_true",
         help="Use Exllama kernel, to rather use the AutoGPTQ CUDA (act-order case) or CUDA-old (no act-order case) kernels.",
+    )
+    parser.add_argument(
+        "--use-marlin",
+        action="store_true",
+        help="Use Marlin kernel.",
     )
     parser.add_argument(
         "--exllama-version",
@@ -125,7 +144,10 @@ def timing_cuda(
         start_event.record()
 
         if is_decoder:
-            _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
+            if isinstance(model, BaseGPTQForCausalLM):
+                _ = model.model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
+            else:
+                _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
         else:
             _ = model(input_ids, masks)
         end_event.record()
@@ -158,7 +180,11 @@ def warmup(
             eos_token_id=None,  # This is required for min_new_tokens to actually have an effect.
         )
         model.generation_config.eos_token_id = None  # greedy_search falls back on this eos_token_id that we need to set to None as well for min_new_tokens to have an effect.
-        res = model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
+        if isinstance(model, BaseGPTQForCausalLM):
+            res = model.model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
+        else:
+            res = model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
+
         assert res.shape[1] == new_tokens + input_ids.shape[1]
         del res
     else:
@@ -222,7 +248,11 @@ def benchmark_memory(
         )
 
         if is_decoder:
-            _ = model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
+            if isinstance(model, BaseGPTQForCausalLM):
+                _ = model.model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
+            else:
+                _ = model.generate(input_ids, attention_mask=masks, generation_config=gen_config)
+
         else:
             _ = model(input_ids, masks)
 
@@ -270,6 +300,10 @@ else:
 if args.prefill:
     print("Running the prefill benchmark: generating only one new token.")
     new_tokens = [1]
+else:
+    assert args.decode
+    print("Running the decode benchmark: setting the prompt length to 1.")
+    prompt_lengths = [1]
 
 if not torch.cuda.is_available():
     raise ValueError("A cuda device is necessary to benchmark GPTQ.")
@@ -305,16 +339,25 @@ else:
 
 load_start = time.time_ns()
 if args.gptq:
-    quantization_config = GPTQConfig(
-        bits=4, use_exllama=args.use_exllama, exllama_config={"version": args.exllama_version}
-    )
-    model = autoclass.from_pretrained(
+    use_exllama = args.use_exllama and args.exllama_version == 1
+    use_exllama_v2 = args.use_exllama and args.exllama_version == 2
+    use_marlin = args.use_marlin
+
+    print("use_exllama:", use_exllama)
+    print("use_exllama_v2:", use_exllama_v2)
+    print("use_marlin:", use_marlin)
+
+    model = AutoGPTQForCausalLM.from_quantized(
         args.model,
-        revision=args.revision,
-        quantization_config=quantization_config,
         torch_dtype=torch.float16,
-        device_map="auto",
+        device="cuda:0",
+        disable_exllama=not use_exllama,
+        disable_exllamav2=not use_exllama_v2,
+        use_marlin=use_marlin,
+        inject_fused_attention=False,
+        inject_fused_mlp=False,
     )
+
 elif args.bitsandbytes:
     quantization_config = BitsAndBytesConfig(
         load_in_4bit=True, bnb_4bit_quant_type="fp4", bnb_4bit_compute_dtype=torch.float16
@@ -333,23 +376,35 @@ bits = None
 group_size = None
 kernel = None
 
+
+def raise_if_module_not_found(model: torch.nn.Module, layer_class, layer_name):
+    for _, module in model.named_modules():
+        if isinstance(module, layer_class):
+            break
+    else:
+        raise ValueError(f"{layer_name} layer not found")
+
+
 if args.gptq:
-    quantization_config_dict = model.config.quantization_config.to_dict()
-    act_order = quantization_config_dict["desc_act"]
-    bits = quantization_config_dict["bits"]
-    group_size = quantization_config_dict["group_size"]
-    use_exllama = quantization_config_dict["use_exllama"]
-    exllama_version = quantization_config_dict["exllama_config"]["version"]
+    act_order = model.quantize_config.desc_act
+    group_size = model.quantize_config.group_size
+    bits = model.quantize_config.bits
 
     if use_exllama:
-        if exllama_version == 2:
-            kernel = "exllamav2"
-        else:
-            kernel = "exllama"
+        kernel = "exllama"
+        raise_if_module_not_found(model, ExllamaQuantLinear, "exllama")
+    elif use_exllama_v2:
+        kernel = "exllama_v2"
+        raise_if_module_not_found(model, ExllamaV2QuantLinear, "exllamav2")
+    elif use_marlin:
+        kernel = "marlin"
+        raise_if_module_not_found(model, MarlinQuantLinear, "marlin")
     elif act_order:
-        kernel = "autotogptq-cuda"
+        kernel = "cuda"
+        raise_if_module_not_found(model, CudaQuantLinear, "cuda")
     else:
-        kernel = "autogptq-cuda-old"
+        kernel = "cuda-old"
+        raise_if_module_not_found(model, CudaOldQuantLinear, "cuda")
 
 load_time = (load_end - load_start) * 1e-9
 print(f"Model load time: {load_time:.1f} s")
@@ -421,16 +476,17 @@ if args.generate:
                 masks = torch.ones(batch_size, prompt_length, dtype=torch.int32).to(device)
 
                 with torch.no_grad():
-                    max_mem = benchmark_memory(
-                        model,
-                        input_ids,
-                        masks,
-                        args.num_batches,
-                        is_decoder,
-                        new_token,
-                        tokenizer.pad_token_id,
-                        memory_tracker=memory_tracker,
-                    )
+                    # max_mem = benchmark_memory(
+                    #     model,
+                    #     input_ids,
+                    #     masks,
+                    #     args.num_batches,
+                    #     is_decoder,
+                    #     new_token,
+                    #     tokenizer.pad_token_id,
+                    #     memory_tracker=memory_tracker,
+                    # )
+                    max_mem = 0
 
                     mean_latency = benchmark_latency(
                         model,

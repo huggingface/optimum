@@ -99,6 +99,7 @@ class NormalizedSeq2SeqConfig(NormalizedTextConfig):
 class NormalizedVisionConfig(NormalizedConfig):
     IMAGE_SIZE = "image_size"
     NUM_CHANNELS = "num_channels"
+    INPUT_SIZE = "input_size"
 
 
 class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig):
@@ -198,11 +199,13 @@ class NormalizedConfigManager:
         'levit',
         'mobilebert',
         'mobilevit',
+        'owlv2',
         'owlvit',
         'perceiver',
         'roformer',
         'segformer',
         'squeezebert',
+        'table-transformer',
     """
 
     # Contribution note: Please add new models in alphabetical order
@@ -226,23 +229,28 @@ class NormalizedConfigManager:
         "donut-swin": NormalizedVisionConfig,
         "electra": NormalizedTextConfig,
         "encoder-decoder": NormalizedEncoderDecoderConfig,
+        "gemma": NormalizedTextConfigWithGQA,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt-bigcode": GPTBigCodeNormalizedTextConfig,
         "gpt-neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),
         "gpt-neox": NormalizedTextConfig,
-        "llama": NormalizedTextConfigWithGQA,
         "gptj": GPT2LikeNormalizedTextConfig,
         "imagegpt": GPT2LikeNormalizedTextConfig,
+        "llama": NormalizedTextConfigWithGQA,
         "longt5": T5LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
         "mistral": NormalizedTextConfigWithGQA,
+        "mixtral": NormalizedTextConfigWithGQA,
+        "mpnet": NormalizedTextConfig,
+        "mpt": MPTNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m-100": BartLikeNormalizedTextConfig,
         "nystromformer": NormalizedTextConfig,
         "opt": NormalizedTextConfig,
         "pegasus": BartLikeNormalizedTextConfig,
         "pix2struct": Pix2StructNormalizedTextConfig,
+        "phi": NormalizedTextConfig,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
@@ -251,12 +259,12 @@ class NormalizedConfigManager:
         "splinter": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
         "trocr": TrOCRLikeNormalizedTextConfig,
-        "whisper": WhisperLikeNormalizedTextConfig,
         "vision-encoder-decoder": NormalizedEncoderDecoderConfig,
         "vit": NormalizedVisionConfig,
+        "whisper": WhisperLikeNormalizedTextConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
-        "mpt": MPTNormalizedTextConfig,
+        "qwen2": NormalizedTextConfig,
     }
 
     @classmethod

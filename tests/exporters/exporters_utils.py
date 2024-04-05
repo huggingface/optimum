@@ -28,6 +28,11 @@ VALIDATE_EXPORT_ON_SHAPES_FAST = {
     "num_choices": [4],
 }
 
+NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS = {
+    "batch_size": [1, 3, 5],
+    "num_choices": [2, 4],
+    "sequence_length": [8, 33, 96],
+}
 
 PYTORCH_EXPORT_MODELS_TINY = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
@@ -74,6 +79,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
         "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
     },
+    "esm": "hf-internal-testing/tiny-random-EsmModel",
     "falcon": {
         "fxmarty/really-tiny-falcon-testing": [
             "feature-extraction",
@@ -86,6 +92,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "fxmarty/tiny-testing-falcon-alibi": ["text-generation", "text-generation-with-past"],
     },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
+    "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
     "glpn": "hf-internal-testing/tiny-random-GLPNModel",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
@@ -115,26 +122,30 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
+    "owlv2": "hf-internal-testing/tiny-random-Owlv2Model",
     "owlvit": "hf-tiny-model-private/tiny-random-OwlViTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
         "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
+    "phi": "echarlaix/tiny-random-PhiForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
+    "qwen2": "fxmarty/tiny-dummy-qwen2",
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
-    # "sam": "fxmarty/sam-vit-tiny-random",  # TODO: re-enable once PyTorch 2.1 is released, see https://github.com/huggingface/optimum/pull/1301
+    "sam": "fxmarty/sam-vit-tiny-random",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "swin2sr": "hf-internal-testing/tiny-random-Swin2SRModel",
     "t5": "hf-internal-testing/tiny-random-t5",
+    "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
     "vit": "hf-internal-testing/tiny-random-vit",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
     "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
@@ -209,6 +220,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "electra": "google/electra-base-generator",
     "encoder-decoder": "patrickvonplaten/bert2bert_cnn_daily_mail",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",  # TODO
+    "gemma": "google/gemma-2b",
     "gpt2": "gpt2",
     "gpt-neo": "EleutherAI/gpt-neo-125M",
     "gpt-neox": "EleutherAI/gpt-neox-20b",
@@ -233,18 +245,13 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "mpt": "mosaicml/mpt-7b",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
+    "owlv2": "google/owlv2-base-patch16",
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "regnet": "facebook/regnet-y-040",
     "resnet": "microsoft/resnet-50",
-    "resnext26ts": "timm/resnext26ts.ra2_in1k",
-    "resnext50-32x4d": "timm/resnext50_32x4d.tv2_in1k",
-    "resnext50d-32x4d": "timm/resnext50d_32x4d.bt_in1k",
-    "resnext101-32x4d": "timm/resnext101_32x4d.gluon_in1k",
-    "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
-    "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
     "roberta": "roberta-base",
     "roformer": "junnyu/roformer_chinese_base",
     "sam": "facebook/sam-vit-base",
@@ -253,6 +260,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "squeezebert": "squeezebert/squeezebert-uncased",
     "swin": "microsoft/swin-tiny-patch4-window7-224",
     "t5": "t5-small",
+    "table-transformer": "microsoft/table-transformer-detection",
     "vit": "google/vit-base-patch16-224",
     "yolos": "hustvl/yolos-tiny",
     "whisper": "openai/whisper-tiny.en",
@@ -286,10 +294,65 @@ PYTORCH_STABLE_DIFFUSION_MODEL = {
 }
 
 PYTORCH_TIMM_MODEL = {
-    "resnext26ts": "timm/resnext26ts.ra2_in1k",
-    "resnext50-32x4d": "timm/resnext50_32x4d.tv2_in1k",
-    "resnext50d-32x4d": "timm/resnext50d_32x4d.bt_in1k",
-    "resnext101-32x4d": "timm/resnext101_32x4d.gluon_in1k",
-    "resnext101-32x8d": "timm/resnext101_32x8d.tv_in1k",
-    "resnext101-64x4d": "timm/resnext101_64x4d.c1_in1k",
+    "default-timm-config": {
+        "timm/inception_v3.tf_adv_in1k": ["image-classification"],
+        "timm/tf_efficientnet_b0.in1k": ["image-classification"],
+        "timm/resnetv2_50x1_bit.goog_distilled_in1k": ["image-classification"],
+        "timm/cspdarknet53.ra_in1k": ["image-classification"],
+        "timm/cspresnet50.ra_in1k": ["image-classification"],
+        "timm/cspresnext50.ra_in1k": ["image-classification"],
+        "timm/densenet121.ra_in1k": ["image-classification"],
+        "timm/dla102.in1k": ["image-classification"],
+        "timm/dpn107.mx_in1k": ["image-classification"],
+        "timm/ecaresnet101d.miil_in1k": ["image-classification"],
+        "timm/efficientnet_b1_pruned.in1k": ["image-classification"],
+        "timm/inception_resnet_v2.tf_ens_adv_in1k": ["image-classification"],
+        "timm/fbnetc_100.rmsp_in1k": ["image-classification"],
+        "timm/xception41.tf_in1k": ["image-classification"],
+        "timm/senet154.gluon_in1k": ["image-classification"],
+        "timm/seresnext26d_32x4d.bt_in1k": ["image-classification"],
+        "timm/hrnet_w18.ms_aug_in1k": ["image-classification"],
+        "timm/inception_v3.gluon_in1k": ["image-classification"],
+        "timm/inception_v4.tf_in1k": ["image-classification"],
+        "timm/mixnet_s.ft_in1k": ["image-classification"],
+        "timm/mnasnet_100.rmsp_in1k": ["image-classification"],
+        "timm/mobilenetv2_100.ra_in1k": ["image-classification"],
+        "timm/mobilenetv3_small_050.lamb_in1k": ["image-classification"],
+        "timm/nasnetalarge.tf_in1k": ["image-classification"],
+        "timm/tf_efficientnet_b0.ns_jft_in1k": ["image-classification"],
+        "timm/pnasnet5large.tf_in1k": ["image-classification"],
+        "timm/regnetx_002.pycls_in1k": ["image-classification"],
+        "timm/regnety_002.pycls_in1k": ["image-classification"],
+        "timm/res2net101_26w_4s.in1k": ["image-classification"],
+        "timm/res2next50.in1k": ["image-classification"],
+        "timm/resnest101e.in1k": ["image-classification"],
+        "timm/spnasnet_100.rmsp_in1k": ["image-classification"],
+        "timm/resnet18.fb_swsl_ig1b_ft_in1k": ["image-classification"],
+        "timm/wide_resnet101_2.tv_in1k": ["image-classification"],
+        "timm/tresnet_l.miil_in1k": ["image-classification"],
+    }
+}
+
+PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
+    "clip": "sentence-transformers/clip-ViT-B-32",
+    "transformer": {
+        "sentence-transformers/all-MiniLM-L6-v2": ["feature-extraction", "sentence-similarity"],
+        "fxmarty/tiny-dummy-mistral-sentence-transformer": ["feature-extraction", "sentence-similarity"],
+    },
+}
+
+
+PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES = {
+    "albert": "hf-internal-testing/tiny-random-AlbertModel",
+    "gpt2": "hf-internal-testing/tiny-random-gpt2",
+    "roberta": "hf-internal-testing/tiny-random-RobertaModel",
+    "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
+}
+
+
+PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES = {
+    "default-timm-config": {
+        "timm/ese_vovnet39b.ra_in1k": ["image-classification"],
+        "timm/ese_vovnet19b_dw.ra_in1k": ["image-classification"],
+    }
 }

@@ -53,7 +53,8 @@ class GPTQTest(unittest.TestCase):
     disable_exllama = True
     exllama_config = None
     cache_block_outputs = True
-
+    modules_to_quantize_inside_block = None
+    device_map_for_quantization = "cuda"
     dataset = [
         "auto-gptq is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
     ]
@@ -65,7 +66,7 @@ class GPTQTest(unittest.TestCase):
         Setup quantized model
         """
         cls.model_fp16 = AutoModelForCausalLM.from_pretrained(
-            cls.model_name, torch_dtype=torch.float16, device_map={"": 0}
+            cls.model_name, torch_dtype=torch.float16, device_map=cls.device_map_for_quantization
         )
         cls.mem_fp16 = cls.model_fp16.get_memory_footprint()
 
@@ -78,6 +79,7 @@ class GPTQTest(unittest.TestCase):
             disable_exllama=cls.disable_exllama,
             exllama_config=cls.exllama_config,
             cache_block_outputs=cls.cache_block_outputs,
+            modules_to_quantize_inside_block=cls.modules_to_quantize_inside_block,
         )
 
         cls.quantized_model = cls.quantizer.quantize_model(cls.model_fp16, cls.tokenizer)
@@ -154,13 +156,23 @@ class GPTQTest(unittest.TestCase):
                 disable_exllama=self.disable_exllama,
                 exllama_config=self.exllama_config,
             )
-            self.check_quantized_layers_type(quantized_model_from_saved, "cuda-old")
+            if self.disable_exllama:
+                self.check_quantized_layers_type(quantized_model_from_saved, "cuda-old")
+            else:
+                self.check_quantized_layers_type(quantized_model_from_saved, "exllama")
 
             with torch.device("cuda"):
                 _ = AutoModelForCausalLM.from_pretrained(tmpdirname)
             _ = AutoGPTQForCausalLM.from_quantized(tmpdirname)
 
             self.check_inference_correctness(quantized_model_from_saved)
+
+
+class GPTQTestCPUInit(GPTQTest):
+    device_map_for_quantization = "cpu"
+
+    def test_generate_quality(self):
+        self.check_inference_correctness(self.quantized_model.to(0))
 
 
 class GPTQTestExllama(GPTQTest):
@@ -170,6 +182,7 @@ class GPTQTestExllama(GPTQTest):
     EXPECTED_OUTPUTS.add("Hello my name is John, I am a professional photographer and I")
     EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
     EXPECTED_OUTPUTS.add("Hello my name is John, I am a student in the University of")
+    EXPECTED_OUTPUTS.add("Hello my name is Nate and I am a new member of the")
 
 
 class GPTQTestActOrder(GPTQTest):
@@ -177,6 +190,7 @@ class GPTQTestActOrder(GPTQTest):
     EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
     EXPECTED_OUTPUTS.add("Hello my name is jessie and i am a very sweet and")
     EXPECTED_OUTPUTS.add("Hello my name is nathalie, I am a young girl from")
+    EXPECTED_OUTPUTS.add("Hello my name is\nI am a student of the University of the'")
 
     disable_exllama = True
     desc_act = True
@@ -254,6 +268,11 @@ class GPTQTestActOrder(GPTQTest):
 class GPTQTestExllamav2(GPTQTest):
     desc_act = False
     disable_exllama = True
+    EXPECTED_OUTPUTS = set()
+    EXPECTED_OUTPUTS.add("Hello my name is John, I am a professional photographer and I")
+    EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
+    EXPECTED_OUTPUTS.add("Hello my name is John, I am a student in the University of")
+    EXPECTED_OUTPUTS.add("Hello my name is Nate and I am a new member of the")
 
     def test_generate_quality(self):
         # don't need to test
@@ -298,6 +317,21 @@ class GPTQTestNoBlockCaching(GPTQTest):
     EXPECTED_OUTPUTS.add("Hello my name is John, I am a professional photographer and I")
     EXPECTED_OUTPUTS.add("Hello my name is jay and i am a student at university.")
     EXPECTED_OUTPUTS.add("Hello my name is John, I am a student in the University of")
+    EXPECTED_OUTPUTS.add("Hello my name is Aiden and I am a very good looking")
+
+
+class GPTQTestModuleQuant(GPTQTest):
+    # all layers are quantized apart from self_attention.dense
+    modules_in_block_to_quantize = [
+        ["self_attention.query_key_value"],
+        ["mlp.dense_h_to_4h"],
+        ["mlp.dense_4h_to_h"],
+    ]
+    EXPECTED_RELATIVE_DIFFERENCE = 1.57705236164535
+
+    def test_not_converted_layers(self):
+        # self_attention.dense should not be converted
+        self.assertTrue(self.quantized_model.transformer.h[0].self_attention.dense.__class__.__name__ == "Linear")
 
 
 class GPTQUtilsTest(unittest.TestCase):

@@ -342,7 +342,11 @@ class OnnxConfig(ExportConfig, ABC):
                 dims = onnx_model.graph.output[output_idx].type.tensor_type.shape.dim
                 dims[dim_idx].dim_value = outputs[output_idx].shape[dim_idx]
 
-            onnx.save(onnx_model, model_path.as_posix())
+            onnx.save(
+                onnx_model,
+                model_path.as_posix(),
+                convert_attribute=True,
+            )
             del onnx_model
             gc.collect()
 
@@ -540,13 +544,14 @@ class OnnxConfig(ExportConfig, ABC):
             if is_accelerate_available():
                 logger.info("Deduplicating shared (tied) weights...")
                 for subpath, key in zip(onnx_files_subpaths, models_and_onnx_configs):
-                    onnx_model = onnx.load(os.path.join(path, subpath))
-
                     torch_model = models_and_onnx_configs[key][0]
                     tied_params = find_tied_parameters(torch_model)
-                    remove_duplicate_weights_from_tied_info(
-                        onnx_model, torch_model, tied_params, save_path=os.path.join(path, subpath)
-                    )
+
+                    if len(tied_params) > 0:
+                        onnx_model = onnx.load(os.path.join(path, subpath))
+                        remove_duplicate_weights_from_tied_info(
+                            onnx_model, torch_model, tied_params, save_path=os.path.join(path, subpath)
+                        )
             else:
                 logger.warning(
                     "Weight deduplication check in the ONNX export requires accelerate. Please install accelerate to run it."

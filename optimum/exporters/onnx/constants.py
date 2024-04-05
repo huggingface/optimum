@@ -33,3 +33,8 @@ UNPICKABLE_ARCHS = [
     "wav2vec2-conformer",
     "wavlm",
 ]
+
+SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED = [
+    "bart",
+    "whisper",
+]
