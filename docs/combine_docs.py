@@ -124,7 +124,7 @@ def add_tpu_doc(base_toc: List):
                     # Ideally this should directly point at https://huggingface.co/docs/optimum-tpu/index
                     # Current hacky solution is to have a redirection in _redirects.yml
                     "local": "docs/optimum-tpu/index",
-                    "title": "🤗 Optimum TPU",
+                    "title": "🤗 Optimum-TPU",
                 }
             ],
             "title": "Google TPUs",
