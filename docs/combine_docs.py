@@ -108,6 +108,31 @@ def add_neuron_doc(base_toc: List):
     )
 
 
+def add_tpu_doc(base_toc: List):
+    """
+    Extends the table of content with a section about Optimum Neuron.
+
+    Args:
+        base_toc (List): table of content for the doc of Optimum.
+    """
+    # Update optimum table of contents
+    base_toc.insert(
+        SUBPACKAGE_TOC_INSERT_INDEX,
+        {
+            "sections": [
+                {
+                    # Ideally this should directly point at https://huggingface.co/docs/optimum-tpu/index
+                    # Current hacky solution is to have a redirection in _redirects.yml
+                    "local": "docs/optimum-tpu/index",
+                    "title": "🤗 Optimum TPU",
+                }
+            ],
+            "title": "TPU",
+            "isExpanded": False,
+        },
+    )
+
+
 def main():
     args = parser.parse_args()
     optimum_path = Path("optimum-doc-build")
@@ -121,6 +146,9 @@ def main():
         if subpackage == "neuron":
             # Neuron has its own doc so it is managed differently
             add_neuron_doc(base_toc)
+        elif subpackage == "tpu":
+            # Optimum TPU has its own doc so it is managed differently
+            add_tpu_doc(base_toc)
         elif subpackage == "nvidia":
             # At the moment, Optimum Nvidia's doc is the README of the GitHub repo
             # It is linked to in optimum/docs/source/nvidia_overview.mdx

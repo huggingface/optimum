@@ -171,7 +171,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron habana furiosa --version ${{ env.VERSION }}
+          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron tpu habana furiosa --version ${{ env.VERSION }}
           cd ..
 
       - name: Push to repositories
