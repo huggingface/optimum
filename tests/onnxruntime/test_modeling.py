@@ -937,9 +937,12 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.vae_encoder.session.get_providers()[0], "ROCMExecutionProvider")
         self.assertListEqual(model.providers, ["ROCMExecutionProvider", "CPUExecutionProvider"])
 
-    @require_hf_token
     def test_load_model_from_hub_private(self):
-        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, use_auth_token=os.environ.get("HF_AUTH_TOKEN", None))
+        subprocess.run("huggingface-cli logout", shell=True)
+        # Read token of fxmartyclone (dummy user).
+        token = "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"
+
+        model = ORTModelForCustomTasks.from_pretrained("fxmartyclone/tiny-onnx-private-2", use_auth_token=token)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
@@ -1435,6 +1438,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         "flaubert",
         "ibert",
         "mobilebert",
+        "mpnet",
         "perceiver_text",
         "roberta",
         "roformer",
@@ -1976,7 +1980,16 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["albert", "bert", "camembert", "distilbert", "electra", "roberta", "xlm_roberta"]
+    SUPPORTED_ARCHITECTURES = [
+        "albert",
+        "bert",
+        "camembert",
+        "distilbert",
+        "electra",
+        "mpnet",
+        "roberta",
+        "xlm_roberta",
+    ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForFeatureExtraction
@@ -2245,6 +2258,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "llama",
         "mistral",
         "mpt",
+        "qwen2",
     ]
 
     FULL_GRID = {
@@ -2322,8 +2336,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertNotIn(ONNX_DECODER_WITH_PAST_NAME, folder_contents)
             self.assertNotIn(ONNX_WEIGHTS_NAME, folder_contents)
 
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
+    @parameterized.expand(grid_parameters({**FULL_GRID, "num_beams": [1, 3]}))
+    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, num_beams: int):
         use_io_binding = None
         if use_cache is False:
             use_io_binding = False
@@ -2384,17 +2398,19 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         if model_arch == "falcon":
             # TODO: remove once https://github.com/huggingface/transformers/pull/26873 is released, falcon is broken in transformers
             new_tokens = 5
+
         onnx_outputs = onnx_model.generate(
             **tokens,
-            num_beams=1,
+            num_beams=num_beams,
             do_sample=False,
             min_new_tokens=new_tokens,
             max_new_tokens=new_tokens,
             eos_token_id=None,
         )
+
         transformers_outputs = transformers_model.generate(
             **tokens,
-            num_beams=1,
+            num_beams=num_beams,
             do_sample=False,
             min_new_tokens=new_tokens,
             max_new_tokens=new_tokens,
@@ -2949,7 +2965,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ("segformer",)
+    SUPPORTED_ARCHITECTURES = ("segformer", "dpt")
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForSemanticSegmentation
@@ -3125,6 +3141,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         "wavlm",
         "wav2vec2",
         "wav2vec2-conformer",
+        "whisper",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
@@ -4123,11 +4140,23 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "use_cache": [True],
+                "use_merged": [False, True],
+                "num_beams": [1, 3],
+            }
+        )
     )
     @require_torch_gpu
     def test_compare_generation_to_io_binding(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
+        self,
+        test_name: str,
+        model_arch: str,
+        use_cache: bool,
+        use_merged: bool,
+        num_beams: int,
     ):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -4159,8 +4188,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
             tokenizer = get_preprocessor(model_id)
             tokens = tokenizer("This is a sample output", return_tensors="pt").to("cuda")
-            onnx_outputs = onnx_model.generate(**tokens, num_beams=5)
-            io_outputs = io_model.generate(**tokens, num_beams=5)
+            onnx_outputs = onnx_model.generate(**tokens, num_beams=num_beams)
+            io_outputs = io_model.generate(**tokens, num_beams=num_beams)
 
             # compare tensor outputs
             self.assertTrue(torch.equal(onnx_outputs, io_outputs))
@@ -4555,12 +4584,24 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "use_cache": [True],
+                "use_merged": [False, True],
+                "num_beams": [1, 5],
+            }
+        )
     )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_compare_generation_to_io_binding(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
+        self,
+        test_name: str,
+        model_arch: str,
+        use_cache: bool,
+        use_merged: bool,
+        num_beams: int,
     ):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -4586,8 +4627,8 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         data = self._generate_random_audio_data()
         features = processor.feature_extractor(data, return_tensors="pt").to("cuda")
 
-        onnx_outputs = onnx_model.generate(**features, num_beams=5)
-        io_outputs = io_model.generate(**features, num_beams=5)
+        onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
+        io_outputs = io_model.generate(**features, num_beams=num_beams)
 
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))
@@ -4920,12 +4961,19 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "use_cache": [True],
+                "use_merged": [False, True],
+                "num_beams": [1, 3],
+            }
+        )
     )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_compare_generation_to_io_binding(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, num_beams: int
     ):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -4951,8 +4999,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         data = self._get_sample_image()
         features = feature_extractor(data, return_tensors="pt").to("cuda")
 
-        onnx_outputs = onnx_model.generate(**features, num_beams=5)
-        io_outputs = io_model.generate(**features, num_beams=5)
+        onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
+        io_outputs = io_model.generate(**features, num_beams=num_beams)
 
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))
@@ -5336,10 +5384,22 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "use_cache": [True],
+                "use_merged": [False, True],
+                "num_beams": [1, 3],
+            }
+        )
     )
     def test_compare_generation_to_io_binding(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
+        self,
+        test_name: str,
+        model_arch: str,
+        use_cache: bool,
+        use_merged: bool,
+        num_beams: int,
     ):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
@@ -5362,8 +5422,8 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt")
         del inputs["decoder_attention_mask"]
         del inputs["decoder_input_ids"]
-        onnx_outputs = onnx_model.generate(**inputs, num_beams=5)
-        io_outputs = io_model.generate(**inputs, num_beams=5)
+        onnx_outputs = onnx_model.generate(**inputs, num_beams=num_beams)
+        io_outputs = io_model.generate(**inputs, num_beams=num_beams)
 
         # compare tensor outputs
         self.assertTrue(torch.equal(onnx_outputs, io_outputs))

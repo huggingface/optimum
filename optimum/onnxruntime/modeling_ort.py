@@ -38,6 +38,7 @@ from transformers import (
     AutoModelForSemanticSegmentation,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
+    GenerationMixin,
 )
 from transformers.file_utils import add_end_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import (
@@ -893,6 +894,12 @@ class ORTModel(OptimizedModel):
             preprocessors = maybe_load_preprocessors(model_path.as_posix(), subfolder=subfolder)
 
         return model_cache_path, preprocessors
+
+    def can_generate(self) -> bool:
+        """
+        Returns whether this model can generate sequences with `.generate()`.
+        """
+        return isinstance(self, GenerationMixin)
 
 
 FEATURE_EXTRACTION_EXAMPLE = r"""
@@ -1832,6 +1839,29 @@ class ORTModelForAudioClassification(ORTModel):
 
     auto_model_class = AutoModelForAudioClassification
 
+    def __init__(
+        self,
+        model: ort.InferenceSession,
+        config: "PretrainedConfig",
+        use_io_binding: Optional[bool] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        preprocessors: Optional[List] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=model,
+            config=config,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+            preprocessors=preprocessors,
+            **kwargs,
+        )
+
+        if config.model_type == "whisper":
+            self.input_name = "input_features"
+        else:
+            self.input_name = "input_values"
+
     @add_start_docstrings_to_model_forward(
         ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + AUDIO_CLASSIFICATION_EXAMPLE.format(
@@ -1846,6 +1876,9 @@ class ORTModelForAudioClassification(ORTModel):
         attenton_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ):
+        if input_values is None:
+            # Whisper uses input_features and not input_values.
+            input_values = kwargs["input_features"]
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
         if self.device.type == "cuda" and self.use_io_binding:
@@ -1864,11 +1897,11 @@ class ORTModelForAudioClassification(ORTModel):
             if use_torch:
                 # converts pytorch inputs into numpy inputs for onnx
                 onnx_inputs = {
-                    "input_values": input_values.cpu().detach().numpy(),
+                    self.input_name: input_values.cpu().detach().numpy(),
                 }
             else:
                 onnx_inputs = {
-                    "input_values": input_values,
+                    self.input_name: input_values,
                 }
 
             # run inference

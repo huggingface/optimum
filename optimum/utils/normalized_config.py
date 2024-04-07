@@ -199,6 +199,7 @@ class NormalizedConfigManager:
         'levit',
         'mobilebert',
         'mobilevit',
+        'owlv2',
         'owlvit',
         'perceiver',
         'roformer',
@@ -241,6 +242,7 @@ class NormalizedConfigManager:
         "mbart": BartLikeNormalizedTextConfig,
         "mistral": NormalizedTextConfigWithGQA,
         "mixtral": NormalizedTextConfigWithGQA,
+        "mpnet": NormalizedTextConfig,
         "mpt": MPTNormalizedTextConfig,
         "mt5": T5LikeNormalizedTextConfig,
         "m2m-100": BartLikeNormalizedTextConfig,
@@ -263,6 +265,7 @@ class NormalizedConfigManager:
         "whisper": WhisperLikeNormalizedTextConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
+        "qwen2": NormalizedTextConfig,
     }
 
     @classmethod

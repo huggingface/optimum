@@ -122,16 +122,18 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
+    "owlv2": "hf-internal-testing/tiny-random-Owlv2Model",
     "owlvit": "hf-tiny-model-private/tiny-random-OwlViTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
         "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
-    "phi": "hf-internal-testing/tiny-random-PhiForCausalLM",
+    "phi": "echarlaix/tiny-random-PhiForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
+    "qwen2": "fxmarty/tiny-dummy-qwen2",
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
@@ -244,6 +246,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "mpt": "mosaicml/mpt-7b",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
+    "owlv2": "google/owlv2-base-patch16",
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
@@ -334,7 +337,10 @@ PYTORCH_TIMM_MODEL = {
 
 PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
     "clip": "sentence-transformers/clip-ViT-B-32",
-    "transformer": "sentence-transformers/all-MiniLM-L6-v2",
+    "transformer": {
+        "sentence-transformers/all-MiniLM-L6-v2": ["feature-extraction", "sentence-similarity"],
+        "fxmarty/tiny-dummy-mistral-sentence-transformer": ["feature-extraction", "sentence-similarity"],
+    },
 }
 
 

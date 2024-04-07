@@ -346,7 +346,9 @@ class OptimizedModel(PreTrainedModel):
                 )
             model_id, revision = model_id.split("@")
 
-        library_name = TasksManager.infer_library_from_model(model_id, subfolder, revision, cache_dir)
+        library_name = TasksManager.infer_library_from_model(
+            model_id, subfolder, revision, cache_dir, use_auth_token=use_auth_token
+        )
 
         if library_name == "timm":
             config = PretrainedConfig.from_pretrained(model_id, subfolder, revision)

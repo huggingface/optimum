@@ -260,7 +260,10 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
 
             outputs_to_not_bind = self.get_outputs_not_to_bind(use_merged_cache)
 
-            model_inputs = [input_ids]
+            # TODO: fix transformers generate to have contiguous input_ids here already
+            # For an unknown reason, calling `contiguous()` here is necessary to not have errors
+            # on CPU EP with batch size > 1, despite it being also called in _prepare_io_binding.g
+            model_inputs = [input_ids.contiguous()]
 
             if "encoder_hidden_states" in self.input_names:
                 model_inputs.append(encoder_hidden_states)

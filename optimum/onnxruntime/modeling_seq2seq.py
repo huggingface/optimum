@@ -918,9 +918,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             attribute_name_to_filename = {
                 "last_encoder_model_name": encoder_path.name,
                 "last_decoder_model_name": decoder_path.name if use_merged is False else None,
-                "last_decoder_with_past_model_name": decoder_with_past_path.name
-                if (use_merged is False and use_cache is True)
-                else None,
+                "last_decoder_with_past_model_name": (
+                    decoder_with_past_path.name if (use_merged is False and use_cache is True) else None
+                ),
                 "last_decoder_merged_name": decoder_merged_path.name if use_merged is True else None,
             }
             paths = {}
@@ -1111,12 +1111,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
         return self
 
-    def can_generate(self):
-        logger.warning(
-            "ORTModelForConditionalGeneration is an abstract class and is not meant to be used for generation. Please use ORTModelForSeq2SeqLM or ORTModelForSpeechSeq2Seq."
-        )
-        return False
-
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
@@ -1262,10 +1256,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
             )
         return reordered_past
 
-    def can_generate(self):
-        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
-        return True
-
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin):
@@ -1396,10 +1386,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
                 tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
             )
         return reordered_past
-
-    def can_generate(self):
-        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
-        return True
 
     @classmethod
     def _from_pretrained(
@@ -1986,10 +1972,6 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
             )
         return reordered_past
 
-    def can_generate(self):
-        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
-        return True
-
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
@@ -2105,7 +2087,3 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
     @staticmethod
     def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
         ORTModelForSeq2SeqLM._reorder_cache(past, beam_idx)
-
-    def can_generate(self):
-        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
-        return True

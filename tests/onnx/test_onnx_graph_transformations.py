@@ -117,6 +117,7 @@ class OnnxToInt32Test(TestCase):
                 save_as_external_data=True,
                 all_tensors_to_one_file=True,
                 location=Path(save_path).name + "_data",
+                convert_attribute=True,
             )
 
             onnx.checker.check_model(save_path)

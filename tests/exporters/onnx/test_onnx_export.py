@@ -541,7 +541,7 @@ class OnnxCustomExport(TestCase):
 
     @parameterized.expand([(None,), (fn_get_submodels_custom,)])
     def test_custom_export_trust_remote(self, fn_get_submodels):
-        model_id = "fxmarty/tiny-mpt-random-remote-code"
+        model_id = "echarlaix/tiny-mpt-random-remote-code"
         config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
         onnx_config = CustomMPTOnnxConfig(
             config=config,
