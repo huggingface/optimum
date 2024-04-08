@@ -53,6 +53,11 @@ jobs:
           repository: 'huggingface/optimum-amd'
           path: optimum-amd
 
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-tpu'
+          path: optimum-tpu
+
       - name: Setup environment
         run: |
           pip uninstall -y doc-builder
@@ -89,6 +94,15 @@ jobs:
           cd optimum-amd
           make doc BUILD_DIR=amd-doc-build VERSION=pr_$PR_NUMBER
           sudo mv amd-doc-build ../optimum
+          cd ..
+
+      - name: Make TPU documentation
+        run: |
+          sudo docker system prune -a -f
+          cd optimum-tpu
+          pip install .
+          doc-builder build optimum.tpu docs/source/ --build_dir tpu-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
+          mv tpu-doc-build ../optimum
           cd ..
 
       - name: Make Optimum documentation

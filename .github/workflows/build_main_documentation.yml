@@ -49,6 +49,11 @@ jobs:
           repository: 'huggingface/optimum-amd'
           path: optimum-amd
 
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-tpu'
+          path: optimum-tpu
+
       - name: Free disk space
         run: |
           df -h
@@ -148,6 +153,15 @@ jobs:
           sudo apt update && sudo apt install -y furiosa-libnux
           doc-builder build optimum.furiosa docs/source/ --build_dir furiosa-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
           mv furiosa-doc-build ../optimum
+          cd ..
+
+      - name: Make TPU documentation
+        run: |
+          sudo docker system prune -a -f
+          cd optimum-tpu
+          pip install .
+          doc-builder build optimum.tpu docs/source/ --build_dir tpu-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
+          mv tpu-doc-build ../optimum
           cd ..
 
       - name: Make AMD documentation
