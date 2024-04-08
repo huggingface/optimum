@@ -470,7 +470,7 @@ class DummyXPathSeqInputGenerator(DummyTextInputGenerator):
             random_sequence_length_range=random_sequence_length_range,
             random_num_choices_range=random_num_choices_range,
             padding_side=padding_side,
-            **kwargs
+            **kwargs,
         )
         self.max_depth = normalized_config.max_depth
         self.tag_pad_id = normalized_config.tag_pad_id
