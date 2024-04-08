@@ -100,6 +100,7 @@ jobs:
         run: |
           sudo docker system prune -a -f
           cd optimum-tpu
+          pip install -U pip
           pip install .
           doc-builder build optimum.tpu docs/source/ --build_dir tpu-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
           mv tpu-doc-build ../optimum
