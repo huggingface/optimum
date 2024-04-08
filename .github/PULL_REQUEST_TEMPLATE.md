@@ -20,3 +20,13 @@ Fixes # (issue)
 - [ ] Did you make sure to update the documentation with your changes?
 - [ ] Did you write any new necessary tests?
 
+## Who can review?
+
+<!--
+For faster review, we strongly recommend you to ping the following people:
+- ONNX / ONNX Runtime : @fxmarty, @echarlaix, @JingyaHuang, @michaelbenayoun
+- ONNX Runtime Training: @JingyaHuang
+- BetterTransformer: @fxmarty
+- GPTQ, quantization: @fxmarty, @SunMarc
+- TFLite export: @michaelbenayoun
+-->
