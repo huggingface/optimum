@@ -1560,7 +1560,14 @@ class TasksManager:
             library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
 
             if library_name == "diffusers":
-                class_name = model_info.config["diffusers"]["class_name"]
+                if model_info.config["diffusers"].get("class_name", None):
+                    class_name = model_info.config["diffusers"]["class_name"]
+                elif model_info.config["diffusers"].get("_class_name", None):
+                    class_name = model_info.config["diffusers"]["_class_name"]
+                else:
+                    raise ValueError(
+                        f"Could not automatically infer the class name for {model_name_or_path}. Please open an issue at https://github.com/huggingface/optimum/issues."
+                    )
                 inferred_task_name = "stable-diffusion-xl" if "StableDiffusionXL" in class_name else "stable-diffusion"
             elif library_name == "timm":
                 inferred_task_name = "image-classification"

@@ -79,6 +79,29 @@ class ORTTrainingArguments(TrainingArguments):
         },
     )
 
+    save_onnx: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Configure ORTModule to save onnx models. Defaults to False. \
+            The output directory of the onnx models by default is set to args.output_dir. \
+            To change the output directory, the environment variable ORTMODULE_SAVE_ONNX_PATH can be \
+            set to the destination directory path."
+        },
+    )
+
+    onnx_prefix: Optional[str] = field(
+        default=None,
+        metadata={"help": "Prefix for the saved ORTModule file names. Must be provided if save_onnx is True."},
+    )
+
+    onnx_log_level: Optional[str] = field(
+        default="WARNING",
+        metadata={
+            "help": "Configure ORTModule log level. Defaults to WARNING. \
+            onnx_log_level can also be set to one of VERBOSE, INFO, WARNING, ERROR, FATAL."
+        },
+    )
+
     # This method will not need to be overriden after the deprecation of `--adafactor` in version 5 of 🤗 Transformers.
     def __post_init__(self):
         # expand paths, if not os.makedirs("~/bar") will make directory
@@ -243,6 +266,13 @@ class ORTTrainingArguments(TrainingArguments):
             # there is a bug in fp16/AMP in pt-2.0.0
             if version.parse(version.parse(torch.__version__).base_version) == version.parse("2.0.0") and self.fp16:
                 raise ValueError("--optim adamw_torch_fused with --fp16 requires PyTorch>2.0")
+
+        if self.save_onnx:
+            if not self.onnx_prefix:
+                raise ValueError("onnx_prefix must be provided if save_onnx is True")
+            if not os.getenv("ORTMODULE_SAVE_ONNX_PATH", None):
+                os.environ["ORTMODULE_SAVE_ONNX_PATH"] = self.output_dir
+            os.environ["ORTMODULE_LOG_LEVEL"] = self.onnx_log_level
 
         if (
             is_torch_available()
