@@ -17,6 +17,7 @@
 import argparse
 from pathlib import Path
 
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, AutoTokenizer
@@ -57,7 +58,7 @@ def main_export(
     no_post_process: bool = False,
     framework: Optional[str] = None,
     atol: Optional[float] = None,
-    cache_dir: Optional[str] = None,
+    cache_dir: str = HUGGINGFACE_HUB_CACHE,
     trust_remote_code: bool = False,
     pad_token_id: Optional[int] = None,
     subfolder: str = "",

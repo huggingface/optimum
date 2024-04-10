@@ -18,6 +18,8 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+
 from ...exporters import TasksManager
 from ...utils import DEFAULT_DUMMY_SHAPES
 from ..base import BaseOptimumCLICommand
@@ -122,7 +124,9 @@ def parse_args_onnx(parser):
         default=None,
         help="If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.",
     )
-    optional_group.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
+    optional_group.add_argument(
+        "--cache_dir", type=str, default=HUGGINGFACE_HUB_CACHE, help="Path indicating where to store cache."
+    )
     optional_group.add_argument(
         "--trust-remote-code",
         action="store_true",
