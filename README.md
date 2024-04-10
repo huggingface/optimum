@@ -16,16 +16,16 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 
 | Accelerator                                                                                                            | Installation                                                      |
 |:-----------------------------------------------------------------------------------------------------------------------|:------------------------------------------------------------------|
-| [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/overview)                                               | `pip install --upgrade-strategy eager optimum[onnxruntime]`       |
-| [Intel Neural Compressor](https://huggingface.co/docs/optimum/intel/index)                                             | `pip install --upgrade-strategy eager optimum[neural-compressor]` |
-| [OpenVINO](https://huggingface.co/docs/optimum/intel/index)                                                            | `pip install --upgrade-strategy eager optimum[openvino,nncf]`     |
-| [NVIDIA TensorRT-LLM](https://huggingface.co/docs/optimum/main/en/nvidia_overview)                                     | `docker run -it --gpus all --ipc host huggingface/optimum-nvidia` |
-| [AMD Instinct GPUs and Ryzen AI NPU](https://huggingface.co/docs/optimum/amd/index)                                    | `pip install --upgrade-strategy eager optimum[amd]`               |
-| [AWS Trainum & Inferentia](https://huggingface.co/docs/optimum-neuron/index)                                           | `pip install --upgrade-strategy eager optimum[neuronx]`           |
-| [Habana Gaudi Processor (HPU)](https://huggingface.co/docs/optimum/habana/index)                                       | `pip install --upgrade-strategy eager optimum[habana]`            |
-| [FuriosaAI](https://huggingface.co/docs/optimum/furiosa/index)                                                         | `pip install --upgrade-strategy eager optimum[furiosa]`           |
+| [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/overview)                                               | `pip install --upgrade --upgrade-strategy eager optimum[onnxruntime]`      |
+| [Intel Neural Compressor](https://huggingface.co/docs/optimum/intel/index)                                             | `pip install --upgrade --upgrade-strategy eager optimum[neural-compressor]`|
+| [OpenVINO](https://huggingface.co/docs/optimum/intel/index)                                                            | `pip install --upgrade --upgrade-strategy eager optimum[openvino]`         |
+| [NVIDIA TensorRT-LLM](https://huggingface.co/docs/optimum/main/en/nvidia_overview)                                     | `docker run -it --gpus all --ipc host huggingface/optimum-nvidia`          |
+| [AMD Instinct GPUs and Ryzen AI NPU](https://huggingface.co/docs/optimum/amd/index)                                    | `pip install --upgrade --upgrade-strategy eager optimum[amd]`              |
+| [AWS Trainum & Inferentia](https://huggingface.co/docs/optimum-neuron/index)                                           | `pip install --upgrade --upgrade-strategy eager optimum[neuronx]`          |
+| [Habana Gaudi Processor (HPU)](https://huggingface.co/docs/optimum/habana/index)                                       | `pip install --upgrade --upgrade-strategy eager optimum[habana]`           |
+| [FuriosaAI](https://huggingface.co/docs/optimum/furiosa/index)                                                         | `pip install --upgrade --upgrade-strategy eager optimum[furiosa]`          |
 
-The `--upgrade-strategy eager` option is needed to ensure the different packages are upgraded to the latest possible version.
+The `--upgrade --upgrade-strategy eager` option is needed to ensure the different packages are upgraded to the latest possible version.
 
 To install from source:
 
@@ -70,7 +70,7 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 Before you begin, make sure you have all the necessary libraries installed :
 
 ```bash
-pip install --upgrade-strategy eager optimum[openvino,nncf]
+pip install --upgrade --upgrade-strategy eager optimum[openvino]
 ```
 
 It is possible to export 🤗 Transformers and Diffusers models to the OpenVINO format easily:
@@ -79,7 +79,8 @@ It is possible to export 🤗 Transformers and Diffusers models to the OpenVINO 
 optimum-cli export openvino --model distilbert-base-uncased-finetuned-sst-2-english distilbert_sst2_ov
 ```
 
-If you add `--int8`, the weights will be quantized to INT8. Static quantization can also be applied on the activations using [NNCF](https://github.com/openvinotoolkit/nncf), more information can be found in the [documentation](https://huggingface.co/docs/optimum/main/en/intel/optimization_ov).
+If you add `--weight-format int8`, the weights will be quantized to `int8`, check out our [documentation](https://huggingface.co/docs/optimum/main/en/intel/optimization_ov#weight-only-quantization) for more detail on weight only quantization. To apply quantization on both weights and activations, you can find more information [here](https://huggingface.co/docs/optimum/main/en/intel/optimization_ov#static-quantization).
+
 
 To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class. To load a PyTorch checkpoint and convert it to the OpenVINO format on-the-fly, you can set `export=True` when loading your model.
 
@@ -104,7 +105,7 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 Before you begin, make sure you have all the necessary libraries installed :
 
 ```bash
-pip install --upgrade-strategy eager optimum[neural-compressor]
+pip install --upgrade --upgrade-strategy eager optimum[neural-compressor]
 ```
 
 Dynamic quantization can be applied on your model:
@@ -202,7 +203,7 @@ We support many providers:
 Before you begin, make sure you have all the necessary libraries installed :
 
 ```bash
-pip install --upgrade-strategy eager optimum[habana]
+pip install --upgrade --upgrade-strategy eager optimum[habana]
 ```
 
 ```diff
