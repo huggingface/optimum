@@ -22,7 +22,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
-from huggingface_hub import HfApi, HfFolder, hf_hub_download
+from huggingface_hub import HfFolder, hf_hub_download
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.utils import EntryNotFoundError
 from transformers import (
     AutoConfig,
@@ -449,7 +450,7 @@ class ORTModel(OptimizedModel):
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         file_name: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
@@ -471,7 +472,12 @@ class ORTModel(OptimizedModel):
                     token = HfFolder().get_token()
                 else:
                     token = use_auth_token
-                repo_files = map(Path, HfApi().list_repo_files(model_id, revision=revision, token=token))
+
+                repo_files, _ = TasksManager.get_model_files(
+                    model_id, revision=revision, cache_dir=cache_dir, use_auth_token=token
+                )
+                repo_files = map(Path, repo_files)
+
                 pattern = "*.onnx" if subfolder == "" else f"{subfolder}/*.onnx"
                 onnx_files = [p for p in repo_files if p.match(pattern)]
 
@@ -531,7 +537,7 @@ class ORTModel(OptimizedModel):
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
@@ -567,7 +573,7 @@ class ORTModel(OptimizedModel):
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
@@ -619,7 +625,7 @@ class ORTModel(OptimizedModel):
         export: bool = False,
         force_download: bool = False,
         use_auth_token: Optional[str] = None,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
@@ -852,7 +858,7 @@ class ORTModel(OptimizedModel):
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         file_name: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
@@ -1017,7 +1023,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
