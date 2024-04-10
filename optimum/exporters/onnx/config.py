@@ -383,6 +383,13 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             )
 
         self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
+        self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS = self._decoder_onnx_config._normalized_config
+        self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.encoder_num_attention_heads = (
+            self._decoder_onnx_config._normalized_config.num_attention_heads
+        )
+        self._normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.decoder_num_attention_heads = (
+            self._decoder_onnx_config._normalized_config.num_attention_heads
+        )
 
         if isinstance(self._decoder_onnx_config, OnnxSeq2SeqConfigWithPast):
             self._past_key_values_generator = (

@@ -345,6 +345,50 @@ def get_stable_diffusion_models_for_export(
     return models_for_export
 
 
+def get_musicgen_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"):
+    models_for_export = {
+        "text_encoder": model.text_encoder,
+        "encodec_decode": model.audio_encoder,
+        # For the decoder, we do not pass model.decoder because we may need to export model.enc_to_dec_proj
+        DECODER_NAME: model,
+        DECODER_WITH_PAST_NAME: model,
+        "build_delay_pattern_mask": model.decoder,
+    }
+
+    text_encoder_config = config.__class__(
+        model.config, task=config.task, legacy=False, model_part="text_encoder", variant=config.variant
+    )
+    models_for_export["text_encoder"] = (models_for_export["text_encoder"], text_encoder_config)
+
+    audio_encoder_config = config.__class__(
+        model.config, task=config.task, legacy=False, model_part="encodec_decode", variant=config.variant
+    )
+    models_for_export["encodec_decode"] = (models_for_export["encodec_decode"], audio_encoder_config)
+
+    use_past = "with-past" in config.variant
+    decoder_export_config = config.with_behavior("decoder", use_past=use_past, use_past_in_inputs=False)
+    decoder_export_config.model_part = "decoder"
+    models_for_export[DECODER_NAME] = (models_for_export[DECODER_NAME], decoder_export_config)
+
+    if "with-past" in config.variant:
+        decoder_export_config_with_past = config.with_behavior("decoder", use_past=True, use_past_in_inputs=True)
+        decoder_export_config_with_past.model_part = "decoder"
+        models_for_export[DECODER_WITH_PAST_NAME] = (
+            models_for_export[DECODER_WITH_PAST_NAME],
+            decoder_export_config_with_past,
+        )
+
+    build_delay_pattern_mask_config = config.__class__(
+        model.config, task=config.task, legacy=False, model_part="build_delay_pattern_mask", variant=config.variant
+    )
+    models_for_export["build_delay_pattern_mask"] = (
+        models_for_export["build_delay_pattern_mask"],
+        build_delay_pattern_mask_config,
+    )
+
+    return models_for_export
+
+
 def _get_submodels_for_export_sam(model, variant):
     models_for_export = {}
 
@@ -513,6 +557,8 @@ def _get_submodels_and_export_configs(
                 models_and_export_configs = get_sam_models_for_export(model, export_config)
             elif model.config.model_type == "speecht5":
                 models_and_export_configs = get_speecht5_models_for_export(model, export_config, model_kwargs)
+            elif model.config.model_type == "musicgen":
+                models_and_export_configs = get_musicgen_models_for_export(model, export_config)
             else:
                 models_and_export_configs = {"model": (model, export_config)}
 
