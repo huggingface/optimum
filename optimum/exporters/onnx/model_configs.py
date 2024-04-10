@@ -36,6 +36,7 @@ from ...utils import (
     DummyVisionEmbeddingsGenerator,
     DummyVisionEncoderDecoderPastKeyValuesGenerator,
     DummyVisionInputGenerator,
+    DummyXPathSeqInputGenerator,
     FalconDummyPastKeyValuesGenerator,
     GemmaDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
@@ -180,6 +181,25 @@ class DebertaOnnxConfig(BertOnnxConfig):
         if self._config.type_vocab_size == 0:
             common_inputs.pop("token_type_ids")
         return common_inputs
+
+
+class MarkupLMOnnxConfig(BertOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTextInputGenerator,
+        DummyXPathSeqInputGenerator,
+    )
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        dynamic_axis = {0: "batch_size", 1: "sequence_length"}
+        xpath_dynamic_axis = {0: "batch_size", 1: "sequence_length", 2: "max_depth"}
+        return {
+            "input_ids": dynamic_axis,
+            "attention_mask": dynamic_axis,
+            "token_type_ids": dynamic_axis,
+            "xpath_subs_seq": xpath_dynamic_axis,
+            "xpath_tags_seq": xpath_dynamic_axis,
+        }
 
 
 class DebertaV2OnnxConfig(DebertaOnnxConfig):

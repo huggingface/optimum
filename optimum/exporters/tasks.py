@@ -732,6 +732,13 @@ class TasksManager:
             "text-generation-with-past",
             onnx="MarianOnnxConfig",
         ),
+        "markuplm": supported_tasks_mapping(
+            "feature-extraction",
+            "text-classification",
+            "token-classification",
+            "question-answering",
+            onnx="MarkupLMOnnxConfig",
+        ),
         "mbart": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
