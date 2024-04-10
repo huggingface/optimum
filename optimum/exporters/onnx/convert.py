@@ -29,7 +29,7 @@ import onnx
 from transformers.modeling_utils import get_parameter_dtype
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
+from ...onnx.utils import _get_onnx_external_constants, _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
@@ -592,6 +592,7 @@ def export_pytorch(
 
         if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
             tensors_paths = _get_onnx_external_data_tensors(onnx_model)
+            constant_paths = _get_onnx_external_constants(onnx_model)
             logger.info("Saving external data to one file...")
 
             # try free model memory
@@ -617,6 +618,10 @@ def export_pytorch(
             # delete previous external data
             for tensor in tensors_paths:
                 os.remove(output.parent / tensor)
+
+            for tensor in constant_paths:
+                if os.path.isfile(output.parent / tensor):
+                    os.remove(output.parent / tensor)
 
     return input_names, output_names
 
