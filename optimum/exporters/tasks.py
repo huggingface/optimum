@@ -313,6 +313,10 @@ class TasksManager:
             "semantic-segmentation",
             onnx="VaeDecoderOnnxConfig",
         ),
+        "safety-checker": supported_tasks_mapping(
+            "image-classification",
+            onnx="StableDiffusionSafetyCheckerOnnxConfig",
+        ),
     }
 
     _TIMM_SUPPORTED_MODEL_TYPE = {

@@ -33,7 +33,7 @@ from diffusers import (
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils import CONFIG_NAME, is_invisible_watermark_available
 from huggingface_hub import snapshot_download
-from transformers import CLIPFeatureExtractor, CLIPTokenizer
+from transformers import CLIPFeatureExtractor, CLIPTokenizer, StableDiffusionSafetyChecker
 from transformers.file_utils import add_end_docstrings
 
 import onnxruntime as ort
@@ -86,6 +86,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         vae_encoder_session: Optional[ort.InferenceSession] = None,
         text_encoder_2_session: Optional[ort.InferenceSession] = None,
         tokenizer_2: Optional[CLIPTokenizer] = None,
+        safety_checker: Optional[StableDiffusionSafetyChecker] = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
     ):
@@ -151,7 +152,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         self.tokenizer_2 = tokenizer_2
         self.scheduler = scheduler
         self.feature_extractor = feature_extractor
-        self.safety_checker = None
+        self.safety_checker = safety_checker
 
         sub_models = {
             DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER: self.text_encoder,
@@ -159,6 +160,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER: self.vae_decoder,
             DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER: self.vae_encoder,
             DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER: self.text_encoder_2,
+            DIFFUSION_MODEL_SAFETY_CHECKER_SUBFOLDER: self.safety_checker,
         }
 
         # Modify config to keep the resulting model compatible with diffusers pipelines
@@ -238,6 +240,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         sub_models_to_save = {
             self.vae_encoder_model_path: DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
             self.text_encoder_2_model_path: DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
+            self.safety_checker: DIFFUSION_MODEL_SAFETY_CHECKER_SUBFOLDER,
         }
         for path, subfolder in sub_models_to_save.items():
             if path is not None:
@@ -264,6 +267,8 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             self.tokenizer.save_pretrained(save_directory / "tokenizer")
         if self.tokenizer_2 is not None:
             self.tokenizer_2.save_pretrained(save_directory / "tokenizer_2")
+        if self.safety_checker is not None:
+            self.safety_checker.save_pretrained(save_directory / "safety_checker")
 
     @classmethod
     def _from_pretrained(
@@ -278,6 +283,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         unet_file_name: str = ONNX_WEIGHTS_NAME,
         vae_encoder_file_name: str = ONNX_WEIGHTS_NAME,
         text_encoder_2_file_name: str = ONNX_WEIGHTS_NAME,
+        safety_checker_file_name: str = ONNX_WEIGHTS_NAME,
         local_files_only: bool = False,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
@@ -291,7 +297,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
 
         model_id = str(model_id)
         patterns = set(config.keys())
-        sub_models_to_load = patterns.intersection({"feature_extractor", "tokenizer", "tokenizer_2", "scheduler"})
+        sub_models_to_load = patterns.intersection({"feature_extractor", "tokenizer", "tokenizer_2", "scheduler", "safety_checker"})
 
         if not os.path.isdir(model_id):
             patterns.update({"vae_encoder", "vae_decoder"})
@@ -341,6 +347,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             text_encoder_2_path=new_model_save_dir
             / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER
             / text_encoder_2_file_name,
+            safety_checker_path=new_model_save_dir / DIFFUSION_MODEL_SAFETY_CHECKER_SUBFOLDER / safety_checker_file_name,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
@@ -365,6 +372,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             tokenizer_2=sub_models.get("tokenizer_2", None),
             vae_encoder_session=vae_encoder,
             text_encoder_2_session=text_encoder_2,
+            safety_checker_session=safety_checker,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
         )
@@ -442,6 +450,10 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             self.vae_encoder.session.set_providers([provider], provider_options=[provider_options])
 
         self.providers = self.vae_decoder.session.get_providers()
+
+        if self.safety_checker is not None:
+            self.safety_checker.session.set_providers([provider], provider_options=[provider_options])
+
         return self
 
     @classmethod
