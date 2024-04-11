@@ -62,6 +62,24 @@ EXTRAS_REQUIRE = {
         "protobuf>=3.20.1",
         "accelerate",  # ORTTrainer requires it.
     ],
+    "onnxruntime-genai": [
+        "onnx",
+        "onnxruntime",
+        "onnxruntime-genai",
+        "datasets>=1.2.1",
+        "evaluate",
+        "protobuf>=3.20.1",
+        "accelerate",
+    ],
+    "onnxruntime-genai-cuda": [
+        "onnx",
+        "onnxruntime-gpu",
+        "onnxruntime-genai-cuda",
+        "datasets>=1.2.1",
+        "evaluate",
+        "protobuf>=3.20.1",
+        "accelerate"
+    ],
     "exporters": ["onnx", "onnxruntime", "timm"],
     "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
     "exporters-tf": [

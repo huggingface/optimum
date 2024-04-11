@@ -17,6 +17,7 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 | Accelerator                                                                                                            | Installation                                      |
 |:-----------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------|
 | [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/overview)                                                                           | `pip install --upgrade-strategy eager optimum[onnxruntime]`       |
+|[ONNXR untime-GenAI](https://onnxruntime.ai/docs/genai/)| `pip install --no-cache-dir -e .[onnxruntime-genai-cuda] --pre --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-genai/pypi/simple/`|
 | [Intel Neural Compressor](https://huggingface.co/docs/optimum/intel/index)       | `pip install --upgrade-strategy eager optimum[neural-compressor]`|
 | [OpenVINO](https://huggingface.co/docs/optimum/intel/index)                                                                 | `pip install --upgrade-strategy eager optimum[openvino,nncf]`    |
 | [AMD Instinct GPUs and Ryzen AI NPU](https://huggingface.co/docs/optimum/amd/index)                     | `pip install --upgrade-strategy eager optimum[amd]`              |

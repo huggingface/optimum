@@ -63,6 +63,10 @@ _onnx_available = _is_package_available("onnx")
 # importlib.metadata.version seem to not be robust with the ONNX Runtime extensions (`onnxruntime-gpu`, etc.)
 _onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
 
+# cuda version of onnxruntime-genai should have different metadata input for importlib.metadata.version
+# e.g. onnxruntime_genai_cuda-0.1.0rc4.dist-info/    vs   onnxruntime_genai-0.1.0rc4.dist-info/
+# which will introduce error, as such use importlib.util.find("onnxruntime_genai") instead.
+_onnxruntime_genai_available = importlib.util.find_spec("onnxruntime_genai") is not None
 _pydantic_available = _is_package_available("pydantic")
 _accelerate_available = _is_package_available("accelerate")
 _diffusers_available = _is_package_available("diffusers")
@@ -110,6 +114,13 @@ def is_onnxruntime_available():
         return False
     return _onnxruntime_available
 
+def is_onnxruntime_genai_available():
+    try:
+        mod = importlib.import_module("onnxruntime_genai")
+        inspect.getsourcefile(mod)
+    except Exception:
+        return False
+    return _onnxruntime_genai_available
 
 def is_pydantic_available():
     return _pydantic_available
