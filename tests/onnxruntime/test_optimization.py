@@ -24,12 +24,6 @@ import numpy as np
 import onnx
 import pytest
 import torch
-from parameterized import parameterized
-from transformers import AutoTokenizer
-from transformers.onnx.utils import get_preprocessor
-from transformers.testing_utils import require_torch_gpu
-from utils_onnxruntime_tests import MODEL_NAMES
-
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS
 from optimum.onnxruntime import (
@@ -43,6 +37,11 @@ from optimum.onnxruntime.configuration import OptimizationConfig
 from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
 from optimum.utils.testing_utils import grid_parameters
+from parameterized import parameterized
+from transformers import AutoTokenizer
+from transformers.onnx.utils import get_preprocessor
+from transformers.testing_utils import require_torch_gpu
+from utils_onnxruntime_tests import MODEL_NAMES
 
 
 class ORTOptimizerTestMixin(unittest.TestCase):
@@ -173,7 +172,6 @@ class ORTOptimizerTest(unittest.TestCase):
     SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForImageClassification, "hf-internal-testing/tiny-random-segformer"),
         (ORTModelForImageClassification, "hf-internal-testing/tiny-random-vit"),
-
     )
 
     @parameterized.expand(SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID)
