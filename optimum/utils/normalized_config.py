@@ -102,6 +102,30 @@ class NormalizedVisionConfig(NormalizedConfig):
     INPUT_SIZE = "input_size"
 
 
+class NormalizedSegformerConfig(NormalizedVisionConfig):
+    NUM_ATTENTION_HEADS = "num_attention_heads"
+    HIDDEN_SIZE = "decoder_hidden_size"
+
+    def __getattr__(self, attr_name):
+        if attr_name == "hidden_size":
+            attr_value = getattr(self.config, self.HIDDEN_SIZE, None)
+            if attr_value is None:
+                raise AttributeError(f"Attribute {self.HIDDEN_SIZE} not found in config")
+            if isinstance(attr_value, list):
+                return max(attr_value)
+            return attr_value
+
+        elif attr_name == "num_attention_heads":
+            attr_value = getattr(self.config, self.NUM_ATTENTION_HEADS, None)
+            if attr_value is None:
+                raise AttributeError(f"Attribute {self.NUM_ATTENTION_HEADS} not found in config")
+            if isinstance(attr_value, list):
+                return max(attr_value)
+            return attr_value
+
+        return super().__getattr__(attr_name)
+
+
 class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig):
     TEXT_CONFIG = None
     VISION_CONFIG = None
@@ -203,7 +227,6 @@ class NormalizedConfigManager:
         'owlvit',
         'perceiver',
         'roformer',
-        'segformer',
         'squeezebert',
         'table-transformer',
     """
@@ -256,6 +279,7 @@ class NormalizedConfigManager:
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
+        "segformer": NormalizedSegformerConfig,
         "speech-to-text": SpeechToTextLikeNormalizedTextConfig,
         "splinter": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
