@@ -782,6 +782,12 @@ class TasksManager:
             "image-segmentation",
             onnx="MobileViTOnnxConfig",
         ),
+        "mobilevitv2": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            "image-segmentation",
+            onnx="MobileViTV2OnnxConfig",
+        ),
         "mobilenet-v1": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
