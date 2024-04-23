@@ -111,8 +111,6 @@ class NormalizedSegformerConfig(NormalizedVisionConfig):
             attr_value = getattr(self.config, self.HIDDEN_SIZE, None)
             if attr_value is None:
                 raise AttributeError(f"Attribute {self.HIDDEN_SIZE} not found in config")
-            if isinstance(attr_value, list):
-                return max(attr_value)
             return attr_value
 
         elif attr_name == "num_attention_heads":
