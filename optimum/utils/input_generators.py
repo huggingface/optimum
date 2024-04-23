@@ -1092,7 +1092,7 @@ class FalconDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         )
         if normalized_config.new_decoder_architecture and normalized_config.multi_query:
             self.num_kv_heads = normalized_config.num_attention_heads
-        elif normalized_config.new_decoder_architecture and not normalized_config.multi_query:
+        elif normalized_config.new_decoder_architecture:
             self.num_kv_heads = normalized_config.num_kv_heads
         else:
             self.num_kv_heads = 1
