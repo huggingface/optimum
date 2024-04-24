@@ -137,6 +137,8 @@ jobs:
         run: |
           cd optimum-furiosa
           pip install .
+          sudo apt install software-properties-common
+          sudo add-apt-repository --remove https://packages.microsoft.com/ubuntu/22.04/prod
           sudo apt update
           sudo apt install -y ca-certificates apt-transport-https gnupg
           sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key 5F03AFA423A751913F249259814F888B20B09A7E
