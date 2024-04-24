@@ -1746,13 +1746,18 @@ class ORTModelForSemanticSegmentation(ORTModel):
             checkpoint="optimum/segformer-b0-finetuned-ade-512-512",
         )
     )
-    def forward(self, **kwargs):
-        use_torch = isinstance(next(iter(kwargs.values())), torch.Tensor)
+    def forward(
+        self,
+        pixel_values: Union[torch.Tensor, np.ndarray],
+        **kwargs,
+    ):
+        use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding = IOBindingHelper.prepare_io_binding(
                 self,
+                pixel_values,
                 **kwargs,
                 ordered_input_names=self._ordered_input_names,
             )
@@ -1769,7 +1774,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
             # converts output to namedtuple for pipelines post-processing
             return SemanticSegmenterOutput(logits=outputs["logits"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch=use_torch, **kwargs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch=use_torch, pixel_values=pixel_values, **kwargs)
 
             # run inference
             onnx_outputs = self.model.run(None, onnx_inputs)

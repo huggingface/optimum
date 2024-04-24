@@ -104,24 +104,13 @@ class NormalizedVisionConfig(NormalizedConfig):
 
 class NormalizedSegformerConfig(NormalizedVisionConfig):
     NUM_ATTENTION_HEADS = "num_attention_heads"
-    HIDDEN_SIZE = "decoder_hidden_size"
+    HIDDEN_SIZE = "hidden_sizes"
 
     def __getattr__(self, attr_name):
-        if attr_name == "hidden_size":
-            attr_value = getattr(self.config, self.HIDDEN_SIZE, None)
-            if attr_value is None:
-                raise AttributeError(f"Attribute {self.HIDDEN_SIZE} not found in config")
-            return attr_value
-
-        elif attr_name == "num_attention_heads":
-            attr_value = getattr(self.config, self.NUM_ATTENTION_HEADS, None)
-            if attr_value is None:
-                raise AttributeError(f"Attribute {self.NUM_ATTENTION_HEADS} not found in config")
-            if isinstance(attr_value, list):
-                return max(attr_value)
-            return attr_value
-
-        return super().__getattr__(attr_name)
+        attr_value = super().__getattr__(attr_name)
+        if isinstance(attr_value, list):
+            attr_value = sum(attr_value)
+        return attr_value
 
 
 class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig):
