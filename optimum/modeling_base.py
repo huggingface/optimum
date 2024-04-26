@@ -225,7 +225,7 @@ class OptimizedModel(PreTrainedModel):
         config_name_or_path: Union[str, os.PathLike],
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        use_auth_token: Optional[Union[bool, str]] = False,
+        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         force_download: bool = False,
         subfolder: str = "",
