@@ -289,7 +289,6 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-
         if use_auth_token is not None:
             warnings.warn(
                 "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
@@ -401,7 +400,6 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTStableDiffusionPipeline":
-
         if use_auth_token is not None:
             warnings.warn(
                 "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",

@@ -231,7 +231,6 @@ class OptimizedModel(PreTrainedModel):
         subfolder: str = "",
         trust_remote_code: bool = False,
     ) -> PretrainedConfig:
-
         if use_auth_token is not None:
             warnings.warn(
                 "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",

@@ -415,7 +415,6 @@ class ORTModel(OptimizedModel):
         revision: Optional[str] = None,
         fail_if_not_found: bool = True,
     ) -> str:
-
         if use_auth_token is not None:
             warnings.warn(
                 "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
@@ -474,7 +473,6 @@ class ORTModel(OptimizedModel):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModel":
-
         if use_auth_token is not None:
             warnings.warn(
                 "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
@@ -613,7 +611,6 @@ class ORTModel(OptimizedModel):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
-
         if use_auth_token is not None:
             warnings.warn(
                 "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
@@ -915,7 +912,6 @@ class ORTModel(OptimizedModel):
         subfolder: str = "",
         local_files_only: bool = False,
     ):
-
         if use_auth_token is not None:
             warnings.warn(
                 "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
@@ -1096,7 +1092,6 @@ class ORTModelForFeatureExtraction(ORTModel):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
-
         if use_auth_token is not None:
             warnings.warn(
                 "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
