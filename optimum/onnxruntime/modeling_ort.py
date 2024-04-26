@@ -16,13 +16,14 @@
 import logging
 import re
 import shutil
+import warnings
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
-from huggingface_hub import HfFolder, hf_hub_download
+from huggingface_hub import hf_hub_download
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.utils import EntryNotFoundError
 from transformers import (
@@ -410,9 +411,20 @@ class ORTModel(OptimizedModel):
         argument_name: str,
         subfolder: str = "",
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         fail_if_not_found: bool = True,
     ) -> str:
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         onnx_files = []
         for pattern in patterns:
             onnx_files = find_files_matching_pattern(
@@ -420,7 +432,7 @@ class ORTModel(OptimizedModel):
                 pattern,
                 glob_pattern="**/*.onnx",
                 subfolder=subfolder,
-                use_auth_token=use_auth_token,
+                token=token,
                 revision=revision,
             )
             if onnx_files:
@@ -448,6 +460,7 @@ class ORTModel(OptimizedModel):
         model_id: Union[str, Path],
         config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -461,6 +474,16 @@ class ORTModel(OptimizedModel):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModel":
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         model_path = Path(model_id)
         regular_onnx_filenames = ORTModel._generate_regular_names_for_filename(ONNX_WEIGHTS_NAME)
 
@@ -468,13 +491,8 @@ class ORTModel(OptimizedModel):
             if model_path.is_dir():
                 onnx_files = list(model_path.glob("*.onnx"))
             else:
-                if isinstance(use_auth_token, bool):
-                    token = HfFolder().get_token()
-                else:
-                    token = use_auth_token
-
                 repo_files, _ = TasksManager.get_model_files(
-                    model_id, revision=revision, cache_dir=cache_dir, use_auth_token=token
+                    model_id, revision=revision, cache_dir=cache_dir, token=token
                 )
                 repo_files = map(Path, repo_files)
 
@@ -499,7 +517,7 @@ class ORTModel(OptimizedModel):
 
         model_cache_path, preprocessors = cls._cached_file(
             model_path=model_path,
-            use_auth_token=use_auth_token,
+            token=token,
             revision=revision,
             force_download=force_download,
             cache_dir=cache_dir,
@@ -535,6 +553,7 @@ class ORTModel(OptimizedModel):
         model_id: str,
         config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -548,13 +567,23 @@ class ORTModel(OptimizedModel):
         task: Optional[str] = None,
     ) -> "ORTModel":
         """The method will be deprecated in future releases."""
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         return cls._export(
             model_id=model_id,
             config=config,
             revision=revision,
             cache_dir=cache_dir,
             force_download=force_download,
-            use_auth_token=use_auth_token,
+            token=token,
             subfolder=subfolder,
             local_files_only=local_files_only,
             trust_remote_code=trust_remote_code,
@@ -571,6 +600,7 @@ class ORTModel(OptimizedModel):
         model_id: str,
         config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -583,6 +613,16 @@ class ORTModel(OptimizedModel):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
 
@@ -598,7 +638,7 @@ class ORTModel(OptimizedModel):
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,
-            use_auth_token=use_auth_token,
+            token=token,
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,
@@ -624,7 +664,8 @@ class ORTModel(OptimizedModel):
         model_id: Union[str, Path],
         export: bool = False,
         force_download: bool = False,
-        use_auth_token: Optional[str] = None,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         config: Optional["PretrainedConfig"] = None,
@@ -666,11 +707,21 @@ class ORTModel(OptimizedModel):
         Returns:
             `ORTModel`: The loaded ORTModel model.
         """
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         return super().from_pretrained(
             model_id,
             export=export,
             force_download=force_download,
-            use_auth_token=use_auth_token,
+            token=token,
             cache_dir=cache_dir,
             subfolder=subfolder,
             config=config,
@@ -856,6 +907,7 @@ class ORTModel(OptimizedModel):
     def _cached_file(
         model_path: Union[Path, str],
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -863,6 +915,16 @@ class ORTModel(OptimizedModel):
         subfolder: str = "",
         local_files_only: bool = False,
     ):
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         model_path = Path(model_path)
 
         # locates a file in a local folder and repo, downloads and cache it if necessary.
@@ -874,7 +936,7 @@ class ORTModel(OptimizedModel):
                 repo_id=model_path.as_posix(),
                 filename=file_name,
                 subfolder=subfolder,
-                use_auth_token=use_auth_token,
+                token=token,
                 revision=revision,
                 cache_dir=cache_dir,
                 force_download=force_download,
@@ -886,7 +948,7 @@ class ORTModel(OptimizedModel):
                     repo_id=model_path.as_posix(),
                     subfolder=subfolder,
                     filename=file_name + "_data",
-                    use_auth_token=use_auth_token,
+                    token=token,
                     revision=revision,
                     cache_dir=cache_dir,
                     force_download=force_download,
@@ -1021,6 +1083,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         model_id: str,
         config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -1033,6 +1096,16 @@ class ORTModelForFeatureExtraction(ORTModel):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
 
@@ -1049,7 +1122,7 @@ class ORTModelForFeatureExtraction(ORTModel):
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,
-            use_auth_token=use_auth_token,
+            token=token,
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,

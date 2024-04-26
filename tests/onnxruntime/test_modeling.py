@@ -942,7 +942,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         # Read token of fxmartyclone (dummy user).
         token = "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"
 
-        model = ORTModelForCustomTasks.from_pretrained("fxmartyclone/tiny-onnx-private-2", use_auth_token=token)
+        model = ORTModelForCustomTasks.from_pretrained("fxmartyclone/tiny-onnx-private-2", token=token)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
@@ -1113,7 +1113,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
             model.save_pretrained(
                 tmpdirname,
-                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                token=os.environ.get("HF_AUTH_TOKEN", None),
                 push_to_hub=True,
                 repository_id=self.HUB_REPOSITORY,
                 private=True,
@@ -1126,7 +1126,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], export=True)
             model.save_pretrained(
                 tmpdirname + "/onnx",
-                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                token=os.environ.get("HF_AUTH_TOKEN", None),
                 repository_id=MODEL_NAMES["bert"].split("/")[-1] + "-onnx",
                 private=True,
                 push_to_hub=True,
@@ -1136,7 +1136,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForSequenceClassification.from_pretrained(
                 MODEL_NAMES["bert"] + "-onnx",
                 export=False,
-                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                token=os.environ.get("HF_AUTH_TOKEN", None),
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
@@ -1147,7 +1147,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["gpt2"], export=True)
             model.save_pretrained(
                 tmpdirname + "/onnx",
-                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                token=os.environ.get("HF_AUTH_TOKEN", None),
                 repository_id=MODEL_NAMES["gpt2"].split("/")[-1] + "-onnx",
                 private=True,
                 push_to_hub=True,
@@ -1157,7 +1157,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForCausalLM.from_pretrained(
                 MODEL_NAMES["gpt2"] + "-onnx",
                 export=False,
-                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                token=os.environ.get("HF_AUTH_TOKEN", None),
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
@@ -1168,7 +1168,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"], export=True)
             model.save_pretrained(
                 tmpdirname + "/onnx",
-                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                token=os.environ.get("HF_AUTH_TOKEN", None),
                 repository_id=MODEL_NAMES["mbart"].split("/")[-1] + "-onnx",
                 private=True,
                 push_to_hub=True,
@@ -1178,7 +1178,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForSeq2SeqLM.from_pretrained(
                 MODEL_NAMES["mbart"] + "-onnx",
                 export=False,
-                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                token=os.environ.get("HF_AUTH_TOKEN", None),
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
@@ -1189,7 +1189,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTStableDiffusionPipeline.from_pretrained(MODEL_NAMES["stable-diffusion"], export=True)
             model.save_pretrained(
                 tmpdirname + "/onnx",
-                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                token=os.environ.get("HF_AUTH_TOKEN", None),
                 repository_id=MODEL_NAMES["stable-diffusion"].split("/")[-1] + "-onnx",
                 private=True,
                 push_to_hub=True,
@@ -1199,7 +1199,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTStableDiffusionPipeline.from_pretrained(
                 MODEL_NAMES["stable-diffusion"] + "-onnx",
                 export=False,
-                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                token=os.environ.get("HF_AUTH_TOKEN", None),
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 

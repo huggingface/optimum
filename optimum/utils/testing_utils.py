@@ -90,8 +90,9 @@ def require_hf_token(test_case):
     """
     Decorator marking a test that requires huggingface hub token.
     """
-    use_auth_token = os.environ.get("HF_AUTH_TOKEN", None)
-    if use_auth_token is None:
+    # is HF_AUTH_TOKEN used instead of HF_TOKEN to avoid huggigface_hub picking it up ?
+    hf_token = os.environ.get("HF_AUTH_TOKEN", None)
+    if hf_token is None:
         return unittest.skip("test requires hf token as `HF_AUTH_TOKEN` environment variable")(test_case)
     else:
         return test_case
@@ -101,9 +102,9 @@ def require_sigopt_token_and_project(test_case):
     """
     Decorator marking a test that requires sigopt API token.
     """
-    use_auth_token = os.environ.get("SIGOPT_API_TOKEN", None)
+    sigopt_api_token = os.environ.get("SIGOPT_API_TOKEN", None)
     has_sigopt_project = os.environ.get("SIGOPT_PROJECT", None)
-    if use_auth_token is None or has_sigopt_project is None:
+    if sigopt_api_token is None or has_sigopt_project is None:
         return unittest.skip("test requires an environment variable `SIGOPT_API_TOKEN` and `SIGOPT_PROJECT`")(
             test_case
         )
