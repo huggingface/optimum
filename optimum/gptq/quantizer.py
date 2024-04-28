@@ -278,7 +278,7 @@ class GPTQQuantizer(object):
                 elif isinstance(layer, Conv1D):
                     in_features = layer.weight.shape[0]
                     out_features = layer.weight.shape[1]
-                bias = True if layer.bias else False
+                bias = layer.bias is not None
                 if not (self.desc_act) or self.group_size == -1:
                     new_layer = QuantLinear(
                         self.bits,
