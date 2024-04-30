@@ -40,15 +40,54 @@ MODEL_NAMES = {
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
+    "convnextv2": "hf-internal-testing/tiny-random-ConvNextV2Model",
     "codegen": "hf-internal-testing/tiny-random-CodeGenForCausalLM",
     "data2vec_text": "hf-internal-testing/tiny-random-Data2VecTextModel",
     "data2vec_vision": "hf-internal-testing/tiny-random-Data2VecVisionModel",
     "data2vec_audio": "hf-internal-testing/tiny-random-Data2VecAudioModel",
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta_v2": "hf-internal-testing/tiny-random-DebertaV2Model",
+    "default-timm-config": {
+        "timm/inception_v3.tf_adv_in1k": ["image-classification"],
+        "timm/tf_efficientnet_b0.in1k": ["image-classification"],
+        "timm/resnetv2_50x1_bit.goog_distilled_in1k": ["image-classification"],
+        "timm/cspdarknet53.ra_in1k": ["image-classification"],
+        "timm/cspresnet50.ra_in1k": ["image-classification"],
+        "timm/cspresnext50.ra_in1k": ["image-classification"],
+        "timm/densenet121.ra_in1k": ["image-classification"],
+        "timm/dla102.in1k": ["image-classification"],
+        "timm/dpn107.mx_in1k": ["image-classification"],
+        "timm/ecaresnet101d.miil_in1k": ["image-classification"],
+        "timm/efficientnet_b1_pruned.in1k": ["image-classification"],
+        "timm/inception_resnet_v2.tf_ens_adv_in1k": ["image-classification"],
+        "timm/fbnetc_100.rmsp_in1k": ["image-classification"],
+        "timm/xception41.tf_in1k": ["image-classification"],
+        "timm/senet154.gluon_in1k": ["image-classification"],
+        "timm/seresnext26d_32x4d.bt_in1k": ["image-classification"],
+        "timm/hrnet_w18.ms_aug_in1k": ["image-classification"],
+        "timm/inception_v3.gluon_in1k": ["image-classification"],
+        "timm/inception_v4.tf_in1k": ["image-classification"],
+        "timm/mixnet_s.ft_in1k": ["image-classification"],
+        "timm/mnasnet_100.rmsp_in1k": ["image-classification"],
+        "timm/mobilenetv2_100.ra_in1k": ["image-classification"],
+        "timm/mobilenetv3_small_050.lamb_in1k": ["image-classification"],
+        "timm/nasnetalarge.tf_in1k": ["image-classification"],
+        "timm/tf_efficientnet_b0.ns_jft_in1k": ["image-classification"],
+        "timm/pnasnet5large.tf_in1k": ["image-classification"],
+        "timm/regnetx_002.pycls_in1k": ["image-classification"],
+        "timm/regnety_002.pycls_in1k": ["image-classification"],
+        "timm/res2net101_26w_4s.in1k": ["image-classification"],
+        "timm/res2next50.in1k": ["image-classification"],
+        "timm/resnest101e.in1k": ["image-classification"],
+        "timm/spnasnet_100.rmsp_in1k": ["image-classification"],
+        "timm/resnet18.fb_swsl_ig1b_ft_in1k": ["image-classification"],
+        "timm/wide_resnet101_2.tv_in1k": ["image-classification"],
+        "timm/tresnet_l.miil_in1k": ["image-classification"],
+    },
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
     "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "detr": "hf-internal-testing/tiny-random-detr",
+    "dpt": "hf-internal-testing/tiny-random-DPTModel",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "encoder-decoder": {
@@ -59,6 +98,7 @@ MODEL_NAMES = {
     },
     "falcon": "fxmarty/really-tiny-falcon-testing",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
+    "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
@@ -81,6 +121,7 @@ MODEL_NAMES = {
     "mobilenet_v1": "google/mobilenet_v1_0.75_192",
     "mobilenet_v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
+    "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
@@ -89,18 +130,20 @@ MODEL_NAMES = {
     "perceiver_vision": "hf-internal-testing/tiny-random-vision_perceiver_conv",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
+    "qwen2": "fxmarty/tiny-dummy-qwen2",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
     "sew": "hf-internal-testing/tiny-random-SEWModel",
-    "sew_d": "hf-internal-testing/tiny-random-SEWDModel",
+    "sew_d": "asapp/sew-d-tiny-100k-ft-ls100h",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "speech_to_text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "t5": "hf-internal-testing/tiny-random-t5",
+    "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
     "trocr": "microsoft/trocr-small-handwritten",
     "unispeech": "hf-internal-testing/tiny-random-unispeech",
     "unispeech_sat": "hf-internal-testing/tiny-random-UnispeechSatModel",
@@ -111,6 +154,7 @@ MODEL_NAMES = {
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
     "wavlm": "hf-internal-testing/tiny-random-WavlmModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
+    "xlm_qa": "hf-internal-testing/tiny-random-XLMForQuestionAnsweringSimple",  # issue with default hf-internal-testing in transformers QA pipeline post-processing
     "xlm_roberta": "hf-internal-testing/tiny-xlm-roberta",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
 }
@@ -136,21 +180,23 @@ class ORTModelTestMixin(unittest.TestCase):
         model_arch = model_args["model_arch"]
         model_arch_and_params = model_args["test_name"]
 
-        # TODO: this should actually be checked in ORTModel!
-        task = self.TASK
-        if "use_cache" in model_args and model_args["use_cache"] is True:
-            task = task + "-with-past"
-
-        if "use_cache" in model_args and task not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx"
-        ):
-            self.skipTest("Unsupported export case")
-
         model_ids = MODEL_NAMES[model_arch]
         if isinstance(model_ids, dict):
             model_ids = list(model_ids.keys())
         else:
             model_ids = [model_ids]
+
+        # TODO: this should actually be checked in ORTModel!
+        task = self.TASK
+        if "use_cache" in model_args and model_args["use_cache"] is True:
+            task = task + "-with-past"
+
+        library_name = TasksManager.infer_library_from_model(model_ids[0])
+
+        if "use_cache" in model_args and task not in TasksManager.get_supported_tasks_for_model_type(
+            model_arch.replace("_", "-"), exporter="onnx", library_name=library_name
+        ):
+            self.skipTest("Unsupported export case")
 
         if model_arch_and_params not in self.onnx_model_dirs:
             self.onnx_model_dirs[model_arch_and_params] = {}

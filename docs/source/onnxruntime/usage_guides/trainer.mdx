@@ -56,6 +56,8 @@ To use `ORTTrainer` or `ORTSeq2SeqTrainer`, you need to install ONNX Runtime Tra
 To set up the environment, we __strongly recommend__ you install the dependencies with Docker to ensure that the versions are correct and well
 configured. You can find dockerfiles with various combinations [here](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training/docker).
 
+#### Setup for NVIDIA GPU
+
 Here below we take the installation of `onnxruntime-training 1.14.0` as an example:
 
 * If you want to install `onnxruntime-training 1.14.0` via [Dockerfile](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/Dockerfile-ort1.14.0-cu116):
@@ -70,6 +72,32 @@ docker build -f Dockerfile-ort1.14.0-cu116 -t ort/train:1.14.0 .
 pip install onnx ninja
 pip install torch==1.13.1+cu116 torchvision==0.14.1 -f https://download.pytorch.org/whl/cu116/torch_stable.html
 pip install onnxruntime-training==1.14.0 -f https://download.onnxruntime.ai/onnxruntime_stable_cu116.html
+pip install torch-ort
+pip install --upgrade protobuf==3.20.2
+```
+
+And run post-installation configuration:
+
+```bash
+python -m torch_ort.configure
+```
+
+#### Setup for AMD GPU
+
+Here below we take the installation of `onnxruntime-training` nightly as an example:
+
+* If you want to install `onnxruntime-training` via [Dockerfile](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/training/docker/Dockerfile-ort-nightly-rocm57):
+
+```bash
+docker build -f Dockerfile-ort-nightly-rocm57 -t ort/train:nightly .
+```
+
+* If you want to install the dependencies beyond in a local Python environment. You can pip install them once you have [ROCM 5.7](https://rocmdocs.amd.com/en/latest/deploy/linux/quick_start.html) well installed.
+
+```bash
+pip install onnx ninja
+pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.7
+pip install pip install --pre onnxruntime-training -f https://download.onnxruntime.ai/onnxruntime_nightly_rocm57.html
 pip install torch-ort
 pip install --upgrade protobuf==3.20.2
 ```

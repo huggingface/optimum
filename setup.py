@@ -15,17 +15,18 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.26.0",
-    "torch>=1.9",
+    "transformers[sentencepiece]>=4.26.0,<4.41.0",
+    "torch>=1.11",
     "packaging",
     "numpy",
     "huggingface_hub>=0.8.0",
     "datasets",
 ]
 
+# TODO: unpin pytest once https://github.com/huggingface/transformers/pull/29154 is merged & released
 TESTS_REQUIRE = [
     "accelerate",
-    "pytest",
+    "pytest<=8.0.0",
     "requests",
     "parameterized",
     "pytest-xdist",
@@ -36,9 +37,12 @@ TESTS_REQUIRE = [
     "torchaudio",
     "einops",
     "invisible-watermark",
+    "timm",
+    "scikit-learn",
+    "rjieba",
 ]
 
-QUALITY_REQUIRE = ["black~=23.1", "ruff>=0.0.241,<=0.0.259"]
+QUALITY_REQUIRE = ["black~=23.1", "ruff==0.1.5"]
 
 BENCHMARK_REQUIRE = ["optuna", "tqdm", "scikit-learn", "seqeval", "torchvision", "evaluate>=0.2.0"]
 
@@ -68,17 +72,19 @@ EXTRAS_REQUIRE = {
         "timm",
         "h5py",
         "numpy<1.24.0",
+        "transformers[sentencepiece]>=4.26.0,<4.38.0",
     ],
     "diffusers": ["diffusers"],
-    "intel": "optimum-intel>=1.12.0",
-    "openvino": "optimum-intel[openvino]>=1.12.0",
-    "nncf": "optimum-intel[nncf]>=1.12.0",
-    "neural-compressor": "optimum-intel[neural-compressor]>=1.12.0",
+    "intel": "optimum-intel>=1.15.0",
+    "openvino": "optimum-intel[openvino]>=1.15.0",
+    "nncf": "optimum-intel[nncf]>=1.15.0",
+    "neural-compressor": "optimum-intel[neural-compressor]>=1.15.0",
     "graphcore": "optimum-graphcore",
-    "habana": ["optimum-habana", "transformers >= 4.33.0, < 4.35.0"],
-    "neuron": "optimum-neuron[neuron]",
-    "neuronx": "optimum-neuron[neuronx]",
+    "habana": ["optimum-habana", "transformers >= 4.37.0, < 4.38.0"],
+    "neuron": ["optimum-neuron[neuron]>=0.0.20", "transformers == 4.36.2"],
+    "neuronx": ["optimum-neuron[neuronx]>=0.0.20", "transformers == 4.36.2"],
     "furiosa": "optimum-furiosa",
+    "amd": "optimum-amd",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,

@@ -146,6 +146,7 @@ class OnnxConfig(ExportConfig, ABC):
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "automatic-speech-recognition": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "audio-xvector": OrderedDict({"logits": {0: "batch_size"}, "embeddings": {0: "batch_size"}}),
+        "depth-estimation": OrderedDict({"predicted_depth": {0: "batch_size", 1: "height", 2: "width"}}),
         "document-question-answering": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "feature-extraction": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
@@ -340,7 +341,11 @@ class OnnxConfig(ExportConfig, ABC):
                 dims = onnx_model.graph.output[output_idx].type.tensor_type.shape.dim
                 dims[dim_idx].dim_value = outputs[output_idx].shape[dim_idx]
 
-            onnx.save(onnx_model, model_path.as_posix())
+            onnx.save(
+                onnx_model,
+                model_path.as_posix(),
+                convert_attribute=True,
+            )
             del onnx_model
             gc.collect()
 
@@ -538,13 +543,14 @@ class OnnxConfig(ExportConfig, ABC):
             if is_accelerate_available():
                 logger.info("Deduplicating shared (tied) weights...")
                 for subpath, key in zip(onnx_files_subpaths, models_and_onnx_configs):
-                    onnx_model = onnx.load(os.path.join(path, subpath))
-
                     torch_model = models_and_onnx_configs[key][0]
                     tied_params = find_tied_parameters(torch_model)
-                    remove_duplicate_weights_from_tied_info(
-                        onnx_model, torch_model, tied_params, save_path=os.path.join(path, subpath)
-                    )
+
+                    if len(tied_params) > 0:
+                        onnx_model = onnx.load(os.path.join(path, subpath))
+                        remove_duplicate_weights_from_tied_info(
+                            onnx_model, torch_model, tied_params, save_path=os.path.join(path, subpath)
+                        )
             else:
                 logger.warning(
                     "Weight deduplication check in the ONNX export requires accelerate. Please install accelerate to run it."

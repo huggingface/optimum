@@ -22,7 +22,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
-from huggingface_hub import HfApi, HfFolder, hf_hub_download
+from huggingface_hub import HfFolder, hf_hub_download
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.utils import EntryNotFoundError
 from transformers import (
     AutoConfig,
@@ -38,6 +39,7 @@ from transformers import (
     AutoModelForSemanticSegmentation,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
+    GenerationMixin,
 )
 from transformers.file_utils import add_end_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import (
@@ -308,16 +310,20 @@ class ORTModel(OptimizedModel):
         if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
             return self
 
-        if device.type == "cuda" and self._use_io_binding is False:
+        self.device = device
+        provider = get_provider_for_device(self.device)
+        validate_provider_availability(provider)  # raise error if the provider is not available
+
+        # IOBinding is only supported for CPU and CUDA Execution Providers.
+        if device.type == "cuda" and self._use_io_binding is False and provider == "CUDAExecutionProvider":
             self.use_io_binding = True
             logger.info(
                 "use_io_binding was set to False, setting it to True because it can provide a huge speedup on GPUs. "
                 "It is possible to disable this feature manually by setting the use_io_binding attribute back to False."
             )
 
-        self.device = device
-        provider = get_provider_for_device(self.device)
-        validate_provider_availability(provider)  # raise error if the provider is not available
+        if provider == "ROCMExecutionProvider":
+            self.use_io_binding = False
 
         self.model.set_providers([provider], provider_options=[provider_options])
         self.providers = self.model.get_providers()
@@ -444,7 +450,7 @@ class ORTModel(OptimizedModel):
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         file_name: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
@@ -466,7 +472,12 @@ class ORTModel(OptimizedModel):
                     token = HfFolder().get_token()
                 else:
                     token = use_auth_token
-                repo_files = map(Path, HfApi().list_repo_files(model_id, revision=revision, token=token))
+
+                repo_files, _ = TasksManager.get_model_files(
+                    model_id, revision=revision, cache_dir=cache_dir, use_auth_token=token
+                )
+                repo_files = map(Path, repo_files)
+
                 pattern = "*.onnx" if subfolder == "" else f"{subfolder}/*.onnx"
                 onnx_files = [p for p in repo_files if p.match(pattern)]
 
@@ -526,7 +537,43 @@ class ORTModel(OptimizedModel):
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        subfolder: str = "",
+        local_files_only: bool = False,
+        trust_remote_code: bool = False,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[ort.SessionOptions] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
+        use_io_binding: Optional[bool] = None,
+        task: Optional[str] = None,
+    ) -> "ORTModel":
+        """The method will be deprecated in future releases."""
+        return cls._export(
+            model_id=model_id,
+            config=config,
+            revision=revision,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            use_auth_token=use_auth_token,
+            subfolder=subfolder,
+            local_files_only=local_files_only,
+            trust_remote_code=trust_remote_code,
+            provider=provider,
+            session_options=session_options,
+            provider_options=provider_options,
+            use_io_binding=use_io_binding,
+            task=task,
+        )
+
+    @classmethod
+    def _export(
+        cls,
+        model_id: str,
+        config: "PretrainedConfig",
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
+        force_download: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
@@ -578,7 +625,7 @@ class ORTModel(OptimizedModel):
         export: bool = False,
         force_download: bool = False,
         use_auth_token: Optional[str] = None,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
@@ -786,8 +833,10 @@ class ORTModel(OptimizedModel):
 
         return io_binding, output_shapes, output_buffers
 
-    def prepare_io_binding(self, *model_inputs, ordered_input_names):
-        return self._prepare_io_binding(self.model, ordered_input_names=ordered_input_names, *model_inputs)
+    def prepare_io_binding(self, *model_inputs, ordered_input_names, known_output_shapes=None):
+        return self._prepare_io_binding(
+            self.model, ordered_input_names=ordered_input_names, known_output_shapes=known_output_shapes, *model_inputs
+        )
 
     def raise_on_numpy_input_io_binding(self, use_torch: bool):
         """
@@ -809,7 +858,7 @@ class ORTModel(OptimizedModel):
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         file_name: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
@@ -851,6 +900,12 @@ class ORTModel(OptimizedModel):
             preprocessors = maybe_load_preprocessors(model_path.as_posix(), subfolder=subfolder)
 
         return model_cache_path, preprocessors
+
+    def can_generate(self) -> bool:
+        """
+        Returns whether this model can generate sequences with `.generate()`.
+        """
+        return isinstance(self, GenerationMixin)
 
 
 FEATURE_EXTRACTION_EXAMPLE = r"""
@@ -959,6 +1014,60 @@ class ORTModelForFeatureExtraction(ORTModel):
 
             # converts output to namedtuple for pipelines post-processing
             return BaseModelOutput(last_hidden_state=last_hidden_state)
+
+    @classmethod
+    def _export(
+        cls,
+        model_id: str,
+        config: "PretrainedConfig",
+        use_auth_token: Optional[Union[bool, str]] = None,
+        revision: Optional[str] = None,
+        force_download: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        subfolder: str = "",
+        local_files_only: bool = False,
+        trust_remote_code: bool = False,
+        provider: str = "CPUExecutionProvider",
+        session_options: Optional[ort.SessionOptions] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
+        use_io_binding: Optional[bool] = None,
+        task: Optional[str] = None,
+    ) -> "ORTModel":
+        if task is None:
+            task = cls._auto_model_to_task(cls.auto_model_class)
+
+        save_dir = TemporaryDirectory()
+        save_dir_path = Path(save_dir.name)
+
+        # ORTModelForFeatureExtraction works with Transformers type of models, thus even sentence-transformers models are loaded as such.
+        main_export(
+            model_name_or_path=model_id,
+            output=save_dir_path,
+            task=task,
+            do_validation=False,
+            no_post_process=True,
+            subfolder=subfolder,
+            revision=revision,
+            cache_dir=cache_dir,
+            use_auth_token=use_auth_token,
+            local_files_only=local_files_only,
+            force_download=force_download,
+            trust_remote_code=trust_remote_code,
+            library_name="transformers",
+        )
+
+        config.save_pretrained(save_dir_path)
+        maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
+
+        return cls._from_pretrained(
+            save_dir_path,
+            config,
+            use_io_binding=use_io_binding,
+            model_save_dir=save_dir,
+            provider=provider,
+            session_options=session_options,
+            provider_options=provider_options,
+        )
 
 
 MASKED_LM_EXAMPLE = r"""
@@ -1530,7 +1639,7 @@ IMAGE_CLASSIFICATION_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForImageClassification(ORTModel):
     """
-    ONNX Model for image-classification tasks. This class officially supports beit, convnext, data2vec_vision, deit, levit, mobilenet_v1, mobilenet_v2, mobilevit, poolformer, resnet, segformer, swin, vit.
+    ONNX Model for image-classification tasks. This class officially supports beit, convnext, convnextv2, data2vec_vision, deit, levit, mobilenet_v1, mobilenet_v2, mobilevit, poolformer, resnet, segformer, swin, vit.
     """
 
     auto_model_class = AutoModelForImageClassification
@@ -1736,6 +1845,29 @@ class ORTModelForAudioClassification(ORTModel):
 
     auto_model_class = AutoModelForAudioClassification
 
+    def __init__(
+        self,
+        model: ort.InferenceSession,
+        config: "PretrainedConfig",
+        use_io_binding: Optional[bool] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        preprocessors: Optional[List] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=model,
+            config=config,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+            preprocessors=preprocessors,
+            **kwargs,
+        )
+
+        if config.model_type == "whisper":
+            self.input_name = "input_features"
+        else:
+            self.input_name = "input_values"
+
     @add_start_docstrings_to_model_forward(
         ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + AUDIO_CLASSIFICATION_EXAMPLE.format(
@@ -1750,6 +1882,9 @@ class ORTModelForAudioClassification(ORTModel):
         attenton_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ):
+        if input_values is None:
+            # Whisper uses input_features and not input_values.
+            input_values = kwargs["input_features"]
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
         if self.device.type == "cuda" and self.use_io_binding:
@@ -1768,11 +1903,11 @@ class ORTModelForAudioClassification(ORTModel):
             if use_torch:
                 # converts pytorch inputs into numpy inputs for onnx
                 onnx_inputs = {
-                    "input_values": input_values.cpu().detach().numpy(),
+                    self.input_name: input_values.cpu().detach().numpy(),
                 }
             else:
                 onnx_inputs = {
-                    "input_values": input_values,
+                    self.input_name: input_values,
                 }
 
             # run inference
@@ -1837,9 +1972,32 @@ class ORTModelForCTC(ORTModel):
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
         if self.device.type == "cuda" and self.use_io_binding:
-            raise NotImplementedError(
-                "IO Binding for ORTModelForCTC is currently not supported. Please open an issue or submit a PR to https://github.com/huggingface/optimum to have this feature added."
+            input_size = input_values.shape[1]
+            output_sizes = []
+
+            def _conv_output_size(input_size, kernel_size, stride):
+                return (input_size - kernel_size) // stride + 1
+
+            for kernel_size, stride in zip(self.config.conv_kernel, self.config.conv_stride):
+                input_size = _conv_output_size(input_size, kernel_size, stride)
+                output_sizes.append(input_size)
+
+            known_output_shapes = {"logits": [input_values.shape[0], output_sizes[-1], self.config.vocab_size]}
+
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
+                input_values,
+                ordered_input_names=self._ordered_input_names,
+                known_output_shapes=known_output_shapes,
             )
+
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            io_binding.synchronize_inputs()
+            self.model.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            outputs = {}
+
+            return CausalLMOutput(logits=output_buffers["logits"].view(output_shapes["logits"]))
         else:
             if use_torch:
                 # converts pytorch inputs into numpy inputs for onnx

@@ -14,7 +14,7 @@ specific language governing permissions and limitations under the License.
 
 🤗 Optimum handles the export of PyTorch or TensorFlow models to ONNX in the `exporters.onnx` module. It provides classes, functions, and a command line interface to perform the export easily.
 
-Supported architectures:
+Supported architectures from [🤗 Transformers](https://huggingface.co/docs/transformers/index):
 
 - AST
 - Audio Spectrogram Transformer
@@ -30,6 +30,7 @@ Supported architectures:
 - CodeGen
 - ConvBert
 - ConvNext
+- ConvNextV2
 - Data2VecAudio
 - Data2VecText
 - Data2VecVision
@@ -41,6 +42,7 @@ Supported architectures:
 - Donut-Swin
 - Electra
 - Encoder Decoder
+- ESM
 - Falcon
 - Flaubert
 - GPT-2
@@ -60,6 +62,7 @@ Supported architectures:
 - Llama
 - M2-M100
 - Marian
+- MarkupLM
 - MBart
 - Mistral
 - MobileBert
@@ -68,12 +71,15 @@ Supported architectures:
 - MobileNet v2
 - MPNet
 - MT5
+- Musicgen (text-conditional only)
 - Nystromformer
 - OWL-ViT
 - Pegasus
 - Perceiver
+- Phi
 - Pix2Struct
 - PoolFormer
+- Qwen2(Qwen1.5)
 - RegNet
 - ResNet
 - Roberta
@@ -86,9 +92,9 @@ Supported architectures:
 - SpeechT5
 - Splinter
 - SqueezeBert
-- Stable Diffusion
 - Swin
 - T5
+- Table Transformer
 - TROCR
 - UniSpeech
 - UniSpeech SAT
@@ -102,9 +108,73 @@ Supported architectures:
 - XLM-Roberta
 - Yolos
 
-Supported architectures (Timm):
-- Resnext50-32x4d
-- Resnext50d-32x4d
-- Resnext101-32x4d
-- Resnext101-32x8d
-- Resnext101-64x4d
+Supported architectures from [🤗 Diffusers](https://huggingface.co/docs/diffusers/index):
+- Stable Diffusion
+
+Supported architectures from [🤗 Timm](https://huggingface.co/docs/timm/index):
+- Adversarial Inception v3
+- AdvProp (EfficientNet)
+- Big Transfer (BiT)
+- CSP-DarkNet
+- CSP-ResNet
+- CSP-ResNeXt
+- DenseNet
+- Deep Layer Aggregation
+- Dual Path Network (DPN)
+- ECA-ResNet
+- EfficientNet
+- EfficientNet (Knapsack Pruned)
+- Ensemble Adversarial Inception ResNet v2
+- ESE-VoVNet (Partial support with static shapes)
+- FBNet
+- (Gluon) Inception v3
+- (Gluon) ResNet
+- (Gluon) ResNeXt
+- (Gluon) SENet
+- (Gluon) SE-ResNeXt
+- (Gluon) Xception
+- HRNet
+- Instagram ResNeXt WSL
+- Inception ResNet v2
+- Inception v3
+- Inception v4
+- (Legacy) SE-ResNet
+- (Legacy) SE-ResNeXt
+- (Legacy) SENet
+- MixNet
+- MnasNet
+- MobileNet v2
+- MobileNet v3
+- NASNet
+- Noisy Student (EfficientNet)
+- PNASNet
+- RegNetX
+- RegNetY
+- Res2Net
+- Res2NeXt
+- ResNeSt
+- ResNet
+- ResNet-D
+- ResNeXt
+- RexNet
+- SE-ResNet
+- SelecSLS
+- SE-ResNeXt
+- SK-ResNet
+- SK-ResNeXt
+- SPNASNet
+- SSL ResNet
+- SWSL ResNet
+- SWSL ResNeXt
+- (Tensorflow) EfficientNet
+- (Tensorflow) EfficientNet CondConv
+- (Tensorflow) EfficientNet Lite
+- (Tensorflow) Inception v3
+- (Tensorflow) MixNet
+- (Tensorflow) MobileNet v3
+- TResNet
+- Wide ResNet
+- Xception
+
+Supported architectures from [Sentence Transformers](https://github.com/UKPLab/sentence-transformers):
+- All Transformer and CLIP-based models.

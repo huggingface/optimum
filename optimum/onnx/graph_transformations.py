@@ -157,7 +157,11 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
                 # The new model may be below the maximum protobuf size, overwritting a model that was larger. Hence this os.remove.
                 os.remove(external_path)
 
-            onnx.save(model, save_path)
+            onnx.save(
+                model,
+                save_path,
+                convert_attribute=True,
+            )
     elif save_path is not None:
         # path/to/model.onnx
         save_path = Path(save_path).as_posix()
@@ -177,6 +181,7 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
             save_as_external_data=True,
             all_tensors_to_one_file=True,
             location=external_file_name,
+            convert_attribute=True,
         )
         try:
             onnx.checker.check_model(save_path)
@@ -308,7 +313,10 @@ def merge_decoders(
             opset_imports.append(opset_import)
             opset_domains.add(opset_import.domain)
 
-    merged_model = onnx.helper.make_model(merged_graph, producer_name=producer_name, opset_imports=opset_imports)
+    # TODO: update IR version in the future.
+    merged_model = onnx.helper.make_model_gen_version(
+        merged_graph, producer_name=producer_name, opset_imports=opset_imports, ir_version=9
+    )
 
     check_and_save_model(merged_model, save_path=save_path)
 

@@ -18,6 +18,8 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+
 from ...exporters import TasksManager
 from ...utils import DEFAULT_DUMMY_SHAPES
 from ..base import BaseOptimumCLICommand
@@ -61,6 +63,13 @@ def parse_args_onnx(parser):
         "--fp16",
         action="store_true",
         help="Use half precision during the export. PyTorch-only, requires `--device cuda`.",
+    )
+    optional_group.add_argument(
+        "--dtype",
+        type=str,
+        default=None,
+        choices=["fp32", "fp16", "bf16"],
+        help="The floating point precision to use for the export. Supported options: fp32 (float32), fp16 (float16), bf16 (bfloat16).",
     )
     optional_group.add_argument(
         "--optimize",
@@ -115,7 +124,9 @@ def parse_args_onnx(parser):
         default=None,
         help="If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.",
     )
-    optional_group.add_argument("--cache_dir", type=str, default=None, help="Path indicating where to store cache.")
+    optional_group.add_argument(
+        "--cache_dir", type=str, default=HUGGINGFACE_HUB_CACHE, help="Path indicating where to store cache."
+    )
     optional_group.add_argument(
         "--trust-remote-code",
         action="store_true",
@@ -133,7 +144,7 @@ def parse_args_onnx(parser):
     optional_group.add_argument(
         "--library-name",
         type=str,
-        choices=["transformers", "diffusers", "timm"],
+        choices=["transformers", "diffusers", "timm", "sentence_transformers"],
         default=None,
         help=("The library on the model." " If not provided, will attempt to infer the local checkpoint's library"),
     )
@@ -149,6 +160,14 @@ def parse_args_onnx(parser):
             "Export decoder only models in three files (without + with past and the resulting merged model)."
             "Also disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum."
         ),
+    )
+    optional_group.add_argument(
+        "--no-dynamic-axes", action="store_true", help="Disable dynamic axes during ONNX export"
+    )
+    optional_group.add_argument(
+        "--no-constant-folding",
+        action="store_true",
+        help="PyTorch-only argument. Disables PyTorch ONNX export constant folding.",
     )
 
     input_group = parser.add_argument_group(
@@ -235,7 +254,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
         return parse_args_onnx(parser)
 
     def run(self):
-        from ...exporters.onnx.__main__ import main_export
+        from ...exporters.onnx import main_export
 
         # Get the shapes to be used to generate dummy inputs
         input_shapes = {}
@@ -250,6 +269,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             opset=self.args.opset,
             device=self.args.device,
             fp16=self.args.fp16,
+            dtype=self.args.dtype,
             optimize=self.args.optimize,
             monolith=self.args.monolith,
             no_post_process=self.args.no_post_process,
@@ -263,6 +283,8 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             _variant=self.args.variant,
             library_name=self.args.library_name,
             legacy=self.args.legacy,
+            no_dynamic_axes=self.args.no_dynamic_axes,
             model_kwargs=self.args.model_kwargs,
+            do_constant_folding=not self.args.no_constant_folding,
             **input_shapes,
         )

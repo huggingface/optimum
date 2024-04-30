@@ -117,7 +117,8 @@ def get_wikitext2(tokenizer: Any, seqlen: int, nsamples: int, split: str = "trai
         data = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
     elif split == "validation":
         data = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
-    text = "".join([" \n" if s == "" else s for s in data["text"]])
+    # length of 288059 should be enough
+    text = "".join([" \n" if s == "" else s for s in data["text"][:1000]])
 
     enc = tokenizer(text, return_tensors="pt")
     dataset = []
@@ -132,15 +133,12 @@ def get_wikitext2(tokenizer: Any, seqlen: int, nsamples: int, split: str = "trai
 
 def get_c4(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
     if split == "train":
-        data = load_dataset(
-            "allenai/c4", "allenai--c4", data_files={"train": "en/c4-train.00000-of-01024.json.gz"}, split="train"
-        )
+        data = load_dataset("allenai/c4", split="train", data_files={"train": "en/c4-train.00000-of-01024.json.gz"})
     elif split == "validation":
         data = load_dataset(
             "allenai/c4",
-            "allenai--c4",
-            data_files={"validation": "en/c4-validation.00000-of-00008.json.gz"},
             split="validation",
+            data_files={"validation": "en/c4-validation.00000-of-00008.json.gz"},
         )
     dataset = []
     for _ in range(nsamples):
@@ -160,15 +158,12 @@ def get_c4(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
 
 def get_c4_new(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
     if split == "train":
-        data = load_dataset(
-            "allenai/c4", "allenai--c4", data_files={"train": "en/c4-train.00000-of-01024.json.gz"}, split="train"
-        )
+        data = load_dataset("allenai/c4", split="train", data_files={"train": "en/c4-train.00000-of-01024.json.gz"})
     elif split == "validation":
         data = load_dataset(
             "allenai/c4",
-            "allenai--c4",
-            data_files={"validation": "en/c4-validation.00000-of-00008.json.gz"},
             split="validation",
+            data_files={"validation": "en/c4-validation.00000-of-00008.json.gz"},
         )
     dataset = []
     for _ in range(nsamples):

@@ -28,3 +28,7 @@ intel_trainer: intel/reference_inc
 
 # Optimum Neuron
 docs/optimum-neuron/index: /docs/optimum-neuron/index
+
+# Optimum TPU
+docs/optimum-tpu/index: /docs/optimum-tpu/index
+tpu/index: /docs/optimum-tpu/index

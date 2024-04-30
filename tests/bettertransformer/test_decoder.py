@@ -25,8 +25,6 @@ from optimum.bettertransformer import BetterTransformer
 from optimum.utils import (
     BloomDummyPastKeyValuesGenerator,
     DummyPastKeyValuesGenerator,
-    FalconDummyPastKeyValuesGenerator,
-    GPTBigCodeDummyPastKeyValuesGenerator,
     NormalizedConfigManager,
 )
 from optimum.utils.testing_utils import grid_parameters, require_accelerate, require_torch_gpu
@@ -37,12 +35,9 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         "bloom",
         "codegen",
         "gpt2",
-        "gpt_bigcode",
         "gptj",
         "gpt_neo",
         "gpt_neox",
-        "falcon",
-        "llama",
         "opt",
     ]
 
@@ -141,12 +136,8 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
 
         normalized_config = NormalizedConfigManager.get_normalized_config_class(model.config.model_type)(model.config)
 
-        if model_type == "gpt_bigcode":
-            pkv_generator_class = GPTBigCodeDummyPastKeyValuesGenerator
-        elif model_type == "bloom":
+        if model_type == "bloom":
             pkv_generator_class = BloomDummyPastKeyValuesGenerator
-        elif model_type == "falcon":
-            pkv_generator_class = FalconDummyPastKeyValuesGenerator
         else:
             pkv_generator_class = DummyPastKeyValuesGenerator
 

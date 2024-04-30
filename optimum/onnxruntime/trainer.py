@@ -455,11 +455,18 @@ class ORTTrainer(Trainer):
             else:
                 debug_overflow = DebugUnderflowOverflow(self.model)  # noqa
 
-        delay_optimizer_creation = is_sagemaker_mp_enabled() or self.fsdp is not None or self.is_fsdp_enabled
+        delay_optimizer_creation = is_sagemaker_mp_enabled() or self.is_fsdp_xla_enabled or self.is_fsdp_enabled
 
         # Wrap the model with `ORTModule`
         logger.info("Wrap ORTModule for ONNX Runtime training.")
-        model = ORTModule(self.model)
+        if self.args.save_onnx:
+            from torch_ort import DebugOptions
+
+            model = ORTModule(
+                self.model, DebugOptions(save_onnx=self.args.save_onnx, onnx_prefix=self.args.onnx_prefix)
+            )
+        else:
+            model = ORTModule(self.model)
         self.model_wrapped = model
         self.model = model
 
@@ -744,18 +751,26 @@ class ORTTrainer(Trainer):
                         # deepspeed does its own clipping
 
                         if is_sagemaker_mp_enabled() and args.fp16:
-                            self.optimizer.clip_master_grads(args.max_grad_norm)
+                            _grad_norm = self.optimizer.clip_master_grads(args.max_grad_norm)
                         elif hasattr(self.optimizer, "clip_grad_norm"):
                             # Some optimizers (like the sharded optimizer) have a specific way to do gradient clipping
-                            self.optimizer.clip_grad_norm(args.max_grad_norm)
+                            _grad_norm = self.optimizer.clip_grad_norm(args.max_grad_norm)
                         elif hasattr(model, "clip_grad_norm_"):
                             # Some models (like FullyShardedDDP) have a specific way to do gradient clipping
-                            model.clip_grad_norm_(args.max_grad_norm)
+                            _grad_norm = model.clip_grad_norm_(args.max_grad_norm)
                         else:
-                            self.accelerator.clip_grad_norm_(
+                            _grad_norm = self.accelerator.clip_grad_norm_(
                                 model.parameters(),
                                 args.max_grad_norm,
                             )
+
+                        if (
+                            is_accelerate_available()
+                            and self.accelerator.distributed_type == DistributedType.DEEPSPEED
+                        ):
+                            grad_norm = model.get_global_grad_norm()
+                        else:
+                            grad_norm = _grad_norm.item() if _grad_norm is not None else None
 
                     # Optimizer step
                     self.optimizer.step()
@@ -767,11 +782,12 @@ class ORTTrainer(Trainer):
                             self.lr_scheduler.step()
 
                     model.zero_grad()
+                    grad_norm: Optional[float] = None
                     self.state.global_step += 1
                     self.state.epoch = epoch + (step + 1 + steps_skipped) / steps_in_epoch
                     self.control = self.callback_handler.on_step_end(args, self.state, self.control)
 
-                    self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
+                    self._maybe_log_save_evaluate(tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval)
                 else:
                     self.control = self.callback_handler.on_substep_end(args, self.state, self.control)
 
@@ -786,7 +802,7 @@ class ORTTrainer(Trainer):
                 self.control.should_training_stop = True
 
             self.control = self.callback_handler.on_epoch_end(args, self.state, self.control)
-            self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval)
+            self._maybe_log_save_evaluate(tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval)
 
             if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
                 logger.warning(
@@ -883,7 +899,7 @@ class ORTTrainer(Trainer):
             return model
 
         # Distributed training using PyTorch FSDP
-        if self.fsdp is not None:
+        if self.is_fsdp_xla_enabled:
             try:
                 from torch_xla.distributed.fsdp import XlaFullyShardedDataParallel as FSDP
                 from torch_xla.distributed.fsdp import checkpoint_module
