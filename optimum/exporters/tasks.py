@@ -1045,7 +1045,7 @@ class TasksManager:
             "feature-extraction", "image-classification", "masked-im", onnx="ViTOnnxConfig"
         ),
         "vits": supported_tasks_mapping(
-            "text-to-waveform",
+            "text-to-audio",
             onnx="VitsOnnxConfig",
         ),
         "wavlm": supported_tasks_mapping(
