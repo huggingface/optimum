@@ -252,6 +252,7 @@ class NormalizedConfigManager:
         "pegasus": BartLikeNormalizedTextConfig,
         "pix2struct": Pix2StructNormalizedTextConfig,
         "phi": NormalizedTextConfig,
+        "phi3": NormalizedTextConfigWithGQA,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
