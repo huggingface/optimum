@@ -109,7 +109,7 @@ class NormalizedSegformerConfig(NormalizedVisionConfig):
     def __getattr__(self, attr_name):
         attr_value = super().__getattr__(attr_name)
         if isinstance(attr_value, list):
-            attr_value = sum(attr_value)
+            attr_value = max(attr_value)
         return attr_value
 
 
