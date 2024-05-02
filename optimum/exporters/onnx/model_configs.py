@@ -1842,6 +1842,25 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
                 inputs_or_outputs[f"{name}.{i}.encoder.value"] = {2: "encoder_sequence_length_out"}
 
 
+class VitsOnnxConfig(TextEncoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "waveform": {0: "text_batch_size", 1: "n_samples"},
+            "spectrogram": {0: "text_batch_size", 2: "num_bins"},
+        }
+
+
 class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         shape = [self.batch_size, self.sequence_length, self.normalized_config.input_features_per_channel]
