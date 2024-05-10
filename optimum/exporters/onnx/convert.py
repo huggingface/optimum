@@ -608,10 +608,56 @@ def export_pytorch(
                     export_options = export_options,
                     **dummy_inputs,
                 )
+
+                # TODO: Update model inputs and outputs post export.
+                assert len(onnx_program.model_proto.graph.input) == len(input_names), f"Number of inputs does not match. {[input.name for input in onnx_program.model_proto.graph.input]} vs {input_names}"
+                assert len(onnx_program.model_proto.graph.output) == len(output_names), f"Number of outputs does not match. {[output.name for output in onnx_program.model_proto.graph.output]} vs {output_names}"
+                from onnxscript._legacy_ir import visitor
+                class RenameInputsOutputs(visitor.ProtoVisitor):
+                    def __init__(
+                        self, external_data_folder: str = "", do_shape_inference: bool = False, name_mapping: Dict[str, str] = {}
+                    ) -> None:
+                        super().__init__(external_data_folder, do_shape_inference=do_shape_inference)
+                        self.name_mapping = name_mapping
+
+                    def process_node(self, node):
+                        if self.scopes.current_function() is not None:
+                            # In a function, do not process.
+                            return
+                        for i, input_name in enumerate(node.input):
+                            if input_name in self.name_mapping:
+                                node.input[i] = self.name_mapping[input_name]
+                        for i, output_name in enumerate(node.output):
+                            if output_name in self.name_mapping:
+                                node.output[i] = self.name_mapping[output_name]
+
+                    def process_graph_input(self, input: onnx.ValueInfoProto):
+                        if input.name in self.name_mapping:
+                            input.name = self.name_mapping[input.name]
+                        return super().process_graph_input(input)
+
+                    def process_graph_output(self, output: onnx.ValueInfoProto):
+                        if output.name in self.name_mapping:
+                            output.name = self.name_mapping[output.name]
+                        return super().process_graph_output(output)
+
+                    def process_value_info(self, value_info: onnx.ValueInfoProto):
+                        if self.scopes.current_function() is not None:
+                            # In a function, do not process.
+                            return
+                        if value_info.name in self.name_mapping:
+                            value_info.name = self.name_mapping[value_info.name]
+                        return super().process_value_info(value_info)
+
+                model_proto = onnx_program.model_proto
+                name_mapping = {input.name: input_name for input, input_name in zip(model_proto.graph.input, input_names)}
+                name_mapping.update({output.name: output_name for output, output_name in zip(model_proto.graph.output, output_names)})
+                RenameInputsOutputs(name_mapping=name_mapping).visit_model(model_proto)
+
                 # TODO: Much of the later code performing external data clean-up is
                 # unnecessary for dynamo onnx export. ModelProto is directly accessible
                 # from onnx_program.
-                onnx_program.save(output.as_posix())
+                onnx.save(model_proto, output.as_posix())
 
         # check if external data was exported
         # TODO: this is quite inefficient as we load in memory if models are <2GB without external data

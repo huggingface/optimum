@@ -49,7 +49,6 @@ from ..exporters_utils import (
     PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES,
 )
 
-
 def _get_models_to_test(export_models_dict: Dict, library_name: str):
     models_to_test = []
     if is_torch_available():
@@ -172,6 +171,12 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     Integration tests ensuring supported models are correctly exported.
     """
 
+    # TODO: Make this flag configurable.
+    dynamo: bool = True
+    """PyTorch-specific argument. If `True`, export with the new Dynamo ONNX Exporter introduced in PyTorch 2+.
+    Otherwise, export with TorchScript backed ONNX Exporter.
+    """
+
     def _onnx_export(
         self,
         model_name: str,
@@ -205,10 +210,19 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     _variant=variant,
                     no_dynamic_axes=no_dynamic_axes,
                     pad_token_id=pad_token_id,
+                    dynamo=self.dynamo,
                     model_kwargs=model_kwargs,
                 )
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
+            except Exception as e:
+                try:
+                    from torch.onnx import testing as onnx_testing
+                except ImportError:
+                    pass
+                else:
+                    onnx_testing.parse_and_log_exception(e, device=device, model_name=model_name)
+                raise
 
     def _onnx_export_no_dynamic_axes(
         self,
