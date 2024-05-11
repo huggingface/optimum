@@ -85,6 +85,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "mistral",
     "phi",
     "qwen2",
+    "stablelm",
 }
 
 
