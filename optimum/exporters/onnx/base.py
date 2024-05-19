@@ -644,8 +644,10 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             and self.use_cache_branch is not False
             and "attention_mask" in dummy_inputs
         ):
+            sequence_length = (dummy_inputs["inputs_embeds"] if "inputs_embeds" in dummy_inputs else dummy_inputs["input_ids"]).shape[1]
+
             # Obtain the past sequence length from the value instead of the key (Bloom).
-            past_present_length = dummy_inputs["input_ids"].shape[1] + dummy_inputs["past_key_values"][0][1].shape[-2]
+            past_present_length = sequence_length + dummy_inputs["past_key_values"][0][1].shape[-2]
 
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],

@@ -93,15 +93,15 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
+        # TODO: Support setting input name from config/CLI
+        # base_inputs_name = "input_ids"
+        base_inputs_name = "inputs_embeds"
+        common_inputs = {base_inputs_name: {0: "batch_size", 1: "sequence_length"}}
         if self.use_past_in_inputs:
-            common_inputs = {"input_ids": {0: "batch_size", 1: "sequence_length"}}
             self.add_past_key_values(common_inputs, direction="inputs")
             common_inputs["attention_mask"] = {0: "batch_size", 1: "past_sequence_length + 1"}
         else:
-            common_inputs = {
-                "input_ids": {0: "batch_size", 1: "sequence_length"},
-                "attention_mask": {0: "batch_size", 1: "sequence_length"},
-            }
+            common_inputs["attention_mask"] = {0: "batch_size", 1: "sequence_length"}
         return common_inputs
 
     @property
