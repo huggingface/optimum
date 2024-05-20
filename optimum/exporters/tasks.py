@@ -1045,6 +1045,10 @@ class TasksManager:
         "vit": supported_tasks_mapping(
             "feature-extraction", "image-classification", "masked-im", onnx="ViTOnnxConfig"
         ),
+        "vits": supported_tasks_mapping(
+            "text-to-audio",
+            onnx="VitsOnnxConfig",
+        ),
         "wavlm": supported_tasks_mapping(
             "feature-extraction",
             "automatic-speech-recognition",

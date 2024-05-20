@@ -149,6 +149,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "t5": "hf-internal-testing/tiny-random-t5",
     "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
     "vit": "hf-internal-testing/tiny-random-vit",
+    "vits": "echarlaix/tiny-random-vits",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
     "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
     "hubert": "hf-internal-testing/tiny-random-HubertModel",

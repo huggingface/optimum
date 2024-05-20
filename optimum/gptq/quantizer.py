@@ -278,19 +278,20 @@ class GPTQQuantizer(object):
                 elif isinstance(layer, Conv1D):
                     in_features = layer.weight.shape[0]
                     out_features = layer.weight.shape[1]
+                bias = layer.bias is not None
                 if not (self.desc_act) or self.group_size == -1:
                     new_layer = QuantLinear(
                         self.bits,
                         self.group_size,
                         in_features,
                         out_features,
-                        True,
+                        bias,
                         use_cuda_fp16=self.use_cuda_fp16,
                         weight_dtype=layer.weight.dtype,
                     )
                 else:
                     new_layer = QuantLinear(
-                        self.bits, self.group_size, in_features, out_features, True, weight_dtype=layer.weight.dtype
+                        self.bits, self.group_size, in_features, out_features, bias, weight_dtype=layer.weight.dtype
                     )
                 new_layer.device = device
                 setattr(module, attr, new_layer.to(device))

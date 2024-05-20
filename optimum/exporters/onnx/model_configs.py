@@ -981,7 +981,7 @@ class UNetOnnxConfig(VisionOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         common_inputs = {
-            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "sample": {0: "batch_size", 2: "height", 3: "width"},
             "timestep": {0: "steps"},
             "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
         }
@@ -998,7 +998,7 @@ class UNetOnnxConfig(VisionOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "out_sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "out_sample": {0: "batch_size", 2: "height", 3: "width"},
         }
 
     @property
@@ -1045,13 +1045,13 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "sample": {0: "batch_size", 2: "height", 3: "width"},
         }
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "latent_sample": {0: "batch_size", 1: "num_channels_latent", 2: "height_latent", 3: "width_latent"},
+            "latent_sample": {0: "batch_size", 2: "height_latent", 3: "width_latent"},
         }
 
 
@@ -1069,13 +1069,13 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "latent_sample": {0: "batch_size", 1: "num_channels_latent", 2: "height_latent", 3: "width_latent"},
+            "latent_sample": {0: "batch_size", 2: "height_latent", 3: "width_latent"},
         }
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "sample": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "sample": {0: "batch_size", 2: "height", 3: "width"},
         }
 
 
@@ -1840,6 +1840,25 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
             ):
                 inputs_or_outputs[f"{name}.{i}.encoder.key"] = {2: "encoder_sequence_length_out"}
                 inputs_or_outputs[f"{name}.{i}.encoder.value"] = {2: "encoder_sequence_length_out"}
+
+
+class VitsOnnxConfig(TextEncoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "waveform": {0: "text_batch_size", 1: "n_samples"},
+            "spectrogram": {0: "text_batch_size", 2: "num_bins"},
+        }
 
 
 class Speech2TextDummyAudioInputGenerator(DummyAudioInputGenerator):
