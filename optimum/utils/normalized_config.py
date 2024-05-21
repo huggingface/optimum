@@ -253,6 +253,7 @@ class NormalizedConfigManager:
         "pix2struct": Pix2StructNormalizedTextConfig,
         "phi": NormalizedTextConfig,
         "phi3": NormalizedTextConfigWithGQA,
+        "phi3small": NormalizedTextConfigWithGQA,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
