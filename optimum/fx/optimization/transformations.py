@@ -19,15 +19,11 @@ import itertools
 import operator
 import warnings
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List
+from typing import List
 
 import torch
+from torch.fx import GraphModule, Node, Proxy
 from transformers.file_utils import add_end_docstrings
-from transformers.utils.fx import gen_constructor_wrapper
-
-
-if TYPE_CHECKING:
-    from torch.fx import GraphModule, Node
 
 
 _ATTRIBUTES_DOCSTRING = r"""
@@ -402,7 +398,7 @@ class FuseBiasInLinear(ReversibleTransformation):
     preserves_computation = True
 
     def transform(self, graph_module: "GraphModule") -> "GraphModule":
-        torch_ones = gen_constructor_wrapper(torch.ones)[0]
+        torch_ones = _gen_constructor_wrapper(torch.ones)[0]
 
         def insert_concat(linear_input):
             shape = linear_input.shape[:-1] + (1,)
@@ -803,3 +799,26 @@ def compose(*args: Transformation, inplace: bool = True) -> Transformation:
                 return ComposeTransformation._reverse_composition(graph_module)
 
     return ComposeTransformation()
+
+
+# was removed from transformers in favor of gen_constructor_wrapper which only works during tracing
+# TODO: should transformation be applied during tracing ? or by a torch.compile backend instead ?
+def _gen_constructor_wrapper(target):
+    @functools.wraps(target)
+    def wrapper(*args, **kwargs):
+        proxy = None
+
+        def check_has_proxy(v):
+            if isinstance(v, Proxy):
+                nonlocal proxy
+                proxy = v
+
+        torch.fx.node.map_aggregate(args, check_has_proxy)
+        torch.fx.node.map_aggregate(kwargs, check_has_proxy)
+
+        if proxy is not None:
+            return proxy.tracer.create_proxy("call_function", target, args, kwargs)
+        else:
+            return target(*args, **kwargs)
+
+    return wrapper, target
