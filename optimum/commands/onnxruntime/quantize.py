@@ -96,7 +96,7 @@ class ONNXRuntimeQuantizeCommand(BaseOptimumCLICommand):
                 "TensorRT quantization relies on static quantization that requires calibration, which is currently not supported through optimum-cli. Please adapt Optimum static quantization examples to run static quantization for TensorRT: https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/quantization"
             )
         else:
-            qconfig = ORTConfig.from_pretained(self.args.config).quantization
+            qconfig = ORTConfig.from_pretrained(self.args.config).quantization
 
         for q in quantizers:
             q.quantize(save_dir=save_dir, quantization_config=qconfig)

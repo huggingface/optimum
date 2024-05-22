@@ -18,7 +18,7 @@ import warnings
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from datasets import Dataset
 from packaging.version import Version, parse
@@ -297,6 +297,15 @@ class QuantizationConfig:
                 self.is_static, self.format, self.mode, self.operators_to_quantize
             )
             self.operators_to_quantize = operators_to_quantize
+
+        if isinstance(self.format, str):
+            self.format = QuantFormat[self.format]
+        if isinstance(self.mode, str):
+            self.mode = QuantizationMode[self.mode]
+        if isinstance(self.activations_dtype, str):
+            self.activations_dtype = QuantType[self.activations_dtype]
+        if isinstance(self.weights_dtype, str):
+            self.weights_dtype = QuantType[self.weights_dtype]
 
     @staticmethod
     def quantization_type_str(activations_dtype: QuantType, weights_dtype: QuantType) -> str:
@@ -984,8 +993,24 @@ class ORTConfig(BaseConfig):
         self.opset = opset
         self.use_external_data_format = use_external_data_format
         self.one_external_file = one_external_file
-        self.optimization = self.dataclass_to_dict(optimization)
-        self.quantization = self.dataclass_to_dict(quantization)
+
+        if isinstance(optimization, dict):
+            self.optimization = OptimizationConfig(**optimization)
+        elif isinstance(optimization, OptimizationConfig) or optimization is None:
+            self.optimization = optimization
+        else:
+            raise ValueError(
+                f"Optional argument `optimization` must be a dictionary or an instance of OptimizationConfig, got {type(optimization)}"
+            )
+        if isinstance(quantization, dict):
+            self.quantization = QuantizationConfig(**quantization)
+        elif isinstance(quantization, QuantizationConfig) or quantization is None:
+            self.quantization = quantization
+        else:
+            raise ValueError(
+                f"Optional argument `quantization` must be a dictionary or an instance of QuantizationConfig, got {type(quantization)}"
+            )
+
         self.optimum_version = kwargs.pop("optimum_version", None)
 
     @staticmethod
@@ -1002,3 +1027,17 @@ class ORTConfig(BaseConfig):
                 v = [elem.name if isinstance(elem, Enum) else elem for elem in v]
             new_config[k] = v
         return new_config
+
+    def to_dict(self) -> Dict[str, Any]:
+        dict_config = {
+            "opset": self.opset,
+            "use_external_data_format": self.use_external_data_format,
+            "one_external_file": self.one_external_file,
+            "optimization": self.dataclass_to_dict(self.optimization),
+            "quantization": self.dataclass_to_dict(self.quantization),
+        }
+
+        if self.optimum_version:
+            dict_config["optimum_version"] = self.optimum_version
+
+        return dict_config
