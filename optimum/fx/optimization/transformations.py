@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, List
 
 import torch
 from transformers.file_utils import add_end_docstrings
-from transformers.utils.fx import _gen_constructor_wrapper
+from transformers.utils.fx import gen_constructor_wrapper
 
 
 if TYPE_CHECKING:
@@ -402,7 +402,7 @@ class FuseBiasInLinear(ReversibleTransformation):
     preserves_computation = True
 
     def transform(self, graph_module: "GraphModule") -> "GraphModule":
-        torch_ones = _gen_constructor_wrapper(torch.ones)[0]
+        torch_ones = gen_constructor_wrapper(torch.ones)[0]
 
         def insert_concat(linear_input):
             shape = linear_input.shape[:-1] + (1,)
