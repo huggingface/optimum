@@ -23,7 +23,7 @@ from optimum.utils.preprocessing.token_classification import TokenClassification
 
 
 if TYPE_CHECKING:
-    from .base import DatasetProcessing
+    from .base import TaskProcessor
 
 
 class TaskProcessorsManager:
@@ -35,7 +35,7 @@ class TaskProcessorsManager:
     }
 
     @classmethod
-    def get_task_processor_class_for_task(cls, task: str) -> Type:
+    def get_task_processor_class_for_task(cls, task: str) -> Type["TaskProcessor"]:
         if task not in cls._TASK_TO_DATASET_PROCESSING_CLASS:
             supported_tasks = ", ".join(cls._TASK_TO_DATASET_PROCESSING_CLASS.keys())
             raise KeyError(
@@ -45,5 +45,5 @@ class TaskProcessorsManager:
         return cls._TASK_TO_DATASET_PROCESSING_CLASS[task]
 
     @classmethod
-    def for_task(cls, task: str, *dataset_processing_args, **dataset_processing_kwargs: Any) -> "DatasetProcessing":
+    def for_task(cls, task: str, *dataset_processing_args, **dataset_processing_kwargs: Any) -> "TaskProcessor":
         return cls.get_task_processor_class_for_task(task)(*dataset_processing_args, **dataset_processing_kwargs)
