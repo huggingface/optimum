@@ -148,7 +148,10 @@ class TaskProcessorTestBase:
         )
         dataset_with_all_columns = None
         if default_dataset:
-            dataset = task_processor.load_default_dataset(only_keep_necessary_columns=only_keep_necessary_columns)
+            dataset = task_processor.load_default_dataset(
+                only_keep_necessary_columns=only_keep_necessary_columns,
+                load_smallest_split=True,
+            )
             if only_keep_necessary_columns:
                 dataset_with_all_columns = task_processor.load_default_dataset()
         else:
@@ -157,11 +160,15 @@ class TaskProcessorTestBase:
                 path,
                 data_keys=data_keys,
                 only_keep_necessary_columns=only_keep_necessary_columns,
+                load_smallest_split=True,
                 **load_dataset_kwargs,
             )
             if only_keep_necessary_columns:
                 dataset_with_all_columns = task_processor.load_dataset(
-                    path, data_keys=data_keys, **load_dataset_kwargs
+                    path,
+                    data_keys=data_keys,
+                    load_smallest_split=True,
+                    **load_dataset_kwargs,
                 )
 
         # We only check if the column names of the dataset with the not necessary columns removed are a strict subset
