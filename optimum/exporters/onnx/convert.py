@@ -1123,7 +1123,12 @@ def onnx_export_from_model(
         model.config.save_pretrained(output)
         generation_config = getattr(model, "generation_config", None)
         if generation_config is not None:
-            generation_config.save_pretrained(output)
+            # since v4.41.0 an exceptions will be raised when saving a generation config considered invalid
+            # https://github.com/huggingface/transformers/blob/v4.41.0/src/transformers/generation/configuration_utils.py#L697
+            try:
+                generation_config.save_pretrained(output)
+            except Exception as exception:
+                logger.warning(f"The generation config is invalid and will not be saved : {exception}")
 
         model_name_or_path = model.config._name_or_path
         maybe_save_preprocessors(model_name_or_path, output)

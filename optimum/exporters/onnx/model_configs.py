@@ -99,6 +99,7 @@ logger = logging.get_logger(__name__)
 class BertOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     ATOL_FOR_VALIDATION = 1e-4
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -114,42 +115,44 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
 
 
 class AlbertOnnxConfig(BertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class ConvBertOnnxConfig(BertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class ElectraOnnxConfig(BertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class RoFormerOnnxConfig(BertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class SqueezeBertOnnxConfig(BertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class MobileBertOnnxConfig(BertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class NystromformerOnnxConfig(BertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class XLMOnnxConfig(BertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class SplinterOnnxConfig(BertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class DistilBertOnnxConfig(BertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 11
+
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         if self.task == "multiple-choice":
@@ -172,7 +175,7 @@ class CamembertOnnxConfig(DistilBertOnnxConfig):
 
 
 class FlaubertOnnxConfig(BertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class IBertOnnxConfig(DistilBertOnnxConfig):
@@ -195,6 +198,7 @@ class DebertaOnnxConfig(BertOnnxConfig):
 
 
 class MarkupLMOnnxConfig(BertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 11
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTextInputGenerator,
         DummyXPathSeqInputGenerator,
@@ -706,6 +710,7 @@ class MarianOnnxConfig(BartOnnxConfig):
 class ViTOnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
     MIN_TORCH_VERSION = version.parse("1.11")
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -725,36 +730,38 @@ class CvTOnnxConfig(ViTOnnxConfig):
 
 
 class LevitOnnxConfig(ViTOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class DeiTOnnxConfig(ViTOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class BeitOnnxConfig(ViTOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class ConvNextOnnxConfig(ViTOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class ConvNextV2OnnxConfig(ViTOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class MobileViTOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
+    DEFAULT_ONNX_OPSET = 11
 
 
 class RegNetOnnxConfig(ViTOnnxConfig):
     # This config has the same inputs as ViTOnnxConfig
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class ResNetOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 11
 
 
 class DetrOnnxConfig(ViTOnnxConfig):
@@ -776,11 +783,11 @@ class TableTransformerOnnxConfig(DetrOnnxConfig):
 
 
 class YolosOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 12
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class SwinOnnxConfig(ViTOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class Swin2srOnnxConfig(SwinOnnxConfig):
@@ -788,16 +795,17 @@ class Swin2srOnnxConfig(SwinOnnxConfig):
 
 
 class DptOnnxConfig(ViTOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class GlpnOnnxConfig(ViTOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class PoolFormerOnnxConfig(ViTOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
     ATOL_FOR_VALIDATION = 2e-3
+    DEFAULT_ONNX_OPSET = 11
 
 
 class SegformerOnnxConfig(YolosOnnxConfig):
@@ -806,6 +814,7 @@ class SegformerOnnxConfig(YolosOnnxConfig):
 
 class MobileNetV1OnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
+    DEFAULT_ONNX_OPSET = 11
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -817,7 +826,7 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
 
 
 class DonutSwinOnnxConfig(ViTOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class TimmDefaultOnnxConfig(ViTOnnxConfig):
@@ -1191,12 +1200,13 @@ class Data2VecTextOnnxConfig(DistilBertOnnxConfig):
 
 
 class Data2VecVisionOnnxConfig(ViTOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class Data2VecAudioOnnxConfig(AudioOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfig
     ATOL_FOR_VALIDATION = 1e-4
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class PerceiverDummyInputGenerator(DummyVisionInputGenerator):
@@ -1292,18 +1302,19 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
 
 class HubertOnnxConfig(AudioOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfig
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class Wav2Vec2OnnxConfig(HubertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class Wav2Vec2ConformerOnnxConfig(HubertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 11
 
 
 class SEWOnnxConfig(HubertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class SEWDOnnxConfig(HubertOnnxConfig):
@@ -1311,11 +1322,11 @@ class SEWDOnnxConfig(HubertOnnxConfig):
 
 
 class UniSpeechOnnxConfig(HubertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class UniSpeechSATOnnxConfig(HubertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class WavLMOnnxConfig(HubertOnnxConfig):
@@ -1344,6 +1355,7 @@ class ASTOnnxConfig(OnnxConfig):
     )
     DUMMY_INPUT_GENERATOR_CLASSES = (ASTDummyAudioInputGenerator,)
     ATOL_FOR_VALIDATION = 1e-4
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
