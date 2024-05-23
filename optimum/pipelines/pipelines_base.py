@@ -179,7 +179,7 @@ def load_bettertransformer(
     **kwargs,
 ):
     if model_kwargs is None:
-        model_kwargs = {}
+        model_kwargs = {"attn_implementation": "eager"}
 
     if model is None:
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
