@@ -128,6 +128,7 @@ MODEL_NAMES = {
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver_text": "hf-internal-testing/tiny-random-language_perceiver",
     "perceiver_vision": "hf-internal-testing/tiny-random-vision_perceiver_conv",
+    "phi3": "katuni4ka/tiny-random-phi3",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "qwen2": "fxmarty/tiny-dummy-qwen2",
