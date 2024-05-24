@@ -384,11 +384,14 @@ class ORTQuantizer(OptimumQuantizer):
             },
         }
 
-        if parse(ort_version) >= Version("1.18.0"):
-            # The argument `static` has been removed from the quantizer factory from ORT 1.18
-            quantizer_kwargs.pop("static")
+        if use_qdq:
+            quantizer_kwargs.pop("mode")
+            if parse(ort_version) >= Version("1.18.0"):
+                # The argument `static` has been removed from the qdq quantizer factory in ORT 1.18
+                quantizer_kwargs.pop("static")
+
         if parse(ort_version) >= Version("1.13.0"):
-            # The argument `input_qType` has been changed into `activation_qType` from ORT 1.13
+            # The argument `input_qType` has been changed into `activation_qType` in ORT 1.13
             quantizer_kwargs["activation_qType"] = quantizer_kwargs.pop("input_qType")
 
         quantizer = quantizer_factory(**quantizer_kwargs)
