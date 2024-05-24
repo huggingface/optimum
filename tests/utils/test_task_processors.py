@@ -19,7 +19,7 @@ import string
 from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
 from unittest import TestCase
 
-from datasets import DatasetDict, disable_caching
+from datasets import DatasetDict
 from transformers import AutoConfig, AutoFeatureExtractor, AutoTokenizer
 
 from optimum.utils.preprocessing import TaskProcessorsManager
@@ -55,7 +55,8 @@ TASK_TO_NON_DEFAULT_DATASET = {
     },
 }
 
-disable_caching()  # trying to not saturate disk storage in CI
+LOAD_SMALLEST_SPLIT = True
+NUM_SAMPLES = 10
 
 
 # Taken from https://pynative.com/python-generate-random-string/
@@ -152,7 +153,8 @@ class TaskProcessorTestBase:
         if default_dataset:
             dataset = task_processor.load_default_dataset(
                 only_keep_necessary_columns=only_keep_necessary_columns,
-                load_smallest_split=True,
+                load_smallest_split=LOAD_SMALLEST_SPLIT,
+                num_samples=NUM_SAMPLES,
             )
             if only_keep_necessary_columns:
                 dataset_with_all_columns = task_processor.load_default_dataset()
@@ -162,14 +164,16 @@ class TaskProcessorTestBase:
                 path,
                 data_keys=data_keys,
                 only_keep_necessary_columns=only_keep_necessary_columns,
-                load_smallest_split=True,
+                load_smallest_split=LOAD_SMALLEST_SPLIT,
+                num_samples=NUM_SAMPLES,
                 **load_dataset_kwargs,
             )
             if only_keep_necessary_columns:
                 dataset_with_all_columns = task_processor.load_dataset(
                     path,
                     data_keys=data_keys,
-                    load_smallest_split=True,
+                    load_smallest_split=LOAD_SMALLEST_SPLIT,
+                    num_samples=NUM_SAMPLES,
                     **load_dataset_kwargs,
                 )
 
