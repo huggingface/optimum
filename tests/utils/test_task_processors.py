@@ -19,7 +19,7 @@ import string
 from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
 from unittest import TestCase
 
-from datasets import DatasetDict
+from datasets import DatasetDict, disable_caching
 from transformers import AutoConfig, AutoFeatureExtractor, AutoTokenizer
 
 from optimum.utils.preprocessing import TaskProcessorsManager
@@ -54,6 +54,8 @@ TASK_TO_NON_DEFAULT_DATASET = {
         "dataset_data_keys": {"image": "image"},
     },
 }
+
+disable_caching()  # trying to not saturate disk storage in CI
 
 
 # Taken from https://pynative.com/python-generate-random-string/
