@@ -418,6 +418,7 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusers_pipeline = self.ORTMODEL_CLASS.auto_model_class.from_pretrained(MODEL_NAMES[model_arch])
         height, width = 64, 64
         latents_shape = (
             1,
@@ -425,8 +426,11 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
             height // ort_pipeline.vae_scale_factor,
             width // ort_pipeline.vae_scale_factor,
         )
-        latents = np.random.randn(*latents_shape).astype(np.float32)
+        np_latents = np.random.rand(*latents_shape).astype(np.float32)
+        torch_latents = torch.from_numpy(np_latents)
         inputs = self.generate_inputs(height=height, width=width)
+
+        # Not really needed if we're not testing using slices
         inputs["image"] = load_image(
             "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
             "/in_paint/overture-creations-5sI6fQgYIuo.png"
@@ -437,10 +441,15 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
             "/in_paint/overture-creations-5sI6fQgYIuo_mask.png"
         ).resize((width, height))
 
-        outputs = ort_pipeline(**inputs, latents=latents).images
-        self.assertEqual(outputs.shape, (1, height, width, 3))
-        expected_slice = np.array([0.5442, 0.3002, 0.5665, 0.6485, 0.4421, 0.6441, 0.5778, 0.5076, 0.5612])
-        self.assertTrue(np.allclose(outputs[0, -3:, -3:, -1].flatten(), expected_slice, atol=1e-4))
+        # TODO: it's more maintainable to test against diffusers output instead of the slices
+        # should we do that everywhere ?
+        ort_outputs = ort_pipeline(**inputs, latents=np_latents).images
+        self.assertEqual(ort_outputs.shape, (1, height, width, 3))
+
+        diffusers_outputs = diffusers_pipeline(**inputs, latents=torch_latents).images
+        self.assertEqual(diffusers_outputs.shape, (1, height, width, 3))
+
+        self.assertTrue(np.allclose(ort_outputs, diffusers_outputs, atol=1e-4))
 
     def generate_inputs(self, height=128, width=128, batch_size=1):
         inputs = super(ORTStableDiffusionInpaintPipelineTest, self).generate_inputs(height, width)
