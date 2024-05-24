@@ -4,9 +4,9 @@ name: ONNX Runtime / Python - Test
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -22,11 +22,9 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v2
-
-    - name: Free disk space
-      if: matrix.os == 'ubuntu-20.04'
-      run: |
+      - name: Free disk space
+        if: matrix.os == 'ubuntu-20.04'
+        run: |
           df -h
           sudo apt-get update
           sudo apt-get purge -y '^apache.*'
@@ -67,17 +65,22 @@ jobs:
           sudo rm -rf /usr/local/share/chromium > /dev/null 2>&1
           df -h
 
-    - name: Setup Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        pip install .[tests,onnxruntime]
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
 
-    - name: Test with pytest
-      working-directory: tests
-      run: |
-        pytest -n auto -m "not run_in_series" --durations=0 -vs onnxruntime
-        pytest -m "run_in_series" --durations=0 onnxruntime
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install .[tests,onnxruntime]
+
+      - name: Test with pytest
+        working-directory: tests
+        run: |
+          pytest -n auto -m "not run_in_series" --durations=0 -v -s onnxruntime
+          pytest -m "run_in_series" --durations=0 -v -s onnxruntime
