@@ -84,6 +84,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "llama",
     "mistral",
     "phi",
+    "phi3",
     "qwen2",
 }
 
