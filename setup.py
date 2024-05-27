@@ -74,7 +74,6 @@ EXTRAS_REQUIRE = {
         "numpy<1.24.0",
         "transformers[sentencepiece]>=4.26.0,<4.38.0",
     ],
-    "diffusers": ["diffusers"],
     "intel": "optimum-intel>=1.15.0",
     "openvino": "optimum-intel[openvino]>=1.15.0",
     "nncf": "optimum-intel[nncf]>=1.15.0",
@@ -90,6 +89,8 @@ EXTRAS_REQUIRE = {
     "quality": QUALITY_REQUIRE,
     "benchmark": BENCHMARK_REQUIRE,
     "doc-build": ["accelerate"],
+    "diffusers": ["diffusers"],
+    "gptq": ["auto-gptq"],
 }
 
 setup(
