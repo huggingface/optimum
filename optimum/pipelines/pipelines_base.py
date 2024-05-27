@@ -45,7 +45,7 @@ from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TAS
 from transformers.pipelines import infer_framework_load_model
 
 from ..bettertransformer import BetterTransformer
-from ..utils import is_onnxruntime_available
+from ..utils import check_if_transformers_greater, is_onnxruntime_available
 from ..utils.file_utils import find_files_matching_pattern
 
 
@@ -179,7 +179,12 @@ def load_bettertransformer(
     **kwargs,
 ):
     if model_kwargs is None:
-        model_kwargs = {}
+        # the argument was first introduced in 4.36.0 but most models didn't have an sdpa implementation then
+        # see https://github.com/huggingface/transformers/blob/v4.36.0/src/transformers/modeling_utils.py#L1258
+        if check_if_transformers_greater("4.36.0"):
+            model_kwargs = {"attn_implementation": "eager"}
+        else:
+            model_kwargs = {}
 
     if model is None:
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
