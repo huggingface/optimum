@@ -18,7 +18,7 @@ import unittest
 
 import torch
 from parameterized import parameterized
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, enable_full_determinism, set_seed
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, enable_full_determinism
 from transformers.testing_utils import slow
 
 from optimum.gptq import GPTQQuantizer, load_quantized_model
@@ -75,8 +75,7 @@ class GPTQTest(unittest.TestCase):
         Setup quantized model
         """
 
-        enable_full_determinism()
-        set_seed(42, deterministic=True)
+        enable_full_determinism(42)
 
         cls.model_fp16 = AutoModelForCausalLM.from_pretrained(
             cls.model_name, torch_dtype=torch.float16, device_map=cls.device_map_for_quantization
@@ -132,8 +131,7 @@ class GPTQTest(unittest.TestCase):
         Given that we are operating on small numbers + the testing model is relatively small, we might not get
         the same output across GPUs. So we'll generate few tokens (5-10) and check their output.
         """
-        enable_full_determinism()
-        set_seed(42, deterministic=True)
+        enable_full_determinism(42)
 
         input_ids = self.tokenizer(self.input_text, return_tensors="pt").input_ids.to(self.device_for_inference)
         output_ids = model.generate(input_ids, do_sample=False, min_new_tokens=10, max_new_tokens=10)

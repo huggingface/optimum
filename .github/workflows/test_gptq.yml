@@ -42,4 +42,4 @@ jobs:
             --workdir /workspace
           run: |
             pip install -e .[tests,gptq]
-            pytest tests/gptq --durations=0 -s -vvvvv
+            pytest tests/gptq -s -vvvv --durations=0
