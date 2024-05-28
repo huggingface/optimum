@@ -22,48 +22,13 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Free disk space
+      - name: Free Disk Space (Ubuntu)
         if: matrix.os == 'ubuntu-20.04'
-        run: |
-          df -h
-          sudo apt-get update
-          sudo apt-get purge -y '^apache.*'
-          sudo apt-get purge -y '^imagemagick.*'
-          sudo apt-get purge -y '^dotnet.*'
-          sudo apt-get purge -y '^aspnetcore.*'
-          sudo apt-get purge -y 'php.*'
-          sudo apt-get purge -y '^temurin.*'
-          sudo apt-get purge -y '^mysql.*'
-          sudo apt-get purge -y '^java.*'
-          sudo apt-get purge -y '^openjdk.*'
-          sudo apt-get purge -y microsoft-edge-stable google-cloud-cli azure-cli google-chrome-stable firefox powershell mono-devel
-          df -h
-          sudo apt-get autoremove -y >/dev/null 2>&1
-          sudo apt-get clean
-          df -h
-          echo "https://github.com/actions/virtual-environments/issues/709"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          df -h
-          echo "remove big /usr/local"
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
-          df -h
-          echo "remove /usr/share leftovers"
-          sudo rm -rf /usr/share/dotnet/sdk > /dev/null 2>&1
-          sudo rm -rf /usr/share/dotnet/shared > /dev/null 2>&1
-          sudo rm -rf /usr/share/swift > /dev/null 2>&1
-          df -h
-          echo "remove other leftovers"
-          sudo rm -rf /var/lib/mysql > /dev/null 2>&1
-          sudo rm -rf /home/runner/.dotnet > /dev/null 2>&1
-          sudo rm -rf /home/runneradmin/.dotnet > /dev/null 2>&1
-          sudo rm -rf /etc/skel/.dotnet > /dev/null 2>&1
-          sudo rm -rf /usr/local/.ghcup > /dev/null 2>&1
-          sudo rm -rf /usr/local/aws-cli > /dev/null 2>&1
-          sudo rm -rf /usr/local/lib/node_modules > /dev/null 2>&1
-          sudo rm -rf /usr/lib/heroku > /dev/null 2>&1
-          sudo rm -rf /usr/local/share/chromium > /dev/null 2>&1
-          df -h
+        uses: jlumbroso/free-disk-space@main
+        with:
+          # this might remove tools that are actually needed,
+          # if set to "true" but frees about 6 GB
+          tool-cache: false
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -82,5 +47,5 @@ jobs:
       - name: Test with pytest
         working-directory: tests
         run: |
-          pytest -n auto -m "not run_in_series" --durations=0 -v -s onnxruntime
-          pytest -m "run_in_series" --durations=0 -v -s onnxruntime
+          pytest onnxruntime -m "not run_in_series" --durations=0 -vvvv -s -n auto
+          pytest onnxruntime -m "run_in_series" --durations=0 -vvvv -s
