@@ -2276,7 +2276,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand([(False,), (True,)])
     def test_inference_old_onnx_model(self, use_cache):
         model_id = "optimum/gpt2"
-        tokenizer = get_preprocessor("gpt2")
+        tokenizer = AutoTokenizer.from_pretrained("gpt2")
         model = AutoModelForCausalLM.from_pretrained("gpt2")
 
         text = "The capital of France is"
