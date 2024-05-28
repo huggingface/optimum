@@ -994,18 +994,22 @@ class ORTConfig(BaseConfig):
         self.use_external_data_format = use_external_data_format
         self.one_external_file = one_external_file
 
-        if isinstance(optimization, dict):
+        if isinstance(optimization, dict) and optimization:
             self.optimization = OptimizationConfig(**optimization)
-        elif isinstance(optimization, OptimizationConfig) or optimization is None:
+        elif isinstance(optimization, OptimizationConfig):
             self.optimization = optimization
+        elif not optimization:
+            self.optimization = None
         else:
             raise ValueError(
                 f"Optional argument `optimization` must be a dictionary or an instance of OptimizationConfig, got {type(optimization)}"
             )
-        if isinstance(quantization, dict):
+        if isinstance(quantization, dict) and quantization:
             self.quantization = QuantizationConfig(**quantization)
-        elif isinstance(quantization, QuantizationConfig) or quantization is None:
+        elif isinstance(quantization, QuantizationConfig):
             self.quantization = quantization
+        elif not quantization:
+            self.quantization = None
         else:
             raise ValueError(
                 f"Optional argument `quantization` must be a dictionary or an instance of QuantizationConfig, got {type(quantization)}"
