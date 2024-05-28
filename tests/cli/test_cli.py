@@ -22,7 +22,7 @@ import unittest
 from pathlib import Path
 
 import optimum.commands
-from optimum.onnxruntime.configuration import ORTConfig, AutoQuantizationConfig
+from optimum.onnxruntime.configuration import AutoQuantizationConfig, ORTConfig
 
 
 CLI_WIH_CUSTOM_COMMAND_PATH = Path(__file__).parent / "cli_with_custom_command.py"
