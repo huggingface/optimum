@@ -2275,6 +2275,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand([(False,), (True,)])
     def test_inference_old_onnx_model(self, use_cache):
         model_id = "optimum/gpt2"
+        tokenizer = get_preprocessor(model_id)
         model = AutoModelForCausalLM.from_pretrained("gpt2")
         tokenizer = get_preprocessor(model_id)
         text = "This is a sample output"
@@ -2283,11 +2284,15 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         self.assertEqual(onnx_model.use_cache, use_cache)
         self.assertEqual(onnx_model.model_path.name, ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME)
-        outputs_onnx = onnx_model.generate(
+        onnx_outputs = onnx_model.generate(
             **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30
         )
+        onnx_text_outputs = tokenizer.decode(onnx_outputs[0], skip_special_tokens=True)
+
         outputs = model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30)
-        self.assertTrue(torch.allclose(outputs_onnx, outputs))
+        text_outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+        self.assertEqual(onnx_text_outputs, text_outputs)
 
     def test_load_model_from_hub_onnx(self):
         model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-without-merge")
