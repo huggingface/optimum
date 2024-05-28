@@ -57,6 +57,7 @@ class GPTQTest(unittest.TestCase):
     EXPECTED_OUTPUTS.add("Hello my name is jessica and i am a very sweet and")
     EXPECTED_OUTPUTS.add("Hello my name is Alyson and I am a very sweet and")
     EXPECTED_OUTPUTS.add("Hello my name is jessie and i am a new member of")
+    EXPECTED_OUTPUTS.add("Hello my name is jessica, i am a student at the")
     EXPECTED_OUTPUTS.add("Hello my name is A.I. and I am a student of")
     EXPECTED_OUTPUTS.add("Hello my name is A.I.I.I.I.")
 
