@@ -114,7 +114,7 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
         """
         model_name = "bert-base-uncased"
 
-        hf_model = AutoModel.from_pretrained(model_name).eval()
+        hf_model = AutoModel.from_pretrained(model_name, attn_implementation="eager").eval()
         bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
 
         BATCH_SIZE = 8

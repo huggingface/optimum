@@ -51,6 +51,7 @@ from ...utils import (
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
+    NormalizedTextConfigWithGQA,
     NormalizedVisionConfig,
     is_diffusers_available,
     logging,
@@ -289,6 +290,14 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+
+class Phi3OnnxConfig(PhiOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        MistralDummyPastKeyValuesGenerator,
+    ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
