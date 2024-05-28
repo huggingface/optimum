@@ -2279,7 +2279,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokenizer = get_preprocessor(model_id)
         model = AutoModelForCausalLM.from_pretrained("gpt2")
         tokenizer = get_preprocessor(model_id)
-        text = "This is a sample output"
+        text = "The capital of France is"
         tokens = tokenizer(text, return_tensors="pt")
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, use_cache=use_cache, use_io_binding=use_cache)
 
