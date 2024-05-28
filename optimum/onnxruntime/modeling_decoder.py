@@ -533,7 +533,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             output_dims["logits"][1] = "sequence_length"
             override_dims = True
 
-        # Since https://github.com/huggingface/optimum/pull/871/files
+        # Since https://github.com/huggingface/optimum/pull/871/
         # changed axis notation/naming during export, we need to update the dims
         for dim in input_dims.keys():
             if "past" in dim and input_dims[dim][2] == "past_sequence_length + sequence_length":
