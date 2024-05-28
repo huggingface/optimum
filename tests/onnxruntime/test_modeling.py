@@ -2276,9 +2276,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand([(False,), (True,)])
     def test_inference_old_onnx_model(self, use_cache):
         model_id = "optimum/gpt2"
-        tokenizer = get_preprocessor(model_id)
+        tokenizer = get_preprocessor("gpt2")
         model = AutoModelForCausalLM.from_pretrained("gpt2")
-        tokenizer = get_preprocessor(model_id)
+
         text = "The capital of France is"
         tokens = tokenizer(text, return_tensors="pt")
         onnx_model = ORTModelForCausalLM.from_pretrained(model_id, use_cache=use_cache, use_io_binding=use_cache)
@@ -2288,11 +2288,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_outputs = onnx_model.generate(
             **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30
         )
-        onnx_text_outputs = tokenizer.decode(onnx_outputs[0], skip_special_tokens=True)
-
         outputs = model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30)
+        onnx_text_outputs = tokenizer.decode(onnx_outputs[0], skip_special_tokens=True)
         text_outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
         self.assertEqual(onnx_text_outputs, text_outputs)
 
     def test_load_model_from_hub_onnx(self):
