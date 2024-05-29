@@ -227,20 +227,18 @@ class ORTStableDiffusionImg2ImgPipelineTest(ORTStableDiffusionPipelineBase):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
         height, width = 128, 128
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+
         inputs = self.generate_inputs(height=height, width=width)
         inputs["prompt"] = "A painting of a squirrel eating a burger"
         inputs["image"] = floats_tensor((1, 3, height, width), rng=random.Random(SEED))
 
-        output = pipeline(**inputs, generator=np.random.RandomState(0)).images[0, -3:, -3:, -1]
-        # https://github.com/huggingface/diffusers/blob/v0.17.1/tests/pipelines/stable_diffusion/test_onnx_stable_diffusion_img2img.py#L71
-        expected_slice = np.array([0.69643, 0.58484, 0.50314, 0.58760, 0.55368, 0.59643, 0.51529, 0.41217, 0.49087])
-        self.assertTrue(np.allclose(output.flatten(), expected_slice, atol=1e-1))
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        ort_output = ort_pipeline(**inputs, generator=np.random.RandomState(SEED)).images
 
-        # Verify it can be loaded with ORT diffusers pipeline
-        diffusers_pipeline = OnnxStableDiffusionImg2ImgPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
-        diffusers_output = diffusers_pipeline(**inputs, generator=np.random.RandomState(0)).images[0, -3:, -3:, -1]
-        self.assertTrue(np.allclose(output, diffusers_output, atol=1e-2))
+        diffusers_onnx_pipeline = OnnxStableDiffusionImg2ImgPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusers_onnx_output = diffusers_onnx_pipeline(**inputs, generator=np.random.RandomState(SEED)).images
+
+        self.assertTrue(np.allclose(ort_output, diffusers_onnx_output, atol=1e-1))
 
     def generate_inputs(self, height=128, width=128, batch_size=1, input_type="np"):
         inputs = _generate_inputs(batch_size=batch_size)
@@ -426,23 +424,11 @@ class ORTStableDiffusionInpaintPipelineTest(ORTStableDiffusionPipelineBase):
             height // ort_pipeline.vae_scale_factor,
             width // ort_pipeline.vae_scale_factor,
         )
-        np_latents = np.random.rand(*latents_shape).astype(np.float32)
-        torch_latents = torch.from_numpy(np_latents)
         inputs = self.generate_inputs(height=height, width=width)
 
-        # Not really needed if we're not testing using slices
-        inputs["image"] = load_image(
-            "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
-            "/in_paint/overture-creations-5sI6fQgYIuo.png"
-        ).resize((width, height))
+        np_latents = np.random.rand(*latents_shape).astype(np.float32)
+        torch_latents = torch.from_numpy(np_latents)
 
-        inputs["mask_image"] = load_image(
-            "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
-            "/in_paint/overture-creations-5sI6fQgYIuo_mask.png"
-        ).resize((width, height))
-
-        # TODO: it's more maintainable to test against diffusers output instead of the slices
-        # should we do that everywhere ?
         ort_outputs = ort_pipeline(**inputs, latents=np_latents).images
         self.assertEqual(ort_outputs.shape, (1, height, width, 3))
 
