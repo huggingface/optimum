@@ -356,62 +356,45 @@ class ORTQuantizer(OptimumQuantizer):
                 )
 
         quantizer_factory = QDQQuantizer if use_qdq else ONNXQuantizer
+        # TODO: maybe this logic can be moved to a method in the configuration class (get_ort_quantizer_kwargs())
+        # that returns the dictionary of arguments to pass to the quantizer factory depending on the ort version
+        quantizer_kwargs = {
+            "model": onnx_model,
+            "static": quantization_config.is_static,
+            "per_channel": quantization_config.per_channel,
+            "mode": quantization_config.mode,
+            "weight_qType": quantization_config.weights_dtype,
+            "input_qType": quantization_config.activations_dtype,
+            "tensors_range": calibration_tensors_range,
+            "reduce_range": quantization_config.reduce_range,
+            "nodes_to_quantize": quantization_config.nodes_to_quantize,
+            "nodes_to_exclude": quantization_config.nodes_to_exclude,
+            "op_types_to_quantize": [
+                operator.value if isinstance(operator, ORTQuantizableOperator) else operator
+                for operator in quantization_config.operators_to_quantize
+            ],
+            "extra_options": {
+                "WeightSymmetric": quantization_config.weights_symmetric,
+                "ActivationSymmetric": quantization_config.activations_symmetric,
+                "EnableSubgraph": has_subgraphs,
+                "ForceSymmetric": quantization_config.activations_symmetric and quantization_config.weights_symmetric,
+                "AddQDQPairToWeight": quantization_config.qdq_add_pair_to_weight,
+                "DedicatedQDQPair": quantization_config.qdq_dedicated_pair,
+                "QDQOpTypePerChannelSupportToAxis": quantization_config.qdq_op_type_per_channel_support_to_axis,
+            },
+        }
+
+        if use_qdq:
+            quantizer_kwargs.pop("mode")
+            if parse(ort_version) >= Version("1.18.0"):
+                # The argument `static` has been removed from the qdq quantizer factory in ORT 1.18
+                quantizer_kwargs.pop("static")
 
         if parse(ort_version) >= Version("1.13.0"):
-            # The argument `input_qType` has been changed into `activation_qType` from ORT 1.13
-            quantizer = quantizer_factory(
-                model=onnx_model,
-                static=quantization_config.is_static,
-                per_channel=quantization_config.per_channel,
-                mode=quantization_config.mode,
-                weight_qType=quantization_config.weights_dtype,
-                activation_qType=quantization_config.activations_dtype,
-                tensors_range=calibration_tensors_range,
-                reduce_range=quantization_config.reduce_range,
-                nodes_to_quantize=quantization_config.nodes_to_quantize,
-                nodes_to_exclude=quantization_config.nodes_to_exclude,
-                op_types_to_quantize=[
-                    operator.value if isinstance(operator, ORTQuantizableOperator) else operator
-                    for operator in quantization_config.operators_to_quantize
-                ],
-                extra_options={
-                    "WeightSymmetric": quantization_config.weights_symmetric,
-                    "ActivationSymmetric": quantization_config.activations_symmetric,
-                    "EnableSubgraph": has_subgraphs,
-                    "ForceSymmetric": quantization_config.activations_symmetric
-                    and quantization_config.weights_symmetric,
-                    "AddQDQPairToWeight": quantization_config.qdq_add_pair_to_weight,
-                    "DedicatedQDQPair": quantization_config.qdq_dedicated_pair,
-                    "QDQOpTypePerChannelSupportToAxis": quantization_config.qdq_op_type_per_channel_support_to_axis,
-                },
-            )
-        else:
-            quantizer = quantizer_factory(
-                model=onnx_model,
-                static=quantization_config.is_static,
-                per_channel=quantization_config.per_channel,
-                mode=quantization_config.mode,
-                weight_qType=quantization_config.weights_dtype,
-                input_qType=quantization_config.activations_dtype,
-                tensors_range=calibration_tensors_range,
-                reduce_range=quantization_config.reduce_range,
-                nodes_to_quantize=quantization_config.nodes_to_quantize,
-                nodes_to_exclude=quantization_config.nodes_to_exclude,
-                op_types_to_quantize=[
-                    operator.value if isinstance(operator, ORTQuantizableOperator) else operator
-                    for operator in quantization_config.operators_to_quantize
-                ],
-                extra_options={
-                    "WeightSymmetric": quantization_config.weights_symmetric,
-                    "ActivationSymmetric": quantization_config.activations_symmetric,
-                    "EnableSubgraph": False,
-                    "ForceSymmetric": quantization_config.activations_symmetric
-                    and quantization_config.weights_symmetric,
-                    "AddQDQPairToWeight": quantization_config.qdq_add_pair_to_weight,
-                    "DedicatedQDQPair": quantization_config.qdq_dedicated_pair,
-                    "QDQOpTypePerChannelSupportToAxis": quantization_config.qdq_op_type_per_channel_support_to_axis,
-                },
-            )
+            # The argument `input_qType` has been changed into `activation_qType` in ORT 1.13
+            quantizer_kwargs["activation_qType"] = quantizer_kwargs.pop("input_qType")
+
+        quantizer = quantizer_factory(**quantizer_kwargs)
 
         LOGGER.info("Quantizing model...")
         quantizer.quantize_model()
