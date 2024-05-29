@@ -115,6 +115,10 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
         }
 
 
+class NomicBertOnnxConfig(BertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14
+
+
 class AlbertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
