@@ -826,8 +826,7 @@ class TasksManager:
             "text2text-generation-with-past",
             onnx="M2M100OnnxConfig",
         ),
-        "nomic-bert": supported_tasks_mapping("feature-extraction",
-                                              onnx="NomicBertOnnxConfig"),
+        "nomic-bert": supported_tasks_mapping("feature-extraction", onnx="NomicBertOnnxConfig"),
         "nystromformer": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",

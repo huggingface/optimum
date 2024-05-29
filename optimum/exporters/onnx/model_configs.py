@@ -113,8 +113,10 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
             "token_type_ids": dynamic_axis,
         }
 
+
 class NomicBertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
+
 
 class AlbertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
