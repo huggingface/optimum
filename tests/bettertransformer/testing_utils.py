@@ -235,7 +235,7 @@ class BetterTransformersTestMixin(unittest.TestCase):
         inputs = self.prepare_inputs_for_class(model_id=model_id, model_type=model_type, **preprocessor_kwargs)
 
         torch.manual_seed(0)
-        hf_random_model = AutoModel.from_pretrained(model_id).eval()
+        hf_random_model = AutoModel.from_pretrained(model_id, attn_implementation="eager").eval()
         random_config = hf_random_model.config
 
         hf_random_model = hf_random_model.eval()

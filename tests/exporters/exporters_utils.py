@@ -111,6 +111,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     # "longformer": "allenai/longformer-base-4096",
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
+    "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
@@ -120,6 +121,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
+    "musicgen": "hf-internal-testing/tiny-random-MusicgenForConditionalGeneration",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "owlv2": "hf-internal-testing/tiny-random-Owlv2Model",
@@ -130,6 +132,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
     "phi": "echarlaix/tiny-random-PhiForCausalLM",
+    "phi3": "Xenova/tiny-random-Phi3ForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
@@ -147,6 +150,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "t5": "hf-internal-testing/tiny-random-t5",
     "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
     "vit": "hf-internal-testing/tiny-random-vit",
+    "vits": "echarlaix/tiny-random-vits",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
     "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
@@ -237,6 +241,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     # "longformer": "allenai/longformer-base-4096",
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",  # Not using facebook/m2m100_418M because it takes too much time for testing.
     "marian": "Helsinki-NLP/opus-mt-en-de",
+    "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "sshleifer/tiny-mbart",
     "mobilebert": "google/mobilebert-uncased",
     # "mobilenet_v1": "google/mobilenet_v1_0.75_192",
@@ -244,6 +249,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "mobilevit": "apple/mobilevit-small",
     "mpt": "mosaicml/mpt-7b",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
+    "musicgen": "facebook/musicgen-small",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "owlv2": "google/owlv2-base-patch16",
     "owlvit": "google/owlvit-base-patch32",

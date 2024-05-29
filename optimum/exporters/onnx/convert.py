@@ -29,7 +29,7 @@ import onnx
 from transformers.modeling_utils import get_parameter_dtype
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
+from ...onnx.utils import _get_onnx_external_constants, _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
@@ -258,7 +258,7 @@ def _run_validation(
 
     model_kwargs = model_kwargs if model_kwargs is not None else {}
 
-    logger.info(f"Validating ONNX model {onnx_model.as_posix()}...")
+    logger.info(f"\nValidating ONNX model {onnx_model.as_posix()}...")
 
     if atol is None:
         atol = config.ATOL_FOR_VALIDATION
@@ -592,6 +592,7 @@ def export_pytorch(
 
         if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
             tensors_paths = _get_onnx_external_data_tensors(onnx_model)
+            constant_paths = _get_onnx_external_constants(onnx_model)
             logger.info("Saving external data to one file...")
 
             # try free model memory
@@ -617,6 +618,10 @@ def export_pytorch(
             # delete previous external data
             for tensor in tensors_paths:
                 os.remove(output.parent / tensor)
+
+            for tensor in constant_paths:
+                if os.path.isfile(output.parent / tensor):
+                    os.remove(output.parent / tensor)
 
     return input_names, output_names
 
@@ -764,6 +769,9 @@ def export_models(
         output_path = output_dir / output_name
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
+        logger.info(
+            f"\n***** Exporting submodel {i + 1}/{len(models_and_onnx_configs)}: {submodel.__class__.__name__} *****"
+        )
         outputs.append(
             export(
                 model=submodel,
@@ -1115,7 +1123,12 @@ def onnx_export_from_model(
         model.config.save_pretrained(output)
         generation_config = getattr(model, "generation_config", None)
         if generation_config is not None:
-            generation_config.save_pretrained(output)
+            # since v4.41.0 an exceptions will be raised when saving a generation config considered invalid
+            # https://github.com/huggingface/transformers/blob/v4.41.0/src/transformers/generation/configuration_utils.py#L697
+            try:
+                generation_config.save_pretrained(output)
+            except Exception as exception:
+                logger.warning(f"The generation config is invalid and will not be saved : {exception}")
 
         model_name_or_path = model.config._name_or_path
         maybe_save_preprocessors(model_name_or_path, output)

@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 from huggingface_hub import HfApi, HfFolder
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import AutoConfig, PretrainedConfig, add_start_docstrings
 
 from .exporters import TasksManager
@@ -220,7 +221,7 @@ class OptimizedModel(PreTrainedModel):
         cls,
         config_name_or_path: Union[str, os.PathLike],
         revision: Optional[str] = None,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         use_auth_token: Optional[Union[bool, str]] = False,
         force_download: bool = False,
         subfolder: str = "",
@@ -262,7 +263,7 @@ class OptimizedModel(PreTrainedModel):
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         local_files_only: bool = False,
         **kwargs,
@@ -278,7 +279,7 @@ class OptimizedModel(PreTrainedModel):
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
@@ -298,7 +299,7 @@ class OptimizedModel(PreTrainedModel):
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
@@ -317,7 +318,7 @@ class OptimizedModel(PreTrainedModel):
         export: bool = False,
         force_download: bool = False,
         use_auth_token: Optional[str] = None,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         config: Optional[PretrainedConfig] = None,
         local_files_only: bool = False,
@@ -357,7 +358,7 @@ class OptimizedModel(PreTrainedModel):
             if os.path.isdir(os.path.join(model_id, subfolder)) and cls.config_name == CONFIG_NAME:
                 if CONFIG_NAME in os.listdir(os.path.join(model_id, subfolder)):
                     config = AutoConfig.from_pretrained(
-                        os.path.join(model_id, subfolder, CONFIG_NAME), trust_remote_code=trust_remote_code
+                        os.path.join(model_id, subfolder), trust_remote_code=trust_remote_code
                     )
                 elif CONFIG_NAME in os.listdir(model_id):
                     config = AutoConfig.from_pretrained(

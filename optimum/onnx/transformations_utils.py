@@ -160,7 +160,7 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
         else:
             logger.info(
                 f"The two models proto have different outputs ({len(model1_outputs)} and {len(model2_outputs)} outputs)."
-                " Constant outputs will be added to unify the two models outputs."
+                " Constant outputs will be added to unify the two models outputs. This is expected for encoder-decoder models where cached cross-attention key/values are constant outputs, omitted in the model with KV cache."
             )
 
     if model2_outputs.issubset(model1_outputs) is False:

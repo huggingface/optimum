@@ -33,6 +33,7 @@ from diffusers import (
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils import CONFIG_NAME, is_invisible_watermark_available
 from huggingface_hub import snapshot_download
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
 from transformers.file_utils import add_end_docstrings
 
@@ -272,7 +273,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         config: Dict[str, Any],
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         vae_decoder_file_name: str = ONNX_WEIGHTS_NAME,
         text_encoder_file_name: str = ONNX_WEIGHTS_NAME,
         unet_file_name: str = ONNX_WEIGHTS_NAME,
@@ -377,7 +378,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         use_auth_token: Optional[Union[bool, str]] = None,
         revision: str = "main",
         force_download: bool = True,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
