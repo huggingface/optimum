@@ -266,7 +266,9 @@ class OnnxConfig(ExportConfig, ABC):
         if value == "default" and hasattr(self, "DEFAULT_VARIANT"):
             value = self.DEFAULT_VARIANT
         if value not in self.VARIANTS:
-            raise ValueError(f"The variant {value} is not supported for the ONNX config {self.__class__.__name__}.")
+            raise ValueError(
+                f"The variant {value} is not supported for the ONNX config {self.__class__.__name__}. Available variants {self.VARIANTS.keys()}"
+            )
         self._variant = value
 
     def fix_dynamic_axes(
@@ -645,14 +647,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             and "attention_mask" in dummy_inputs
         ):
             # Obtain the past sequence length from the value instead of the key (Bloom).
-            if "inputs_embeds" in dummy_inputs:
-                past_present_length = (
-                    dummy_inputs["inputs_embeds"].shape[2] + dummy_inputs["past_key_values"][0][1].shape[-2]
-                )
-            else:
-                past_present_length = (
-                    dummy_inputs["input_ids"].shape[1] + dummy_inputs["past_key_values"][0][1].shape[-2]
-                )
+            input_name = "inputs_embeds" if "inputs_embeds" in dummy_inputs else "input_ids"
+            past_present_length = dummy_inputs[input_name].shape[1] + dummy_inputs["past_key_values"][0][1].shape[-2]
 
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
                 dummy_inputs["attention_mask"],

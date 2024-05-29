@@ -405,8 +405,8 @@ def patched_merge_input_ids_with_image_features(
     left_padding = not torch.sum(input_ids[:, -1] == torch.tensor(self.pad_token_id))
     # 1. Create a mask to know where special image tokens are
     special_image_token_mask = input_ids == self.config.image_token_index
-
     num_special_image_tokens = torch.sum(special_image_token_mask, dim=-1)
+
     # Compute the maximum embed dimension
     max_embed_dim = (num_special_image_tokens.max() * (num_image_patches - 1)) + sequence_length
     batch_indices, non_image_indices = torch.where(input_ids != self.config.image_token_index)
@@ -451,7 +451,8 @@ def patched_merge_input_ids_with_image_features(
         final_labels[batch_indices, text_to_overwrite] = labels[batch_indices, non_image_indices]
 
     # 5. Fill the embeddings corresponding to the images. Anything that is still zeros needs filling
-    image_to_overwrite = torch.all(final_embedding == 0, dim=-1)
+    image_to_overwrite = torch.ones((batch_size, max_embed_dim), dtype=torch.bool, device=inputs_embeds.device)
+    image_to_overwrite[batch_indices, text_to_overwrite] = False
 
     # ModelPatcher Fix: Exporting the operator 'aten::__iand_' not supported AND cumsum inut should be INT not BOOL
     # image_to_overwrite &= image_to_overwrite.cumsum(-1) - 1 >= nb_image_pad[:, None].to(target_device)
@@ -541,6 +542,7 @@ class LlavaModelPatcher(ModelPatcher):
                     raise ValueError(f"Unexpected select feature strategy: {vision_feature_select_strategy}")
 
                 image_features = model.multi_modal_projector(selected_image_feature)
+
                 inputs_embeds, attention_mask, labels, position_ids = model._merge_input_ids_with_image_features(
                     image_features, inputs_embeds, input_ids, attention_mask, None
                 )
@@ -550,7 +552,7 @@ class LlavaModelPatcher(ModelPatcher):
                     "decoder_attention_mask": attention_mask,
                     "position_ids": position_ids,
                 }
-            elif config._behavior == "decoder" and config.decoder_preprocessing is True:
+            elif config._behavior == "decoder" and config.decoder_input_processor_export is True:
                 inputs_embeds = model.get_input_embeddings()(input_ids)
 
                 first_layer_past_key_value = past_key_values
@@ -585,28 +587,11 @@ class LlavaModelPatcher(ModelPatcher):
                     "position_ids": position_ids,
                 }
 
-            elif config._behavior == "decoder":
-                outputs = model.language_model(
-                    attention_mask=attention_mask,
-                    position_ids=position_ids,
-                    past_key_values=past_key_values,
-                    inputs_embeds=inputs_embeds,
-                    use_cache=None,
-                    output_hidden_states=False,
-                    return_dict=True,
-                )
-
-                past_key_values = outputs.past_key_values
-                logits = outputs[0]
-
-                result = {
-                    "logits": logits,
-                    "past_key_values": past_key_values,
-                }
-
             return result
 
-        if config.variant == "optimized":
+        if config.variant == "optimized" and (
+            config._behavior != "decoder" or config.decoder_input_processor_export is True
+        ):
             self.patched_forward = patched_forward
 
 
