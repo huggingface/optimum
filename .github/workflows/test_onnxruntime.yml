@@ -44,8 +44,12 @@ jobs:
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,onnxruntime]
 
-      - name: Test with pytest
+      - name: Test with pytest (in series)
         working-directory: tests
         run: |
           pytest onnxruntime -m "run_in_series" --durations=0 -vvvv -s
+
+      - name: Test with pytest (in parallel)
+        working-directory: tests
+        run: |
           pytest onnxruntime -m "not run_in_series" --durations=0 -vvvv -s -n auto
