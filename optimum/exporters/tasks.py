@@ -894,6 +894,14 @@ class TasksManager:
             "text-classification",
             onnx="PhiOnnxConfig",
         ),
+        "phi3": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            onnx="Phi3OnnxConfig",
+        ),
         "pix2struct": supported_tasks_mapping(
             "image-to-text",
             "image-to-text-with-past",
