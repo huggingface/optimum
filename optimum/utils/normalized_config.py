@@ -204,6 +204,7 @@ class NormalizedConfigManager:
         'perceiver',
         'roformer',
         'segformer',
+        'siglip',
         'squeezebert',
         'table-transformer',
     """
