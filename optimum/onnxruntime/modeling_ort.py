@@ -1843,7 +1843,16 @@ class ORTModelForAudioClassification(ORTModel):
         input_features: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
-        use_torch = isinstance(input_values, torch.Tensor)
+        if self.input_name == "input_features":
+            assert input_features is not None, "input_features must be provided for this model"
+            main_input = input_features
+        elif self.input_name == "input_values":
+            assert input_values is not None, "input_values must be provided for this model"
+            main_input = input_values
+        else:
+            raise ValueError(f"Input {self.input_name} not supported for Audio Classification")
+
+        use_torch = isinstance(main_input, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
         if attention_mask is None:
@@ -1851,20 +1860,6 @@ class ORTModelForAudioClassification(ORTModel):
                 attention_mask = torch.ones_like(input_values)
             else:
                 attention_mask = np.ones_like(input_values)
-
-        if self.input_name == "input_features":
-            if input_features is None:
-                raise ValueError("input_features must be provided for whisper model")
-
-            main_input = input_features
-        elif self.input_name == "input_values":
-            if input_values is None:
-                raise ValueError("input_values must be provided for this model")
-
-            main_input = input_values
-
-        else:
-            raise ValueError(f"Input {self.input_name} not supported for Audio Classification")
 
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(

@@ -270,12 +270,15 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         else:
             model_inputs = {
                 "input_ids": input_ids,
-                "attention_mask": attention_mask,
                 "position_ids": position_ids,
-                "past_key_values": past_key_values,
+                "attention_mask": attention_mask,
                 "use_cache_branch": use_cache_branch,
                 "labels": labels,
             }
+            if past_key_values is not None:
+                model_inputs.update(
+                    zip(self.key_value_input_names, past_key_values),
+                )
 
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
