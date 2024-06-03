@@ -289,7 +289,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
             if self.use_cache:
                 # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 for the self-attention)
-                past_key_values = tuple(model_outputs[self.output_names[key]] for key in self.key_value_output_names)
+                past_key_values = tuple(model_outputs[output_name] for output_name in self.key_value_output_names)
 
         if self.use_cache and self.model_type != "gpt_bigcode":
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and per decoder layer

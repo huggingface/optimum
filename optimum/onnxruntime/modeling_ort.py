@@ -1845,25 +1845,25 @@ class ORTModelForAudioClassification(ORTModel):
     ):
         if self.input_name == "input_features":
             assert input_features is not None, "input_features must be provided for this model"
-            main_input = input_features
+            model_input = input_features
         elif self.input_name == "input_values":
             assert input_values is not None, "input_values must be provided for this model"
-            main_input = input_values
+            model_input = input_values
         else:
             raise ValueError(f"Input {self.input_name} not supported for Audio Classification")
 
-        use_torch = isinstance(main_input, torch.Tensor)
+        use_torch = isinstance(model_input, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
         if attention_mask is None:
             if use_torch:
-                attention_mask = torch.ones_like(input_values)
+                attention_mask = torch.ones_like(model_input)
             else:
-                attention_mask = np.ones_like(input_values)
+                attention_mask = np.ones_like(model_input)
 
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                main_input,
+                model_input,
                 attention_mask,
                 ordered_input_names=self._ordered_input_names,
             )
@@ -1875,7 +1875,7 @@ class ORTModelForAudioClassification(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            model_inputs = {self.input_name: main_input, "attention_mask": attention_mask}
+            model_inputs = {self.input_name: model_input, "attention_mask": attention_mask}
 
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
