@@ -600,7 +600,7 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
     def inputs_for_causal_lm(self):
         if self.use_past_in_inputs:
             common_inputs = {
-                "input_ids": {0: "batch_size"},
+                "input_ids": {0: "batch_size", 1: "sequence_length"},
                 "attention_mask": {0: "batch_size", 1: "past_sequence_length + 1"},
             }
             for i in range(self._normalized_config.decoder_num_layers):
