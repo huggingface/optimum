@@ -2275,6 +2275,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand([(False,), (True,)])
     @pytest.mark.run_in_series
+    # TODO: still gotta find out why this needs to be ran in series / why it fails in parallel
+    # my guess is that the model surgery is happening in parallel and that's causing the issue
     def test_inference_old_onnx_model(self, use_cache):
         tokenizer = get_preprocessor("gpt2")
         model = AutoModelForCausalLM.from_pretrained("gpt2")
@@ -2287,9 +2289,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokens = tokenizer(text, return_tensors="pt")
 
         onnx_outputs = onnx_model.generate(
-            **tokens, num_beams=1, do_sample=False, min_new_tokens=10, max_new_tokens=10
+            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30
         )
-        outputs = model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=10, max_new_tokens=10)
+        outputs = model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30)
         onnx_text_outputs = tokenizer.decode(onnx_outputs[0], skip_special_tokens=True)
         text_outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)
         self.assertEqual(onnx_text_outputs, text_outputs)
@@ -3602,13 +3604,20 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     @pytest.mark.run_in_series
     def test_inference_old_onnx_model(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained("optimum/t5-small")
+        tokenizer = get_preprocessor("t5-small")
+        model = AutoModelForSeq2SeqLM.from_pretrained("t5-small")
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained("optimum/t5-small")
 
-        tokenizer = get_preprocessor("optimum/t5-small")
         text = "This is a sample output"
         tokens = tokenizer(text, return_tensors="pt")
 
-        model.generate(**tokens)
+        outputs = model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30)
+        onnx_outputs = onnx_model.generate(
+            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30
+        )
+        _ = tokenizer.decode(onnx_outputs[0], skip_special_tokens=True)
+        _ = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        # self.assertEqual(onnx_text_outputs, text_outputs)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
