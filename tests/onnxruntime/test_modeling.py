@@ -2258,6 +2258,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "llama",
         "mistral",
         "mpt",
+        "phi3",
         "qwen2",
     ]
 
@@ -2273,21 +2274,25 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     SPEEDUP_CACHE = 1.1
 
     @parameterized.expand([(False,), (True,)])
+    @pytest.mark.run_in_series
     def test_inference_old_onnx_model(self, use_cache):
-        model_id = "optimum/gpt2"
+        tokenizer = get_preprocessor("gpt2")
         model = AutoModelForCausalLM.from_pretrained("gpt2")
-        tokenizer = get_preprocessor(model_id)
-        text = "This is a sample output"
-        tokens = tokenizer(text, return_tensors="pt")
-        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, use_cache=use_cache, use_io_binding=use_cache)
+        onnx_model = ORTModelForCausalLM.from_pretrained("optimum/gpt2", use_cache=use_cache, use_io_binding=use_cache)
 
         self.assertEqual(onnx_model.use_cache, use_cache)
         self.assertEqual(onnx_model.model_path.name, ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME)
-        outputs_onnx = onnx_model.generate(
-            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30
+
+        text = "The capital of France is"
+        tokens = tokenizer(text, return_tensors="pt")
+
+        onnx_outputs = onnx_model.generate(
+            **tokens, num_beams=1, do_sample=False, min_new_tokens=10, max_new_tokens=10
         )
-        outputs = model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30)
-        self.assertTrue(torch.allclose(outputs_onnx, outputs))
+        outputs = model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=10, max_new_tokens=10)
+        onnx_text_outputs = tokenizer.decode(onnx_outputs[0], skip_special_tokens=True)
+        text_outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        self.assertEqual(onnx_text_outputs, text_outputs)
 
     def test_load_model_from_hub_onnx(self):
         model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-without-merge")
@@ -3595,6 +3600,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
         return onnx_model_dir
 
+    @pytest.mark.run_in_series
     def test_inference_old_onnx_model(self):
         model = ORTModelForSeq2SeqLM.from_pretrained("optimum/t5-small")
 

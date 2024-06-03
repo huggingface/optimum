@@ -19,15 +19,31 @@ import itertools
 import operator
 import warnings
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List
+from typing import List
 
 import torch
+from torch.fx import GraphModule, Node
 from transformers.file_utils import add_end_docstrings
-from transformers.utils.fx import _gen_constructor_wrapper
 
 
-if TYPE_CHECKING:
-    from torch.fx import GraphModule, Node
+try:
+    from transformers.utils.fx import _gen_constructor_wrapper
+except ImportError:
+    from transformers.utils.fx import gen_constructor_wrapper
+
+    def _gen_constructor_wrapper(*args, **kwargs):
+        wrapper, target = gen_constructor_wrapper(*args, **kwargs)
+
+        def wrapper_with_forced_tracing(*_args, **_kwargs):
+            import torch.fx._symbolic_trace
+
+            orginal_flag = torch.fx._symbolic_trace._is_fx_tracing_flag
+            torch.fx._symbolic_trace._is_fx_tracing_flag = True
+            out = wrapper(*_args, **_kwargs)
+            torch.fx._symbolic_trace._is_fx_tracing_flag = orginal_flag
+            return out
+
+        return wrapper_with_forced_tracing, target
 
 
 _ATTRIBUTES_DOCSTRING = r"""
