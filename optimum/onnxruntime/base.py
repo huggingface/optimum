@@ -14,7 +14,7 @@
 """Defines the base classes that are used to perform inference with ONNX Runtime of Transformers models."""
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, Union
+from typing import Dict, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
@@ -24,14 +24,11 @@ from onnxruntime import InferenceSession
 
 from ..utils import NormalizedConfigManager
 from ..utils.logging import warn_once
+from .modeling_ort import ORTModel
 from .utils import get_ordered_input_names, logging
 
 
 logger = logging.get_logger(__name__)
-
-
-if TYPE_CHECKING:
-    from .modeling_ort import ORTModel
 
 
 class ORTModelPart:
@@ -39,6 +36,9 @@ class ORTModelPart:
     For multi-file ONNX models, such as encoder-decoder models, represents a part of the model.
     It has its own `onnxruntime.InferenceSession`, and can perform a forward pass.
     """
+
+    _prepare_onnx_inputs = ORTModel._prepare_onnx_inputs
+    _prepare_onnx_outputs = ORTModel._prepare_onnx_outputs
 
     def __init__(
         self,
@@ -53,6 +53,8 @@ class ORTModelPart:
         self.main_input_name = self.parent_model.main_input_name
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+        self.input_dtypes = {input_key.name: input_key.type for input_key in session.get_inputs()}
+        self.output_dtypes = {output_key.name: output_key.type for output_key in session.get_outputs()}
 
         self._ordered_input_names = get_ordered_input_names(self.input_names.keys(), func=self.forward)
 
@@ -98,25 +100,13 @@ class ORTEncoder(ORTModelPart):
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            if use_torch:
-                onnx_inputs = {"input_ids": input_ids.cpu().detach().numpy()}
+            model_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
 
-                # Add the attention_mask inputs when needed
-                if "attention_mask" in self.input_names:
-                    onnx_inputs["attention_mask"] = attention_mask.cpu().detach().numpy()
-            else:
-                onnx_inputs = {"input_ids": input_ids}
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
 
-                # Add the attention_mask inputs when needed
-                if "attention_mask" in self.input_names:
-                    onnx_inputs["attention_mask"] = attention_mask
-
-            # Run inference
-            outputs = self.session.run(None, onnx_inputs)
-
-            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
-            if use_torch:
-                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
+            last_hidden_state = model_outputs["last_hidden_state"]
 
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
@@ -350,83 +340,29 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
                 else:
                     raise ValueError("Unsupported num_pkv")
         else:
-            if use_torch:
-                onnx_inputs = {
-                    "input_ids": input_ids.cpu().detach().numpy(),
-                }
+            model_inputs = {
+                "input_ids": input_ids,
+                "encoder_hidden_states": encoder_hidden_states,
+                "decoder_attention_mask": decoder_attention_mask,
+                "encoder_attention_mask": encoder_attention_mask,
+                "use_cache_branch": use_cache_branch_tensor,
+                "labels": labels,
+            }
+            if past_key_values is not None:
+                model_inputs.update(zip(self.key_value_input_names, past_key_values))
 
-                # Add the encoder_hidden_states inputs when needed
-                if "encoder_hidden_states" in self.input_names:
-                    onnx_inputs["encoder_hidden_states"] = encoder_hidden_states.cpu().detach().numpy()
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
 
-                # Add the decoder_attention_mask inputs when needed
-                if "decoder_attention_mask" in self.input_names:
-                    onnx_inputs["decoder_attention_mask"] = decoder_attention_mask.cpu().detach().numpy()
-
-                # Add the encoder_attention_mask inputs when needed
-                if "encoder_attention_mask" in self.input_names:
-                    onnx_inputs["encoder_attention_mask"] = encoder_attention_mask.cpu().detach().numpy()
-
-                if past_key_values is not None:
-                    # Add the past_key_values to the decoder inputs
-                    for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
-                        onnx_inputs[input_name] = past_key_value.cpu().detach().numpy()
-
-                if "labels" in self.input_names:
-                    # TODO: Any preprocessing like  `self._shift_right(labels)`?
-                    onnx_inputs["labels"] = labels.cpu().detach().numpy()
-
-                if self.parent_model.use_merged is True:
-                    onnx_inputs["use_cache_branch"] = use_cache_branch_tensor.cpu().detach().numpy()
-            else:
-                onnx_inputs = {
-                    "input_ids": input_ids,
-                }
-
-                # Add the encoder_hidden_states inputs when needed
-                if "encoder_hidden_states" in self.input_names:
-                    onnx_inputs["encoder_hidden_states"] = encoder_hidden_states
-
-                # Add the decoder_attention_mask inputs when needed
-                if "decoder_attention_mask" in self.input_names:
-                    onnx_inputs["decoder_attention_mask"] = decoder_attention_mask
-
-                # Add the encoder_attention_mask inputs when needed
-                if "encoder_attention_mask" in self.input_names:
-                    onnx_inputs["encoder_attention_mask"] = encoder_attention_mask
-
-                if past_key_values is not None:
-                    # Add the past_key_values to the decoder inputs
-                    for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
-                        onnx_inputs[input_name] = past_key_value
-
-                if "labels" in self.input_names:
-                    # TODO: Any preprocessing like  `self._shift_right(labels)`?
-                    onnx_inputs["labels"] = labels
-
-                if self.parent_model.use_merged is True:
-                    onnx_inputs["use_cache_branch"] = use_cache_branch_tensor
-
-            # Run inference
-            outputs = self.session.run(None, onnx_inputs)
-
-            # TODO: using two loops here is probably unefficient
+            # TODO: using a new variable out_past_key_values is memory inefficient,
+            # past_key_values is not used anymore at this point
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
             # self-attention layer and 2 to the cross-attention layer)
-            out_past_key_values = tuple(
-                torch.from_numpy(outputs[self.output_names[key]]).to(self.device)
-                for key in self.key_value_output_names
-            )
+            out_past_key_values = tuple(model_outputs[output_name] for output_name in self.key_value_output_names)
 
-            logits = outputs[self.output_names["logits"]]
-            if use_torch:
-                logits = torch.from_numpy(logits).to(self.device)
-
-            loss = None
-            if "loss" in self.output_names:
-                loss = outputs[self.output_names["loss"]]
-                if use_torch:
-                    loss = torch.from_numpy(loss).to(self.device)
+            loss = model_outputs.get("loss", None)
+            logits = model_outputs["logits"]
 
             # TODO: this is extremely ugly and unreadable. What if cross-attention k/v change?
             # Tuple of tuple of length `n_layers`, with each tuple of length equal to:

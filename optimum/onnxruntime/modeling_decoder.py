@@ -284,8 +284,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
 
-            logits = model_outputs.get("logits")
             loss = model_outputs.get("loss", None)
+            logits = model_outputs["logits"]
 
             if self.use_cache:
                 # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 for the self-attention)

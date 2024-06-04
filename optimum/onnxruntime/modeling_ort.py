@@ -740,7 +740,7 @@ class ORTModel(OptimizedModel):
         # exception.
         return int(eval(" ".join(tokens)))
 
-    # this method is bloated with state arguments (that are accesible using self) ?
+    # this method is bloated with state arguments (that are accesible using self) why ?
     def _prepare_io_binding(
         self,
         model: ort.InferenceSession,
