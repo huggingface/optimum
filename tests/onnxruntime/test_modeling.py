@@ -4766,6 +4766,9 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
                 self.assertTrue("logits" in onnx_outputs)
                 self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+                self.assertTrue(
+                    torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-3)
+                )
 
                 if use_cache:
                     self.assertEqual(
@@ -4774,18 +4777,16 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
                     self.assertEqual(
                         len(onnx_outputs["past_key_values"][0]), len(transformers_outputs["past_key_values"][0])
                     )
-                    for i, _ in enumerate(onnx_outputs["past_key_values"]):
-                        for j, ort_pkv in enumerate(onnx_outputs["past_key_values"][i]):
-                            trfs_pkv = transformers_outputs["past_key_values"][i][j]
+                    for i in range(len(onnx_outputs["past_key_values"])):
+                        print(onnx_outputs["past_key_values"][i])
+                        for ort_pkv, trfs_pkv in zip(
+                            onnx_outputs["past_key_values"][i], transformers_outputs["past_key_values"][i]
+                        ):
+                            ort_pkv = torch.Tensor(ort_pkv)
                             self.assertTrue(
                                 torch.allclose(ort_pkv, trfs_pkv, atol=1e-3),
                                 f" Maxdiff: {torch.abs(ort_pkv - trfs_pkv).max()}",
                             )
-
-                # Compare tensor outputs
-                self.assertTrue(
-                    torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-3)
-                )
 
         gc.collect()
 
