@@ -1727,7 +1727,6 @@ class ORTModelForSemanticSegmentation(ORTModel):
             checkpoint="optimum/segformer-b0-finetuned-ade-512-512",
         )
     )
-
     def forward(
         self,
         pixel_values: Union[torch.Tensor, np.ndarray],
@@ -1737,13 +1736,12 @@ class ORTModelForSemanticSegmentation(ORTModel):
         self.raise_on_numpy_input_io_binding(use_torch)
 
         if self.device.type == "cuda" and self.use_io_binding:
-            io_binding = IOBindingHelper.prepare_io_binding(
-                self,
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 pixel_values,
                 ordered_input_names=self._ordered_input_names,
             )
 
-            # run inference with binding
+            # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
