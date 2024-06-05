@@ -1015,17 +1015,16 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, export=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
+            if os.name == "nt":
+                os.system(f"rmdir /s /q {tmpdirname}")
+
     @parameterized.expand([(False,), (True,)])
     @pytest.mark.run_slow
     @slow
     def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model = ORTModelForCausalLM.from_pretrained(
-                "gpt2-large",
-                use_cache=use_cache,
-                export=True,
-                use_merged=False,
-                use_io_binding=False,
+                "gpt2-large", use_cache=use_cache, export=True, use_merged=False, use_io_binding=False
             )
             model.save_pretrained(tmpdirname)
 
@@ -1039,6 +1038,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForCausalLM.from_pretrained(
                 tmpdirname, use_cache=use_cache, export=False, use_io_binding=False
             )
+
+            if os.name == "nt":
+                os.system(f"rmdir /s /q {tmpdirname}")
 
     @parameterized.expand([(False,), (True,)])
     def test_save_load_seq2seq_model_with_external_data(self, use_cache: bool):
@@ -1062,6 +1064,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, export=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
+            if os.name == "nt":
+                os.system(f"rmdir /s /q {tmpdirname}")
+
     def test_save_load_stable_diffusion_model_with_external_data(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
@@ -1082,6 +1087,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # verify loading from local folder works
             model = ORTStableDiffusionPipeline.from_pretrained(tmpdirname, export=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+
+            if os.name == "nt":
+                os.system(f"rmdir /s /q {tmpdirname}")
 
     @parameterized.expand([(False,), (True,)])
     @unittest.skip("Skipping as this test consumes too much memory")
