@@ -16,4 +16,4 @@ from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
 from .export import ExportCommand, ONNXExportCommand, TFLiteExportCommand
 from .onnxruntime import ONNXRuntimeCommand, ONNXRuntimeOptimizeCommand, ONNXRuntimeQuantizeCommand
-from .optimum_cli import register_optimum_cli_subcommand
+from .optimum_cli import optimum_cli_subcommand
