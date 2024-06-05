@@ -36,6 +36,7 @@ from optimum.onnxruntime import (
     AutoOptimizationConfig,
     ORTConfig,
     ORTModelForImageClassification,
+    ORTModelForSemanticSegmentation,
     ORTModelForSequenceClassification,
     ORTOptimizer,
 )
@@ -171,6 +172,7 @@ class ORTOptimizerTest(unittest.TestCase):
 
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID = (
+        (ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-segformer"),
         (ORTModelForImageClassification, "hf-internal-testing/tiny-random-vit"),
     )
 
