@@ -22,13 +22,12 @@ from ..utils import logging
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
 from .export import ExportCommand
-from .onnxruntime import ONNXRuntimeCommand
 
 
 logger = logging.get_logger()
 
 # The table below contains the optimum-cli root subcommands provided by the optimum package
-OPTIMUM_CLI_ROOT_SUBCOMMANDS = [ExportCommand, EnvironmentCommand, ONNXRuntimeCommand]
+OPTIMUM_CLI_ROOT_SUBCOMMANDS = [ExportCommand, EnvironmentCommand]
 
 # The table below is dynamically populated when loading subpackages
 _OPTIMUM_CLI_SUBCOMMANDS = []
