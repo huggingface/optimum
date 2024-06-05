@@ -17,6 +17,7 @@ import importlib
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Type, Union
 
+from ..backends import load_backends
 from ..utils import logging
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
@@ -26,7 +27,48 @@ from .onnxruntime import ONNXRuntimeCommand
 
 logger = logging.get_logger()
 
+# The table below contains the optimum-cli subcommands provided by the optimum package
 OPTIMUM_CLI_SUBCOMMANDS = [ExportCommand, EnvironmentCommand, ONNXRuntimeCommand]
+
+# The table below is dynamically populated when loading backends
+_OPTIMUM_CLI_BACKEND_SUBCOMMANDS = []
+
+
+def optimum_cli_subcommand(parent_command: Optional[Type[BaseOptimumCLICommand]] = None):
+    """
+    Used for declaring an optimum-cli subcommand.
+
+    The declaration of an optimum-cli subcommand looks like this:
+
+    ```
+    @optimum_cli_subcommand()
+    class MySubcommand(BaseOptimumCLICommand):
+        <implementation>
+    ```
+
+    or
+
+    ```
+    @optimum_cli_subcommand(ExportCommand)
+    class MySubcommand(BaseOptimumCLICommand):
+        <implementation>
+    ```
+
+    Args:
+        parent_command: (`Optional[Type[BaseOptimumCLICommand]]`):
+            The class of the parent command or None if this is a top-level command. Defaults to None.
+
+    """
+
+    if parent_command is not None and not parent_command.is_subclass(BaseOptimumCLICommand):
+        raise ValueError(f"The parent command {parent_command} must be a subclass of BaseOptimumCLICommand")
+
+    def wrapper(subcommand):
+        if not subcommand.is_subclass(BaseException):
+            raise ValueError(f"The subcommand {subcommand} must be a subclass of BaseOptimumCLICommand")
+        _OPTIMUM_CLI_BACKEND_SUBCOMMANDS.append = (subcommand, parent_command)
+
+    return wrapper
 
 
 def resolve_command_to_command_instance(
@@ -137,15 +179,20 @@ def main():
     root = RootOptimumCLICommand("Optimum CLI tool", usage="optimum-cli")
     parser = root.parser
 
+    # Register first the subcommands provided by the main optimum package
     for subcommand_cls in OPTIMUM_CLI_SUBCOMMANDS:
         register_optimum_cli_subcommand(subcommand_cls, parent_command=root)
 
-    commands_in_register = dynamic_load_commands_in_register()
+    # Load backends to give them a chance to declare their own subcommands
+    load_backends()
+
+    # Register subcommands declared by the backends or found in the register files under commands/register
+    commands_to_register = _OPTIMUM_CLI_BACKEND_SUBCOMMANDS + dynamic_load_commands_in_register()
     command2command_instance = resolve_command_to_command_instance(
-        root, [parent_command_cls for _, parent_command_cls in commands_in_register if parent_command_cls is not None]
+        root, [parent_command_cls for _, parent_command_cls in commands_to_register if parent_command_cls is not None]
     )
 
-    for command_or_command_info, parent_command in commands_in_register:
+    for command_or_command_info, parent_command in commands_to_register:
         if parent_command is None:
             parent_command_instance = root
         else:
