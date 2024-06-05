@@ -186,7 +186,10 @@ class ORTModelIntegrationTest(unittest.TestCase):
         dirpath = os.path.join(default_cache_path, "models--" + self.TINY_ONNX_MODEL_ID.replace("/", "--"))
 
         if os.path.exists(dirpath) and os.path.isdir(dirpath):
-            shutil.rmtree(dirpath)
+            if os.name == "nt":
+                os.system(f"rmdir /S /Q {dirpath}")
+            else:
+                shutil.rmtree(dirpath)
         with self.assertRaises(Exception):
             _ = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID, local_files_only=True)
 
@@ -204,7 +207,10 @@ class ORTModelIntegrationTest(unittest.TestCase):
         dirpath = os.path.join(default_cache_path, "models--" + self.TINY_ONNX_SEQ2SEQ_MODEL_ID.replace("/", "--"))
 
         if os.path.exists(dirpath) and os.path.isdir(dirpath):
-            shutil.rmtree(dirpath)
+            if os.name == "nt":
+                os.system(f"rmdir /S /Q {dirpath}")
+            else:
+                shutil.rmtree(dirpath)
         with self.assertRaises(Exception):
             _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
@@ -227,7 +233,10 @@ class ORTModelIntegrationTest(unittest.TestCase):
         )
 
         if os.path.exists(dirpath) and os.path.isdir(dirpath):
-            shutil.rmtree(dirpath)
+            if os.name == "nt":
+                os.system(f"rmdir /S /Q {dirpath}")
+            else:
+                shutil.rmtree(dirpath)
         with self.assertRaises(Exception):
             _ = ORTStableDiffusionPipeline.from_pretrained(
                 self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID, local_files_only=True
