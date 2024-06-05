@@ -432,7 +432,7 @@ class GPTQQuantizer(object):
             for data in dataset:
                 for k, v in data.items():
                     # put the data on gpu, we won't put them back to cpu
-                    if not has_device_map or device.type == 'cpu':
+                    if not has_device_map or device.type == "cpu":
                         data[k] = v.to(0)
                     else:
                         data[k] = v.to(device)
@@ -461,7 +461,7 @@ class GPTQQuantizer(object):
                 for data in dataset:
                     for k, v in data.items():
                         # put the data on gpu, we won't put them back to cpu
-                        if not has_device_map or device.type == 'cpu':
+                        if not has_device_map or device.type == "cpu":
                             data[k] = v.to(0)
                         else:
                             data[k] = v.to(device)
