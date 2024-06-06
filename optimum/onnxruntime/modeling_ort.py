@@ -267,7 +267,6 @@ class ORTModel(OptimizedModel):
             **kwargs,
         )
 
-        # why are these not lists ?
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(model.get_inputs())}
         self.input_dtypes = {input_key.name: input_key.type for input_key in model.get_inputs()}
 
@@ -740,7 +739,7 @@ class ORTModel(OptimizedModel):
         # exception.
         return int(eval(" ".join(tokens)))
 
-    # this method is bloated with state arguments (that are accesible using self) why ?
+    # TODO: this method is bloated with state arguments (that are accesible using self) why ?
     def _prepare_io_binding(
         self,
         model: ort.InferenceSession,
@@ -1013,15 +1012,12 @@ class ORTModelForFeatureExtraction(ORTModel):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if attention_mask is None:
-            if use_torch:
-                attention_mask = torch.ones_like(input_ids)
-            else:
-                attention_mask = np.ones_like(input_ids)
-
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids, attention_mask, token_type_ids, ordered_input_names=self._ordered_input_names
+                input_ids,
+                attention_mask,
+                token_type_ids,
+                ordered_input_names=self._ordered_input_names,
             )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
@@ -1037,7 +1033,7 @@ class ORTModelForFeatureExtraction(ORTModel):
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
 
-            # why do we only return last_hidden_state? why not all outputs?
+            # TODO: why do we only return last_hidden_state? why not all outputs?
             # that way, there will be less need for ORTModelForCustomTask in cases where
             # we just want to extend model outputs with attentions, hidden_states, etc.
             last_hidden_state = model_outputs["last_hidden_state"]
@@ -1161,15 +1157,12 @@ class ORTModelForMaskedLM(ORTModel):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if attention_mask is None:
-            if use_torch:
-                attention_mask = torch.ones_like(input_ids)
-            else:
-                attention_mask = np.ones_like(input_ids)
-
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids, attention_mask, token_type_ids, ordered_input_names=self._ordered_input_names
+                input_ids,
+                attention_mask,
+                token_type_ids,
+                ordered_input_names=self._ordered_input_names,
             )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
@@ -1252,12 +1245,6 @@ class ORTModelForQuestionAnswering(ORTModel):
     ):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
-
-        if attention_mask is None:
-            if use_torch:
-                attention_mask = torch.ones_like(input_ids)
-            else:
-                attention_mask = np.ones_like(input_ids)
 
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
@@ -1366,12 +1353,6 @@ class ORTModelForSequenceClassification(ORTModel):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if attention_mask is None:
-            if use_torch:
-                attention_mask = torch.ones_like(input_ids)
-            else:
-                attention_mask = np.ones_like(input_ids)
-
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_ids,
@@ -1462,12 +1443,6 @@ class ORTModelForTokenClassification(ORTModel):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if attention_mask is None:
-            if use_torch:
-                attention_mask = torch.ones_like(input_ids)
-            else:
-                attention_mask = np.ones_like(input_ids)
-
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_ids,
@@ -1550,12 +1525,6 @@ class ORTModelForMultipleChoice(ORTModel):
     ):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
-
-        if attention_mask is None:
-            if use_torch:
-                attention_mask = torch.ones_like(input_ids)
-            else:
-                attention_mask = np.ones_like(input_ids)
 
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
@@ -1861,12 +1830,6 @@ class ORTModelForAudioClassification(ORTModel):
 
         use_torch = isinstance(model_input, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
-
-        if attention_mask is None:
-            if use_torch:
-                attention_mask = torch.ones_like(model_input)
-            else:
-                attention_mask = np.ones_like(model_input)
 
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
