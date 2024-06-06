@@ -3,7 +3,7 @@ name: Build PR documentation
 on:
   workflow_dispatch:
   pull_request:
-    branches: [ main ]
+    branches: [main]
     paths:
       - "optimum/**.py"
       - "docs/**.mdx"
@@ -23,46 +23,47 @@ jobs:
       PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
-          repository: 'huggingface/doc-builder'
+          repository: "huggingface/doc-builder"
           path: doc-builder
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
-          repository: 'huggingface/optimum'
+          repository: "huggingface/optimum"
           path: optimum
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
-          repository: 'huggingface/optimum-habana'
+          repository: "huggingface/optimum-habana"
           path: optimum-habana
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
-          repository: 'huggingface/optimum-intel'
+          repository: "huggingface/optimum-intel"
           path: optimum-intel
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
-          repository: 'huggingface/optimum-furiosa'
+          repository: "huggingface/optimum-furiosa"
           path: optimum-furiosa
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
-          repository: 'huggingface/optimum-amd'
+          repository: "huggingface/optimum-amd"
           path: optimum-amd
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
-          repository: 'huggingface/optimum-tpu'
+          repository: "huggingface/optimum-tpu"
           path: optimum-tpu
 
       - name: Setup environment
         run: |
+          pip install --upgrade pip
           pip uninstall -y doc-builder
           cd doc-builder
-          git pull origin main
+          git pull origin main        
           pip install .
           pip install black
           cd ..

@@ -19,16 +19,21 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v2
-    - name: Setup Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies for pytorch export
-      run: |
-        pip install .[tests,exporters]
-    - name: Test with unittest
-      working-directory: tests
-      run: |
-        RUN_SLOW=1 pytest exporters/onnx/ -s -n auto -k "timm" --durations=0
+      - name: Checkout code
+        uses: actions/checkout@v4
 
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies for pytorch export
+        run: |
+          pip install .[tests,exporters]
+
+      - name: Test with pytest
+        working-directory: tests
+        env:
+          RUN_SLOW: "1"
+        run: |
+          pytest exporters/onnx/ -s -n auto -k "timm" --durations=0

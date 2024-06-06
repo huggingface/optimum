@@ -2,9 +2,9 @@ name: Exporters TFLite CLI Quantization FP16 / Python - Test
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
     paths:
       - "optimum/exporters/tasks.py"
       - "optimum/exporters/tflite/**.py"
@@ -25,15 +25,21 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v2
-    - name: Setup Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        pip install .[tests,exporters-tf]
-    - name: Test with unittest
-      working-directory: tests
-      run: |
-        pytest exporters/tflite/test_exporters_tflite_cli.py -k "float16_quantization" -s --durations=0
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install --no-cache-dir torch==2.1.2 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install .[tests,exporters-tf]
+
+      - name: Test with pytest
+        working-directory: tests
+        run: |
+          pytest exporters/tflite/test_exporters_tflite_cli.py -n auto -k "float16_quantization" -s -vvvv --durations=0
