@@ -129,6 +129,7 @@ class ORTConfigManager:
         "pegasus": "bert",
         "roberta": "bert",
         "segformer": "vit",
+        "table-transformer": "vit",
         "t5": "bert",
         "vit": "vit",
         "whisper": "bart",

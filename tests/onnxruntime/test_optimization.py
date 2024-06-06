@@ -35,6 +35,7 @@ from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS
 from optimum.onnxruntime import (
     AutoOptimizationConfig,
     ORTConfig,
+    ORTModel,
     ORTModelForImageClassification,
     ORTModelForSemanticSegmentation,
     ORTModelForSequenceClassification,
@@ -172,7 +173,9 @@ class ORTOptimizerTest(unittest.TestCase):
 
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID = (
-        (ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-segformer"),
+        (ORTModel, "hf-internal-testing/tiny-random-TableTransformerModel")(
+            ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-segformer"
+        ),
         (ORTModelForImageClassification, "hf-internal-testing/tiny-random-vit"),
     )
 
