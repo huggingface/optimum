@@ -173,9 +173,8 @@ class ORTOptimizerTest(unittest.TestCase):
 
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID = (
-        (ORTModel, "hf-internal-testing/tiny-random-TableTransformerModel")(
-            ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-segformer"
-        ),
+        (ORTModel, "hf-internal-testing/tiny-random-TableTransformerModel"),
+        (ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-segformer"),
         (ORTModelForImageClassification, "hf-internal-testing/tiny-random-vit"),
     )
 
