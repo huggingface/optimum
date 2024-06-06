@@ -193,7 +193,8 @@ class ORTOptimizerTest(unittest.TestCase):
             # Verify the ORTConfig was correctly created and saved
             self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
 
-            image = torch.ones((1, model.config.num_channels, model.config.image_size, model.config.image_size))
+            image_size = getattr(model.config, "image_size", 224)
+            image = torch.ones((1, model.config.num_channels, image_size, image_size))
             model_outputs = model(image)
             optimized_model_outputs = optimized_model(image)
             # Compare tensors outputs
