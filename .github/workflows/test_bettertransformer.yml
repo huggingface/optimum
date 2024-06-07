@@ -19,6 +19,7 @@ jobs:
         os: [ubuntu-20.04, macos-13]
 
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

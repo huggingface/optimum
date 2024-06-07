@@ -6,6 +6,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - ".github/workflows/test_export_tflite_cli.yml"
       - "optimum/exporters/tasks.py"
       - "optimum/exporters/tflite/**.py"
       - "tests/exporters/**.py"
@@ -16,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tflite_cli:
+  build:
     strategy:
       fail-fast: false
       matrix:
@@ -41,5 +42,7 @@ jobs:
 
       - name: Test with pytest
         working-directory: tests
+        env:
+          HF_HOME: /mnt/cache/.cache/huggingface
         run: |
           pytest exporters/tflite/test_exporters_tflite_cli.py -k "not quantization" -n auto -s -vvvv --durations=0

@@ -34,17 +34,21 @@ jobs:
           pip install --no-cache-dir torch==2.1.2 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,exporters]
 
-      - name: Test with pytest
+      - name: Test with pytest (pytorch)
         working-directory: tests
+        env:
+          HF_HOME: /mnt/cache/.cache/huggingface
         run: |
-          pytest exporters/onnx -m "not tensorflow_test and not timm_test" -s -vvvv --durations=0
+          pytest exporters/onnx -m "not tensorflow_test" -n auto -s -vvvv --durations=0
 
       - name: Install dependencies for tensorflow export
         run: |
           pip install --no-cache-dir torch==2.1.2 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,exporters-tf]
 
-      - name: Test with pytest
+      - name: Test with pytest (tensorflow)
         working-directory: tests
+        env:
+          HF_HOME: /mnt/cache/.cache/huggingface
         run: |
-          pytest exporters/onnx -m "tensorflow_test" -s -vvvv --durations=0
+          pytest exporters/onnx -m "tensorflow_test" -n auto -s -vvvv --durations=0
