@@ -42,4 +42,4 @@ jobs:
       - name: Test with pytest
         working-directory: tests
         run: |
-          pytest exporters/tflite/test_exporters_tflite_cli.py -n auto -k "int8_dynamic_quantization" -s -vvvv --durations=0
+          pytest exporters/tflite/test_exporters_tflite_cli.py -k "int8_dynamic_quantization" -n auto -s -vvvv --durations=0

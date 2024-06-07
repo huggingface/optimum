@@ -37,7 +37,7 @@ jobs:
       - name: Test with pytest (stable pytorch)
         working-directory: tests
         run: |
-          pytest bettertransformer -s -vvvvv
+          pytest bettertransformer -n auto -s -vvvvv --durations=0
 
       - name: Install dependencies 2
         run: |
@@ -46,4 +46,4 @@ jobs:
       - name: Test with pytest (nightly pytorch)
         working-directory: tests
         run: |
-          pytest bettertransformer -s -vvvvv
+          pytest bettertransformer -n auto -s -vvvvv --durations=0

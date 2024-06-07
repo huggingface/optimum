@@ -15,9 +15,9 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.8, 3.9]
-        os: [ubuntu-20.04]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: [intel-cpu, 8-cpu, ci]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,6 +29,7 @@ jobs:
 
       - name: Install dependencies for pytorch export
         run: |
+          pip install --upgrade pip
           pip install .[tests,exporters]
 
       - name: Test with pytest
@@ -36,4 +37,4 @@ jobs:
         env:
           RUN_SLOW: "1"
         run: |
-          pytest exporters/onnx/ -s -n auto -k "timm" --durations=0
+          pytest exporters/onnx -k "timm" -n auto -s -vvvv --durations=0

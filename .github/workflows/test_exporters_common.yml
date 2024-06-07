@@ -16,9 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.8, 3.9]
-        os: [ubuntu-20.04]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: [intel-cpu, 8-cpu, ci]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -31,9 +31,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
+          pip install --no-cache-dir torch==2.1.2 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,exporters-tf]
 
       - name: Test with unittest
         working-directory: tests
         run: |
-          pytest exporters/common -s -vvvv --durations=0
+          pytest exporters/common -n auto -s -vvvv --durations=0

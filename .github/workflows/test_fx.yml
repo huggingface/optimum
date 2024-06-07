@@ -37,4 +37,4 @@ jobs:
       - name: Test with pytest
         working-directory: tests
         run: |
-          pytest fx/optimization -s -vvvv --durations=0
+          pytest fx/optimization -n auto -s -vvvv --durations=0
