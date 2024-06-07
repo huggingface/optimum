@@ -1,4 +1,4 @@
-name: Exporters ONNX Timm / Python - Test
+name: Exporters ONNX Timm (scheduled) / Python - Test
 
 on:
   workflow_dispatch:
@@ -37,4 +37,4 @@ jobs:
         env:
           RUN_SLOW: "1"
         run: |
-          pytest exporters/onnx -k "timm" -n auto -s -vvvv --durations=0
+          pytest exporters/onnx -k "timm" -s -vvvv --durations=0

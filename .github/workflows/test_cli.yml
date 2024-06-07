@@ -1,5 +1,3 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 name: Optimum CLI / Python - Test
 
 on:
@@ -39,4 +37,4 @@ jobs:
       - name: Test with pytest
         working-directory: tests
         run: |
-          pytest cli -n auto -s -vvvv --durations=0
+          pytest cli -s -vvvv --durations=0
