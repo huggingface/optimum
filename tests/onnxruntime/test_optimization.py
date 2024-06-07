@@ -35,7 +35,7 @@ from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS
 from optimum.onnxruntime import (
     AutoOptimizationConfig,
     ORTConfig,
-    ORTModel,
+    ORTModelForCustomTasks,
     ORTModelForImageClassification,
     ORTModelForSemanticSegmentation,
     ORTModelForSequenceClassification,
@@ -173,7 +173,7 @@ class ORTOptimizerTest(unittest.TestCase):
 
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID = (
-        (ORTModel, "hf-internal-testing/tiny-random-TableTransformerModel"),
+        (ORTModelForCustomTasks, "hf-internal-testing/tiny-random-TableTransformerModel"),
         (ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-segformer"),
         (ORTModelForImageClassification, "hf-internal-testing/tiny-random-vit"),
     )
@@ -195,10 +195,16 @@ class ORTOptimizerTest(unittest.TestCase):
 
             image_size = getattr(model.config, "image_size", 224)
             image = torch.ones((1, model.config.num_channels, image_size, image_size))
-            model_outputs = model(image)
-            optimized_model_outputs = optimized_model(image)
+            model_outputs = model(pixel_values=image)
+            optimized_model_outputs = optimized_model(pixel_values=image)
+
             # Compare tensors outputs
-            self.assertTrue(torch.equal(model_outputs.logits, optimized_model_outputs.logits))
+            if hasattr(model_outputs, 'logits'):
+                self.assertTrue(torch.equal(model_outputs.logits, optimized_model_outputs.logits), "Logits do not match")
+            elif hasattr(model_outputs, 'last_hidden_state'):
+                self.assertTrue(torch.equal(model_outputs.last_hidden_state, optimized_model_outputs.last_hidden_state), "last_hidden_state does not match")
+            else:
+                raise ValueError("Model outputs do not have logits or last_hidden_state")
             gc.collect()
 
     def test_optimization_details(self):
