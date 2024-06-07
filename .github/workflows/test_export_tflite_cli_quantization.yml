@@ -26,7 +26,7 @@ jobs:
           [
             tflite_float16_quantization,
             tflite_int8_dynamic_quantization,
-            tflite_int8_quantization_with_custom_datasets,
+            tflite_int8_quantization_with_custom_dataset,
             tflite_int8_quantization_with_default_dataset,
             tflite_int8x16_quantization_with_default_dataset,
             tflite_full_int8_quantization_with_default_dataset,
