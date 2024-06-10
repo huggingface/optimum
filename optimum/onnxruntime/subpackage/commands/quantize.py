@@ -17,7 +17,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .. import BaseOptimumCLICommand
+from optimum.commands import BaseOptimumCLICommand
 
 
 if TYPE_CHECKING:
@@ -69,8 +69,8 @@ class ONNXRuntimeQuantizeCommand(BaseOptimumCLICommand):
         return parse_args_onnxruntime_quantize(parser)
 
     def run(self):
-        from ...onnxruntime.configuration import AutoQuantizationConfig, ORTConfig
-        from ...onnxruntime.quantization import ORTQuantizer
+        from ...configuration import AutoQuantizationConfig, ORTConfig
+        from ...quantization import ORTQuantizer
 
         if self.args.output == self.args.onnx_model:
             raise ValueError("The output directory must be different than the directory hosting the ONNX model.")
