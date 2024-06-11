@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.distributed as dist
-from ..dist import (
+from ..distributed import (
     differentiable_all_gather,
     differentiable_scatter,
     differentiable_all_reduce_sum,
