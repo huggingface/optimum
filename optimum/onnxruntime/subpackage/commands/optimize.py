@@ -75,8 +75,8 @@ class ONNXRuntimeOptimizeCommand(BaseOptimumCLICommand):
         return parse_args_onnxruntime_optimize(parser)
 
     def run(self):
-        from ...onnxruntime.configuration import AutoOptimizationConfig, ORTConfig
-        from ...onnxruntime.optimization import ORTOptimizer
+        from ...configuration import AutoOptimizationConfig, ORTConfig
+        from ...optimization import ORTOptimizer
 
         if self.args.output == self.args.onnx_model:
             raise ValueError("The output directory must be different than the directory hosting the ONNX model.")
