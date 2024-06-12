@@ -73,6 +73,7 @@ if TYPE_CHECKING:
 
 MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "codegen",
+    "cohere",
     "falcon",
     "gemma",
     "gpt2",

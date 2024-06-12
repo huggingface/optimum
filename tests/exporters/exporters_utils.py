@@ -56,7 +56,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
-    "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
+    "cohere": "hf-internal-testing/tiny-random-CohereModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
     "convnextv2": "hf-internal-testing/tiny-random-ConvNextV2Model",
     "codegen": "hf-internal-testing/tiny-random-CodeGenModel",
@@ -210,6 +210,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "bloom": "hf-internal-testing/tiny-random-BloomModel",  # Not using bigscience/bloom-560m because it goes OOM.
     "camembert": "camembert-base",
     "clip": "openai/clip-vit-base-patch32",
+    "cohere": "hf-internal-testing/tiny-random-CohereModel",  # Not using CohereForAI/c4ai-command-r-plus because it is gated and/or goes OOM.
     "convbert": "YituTech/conv-bert-base",
     "convnext": "facebook/convnext-tiny-224",
     "codegen": "hf-internal-testing/tiny-random-CodeGenModel",  # Not using Salesforce/codegen-350M-multi because it takes too much time for testing.
