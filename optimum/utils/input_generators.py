@@ -61,6 +61,7 @@ DEFAULT_DUMMY_SHAPES = {
     "height": 64,
     "num_channels": 3,
     "point_batch_size": 3,
+    "nb_boxes_per_image": 3,
     "nb_points_per_image": 2,
     # audio
     "feature_size": 80,
@@ -913,7 +914,7 @@ class DummyPointsGenerator(DummyInputGenerator):
     Generates dummy time step inputs.
     """
 
-    SUPPORTED_INPUT_NAMES = ("input_points", "input_labels")
+    SUPPORTED_INPUT_NAMES = ("input_points", "input_labels", "input_boxes")
 
     def __init__(
         self,
@@ -922,6 +923,7 @@ class DummyPointsGenerator(DummyInputGenerator):
         batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
         point_batch_size: int = DEFAULT_DUMMY_SHAPES["point_batch_size"],
         nb_points_per_image: int = DEFAULT_DUMMY_SHAPES["nb_points_per_image"],
+        nb_boxes_per_image: int = DEFAULT_DUMMY_SHAPES["nb_boxes_per_image"],
         **kwargs,
     ):
         self.task = task
@@ -929,10 +931,14 @@ class DummyPointsGenerator(DummyInputGenerator):
         self.batch_size = batch_size
         self.point_batch_size = point_batch_size
         self.nb_points_per_image = nb_points_per_image
+        self.nb_boxes_per_image = nb_boxes_per_image
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name == "input_points":
             shape = [self.batch_size, self.point_batch_size, self.nb_points_per_image, 2]
+            return self.random_float_tensor(shape, framework=framework, dtype=float_dtype)
+        elif input_name == "input_boxes":
+            shape = [self.batch_size, self.nb_boxes_per_image, 4]
             return self.random_float_tensor(shape, framework=framework, dtype=float_dtype)
         else:  # input_labels
             shape = [self.batch_size, self.point_batch_size, self.nb_points_per_image]
