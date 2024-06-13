@@ -763,6 +763,10 @@ class MobileViTOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+class MobileViTV2OnnxConfig(ViTOnnxConfig):
+    pass
+
+
 class RegNetOnnxConfig(ViTOnnxConfig):
     # This config has the same inputs as ViTOnnxConfig
     DEFAULT_ONNX_OPSET = 11
