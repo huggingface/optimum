@@ -36,9 +36,6 @@ from . import (
 # Used to test the hub
 USER = "__DUMMY_OPTIMUM_USER__"
 
-# Not critical, only usable on the sandboxed CI instance.
-TOKEN = "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"
-
 
 def flatten_dict(dictionary: Dict):
     """

@@ -50,6 +50,8 @@ jobs:
           pytest onnxruntime -m "run_in_series" --durations=0 -vvvv -s
 
       - name: Test with pytest (in parallel)
+        env:
+          FXMARTYCLONE_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
         working-directory: tests
         run: |
           pytest onnxruntime -m "not run_in_series" --durations=0 -vvvv -s -n auto

@@ -938,11 +938,14 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.providers, ["ROCMExecutionProvider", "CPUExecutionProvider"])
 
     def test_load_model_from_hub_private(self):
-        subprocess.run("huggingface-cli logout", shell=True)
-        # Read token of fxmartyclone (dummy user).
-        token = "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"
+        token = os.environ.get("HF_HUB_READ_TOKEN", None)
 
-        model = ORTModelForCustomTasks.from_pretrained("fxmartyclone/tiny-onnx-private-2", use_auth_token=token)
+        if token is None:
+            self.skipTest("Test requires a token for fxmartyclone in the environment variable `HF_HUB_READ_TOKEN`.")
+
+        model = ORTModelForCustomTasks.from_pretrained(
+            "optimum-internal-testing/tiny-random-phi-private", use_auth_token=token
+        )
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
