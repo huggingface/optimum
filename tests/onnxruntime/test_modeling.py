@@ -941,11 +941,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
         token = os.environ.get("HF_HUB_READ_TOKEN", None)
 
         if token is None:
-            self.skipTest(
-                "Test requires a token for fxmartyclone in the environment variable `HF_HUB_READ_TOKEN`."
-            )
+            self.skipTest("Test requires a token for fxmartyclone in the environment variable `HF_HUB_READ_TOKEN`.")
 
-        model = ORTModelForCustomTasks.from_pretrained("optimum-internal-testing/tiny-random-phi-private", use_auth_token=token)
+        model = ORTModelForCustomTasks.from_pretrained(
+            "optimum-internal-testing/tiny-random-phi-private", use_auth_token=token
+        )
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
