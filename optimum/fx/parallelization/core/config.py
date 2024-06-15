@@ -20,6 +20,11 @@ PARALLEL_INTERESTED_NODES = (
 class PassConfig:
     is_active : bool = False
 
+
+@dataclass
+class ShapePropagationConfig(PassConfig):
+    pass
+
 @dataclass
 class PostDominatorSolverConfig(PassConfig):
     # only information of nodes satisfying `node_filter` will be kept
@@ -37,7 +42,13 @@ class ParallelLinearAnnotateConfig(PassConfig):
     pass
 
 @dataclass
+class AttentionHeadIndexPropagationConfig(PassConfig):
+    pass
+
+@dataclass
 class PassPipelineConfig:
+    shape_propagation_config : ShapePropagationConfig = ShapePropagationConfig()
     post_dominator_solver_config : PostDominatorSolverConfig = PostDominatorSolverConfig()
     dependency_set_solver_config : DependencySetSolverConfig = DependencySetSolverConfig()
     parellel_linear_annotate_config : ParallelLinearAnnotateConfig = ParallelLinearAnnotateConfig()
+    attention_head_index_propagation_config : AttentionHeadIndexPropagationConfig = AttentionHeadIndexPropagationConfig()
