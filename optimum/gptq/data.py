@@ -222,7 +222,9 @@ def get_dataset(
     if split not in ["train", "validation"]:
         raise ValueError(f"The split need to be 'train' or 'validation' but found {split}")
     if dataset_name in {"ptb", "ptb-new"}:
-        raise ValueError(f"{dataset_name} dataset was deprecated, only the following dataset are supported : {list(get_dataset_map)}")
+        raise ValueError(
+            f"{dataset_name} dataset was deprecated, only the following dataset are supported : {list(get_dataset_map)}"
+        )
     if dataset_name not in get_dataset_map:
         raise ValueError(f"Expected a value in {list(get_dataset_map.keys())} but found {dataset_name}")
     get_dataset_fn = get_dataset_map[dataset_name]
