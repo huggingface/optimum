@@ -77,6 +77,7 @@ class ONNXRuntimeQuantizeCommand(BaseOptimumCLICommand):
 
         save_dir = self.args.output
         quantizers = []
+        use_external_data_format = False
 
         quantizers = [
             ORTQuantizer.from_pretrained(self.args.onnx_model, file_name=model.name)
@@ -96,7 +97,11 @@ class ONNXRuntimeQuantizeCommand(BaseOptimumCLICommand):
                 "TensorRT quantization relies on static quantization that requires calibration, which is currently not supported through optimum-cli. Please adapt Optimum static quantization examples to run static quantization for TensorRT: https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/quantization"
             )
         else:
-            qconfig = ORTConfig.from_pretrained(self.args.config).quantization
+            config = ORTConfig.from_pretrained(self.args.config)
+            qconfig = config.quantization
+            use_external_data_format = config.use_external_data_format
 
         for q in quantizers:
-            q.quantize(save_dir=save_dir, quantization_config=qconfig)
+            q.quantize(
+                save_dir=save_dir, quantization_config=qconfig, use_external_data_format=use_external_data_format
+            )
