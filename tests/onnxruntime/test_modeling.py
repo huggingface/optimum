@@ -14,7 +14,6 @@
 # limitations under the License.
 import gc
 import os
-import shutil
 import subprocess
 import tempfile
 import time
@@ -109,7 +108,7 @@ from optimum.utils import (
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
     logging,
 )
-from optimum.utils.testing_utils import grid_parameters, require_hf_token, require_ort_rocm
+from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm
 
 
 logger = logging.get_logger()
@@ -184,9 +183,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_load_model_from_empty_cache(self):
         dirpath = os.path.join(default_cache_path, "models--" + self.TINY_ONNX_MODEL_ID.replace("/", "--"))
+        remove_directory(dirpath)
 
-        if os.path.exists(dirpath) and os.path.isdir(dirpath):
-            shutil.rmtree(dirpath)
         with self.assertRaises(Exception):
             _ = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID, local_files_only=True)
 
@@ -202,9 +200,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
     def test_load_seq2seq_model_from_empty_cache(self):
         dirpath = os.path.join(default_cache_path, "models--" + self.TINY_ONNX_SEQ2SEQ_MODEL_ID.replace("/", "--"))
+        remove_directory(dirpath)
 
-        if os.path.exists(dirpath) and os.path.isdir(dirpath):
-            shutil.rmtree(dirpath)
         with self.assertRaises(Exception):
             _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
@@ -225,9 +222,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         dirpath = os.path.join(
             default_cache_path, "models--" + self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID.replace("/", "--")
         )
+        remove_directory(dirpath)
 
-        if os.path.exists(dirpath) and os.path.isdir(dirpath):
-            shutil.rmtree(dirpath)
         with self.assertRaises(Exception):
             _ = ORTStableDiffusionPipeline.from_pretrained(
                 self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID, local_files_only=True
@@ -1008,6 +1004,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # verify loading from local folder works
             model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, export=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+            remove_directory(tmpdirname)
 
     @parameterized.expand([(False,), (True,)])
     @pytest.mark.run_slow
@@ -1015,11 +1012,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model = ORTModelForCausalLM.from_pretrained(
-                "gpt2-large",
-                use_cache=use_cache,
-                export=True,
-                use_merged=False,
-                use_io_binding=False,
+                "gpt2-large", use_cache=use_cache, export=True, use_merged=False, use_io_binding=False
             )
             model.save_pretrained(tmpdirname)
 
@@ -1033,6 +1026,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = ORTModelForCausalLM.from_pretrained(
                 tmpdirname, use_cache=use_cache, export=False, use_io_binding=False
             )
+            remove_directory(tmpdirname)
 
     @parameterized.expand([(False,), (True,)])
     def test_save_load_seq2seq_model_with_external_data(self, use_cache: bool):
@@ -1055,6 +1049,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # verify loading from local folder works
             model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, export=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+            remove_directory(tmpdirname)
 
     def test_save_load_stable_diffusion_model_with_external_data(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -1076,6 +1071,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # verify loading from local folder works
             model = ORTStableDiffusionPipeline.from_pretrained(tmpdirname, export=False)
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
+            remove_directory(tmpdirname)
 
     @parameterized.expand([(False,), (True,)])
     @unittest.skip("Skipping as this test consumes too much memory")
@@ -2278,6 +2274,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand([(False,), (True,)])
     @pytest.mark.run_in_series
+    # TODO: still gotta find out why this needs to be ran in series / why it fails in parallel
+    # my guess is that the model surgery is happening in parallel and that's causing the issue
     def test_inference_old_onnx_model(self, use_cache):
         tokenizer = get_preprocessor("gpt2")
         model = AutoModelForCausalLM.from_pretrained("gpt2")
@@ -2290,9 +2288,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokens = tokenizer(text, return_tensors="pt")
 
         onnx_outputs = onnx_model.generate(
-            **tokens, num_beams=1, do_sample=False, min_new_tokens=10, max_new_tokens=10
+            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30
         )
-        outputs = model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=10, max_new_tokens=10)
+        outputs = model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30)
         onnx_text_outputs = tokenizer.decode(onnx_outputs[0], skip_special_tokens=True)
         text_outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)
         self.assertEqual(onnx_text_outputs, text_outputs)
@@ -3605,13 +3603,20 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     @pytest.mark.run_in_series
     def test_inference_old_onnx_model(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained("optimum/t5-small")
+        tokenizer = get_preprocessor("t5-small")
+        model = AutoModelForSeq2SeqLM.from_pretrained("t5-small")
+        onnx_model = ORTModelForSeq2SeqLM.from_pretrained("optimum/t5-small")
 
-        tokenizer = get_preprocessor("optimum/t5-small")
         text = "This is a sample output"
         tokens = tokenizer(text, return_tensors="pt")
 
-        model.generate(**tokens)
+        outputs = model.generate(**tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30)
+        onnx_outputs = onnx_model.generate(
+            **tokens, num_beams=1, do_sample=False, min_new_tokens=30, max_new_tokens=30
+        )
+        onnx_text_outputs = tokenizer.decode(onnx_outputs[0], skip_special_tokens=True)
+        text_outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        self.assertEqual(onnx_text_outputs, text_outputs)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
@@ -4760,6 +4765,9 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
                 self.assertTrue("logits" in onnx_outputs)
                 self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
+                self.assertTrue(
+                    torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-3)
+                )
 
                 if use_cache:
                     self.assertEqual(
@@ -4768,18 +4776,16 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
                     self.assertEqual(
                         len(onnx_outputs["past_key_values"][0]), len(transformers_outputs["past_key_values"][0])
                     )
-                    for i, _ in enumerate(onnx_outputs["past_key_values"]):
-                        for j, ort_pkv in enumerate(onnx_outputs["past_key_values"][i]):
-                            trfs_pkv = transformers_outputs["past_key_values"][i][j]
+                    for i in range(len(onnx_outputs["past_key_values"])):
+                        print(onnx_outputs["past_key_values"][i])
+                        for ort_pkv, trfs_pkv in zip(
+                            onnx_outputs["past_key_values"][i], transformers_outputs["past_key_values"][i]
+                        ):
+                            ort_pkv = torch.Tensor(ort_pkv)
                             self.assertTrue(
                                 torch.allclose(ort_pkv, trfs_pkv, atol=1e-3),
                                 f" Maxdiff: {torch.abs(ort_pkv - trfs_pkv).max()}",
                             )
-
-                # Compare tensor outputs
-                self.assertTrue(
-                    torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-3)
-                )
 
         gc.collect()
 
