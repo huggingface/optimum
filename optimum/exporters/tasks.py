@@ -895,6 +895,14 @@ class TasksManager:
             "text-classification",
             onnx="PhiOnnxConfig",
         ),
+        "phi3": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            onnx="Phi3OnnxConfig",
+        ),
         "pix2struct": supported_tasks_mapping(
             "image-to-text",
             "image-to-text-with-past",
@@ -1045,6 +1053,10 @@ class TasksManager:
         ),
         "vit": supported_tasks_mapping(
             "feature-extraction", "image-classification", "masked-im", onnx="ViTOnnxConfig"
+        ),
+        "vits": supported_tasks_mapping(
+            "text-to-audio",
+            onnx="VitsOnnxConfig",
         ),
         "wavlm": supported_tasks_mapping(
             "feature-extraction",
@@ -1683,7 +1695,10 @@ class TasksManager:
         if library_name is not None:
             return library_name
 
-        if (
+        # SentenceTransformer models have no config attributes
+        if hasattr(model, "_model_config"):
+            library_name = "sentence_transformers"
+        elif (
             hasattr(model, "pretrained_cfg")
             or hasattr(model.config, "pretrained_cfg")
             or hasattr(model.config, "architecture")
@@ -1691,8 +1706,6 @@ class TasksManager:
             library_name = "timm"
         elif hasattr(model.config, "_diffusers_version") or getattr(model, "config_name", "") == "model_index.json":
             library_name = "diffusers"
-        elif hasattr(model, "_model_config"):
-            library_name = "sentence_transformers"
         else:
             library_name = "transformers"
         return library_name
@@ -1932,7 +1945,6 @@ class TasksManager:
         model_class = TasksManager.get_model_class_for_task(
             task, framework, model_type=model_type, model_class_name=model_class_name, library=library_name
         )
-
         if library_name == "timm":
             model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
             model = model.to(torch_dtype).to(device)

@@ -16,6 +16,7 @@
 import importlib.util
 import itertools
 import os
+import shutil
 import subprocess
 import sys
 import unittest
@@ -35,9 +36,6 @@ from . import (
 
 # Used to test the hub
 USER = "__DUMMY_OPTIMUM_USER__"
-
-# Not critical, only usable on the sandboxed CI instance.
-TOKEN = "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"
 
 
 def flatten_dict(dictionary: Dict):
@@ -185,3 +183,16 @@ def grid_parameters(
         else:
             returned_list = [test_name] + list(params) if add_test_name is True else list(params)
             yield returned_list
+
+
+def remove_directory(dirpath):
+    """
+    Remove a directory and its content.
+    This is a cross-platform solution to remove a directory and its content that avoids the use of `shutil.rmtree` on Windows.
+    Reference: https://github.com/python/cpython/issues/107408
+    """
+    if os.path.exists(dirpath) and os.path.isdir(dirpath):
+        if os.name == "nt":
+            os.system(f"rmdir /S /Q {dirpath}")
+        else:
+            shutil.rmtree(dirpath)

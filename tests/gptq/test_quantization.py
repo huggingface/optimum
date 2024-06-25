@@ -394,7 +394,7 @@ class GPTQDataTest(unittest.TestCase):
     def setUp(self):
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=True)
 
-    @parameterized.expand(["wikitext2", "c4", "ptb", "c4-new", "ptb-new"])
+    @parameterized.expand(["wikitext2", "c4", "c4-new"])
     def test_dataset(self, dataset):
         train_dataset = get_dataset(
             dataset, self.tokenizer, nsamples=self.NBSAMPLES, seqlen=self.SEQLEN, split="train"

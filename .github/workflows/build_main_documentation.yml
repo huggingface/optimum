@@ -57,7 +57,6 @@ jobs:
       - name: Free disk space
         run: |
           df -h
-          sudo apt-get update
           sudo apt-get purge -y '^apache.*'
           sudo apt-get purge -y '^imagemagick.*'
           sudo apt-get purge -y '^dotnet.*'
@@ -138,6 +137,8 @@ jobs:
         run: |
           cd optimum-furiosa
           pip install .
+          sudo apt install software-properties-common
+          sudo add-apt-repository --remove https://packages.microsoft.com/ubuntu/22.04/prod
           sudo apt update
           sudo apt install -y ca-certificates apt-transport-https gnupg
           sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key 5F03AFA423A751913F249259814F888B20B09A7E
@@ -160,7 +161,7 @@ jobs:
           sudo docker system prune -a -f
           cd optimum-tpu
           pip install -U pip
-          pip install .
+          pip install . -f https://storage.googleapis.com/libtpu-releases/index.html
           doc-builder build optimum.tpu docs/source/ --build_dir tpu-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
           mv tpu-doc-build ../optimum
           cd ..

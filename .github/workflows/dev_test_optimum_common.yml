@@ -19,7 +19,7 @@ jobs:
         os:
         - ubuntu-20.04
         - windows-2019
-        - macos-latest
+        - macos-13
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
