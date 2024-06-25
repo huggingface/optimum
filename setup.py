@@ -53,6 +53,7 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
+        "numpy<=1.26.4",
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -61,6 +62,7 @@ EXTRAS_REQUIRE = {
         "evaluate",
         "protobuf>=3.20.1",
         "accelerate",  # ORTTrainer requires it.
+        "numpy<=1.26.4",
     ],
     "exporters": ["onnx", "onnxruntime", "timm"],
     "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
