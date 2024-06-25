@@ -53,7 +53,7 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "numpy<=1.26.4",
+        "numpy<=1.26.4",  # onnxruntime is still not compatible with numpy 2
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -61,10 +61,15 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
+        "numpy<=1.26.4",  # onnxruntime is still not compatible with numpy 2
         "accelerate",  # ORTTrainer requires it.
-        "numpy<=1.26.4",
     ],
-    "exporters": ["onnx", "onnxruntime", "timm"],
+    "exporters": [
+        "onnx",
+        "onnxruntime",
+        "timm",
+        "numpy<=1.26.4",  # onnxruntime is still not compatible with numpy 2
+    ],
     "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
     "exporters-tf": [
         "tensorflow>=2.4,<=2.12.1",
@@ -81,10 +86,10 @@ EXTRAS_REQUIRE = {
     "openvino": "optimum-intel[openvino]>=1.16.0",
     "nncf": "optimum-intel[nncf]>=1.16.0",
     "neural-compressor": "optimum-intel[neural-compressor]>=1.16.0",
-    "graphcore": "optimum-graphcore",
     "habana": ["optimum-habana", "transformers >= 4.38.0, < 4.39.0"],
     "neuron": ["optimum-neuron[neuron]>=0.0.20", "transformers >= 4.36.2, < 4.42.0"],
     "neuronx": ["optimum-neuron[neuronx]>=0.0.20", "transformers >= 4.36.2, < 4.42.0"],
+    "graphcore": "optimum-graphcore",
     "furiosa": "optimum-furiosa",
     "amd": "optimum-amd",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
