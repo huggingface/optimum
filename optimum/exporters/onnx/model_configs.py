@@ -281,6 +281,10 @@ class Qwen2OnnxConfig(LlamaOnnxConfig):
     pass
 
 
+class CohereOnnxConfig(LlamaOnnxConfig):
+    pass
+
+
 class GemmaOnnxConfig(LlamaOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator

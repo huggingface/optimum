@@ -20,6 +20,7 @@ MODEL_TO_PATCH_FOR_PAST = {
     "blenderbot",
     "blenderbot-small",
     "bloom",
+    "cohere",
     "llama",
     "mistral",
     "mpt",
