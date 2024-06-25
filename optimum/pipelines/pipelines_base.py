@@ -251,7 +251,7 @@ def load_ort_pipeline(
             pattern,
             glob_pattern="**/*.onnx",
             subfolder=subfolder,
-            use_auth_token=token,
+            token=token,
             revision=revision,
         )
         export = len(onnx_files) == 0
