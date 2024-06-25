@@ -141,13 +141,18 @@ class ModelPatcher:
 
         allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
 
+        # Workaround https://github.com/pytorch/pytorch/issues/122649.
+        @torch._dynamo.assume_constant_result
+        def _config_outputs():
+            return config.outputs
+
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
             signature = inspect.signature(self.orig_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
             outputs = self.orig_forward(*args, **kwargs)
-
+            config_outputs = _config_outputs()
             # This code block handles different cases of the filterd_outputs input to align it with the expected
             # format of outputs. It is common for the output type of a model to vary, such as tensor, list,
             # tuple, etc. For Transformers models, the output is encapsulated in a ModelOutput object that
@@ -159,25 +164,25 @@ class ModelPatcher:
                 for name, value in outputs.items():
                     onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
                     if (
-                        onnx_output_name in config.outputs
+                        onnx_output_name in config_outputs
                         or (allow_past_in_outputs and name.startswith("past_key_values"))
-                        or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
+                        or any(key.startswith(onnx_output_name) for key in config_outputs.keys())
                     ):
                         filterd_outputs[name] = value
             elif isinstance(outputs, (list, tuple)):
-                outputs_list = list(config.outputs.keys())
+                outputs_list = list(config_outputs.keys())
                 dict(zip(outputs_list, outputs))
             else:
-                if len(config.outputs) > 1:
-                    num_outputs = len(config.outputs)
-                    outputs_str = ", ".join(config.outputs.keys())
+                if len(config_outputs) > 1:
+                    num_outputs = len(config_outputs)
+                    outputs_str = ", ".join(config_outputs.keys())
                     raise ValueError(
-                        f"config.outputs should have only one outputs, but it has {num_outputs} keys: {outputs_str}"
+                        f"config_outputs should have only one outputs, but it has {num_outputs} keys: {outputs_str}"
                     )
                 else:
-                    name = list(config.outputs.keys())[0]
+                    name = list(config_outputs.keys())[0]
                     filterd_outputs[name] = outputs
-                name = list(config.outputs.keys())[0]
+                name = list(config_outputs.keys())[0]
                 filterd_outputs[name] = outputs
             return filterd_outputs
 
@@ -223,21 +228,27 @@ class Seq2SeqModelPatcher(ModelPatcher):
         if model.config.model_type == "pix2struct" and allow_past_in_outputs:
             model.config.text_config.use_cache = True
 
+        # Workaround https://github.com/pytorch/pytorch/issues/122649.
+        @torch._dynamo.assume_constant_result
+        def _config_outputs():
+            return config.outputs
+
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
             signature = inspect.signature(self.orig_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
             outputs = self.orig_forward(*args, **kwargs)
+            config_outputs = _config_outputs()
 
             # Filter out cross attention past key values output from the decoder using KV cache, as they are constants.
             filterd_outputs = {}
             for name, value in outputs.items():
                 onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
                 if (
-                    onnx_output_name in config.outputs
+                    onnx_output_name in config_outputs
                     or (allow_past_in_outputs and name.startswith("past_key_values"))
-                    or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
+                    or any(key.startswith(onnx_output_name) for key in config_outputs.keys())
                 ):
                     if name != "past_key_values":
                         if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
@@ -473,6 +484,11 @@ class WavLMModelPatcher(ModelPatcher):
 
         allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
 
+        # Workaround https://github.com/pytorch/pytorch/issues/122649.
+        @torch._dynamo.assume_constant_result
+        def _config_outputs():
+            return config.outputs
+
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
             model_kwargs = self.model_kwargs
@@ -484,14 +500,15 @@ class WavLMModelPatcher(ModelPatcher):
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=model_kwargs)
 
             outputs = self.orig_forward(*args, **kwargs)
+            config_outputs = _config_outputs()
 
             filterd_outputs = {}
             for name, value in outputs.items():
                 onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
                 if (
-                    onnx_output_name in config.outputs
+                    onnx_output_name in config_outputs
                     or (allow_past_in_outputs and name.startswith("past_key_values"))
-                    or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
+                    or any(key.startswith(onnx_output_name) for key in config_outputs.keys())
                 ):
                     filterd_outputs[name] = value
             return filterd_outputs
