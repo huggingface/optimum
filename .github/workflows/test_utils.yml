@@ -1,6 +1,4 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
-name: Optimum CLI / Python - Test
+name: Utils / Python - Test
 
 on:
   push:
@@ -17,8 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8, 3.9]
         os: [ubuntu-20.04, macos-13]
+        python-version: [3.8, 3.9]
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -26,16 +24,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests,exporters,exporters-tf]
+          pip install .[tests]
 
       - name: Test with pytest
+        working-directory: tests
         run: |
-          pytest tests/cli -s -vvvv --durations=0
+          python -m pytest -s -vvvv utils
