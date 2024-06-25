@@ -392,7 +392,7 @@ class OptimizedModel(PreTrainedModel):
 
         if not export and trust_remote_code:
             logger.warning(
-                "The argument `trust_remote_code` is to be used along with export=True. It will be ignored."
+                "The argument `trust_remote_code` is to be used along with export=True to load the model. It will only be used to load the configuration."
             )
         elif export and trust_remote_code is None:
             trust_remote_code = False
