@@ -15,10 +15,17 @@
 """Utility functions related to both local files and files on the Hugging Face Hub."""
 
 import re
+import warnings
 from pathlib import Path
 from typing import List, Optional, Union
 
-from huggingface_hub import HfApi, HfFolder, get_hf_file_metadata, hf_hub_url
+import huggingface_hub
+from huggingface_hub import get_hf_file_metadata, hf_hub_url
+
+from ..utils import logging
+
+
+logger = logging.get_logger(__name__)
 
 
 def validate_file_exists(
@@ -44,6 +51,7 @@ def find_files_matching_pattern(
     glob_pattern: str = "**/*",
     subfolder: str = "",
     use_auth_token: Optional[Union[bool, str]] = None,
+    token: Optional[Union[bool, str]] = None,
     revision: Optional[str] = None,
 ) -> List[Path]:
     """
@@ -59,7 +67,12 @@ def find_files_matching_pattern(
         subfolder (`str`, defaults to `""`):
             In case the model files are located inside a subfolder of the model directory / repo on the Hugging
             Face Hub, you can specify the subfolder name here.
-        use_auth_token (`Optional[bool, str]`, *optional*):
+        use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
+            Deprecated. Please use the `token` argument instead.
+        token (`Optional[Union[bool,str]]`, defaults to `None`):
+            The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
+            when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
+        token (`Optional[Union[bool, str]]`, *optional*):
             The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
             when running `transformers-cli login` (stored in `~/.huggingface`).
         revision (`Optional[str]`, defaults to `None`):
@@ -68,6 +81,16 @@ def find_files_matching_pattern(
     Returns:
         `List[Path]`
     """
+
+    if use_auth_token is not None:
+        warnings.warn(
+            "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+            FutureWarning,
+        )
+        if token is not None:
+            raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+        token = use_auth_token
+
     model_path = Path(model_name_or_path) if isinstance(model_name_or_path, str) else model_name_or_path
     pattern = re.compile(f"{subfolder}/{pattern}" if subfolder != "" else pattern)
     if model_path.is_dir():
@@ -76,11 +99,7 @@ def find_files_matching_pattern(
         files = [p for p in files if re.search(pattern, str(p))]
     else:
         path = model_name_or_path
-        if isinstance(use_auth_token, bool):
-            token = HfFolder().get_token()
-        else:
-            token = use_auth_token
-        repo_files = map(Path, HfApi().list_repo_files(model_name_or_path, revision=revision, token=token))
+        repo_files = map(Path, huggingface_hub.list_repo_files(model_name_or_path, revision=revision, token=token))
         if subfolder != "":
             path = f"{path}/{subfolder}"
         files = [Path(p) for p in repo_files if re.match(pattern, str(p))]

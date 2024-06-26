@@ -102,6 +102,19 @@ class NormalizedVisionConfig(NormalizedConfig):
     INPUT_SIZE = "input_size"
 
 
+class NormalizedSegformerConfig(NormalizedVisionConfig):
+    NUM_ATTENTION_HEADS = "num_attention_heads"
+    HIDDEN_SIZE = "hidden_sizes"
+
+    # If the attribute is a list, return 0
+    # 0 means let the optimizer infer the correct value based on the model graph
+    def __getattr__(self, attr_name):
+        attr_value = super().__getattr__(attr_name)
+        if isinstance(attr_value, list):
+            attr_value = 0
+        return attr_value
+
+
 class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig):
     TEXT_CONFIG = None
     VISION_CONFIG = None
@@ -203,7 +216,6 @@ class NormalizedConfigManager:
         'owlvit',
         'perceiver',
         'roformer',
-        'segformer',
         'squeezebert',
         'table-transformer',
     """
@@ -258,6 +270,7 @@ class NormalizedConfigManager:
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
+        "segformer": NormalizedSegformerConfig,
         "speech-to-text": SpeechToTextLikeNormalizedTextConfig,
         "splinter": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,

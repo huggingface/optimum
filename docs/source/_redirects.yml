@@ -19,12 +19,18 @@ habana/tutorials/pretraining: habana/usage_guides/pretraining
 
 # Optimum Intel
 intel_index: intel/index
-intel_quickstart: intel/optimization_inc
-intel_configuration: intel/reference_inc
-intel_optimization: intel/optimization_inc
-intel_quantization: intel/optimization_inc
-intel_pruning: intel/optimization_inc
-intel_trainer: intel/reference_inc
+intel_quickstart: intel/index
+intel_configuration: intel/neural_compressor/reference
+intel_optimization: intel/neural_compressor/optimization
+intel_quantization: intel/neural_compressor/optimization
+intel_pruning: intel/neural_compressor/optimization
+intel_trainer: intel/neural_compressor/reference
+intel/inference: intel/openvino/inference
+intel/optimization_ov: intel/openvino/optimization
+intel/reference_ov: intel/openvino/reference
+intel/optimization_inc: intel/neural_compressor/optimization
+intel/distributed_training: intel/neural_compressor/distributed_training
+intel/reference_inc: intel/neural_compressor/reference
 
 # Optimum Neuron
 docs/optimum-neuron/index: /docs/optimum-neuron/index
