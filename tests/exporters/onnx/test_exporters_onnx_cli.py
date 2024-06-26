@@ -594,6 +594,14 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 check=True,
             )
 
+        with TemporaryDirectory() as tmpdirname:
+            out = subprocess.run(
+                f"python3 -m optimum.exporters.onnx --trust-remote-code --model nomic-ai/nomic-embed-text-v1.5 --task feature-extraction {tmpdirname}",
+                shell=True,
+                check=True,
+            )
+            self.assertFalse(out.returncode)
+
     def test_stable_diffusion(self):
         with TemporaryDirectory() as tmpdirname:
             subprocess.run(
@@ -730,3 +738,20 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             model.save_pretrained(tmpdir_in)
 
             main_export(model_name_or_path=tmpdir_in, output=tmpdir_out, task="text-classification")
+
+    @slow
+    def test_custom_model(self):
+        with TemporaryDirectory() as tmpdirname:
+            out = subprocess.run(
+                f" python3 -m optimum.exporters.onnx --trust-remote-code --model nomic-ai/nomic-embed-text-v1.5 --task feature-extraction {tmpdirname}",
+                shell=True,
+                capture_output=True,
+            )
+            self.assertFalse(out.returncode)
+
+        with TemporaryDirectory() as tmpdirname:
+            out = subprocess.run(
+                f"python3 -m optimum.exporters.onnx --trust-remote-code --model fxmarty/tiny-testing-gpt2-remote-code --task text-generation {tmpdirname}",
+                shell=True,
+                check=True,
+            )
