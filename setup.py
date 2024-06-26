@@ -18,7 +18,7 @@ REQUIRED_PKGS = [
     "transformers[sentencepiece]>=4.26.0,<4.42.0",
     "torch>=1.11",
     "packaging",
-    "numpy",
+    "numpy<2.0", # transformers requires numpy<2.0 https://github.com/huggingface/transformers/pull/31569
     "huggingface_hub>=0.8.0",
     "datasets",
 ]
@@ -53,7 +53,6 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "numpy<=1.26.4",  # onnxruntime is still not compatible with numpy 2
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -61,15 +60,9 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "numpy<=1.26.4",  # onnxruntime is still not compatible with numpy 2
         "accelerate",  # ORTTrainer requires it.
     ],
-    "exporters": [
-        "onnx",
-        "onnxruntime",
-        "timm",
-        "numpy<=1.26.4",  # onnxruntime is still not compatible with numpy 2
-    ],
+    "exporters": ["onnx", "onnxruntime", "timm"],
     "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
     "exporters-tf": [
         "tensorflow>=2.4,<=2.12.1",
