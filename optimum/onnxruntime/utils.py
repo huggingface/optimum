@@ -128,6 +128,7 @@ class ORTConfigManager:
         "nystromformer": "bert",
         "pegasus": "bert",
         "roberta": "bert",
+        "segformer": "vit",
         "t5": "bert",
         "vit": "vit",
         "whisper": "bart",

@@ -80,5 +80,6 @@ from .normalized_config import (
     NormalizedSeq2SeqConfig,
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
+    NormalizedTextConfigWithGQA,
     NormalizedVisionConfig,
 )
