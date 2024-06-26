@@ -250,6 +250,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "mpt": "mosaicml/mpt-7b",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
     "musicgen": "facebook/musicgen-small",
+    "nomic-bert": "nomic-ai/nomic-embed-text-v1.5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "owlv2": "google/owlv2-base-patch16",
     "owlvit": "google/owlvit-base-patch32",
