@@ -18,7 +18,7 @@ REQUIRED_PKGS = [
     "transformers[sentencepiece]>=4.26.0,<4.42.0",
     "torch>=1.11",
     "packaging",
-    "numpy",
+    "numpy<2.0", # transformers requires numpy<2.0 https://github.com/huggingface/transformers/pull/31569
     "huggingface_hub>=0.8.0",
     "datasets",
 ]
@@ -79,10 +79,10 @@ EXTRAS_REQUIRE = {
     "openvino": "optimum-intel[openvino]>=1.16.0",
     "nncf": "optimum-intel[nncf]>=1.16.0",
     "neural-compressor": "optimum-intel[neural-compressor]>=1.16.0",
-    "graphcore": "optimum-graphcore",
     "habana": ["optimum-habana", "transformers >= 4.38.0, < 4.39.0"],
     "neuron": ["optimum-neuron[neuron]>=0.0.20", "transformers >= 4.36.2, < 4.42.0"],
     "neuronx": ["optimum-neuron[neuronx]>=0.0.20", "transformers >= 4.36.2, < 4.42.0"],
+    "graphcore": "optimum-graphcore",
     "furiosa": "optimum-furiosa",
     "amd": "optimum-amd",
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,

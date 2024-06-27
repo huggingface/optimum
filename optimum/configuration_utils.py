@@ -18,9 +18,9 @@ import copy
 import json
 import os
 import re
+import warnings
 from typing import Any, Dict, List, Tuple, Union
 
-from huggingface_hub import HfFolder
 from packaging import version
 from transformers import PretrainedConfig
 from transformers import __version__ as transformers_version_str
@@ -93,7 +93,19 @@ class BaseConfig(PretrainedConfig):
                 repo_id = self._create_repo(repo_id, **kwargs)
 
                 use_auth_token = kwargs.get("use_auth_token", None)
-                token = HfFolder.get_token() if use_auth_token is True else use_auth_token
+                token = kwargs.get("token", None)
+
+                if use_auth_token is not None:
+                    warnings.warn(
+                        "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                        FutureWarning,
+                    )
+                    if token is not None:
+                        raise ValueError(
+                            "You cannot use both `use_auth_token` and `token` arguments at the same time."
+                        )
+                    kwargs["token"] = use_auth_token
+                    token = use_auth_token
 
                 files_timestamps = self._get_files_timestamps(save_directory)
 
@@ -197,6 +209,7 @@ class BaseConfig(PretrainedConfig):
         resume_download = kwargs.pop("resume_download", False)
         proxies = kwargs.pop("proxies", None)
         use_auth_token = kwargs.pop("use_auth_token", None)
+        token = kwargs.pop("token", None)
         local_files_only = kwargs.pop("local_files_only", False)
         revision = kwargs.pop("revision", None)
         trust_remote_code = kwargs.pop("trust_remote_code", None)
@@ -204,6 +217,15 @@ class BaseConfig(PretrainedConfig):
         from_pipeline = kwargs.pop("_from_pipeline", None)
         from_auto_class = kwargs.pop("_from_auto", False)
         commit_hash = kwargs.pop("_commit_hash", None)
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
 
         if trust_remote_code is True:
             logger.warning(
@@ -255,7 +277,7 @@ class BaseConfig(PretrainedConfig):
                         proxies=proxies,
                         resume_download=resume_download,
                         local_files_only=local_files_only,
-                        use_auth_token=use_auth_token,
+                        token=token,
                         user_agent=user_agent,
                     )
                 else:
@@ -268,7 +290,7 @@ class BaseConfig(PretrainedConfig):
                         proxies=proxies,
                         resume_download=resume_download,
                         local_files_only=local_files_only,
-                        use_auth_token=use_auth_token,
+                        token=token,
                         user_agent=user_agent,
                         revision=revision,
                         subfolder=subfolder,

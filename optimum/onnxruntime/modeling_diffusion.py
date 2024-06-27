@@ -16,6 +16,7 @@ import importlib
 import logging
 import os
 import shutil
+import warnings
 from abc import abstractmethod
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -272,6 +273,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         model_id: Union[str, Path],
         config: Dict[str, Any],
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         vae_decoder_file_name: str = ONNX_WEIGHTS_NAME,
@@ -287,6 +289,15 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         if provider == "TensorrtExecutionProvider":
             raise ValueError("The provider `'TensorrtExecutionProvider'` is not supported")
 
@@ -314,7 +325,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
                 model_id,
                 cache_dir=cache_dir,
                 local_files_only=local_files_only,
-                use_auth_token=use_auth_token,
+                token=token,
                 revision=revision,
                 allow_patterns=allow_patterns,
                 ignore_patterns=["*.msgpack", "*.safetensors", "*.bin", "*.xml"],
@@ -376,6 +387,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         model_id: str,
         config: Optional[str] = None,
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: str = "main",
         force_download: bool = True,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -388,6 +400,15 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTStableDiffusionPipeline":
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
 
@@ -403,7 +424,7 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,
-            use_auth_token=use_auth_token,
+            token=token,
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,
