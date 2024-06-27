@@ -735,7 +735,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_custom_model(self):
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(
-                f" python3 -m optimum.exporters.onnx --trust-remote-code --model nomic-ai/nomic-embed-text-v1.5 --task feature-extraction {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --trust-remote-code --model nomic-ai/nomic-embed-text-v1.5 --task feature-extraction {tmpdirname}",
                 shell=True,
                 capture_output=True,
             )
