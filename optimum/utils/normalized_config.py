@@ -216,6 +216,7 @@ class NormalizedConfigManager:
         'owlvit',
         'perceiver',
         'roformer',
+        'rt-detr',
         'squeezebert',
         'table-transformer',
     """
