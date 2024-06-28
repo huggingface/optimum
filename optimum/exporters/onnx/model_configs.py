@@ -829,6 +829,10 @@ class RTDetrOnnxConfig(ViTOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (RTDetrDummyInputGenerator, )
     ATOL_FOR_VALIDATION = 1e-3
 
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"pixel_values": {0: "batch_size"}}
+
 
 class TableTransformerOnnxConfig(DetrOnnxConfig):
     pass
