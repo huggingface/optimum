@@ -72,6 +72,7 @@ from .config import (
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import (
     FalconModelPatcher,
+    MistralModelPatcher,
     MusicgenModelPatcher,
     SAMModelPatcher,
     SentenceTransformersCLIPPatcher,
@@ -311,6 +312,12 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        print("IN patch_model_for_export")
+        return MistralModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):
