@@ -23,9 +23,10 @@ REQUIRED_PKGS = [
     "datasets",
 ]
 
+
 TESTS_REQUIRE = [
     "accelerate",
-    "pytest",
+    "pytest<=8.0.0",  # exporters-tf usues an old version of transformers that requires pytest<=8.0.0
     "requests",
     "parameterized",
     "pytest-xdist",

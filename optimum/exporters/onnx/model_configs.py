@@ -237,7 +237,7 @@ class EsmOnnxConfig(TextEncoderOnnxConfig):
 
 
 class GPT2OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
 
