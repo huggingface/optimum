@@ -15,18 +15,17 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.26.0,<4.42.0",
+    "transformers[sentencepiece]>=4.26.0,<4.43.0",
     "torch>=1.11",
     "packaging",
-    "numpy<2.0",  # transformers requires numpy<2.0 https://github.com/huggingface/transformers/pull/31569
+    "numpy",
     "huggingface_hub>=0.8.0",
     "datasets",
 ]
 
-# TODO: unpin pytest once https://github.com/huggingface/transformers/pull/29154 is merged & released
 TESTS_REQUIRE = [
     "accelerate",
-    "pytest<=8.0.0",
+    "pytest",
     "requests",
     "parameterized",
     "pytest-xdist",
@@ -79,9 +78,9 @@ EXTRAS_REQUIRE = {
     "openvino": "optimum-intel[openvino]>=1.16.0",
     "nncf": "optimum-intel[nncf]>=1.16.0",
     "neural-compressor": "optimum-intel[neural-compressor]>=1.16.0",
-    "habana": ["optimum-habana", "transformers >= 4.38.0, < 4.39.0"],
-    "neuron": ["optimum-neuron[neuron]>=0.0.20", "transformers >= 4.36.2, < 4.42.0"],
-    "neuronx": ["optimum-neuron[neuronx]>=0.0.20", "transformers >= 4.36.2, < 4.42.0"],
+    "habana": ["optimum-habana", "transformers>=4.38.0,<4.39.0"],
+    "neuron": ["optimum-neuron[neuron]>=0.0.20", "transformers>=4.36.2,<4.42.0"],
+    "neuronx": ["optimum-neuron[neuronx]>=0.0.20", "transformers>=4.36.2,<4.42.0"],
     "graphcore": "optimum-graphcore",
     "furiosa": "optimum-furiosa",
     "amd": "optimum-amd",
