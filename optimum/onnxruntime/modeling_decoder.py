@@ -122,6 +122,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     auto_model_class = AutoModelForCausalLM
     main_input_name = "input_ids"
 
+    _supports_cache_class = False
+    _supports_static_cache = False
+
     def __init__(
         self,
         model: onnxruntime.InferenceSession,
