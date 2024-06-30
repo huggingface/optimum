@@ -185,6 +185,7 @@ class TasksManager:
             "text2text-generation": "AutoModelForSeq2SeqLM",
             "text-classification": "AutoModelForSequenceClassification",
             "token-classification": "AutoModelForTokenClassification",
+            "zero-shot-audio-classification": "AutoModel",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
@@ -442,6 +443,11 @@ class TasksManager:
             "question-answering",
             onnx="CamembertOnnxConfig",
             tflite="CamembertTFLiteConfig",
+        ),
+        "clap": supported_tasks_mapping(
+            "feature-extraction",
+            "zero-shot-audio-classification",
+            onnx="CLAPOnnxConfig",
         ),
         "clip": supported_tasks_mapping(
             "feature-extraction",

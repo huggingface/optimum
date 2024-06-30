@@ -271,6 +271,13 @@ class AudioOnnxConfig(OnnxConfig):
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {"input_values": {0: "batch_size", 1: "sequence_length"}}
 
+class TextAndAudioOnnxConfig(OnnxConfig):
+    """
+    Handles multi-modal text and audio architectures.
+    """
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyAudioInputGenerator)
+
 
 class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
     DUMMY_INPUT_GENERATOR_CLASSES = (
