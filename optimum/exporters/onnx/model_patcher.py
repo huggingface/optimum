@@ -1077,7 +1077,6 @@ class MistralModelPatcher(ModelPatcher):
                 "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
             )
 
-        print("self._model in enter", self._model)
         if _transformers_version >= version.parse("4.42"):
             if hasattr(self._model, "model"):
                 self._model.model._update_causal_mask = types.MethodType(
