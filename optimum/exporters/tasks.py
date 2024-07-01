@@ -18,12 +18,14 @@ import importlib
 import inspect
 import itertools
 import os
+import warnings
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 import huggingface_hub
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+from huggingface_hub.errors import OfflineModeIsEnabled
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
@@ -1391,9 +1393,19 @@ class TasksManager:
         model_name_or_path: Union[str, Path],
         subfolder: str = "",
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        use_auth_token: Optional[str] = None,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
     ):
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         request_exception = None
         full_model_path = Path(model_name_or_path) / subfolder
         if full_model_path.is_dir():
@@ -1409,12 +1421,12 @@ class TasksManager:
                 all_files = huggingface_hub.list_repo_files(
                     model_name_or_path,
                     repo_type="model",
-                    token=use_auth_token,
+                    token=token,
                     revision=revision,
                 )
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
-            except (RequestsConnectionError, huggingface_hub.utils._http.OfflineModeIsEnabled) as e:
+            except (RequestsConnectionError, OfflineModeIsEnabled) as e:
                 request_exception = e
                 object_id = model_name_or_path.replace("/", "--")
                 full_model_path = Path(cache_dir, f"models--{object_id}")
@@ -1588,7 +1600,7 @@ class TasksManager:
                 )
             try:
                 model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
-            except (RequestsConnectionError, huggingface_hub.utils._http.OfflineModeIsEnabled):
+            except (RequestsConnectionError, OfflineModeIsEnabled):
                 raise RuntimeError(
                     f"Hugging Face Hub is not reachable and we cannot infer the task from a cached model. Make sure you are not offline, or otherwise please specify the `task` (or `--task` in command-line) argument ({', '.join(TasksManager.get_all_tasks())})."
                 )
@@ -1706,7 +1718,8 @@ class TasksManager:
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         library_name: Optional[str] = None,
-        use_auth_token: Optional[str] = None,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
     ):
         """
         Infers the library from the model repo.
@@ -1724,16 +1737,30 @@ class TasksManager:
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
             library_name (`Optional[str]`, *optional*):
                 The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
-            use_auth_token (`Optional[str]`, defaults to `None`):
-                The token to use as HTTP bearer authorization for remote files.
+            use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
+                Deprecated. Please use the `token` argument instead.
+            token (`Optional[Union[bool,str]]`, defaults to `None`):
+                The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
+                when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
+
         Returns:
             `str`: The library name automatically detected from the model repo.
         """
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         if library_name is not None:
             return library_name
 
         all_files, _ = TasksManager.get_model_files(
-            model_name_or_path, subfolder, cache_dir, use_auth_token=use_auth_token
+            model_name_or_path, subfolder, cache_dir, token=token, revision=revision
         )
 
         if "model_index.json" in all_files:
@@ -1749,7 +1776,7 @@ class TasksManager:
                 "subfolder": subfolder,
                 "revision": revision,
                 "cache_dir": cache_dir,
-                "use_auth_token": use_auth_token,
+                "token": token,
             }
             config_dict, kwargs = PretrainedConfig.get_config_dict(model_name_or_path, **kwargs)
             model_config = PretrainedConfig.from_dict(config_dict, **kwargs)
@@ -1924,12 +1951,23 @@ class TasksManager:
         elif library_name == "sentence_transformers":
             cache_folder = model_kwargs.pop("cache_folder", None)
             use_auth_token = model_kwargs.pop("use_auth_token", None)
+            token = model_kwargs.pop("token", None)
             trust_remote_code = model_kwargs.pop("trust_remote_code", False)
+
+            if use_auth_token is not None:
+                warnings.warn(
+                    "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                    FutureWarning,
+                )
+                if token is not None:
+                    raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+                token = use_auth_token
+
             model = model_class(
                 model_name_or_path,
                 device=device,
                 cache_folder=cache_folder,
-                use_auth_token=use_auth_token,
+                token=token,
                 trust_remote_code=trust_remote_code,
             )
         else:

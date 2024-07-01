@@ -50,7 +50,7 @@ TASK_TO_NON_DEFAULT_DATASET = {
         "dataset_data_keys": {"question": "question", "context": "answer"},
     },
     "image-classification": {
-        "dataset_args": "mnist",
+        "dataset_args": "sasha/dog-food",
         "dataset_data_keys": {"image": "image"},
     },
 }
@@ -231,6 +231,11 @@ class TokenClassificationProcessorTest(TestCase, TaskProcessorTestBase):
             dataset = dataset[first_split]
         input_ids = dataset[0]["input_ids"]
         self.assertEqual(len(input_ids), max_length)
+
+    def test_load_default_dataset(self):
+        self.skipTest(
+            "Skipping so as not to execute conll2003 remote code (test would require trust_remote_code=True)"
+        )
 
 
 class QuestionAnsweringProcessorTest(TestCase, TaskProcessorTestBase):
