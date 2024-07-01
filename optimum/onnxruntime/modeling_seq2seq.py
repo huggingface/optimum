@@ -571,6 +571,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
     # Used in from_transformers to export model to onnxORTEncoder
     base_model_prefix = "onnx_model"
 
+    _supports_cache_class = False
+    _supports_static_cache = False
+
     def __init__(
         self,
         encoder_session: ort.InferenceSession,
@@ -1141,9 +1144,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
 
     auto_model_class = AutoModelForSeq2SeqLM
     main_input_name = "input_ids"
-
-    _supports_cache_class = False
-    _supports_static_cache = False
 
     def __init__(
         self,
