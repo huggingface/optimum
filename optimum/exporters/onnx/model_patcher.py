@@ -396,6 +396,204 @@ class DecoderModelPatcher(ModelPatcher):
             self.original_make_causal = AttentionMaskConverter._make_causal_mask
 
 
+def patched_merge_input_ids_with_image_features(
+    self, image_features, inputs_embeds, input_ids, attention_mask, labels
+):
+    num_images, num_image_patches, embed_dim = image_features.shape
+    batch_size, sequence_length = input_ids.shape
+    left_padding = not torch.sum(input_ids[:, -1] == torch.tensor(self.pad_token_id))
+    # 1. Create a mask to know where special image tokens are
+    special_image_token_mask = input_ids == self.config.image_token_index
+    num_special_image_tokens = torch.sum(special_image_token_mask, dim=-1)
+
+    # Compute the maximum embed dimension
+    max_embed_dim = (num_special_image_tokens.max() * (num_image_patches - 1)) + sequence_length
+    batch_indices, non_image_indices = torch.where(input_ids != self.config.image_token_index)
+
+    # 2. Compute the positions where text should be written
+    # Calculate new positions for text tokens in merged image-text sequence.
+    # `special_image_token_mask` identifies image tokens. Each image token will be replaced by `nb_text_tokens_per_images - 1` text tokens.
+    # `torch.cumsum` computes how each image token shifts subsequent text token positions.
+    # - 1 to adjust for zero-based indexing, as `cumsum` inherently increases indices by one.
+    new_token_positions = torch.cumsum((special_image_token_mask * (num_image_patches - 1) + 1), -1) - 1
+    nb_image_pad = max_embed_dim - 1 - new_token_positions[:, -1]
+    if left_padding:
+        new_token_positions += nb_image_pad[:, None]  # offset for left padding
+    text_to_overwrite = new_token_positions[batch_indices, non_image_indices]
+
+    # 3. Create the full embedding, already padded to the maximum position
+    final_embedding = torch.zeros(
+        batch_size, max_embed_dim, embed_dim, dtype=inputs_embeds.dtype, device=inputs_embeds.device
+    )
+    final_attention_mask = torch.zeros(
+        batch_size, max_embed_dim, dtype=attention_mask.dtype, device=inputs_embeds.device
+    )
+    if labels is not None:
+        final_labels = torch.full(
+            (batch_size, max_embed_dim), self.config.ignore_index, dtype=input_ids.dtype, device=input_ids.device
+        )
+    # In case the Vision model or the Language model has been offloaded to CPU, we need to manually
+    # set the corresponding tensors into their correct target device.
+    target_device = inputs_embeds.device
+    batch_indices, non_image_indices, text_to_overwrite = (
+        batch_indices.to(target_device),
+        non_image_indices.to(target_device),
+        text_to_overwrite.to(target_device),
+    )
+    attention_mask = attention_mask.to(target_device)
+
+    # 4. Fill the embeddings based on the mask. If we have ["hey" "<image>", "how", "are"]
+    # we need to index copy on [0, 577, 578, 579] for the text and [1:576] for the image features
+    final_embedding[batch_indices, text_to_overwrite] = inputs_embeds[batch_indices, non_image_indices]
+    final_attention_mask[batch_indices, text_to_overwrite] = attention_mask[batch_indices, non_image_indices]
+    if labels is not None:
+        final_labels[batch_indices, text_to_overwrite] = labels[batch_indices, non_image_indices]
+
+    # 5. Fill the embeddings corresponding to the images. Anything that is still zeros needs filling
+    image_to_overwrite = torch.ones((batch_size, max_embed_dim), dtype=torch.bool, device=inputs_embeds.device)
+    image_to_overwrite[batch_indices, text_to_overwrite] = False
+
+    # ModelPatcher Fix: Exporting the operator 'aten::__iand_' not supported AND cumsum inut should be INT not BOOL
+    # image_to_overwrite &= image_to_overwrite.cumsum(-1) - 1 >= nb_image_pad[:, None].to(target_device)
+    image_to_overwrite_int = image_to_overwrite.to(final_attention_mask.dtype)
+    mask = image_to_overwrite_int.cumsum(-1) - 1 >= nb_image_pad[:, None].to(target_device)
+    image_to_overwrite *= mask
+
+    if image_to_overwrite.sum() != image_features.shape[:-1].numel():
+        raise ValueError(
+            f"The input provided to the model are wrong. The number of image tokens is {torch.sum(special_image_token_mask)} while"
+            f" the number of image given to the model is {num_images}. This prevents correct indexing and breaks batch generation."
+        )
+
+    final_embedding[image_to_overwrite] = image_features.contiguous().reshape(-1, embed_dim).to(target_device)
+
+    # ModelPatcher Fix: Exporting the operator 'aten::__ior_' not supported
+    # final_attention_mask2  = final_attention_mask | image_to_overwrite
+    final_attention_mask = torch.max(final_attention_mask, image_to_overwrite.to(final_attention_mask.dtype))
+
+    position_ids = (final_attention_mask.cumsum(-1) - 1).masked_fill_((final_attention_mask == 0), 1)
+
+    # 6. Mask out the embedding at padding positions, as we later use the past_key_value value to determine the non-attended tokens.
+    batch_indices, pad_indices = torch.where(input_ids == self.pad_token_id)
+    indices_to_mask = new_token_positions[batch_indices, pad_indices]
+
+    final_embedding[batch_indices, indices_to_mask] = 0
+
+    if labels is None:
+        final_labels = None
+
+    final_attention_mask = final_attention_mask.to(position_ids.dtype)
+
+    return final_embedding, final_attention_mask, final_labels, position_ids
+
+
+class LlavaModelPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+        self.patch_ops()
+        setattr(
+            self._model,
+            "_merge_input_ids_with_image_features",
+            types.MethodType(patched_merge_input_ids_with_image_features, self._model),
+        )
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+        self.restore_ops()
+        setattr(self._model, self.orig_forward_name, self.orig_forward)
+        setattr(
+            self._model,
+            "_merge_input_ids_with_image_features",
+            types.MethodType(self.original_merge_input_ids_with_image_features, self._model),
+        )
+
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+        self.original_merge_input_ids_with_image_features = self._model._merge_input_ids_with_image_features
+
+        def patched_forward(
+            input_ids=None,
+            pixel_values=None,
+            attention_mask=None,
+            position_ids=None,
+            past_key_values=None,
+            inputs_embeds=None,
+        ):
+            vision_feature_layer = model.config.vision_feature_layer
+            vision_feature_select_strategy = model.config.vision_feature_select_strategy
+
+            if config._behavior == "encoder":
+                inputs_embeds = model.get_input_embeddings()(input_ids)
+
+                image_outputs = model.vision_tower(pixel_values, output_hidden_states=True)
+                selected_image_feature = image_outputs.hidden_states[vision_feature_layer]
+
+                if vision_feature_select_strategy == "default":
+                    selected_image_feature = selected_image_feature[:, 1:]
+                elif vision_feature_select_strategy == "full":
+                    selected_image_feature = selected_image_feature
+                else:
+                    raise ValueError(f"Unexpected select feature strategy: {vision_feature_select_strategy}")
+
+                image_features = model.multi_modal_projector(selected_image_feature)
+
+                inputs_embeds, attention_mask, labels, position_ids = model._merge_input_ids_with_image_features(
+                    image_features, inputs_embeds, input_ids, attention_mask, None
+                )
+
+                result = {
+                    "inputs_embeds": inputs_embeds,
+                    "decoder_attention_mask": attention_mask,
+                    "position_ids": position_ids,
+                }
+            elif config._behavior == "decoder" and config.decoder_input_processor_export is True:
+                inputs_embeds = model.get_input_embeddings()(input_ids)
+
+                first_layer_past_key_value = past_key_values
+                # Sum all dimensions of head_dim (-2) to avoid random errors such as: https://github.com/huggingface/transformers/pull/28032#issuecomment-1863691941
+                batch_index, non_attended_tokens = torch.where(first_layer_past_key_value.float().sum(-2) == 0)
+
+                # Get the target length
+                past_length = first_layer_past_key_value.shape[-1]
+
+                extended_attention_mask = torch.ones(
+                    (attention_mask.shape[0], past_length),
+                    dtype=attention_mask.dtype,
+                    device=attention_mask.device,
+                )
+
+                # Filter out only the tokens that can be un-attended, this can happen
+                # if one uses Llava + Fused modules where the cache on the
+                # first iteration is already big enough, or if one passes custom cache
+                valid_indices = non_attended_tokens < extended_attention_mask.size(-1)
+                new_batch_index = batch_index[valid_indices]
+                new_non_attended_tokens = non_attended_tokens[valid_indices]
+
+                # Zero-out the places where we don't need to attend
+                extended_attention_mask[new_batch_index, new_non_attended_tokens] = 0
+
+                attention_mask = torch.cat((extended_attention_mask, attention_mask[:, -1:]), dim=1)
+                position_ids = torch.sum(attention_mask, dim=1).unsqueeze(-1) - 1
+
+                result = {
+                    "inputs_embeds": inputs_embeds,
+                    "decoder_attention_mask": attention_mask,
+                    "position_ids": position_ids,
+                }
+
+            return result
+
+        if config.variant == "optimized" and (
+            config._behavior != "decoder" or config.decoder_input_processor_export is True
+        ):
+            self.patched_forward = patched_forward
+
+
 def falcon_build_alibi_tensor_patched(
     attention_mask: torch.Tensor, num_heads: int, dtype: torch.dtype
 ) -> torch.Tensor:

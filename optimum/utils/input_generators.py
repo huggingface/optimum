@@ -381,6 +381,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
 
     SUPPORTED_INPUT_NAMES = (
         "input_ids",
+        "inputs_embeds",
         "attention_mask",
         "encoder_attention_mask",
         "token_type_ids",
@@ -401,6 +402,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         **kwargs,
     ):
         self.task = task
+        self.hidden_size = normalized_config.hidden_size
 
         if isinstance(normalized_config, NormalizedEncoderDecoderConfig):
             self.vocab_size = normalized_config.vocab_size
@@ -435,6 +437,15 @@ class DummyTextInputGenerator(DummyInputGenerator):
         min_value = 0
         max_value = 2 if input_name != "input_ids" else self.vocab_size
         shape = [self.batch_size, self.sequence_length]
+
+        if input_name == "inputs_embeds":
+            return self.random_float_tensor(
+                shape=[self.batch_size, self.sequence_length, self.hidden_size],
+                min_value=0,
+                max_value=1,
+                framework=framework,
+                dtype=float_dtype,
+            )
         if self.task == "multiple-choice":
             shape = [self.batch_size, self.num_choices, self.sequence_length]
         if "mask" in input_name:

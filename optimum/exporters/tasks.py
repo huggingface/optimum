@@ -448,6 +448,10 @@ class TasksManager:
             "zero-shot-image-classification",
             onnx="CLIPOnnxConfig",
         ),
+        "clip-vision-model": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="CLIPVisionOnnxConfig",
+        ),
         "codegen": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -871,6 +875,11 @@ class TasksManager:
             "text-generation-with-past",
             "text-classification",
             onnx="LlamaOnnxConfig",
+        ),
+        "llava": supported_tasks_mapping(
+            "image-to-text",
+            "image-to-text-with-past",
+            onnx="LlavaOnnxConfig",
         ),
         "pegasus": supported_tasks_mapping(
             "feature-extraction",
