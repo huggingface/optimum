@@ -72,6 +72,7 @@ from .config import (
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import (
     FalconModelPatcher,
+    MistralModelPatcher,
     MusicgenModelPatcher,
     SAMModelPatcher,
     SentenceTransformersCLIPPatcher,
@@ -237,7 +238,7 @@ class EsmOnnxConfig(TextEncoderOnnxConfig):
 
 
 class GPT2OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
 
@@ -259,7 +260,7 @@ class GPTNeoOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 
 class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
@@ -311,6 +312,11 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return MistralModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):

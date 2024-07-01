@@ -1092,9 +1092,10 @@ class ORTModelForFeatureExtraction(ORTModel):
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
 
         if "last_hidden_state" in self.output_names:
-            last_hidden_state = model_outputs[self.output_names["last_hidden_state"]]
+            last_hidden_state = model_outputs["last_hidden_state"]
         else:
-            last_hidden_state = model_outputs[0]
+            # TODO: This allows to support sentence-transformers models (sentence embedding), but is not validated.
+            last_hidden_state = next(iter(model_outputs.values()))
 
         # converts output to namedtuple for pipelines post-processing
         return BaseModelOutput(last_hidden_state=last_hidden_state)
