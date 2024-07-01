@@ -34,9 +34,10 @@ from optimum.exporters.onnx import (
     get_decoder_models_for_export,
     get_encoder_decoder_models_for_export,
     get_stable_diffusion_models_for_export,
+    main_export,
+    onnx_export_from_model,
     validate_models_outputs,
 )
-from optimum.exporters.onnx.__main__ import main_export, onnx_export
 from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
@@ -184,7 +185,7 @@ class OnnxExportTestCase(TestCase):
         if library_name == "timm":
             model_class = TasksManager.get_model_class_for_task(task, library=library_name)
             model = model_class(f"hf_hub:{model_name}", pretrained=True, exportable=True)
-            TasksManager.standardize_model_attributes(model_name, model, library_name=library_name)
+            TasksManager.standardize_model_attributes(model, library_name=library_name)
         else:
             config = AutoConfig.from_pretrained(model_name)
             model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
@@ -540,7 +541,7 @@ class OnnxCustomExport(TestCase):
 
     @parameterized.expand([(None,), (fn_get_submodels_custom,)])
     def test_custom_export_trust_remote(self, fn_get_submodels):
-        model_id = "fxmarty/tiny-mpt-random-remote-code"
+        model_id = "echarlaix/tiny-mpt-random-remote-code"
         config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
         onnx_config = CustomMPTOnnxConfig(
             config=config,
@@ -610,7 +611,7 @@ class OnnxExportModelTest(TestCase):
         if library_name == "timm":
             model_class = TasksManager.get_model_class_for_task(task, library=library_name)
             model = model_class(f"hf_hub:{model_name}", pretrained=True, exportable=True)
-            TasksManager.standardize_model_attributes(model_name, model, library_name=library_name)
+            TasksManager.standardize_model_attributes(model, library_name=library_name)
         else:
             config = AutoConfig.from_pretrained(model_name)
             model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
@@ -632,7 +633,7 @@ class OnnxExportModelTest(TestCase):
             preprocessors = None
 
         with TemporaryDirectory() as tmpdirname:
-            onnx_export(
+            onnx_export_from_model(
                 model=model,
                 output=Path(tmpdirname),
                 monolith=monolith,

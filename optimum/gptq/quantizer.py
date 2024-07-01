@@ -278,19 +278,20 @@ class GPTQQuantizer(object):
                 elif isinstance(layer, Conv1D):
                     in_features = layer.weight.shape[0]
                     out_features = layer.weight.shape[1]
+                bias = layer.bias is not None
                 if not (self.desc_act) or self.group_size == -1:
                     new_layer = QuantLinear(
                         self.bits,
                         self.group_size,
                         in_features,
                         out_features,
-                        True,
+                        bias,
                         use_cuda_fp16=self.use_cuda_fp16,
                         weight_dtype=layer.weight.dtype,
                     )
                 else:
                     new_layer = QuantLinear(
-                        self.bits, self.group_size, in_features, out_features, True, weight_dtype=layer.weight.dtype
+                        self.bits, self.group_size, in_features, out_features, bias, weight_dtype=layer.weight.dtype
                     )
                 new_layer.device = device
                 setattr(module, attr, new_layer.to(device))
@@ -332,26 +333,30 @@ class GPTQQuantizer(object):
             use_cache = model.config.use_cache
             model.config.use_cache = False
 
+        # If the model has a device_map, we don't move to model. We have already dispatched the hook that will do the work
         if hasattr(model, "hf_device_map"):
             devices = list(model.hf_device_map.values())
+            has_device_map = True
             if "disk" in devices:
                 raise ValueError("disk offload is not supported with GPTQ quantization")
-            if "cpu" in devices and len(model.hf_device_map) > 1:
-                logger.info("Cpu offload is not recommended. There might be some issues with the memory")
-                hook = None
-                for name, device in model.hf_device_map.items():
-                    if device == "cpu":
-                        module = recurse_getattr(model, name)
-                        remove_hook_from_module(module, recurse=True)
-                        module, hook = cpu_offload_with_hook(module, prev_module_hook=hook)
-            # If the model has a device_map, we don't move to model. We have already dispatched the hook that will do the work
-            has_device_map = True
+            if "cpu" in devices or torch.device("cpu") in devices:
+                if len(model.hf_device_map) > 1:
+                    logger.info("Cpu offload is not recommended. There might be some issues with the memory")
+                    hook = None
+                    for name, device in model.hf_device_map.items():
+                        if device == "cpu":
+                            module = recurse_getattr(model, name)
+                            remove_hook_from_module(module, recurse=True)
+                            module, hook = cpu_offload_with_hook(module, prev_module_hook=hook)
+                else:
+                    has_device_map = False
 
         if hasattr(model, "dtype"):
             self.use_cuda_fp16 = model.dtype == torch.float16
 
         if self.model_seqlen is None:
-            self.model_seqlen = get_seqlen(model)
+            # We allow a max value of 4028 to avoid passing data with huge length to the model during the calibration step
+            self.model_seqlen = min(4028, get_seqlen(model))
 
         device = get_device(model)
 
@@ -427,7 +432,10 @@ class GPTQQuantizer(object):
             for data in dataset:
                 for k, v in data.items():
                     # put the data on gpu, we won't put them back to cpu
-                    data[k] = v.to(0)
+                    if not has_device_map or device.type == "cpu":
+                        data[k] = v.to(0)
+                    else:
+                        data[k] = v.to(device)
                 try:
                     model(**data)
                 except ValueError:
@@ -453,7 +461,10 @@ class GPTQQuantizer(object):
                 for data in dataset:
                     for k, v in data.items():
                         # put the data on gpu, we won't put them back to cpu
-                        data[k] = v.to(0)
+                        if not has_device_map or device.type == "cpu":
+                            data[k] = v.to(0)
+                        else:
+                            data[k] = v.to(device)
                     try:
                         model(**data)
                     except ValueError:

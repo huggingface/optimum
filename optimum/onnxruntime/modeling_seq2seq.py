@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoModelForSpeechSeq2Seq,
@@ -776,9 +777,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         model_id: Union[str, Path],
         config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         encoder_file_name: str = ONNX_ENCODER_NAME,
         decoder_file_name: str = ONNX_DECODER_NAME,
         decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
@@ -793,6 +795,15 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         model_path = Path(model_id)
 
         # We do not implement the logic for use_cache=False, use_merged=True
@@ -814,7 +825,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     [DECODER_MERGED_ONNX_FILE_PATTERN],
                     argument_name=None,
                     subfolder=subfolder,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     revision=revision,
                 )
                 use_merged = True
@@ -837,7 +848,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     [DECODER_ONNX_FILE_PATTERN],
                     "decoder_file_name",
                     subfolder=subfolder,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     revision=revision,
                 )
             else:
@@ -865,7 +876,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                             [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
                             "decoder_with_past_file_name",
                             subfolder=subfolder,
-                            use_auth_token=use_auth_token,
+                            token=token,
                             revision=revision,
                         )
                     except FileNotFoundError as e:
@@ -895,7 +906,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 [ENCODER_ONNX_FILE_PATTERN],
                 "encoder_file_name",
                 subfolder=subfolder,
-                use_auth_token=use_auth_token,
+                token=token,
                 revision=revision,
             )
         else:
@@ -918,9 +929,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             attribute_name_to_filename = {
                 "last_encoder_model_name": encoder_path.name,
                 "last_decoder_model_name": decoder_path.name if use_merged is False else None,
-                "last_decoder_with_past_model_name": decoder_with_past_path.name
-                if (use_merged is False and use_cache is True)
-                else None,
+                "last_decoder_with_past_model_name": (
+                    decoder_with_past_path.name if (use_merged is False and use_cache is True) else None
+                ),
                 "last_decoder_merged_name": decoder_merged_path.name if use_merged is True else None,
             }
             paths = {}
@@ -931,7 +942,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     repo_id=model_id,
                     subfolder=subfolder,
                     filename=filename,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     revision=revision,
                     cache_dir=cache_dir,
                     force_download=force_download,
@@ -943,7 +954,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                         repo_id=model_id,
                         subfolder=subfolder,
                         filename=filename + "_data",
-                        use_auth_token=use_auth_token,
+                        token=token,
                         revision=revision,
                         cache_dir=cache_dir,
                         force_download=force_download,
@@ -988,7 +999,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 cache_dir=cache_dir,
                 force_download=force_download,
                 local_files_only=local_files_only,
-                use_auth_token=use_auth_token,
+                token=token,
                 revision=revision,
                 subfolder=subfolder,
             )
@@ -1021,9 +1032,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         model_id: str,
         config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: str = "main",
         force_download: bool = True,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
@@ -1035,6 +1047,15 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModelForConditionalGeneration":
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         if use_cache is False and use_merged is True:
             raise ValueError(
                 "The incompatible arguments use_cache=False, use_merged=True were passed to"
@@ -1061,7 +1082,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,
-            use_auth_token=use_auth_token,
+            token=token,
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,
@@ -1110,12 +1131,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         self.providers = self.encoder.session.get_providers()
 
         return self
-
-    def can_generate(self):
-        logger.warning(
-            "ORTModelForConditionalGeneration is an abstract class and is not meant to be used for generation. Please use ORTModelForSeq2SeqLM or ORTModelForSpeechSeq2Seq."
-        )
-        return False
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
@@ -1262,10 +1277,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
             )
         return reordered_past
 
-    def can_generate(self):
-        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
-        return True
-
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin):
@@ -1396,10 +1407,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
                 tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
             )
         return reordered_past
-
-    def can_generate(self):
-        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
-        return True
 
     @classmethod
     def _from_pretrained(
@@ -1986,10 +1993,6 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
             )
         return reordered_past
 
-    def can_generate(self):
-        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
-        return True
-
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
@@ -2105,7 +2108,3 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
     @staticmethod
     def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
         ORTModelForSeq2SeqLM._reorder_cache(past, beam_idx)
-
-    def can_generate(self):
-        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
-        return True

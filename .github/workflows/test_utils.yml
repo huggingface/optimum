@@ -1,9 +1,8 @@
-name: Code Quality
+name: Utils / Python - Test
 
 on:
   push:
     branches: [main]
-
   pull_request:
     branches: [main]
 
@@ -16,8 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8]
-        os: [ubuntu-20.04]
+        os: [ubuntu-20.04, macos-13]
+        python-version: [3.8, 3.9]
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -25,19 +24,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install .[quality]
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install .[tests]
 
-      - name: Check style with black
+      - name: Test with pytest
+        working-directory: tests
         run: |
-          black --check .
-
-      - name: Check style with ruff
-        run: |
-          ruff .
+          python -m pytest -s -vvvv utils

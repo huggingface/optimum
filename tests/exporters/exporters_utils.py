@@ -92,6 +92,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "fxmarty/tiny-testing-falcon-alibi": ["text-generation", "text-generation-with-past"],
     },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
+    "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
     "glpn": "hf-internal-testing/tiny-random-GLPNModel",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt-bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
@@ -110,6 +111,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     # "longformer": "allenai/longformer-base-4096",
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
+    "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
@@ -119,18 +121,22 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
+    "musicgen": "hf-internal-testing/tiny-random-MusicgenForConditionalGeneration",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
+    "owlv2": "hf-internal-testing/tiny-random-Owlv2Model",
     "owlvit": "hf-tiny-model-private/tiny-random-OwlViTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
         "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],
         "hf-internal-testing/tiny-random-vision_perceiver_conv": ["image-classification"],
     },
-    "phi": "hf-internal-testing/tiny-random-PhiForCausalLM",
+    "phi": "echarlaix/tiny-random-PhiForCausalLM",
+    "phi3": "Xenova/tiny-random-Phi3ForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
+    "qwen2": "fxmarty/tiny-dummy-qwen2",
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
@@ -144,6 +150,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "t5": "hf-internal-testing/tiny-random-t5",
     "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
     "vit": "hf-internal-testing/tiny-random-vit",
+    "vits": "echarlaix/tiny-random-vits",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
     "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
@@ -217,6 +224,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "electra": "google/electra-base-generator",
     "encoder-decoder": "patrickvonplaten/bert2bert_cnn_daily_mail",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",  # TODO
+    "gemma": "google/gemma-2b",
     "gpt2": "gpt2",
     "gpt-neo": "EleutherAI/gpt-neo-125M",
     "gpt-neox": "EleutherAI/gpt-neox-20b",
@@ -233,6 +241,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     # "longformer": "allenai/longformer-base-4096",
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",  # Not using facebook/m2m100_418M because it takes too much time for testing.
     "marian": "Helsinki-NLP/opus-mt-en-de",
+    "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "sshleifer/tiny-mbart",
     "mobilebert": "google/mobilebert-uncased",
     # "mobilenet_v1": "google/mobilenet_v1_0.75_192",
@@ -240,7 +249,9 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "mobilevit": "apple/mobilevit-small",
     "mpt": "mosaicml/mpt-7b",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
+    "musicgen": "facebook/musicgen-small",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
+    "owlv2": "google/owlv2-base-patch16",
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
@@ -329,8 +340,11 @@ PYTORCH_TIMM_MODEL = {
 }
 
 PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
-    "sentence-transformers-clip": "sentence-transformers/all-MiniLM-L6-v2",
-    "sentence-transformers-transformer": "sentence-transformers/clip-ViT-B-32-multilingual-v1",
+    "clip": "sentence-transformers/clip-ViT-B-32",
+    "transformer": {
+        "sentence-transformers/all-MiniLM-L6-v2": ["feature-extraction", "sentence-similarity"],
+        "fxmarty/tiny-dummy-mistral-sentence-transformer": ["feature-extraction", "sentence-similarity"],
+    },
 }
 
 

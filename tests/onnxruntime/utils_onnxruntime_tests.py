@@ -87,6 +87,7 @@ MODEL_NAMES = {
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
     "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "detr": "hf-internal-testing/tiny-random-detr",
+    "dpt": "hf-internal-testing/tiny-random-DPTModel",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "encoder-decoder": {
@@ -97,6 +98,7 @@ MODEL_NAMES = {
     },
     "falcon": "fxmarty/really-tiny-falcon-testing",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
+    "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
@@ -119,14 +121,17 @@ MODEL_NAMES = {
     "mobilenet_v1": "google/mobilenet_v1_0.75_192",
     "mobilenet_v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
+    "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver_text": "hf-internal-testing/tiny-random-language_perceiver",
     "perceiver_vision": "hf-internal-testing/tiny-random-vision_perceiver_conv",
+    "phi3": "Xenova/tiny-random-Phi3ForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
+    "qwen2": "fxmarty/tiny-dummy-qwen2",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
@@ -176,21 +181,23 @@ class ORTModelTestMixin(unittest.TestCase):
         model_arch = model_args["model_arch"]
         model_arch_and_params = model_args["test_name"]
 
-        # TODO: this should actually be checked in ORTModel!
-        task = self.TASK
-        if "use_cache" in model_args and model_args["use_cache"] is True:
-            task = task + "-with-past"
-
-        if "use_cache" in model_args and task not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch.replace("_", "-"), exporter="onnx"
-        ):
-            self.skipTest("Unsupported export case")
-
         model_ids = MODEL_NAMES[model_arch]
         if isinstance(model_ids, dict):
             model_ids = list(model_ids.keys())
         else:
             model_ids = [model_ids]
+
+        # TODO: this should actually be checked in ORTModel!
+        task = self.TASK
+        if "use_cache" in model_args and model_args["use_cache"] is True:
+            task = task + "-with-past"
+
+        library_name = TasksManager.infer_library_from_model(model_ids[0])
+
+        if "use_cache" in model_args and task not in TasksManager.get_supported_tasks_for_model_type(
+            model_arch.replace("_", "-"), exporter="onnx", library_name=library_name
+        ):
+            self.skipTest("Unsupported export case")
 
         if model_arch_and_params not in self.onnx_model_dirs:
             self.onnx_model_dirs[model_arch_and_params] = {}

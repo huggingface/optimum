@@ -86,7 +86,8 @@ _REVERSIBLE_TRANSFORMATIONS_TO_TEST = (
 
 
 def get_bert_model():
-    model = BertModel.from_pretrained(_MODEL_NAME)
+    # sdpa attn became default
+    model = BertModel.from_pretrained(_MODEL_NAME, attn_implementation="eager")
     model.eval()
     traced = symbolic_trace(model, input_names=["input_ids", "attention_mask", "token_type_ids"])
     return model, traced

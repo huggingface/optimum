@@ -1,29 +1,46 @@
-name: GPTQ Quantization / Test GPU
+name: GPTQ / Python - Test
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: 0 1 */3 * * # at 1am every 3 days
+  push:
+    branches: [main]
+    paths:
+      - tests/gptq/**
+      - optimum/gptq/**
+      - .github/workflows/test_gptq.yml
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
-  # uncomment to enable on PR merge on main branch:
-  #push:
-  #  branches:
-  #    - main
+    branches: [main]
+    paths:
+      - tests/gptq/**
+      - optimum/gptq/**
+      - .github/workflows/test_gptq.yml
+  schedule:
+    # every day at midnight
+    - cron: "0 0 * * *"
 
 jobs:
-  do-the-job:
-    if: ${{ (github.event_name == 'workflow_dispatch') || (github.event_name == 'schedule') || contains( github.event.pull_request.labels.*.name, 'gpu-test') }}
-    name: Start self-hosted EC2 runner
+  test_gptq:
     runs-on: [single-gpu, nvidia-gpu, t4, ci]
-    env:
-      AWS_REGION: us-east-1
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Build image
-        run: |
-          docker build -f tests/gptq/Dockerfile_quantization_gpu -t gptq-gpu .
-      - name: Test with unittest within docker container
-        run: |
-          docker run --rm --gpus all -v $(pwd)/hf_cache:/root/.cache/huggingface --workdir=/workspace/optimum/tests gptq-gpu:latest
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        uses: addnab/docker-run-action@v3
+        with:
+          image: pytorch/pytorch:2.2.2-cuda12.1-cudnn8-runtime
+          # latest auto-gptq was built with pytorch 2.2 and cuda 12.1
+          options: |
+            --rm
+            --gpus all
+            --shm-size 16G
+            --env RUN_SLOW=1
+            --env HF_HOME=/mnt/cache/
+            --volume /mnt/cache/:/mnt/cache/
+            --volume ${{ github.workspace }}:/workspace
+            --workdir /workspace
+          run: |
+            pip install auto-gptq
+            pip install -e .[tests]
+            pytest tests/gptq -s -vvvv --durations=0

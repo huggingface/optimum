@@ -44,9 +44,14 @@ from transformers.utils import (
 )
 from transformers.utils.generic import strtobool
 
+from ..utils.import_utils import check_if_transformers_greater
+
 
 if is_torch_available():
     import torch
+
+if is_accelerate_available() and check_if_transformers_greater("4.38.0"):
+    from transformers.trainer_pt_utils import AcceleratorConfig
 
 
 class ORTOptimizerNames(ExplicitEnum):
@@ -71,6 +76,29 @@ class ORTTrainingArguments(TrainingArguments):
         default=False,
         metadata={
             "help": "Use ModuleWithLoss Wrapper to compute loss inside the training loop, having this will help save memory for ORTModule Runs."
+        },
+    )
+
+    save_onnx: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Configure ORTModule to save onnx models. Defaults to False. \
+            The output directory of the onnx models by default is set to args.output_dir. \
+            To change the output directory, the environment variable ORTMODULE_SAVE_ONNX_PATH can be \
+            set to the destination directory path."
+        },
+    )
+
+    onnx_prefix: Optional[str] = field(
+        default=None,
+        metadata={"help": "Prefix for the saved ORTModule file names. Must be provided if save_onnx is True."},
+    )
+
+    onnx_log_level: Optional[str] = field(
+        default="WARNING",
+        metadata={
+            "help": "Configure ORTModule log level. Defaults to WARNING. \
+            onnx_log_level can also be set to one of VERBOSE, INFO, WARNING, ERROR, FATAL."
         },
     )
 
@@ -239,6 +267,13 @@ class ORTTrainingArguments(TrainingArguments):
             if version.parse(version.parse(torch.__version__).base_version) == version.parse("2.0.0") and self.fp16:
                 raise ValueError("--optim adamw_torch_fused with --fp16 requires PyTorch>2.0")
 
+        if self.save_onnx:
+            if not self.onnx_prefix:
+                raise ValueError("onnx_prefix must be provided if save_onnx is True")
+            if not os.getenv("ORTMODULE_SAVE_ONNX_PATH", None):
+                os.environ["ORTMODULE_SAVE_ONNX_PATH"] = self.output_dir
+            os.environ["ORTMODULE_LOG_LEVEL"] = self.onnx_log_level
+
         if (
             is_torch_available()
             and (self.device.type != "cuda")
@@ -397,6 +432,7 @@ class ORTTrainingArguments(TrainingArguments):
         ):
             raise ValueError("`min_num_params` and `transformer_layer_cls_to_wrap` are mutually exclusive.")
         self.fsdp_config["xla"] = self.fsdp_config.get("xla", False)
+        self.fsdp_config["xla_fsdp_v2"] = self.fsdp_config.get("xla_fsdp_v2", False)
         self.fsdp_config["xla_fsdp_grad_ckpt"] = self.fsdp_config.get("xla_fsdp_grad_ckpt", False)
         if self.fsdp_config["xla"]:
             if len(self.fsdp) > 0:
@@ -444,6 +480,30 @@ class ORTTrainingArguments(TrainingArguments):
             os.environ[f"{prefix}FORWARD_PREFETCH"] = self.fsdp_config.get("forward_prefect", "false")
             os.environ[f"{prefix}SYNC_MODULE_STATES"] = self.fsdp_config.get("sync_module_states", "true")
             os.environ[f"{prefix}USE_ORIG_PARAMS"] = self.fsdp_config.get("use_orig_params", "false")
+
+        if is_accelerate_available() and check_if_transformers_greater("4.38.0"):
+            if not isinstance(self.accelerator_config, (AcceleratorConfig)):
+                if self.accelerator_config is None:
+                    self.accelerator_config = AcceleratorConfig()
+                elif isinstance(self.accelerator_config, dict):
+                    self.accelerator_config = AcceleratorConfig(**self.accelerator_config)
+                else:
+                    self.accelerator_config = AcceleratorConfig.from_json_file(self.accelerator_config)
+            if self.dispatch_batches is not None:
+                warnings.warn(
+                    "Using `--dispatch_batches` is deprecated and will be removed in version 4.41 of 🤗 Transformers. Use"
+                    " `--accelerator_config {'dispatch_batches':VALUE} instead",
+                    FutureWarning,
+                )
+                self.accelerator_config.dispatch_batches = self.dispatch_batches
+
+            if self.split_batches is not None:
+                warnings.warn(
+                    "Using `--split_batches` is deprecated and will be removed in version 4.41 of 🤗 Transformers. Use"
+                    " `--accelerator_config {'split_batches':VALUE} instead",
+                    FutureWarning,
+                )
+                self.accelerator_config.split_batches = self.split_batches
 
         if self.tpu_metrics_debug:
             warnings.warn(

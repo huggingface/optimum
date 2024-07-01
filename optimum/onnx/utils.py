@@ -19,6 +19,19 @@ import onnx
 from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
 
 
+def _get_onnx_external_constants(model: onnx.ModelProto) -> List[str]:
+    external_constants = []
+
+    for node in model.graph.node:
+        if node.op_type == "Constant":
+            for attribute in node.attribute:
+                external_datas = attribute.t.external_data
+                for external_data in external_datas:
+                    external_constants.append(external_data.value)
+
+    return external_constants
+
+
 def _get_onnx_external_data_tensors(model: onnx.ModelProto) -> List[str]:
     """
     Gets the paths of the external data tensors in the model.
