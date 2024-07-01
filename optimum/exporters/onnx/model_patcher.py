@@ -37,12 +37,13 @@ if _transformers_version > version.parse("4.34.99"):
     from transformers.modeling_attn_mask_utils import AttentionMaskConverter, _prepare_4d_causal_attention_mask
 if _transformers_version >= version.parse("4.36"):
     from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask_for_sdpa
-if _transformers_version >= version.parse("4.42"):
-    from transformers.cache_utils import SlidingWindowCache, StaticCache
 else:
     _prepare_4d_causal_attention_mask = None
     _prepare_4d_causal_attention_mask_for_sdpa = None
     AttentionMaskConverter = None
+
+if _transformers_version >= version.parse("4.42"):
+    from transformers.cache_utils import SlidingWindowCache, StaticCache
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
