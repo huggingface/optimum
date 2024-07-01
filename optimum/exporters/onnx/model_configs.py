@@ -606,7 +606,7 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
     def inputs_for_causal_lm(self):
         if self.use_past_in_inputs:
             common_inputs = {
-                "input_ids": {0: "batch_size"},
+                "input_ids": {0: "batch_size", 1: "sequence_length"},
                 "attention_mask": {0: "batch_size", 1: "past_sequence_length + 1"},
             }
             for i in range(self._normalized_config.decoder_num_layers):
@@ -651,7 +651,11 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
             common_outputs = super(OnnxConfigWithPast, self).outputs
             if self.use_past:
                 # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
-                for i in range(self._normalized_config.encoder_num_layers):
+                for i in range(
+                    self._normalized_config.encoder_num_layers
+                    if self.task != "text-generation"
+                    else self._normalized_config.decoder_num_layers
+                ):
                     common_outputs[f"present.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
                     common_outputs[f"present.{i}.value"] = {
                         0: "batch_size",
