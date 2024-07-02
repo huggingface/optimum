@@ -490,6 +490,7 @@ def export_pytorch(
     input_shapes: Optional[Dict] = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
+    dynamo: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -513,6 +514,8 @@ def export_pytorch(
             If True, disables the use of dynamic axes during ONNX export.
         do_constant_folding (bool, defaults to `True`):
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
+        dynamo (bool, default to `False):
+            PyTorch-specific argument. If `True`, export with the new Dynamo ONNX Exporter introduced in PyTorch 2+.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -568,22 +571,93 @@ def export_pytorch(
             output_names = list(config.outputs.keys())
 
             if no_dynamic_axes:
-                dynamix_axes = None
+                dynamic_axes = None
             else:
-                dynamix_axes = dict(chain(inputs.items(), config.outputs.items()))
+                dynamic_axes = dict(chain(inputs.items(), config.outputs.items()))
 
-            # Export can work with named args but the dict containing named args has to be the last element of the args
-            # tuple.
-            onnx_export(
-                model,
-                (dummy_inputs,),
-                f=output.as_posix(),
-                input_names=input_names,
-                output_names=output_names,
-                dynamic_axes=dynamix_axes,
-                do_constant_folding=do_constant_folding,
-                opset_version=opset,
-            )
+            if not dynamo:
+                # Export can work with named args but the dict containing named args has to be the last element of the args
+                # tuple.
+                onnx_export(
+                    model,
+                    (dummy_inputs,),
+                    f=output.as_posix(),
+                    input_names=input_names,
+                    output_names=output_names,
+                    dynamic_axes=dynamic_axes,
+                    do_constant_folding=do_constant_folding,
+                    opset_version=opset,
+                )
+            else:
+                try:
+                    from torch.onnx import dynamo_export as dynamo_onnx_export
+                except ImportError:
+                    raise MinimumVersionError(
+                        "The dynamo export feature is only available in PyTorch >= 2.1."
+                    )
+                export_options = torch.onnx.ExportOptions(
+                    dynamic_shapes=dynamic_axes is not None,
+                )
+                if opset != 18:
+                    logger.warning(
+                        "Dynamo ONNX export only supports opset 18 for now. The opset will be set to 18."
+                    )
+                # Args and kwargs are supported natively in dynamo onnx export.
+                onnx_program = dynamo_onnx_export(
+                    model,
+                    export_options = export_options,
+                    **dummy_inputs,
+                )
+
+                # TODO: Update model inputs and outputs post export.
+                assert len(onnx_program.model_proto.graph.input) == len(input_names), f"Number of inputs does not match. {[input.name for input in onnx_program.model_proto.graph.input]} vs {input_names}"
+                assert len(onnx_program.model_proto.graph.output) == len(output_names), f"Number of outputs does not match. {[output.name for output in onnx_program.model_proto.graph.output]} vs {output_names}"
+                from onnxscript._legacy_ir import visitor
+                class RenameInputsOutputs(visitor.ProtoVisitor):
+                    def __init__(
+                        self, external_data_folder: str = "", do_shape_inference: bool = False, name_mapping: Dict[str, str] = {}
+                    ) -> None:
+                        super().__init__(external_data_folder, do_shape_inference=do_shape_inference)
+                        self.name_mapping = name_mapping
+
+                    def process_node(self, node):
+                        if self.scopes.current_function() is not None:
+                            # In a function, do not process.
+                            return
+                        for i, input_name in enumerate(node.input):
+                            if input_name in self.name_mapping:
+                                node.input[i] = self.name_mapping[input_name]
+                        for i, output_name in enumerate(node.output):
+                            if output_name in self.name_mapping:
+                                node.output[i] = self.name_mapping[output_name]
+
+                    def process_graph_input(self, input: onnx.ValueInfoProto):
+                        if input.name in self.name_mapping:
+                            input.name = self.name_mapping[input.name]
+                        return super().process_graph_input(input)
+
+                    def process_graph_output(self, output: onnx.ValueInfoProto):
+                        if output.name in self.name_mapping:
+                            output.name = self.name_mapping[output.name]
+                        return super().process_graph_output(output)
+
+                    def process_value_info(self, value_info: onnx.ValueInfoProto):
+                        if self.scopes.current_function() is not None:
+                            # In a function, do not process.
+                            return
+                        if value_info.name in self.name_mapping:
+                            value_info.name = self.name_mapping[value_info.name]
+                        return super().process_value_info(value_info)
+
+                model_proto = onnx_program.model_proto
+                name_mapping = {input.name: input_name for input, input_name in zip(model_proto.graph.input, input_names)}
+                name_mapping.update({output.name: output_name for output, output_name in zip(model_proto.graph.output, output_names)})
+                RenameInputsOutputs(name_mapping=name_mapping).visit_model(model_proto)
+
+                # TODO: Much of the later code performing external data clean-up is
+                # unnecessary for dynamo onnx export. ModelProto is directly accessible
+                # from onnx_program.
+                onnx.save(model_proto, output.as_posix())
 
         # check if external data was exported
         # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
@@ -716,6 +790,7 @@ def export_models(
     dtype: Optional[str] = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
+    dynamo: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[List[str]], List[List[str]]]:
     """
@@ -746,6 +821,8 @@ def export_models(
             If True, disables the use of dynamic axes during ONNX export.
         do_constant_folding (bool, defaults to `True`):
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
+        dynamo (bool, default to `False):
+            PyTorch-specific argument. If `True`, export with the new Dynamo ONNX Exporter introduced in PyTorch 2+.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -784,6 +861,7 @@ def export_models(
                 dtype=dtype,
                 no_dynamic_axes=no_dynamic_axes,
                 do_constant_folding=do_constant_folding,
+                dynamo=dynamo,
                 model_kwargs=model_kwargs,
             )
         )
@@ -803,6 +881,7 @@ def export(
     dtype: Optional[str] = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
+    dynamo: bool = False,
     model_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
@@ -830,6 +909,8 @@ def export(
             If True, disables the use of dynamic axes during ONNX export.
         do_constant_folding (bool, defaults to `True`):
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
+        dynamo (bool, default to `False):
+            PyTorch-specific argument. If `True`, export with the new Dynamo ONNX Exporter introduced in PyTorch 2+.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_config` argument
@@ -887,6 +968,7 @@ def export(
             input_shapes=input_shapes,
             no_dynamic_axes=no_dynamic_axes,
             do_constant_folding=do_constant_folding,
+            dynamo=dynamo,
             model_kwargs=model_kwargs,
         )
 
@@ -931,6 +1013,7 @@ def onnx_export_from_model(
     task: Optional[str] = None,
     use_subprocess: bool = False,
     do_constant_folding: bool = True,
+    dynamo: bool = False,
     **kwargs_shapes,
 ):
     """
@@ -986,6 +1069,8 @@ def onnx_export_from_model(
             If True, disables the use of dynamic axes during ONNX export.
         do_constant_folding (bool, defaults to `True`):
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
+        dynamo (bool, default to `False):
+            PyTorch-specific argument. If `True`, export with the new Dynamo ONNX Exporter introduced in PyTorch 2+.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -1177,6 +1262,7 @@ def onnx_export_from_model(
         dtype=float_dtype,
         no_dynamic_axes=no_dynamic_axes,
         do_constant_folding=do_constant_folding,
+        dynamo=dynamo,
         model_kwargs=model_kwargs,
     )
 
