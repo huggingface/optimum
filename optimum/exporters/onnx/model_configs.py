@@ -896,6 +896,22 @@ class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     VISION_CONFIG = "vision_config"
 
 
+class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        common_outputs = super().outputs
+        common_outputs["last_hidden_state"] = {0: "batch_size"}
+        common_outputs["pooler_output"] = {0: "batch_size"}
+
+        return common_outputs
+
+
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
     DEFAULT_ONNX_OPSET = 14
