@@ -95,6 +95,7 @@ class ORTQuantizer(OptimumQuantizer):
                 The configuration of the model.
         """
         super().__init__()
+        self.orig_onnx_model_path = onnx_model_path
         self.onnx_model_path = onnx_model_path
         self.config = config
         if self.config is None:
@@ -208,6 +209,53 @@ class ORTQuantizer(OptimumQuantizer):
             force_symmetric_range,
         )
         return self.compute_ranges()
+
+    def apply_smooth_quant(
+        self,
+        dataset: Dataset,
+        save_dir: Union[str, Path],
+        quantization_config: QuantizationConfig,
+        onnx_sq_model_name: Union[str, Path] = "sq_model.onnx",
+        use_external_data_format: bool = False,
+        batch_size: int = 1,
+    ):
+        import importlib
+
+        try:
+            importlib.import_module("neural_compressor.adaptor.ox_utils.smooth_quant")
+        except Exception as e:
+            logging.error(f"{e}.")
+            raise RuntimeError("Neural-compressor is required for SmoothQuant. Please install the library") from e
+
+        import copy
+
+        import onnx
+        from neural_compressor.adaptor.ox_utils.smooth_quant import ORTSmoothQuant
+
+        model = onnx.load(Path(self.onnx_model_path).as_posix())
+
+        os.makedirs(save_dir, exist_ok=True)
+
+        def inc_dataloader():
+            calibration_data_reader = ORTCalibrationDataReader(copy.deepcopy(dataset), batch_size)
+            for data in calibration_data_reader:
+                yield data, None
+
+        orig_nodes = [i.name for i in model.graph.node]
+        dataloader = inc_dataloader()
+        sq = ORTSmoothQuant(self.onnx_model_path.as_posix(), dataloader, quantization_config.reduce_range)
+        del dataloader
+        model = sq.transform(
+            quantization_config.smooth_quant_alpha,
+            quantization_config.smooth_quant_folding,
+            op_types=quantization_config.smooth_quant_op_types,
+        ).model
+        quantization_config.nodes_to_exclude.extend([i.name for i in model.graph.node if i.name not in orig_nodes])
+
+        LOGGER.info(f"Saving smooth model at: {save_dir} (external data format: " f"{use_external_data_format})")
+        model_input = Path(save_dir).joinpath(onnx_sq_model_name).as_posix()
+        onnx.save_model(model, model_input, save_as_external_data=use_external_data_format)
+        self.onnx_model_path = Path(model_input)
 
     def partial_fit(
         self,
@@ -401,7 +449,7 @@ class ORTQuantizer(OptimumQuantizer):
         quantizer.quantize_model()
 
         suffix = f"_{file_suffix}" if file_suffix else ""
-        quantized_model_path = save_dir.joinpath(f"{self.onnx_model_path.stem}{suffix}").with_suffix(".onnx")
+        quantized_model_path = save_dir.joinpath(f"{self.orig_onnx_model_path.stem}{suffix}").with_suffix(".onnx")
         LOGGER.info(f"Saving quantized model at: {save_dir} (external data format: " f"{use_external_data_format})")
         quantizer.model.save_model_to_file(quantized_model_path.as_posix(), use_external_data_format)
 
@@ -412,13 +460,14 @@ class ORTQuantizer(OptimumQuantizer):
         if self.config is not None:
             self.config.save_pretrained(save_dir)
 
-        maybe_save_preprocessors(self.onnx_model_path.parent, save_dir)
+        maybe_save_preprocessors(self.orig_onnx_model_path.parent, save_dir)
 
         return Path(save_dir)
 
     def get_calibration_dataset(
         self,
         dataset_name: str,
+        data_files: str = None,
         num_samples: int = 100,
         dataset_config_name: Optional[str] = None,
         dataset_split: Optional[str] = None,
@@ -476,6 +525,7 @@ class ORTQuantizer(OptimumQuantizer):
         calib_dataset = load_dataset(
             dataset_name,
             name=dataset_config_name,
+            data_files=data_files,
             split=dataset_split,
             token=token,
         )
