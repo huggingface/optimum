@@ -1031,9 +1031,10 @@ def _update_causal_mask_patched(
         if self.config.sliding_window is not None:
             if not using_sliding_window_cache or sequence_length > self.config.sliding_window:
                 # ---------------- NOTE: This part is patched -----------------------------
-                exclude_mask.bitwise_or_(
+                exclude_mask = torch.bitwise_or(
+                    exclude_mask,
                     torch.arange(target_length, device=device)
-                    <= (cache_position.reshape(-1, 1) - self.config.sliding_window)
+                    <= (cache_position.reshape(-1, 1) - self.config.sliding_window),
                 )
                 # ---------------- NOTE: patch end ----------------------------------------
 
