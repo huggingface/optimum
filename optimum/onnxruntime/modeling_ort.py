@@ -566,6 +566,7 @@ class ORTModel(OptimizedModel):
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
+        **kwargs
     ) -> "ORTModel":
         """The method will be deprecated in future releases."""
 
