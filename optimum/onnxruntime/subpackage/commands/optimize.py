@@ -87,7 +87,7 @@ class ONNXRuntimeOptimizeCommand(BaseOptimumCLICommand):
         optimizer = ORTOptimizer.from_pretrained(self.args.onnx_model, file_names)
 
         if self.args.config:
-            optimization_config = ORTConfig
+            optimization_config = ORTConfig.from_pretrained(self.args.config).optimization
         elif self.args.O1:
             optimization_config = AutoOptimizationConfig.O1()
         elif self.args.O2:
@@ -97,6 +97,6 @@ class ONNXRuntimeOptimizeCommand(BaseOptimumCLICommand):
         elif self.args.O4:
             optimization_config = AutoOptimizationConfig.O4()
         else:
-            optimization_config = ORTConfig.from_pretained(self.args.config).optimization
+            raise ValueError("Either -O1, -O2, -O3, -O4 or -c must be specified.")
 
         optimizer.optimize(save_dir=save_dir, optimization_config=optimization_config)
