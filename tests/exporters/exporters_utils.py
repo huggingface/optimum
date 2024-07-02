@@ -260,6 +260,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "resnet": "microsoft/resnet-50",
     "roberta": "roberta-base",
     "roformer": "junnyu/roformer_chinese_base",
+    "rt-detr": "PekingU/rtdetr_r50vd",
     "sam": "facebook/sam-vit-base",
     "segformer": "nvidia/segformer-b0-finetuned-ade-512-512",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
