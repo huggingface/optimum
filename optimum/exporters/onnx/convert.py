@@ -580,7 +580,7 @@ def export_pytorch(
                 f=output.as_posix(),
                 input_names=input_names,
                 output_names=output_names,
-                dynamic_axes=dynamix_axes,
+                # dynamic_axes=dynamix_axes,
                 do_constant_folding=do_constant_folding,
                 opset_version=opset,
             )

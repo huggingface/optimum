@@ -34,6 +34,8 @@ from .convert import onnx_export_from_model
 
 if is_torch_available():
     import torch
+    import torch_onnx
+    torch_onnx.patch_torch(error_report=True, profile=True, dump_exported_program=True)
 
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
 
