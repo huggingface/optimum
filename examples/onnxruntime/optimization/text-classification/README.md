@@ -14,13 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Text classification 
+# Text classification
 
 ## GLUE tasks
 
-The script [`run_glue.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/optimization/text-classification/run_glue.py)
-allows us to apply graph optimizations and fusion using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for sequence classification tasks such as 
-the ones from the [GLUE benchmark](https://gluebenchmark.com/).
+The script [`run_glue.py`](https://github.com/huggingface/optimum/blob/main/examples/onnxruntime/optimization/text-classification/run_glue.py) allows us to apply graph optimizations and fusion using [ONNX Runtime](https://github.com/microsoft/onnxruntime) for sequence classification tasks such as the ones from the [GLUE benchmark](https://gluebenchmark.com/).
 
 The following example applies graph optimization on a DistilBERT fine-tuned on the sst-2 task. Here the optimization level is selected to be 1, enabling basic optimizations such as redundant node eliminations and constant folding. Higher optimization level will result in hardware dependent optimized graph.
 
