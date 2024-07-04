@@ -683,7 +683,6 @@ def main():
         outputs = evaluation_loop(
             model=model,
             dataset=predict_dataset,
-            compute_metrics=compute_metrics,
             label_names=["start_positions", "end_positions"],
         )
         predictions = post_processing_function(predict_examples, predict_dataset, outputs.predictions)

@@ -346,7 +346,7 @@ def main():
         outputs = evaluation_loop(
             model=model,
             dataset=eval_dataset,
-            label_names=["labels"],
+            label_names=["label"],
             compute_metrics=compute_metrics,
         )
 
