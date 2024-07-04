@@ -2736,6 +2736,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "resnet",
         "segformer",
         "swin",
+        "swin-window",
         "vit",
     ]
 
