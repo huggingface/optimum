@@ -415,13 +415,6 @@ class OptimizedModel(PreTrainedModel):
                 trust_remote_code=trust_remote_code,
             )
 
-        if not export and trust_remote_code:
-            logger.warning(
-                "The argument `trust_remote_code` is to be used along with export=True. It will be ignored."
-            )
-        elif export and trust_remote_code is None:
-            trust_remote_code = False
-
         from_pretrained_method = cls._from_transformers if export else cls._from_pretrained
 
         return from_pretrained_method(
