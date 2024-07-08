@@ -49,6 +49,11 @@ class ORTModel:
             label_names (`List[str]`, `optional`):
                 The list of keys in your dictionary of inputs that correspond to the labels.
         """
+
+        logger.warning(
+            "The class `optimum.onnxruntime.model.ORTModel` is deprecated and will be removed in the next release."
+        )
+
         self.compute_metrics = compute_metrics
         self.label_names = ["labels"] if label_names is None else label_names
         self.session = InferenceSession(str(model_path), providers=[execution_provider])
