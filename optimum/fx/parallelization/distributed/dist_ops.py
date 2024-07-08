@@ -1,26 +1,43 @@
+# coding=utf-8
+# Copyright 2024 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import torch
 import torch.distributed as dist
 
-def all_reduce(group: dist.ProcessGroup, tensor : torch.Tensor) -> torch.Tensor:
+
+def all_reduce(group: dist.ProcessGroup, tensor: torch.Tensor) -> torch.Tensor:
     world_size = dist.get_world_size(group)
     if world_size == 1:
         return tensor
-    
+
     dist.all_reduce(tensor, group=group)
     return tensor
+
 
 def all_gather(group: dist.ProcessGroup, tensor: torch.Tensor, gather_dim: int = -1) -> torch.Tensor:
     world_size = dist.get_world_size(group)
     if world_size == 1:
         return tensor
-    rank = dist.get_rank(group = group)
+    rank = dist.get_rank(group=group)
 
     tensor = tensor.contiguous()
     tensors = [torch.empty_like(tensor) for _ in range(world_size)]
     tensors[rank] = tensor
-    
+
     dist.all_gather(tensors, tensor, group=group)
     return torch.cat(tensors, dim=gather_dim)
+
 
 def split(group: dist.ProcessGroup, tensor: torch.Tensor, split_dim: int = -1) -> torch.Tensor:
     world_size = dist.get_world_size(group)
@@ -30,12 +47,15 @@ def split(group: dist.ProcessGroup, tensor: torch.Tensor, split_dim: int = -1) -
     rank = dist.get_rank(group)
     size = tensor.size()
     assert size[split_dim] % world_size == 0
-    tensors = torch.split(tensor, size[split_dim] // world_size, dim = split_dim)
+    tensors = torch.split(tensor, size[split_dim] // world_size, dim=split_dim)
     tensor = tensors[rank].contiguous()
 
     return tensor
 
-def scatter(group: dist.ProcessGroup, tensor: torch.Tensor, output_tensor: torch.Tensor, scatter_dim: int = 0) -> torch.Tensor:
+
+def scatter(
+    group: dist.ProcessGroup, tensor: torch.Tensor, output_tensor: torch.Tensor, scatter_dim: int = 0
+) -> torch.Tensor:
     world_size = dist.get_world_size(group)
     if world_size == 1:
         return tensor
@@ -46,7 +66,7 @@ def scatter(group: dist.ProcessGroup, tensor: torch.Tensor, output_tensor: torch
         assert size[scatter_dim] % world_size == 0
         tensors = torch.split(tensor, size[scatter_dim] // world_size, dim=scatter_dim)
         scatter_list = [tensor.contiguous() for tensor in tensors]
-        output_tensor = scatter_list[rank]
+        output_tensor.copy_(scatter_list[rank])
     else:
         scatter_list = None
     dist.scatter(tensor=output_tensor, scatter_list=scatter_list, src=0, group=group)
@@ -70,7 +90,7 @@ class DifferentiableAllReduceSum(torch.autograd.Function):
     def forward(ctx, tensor: torch.Tensor, group: dist.ProcessGroup) -> torch.Tensor:
         ctx.group = group
         return all_reduce(group=group, tensor=tensor)
-    
+
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor) -> torch.Any:
         return grad_output, None
@@ -94,20 +114,23 @@ class DifferentiableAllGather(torch.autograd.Function):
         ctx.group = group
         ctx.dim = dim
         return all_gather(group=group, tensor=tensor, gather_dim=dim)
-    
+
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor) -> torch.Tensor:
         return DifferentiableScatter.apply(grad_output, group=ctx.group, dim=ctx.dim), None, None
 
 
-def differentiable_all_reduce_sum(tensor: torch.Tensor, group: dist.ProcessGroup):
+def differentiable_all_reduce_sum(tensor: torch.Tensor, group: dist.ProcessGroup) -> torch.Tensor:
     return DifferentiableAllReduceSum.apply(tensor, group)
 
-def differentiable_identity(tensor: torch.Tensor,  group: dist.ProcessGroup):
+
+def differentiable_identity(tensor: torch.Tensor, group: dist.ProcessGroup) -> torch.Tensor:
     return DifferentiableIdentity.apply(tensor, group)
 
-def differentiable_all_gather(tensor: torch.Tensor, group: dist.ProcessGroup, dim=-1):
+
+def differentiable_all_gather(tensor: torch.Tensor, group: dist.ProcessGroup, dim=-1) -> torch.Tensor:
     return DifferentiableAllGather.apply(tensor, group, dim)
 
-def differentiable_scatter(tensor: torch.Tensor, group: dist.ProcessGroup, dim=-1):
+
+def differentiable_scatter(tensor: torch.Tensor, group: dist.ProcessGroup, dim=-1) -> torch.Tensor:
     return DifferentiableScatter.apply(tensor, group, dim)
