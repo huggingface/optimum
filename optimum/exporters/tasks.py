@@ -15,7 +15,6 @@
 """Model export tasks manager."""
 
 import importlib
-import inspect
 import itertools
 import os
 import warnings
@@ -60,6 +59,18 @@ if is_diffusers_available():
         AUTO_INPAINT_PIPELINES_MAPPING,
         AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
     )
+
+    DIFFUSION_PIPELINES_MAPPING = []
+    for task_name, pipelines_mapping in [
+        ("text-to-image", AUTO_TEXT2IMAGE_PIPELINES_MAPPING),
+        ("image-to-image", AUTO_IMAGE2IMAGE_PIPELINES_MAPPING),
+        ("inpainting", AUTO_INPAINT_PIPELINES_MAPPING),
+    ]:
+        for model_type, pipeline_class in pipelines_mapping.items():
+            DIFFUSION_PIPELINES_MAPPING.append((task_name, model_type, pipeline_class))
+
+else:
+    DIFFUSION_PIPELINES_MAPPING = []
 
 ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
 TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
@@ -197,11 +208,9 @@ class TasksManager:
         }
 
         _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
-            "stable-diffusion": "StableDiffusionPipeline",
-            "stable-diffusion-xl": "StableDiffusionXLImg2ImgPipeline",
+            "inpainting": "AutoPipelineForInpainting",
             "image-to-image": "AutoPipelineForImage2Image",
             "text-to-image": "AutoPipelineForText2Image",
-            "inpainting": "AutoPipelineForInpainting",
         }
 
         _TIMM_TASKS_TO_MODEL_LOADERS = {
@@ -270,6 +279,9 @@ class TasksManager:
         "vision2seq-lm": "image-to-text",
         "zero-shot-classification": "text-classification",
         "image-feature-extraction": "feature-extraction",
+        # for backward compatibility
+        "stable-diffusion": "text-to-image",
+        "stable-diffusion-xl": "text-to-image",
     }
 
     # Reverse dictionaries str -> str, where several model loaders may map to the same task
@@ -1461,8 +1473,11 @@ class TasksManager:
     def determine_framework(
         model_name_or_path: Union[str, Path],
         subfolder: str = "",
-        framework: Optional[str] = None,
+        revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
+        framework: Optional[str] = None,
     ) -> str:
         """
         Determines the framework to use for the export.
@@ -1477,9 +1492,18 @@ class TasksManager:
             model_name_or_path (`Union[str, Path]`):
                 Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
                 containing a model.
-            subfolder (`str`, defaults to `""`):
+            subfolder (`str`, *optional*, defaults to `""`):
                 In case the model files are located inside a subfolder of the model directory / repo on the Hugging
                 Face Hub, you can specify the subfolder name here.
+            revision (`Optional[str]`,  defaults to `None`):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+            cache_dir (`Optional[str]`, *optional*):
+                Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
+                Deprecated. Please use the `token` argument instead.
+            token (`Optional[Union[bool,str]]`, defaults to `None`):
+                The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
+                when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
             framework (`Optional[str]`, *optional*):
                 The framework to use for the export. See above for priority if none provided.
 
@@ -1490,7 +1514,18 @@ class TasksManager:
         if framework is not None:
             return framework
 
-        all_files, request_exception = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
+        all_files, request_exception = TasksManager.get_model_files(
+            model_name_or_path, subfolder=subfolder, cache_dir=cache_dir, token=token, revision=revision
+        )
 
         pt_weight_name = Path(WEIGHTS_NAME).stem
         pt_weight_extension = Path(WEIGHTS_NAME).suffix
@@ -1513,7 +1548,7 @@ class TasksManager:
         elif "model_index.json" in all_files and any(
             file.endswith((pt_weight_extension, safe_weight_extension)) for file in all_files
         ):
-            # stable diffusion case
+            # diffusers case
             framework = "pt"
         elif "config_sentence_transformers.json" in all_files:
             # Sentence Transformers libary relies on PyTorch.
@@ -1545,12 +1580,14 @@ class TasksManager:
     def _infer_task_from_model_or_model_class(
         cls,
         model: Optional[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]] = None,
-        model_class: Optional[Type] = None,
+        model_class: Optional[Type[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]]] = None,
     ) -> str:
         if model is not None and model_class is not None:
             raise ValueError("Either a model or a model class must be provided, but both were given here.")
+
         if model is None and model_class is None:
             raise ValueError("Either a model or a model class must be provided, but none were given here.")
+
         target_name = model.__class__.__name__ if model is not None else model_class.__name__
         task_name = None
         iterable = ()
@@ -1562,40 +1599,47 @@ class TasksManager:
         pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
         tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
         for auto_cls_name, task in itertools.chain.from_iterable(iterable):
-            if any(
-                (
-                    target_name.startswith("Auto"),
-                    target_name.startswith("TFAuto"),
-                    "StableDiffusion" in target_name,
-                )
-            ):
+            if any((target_name.startswith("Auto"), target_name.startswith("TFAuto"))):
                 if target_name == auto_cls_name:
                     task_name = task
                     break
-
                 continue
 
             module = tf_auto_module if auto_cls_name.startswith("TF") else pt_auto_module
             # getattr(module, auto_cls_name)._model_mapping is a _LazyMapping, it also has an attribute called
             # "_model_mapping" that is what we want here: class names and not actual classes.
             auto_cls = getattr(module, auto_cls_name, None)
-            # This is the case for StableDiffusionPipeline for instance.
+            # This is the case for DiffusionPipeline for instance.
             if auto_cls is None:
                 continue
             model_mapping = auto_cls._model_mapping._model_mapping
             if target_name in model_mapping.values():
                 task_name = task
                 break
+
+        for task_name, model_type, pipeline_class in DIFFUSION_PIPELINES_MAPPING:
+            if target_name == pipeline_class:
+                task_name = task_name
+                break
+
         if task_name is None:
-            raise ValueError(f"Could not infer the task name for {target_name}.")
+            raise ValueError(
+                "The task name could not be automatically inferred. If using the command-line, please provide the argument --task task-name. Example: `--task text-classification`."
+            )
 
         return task_name
 
     @classmethod
     def _infer_task_from_model_name_or_path(
-        cls, model_name_or_path: str, subfolder: str = "", revision: Optional[str] = None
+        cls,
+        model_name_or_path: str,
+        subfolder: str = "",
+        revision: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
     ) -> str:
-        inferred_task_name = None
+        task_name = None
+
         is_local = os.path.isdir(os.path.join(model_name_or_path, subfolder))
 
         if is_local:
@@ -1609,15 +1653,21 @@ class TasksManager:
                     "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
                 )
             try:
-                model_info = huggingface_hub.model_info(model_name_or_path, revision=revision)
+                model_info = huggingface_hub.model_info(model_name_or_path, revision=revision, token=token)
             except (RequestsConnectionError, OfflineModeIsEnabled):
                 raise RuntimeError(
                     f"Hugging Face Hub is not reachable and we cannot infer the task from a cached model. Make sure you are not offline, or otherwise please specify the `task` (or `--task` in command-line) argument ({', '.join(TasksManager.get_all_tasks())})."
                 )
-            library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
+            library_name = TasksManager.infer_library_from_model(
+                model_name_or_path,
+                subfolder=subfolder,
+                revision=revision,
+                cache_dir=cache_dir,
+                token=token,
+            )
 
             if library_name == "timm":
-                inferred_task_name = "image-classification"
+                task_name = "image-classification"
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
                 # The Hub task "conversational" is not a supported task per se, just an alias that may map to
@@ -1625,11 +1675,11 @@ class TasksManager:
                 # The Hub task "object-detection" is not a supported task per se, as in Transformers this may map to either
                 # zero-shot-object-detection or object-detection.
                 if pipeline_tag is not None and pipeline_tag not in ["conversational", "object-detection"]:
-                    inferred_task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
+                    task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
                 elif library_name == "transformers":
                     transformers_info = model_info.transformersInfo
                     if transformers_info is not None and transformers_info.get("pipeline_tag") is not None:
-                        inferred_task_name = TasksManager.map_from_synonym(transformers_info["pipeline_tag"])
+                        task_name = TasksManager.map_from_synonym(transformers_info["pipeline_tag"])
                     else:
                         # transformersInfo does not always have a pipeline_tag attribute
                         class_name_prefix = ""
@@ -1642,28 +1692,31 @@ class TasksManager:
                         auto_model_class_name = transformers_info["auto_model"]
                         if not auto_model_class_name.startswith("TF"):
                             auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
-                        for task_name, class_name_for_task in tasks_to_automodels.items():
+                        for task, class_name_for_task in tasks_to_automodels.items():
                             if class_name_for_task == auto_model_class_name:
-                                inferred_task_name = task_name
+                                task_name = task
                                 break
 
-        if inferred_task_name is None:
+        if task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
 
-        return inferred_task_name
+        return task_name
 
     @classmethod
     def infer_task_from_model(
         cls,
-        model: Union[str, "PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
+        model: Union[str, "PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline", Type],
         subfolder: str = "",
         revision: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
     ) -> str:
         """
-        Infers the task from the model repo.
+        Infers the task from the model repo, model instance, or model class.
 
         Args:
-            model (`str`):
+            model (`Union[str, PreTrainedModel, TFPreTrainedModel, DiffusionPipeline, Type]`):
                 The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
                 instance of a model, or a model class.
             subfolder (`str`, *optional*, defaults to `""`):
@@ -1671,23 +1724,47 @@ class TasksManager:
                 Face Hub, you can specify the subfolder name here.
             revision (`Optional[str]`,  defaults to `None`):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+            cache_dir (`Optional[str]`, *optional*):
+                Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
+                Deprecated. Please use the `token` argument instead.
+            token (`Optional[Union[bool,str]]`, defaults to `None`):
+                The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
+                when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
+
         Returns:
-            `str`: The task name automatically detected from the model repo.
+            `str`: The task name automatically detected from the HF hub repo, model instance, or model class.
         """
-        is_torch_pretrained_model = is_torch_available() and isinstance(model, PreTrainedModel)
-        is_tf_pretrained_model = is_tf_available() and isinstance(model, TFPreTrainedModel)
-        task = None
+        task_name = None
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         if isinstance(model, str):
-            task = cls._infer_task_from_model_name_or_path(model, subfolder=subfolder, revision=revision)
-        elif is_torch_pretrained_model or is_tf_pretrained_model:
-            task = cls._infer_task_from_model_or_model_class(model=model)
-        elif inspect.isclass(model):
-            task = cls._infer_task_from_model_or_model_class(model_class=model)
+            task_name = cls._infer_task_from_model_name_or_path(
+                model,
+                subfolder=subfolder,
+                revision=revision,
+                cache_dir=cache_dir,
+                token=token,
+            )
+        elif issubclass(model, (PreTrainedModel, TFPreTrainedModel, DiffusionPipeline)):
+            task_name = cls._infer_task_from_model_or_model_class(model_class=model)
+        elif isinstance(model, (PreTrainedModel, TFPreTrainedModel, DiffusionPipeline)):
+            task_name = cls._infer_task_from_model_or_model_class(model=model)
 
-        if task is None:
-            raise ValueError(f"Could not infer the task from {model}.")
+        if task_name is None:
+            raise ValueError(
+                "The task name could not be automatically inferred. If using the command-line, please provide the argument --task task-name. Example: `--task text-classification`."
+            )
 
-        return task
+        return task_name
 
     @staticmethod
     def _infer_library_from_model(
@@ -1697,19 +1774,22 @@ class TasksManager:
         if library_name is not None:
             return library_name
 
-        # SentenceTransformer models have no config attributes
-        if hasattr(model, "_model_config"):
+        target_module = model.__module__
+
+        if "sentence_transformers" in target_module:
             library_name = "sentence_transformers"
-        elif (
-            hasattr(model, "pretrained_cfg")
-            or hasattr(model.config, "pretrained_cfg")
-            or hasattr(model.config, "architecture")
-        ):
-            library_name = "timm"
-        elif hasattr(model.config, "_diffusers_version") or getattr(model, "config_name", "") == "model_index.json":
-            library_name = "diffusers"
-        else:
+        elif "transformers" in target_module:
             library_name = "transformers"
+        elif "diffusers" in target_module:
+            library_name = "diffusers"
+        elif "timm" in target_module:
+            library_name = "timm"
+
+        if library_name is None:
+            raise ValueError(
+                "The library name could not be automatically inferred. If using the command-line, please provide the argument --library {transformers,diffusers,timm,sentence_transformers}. Example: `--library diffusers`."
+            )
+
         return library_name
 
     @classmethod
@@ -1719,9 +1799,9 @@ class TasksManager:
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        library_name: Optional[str] = None,
         use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
+        library_name: Optional[str] = None,
     ):
         """
         Infers the library from the model repo.
@@ -1737,17 +1817,19 @@ class TasksManager:
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
             cache_dir (`Optional[str]`, *optional*):
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
-            library_name (`Optional[str]`, *optional*):
-                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
             use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
                 Deprecated. Please use the `token` argument instead.
             token (`Optional[Union[bool,str]]`, defaults to `None`):
                 The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
                 when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
+            library_name (`Optional[str]`, *optional*):
+                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
 
         Returns:
             `str`: The library name automatically detected from the model repo.
         """
+        if library_name is not None:
+            return library_name
 
         if use_auth_token is not None:
             warnings.warn(
@@ -1758,11 +1840,12 @@ class TasksManager:
                 raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
             token = use_auth_token
 
-        if library_name is not None:
-            return library_name
-
         all_files, _ = TasksManager.get_model_files(
-            model_name_or_path, subfolder, cache_dir, token=token, revision=revision
+            model_name_or_path,
+            subfolder=subfolder,
+            cache_dir=cache_dir,
+            revision=revision,
+            token=token,
         )
 
         if "model_index.json" in all_files:
@@ -1819,15 +1902,17 @@ class TasksManager:
         library_name = TasksManager._infer_library_from_model(model, library_name)
 
         if library_name == "diffusers":
-            diffusers_auto_mapping = {}
-            for mapping in [
-                AUTO_INPAINT_PIPELINES_MAPPING,
-                AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
-                AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
-            ]:
-                diffusers_auto_mapping.update({v: k for k, v in mapping.items()})
+            for task_name, model_type, pipeline_class in DIFFUSION_PIPELINES_MAPPING:
+                print(task_name, model_type, pipeline_class)
+                if isinstance(model, pipeline_class):
+                    # `model_type` is a class attribute in Transformers, let's avoid modifying it.
+                    model.config.export_model_type = model_type
+                    return
 
-            model.config.export_model_type = diffusers_auto_mapping[model.__class__]
+            raise ValueError(
+                f"The export of a DiffusionPipeline model with the class name {model.__class__.__name__} is currently not supported in Optimum. "
+                "Please open an issue or submit a PR to add the support."
+            )
 
         elif library_name == "timm":
             # Retrieve model config

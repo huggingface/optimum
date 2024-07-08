@@ -43,6 +43,16 @@ if is_diffusers_available():
             f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
             "Please update diffusers by running `pip install --upgrade diffusers`"
         )
+
+    from diffusers import (
+        DiffusionPipeline,
+        StableDiffusionImg2ImgPipeline,
+        StableDiffusionInpaintPipeline,
+        StableDiffusionPipeline,
+        StableDiffusionXLImg2ImgPipeline,
+        StableDiffusionXLInpaintPipeline,
+        StableDiffusionXLPipeline,
+    )
     from diffusers.models.attention_processor import (
         Attention,
         AttnAddedKVProcessor,
@@ -52,6 +62,7 @@ if is_diffusers_available():
         LoRAAttnProcessor,
         LoRAAttnProcessor2_0,
     )
+
 
 if TYPE_CHECKING:
     from .base import ExportConfig
@@ -63,7 +74,7 @@ if TYPE_CHECKING:
         from transformers.modeling_tf_utils import TFPreTrainedModel
 
     if is_diffusers_available():
-        from diffusers import ModelMixin, StableDiffusionPipeline
+        from diffusers import DiffusionPipeline, ModelMixin
 
 
 ENCODER_NAME = "encoder_model"
@@ -71,24 +82,36 @@ DECODER_NAME = "decoder_model"
 DECODER_WITH_PAST_NAME = "decoder_with_past_model"
 DECODER_MERGED_NAME = "decoder_model_merged"
 
+EXPORTABLE_MODEL = Union["torch.nn.Module", "PreTrainedModel", "TFPreTrainedModel", "ModelMixin"]
+EXPORTABLE_MODEL_OR_PIPELINE = Union[EXPORTABLE_MODEL, "DiffusionPipeline"]
 
-def _get_submodels_for_export_stable_diffusion(
-    pipeline: "StableDiffusionPipeline",
+
+def _get_submodels_for_export_diffusion(
+    pipeline: "DiffusionPipeline"
 ) -> Dict[str, Union["PreTrainedModel", "ModelMixin"]]:
     """
     Returns the components of a Stable Diffusion model.
     """
-    from diffusers import StableDiffusionXLImg2ImgPipeline
+
+    is_stable_diffusion = isinstance(
+        pipeline, (StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, StableDiffusionInpaintPipeline)
+    )
+    is_stable_diffusion_xl = isinstance(
+        pipeline, (StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline, StableDiffusionXLPipeline)
+    )
 
     models_for_export = {}
-    if isinstance(pipeline, StableDiffusionXLImg2ImgPipeline):
+
+    if is_stable_diffusion_xl:
         projection_dim = pipeline.text_encoder_2.config.projection_dim
-    else:
+    elif is_stable_diffusion:
         projection_dim = pipeline.text_encoder.config.projection_dim
+    else:
+        raise ValueError("Pipeline is not a Stable Diffusion (XL) pipeline.")
 
     # Text encoder
     if pipeline.text_encoder is not None:
-        if isinstance(pipeline, StableDiffusionXLImg2ImgPipeline):
+        if is_stable_diffusion_xl:
             pipeline.text_encoder.config.output_hidden_states = True
         models_for_export["text_encoder"] = pipeline.text_encoder
 
@@ -258,17 +281,17 @@ def get_decoder_models_for_export(
     return models_for_export
 
 
-def get_stable_diffusion_models_for_export(
-    pipeline: "StableDiffusionPipeline",
+def get_diffusion_models_for_export(
+    pipeline: "DiffusionPipeline",
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
     exporter: str = "onnx",
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "ExportConfig"]]:
     """
-    Returns the components of a Stable Diffusion model and their subsequent export configs.
+    Returns the components of a Diffusion model and their subsequent export configs.
 
     Args:
-        pipeline ([`StableDiffusionPipeline`]):
+        pipeline ([`DiffusionPipeline`]):
             The model to export.
         int_dtype (`str`, defaults to `"int64"`):
             The data type of integer tensors, could be ["int64", "int32", "int8"], default to "int64".
@@ -279,7 +302,7 @@ def get_stable_diffusion_models_for_export(
         `Dict[str, Tuple[Union[`PreTrainedModel`, `TFPreTrainedModel`], `ExportConfig`]: A Dict containing the model and
         export configs for the different components of the model.
     """
-    models_for_export = _get_submodels_for_export_stable_diffusion(pipeline)
+    models_for_export = _get_submodels_for_export_diffusion(pipeline)
 
     # Text encoder
     if "text_encoder" in models_for_export:
@@ -505,7 +528,7 @@ def override_diffusers_2_0_attn_processors(model):
 
 
 def _get_submodels_and_export_configs(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
     task: str,
     monolith: bool,
     custom_export_configs: Dict,
@@ -523,7 +546,7 @@ def _get_submodels_and_export_configs(
     if not custom_architecture:
         if library_name == "diffusers":
             export_config = None
-            models_and_export_configs = get_stable_diffusion_models_for_export(
+            models_and_export_configs = get_diffusion_models_for_export(
                 model, int_dtype=int_dtype, float_dtype=float_dtype, exporter=exporter
             )
         else:
@@ -575,7 +598,7 @@ def _get_submodels_and_export_configs(
             submodels_for_export = fn_get_submodels(model)
         else:
             if library_name == "diffusers":
-                submodels_for_export = _get_submodels_for_export_stable_diffusion(model)
+                submodels_for_export = _get_submodels_for_export_diffusion(model)
             elif (
                 model.config.is_encoder_decoder
                 and task.startswith(TasksManager._ENCODER_DECODER_TASKS)
@@ -599,7 +622,7 @@ def _get_submodels_and_export_configs(
         for key, custom_export_config in custom_export_configs.items():
             models_and_export_configs[key] = (submodels_for_export[key], custom_export_config)
 
-    # Default to the first ONNX config for stable-diffusion and custom architecture case.
+    # Default to the first ONNX config for diffusion and custom architecture case.
     if export_config is None:
         export_config = next(iter(models_and_export_configs.values()))[1]
 

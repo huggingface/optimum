@@ -60,7 +60,7 @@ if is_torch_available():
     from transformers.modeling_utils import PreTrainedModel
 
 if is_diffusers_available():
-    from diffusers import ModelMixin
+    from diffusers import DiffusionPipeline, ModelMixin
 
 if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
@@ -912,7 +912,7 @@ def export(
 
 
 def onnx_export_from_model(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
     output: Union[str, Path],
     opset: Optional[int] = None,
     optimize: Optional[str] = None,
