@@ -14,6 +14,7 @@
 # limitations under the License.
 import torch
 import torch.distributed as dist
+
 from ..utils import ensure_divisibility
 
 
@@ -37,12 +38,12 @@ def all_gather(group: dist.ProcessGroup, tensor: torch.Tensor, gather_dim: int =
     shape = tuple(
         tensor.size(dim) * world_size if dim == gather_dim else tensor.size(dim) for dim in range(tensor.ndim)
     )
-    index = list(
+    index = [
         slice(rank * tensor.size(dim), (rank + 1) * tensor.size(dim), None)
         if dim == gather_dim
         else slice(None, None, None)
         for dim in range(tensor.ndim)
-    )
+    ]
     tensors = torch.empty(*shape, dtype=tensor.dtype, device=tensor.device)
     tensors[index] = tensor
     dist.all_gather_into_tensor(tensors, tensor, group=group)
