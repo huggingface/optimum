@@ -32,8 +32,8 @@ from optimum.exporters.onnx import (
     OnnxConfigWithPast,
     export_models,
     get_decoder_models_for_export,
+    get_diffusion_models_for_export,
     get_encoder_decoder_models_for_export,
-    get_stable_diffusion_models_for_export,
     main_export,
     onnx_export_from_model,
     validate_models_outputs,
@@ -48,9 +48,9 @@ from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
 from ..exporters_utils import (
+    PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
-    PYTORCH_STABLE_DIFFUSION_MODEL,
     PYTORCH_TIMM_MODEL,
     TENSORFLOW_EXPORT_MODELS,
     VALIDATE_EXPORT_ON_SHAPES_SLOW,
@@ -294,7 +294,7 @@ class OnnxExportTestCase(TestCase):
 
     def _onnx_export_sd(self, model_type: str, model_name: str, device="cpu"):
         pipeline = TasksManager.get_model_from_task(model_type, model_name, device=device)
-        models_and_onnx_configs = get_stable_diffusion_models_for_export(pipeline)
+        models_and_onnx_configs = get_diffusion_models_for_export(pipeline)
         output_names = [os.path.join(name_dir, ONNX_WEIGHTS_NAME) for name_dir in models_and_onnx_configs]
         model, _ = models_and_onnx_configs["vae_encoder"]
         model.forward = lambda sample: {"latent_sample": model.encode(x=sample)["latent_dist"].parameters}
@@ -398,14 +398,14 @@ class OnnxExportTestCase(TestCase):
 
         self._onnx_export(test_name, model_type, model_name, task, onnx_config_class_constructor, monolith=monolith)
 
-    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
     @require_torch
     @require_vision
     @require_diffusers
-    def test_pytorch_export_for_stable_diffusion_models(self, model_type, model_name):
+    def test_pytorch_export_for_diffusion_models(self, model_type, model_name):
         self._onnx_export_sd(model_type, model_name)
 
-    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
     @require_torch
     @require_vision
     @require_diffusers
@@ -413,7 +413,7 @@ class OnnxExportTestCase(TestCase):
     @slow
     @pytest.mark.run_slow
     @pytest.mark.gpu_test
-    def test_pytorch_export_for_stable_diffusion_models_cuda(self, model_type, model_name):
+    def test_pytorch_export_for_diffusion_models_cuda(self, model_type, model_name):
         self._onnx_export_sd(model_type, model_name, device="cuda")
 
 

@@ -87,7 +87,7 @@ EXPORTABLE_MODEL_OR_PIPELINE = Union[EXPORTABLE_MODEL, "DiffusionPipeline"]
 
 
 def _get_submodels_for_export_diffusion(
-    pipeline: "DiffusionPipeline"
+    pipeline: "DiffusionPipeline",
 ) -> Dict[str, Union["PreTrainedModel", "ModelMixin"]]:
     """
     Returns the components of a Stable Diffusion model.
