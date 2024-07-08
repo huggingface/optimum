@@ -90,7 +90,6 @@ def is_shape_generator(node: Node) -> bool:
 
 
 def stable_topological_sort(graph: Graph):
-
     def _args(n: torch.fx.Node) -> List[torch.fx.node.Argument]:
         args: List[torch.fx.node.Argument] = []
         torch.fx.map_arg((n.args, n.kwargs), args.append)
@@ -284,8 +283,10 @@ def initialize_parameter_meta(model: nn.Module) -> None:
 
 @torch.no_grad
 def move_model_to_device(model: nn.Module, device: Union[torch.device, str]):
-    # move everything except tensors on meta devices on current device
-    # this function should be called before `intialize_parameter_mapping`
+    """
+    Move everything except tensors on meta devices on current device
+    this function should be called before `intialize_parameter_meta`
+    """
     for name, tensor in chain(model.named_parameters(), model.named_buffers()):
         if tensor.device == torch.device("meta"):
             continue

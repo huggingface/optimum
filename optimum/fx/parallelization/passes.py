@@ -432,7 +432,6 @@ class ParallelLayerReplacePass(PassBase):
 
     @staticmethod
     def handle_hard_coded_axis_param(node: Node, ctx: ParallelExecutionCtx) -> None:
-
         def extract_shape_from_node(node: Node) -> List[Any]:
             if "size" in node.kwargs:
                 return list(node.kwargs["size"])

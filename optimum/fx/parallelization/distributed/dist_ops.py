@@ -14,6 +14,7 @@
 # limitations under the License.
 import torch
 import torch.distributed as dist
+from ..utils import ensure_divisibility
 
 
 def all_reduce(group: dist.ProcessGroup, tensor: torch.Tensor) -> torch.Tensor:
@@ -32,11 +33,20 @@ def all_gather(group: dist.ProcessGroup, tensor: torch.Tensor, gather_dim: int =
     rank = dist.get_rank(group=group)
 
     tensor = tensor.contiguous()
-    tensors = [torch.empty_like(tensor) for _ in range(world_size)]
-    tensors[rank] = tensor
-
-    dist.all_gather(tensors, tensor, group=group)
-    return torch.cat(tensors, dim=gather_dim)
+    gather_dim = (gather_dim + tensor.ndim) % tensor.ndim
+    shape = tuple(
+        tensor.size(dim) * world_size if dim == gather_dim else tensor.size(dim) for dim in range(tensor.ndim)
+    )
+    index = list(
+        slice(rank * tensor.size(dim), (rank + 1) * tensor.size(dim), None)
+        if dim == gather_dim
+        else slice(None, None, None)
+        for dim in range(tensor.ndim)
+    )
+    tensors = torch.empty(*shape, dtype=tensor.dtype, device=tensor.device)
+    tensors[index] = tensor
+    dist.all_gather_into_tensor(tensors, tensor, group=group)
+    return tensors
 
 
 def split(group: dist.ProcessGroup, tensor: torch.Tensor, split_dim: int = -1) -> torch.Tensor:
@@ -46,7 +56,7 @@ def split(group: dist.ProcessGroup, tensor: torch.Tensor, split_dim: int = -1) -
 
     rank = dist.get_rank(group)
     size = tensor.size()
-    assert size[split_dim] % world_size == 0
+    ensure_divisibility(size[split_dim], world_size)
     tensors = torch.split(tensor, size[split_dim] // world_size, dim=split_dim)
     tensor = tensors[rank].contiguous()
 
@@ -63,7 +73,7 @@ def scatter(
     rank = dist.get_rank(group)
     if rank == 0:
         size = tensor.size()
-        assert size[scatter_dim] % world_size == 0
+        ensure_divisibility(size[scatter_dim], world_size)
         tensors = torch.split(tensor, size[scatter_dim] // world_size, dim=scatter_dim)
         scatter_list = [tensor.contiguous() for tensor in tensors]
         output_tensor.copy_(scatter_list[rank])
