@@ -32,12 +32,11 @@ from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch
 from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
 from ..utils import CONFIG_NAME
-from ..utils.import_utils import is_onnx_available
+from ..utils.import_utils import is_diffusers_available, is_onnx_available
 
 
 if TYPE_CHECKING:
     from .base import ExportConfig
-
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -53,6 +52,14 @@ if is_torch_available():
 
 if is_tf_available():
     from transformers import TFPreTrainedModel
+
+if is_diffusers_available():
+    from diffusers import DiffusionPipeline
+    from diffusers.pipelines.auto_pipeline import (
+        AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
+        AUTO_INPAINT_PIPELINES_MAPPING,
+        AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+    )
 
 ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
 TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
@@ -192,6 +199,9 @@ class TasksManager:
         _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
             "stable-diffusion": "StableDiffusionPipeline",
             "stable-diffusion-xl": "StableDiffusionXLImg2ImgPipeline",
+            "image-to-image": "AutoPipelineForImage2Image",
+            "text-to-image": "AutoPipelineForText2Image",
+            "inpainting": "AutoPipelineForInpainting",
         }
 
         _TIMM_TASKS_TO_MODEL_LOADERS = {
@@ -1534,7 +1544,7 @@ class TasksManager:
     @classmethod
     def _infer_task_from_model_or_model_class(
         cls,
-        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel"]] = None,
+        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]] = None,
         model_class: Optional[Type] = None,
     ) -> str:
         if model is not None and model_class is not None:
@@ -1606,17 +1616,7 @@ class TasksManager:
                 )
             library_name = TasksManager.infer_library_from_model(model_name_or_path, subfolder, revision)
 
-            if library_name == "diffusers":
-                if model_info.config["diffusers"].get("class_name", None):
-                    class_name = model_info.config["diffusers"]["class_name"]
-                elif model_info.config["diffusers"].get("_class_name", None):
-                    class_name = model_info.config["diffusers"]["_class_name"]
-                else:
-                    raise ValueError(
-                        f"Could not automatically infer the class name for {model_name_or_path}. Please open an issue at https://github.com/huggingface/optimum/issues."
-                    )
-                inferred_task_name = "stable-diffusion-xl" if "StableDiffusionXL" in class_name else "stable-diffusion"
-            elif library_name == "timm":
+            if library_name == "timm":
                 inferred_task_name = "image-classification"
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
@@ -1626,7 +1626,7 @@ class TasksManager:
                 # zero-shot-object-detection or object-detection.
                 if pipeline_tag is not None and pipeline_tag not in ["conversational", "object-detection"]:
                     inferred_task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
-                else:
+                elif library_name == "transformers":
                     transformers_info = model_info.transformersInfo
                     if transformers_info is not None and transformers_info.get("pipeline_tag") is not None:
                         inferred_task_name = TasksManager.map_from_synonym(transformers_info["pipeline_tag"])
@@ -1649,12 +1649,13 @@ class TasksManager:
 
         if inferred_task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
+
         return inferred_task_name
 
     @classmethod
     def infer_task_from_model(
         cls,
-        model: Union[str, "PreTrainedModel", "TFPreTrainedModel", Type],
+        model: Union[str, "PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
         subfolder: str = "",
         revision: Optional[str] = None,
     ) -> str:
@@ -1690,7 +1691,8 @@ class TasksManager:
 
     @staticmethod
     def _infer_library_from_model(
-        model: Union["PreTrainedModel", "TFPreTrainedModel"], library_name: Optional[str] = None
+        model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
+        library_name: Optional[str] = None,
     ):
         if library_name is not None:
             return library_name
@@ -1800,7 +1802,7 @@ class TasksManager:
     @classmethod
     def standardize_model_attributes(
         cls,
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
         library_name: Optional[str] = None,
     ):
         """
@@ -1808,25 +1810,25 @@ class TasksManager:
         libraries to follow transformers style.
 
         Args:
-            model_name_or_path (`Union[str, Path]`):
-                Can be either the model id of a model repo on the Hugging Face Hub, or a path to a local directory
-                containing a model.
-            model (`Union[PreTrainedModel, TFPreTrainedModel]`):
+            model (`Union[PreTrainedModel, TFPreTrainedModel, DiffusionPipeline]`):
                 The instance of the model.
-            subfolder (`str`, defaults to `""`):
-                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
-                Face Hub, you can specify the subfolder name here.
-            revision (`Optional[str]`, *optional*, defaults to `None`):
-                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
-            cache_dir (`Optional[str]`, *optional*):
-                Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+
             library_name (`Optional[str]`, *optional*)::
                 The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
         """
         library_name = TasksManager._infer_library_from_model(model, library_name)
 
         if library_name == "diffusers":
-            model.config.export_model_type = "stable-diffusion"
+            diffusers_auto_mapping = {}
+            for mapping in [
+                AUTO_INPAINT_PIPELINES_MAPPING,
+                AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
+                AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+            ]:
+                diffusers_auto_mapping.update({v: k for k, v in mapping.items()})
+
+            model.config.export_model_type = diffusers_auto_mapping[model.__class__]
+
         elif library_name == "timm":
             # Retrieve model config
             model_config = PretrainedConfig.from_dict(model.pretrained_cfg)

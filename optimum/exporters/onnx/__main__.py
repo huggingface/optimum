@@ -321,9 +321,7 @@ def main_export(
                 )
             model.config.pad_token_id = pad_token_id
 
-    if "stable-diffusion" in task:
-        model_type = "stable-diffusion"
-    elif hasattr(model.config, "export_model_type"):
+    if hasattr(model.config, "export_model_type"):
         model_type = model.config.export_model_type.replace("_", "-")
     else:
         model_type = model.config.model_type.replace("_", "-")
