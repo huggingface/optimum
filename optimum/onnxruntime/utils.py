@@ -17,17 +17,27 @@ import os
 import re
 from enum import Enum
 from inspect import signature
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from packaging import version
+from tqdm import tqdm
+from transformers import EvalPrediction
+from transformers.trainer_pt_utils import nested_concat
+from transformers.trainer_utils import EvalLoopOutput
 from transformers.utils import logging
 
 import onnxruntime as ort
 
 from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
 from ..utils.import_utils import _is_package_available
+
+
+if TYPE_CHECKING:
+    from datasets import Dataset
+
+    from .modeling_ort import ORTModel
 
 
 logger = logging.get_logger(__name__)
@@ -341,3 +351,53 @@ class ORTQuantizableOperator(Enum):
     Resize = "Resize"
     AveragePool = "AveragePool"
     Concat = "Concat"
+
+
+def evaluation_loop(
+    model: "ORTModel",
+    dataset: "Dataset",
+    label_names: Optional[List[str]] = None,
+    compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
+):
+    """
+    Run evaluation and returns metrics and predictions.
+
+    Args:
+        model (`ORTModel`):
+            The ONNXRuntime model to use for the evaluation step.
+        dataset (`datasets.Dataset`):
+            Dataset to use for the evaluation step.
+        label_names (`List[str]`, `optional`):
+            The list of keys in your dictionary of inputs that correspond to the labels.
+        compute_metrics (`Callable[[EvalPrediction], Dict]`, `optional`):
+            The function that will be used to compute metrics at evaluation. Must take an `EvalPrediction` and
+            return a dictionary string to metric values.
+    """
+
+    all_preds = None
+    all_labels = None
+
+    for inputs in tqdm(dataset, desc="Evaluation"):
+        has_labels = all(inputs.get(k) is not None for k in label_names)
+        if has_labels:
+            labels = tuple(np.array([inputs.get(name)]) for name in label_names)
+            if len(labels) == 1:
+                labels = labels[0]
+        else:
+            labels = None
+
+        inputs = {key: np.array([inputs[key]]) for key in model.input_names if key in inputs}
+        preds = model(**inputs)
+
+        if len(preds) == 1:
+            preds = preds[0]
+
+        all_preds = preds if all_preds is None else nested_concat(all_preds, preds, padding_index=-100)
+        all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
+
+    if compute_metrics is not None and all_preds is not None and all_labels is not None:
+        metrics = compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
+    else:
+        metrics = {}
+
+    return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=len(dataset))

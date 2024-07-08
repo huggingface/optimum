@@ -38,7 +38,7 @@ from transformers.utils.versions import require_version
 
 from optimum.onnxruntime import ORTModelForTokenClassification, ORTOptimizer
 from optimum.onnxruntime.configuration import OptimizationConfig
-from optimum.onnxruntime.model import ORTModel
+from optimum.onnxruntime.utils import evaluation_loop
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -276,7 +276,6 @@ def main():
         )
 
     os.makedirs(training_args.output_dir, exist_ok=True)
-    optimized_model_path = os.path.join(training_args.output_dir, "model_optimized.onnx")
 
     tokenizer = AutoTokenizer.from_pretrained(model_args.tokenizer_name or model_args.model_name_or_path)
 
@@ -480,12 +479,11 @@ def main():
             desc="Running tokenizer on the validation dataset",
         )
 
-        ort_model = ORTModel(
-            optimized_model_path,
-            execution_provider=optim_args.execution_provider,
+        outputs = evaluation_loop(
+            model=model,
+            dataset=eval_dataset,
             compute_metrics=compute_metrics,
         )
-        outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
         with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:
@@ -509,12 +507,11 @@ def main():
             desc="Running tokenizer on the prediction dataset",
         )
 
-        ort_model = ORTModel(
-            optimized_model_path,
-            execution_provider=optim_args.execution_provider,
+        outputs = evaluation_loop(
+            model=model,
+            dataset=predict_dataset,
             compute_metrics=compute_metrics,
         )
-        outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.argmax(outputs.predictions, axis=2)
 
         # Remove ignored index (special tokens)

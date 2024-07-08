@@ -1091,10 +1091,11 @@ class ORTModelForFeatureExtraction(ORTModel):
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
 
-            # TODO: why do we only return last_hidden_state? why not all outputs?
-            # that way, there will be less need for ORTModelForCustomTask in cases where
-            # we just want to extend model outputs with attentions, hidden_states, etc.
-            last_hidden_state = model_outputs["last_hidden_state"]
+            if "last_hidden_state" in self.output_names:
+                last_hidden_state = model_outputs["last_hidden_state"]
+            else:
+                # TODO: This allows to support sentence-transformers models (sentence embedding), but is not validated.
+                last_hidden_state = next(iter(model_outputs.values()))
 
         # converts output to namedtuple for pipelines post-processing
         return BaseModelOutput(last_hidden_state=last_hidden_state)
