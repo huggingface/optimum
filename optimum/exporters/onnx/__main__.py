@@ -221,6 +221,12 @@ def main_export(
             " and passing it is not required anymore."
         )
 
+    if task in ["stable-diffusion", "stable-diffusion-xl"]:
+        logger.warning(
+            f"The task `{task}` is deprecated and will be removed in a future release of Optimum. "
+            "Please use one of the following tasks instead: `text-to-image`, `image-to-image`, `inpainting`."
+        )
+
     original_task = task
     task = TasksManager.map_from_synonym(task)
 
