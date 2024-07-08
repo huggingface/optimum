@@ -1754,9 +1754,9 @@ class TasksManager:
                 cache_dir=cache_dir,
                 token=token,
             )
-        elif issubclass(model, (PreTrainedModel, TFPreTrainedModel, DiffusionPipeline)):
+        elif issubclass(model, object):
             task_name = cls._infer_task_from_model_or_model_class(model_class=model)
-        elif isinstance(model, (PreTrainedModel, TFPreTrainedModel, DiffusionPipeline)):
+        elif isinstance(model, object):
             task_name = cls._infer_task_from_model_or_model_class(model=model)
 
         if task_name is None:
