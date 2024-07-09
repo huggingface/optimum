@@ -60,18 +60,6 @@ if is_diffusers_available():
         AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
     )
 
-    DIFFUSION_PIPELINES_MAPPING = []
-    for task_name, pipelines_mapping in [
-        ("text-to-image", AUTO_TEXT2IMAGE_PIPELINES_MAPPING),
-        ("image-to-image", AUTO_IMAGE2IMAGE_PIPELINES_MAPPING),
-        ("inpainting", AUTO_INPAINT_PIPELINES_MAPPING),
-    ]:
-        for model_type, pipeline_class in pipelines_mapping.items():
-            DIFFUSION_PIPELINES_MAPPING.append((task_name, model_type, pipeline_class))
-
-else:
-    DIFFUSION_PIPELINES_MAPPING = []
-
 ExportConfigConstructor = Callable[[PretrainedConfig], "ExportConfig"]
 TaskNameToExportConfigDict = Dict[str, ExportConfigConstructor]
 
@@ -171,6 +159,9 @@ class TasksManager:
     _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {}
     _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {}
 
+    # Extra
+    _DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP = {}
+
     if is_torch_available():
         # Refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
         # In case the same task (pipeline tag) may map to several loading classes, we use a tuple and the
@@ -208,8 +199,8 @@ class TasksManager:
         }
 
         _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
-            "inpainting": "AutoPipelineForInpainting",
             "image-to-image": "AutoPipelineForImage2Image",
+            "inpainting": "AutoPipelineForInpainting",
             "text-to-image": "AutoPipelineForText2Image",
         }
 
@@ -255,9 +246,19 @@ class TasksManager:
             "zero-shot-object-detection": "TFAutoModelForZeroShotObjectDetection",
         }
 
-        _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {
+        _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADERS_MAP = {
             "transformers": _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS,
         }
+
+    if is_diffusers_available():
+        for task_name, model_loaders_map in [
+            ("text-to-image", AUTO_TEXT2IMAGE_PIPELINES_MAPPING),
+            ("image-to-image", AUTO_IMAGE2IMAGE_PIPELINES_MAPPING),
+            ("inpainting", AUTO_INPAINT_PIPELINES_MAPPING),
+        ]:
+            _DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name] = {}
+            for model_type, model_loader in model_loaders_map.items():
+                _DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name][model_type] = model_loader.__name__
 
     _SYNONYM_TASK_MAP = {
         "audio-ctc": "automatic-speech-recognition",
@@ -303,7 +304,6 @@ class TasksManager:
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
     }
 
-    # TODO: why feature-extraction-with-past is here?
     _ENCODER_DECODER_TASKS = (
         "automatic-speech-recognition",
         "document-question-answering",
@@ -1154,7 +1154,6 @@ class TasksManager:
         "vae-decoder",
         "clip-text-model",
         "clip-text-with-projection",
-        "trocr",  # TODO: why?
     }
     _SUPPORTED_CLI_MODEL_TYPE = (
         set(_SUPPORTED_MODEL_TYPE.keys())
@@ -1617,10 +1616,12 @@ class TasksManager:
                 inferred_task_name = task
                 break
 
-        for task_name, model_type, pipeline_class in DIFFUSION_PIPELINES_MAPPING:
-            if target_name == pipeline_class.__name__:
-                inferred_task_name = task_name
-                break
+        for task_name in cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP:
+            for model_type in cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name]:
+                model_loader = cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name][model_type]
+                if target_name == model_loader:
+                    inferred_task_name = task_name
+                    break
 
         if inferred_task_name is None:
             raise ValueError(
@@ -1638,7 +1639,7 @@ class TasksManager:
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: Optional[Union[bool, str]] = None,
     ) -> str:
-        task_name = None
+        inferred_task_name = None
 
         is_local = os.path.isdir(os.path.join(model_name_or_path, subfolder))
 
@@ -1667,7 +1668,7 @@ class TasksManager:
             )
 
             if library_name == "timm":
-                task_name = "image-classification"
+                inferred_task_name = "image-classification"
             else:
                 pipeline_tag = getattr(model_info, "pipeline_tag", None)
                 # The Hub task "conversational" is not a supported task per se, just an alias that may map to
@@ -1675,11 +1676,11 @@ class TasksManager:
                 # The Hub task "object-detection" is not a supported task per se, as in Transformers this may map to either
                 # zero-shot-object-detection or object-detection.
                 if pipeline_tag is not None and pipeline_tag not in ["conversational", "object-detection"]:
-                    task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
+                    inferred_task_name = TasksManager.map_from_synonym(model_info.pipeline_tag)
                 elif library_name == "transformers":
                     transformers_info = model_info.transformersInfo
                     if transformers_info is not None and transformers_info.get("pipeline_tag") is not None:
-                        task_name = TasksManager.map_from_synonym(transformers_info["pipeline_tag"])
+                        inferred_task_name = TasksManager.map_from_synonym(transformers_info["pipeline_tag"])
                     else:
                         # transformersInfo does not always have a pipeline_tag attribute
                         class_name_prefix = ""
@@ -1694,13 +1695,13 @@ class TasksManager:
                             auto_model_class_name = f"{class_name_prefix}{auto_model_class_name}"
                         for task, class_name_for_task in tasks_to_automodels.items():
                             if class_name_for_task == auto_model_class_name:
-                                task_name = task
+                                inferred_task_name = task
                                 break
 
-        if task_name is None:
+        if inferred_task_name is None:
             raise KeyError(f"Could not find the proper task name for {auto_model_class_name}.")
 
-        return task_name
+        return inferred_task_name
 
     @classmethod
     def infer_task_from_model(
@@ -1735,7 +1736,7 @@ class TasksManager:
         Returns:
             `str`: The task name automatically detected from the HF hub repo, model instance, or model class.
         """
-        task_name = None
+        inferred_task_name = None
 
         if use_auth_token is not None:
             warnings.warn(
@@ -1747,7 +1748,7 @@ class TasksManager:
             token = use_auth_token
 
         if isinstance(model, str):
-            task_name = cls._infer_task_from_model_name_or_path(
+            inferred_task_name = cls._infer_task_from_model_name_or_path(
                 model,
                 subfolder=subfolder,
                 revision=revision,
@@ -1756,17 +1757,17 @@ class TasksManager:
             )
         elif issubclass(model, object):
             # checks if it's a model class
-            task_name = cls._infer_task_from_model_or_model_class(model_class=model)
+            inferred_task_name = cls._infer_task_from_model_or_model_class(model_class=model)
         elif isinstance(model, object):
             # checks if it's a model instance
-            task_name = cls._infer_task_from_model_or_model_class(model=model)
+            inferred_task_name = cls._infer_task_from_model_or_model_class(model=model)
 
-        if task_name is None:
+        if inferred_task_name is None:
             raise ValueError(
                 "The task name could not be automatically inferred. If using the command-line, please provide the argument --task task-name. Example: `--task text-classification`."
             )
 
-        return task_name
+        return inferred_task_name
 
     @staticmethod
     def _infer_library_from_model(
@@ -1904,16 +1905,21 @@ class TasksManager:
         library_name = TasksManager._infer_library_from_model(model, library_name)
 
         if library_name == "diffusers":
-            for task_name, model_type, pipeline_class in DIFFUSION_PIPELINES_MAPPING:
-                if isinstance(model, pipeline_class):
-                    # `model_type` is a class attribute in Transformers, let's avoid modifying it.
-                    model.config.export_model_type = model_type
-                    return
+            inferred_model_type = None
+            for task_name in cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP:
+                for model_type in cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name]:
+                    model_loader = cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name][model_type]
+                    if model.__class__.__name__ == model_loader:
+                        inferred_model_type = model_type
+                        break
 
-            raise ValueError(
-                f"The export of a DiffusionPipeline model with the class name {model.__class__.__name__} is currently not supported in Optimum. "
-                "Please open an issue or submit a PR to add the support."
-            )
+            if inferred_model_type is None:
+                raise ValueError(
+                    f"The export of a DiffusionPipeline model with the class name {model.__class__.__name__} is currently not supported in Optimum. "
+                    "Please open an issue or submit a PR to add the support."
+                )
+
+            model.config.export_model_type = inferred_model_type
 
         elif library_name == "timm":
             # Retrieve model config

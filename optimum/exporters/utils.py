@@ -82,9 +82,6 @@ DECODER_NAME = "decoder_model"
 DECODER_WITH_PAST_NAME = "decoder_with_past_model"
 DECODER_MERGED_NAME = "decoder_model_merged"
 
-EXPORTABLE_MODEL = Union["torch.nn.Module", "PreTrainedModel", "TFPreTrainedModel", "ModelMixin"]
-EXPORTABLE_MODEL_OR_PIPELINE = Union[EXPORTABLE_MODEL, "DiffusionPipeline"]
-
 
 def _get_submodels_for_export_diffusion(
     pipeline: "DiffusionPipeline",
@@ -100,14 +97,17 @@ def _get_submodels_for_export_diffusion(
         pipeline, (StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline, StableDiffusionXLPipeline)
     )
 
-    models_for_export = {}
-
     if is_stable_diffusion_xl:
         projection_dim = pipeline.text_encoder_2.config.projection_dim
     elif is_stable_diffusion:
         projection_dim = pipeline.text_encoder.config.projection_dim
     else:
-        raise ValueError("Pipeline is not a Stable Diffusion (XL) pipeline.")
+        raise ValueError(
+            f"The export of a DiffusionPipeline model with the class name {pipeline.__class__.__name__} is currently not supported in Optimum. "
+            "Please open an issue or submit a PR to add the support."
+        )
+
+    models_for_export = {}
 
     # Text encoder
     if pipeline.text_encoder is not None:
@@ -120,6 +120,7 @@ def _get_submodels_for_export_diffusion(
     is_torch_greater_or_equal_than_2_1 = version.parse(torch.__version__) >= version.parse("2.1.0")
     if not is_torch_greater_or_equal_than_2_1:
         pipeline.unet.set_attn_processor(AttnProcessor())
+
     pipeline.unet.config.text_encoder_projection_dim = projection_dim
     # The U-NET time_ids inputs shapes depends on the value of `requires_aesthetics_score`
     # https://github.com/huggingface/diffusers/blob/v0.18.2/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl_img2img.py#L571
