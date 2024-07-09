@@ -22,7 +22,6 @@ import os
 import sys
 from dataclasses import dataclass, field
 from functools import partial
-from pathlib import Path
 from typing import Optional
 
 import datasets
@@ -38,7 +37,6 @@ from transformers.utils.versions import require_version
 
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
-from optimum.onnxruntime.model import ORTModel
 from optimum.onnxruntime.modeling_ort import ORTModelForImageClassification
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.preprocessors.passes import (
@@ -47,6 +45,7 @@ from optimum.onnxruntime.preprocessors.passes import (
     ExcludeNodeAfter,
     ExcludeNodeFollowedBy,
 )
+from optimum.onnxruntime.utils import evaluation_loop
 
 
 logger = logging.getLogger(__name__)
@@ -378,12 +377,15 @@ def main():
         quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
 
     # Apply quantization on the model
-    quantizer.quantize(
+    quantized_model_path = quantizer.quantize(
         save_dir=training_args.output_dir,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
         preprocessor=quantization_preprocessor,
         use_external_data_format=onnx_export_args.use_external_data_format,
+    )
+    model = ORTModelForImageClassification.from_pretrained(
+        quantized_model_path, provider=optim_args.execution_provider
     )
 
     # Evaluation
@@ -409,13 +411,12 @@ def main():
         # Set the validation transforms
         eval_dataset = eval_dataset.with_transform(preprocess_function)
 
-        ort_model = ORTModel(
-            Path(training_args.output_dir) / "model_quantized.onnx",
-            execution_provider=optim_args.execution_provider,
-            compute_metrics=compute_metrics,
+        outputs = evaluation_loop(
+            model=model,
+            dataset=eval_dataset,
             label_names=[labels_column],
+            compute_metrics=compute_metrics,
         )
-        outputs = ort_model.evaluation_loop(eval_dataset)
         # Save metrics
         with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:
             json.dump(outputs.metrics, f, indent=4, sort_keys=True)

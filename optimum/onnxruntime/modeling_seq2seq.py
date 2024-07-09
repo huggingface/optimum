@@ -570,6 +570,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
     # Used in from_transformers to export model to onnxORTEncoder
     base_model_prefix = "onnx_model"
+    _supports_cache_class = False
 
     def __init__(
         self,
@@ -777,6 +778,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         model_id: Union[str, Path],
         config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -794,6 +796,15 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         model_path = Path(model_id)
 
         # We do not implement the logic for use_cache=False, use_merged=True
@@ -815,7 +826,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     [DECODER_MERGED_ONNX_FILE_PATTERN],
                     argument_name=None,
                     subfolder=subfolder,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     revision=revision,
                 )
                 use_merged = True
@@ -838,7 +849,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     [DECODER_ONNX_FILE_PATTERN],
                     "decoder_file_name",
                     subfolder=subfolder,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     revision=revision,
                 )
             else:
@@ -866,7 +877,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                             [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
                             "decoder_with_past_file_name",
                             subfolder=subfolder,
-                            use_auth_token=use_auth_token,
+                            token=token,
                             revision=revision,
                         )
                     except FileNotFoundError as e:
@@ -896,7 +907,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 [ENCODER_ONNX_FILE_PATTERN],
                 "encoder_file_name",
                 subfolder=subfolder,
-                use_auth_token=use_auth_token,
+                token=token,
                 revision=revision,
             )
         else:
@@ -932,7 +943,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     repo_id=model_id,
                     subfolder=subfolder,
                     filename=filename,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     revision=revision,
                     cache_dir=cache_dir,
                     force_download=force_download,
@@ -944,7 +955,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                         repo_id=model_id,
                         subfolder=subfolder,
                         filename=filename + "_data",
-                        use_auth_token=use_auth_token,
+                        token=token,
                         revision=revision,
                         cache_dir=cache_dir,
                         force_download=force_download,
@@ -989,7 +1000,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 cache_dir=cache_dir,
                 force_download=force_download,
                 local_files_only=local_files_only,
-                use_auth_token=use_auth_token,
+                token=token,
                 revision=revision,
                 subfolder=subfolder,
             )
@@ -1022,6 +1033,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         model_id: str,
         config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: str = "main",
         force_download: bool = True,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -1036,6 +1048,15 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModelForConditionalGeneration":
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         if use_cache is False and use_merged is True:
             raise ValueError(
                 "The incompatible arguments use_cache=False, use_merged=True were passed to"
@@ -1062,7 +1083,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,
-            use_auth_token=use_auth_token,
+            token=token,
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,

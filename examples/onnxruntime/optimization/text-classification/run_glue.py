@@ -42,7 +42,7 @@ from transformers.utils.versions import require_version
 
 from optimum.onnxruntime import ORTModelForSequenceClassification, ORTOptimizer
 from optimum.onnxruntime.configuration import OptimizationConfig
-from optimum.onnxruntime.model import ORTModel
+from optimum.onnxruntime.utils import evaluation_loop
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -250,7 +250,6 @@ def main():
         )
 
     os.makedirs(training_args.output_dir, exist_ok=True)
-    optimized_model_path = os.path.join(training_args.output_dir, "model_optimized.onnx")
 
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
 
@@ -268,11 +267,15 @@ def main():
     optimizer = ORTOptimizer.from_pretrained(model)
 
     # Optimize the model
-    optimizer.optimize(
+    optimized_model_path = optimizer.optimize(
         optimization_config=optimization_config,
         save_dir=training_args.output_dir,
         use_external_data_format=onnx_export_args.use_external_data_format,
         one_external_file=onnx_export_args.one_external_file,
+    )
+
+    model = ORTModelForSequenceClassification.from_pretrained(
+        optimized_model_path, provider=optim_args.execution_provider
     )
 
     # Prepare the dataset downloading, preprocessing and metric creation to perform the evaluation and / or the
@@ -408,13 +411,13 @@ def main():
             desc="Running tokenizer on the evaluation dataset",
         )
 
-        ort_model = ORTModel(
-            optimized_model_path,
-            execution_provider=optim_args.execution_provider,
+        outputs = evaluation_loop(
+            model=model,
+            eval_dataset=eval_dataset,
             compute_metrics=compute_metrics,
             label_names=["label"],
         )
-        outputs = ort_model.evaluation_loop(eval_dataset)
+
         # Save metrics
         with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:
             json.dump(outputs.metrics, f, indent=4, sort_keys=True)
@@ -436,10 +439,12 @@ def main():
             desc="Running tokenizer on the test dataset",
         )
 
-        ort_model = ORTModel(
-            optimized_model_path, execution_provider=optim_args.execution_provider, label_names=["label"]
+        outputs = evaluation_loop(
+            model=model,
+            eval_dataset=eval_dataset,
+            compute_metrics=compute_metrics,
+            label_names=["label"],
         )
-        outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.squeeze(outputs.predictions) if is_regression else np.argmax(outputs.predictions, axis=1)
 
         # Save predictions

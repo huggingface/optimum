@@ -15,6 +15,7 @@
 
 import logging
 import os
+import warnings
 from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
@@ -424,7 +425,8 @@ class ORTQuantizer(OptimumQuantizer):
         preprocess_function: Optional[Callable] = None,
         preprocess_batch: bool = True,
         seed: int = 2016,
-        use_auth_token: bool = False,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
     ) -> Dataset:
         """
         Creates the calibration `datasets.Dataset` to use for the post-training static quantization calibration step.
@@ -445,13 +447,26 @@ class ORTQuantizer(OptimumQuantizer):
                 Whether the `preprocess_function` should be batched.
             seed (`int`, defaults to 2016):
                 The random seed to use when shuffling the calibration dataset.
-            use_auth_token (`bool`, defaults to `False`):
-                Whether to use the token generated when running `transformers-cli login` (necessary for some datasets
-                like ImageNet).
+            use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
+                Deprecated. Please use the `token` argument instead.
+            token (`Optional[Union[bool,str]]`, defaults to `None`):
+                The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
+                when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
+
         Returns:
             The calibration `datasets.Dataset` to use for the post-training static quantization calibration
             step.
         """
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         if dataset_name is None:
             raise ValueError(
                 "ORTQuantizer: Static quantization calibration step requires a dataset_name if no calib_dataset is "
@@ -462,7 +477,7 @@ class ORTQuantizer(OptimumQuantizer):
             dataset_name,
             name=dataset_config_name,
             split=dataset_split,
-            use_auth_token=use_auth_token,
+            token=token,
         )
 
         if num_samples is not None:

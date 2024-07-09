@@ -48,7 +48,7 @@ class TestOptimizedModel(unittest.TestCase):
 
             model.save_pretrained(
                 tmpdirname,
-                use_auth_token=os.environ.get("HF_AUTH_TOKEN", None),
+                token=os.environ.get("HF_AUTH_TOKEN", None),
                 push_to_hub=True,
                 repository_id="unit_test_save_model",
             )

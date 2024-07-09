@@ -14,6 +14,7 @@
 """Classes handling causal-lm related architectures in ONNX Runtime."""
 
 import logging
+import warnings
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
@@ -120,6 +121,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     auto_model_class = AutoModelForCausalLM
     main_input_name = "input_ids"
+    _supports_cache_class = False
 
     def __init__(
         self,
@@ -393,6 +395,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         model_id: Union[str, Path],
         config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -408,6 +411,15 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModelForCausalLM":
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         model_path = Path(model_id)
 
         # We do not implement the logic for use_cache=False, use_merged=True
@@ -437,7 +449,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                         [DECODER_MERGED_ONNX_FILE_PATTERN],
                         argument_name=None,
                         subfolder=subfolder,
-                        use_auth_token=use_auth_token,
+                        token=token,
                         revision=revision,
                     )
                     use_merged = True
@@ -459,7 +471,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     [r"^((?!decoder).)*.onnx", pattern],
                     argument_name=None,
                     subfolder=subfolder,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     revision=revision,
                 )
                 file_name = decoder_path.name
@@ -481,7 +493,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         model_cache_path, preprocessors = cls._cached_file(
             model_path=model_path,
-            use_auth_token=use_auth_token,
+            token=token,
             revision=revision,
             force_download=force_download,
             cache_dir=cache_dir,
@@ -584,6 +596,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         model_id: str,
         config: "PretrainedConfig",
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: str = "main",
         force_download: bool = True,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -598,6 +611,15 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModelForCausalLM":
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         file_name = ONNX_WEIGHTS_NAME
 
         if use_merged:
@@ -623,7 +645,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,
-            use_auth_token=use_auth_token,
+            token=token,
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,

@@ -17,11 +17,12 @@
 import logging
 import os
 import subprocess
+import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
-from huggingface_hub import HfApi, HfFolder
+from huggingface_hub import create_repo, upload_file
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import AutoConfig, PretrainedConfig, add_start_docstrings
 
@@ -51,9 +52,11 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
         force_download (`bool`, defaults to `True`):
             Whether or not to force the (re-)download of the model weights and configuration files, overriding the
             cached versions if they exist.
-        use_auth_token (`Optional[str]`, defaults to `None`):
+        use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
+            Deprecated. Please use the `token` argument instead.
+        token (`Optional[Union[bool,str]]`, defaults to `None`):
             The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
-            when running `transformers-cli login` (stored in `~/.huggingface`).
+            when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
         cache_dir (`Optional[str]`, defaults to `None`):
             Path to a directory in which a downloaded pretrained model configuration should be cached if the
             standard cache should not be used.
@@ -156,33 +159,33 @@ class OptimizedModel(PreTrainedModel):
         save_directory: str,
         repository_id: str,
         private: Optional[bool] = None,
-        use_auth_token: Union[bool, str] = True,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
     ) -> str:
-        if isinstance(use_auth_token, str):
-            huggingface_token = use_auth_token
-        elif use_auth_token:
-            huggingface_token = HfFolder.get_token()
-        else:
-            raise ValueError("You need to proivde `use_auth_token` to be able to push to the hub")
-        api = HfApi()
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
 
-        user = api.whoami(huggingface_token)
-        self.git_config_username_and_email(git_email=user["email"], git_user=user["fullname"])
-
-        api.create_repo(
-            token=huggingface_token,
+        create_repo(
+            token=token,
             repo_id=repository_id,
             exist_ok=True,
             private=private,
         )
+
         for path, subdirs, files in os.walk(save_directory):
             for name in files:
                 local_file_path = os.path.join(path, name)
                 _, hub_file_path = os.path.split(local_file_path)
                 # FIXME: when huggingface_hub fixes the return of upload_file
                 try:
-                    api.upload_file(
-                        token=huggingface_token,
+                    upload_file(
+                        token=token,
                         repo_id=f"{repository_id}",
                         path_or_fileobj=os.path.join(os.getcwd(), local_file_path),
                         path_in_repo=hub_file_path,
@@ -222,18 +225,28 @@ class OptimizedModel(PreTrainedModel):
         config_name_or_path: Union[str, os.PathLike],
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        use_auth_token: Optional[Union[bool, str]] = False,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         force_download: bool = False,
         subfolder: str = "",
         trust_remote_code: bool = False,
     ) -> PretrainedConfig:
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         try:
             config = AutoConfig.from_pretrained(
                 pretrained_model_name_or_path=config_name_or_path,
                 revision=revision,
                 cache_dir=cache_dir,
                 force_download=force_download,
-                use_auth_token=use_auth_token,
+                token=token,
                 subfolder=subfolder,
                 trust_remote_code=trust_remote_code,
             )
@@ -245,7 +258,7 @@ class OptimizedModel(PreTrainedModel):
                     revision=revision,
                     cache_dir=cache_dir,
                     force_download=force_download,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     trust_remote_code=trust_remote_code,
                 )
                 logger.info(
@@ -261,6 +274,7 @@ class OptimizedModel(PreTrainedModel):
         model_id: Union[str, Path],
         config: PretrainedConfig,
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -277,6 +291,7 @@ class OptimizedModel(PreTrainedModel):
         model_id: Union[str, Path],
         config: PretrainedConfig,
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -297,6 +312,7 @@ class OptimizedModel(PreTrainedModel):
         model_id: Union[str, Path],
         config: PretrainedConfig,
         use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -317,7 +333,8 @@ class OptimizedModel(PreTrainedModel):
         model_id: Union[str, Path],
         export: bool = False,
         force_download: bool = False,
-        use_auth_token: Optional[str] = None,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         config: Optional[PretrainedConfig] = None,
@@ -330,6 +347,16 @@ class OptimizedModel(PreTrainedModel):
         Returns:
             `OptimizedModel`: The loaded optimized model.
         """
+
+        if use_auth_token is not None:
+            warnings.warn(
+                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                FutureWarning,
+            )
+            if token is not None:
+                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+            token = use_auth_token
+
         if isinstance(model_id, Path):
             model_id = model_id.as_posix()
 
@@ -347,9 +374,7 @@ class OptimizedModel(PreTrainedModel):
                 )
             model_id, revision = model_id.split("@")
 
-        library_name = TasksManager.infer_library_from_model(
-            model_id, subfolder, revision, cache_dir, use_auth_token=use_auth_token
-        )
+        library_name = TasksManager.infer_library_from_model(model_id, subfolder, revision, cache_dir, token=token)
 
         if library_name == "timm":
             config = PretrainedConfig.from_pretrained(model_id, subfolder, revision)
@@ -374,7 +399,7 @@ class OptimizedModel(PreTrainedModel):
                     model_id,
                     revision=revision,
                     cache_dir=cache_dir,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     force_download=force_download,
                     subfolder=subfolder,
                     trust_remote_code=trust_remote_code,
@@ -384,18 +409,11 @@ class OptimizedModel(PreTrainedModel):
                 config,
                 revision=revision,
                 cache_dir=cache_dir,
-                use_auth_token=use_auth_token,
+                token=token,
                 force_download=force_download,
                 subfolder=subfolder,
                 trust_remote_code=trust_remote_code,
             )
-
-        if not export and trust_remote_code:
-            logger.warning(
-                "The argument `trust_remote_code` is to be used along with export=True. It will be ignored."
-            )
-        elif export and trust_remote_code is None:
-            trust_remote_code = False
 
         from_pretrained_method = cls._from_transformers if export else cls._from_pretrained
 
@@ -405,7 +423,7 @@ class OptimizedModel(PreTrainedModel):
             revision=revision,
             cache_dir=cache_dir,
             force_download=force_download,
-            use_auth_token=use_auth_token,
+            token=token,
             subfolder=subfolder,
             local_files_only=local_files_only,
             trust_remote_code=trust_remote_code,
