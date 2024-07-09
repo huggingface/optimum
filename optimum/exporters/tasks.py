@@ -1154,6 +1154,7 @@ class TasksManager:
         "vae-decoder",
         "clip-text-model",
         "clip-text-with-projection",
+        "trocr",  # supported through the vision-encoder-decoder model type
     }
     _SUPPORTED_CLI_MODEL_TYPE = (
         set(_SUPPORTED_MODEL_TYPE.keys())
@@ -1581,14 +1582,23 @@ class TasksManager:
         model: Optional[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]] = None,
         model_class: Optional[Type[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]]] = None,
     ) -> str:
+        inferred_task_name = None
+
         if model is not None and model_class is not None:
             raise ValueError("Either a model or a model class must be provided, but both were given here.")
-
         if model is None and model_class is None:
             raise ValueError("Either a model or a model class must be provided, but none were given here.")
 
         target_name = model.__class__.__name__ if model is not None else model_class.__name__
-        inferred_task_name = None
+
+        # diffusers
+        for task_name in cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP:
+            for model_type in cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name]:
+                model_loader = cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name][model_type]
+                if target_name == model_loader:
+                    inferred_task_name = task_name
+                    break
+
         iterable = ()
         for _, model_loader in cls._LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP.items():
             iterable += (model_loader.items(),)
@@ -1597,10 +1607,10 @@ class TasksManager:
 
         pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
         tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
-        for auto_cls_name, task in itertools.chain.from_iterable(iterable):
+        for auto_cls_name, task_name in itertools.chain.from_iterable(iterable):
             if any((target_name.startswith("Auto"), target_name.startswith("TFAuto"))):
                 if target_name == auto_cls_name:
-                    inferred_task_name = task
+                    inferred_task_name = task_name
                     break
                 continue
 
@@ -1613,15 +1623,8 @@ class TasksManager:
                 continue
             model_mapping = auto_cls._model_mapping._model_mapping
             if target_name in model_mapping.values():
-                inferred_task_name = task
+                inferred_task_name = task_name
                 break
-
-        for task_name in cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP:
-            for model_type in cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name]:
-                model_loader = cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name][model_type]
-                if target_name == model_loader:
-                    inferred_task_name = task_name
-                    break
 
         if inferred_task_name is None:
             raise ValueError(
