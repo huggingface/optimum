@@ -246,7 +246,7 @@ class TasksManager:
             "zero-shot-object-detection": "TFAutoModelForZeroShotObjectDetection",
         }
 
-        _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADERS_MAP = {
+        _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {
             "transformers": _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS,
         }
 
