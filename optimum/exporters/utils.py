@@ -105,15 +105,11 @@ def _get_submodels_for_export_stable_diffusion(
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
     vae_encoder = copy.deepcopy(pipeline.vae)
-    if not is_torch_greater_or_equal_than_2_1:
-        vae_encoder = override_diffusers_2_0_attn_processors(vae_encoder)
     vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample)["latent_dist"].sample()}
     models_for_export["vae_encoder"] = vae_encoder
 
     # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
     vae_decoder = copy.deepcopy(pipeline.vae)
-    if not is_torch_greater_or_equal_than_2_1:
-        vae_decoder = override_diffusers_2_0_attn_processors(vae_decoder)
     vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
     models_for_export["vae_decoder"] = vae_decoder
 
@@ -480,28 +476,6 @@ def get_speecht5_models_for_export(
     )
 
     return models_for_export
-
-
-def override_diffusers_2_0_attn_processors(model):
-    for _, submodule in model.named_modules():
-        if isinstance(submodule, Attention):
-            if isinstance(submodule.processor, AttnProcessor2_0):
-                submodule.set_processor(AttnProcessor())
-            elif isinstance(submodule.processor, LoRAAttnProcessor2_0):
-                lora_attn_processor = LoRAAttnProcessor(
-                    hidden_size=submodule.processor.hidden_size,
-                    cross_attention_dim=submodule.processor.cross_attention_dim,
-                    rank=submodule.processor.rank,
-                    network_alpha=submodule.processor.to_q_lora.network_alpha,
-                )
-                lora_attn_processor.to_q_lora = copy.deepcopy(submodule.processor.to_q_lora)
-                lora_attn_processor.to_k_lora = copy.deepcopy(submodule.processor.to_k_lora)
-                lora_attn_processor.to_v_lora = copy.deepcopy(submodule.processor.to_v_lora)
-                lora_attn_processor.to_out_lora = copy.deepcopy(submodule.processor.to_out_lora)
-                submodule.set_processor(lora_attn_processor)
-            elif isinstance(submodule.processor, AttnAddedKVProcessor2_0):
-                submodule.set_processor(AttnAddedKVProcessor())
-    return model
 
 
 def _get_submodels_and_export_configs(
