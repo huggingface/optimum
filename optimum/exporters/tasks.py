@@ -249,7 +249,6 @@ class TasksManager:
             "text-classification": "TFAutoModelForSequenceClassification",
             "token-classification": "TFAutoModelForTokenClassification",
             "multiple-choice": "TFAutoModelForMultipleChoice",
-            "object-detection": "TFAutoModelForObjectDetection",
             "question-answering": "TFAutoModelForQuestionAnswering",
             "image-segmentation": "TFAutoModelForImageSegmentation",
             "masked-im": "TFAutoModelForMaskedImageModeling",
@@ -290,11 +289,9 @@ class TasksManager:
 
         for task_name in _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS:
             pipeline_mapping = _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS[task_name]
-            if isinstance(pipeline_mapping, dict):
-                _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS[task_name] = {
-                    pipeline_name: pipeline_class.__name__
-                    for pipeline_name, pipeline_class in pipeline_mapping.items()
-                }
+            _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS[task_name] = {
+                pipeline_name: pipeline_class.__name__ for pipeline_name, pipeline_class in pipeline_mapping.items()
+            }
 
     _SYNONYM_TASK_MAP = {
         "audio-ctc": "automatic-speech-recognition",
@@ -1655,11 +1652,17 @@ class TasksManager:
                         break
         elif target_class_module.startswith("transformers"):
             # transformers models
-            for task_name, model_loader_class_name in cls._TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS.items():
-                for model_type, model_class_name in model_loader_class_name.items():
-                    if target_class_name == model_class_name:
-                        inferred_task_name = task_name
-                        break
+            for task_name, model_loader_class_names in (
+                cls._TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS.items()
+                + cls._TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS.items()
+            ):
+                if isinstance(model_loader_class_names, str):
+                    model_loader_class_names = (model_loader_class_names,)
+                for model_loader_class_name in model_loader_class_names:
+                    for model_type, model_class_name in model_loader_class_name.items():
+                        if target_class_name == model_class_name:
+                            inferred_task_name = task_name
+                            break
 
         if inferred_task_name is None:
             raise ValueError(
