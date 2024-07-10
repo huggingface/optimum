@@ -46,6 +46,8 @@ if is_diffusers_available():
 
     from diffusers import (
         DiffusionPipeline,
+        LatentConsistencyModelImg2ImgPipeline,
+        LatentConsistencyModelPipeline,
         StableDiffusionImg2ImgPipeline,
         StableDiffusionInpaintPipeline,
         StableDiffusionPipeline,
@@ -96,10 +98,15 @@ def _get_submodels_for_export_diffusion(
     is_stable_diffusion_xl = isinstance(
         pipeline, (StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline, StableDiffusionXLPipeline)
     )
+    is_latent_consistency_model = isinstance(
+        pipeline, (LatentConsistencyModelPipeline, LatentConsistencyModelImg2ImgPipeline)
+    )
 
     if is_stable_diffusion_xl:
         projection_dim = pipeline.text_encoder_2.config.projection_dim
     elif is_stable_diffusion:
+        projection_dim = pipeline.text_encoder.config.projection_dim
+    elif is_latent_consistency_model:
         projection_dim = pipeline.text_encoder.config.projection_dim
     else:
         raise ValueError(
