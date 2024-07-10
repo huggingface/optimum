@@ -1631,18 +1631,27 @@ class TasksManager:
         target_class_name = model.__class__.__name__ if model is not None else model_class.__name__
         target_class_module = model.__class__.__module__ if model is not None else model_class.__module__
 
+        print(target_class_name)
+        print(target_class_module)
+
         if target_class_name.startswith("AutoModel"):
             # transfromers models (auto)
-            for task_name, model_loader_class_name in cls._TRANSFORMERS_TASKS_TO_MODEL_LOADERS.items():
-                if target_class_name == model_loader_class_name:
-                    inferred_task_name = task_name
-                    break
+            for task_name, model_loader_class_names in cls._TRANSFORMERS_TASKS_TO_MODEL_LOADERS.items():
+                if isinstance(model_loader_class_names, str):
+                    model_loader_class_names = (model_loader_class_names,)
+                for model_loader_class_name in model_loader_class_names:
+                    if target_class_name == model_loader_class_name:
+                        inferred_task_name = task_name
+                        break
         elif target_class_name.startswith("TFAutoModel"):
             # transformers models (tf auto)
             for task_name, model_loader_class_name in cls._TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS.items():
-                if target_class_name == model_loader_class_name:
-                    inferred_task_name = task_name
-                    break
+                if isinstance(model_loader_class_names, str):
+                    model_loader_class_names = (model_loader_class_names,)
+                for model_loader_class_name in model_loader_class_names:
+                    if target_class_name == model_loader_class_name:
+                        inferred_task_name = task_name
+                        break
         elif target_class_name.startswith("AutoPipeline"):
             # diffusers pipelines (auto)
             for task_name, model_loader_class_name in cls._DIFFUSERS_TASKS_TO_MODEL_LOADERS.items():
