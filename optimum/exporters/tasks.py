@@ -228,14 +228,16 @@ class TasksManager:
             if isinstance(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS[task_name], tuple):
                 _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS[task_name] = []
                 for model_loader_name in _TRANSFORMERS_TASKS_TO_MODEL_LOADERS[task_name]:
-                    model_loader_class = getattr(auto_modeling_module, model_loader_name)
-                    _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS[task_name].append(
-                        model_loader_class._model_mapping._model_mapping
-                    )
+                    model_loader_class = getattr(auto_modeling_module, model_loader_name, None)
+                    if model_loader_class is not None:
+                        _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS[task_name].append(
+                            model_loader_class._model_mapping._model_mapping
+                        )
             elif isinstance(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS[task_name], str):
                 model_loader_name = _TRANSFORMERS_TASKS_TO_MODEL_LOADERS[task_name]
-                model_loader_class = getattr(auto_modeling_module, model_loader_name)
-                _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS[task_name] = model_loader_class._model_mapping._model_mapping
+                model_loader_class = getattr(auto_modeling_module, model_loader_name, None)
+                if model_loader_class is not None:
+                    _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS[task_name] = model_loader_class._model_mapping._model_mapping
 
     if is_tf_available():
         _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {
@@ -271,14 +273,18 @@ class TasksManager:
             if isinstance(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS[task_name], tuple):
                 _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS[task_name] = []
                 for model_loader_name in _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS[task_name]:
-                    model_loader_class = getattr(tf_auto_modeling_module, model_loader_name)
-                    _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS[task_name].append(
-                        model_loader_class._model_mapping._model_mapping
-                    )
+                    model_loader_class = getattr(tf_auto_modeling_module, model_loader_name, None)
+                    if model_loader_class is not None:
+                        _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS[task_name].append(
+                            model_loader_class._model_mapping._model_mapping
+                        )
             elif isinstance(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS[task_name], str):
                 model_loader_name = _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS[task_name]
-                model_loader_class = getattr(tf_auto_modeling_module, model_loader_name)
-                _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS[task_name] = model_loader_class._model_mapping._model_mapping
+                model_loader_class = getattr(tf_auto_modeling_module, model_loader_name, None)
+                if model_loader_class is not None:
+                    _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS[
+                        task_name
+                    ] = model_loader_class._model_mapping._model_mapping
 
     if is_diffusers_available():
         _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS = {
