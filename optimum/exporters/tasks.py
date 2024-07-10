@@ -192,6 +192,7 @@ class TasksManager:
         _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
             "stable-diffusion": "StableDiffusionPipeline",
             "stable-diffusion-xl": "StableDiffusionXLImg2ImgPipeline",
+            "stable-diffusion-controlnet": "StableDiffusionPipeline",
         }
 
         _TIMM_TASKS_TO_MODEL_LOADERS = {
@@ -303,6 +304,10 @@ class TasksManager:
         "clip-text-with-projection": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPTextWithProjectionOnnxConfig",
+        ),
+        "unet-controlnet": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="UNetOnnxConfig",
         ),
         "unet": supported_tasks_mapping(
             "semantic-segmentation",
