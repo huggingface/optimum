@@ -15,7 +15,6 @@
 """Model export tasks manager."""
 
 import importlib
-import itertools
 import os
 import warnings
 from functools import partial
@@ -159,8 +158,12 @@ class TasksManager:
     _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {}
     _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {}
 
-    # Extra
-    _DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP = {}
+    # Torch model mappings
+    _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = {}
+    _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS = {}
+
+    # TF model mappings
+    _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS = {}
 
     if is_torch_available():
         # Refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
@@ -220,6 +223,20 @@ class TasksManager:
             "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
         }
 
+        auto_modeling_module = importlib.import_module("transformers.models.auto.modeling_auto")
+        for task_name in _TRANSFORMERS_TASKS_TO_MODEL_LOADERS:
+            if isinstance(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS[task_name], tuple):
+                _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS[task_name] = []
+                for model_loader_name in _TRANSFORMERS_TASKS_TO_MODEL_LOADERS[task_name]:
+                    model_loader_class = getattr(auto_modeling_module, model_loader_name)
+                    _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS[task_name].append(
+                        model_loader_class._model_mapping._model_mapping
+                    )
+            elif isinstance(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS[task_name], str):
+                model_loader_name = _TRANSFORMERS_TASKS_TO_MODEL_LOADERS[task_name]
+                model_loader_class = getattr(auto_modeling_module, model_loader_name)
+                _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS[task_name] = model_loader_class._model_mapping._model_mapping
+
     if is_tf_available():
         _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {
             "conversational": ("TFAutoModelForCausalLM", "TFAutoModelForSeq2SeqLM"),
@@ -250,15 +267,34 @@ class TasksManager:
             "transformers": _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS,
         }
 
+        tf_auto_modeling_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
+        for task_name in _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS:
+            if isinstance(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS[task_name], tuple):
+                _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS[task_name] = []
+                for model_loader_name in _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS[task_name]:
+                    model_loader_class = getattr(tf_auto_modeling_module, model_loader_name)
+                    _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS[task_name].append(
+                        model_loader_class._model_mapping._model_mapping
+                    )
+            elif isinstance(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS[task_name], str):
+                model_loader_name = _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS[task_name]
+                model_loader_class = getattr(tf_auto_modeling_module, model_loader_name)
+                _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS[task_name] = model_loader_class._model_mapping._model_mapping
+
     if is_diffusers_available():
-        for task_name, model_loaders_map in [
-            ("text-to-image", AUTO_TEXT2IMAGE_PIPELINES_MAPPING),
-            ("image-to-image", AUTO_IMAGE2IMAGE_PIPELINES_MAPPING),
-            ("inpainting", AUTO_INPAINT_PIPELINES_MAPPING),
-        ]:
-            _DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name] = {}
-            for model_type, model_loader in model_loaders_map.items():
-                _DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name][model_type] = model_loader.__name__
+        _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS = {
+            "text-to-image": AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+            "image-to-image": AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
+            "inpainting": AUTO_INPAINT_PIPELINES_MAPPING,
+        }
+
+        for task_name in _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS:
+            pipeline_mapping = _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS[task_name]
+            if isinstance(pipeline_mapping, dict):
+                _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS[task_name] = {
+                    pipeline_name: pipeline_class.__name__
+                    for pipeline_name, pipeline_class in pipeline_mapping.items()
+                }
 
     _SYNONYM_TASK_MAP = {
         "audio-ctc": "automatic-speech-recognition",
@@ -1589,42 +1625,41 @@ class TasksManager:
         if model is None and model_class is None:
             raise ValueError("Either a model or a model class must be provided, but none were given here.")
 
-        target_name = model.__class__.__name__ if model is not None else model_class.__name__
+        target_class_name = model.__class__.__name__ if model is not None else model_class.__name__
+        target_class_module = model.__class__.__module__ if model is not None else model_class.__module__
 
-        # diffusers
-        for task_name in cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP:
-            for model_type in cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name]:
-                model_loader = cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name][model_type]
-                if target_name == model_loader:
+        if target_class_name.startswith("AutoModel"):
+            # transfromers models (auto)
+            for task_name, model_loader_class_name in cls._TRANSFORMERS_TASKS_TO_MODEL_LOADERS.items():
+                if target_class_name == model_loader_class_name:
                     inferred_task_name = task_name
                     break
-
-        iterable = ()
-        for _, model_loader in cls._LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP.items():
-            iterable += (model_loader.items(),)
-        for _, model_loader in cls._LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP.items():
-            iterable += (model_loader.items(),)
-
-        pt_auto_module = importlib.import_module("transformers.models.auto.modeling_auto")
-        tf_auto_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
-        for auto_cls_name, task_name in itertools.chain.from_iterable(iterable):
-            if any((target_name.startswith("Auto"), target_name.startswith("TFAuto"))):
-                if target_name == auto_cls_name:
+        elif target_class_name.startswith("TFAutoModel"):
+            # transformers models (tf auto)
+            for task_name, model_loader_class_name in cls._TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS.items():
+                if target_class_name == model_loader_class_name:
                     inferred_task_name = task_name
                     break
-                continue
-
-            module = tf_auto_module if auto_cls_name.startswith("TF") else pt_auto_module
-            # getattr(module, auto_cls_name)._model_mapping is a _LazyMapping, it also has an attribute called
-            # "_model_mapping" that is what we want here: class names and not actual classes.
-            auto_cls = getattr(module, auto_cls_name, None)
-            # This is the case for DiffusionPipeline for instance.
-            if auto_cls is None:
-                continue
-            model_mapping = auto_cls._model_mapping._model_mapping
-            if target_name in model_mapping.values():
-                inferred_task_name = task_name
-                break
+        elif target_class_name.startswith("AutoPipeline"):
+            # diffusers pipelines (auto)
+            for task_name, model_loader_class_name in cls._DIFFUSERS_TASKS_TO_MODEL_LOADERS.items():
+                if target_class_name == model_loader_class_name:
+                    inferred_task_name = task_name
+                    break
+        elif target_class_module.startswith("diffusers"):
+            # diffusers pipelines
+            for task_name, pipeline_mapping in cls._DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS.items():
+                for pipeline_type, pipeline_class_name in pipeline_mapping.items():
+                    if target_class_name == pipeline_class_name:
+                        inferred_task_name = task_name
+                        break
+        elif target_class_module.startswith("transformers"):
+            # transformers models
+            for task_name, model_loader_class_name in cls._TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS.items():
+                for model_type, model_class_name in model_loader_class_name.items():
+                    if target_class_name == model_class_name:
+                        inferred_task_name = task_name
+                        break
 
         if inferred_task_name is None:
             raise ValueError(
@@ -1909,11 +1944,10 @@ class TasksManager:
 
         if library_name == "diffusers":
             inferred_model_type = None
-            for task_name in cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP:
-                for model_type in cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name]:
-                    model_loader = cls._DIFFUSERS_TASKS_TO_MODEL_TYPES_TO_MODEL_LOADERS_MAP[task_name][model_type]
-                    if model.__class__.__name__ == model_loader:
-                        inferred_model_type = model_type
+            for task_name, pipeline_mapping in cls._DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS.items():
+                for pipeline_type, pipeline_class_name in pipeline_mapping.items():
+                    if model.__class__.__name__ == pipeline_class_name:
+                        inferred_model_type = pipeline_type
                         break
 
             if inferred_model_type is None:
