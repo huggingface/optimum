@@ -448,6 +448,10 @@ class TasksManager:
             "zero-shot-image-classification",
             onnx="CLIPOnnxConfig",
         ),
+        "clip-vision-model": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="CLIPVisionModelOnnxConfig",
+        ),
         "codegen": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
