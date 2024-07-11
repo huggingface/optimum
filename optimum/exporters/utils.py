@@ -63,7 +63,7 @@ if TYPE_CHECKING:
         from transformers.modeling_tf_utils import TFPreTrainedModel
 
     if is_diffusers_available():
-        from diffusers import ModelMixin, StableDiffusionPipeline, StableDiffusionControlNetPipeline
+        from diffusers import ModelMixin, StableDiffusionPipeline
 
 
 ENCODER_NAME = "encoder_model"
@@ -123,6 +123,7 @@ def _get_submodels_for_export_stable_diffusion(
         models_for_export["text_encoder_2"] = text_encoder_2
 
     return models_for_export
+
 
 def _get_submodels_for_export_stable_diffusion_controlnet(
     pipeline: "StableDiffusionPipeline",
@@ -187,18 +188,20 @@ def _get_submodels_for_export_stable_diffusion_controlnet(
             sample.to(self.sample_dtype)
             timestep.to(self.timestep_dtype)
             encoder_hidden_states.to(self.encoder_hidden_states_dtype)
-            down_block_additional_residuals = [down_block_additional_residual_1.to(self.down_block_additional_residuals_dtype),
-                                               down_block_additional_residual_3.to(self.down_block_additional_residuals_dtype),
-                                               down_block_additional_residual_5.to(self.down_block_additional_residuals_dtype),
-                                               down_block_additional_residual_7.to(self.down_block_additional_residuals_dtype),
-                                               down_block_additional_residual_9.to(self.down_block_additional_residuals_dtype),
-                                               down_block_additional_residual_11.to(self.down_block_additional_residuals_dtype),
-                                               down_block_additional_residual_13.to(self.down_block_additional_residuals_dtype),
-                                               down_block_additional_residual_15.to(self.down_block_additional_residuals_dtype),
-                                               down_block_additional_residual_17.to(self.down_block_additional_residuals_dtype),
-                                               down_block_additional_residual_19.to(self.down_block_additional_residuals_dtype),
-                                               down_block_additional_residual_21.to(self.down_block_additional_residuals_dtype),
-                                               down_block_additional_residual.to(self.down_block_additional_residuals_dtype)]
+            down_block_additional_residuals = [
+                down_block_additional_residual_1.to(self.down_block_additional_residuals_dtype),
+                down_block_additional_residual_3.to(self.down_block_additional_residuals_dtype),
+                down_block_additional_residual_5.to(self.down_block_additional_residuals_dtype),
+                down_block_additional_residual_7.to(self.down_block_additional_residuals_dtype),
+                down_block_additional_residual_9.to(self.down_block_additional_residuals_dtype),
+                down_block_additional_residual_11.to(self.down_block_additional_residuals_dtype),
+                down_block_additional_residual_13.to(self.down_block_additional_residuals_dtype),
+                down_block_additional_residual_15.to(self.down_block_additional_residuals_dtype),
+                down_block_additional_residual_17.to(self.down_block_additional_residuals_dtype),
+                down_block_additional_residual_19.to(self.down_block_additional_residuals_dtype),
+                down_block_additional_residual_21.to(self.down_block_additional_residuals_dtype),
+                down_block_additional_residual.to(self.down_block_additional_residuals_dtype),
+            ]
             mid_block_additional_residual.to(self.mid_block_additional_residual_dtype)
             return self.unet(
                 sample,
@@ -207,8 +210,7 @@ def _get_submodels_for_export_stable_diffusion_controlnet(
                 down_block_additional_residuals=down_block_additional_residuals,
                 mid_block_additional_residual=mid_block_additional_residual,
             )
-        
-    
+
     is_torch_greater_or_equal_than_2_1 = version.parse(torch.__version__) >= version.parse("2.1.0")
     if not is_torch_greater_or_equal_than_2_1:
         pipeline.unet.set_attn_processor(AttnProcessor())
@@ -239,6 +241,7 @@ def _get_submodels_for_export_stable_diffusion_controlnet(
         models_for_export["text_encoder_2"] = text_encoder_2
 
     return models_for_export
+
 
 def _get_submodels_for_export_decoder(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
@@ -409,7 +412,7 @@ def get_stable_diffusion_models_for_export(
         )
         models_for_export["text_encoder"] = (models_for_export["text_encoder"], text_encoder_export_config)
 
-    # U-NET        
+    # U-NET
     export_config_constructor = TasksManager.get_exporter_config_constructor(
         model=pipeline.unet,
         exporter=exporter,
@@ -458,6 +461,7 @@ def get_stable_diffusion_models_for_export(
         models_for_export["text_encoder_2"] = (models_for_export["text_encoder_2"], export_config)
 
     return models_for_export
+
 
 def get_stable_diffusion_controlnet_models_for_export(
     pipeline: "StableDiffusionPipeline",
@@ -544,6 +548,7 @@ def get_stable_diffusion_controlnet_models_for_export(
         models_for_export["text_encoder_2"] = (models_for_export["text_encoder_2"], export_config)
 
     return models_for_export
+
 
 def get_musicgen_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"):
     models_for_export = {
