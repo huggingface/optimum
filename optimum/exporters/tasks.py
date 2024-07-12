@@ -1470,7 +1470,8 @@ class TasksManager:
             token = use_auth_token
 
         request_exception = None
-        full_model_path = Path(model_name_or_path) / subfolder
+        full_model_path = Path(model_name_or_path, subfolder)
+
         if full_model_path.is_dir():
             all_files = [
                 os.path.relpath(os.path.join(dirpath, file), full_model_path)
@@ -1490,23 +1491,18 @@ class TasksManager:
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
             except (RequestsConnectionError, OfflineModeIsEnabled) as e:
-                request_exception = e
-                object_id = model_name_or_path.replace("/", "--")
-                full_model_path = Path(cache_dir, f"models--{object_id}")
-                if full_model_path.is_dir():  # explore the cache first
-                    # Resolve refs (for instance to convert main to the associated commit sha)
-                    if revision is None:
-                        revision_file = Path(full_model_path, "refs", "main")
-                        revision = ""
-                        if revision_file.is_file():
-                            with open(revision_file) as f:
-                                revision = f.read()
-                    cached_path = Path(full_model_path, "snapshots", revision, subfolder)
+                snapshot_path = huggingface_hub.snapshot_download(
+                    repo_id=model_name_or_path, revision=revision, cache_dir=cache_dir, token=token
+                )
+                full_model_path = Path(snapshot_path, subfolder)
+                if full_model_path.is_dir():
                     all_files = [
-                        os.path.relpath(os.path.join(dirpath, file), cached_path)
-                        for dirpath, _, filenames in os.walk(cached_path)
+                        os.path.relpath(os.path.join(dirpath, file), full_model_path)
+                        for dirpath, _, filenames in os.walk(full_model_path)
                         for file in filenames
                     ]
+                else:
+                    request_exception = e
 
         return all_files, request_exception
 
