@@ -128,21 +128,6 @@ def supported_tasks_mapping(
     return mapping
 
 
-def get_model_loaders_to_tasks(tasks_to_model_loaders: Dict[str, Union[str, Tuple[str]]]) -> Dict[str, str]:
-    """
-    Reverses tasks_to_model_loaders while flattening the case where the same task maps to several
-    auto classes (e.g. automatic-speech-recognition).
-    """
-    model_loaders_to_tasks = {}
-    for task, model_loaders in tasks_to_model_loaders.items():
-        if isinstance(model_loaders, str):
-            model_loaders_to_tasks[model_loaders] = task
-        else:
-            model_loaders_to_tasks.update({model_loader_name: task for model_loader_name in model_loaders})
-
-    return model_loaders_to_tasks
-
-
 def get_diffusers_tasks_to_model_mapping():
     """task -> model mapping (model type -> model class)"""
 
@@ -178,6 +163,7 @@ def get_transformers_tasks_to_model_mapping(tasks_to_model_loader, framework="pt
         for model_loader in model_loaders:
             model_loader_class = getattr(auto_modeling_module, model_loader, None)
             if model_loader_class is not None:
+                # we can just update the model_type to model_class mapping since we only need one either way
                 tasks_to_model_mapping[task_name].update(model_loader_class._model_mapping._model_mapping)
 
     return tasks_to_model_mapping
@@ -218,7 +204,6 @@ class TasksManager:
             "audio-frame-classification": "AutoModelForAudioFrameClassification",
             "audio-xvector": "AutoModelForAudioXVector",
             "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
-            # "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
             "depth-estimation": "AutoModelForDepthEstimation",
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
@@ -272,7 +257,6 @@ class TasksManager:
 
     if is_tf_available():
         _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {
-            # "conversational": ("TFAutoModelForCausalLM", "TFAutoModelForSeq2SeqLM"),
             "document-question-answering": "TFAutoModelForDocumentQuestionAnswering",
             "feature-extraction": "TFAutoModel",
             "fill-mask": "TFAutoModelForMaskedLM",
@@ -325,17 +309,6 @@ class TasksManager:
         "stable-diffusion": "text-to-image",
         "stable-diffusion-xl": "text-to-image",
     }
-
-    # Reverse dictionaries str -> str, where several model loaders may map to the same task
-    # _LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP = {
-    #     "diffusers": get_model_loaders_to_tasks(_DIFFUSERS_TASKS_TO_MODEL_LOADERS),
-    #     "sentence_transformers": get_model_loaders_to_tasks(_SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
-    #     "timm": get_model_loaders_to_tasks(_TIMM_TASKS_TO_MODEL_LOADERS),
-    #     "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
-    # }
-    # _LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP = {
-    #     "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS),
-    # }
 
     _CUSTOM_CLASSES = {
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
