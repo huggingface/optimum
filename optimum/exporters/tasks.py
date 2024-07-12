@@ -305,7 +305,9 @@ class TasksManager:
         "vision2seq-lm": "image-to-text",
         "zero-shot-classification": "text-classification",
         "image-feature-extraction": "feature-extraction",
-        # for backward compatibility
+        # for backward compatibility and testing (where
+        # model task and model type are still the same)
+        "lcm": "text-to-image",
         "stable-diffusion": "text-to-image",
         "stable-diffusion-xl": "text-to-image",
     }
