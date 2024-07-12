@@ -145,6 +145,9 @@ def run_test_parameters_persist_bewteen_recompile(
     parameter_ids = {id(param) for _, param in model.named_parameters()}
     model(**another_inputs)
 
+    # check second compilation has been triggered
+    assert ctx.compile_times > 1
+
     parameter_ids_after_recompile = {id(param) for _, param in model.named_parameters()}
     assert parameter_ids == parameter_ids_after_recompile
 
@@ -236,7 +239,8 @@ def test_parameters_persist_bewteen_recompile(
 
 @parameterized.expand(DUMMY_MODELS_TO_TEST)
 @unittest.skipIf(
-    not is_gpu_available() or not is_torch_compile_available(), "requires gpu and torch version >= 2.3.0 to run"
+    not is_gpu_available() or not is_torch_compile_available() or NUM_AVAILABLE_DEVICES < 2,
+    "requires more than one gpu and torch version >= 2.3.0 to run",
 )
 def test_parallel_results_matches_non_parallel(
     model_cls,

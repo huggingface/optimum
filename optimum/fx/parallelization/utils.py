@@ -274,7 +274,10 @@ def initialize_parameter_meta(model: nn.Module) -> None:
             setattr(
                 tensor,
                 "meta",
-                ParameterMeta(dim=0, mapping={HashableSlice(None, None, None): ParameterSlice(source=name)}),
+                ParameterMeta(
+                    dim=0,
+                    mapping={HashableSlice(None, None, None): ParameterSlice(source=name, shape=tuple(tensor.shape))},
+                ),
             )
             parameter_ids.add(key)
         else:

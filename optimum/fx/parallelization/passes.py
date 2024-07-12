@@ -495,41 +495,42 @@ class InitializeOrLoadWeightsPass(PassBase):
             # skip already initialized parameters
             if not param_meta.need_initialize:
                 continue
+            # skip already initialized tied parameters
             if param_meta.is_tied and id(param) in tied_parameters:
                 new_parameters.append((name, tied_parameters[id(param)]))
                 continue
 
             shape = [
-                param.size(dim) // world_size if dim == param_meta.dim else param.size(dim)
+                param.size(dim) // world_size if dim == param_meta.dim and param_meta.is_parallel else param.size(dim)
                 for dim in range(param.ndim)
             ]
+
             new_param = nn.Parameter(
-                torch.randn(*shape, dtype=param.dtype, device=ctx.current_device), requires_grad=param.requires_grad
+                torch.zeros(*shape, dtype=param.dtype, device=ctx.current_device), requires_grad=param.requires_grad
             )
+
             for source, target in sorted(param_meta.mapping.items()):
                 if target.source in ctx.weight_map:
                     # TODO: add weights loading logic
                     continue
-                if tp_rank == 0:
+                if not param_meta.is_parallel or tp_rank == 0:
                     # initialize weight on master rank
-                    start = source.start if source.start else 0
-                    stop = source.stop if source.stop else start + param.size(param_meta.dim) // world_size
-                    shape = [
-                        (stop - start) * world_size if dim == param_meta.dim else param.size(dim)
-                        for dim in range(param.ndim)
-                    ]
-                    weight = torch.empty(*shape, dtype=param.dtype, device="cpu")
+                    weight = torch.empty(*target.shape, dtype=param.dtype, device="cpu")
                     init_fn = param_meta.init_fn if param_meta.init_fn else config.weight_init_fn
                     init_fn(weight)
                     weight = weight.to(ctx.current_device)
                 else:
                     weight = None
+                index = [
+                    source.to_slice() if dim == param_meta.dim else slice(None, None, None)
+                    for dim in range(param.ndim)
+                ]
                 with torch.no_grad():
-                    index = [
-                        source.to_slice() if dim == param_meta.dim else slice(None, None, None)
-                        for dim in range(param.ndim)
-                    ]
-                    scatter(ctx.tp_group, weight, new_param.data[index], scatter_dim=param_meta.dim)
+                    if param_meta.is_parallel:
+                        scatter(ctx.tp_group, weight, new_param.data[index], scatter_dim=param_meta.dim)
+                    else:
+                        new_param.data[index].copy_(weight)
+            setattr(new_param, "meta", param_meta)
 
             new_parameters.append((name, new_param))
             if param_meta.is_tied:
@@ -583,7 +584,7 @@ class PassPipeline:
     ):
         return self._passes.__iter__()
 
-    def append(self, PASS: PassBase):
+    def append(self, PASS: PassBase) -> None:
         self._passes.append(PASS)
 
     def __call__(self, graph_module: GraphModule, ctx: ParallelExecutionCtx, config: Config) -> GraphModule:

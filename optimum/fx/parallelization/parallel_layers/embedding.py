@@ -12,9 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from functools import partial
-from typing import Callable
-
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -30,17 +27,11 @@ class VocabParallelEmbedding(nn.Module):
     Embedding layer parallelized in vocabulary dimension.
 
     Arguments:
-        ctx: parallel execution context which contains runtime information.
-        embedding: the original embedding module being replaced.
-        init_fn: weight initialization function.
+        ctx(`ParallelExecutionCtx`): parallel execution context which contains runtime information.
+        embedding(`torch.nn.Embedding`): the original embedding module being replaced.
     """
 
-    def __init__(
-        self,
-        ctx: ParallelExecutionCtx,
-        embedding: nn.Embedding,
-        init_fn: Callable[[torch.Tensor], torch.Tensor] = partial(nn.init.normal_, mean=0, std=0.02),
-    ):
+    def __init__(self, ctx: ParallelExecutionCtx, embedding: nn.Embedding):
         super(VocabParallelEmbedding, self).__init__()
         self.process_group = ctx.tp_group
         world_size = dist.get_world_size(self.process_group)
@@ -66,8 +57,8 @@ class VocabParallelEmbedding(nn.Module):
             assert weight_meta.is_tied, "only tied parameters could already have modified meta"
         else:
             weight_meta.need_initialize = True
+            weight_meta.is_parallel = True
             weight_meta.dim = 0
-            weight_meta.init_fn = init_fn
             for _, Slice in weight_meta.mapping.items():
                 Slice.index = slice(self.vocab_start_idx, self.vocab_end_idx)
             weight_meta.is_modified_meta = True

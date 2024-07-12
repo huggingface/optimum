@@ -31,22 +31,19 @@ def all_gather(group: dist.ProcessGroup, tensor: torch.Tensor, gather_dim: int =
     world_size = dist.get_world_size(group)
     if world_size == 1:
         return tensor
-    rank = dist.get_rank(group=group)
-
-    tensor = tensor.contiguous()
     gather_dim = (gather_dim + tensor.ndim) % tensor.ndim
-    shape = tuple(
-        tensor.size(dim) * world_size if dim == gather_dim else tensor.size(dim) for dim in range(tensor.ndim)
-    )
-    index = [
-        slice(rank * tensor.size(dim), (rank + 1) * tensor.size(dim), None)
-        if dim == gather_dim
-        else slice(None, None, None)
-        for dim in range(tensor.ndim)
-    ]
+    shape = [tensor.size(dim) * world_size if dim == gather_dim else tensor.size(dim) for dim in range(tensor.ndim)]
+    if gather_dim != 0:
+        shape[0], shape[gather_dim] = shape[gather_dim], shape[0]
     tensors = torch.empty(*shape, dtype=tensor.dtype, device=tensor.device)
-    tensors[index] = tensor
+
+    if gather_dim != 0:
+        tensor = tensor.transpose(0, gather_dim)
+    tensor = tensor.contiguous()
+
     dist.all_gather_into_tensor(tensors, tensor, group=group)
+    if gather_dim != 0:
+        tensors = tensors.transpose(0, gather_dim).contiguous()
     return tensors
 
 
@@ -69,6 +66,7 @@ def scatter(
 ) -> torch.Tensor:
     world_size = dist.get_world_size(group)
     if world_size == 1:
+        output_tensor.copy_(tensor)
         return tensor
 
     rank = dist.get_rank(group)

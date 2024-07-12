@@ -14,7 +14,7 @@
 # limitations under the License.
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import torch
 import torch.distributed as dist
@@ -49,16 +49,20 @@ class ParameterSlice:
     along a specific axis (the potential parallel axis) right now.
 
     Attributes:
-        - source (`Optional[str]`):
+        - source (`Optional[str]`, defaults to `None`):
             Original parameter name which can be found in the weight dict.
 
-        - index (`Optional[slice]`):
+        - shape (`Optional[Tuple]`, defaults to `None`):
+            Shape of parameter tensor corresponding to `source`.
+
+        - index (`slice`, defaults to `slice(None, None, None)`):
             Index to slice the tensor on the parallel axis. Assume tensor in weight dict has the same
             layout as their correspondings in memory.
     """
 
     source: Optional[str] = None
-    index: Optional[slice] = None
+    shape: Optional[Tuple] = None
+    index: slice = slice(None, None, None)
 
 
 @dataclass
@@ -70,23 +74,27 @@ class ParameterMeta:
         - is_tied (`bool`, defaults to `False`):
             Whether the parameter is shared accross multiple modules.
 
+        - is_parallel (`bool`, defaults to `False`):
+            Whether the parameter needs to be parallelized.
+
         - is_modified_meta (`bool`, defaults to `False`):
             Whether the meta has already been modified since initialization.
 
         - need_initialize (`bool`, defaults to `False`):
             Whether need to manually initialize weights if not provided in weight map.
 
-        - init_fn (`Optional[Callable]`):
+        - init_fn (`Optional[Callable]`, defaults to `None`):
             Initialization function, can override `weight_init_fn` in `Config` if not None.
 
         - dim (`int`, defaults to `0`):
-            Axis on which `mapping` is based.
+            Axis on which `mapping` is based, also the parallel axis if `is_parallel`.
 
         - mapping (`Dict[HashableSlice, ParameterSlice]`):
             Mapping between the current parameter and weight tensor stored in weight map.
     """
 
     is_tied: bool = False
+    is_parallel: bool = False
     is_modified_meta: bool = False
     need_initialize: bool = False
     init_fn: Optional[Callable] = None

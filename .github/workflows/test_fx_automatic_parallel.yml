@@ -1,0 +1,63 @@
+name: Automatic Model Parallelism Test on GPUs
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'optimum/fx/parallelization/**.py'
+  push:
+    branches:
+      - main
+    paths:
+      - 'optimum/fx/parallelization/**.py'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  run_gpu_tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: GPU-enabled Optimum Test Suite
+            image: nvidia/cuda:12.4.1-devel-ubuntu22.04
+        gpu_target: ["nvidia-multi-gpu-l4-runners", "nvidia-multi-gpu-a10-runners"]
+
+    name: ${{ matrix.config.name }}
+    runs-on:
+      group: "${{matrix.gpu_target}}"
+
+    container:
+      image: ${{ matrix.config.image }}
+      options: --mount type=tmpfs,destination=/tmp --shm-size 64gb --gpus all --ipc host -v /mnt/hf_cache:/mnt/cache/
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Checkout optimum
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run nvidia-smi
+        run: |
+          nvidia-smi
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install -U pip
+          python3 -m pip install torch transformers
+          python3 -m pip install .[tests]
+
+      - name: Run automatic model parallelism tests
+        run: |
+          pytest -s -v -o log_cli=true tests/fx/parallelization
