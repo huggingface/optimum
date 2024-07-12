@@ -143,6 +143,49 @@ def get_model_loaders_to_tasks(tasks_to_model_loaders: Dict[str, Union[str, Tupl
     return model_loaders_to_tasks
 
 
+def get_diffusers_tasks_to_model_mapping():
+    """task -> model mapping (model type -> model class)"""
+
+    tasks_to_model_mapping = {}
+
+    for task_name, model_mapping in (
+        ("text-to-image", AUTO_TEXT2IMAGE_PIPELINES_MAPPING),
+        ("image-to-image", AUTO_IMAGE2IMAGE_PIPELINES_MAPPING),
+        ("inpainting", AUTO_INPAINT_PIPELINES_MAPPING),
+    ):
+        tasks_to_model_mapping[task_name] = {}
+
+        for model_type, model_class in model_mapping.items():
+            tasks_to_model_mapping[task_name][model_type] = model_class.__name__
+
+    return tasks_to_model_mapping
+
+
+def get_transformers_tasks_to_model_mapping(tasks_to_model_loader, framework="pt"):
+    """task -> model mapping (model type -> model class)"""
+
+    if framework == "pt":
+        auto_modeling_module = importlib.import_module("transformers.models.auto.modeling_auto")
+    elif framework == "tf":
+        auto_modeling_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
+
+    tasks_to_model_mapping = {}
+    for task_name, model_loaders in tasks_to_model_loader.items():
+        if isinstance(model_loaders, str):
+            model_loaders = (model_loaders,)
+
+        tasks_to_model_mapping[task_name] = {}
+        for model_loader in model_loaders:
+            tasks_to_model_mapping[task_name][model_loader] = {}
+            model_loader_class = getattr(auto_modeling_module, model_loader, None)
+            if model_loader_class is not None:
+                tasks_to_model_mapping[task_name][model_loader].update(
+                    model_loader_class._model_mapping._model_mapping
+                )
+
+    return tasks_to_model_mapping
+
+
 class TasksManager:
     """
     Handles the `task name -> model class` and `architecture -> configuration` mappings.
@@ -154,16 +197,16 @@ class TasksManager:
     _TIMM_TASKS_TO_MODEL_LOADERS = {}
     _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {}
 
+    # Torch model mappings
+    _TRANSFORMERS_TASKS_TO_MODEL_MAPPING = {}
+    _DIFFUSERS_TASKS_TO_MODEL_MAPPING = {}
+
     # TF model loaders
     _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {}
     _LIBRARY_TO_TF_TASKS_TO_MODEL_LOADER_MAP = {}
 
-    # Torch model mappings
-    _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = {}
-    _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS = {}
-
     # TF model mappings
-    _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS = {}
+    _TRANSFORMERS_TASKS_TO_MODEL_MAPPING = {}
 
     if is_torch_available():
         # Refer to https://huggingface.co/datasets/huggingface/transformers-metadata/blob/main/pipeline_tags.json
@@ -178,7 +221,7 @@ class TasksManager:
             "audio-frame-classification": "AutoModelForAudioFrameClassification",
             "audio-xvector": "AutoModelForAudioXVector",
             "automatic-speech-recognition": ("AutoModelForSpeechSeq2Seq", "AutoModelForCTC"),
-            "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
+            # "conversational": ("AutoModelForCausalLM", "AutoModelForSeq2SeqLM"),
             "depth-estimation": "AutoModelForDepthEstimation",
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
@@ -201,11 +244,9 @@ class TasksManager:
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
 
-        _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
-            "image-to-image": "AutoPipelineForImage2Image",
-            "inpainting": "AutoPipelineForInpainting",
-            "text-to-image": "AutoPipelineForText2Image",
-        }
+        _TRANSFORMERS_TASKS_TO_MODEL_MAPPING = get_transformers_tasks_to_model_mapping(
+            _TRANSFORMERS_TASKS_TO_MODEL_LOADERS, framework="pt"
+        )
 
         _TIMM_TASKS_TO_MODEL_LOADERS = {
             "image-classification": "create_model",
@@ -216,6 +257,15 @@ class TasksManager:
             "sentence-similarity": "SentenceTransformer",
         }
 
+        if is_diffusers_available():
+            _DIFFUSERS_TASKS_TO_MODEL_LOADERS = {
+                "image-to-image": "AutoPipelineForImage2Image",
+                "inpainting": "AutoPipelineForInpainting",
+                "text-to-image": "AutoPipelineForText2Image",
+            }
+
+            _DIFFUSERS_TASKS_TO_MODEL_MAPPING = get_diffusers_tasks_to_model_mapping()
+
         _LIBRARY_TO_TASKS_TO_MODEL_LOADER_MAP = {
             "diffusers": _DIFFUSERS_TASKS_TO_MODEL_LOADERS,
             "sentence_transformers": _SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
@@ -223,25 +273,9 @@ class TasksManager:
             "transformers": _TRANSFORMERS_TASKS_TO_MODEL_LOADERS,
         }
 
-        auto_modeling_module = importlib.import_module("transformers.models.auto.modeling_auto")
-        for task_name in _TRANSFORMERS_TASKS_TO_MODEL_LOADERS:
-            if isinstance(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS[task_name], tuple):
-                _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS[task_name] = []
-                for model_loader_name in _TRANSFORMERS_TASKS_TO_MODEL_LOADERS[task_name]:
-                    model_loader_class = getattr(auto_modeling_module, model_loader_name, None)
-                    if model_loader_class is not None:
-                        _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS[task_name].append(
-                            model_loader_class._model_mapping._model_mapping
-                        )
-            elif isinstance(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS[task_name], str):
-                model_loader_name = _TRANSFORMERS_TASKS_TO_MODEL_LOADERS[task_name]
-                model_loader_class = getattr(auto_modeling_module, model_loader_name, None)
-                if model_loader_class is not None:
-                    _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS[task_name] = model_loader_class._model_mapping._model_mapping
-
     if is_tf_available():
         _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS = {
-            "conversational": ("TFAutoModelForCausalLM", "TFAutoModelForSeq2SeqLM"),
+            # "conversational": ("TFAutoModelForCausalLM", "TFAutoModelForSeq2SeqLM"),
             "document-question-answering": "TFAutoModelForDocumentQuestionAnswering",
             "feature-extraction": "TFAutoModel",
             "fill-mask": "TFAutoModelForMaskedLM",
@@ -257,8 +291,6 @@ class TasksManager:
             "semantic-segmentation": "TFAutoModelForSemanticSegmentation",
             "automatic-speech-recognition": "TFAutoModelForSpeechSeq2Seq",
             "audio-classification": "TFAutoModelForAudioClassification",
-            "audio-frame-classification": "TFAutoModelForAudioFrameClassification",
-            "audio-xvector": "TFAutoModelForAudioXVector",
             "image-to-text": "TFAutoModelForVision2Seq",
             "zero-shot-image-classification": "TFAutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "TFAutoModelForZeroShotObjectDetection",
@@ -268,36 +300,9 @@ class TasksManager:
             "transformers": _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS,
         }
 
-        tf_auto_modeling_module = importlib.import_module("transformers.models.auto.modeling_tf_auto")
-        for task_name in _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS:
-            if isinstance(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS[task_name], tuple):
-                _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS[task_name] = []
-                for model_loader_name in _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS[task_name]:
-                    model_loader_class = getattr(tf_auto_modeling_module, model_loader_name, None)
-                    if model_loader_class is not None:
-                        _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS[task_name].append(
-                            model_loader_class._model_mapping._model_mapping
-                        )
-            elif isinstance(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS[task_name], str):
-                model_loader_name = _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS[task_name]
-                model_loader_class = getattr(tf_auto_modeling_module, model_loader_name, None)
-                if model_loader_class is not None:
-                    _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS[
-                        task_name
-                    ] = model_loader_class._model_mapping._model_mapping
-
-    if is_diffusers_available():
-        _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS = {
-            "text-to-image": AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
-            "image-to-image": AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
-            "inpainting": AUTO_INPAINT_PIPELINES_MAPPING,
-        }
-
-        for task_name in _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS:
-            pipeline_mapping = _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS[task_name]
-            _DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS[task_name] = {
-                pipeline_name: pipeline_class.__name__ for pipeline_name, pipeline_class in pipeline_mapping.items()
-            }
+        _TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPING = get_transformers_tasks_to_model_mapping(
+            _TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS, framework="tf"
+        )
 
     _SYNONYM_TASK_MAP = {
         "audio-ctc": "automatic-speech-recognition",
@@ -325,15 +330,15 @@ class TasksManager:
     }
 
     # Reverse dictionaries str -> str, where several model loaders may map to the same task
-    _LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP = {
-        "diffusers": get_model_loaders_to_tasks(_DIFFUSERS_TASKS_TO_MODEL_LOADERS),
-        "sentence_transformers": get_model_loaders_to_tasks(_SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
-        "timm": get_model_loaders_to_tasks(_TIMM_TASKS_TO_MODEL_LOADERS),
-        "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
-    }
-    _LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP = {
-        "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS),
-    }
+    # _LIBRARY_TO_MODEL_LOADERS_TO_TASKS_MAP = {
+    #     "diffusers": get_model_loaders_to_tasks(_DIFFUSERS_TASKS_TO_MODEL_LOADERS),
+    #     "sentence_transformers": get_model_loaders_to_tasks(_SENTENCE_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
+    #     "timm": get_model_loaders_to_tasks(_TIMM_TASKS_TO_MODEL_LOADERS),
+    #     "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_MODEL_LOADERS),
+    # }
+    # _LIBRARY_TO_TF_MODEL_LOADERS_TO_TASKS_MAP = {
+    #     "transformers": get_model_loaders_to_tasks(_TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS),
+    # }
 
     _CUSTOM_CLASSES = {
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
@@ -1631,51 +1636,40 @@ class TasksManager:
         target_class_name = model.__class__.__name__ if model is not None else model_class.__name__
         target_class_module = model.__class__.__module__ if model is not None else model_class.__module__
 
+        # using TASKS_TO_MODEL_LOADERS to infer the task name
+        tasks_to_model_loaders = None
+
         if target_class_name.startswith("AutoModel"):
-            # transfromers models (auto)
-            for task_name, model_loader_class_names in cls._TRANSFORMERS_TASKS_TO_MODEL_LOADERS.items():
-                if isinstance(model_loader_class_names, str):
-                    model_loader_class_names = (model_loader_class_names,)
-                for model_loader_class_name in model_loader_class_names:
-                    if target_class_name == model_loader_class_name:
-                        inferred_task_name = task_name
-                        break
+            tasks_to_model_loaders = cls._TRANSFORMERS_TASKS_TO_MODEL_LOADERS
         elif target_class_name.startswith("TFAutoModel"):
-            # transformers models (tf auto)
-            for task_name, model_loader_class_name in cls._TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS.items():
-                if isinstance(model_loader_class_names, str):
-                    model_loader_class_names = (model_loader_class_names,)
-                for model_loader_class_name in model_loader_class_names:
-                    if target_class_name == model_loader_class_name:
-                        inferred_task_name = task_name
-                        break
+            tasks_to_model_loaders = cls._TRANSFORMERS_TASKS_TO_TF_MODEL_LOADERS
         elif target_class_name.startswith("AutoPipeline"):
-            # diffusers pipelines (auto)
-            for task_name, model_loader_class_name in cls._DIFFUSERS_TASKS_TO_MODEL_LOADERS.items():
-                if target_class_name == model_loader_class_name:
-                    inferred_task_name = task_name
-                    break
-        elif target_class_module.startswith("diffusers"):
-            # diffusers pipelines
-            for task_name, pipeline_mapping in cls._DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS.items():
-                for pipeline_type, pipeline_class_name in pipeline_mapping.items():
-                    if target_class_name == pipeline_class_name:
-                        inferred_task_name = task_name
-                        break
-        elif target_class_module.startswith("transformers"):
-            # transformers models
+            tasks_to_model_loaders = cls._DIFFUSERS_TASKS_TO_MODEL_LOADERS
+
+        if tasks_to_model_loaders is not None:
+            for task_name, model_loaders in tasks_to_model_loaders.items():
+                if isinstance(model_loaders, str):
+                    model_loaders = (model_loaders,)
+                for model_loader_class_name in model_loaders:
+                    if target_class_name == model_loader_class_name:
+                        return task_name
+
+        # using TASKS_TO_MODEL_MAPPING to infer the task name
+        tasks_to_model_mapping = None
+
+        if target_class_module.startswith("transformers"):
             if target_class_name.startswith("TF"):
-                task_name_to_model_mappings = cls._TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPINGS
+                tasks_to_model_mapping = cls._TRANSFORMERS_TASKS_TO_TF_MODEL_MAPPING
             else:
-                task_name_to_model_mappings = cls._TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS
-            for task_name, model_mappings in task_name_to_model_mappings.items():
-                if isinstance(model_mappings, dict):
-                    model_mappings = (model_mappings,)
-                for model_mapping in model_mappings:
-                    for model_type, model_class_name in model_mapping.items():
-                        if target_class_name == model_class_name:
-                            inferred_task_name = task_name
-                            break
+                tasks_to_model_mapping = cls._TRANSFORMERS_TASKS_TO_MODEL_MAPPING
+        elif target_class_module.startswith("diffusers"):
+            tasks_to_model_mapping = cls._DIFFUSERS_TASKS_TO_MODEL_MAPPING
+
+        if tasks_to_model_mapping is not None:
+            for task_name, model_mapping in tasks_to_model_mapping.items():
+                for model_type, model_class_name in model_mapping.items():
+                    if target_class_name == model_class_name:
+                        return task_name
 
         if inferred_task_name is None:
             raise ValueError(
@@ -1803,17 +1797,11 @@ class TasksManager:
 
         if isinstance(model, str):
             inferred_task_name = cls._infer_task_from_model_name_or_path(
-                model,
-                subfolder=subfolder,
-                revision=revision,
-                cache_dir=cache_dir,
-                token=token,
+                model, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
             )
-        elif issubclass(model, object):
-            # checks if it's a model class
+        elif type(model) == type:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model_class=model)
-        elif isinstance(model, object):
-            # checks if it's a model instance
+        else:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model=model)
 
         if inferred_task_name is None:
@@ -1824,22 +1812,24 @@ class TasksManager:
         return inferred_task_name
 
     @staticmethod
-    def _infer_library_from_model(
-        model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
-        library_name: Optional[str] = None,
+    def _infer_library_from_model_or_model_class(
+        model: Optional[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]] = None,
+        model_class: Optional[Type[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]]] = None,
     ):
-        if library_name is not None:
-            return library_name
+        if model is not None and model_class is not None:
+            raise ValueError("Either a model or a model class must be provided, but both were given here.")
+        if model is None and model_class is None:
+            raise ValueError("Either a model or a model class must be provided, but none were given here.")
 
-        target_module = model.__module__
+        target_class_module = model.__class__.__module__ if model is not None else model_class.__module__
 
-        if "sentence_transformers" in target_module:
+        if target_class_module.startswith("sentence_transformers"):
             library_name = "sentence_transformers"
-        elif "transformers" in target_module:
+        elif target_class_module.startswith("transformers"):
             library_name = "transformers"
-        elif "diffusers" in target_module:
+        elif target_class_module.startswith("diffusers"):
             library_name = "diffusers"
-        elif "timm" in target_module:
+        elif target_class_module.startswith("timm"):
             library_name = "timm"
 
         if library_name is None:
@@ -1850,23 +1840,21 @@ class TasksManager:
         return library_name
 
     @classmethod
-    def infer_library_from_model(
+    def _infer_library_from_model_name_or_path(
         cls,
         model_name_or_path: Union[str, Path],
         subfolder: str = "",
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
-        library_name: Optional[str] = None,
     ):
         """
-        Infers the library from the model repo.
+        Infers the library from the model name or path.
 
         Args:
             model_name_or_path (`str`):
-                The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
-                instance of a model, or a model class.
+                The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, or a path
+                to a local directory containing the model.
             subfolder (`str`, defaults to `""`):
                 In case the model files are located inside a subfolder of the model directory / repo on the Hugging
                 Face Hub, you can specify the subfolder name here.
@@ -1874,28 +1862,13 @@ class TasksManager:
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
             cache_dir (`Optional[str]`, *optional*):
                 Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
-            use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
-                Deprecated. Please use the `token` argument instead.
             token (`Optional[Union[bool,str]]`, defaults to `None`):
                 The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
                 when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
-            library_name (`Optional[str]`, *optional*):
-                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
 
         Returns:
             `str`: The library name automatically detected from the model repo.
         """
-        if library_name is not None:
-            return library_name
-
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
 
         all_files, _ = TasksManager.get_model_files(
             model_name_or_path,
@@ -1929,8 +1902,6 @@ class TasksManager:
                 library_name = "diffusers"
             else:
                 library_name = "transformers"
-        else:
-            library_name = "transformers"
 
         if library_name is None:
             raise ValueError(
@@ -1940,11 +1911,49 @@ class TasksManager:
         return library_name
 
     @classmethod
-    def standardize_model_attributes(
+    def infer_library_from_model(
         cls,
-        model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
-        library_name: Optional[str] = None,
+        model: Union[str, "PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline", Type],
+        subfolder: str = "",
+        revision: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
     ):
+        """
+        Infers the library from the model repo, model instance, or model class.
+
+        Args:
+            model (`Union[str, PreTrainedModel, TFPreTrainedModel, DiffusionPipeline, Type]`):
+                The model to infer the task from. This can either be the name of a repo on the HuggingFace Hub, an
+                instance of a model, or a model class.
+            subfolder (`str`, defaults to `""`):
+                In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+                Face Hub, you can specify the subfolder name here.
+            revision (`Optional[str]`, *optional*, defaults to `None`):
+                Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+            cache_dir (`Optional[str]`, *optional*):
+                Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            token (`Optional[Union[bool,str]]`, defaults to `None`):
+                The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
+                when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
+
+        Returns:
+            `str`: The library name automatically detected from the model repo, model instance, or model class.
+        """
+
+        if isinstance(model, str):
+            library_name = cls._infer_library_from_model_name_or_path(
+                model, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+            )
+        elif type(model) == type:
+            library_name = cls._infer_library_from_model_or_model_class(model_class=model)
+        else:
+            library_name = cls._infer_library_from_model_or_model_class(model=model)
+
+        return library_name
+
+    @classmethod
+    def standardize_model_attributes(cls, model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]):
         """
         Updates the model for export. This function is suitable to make required changes to the models from different
         libraries to follow transformers style.
@@ -1953,18 +1962,20 @@ class TasksManager:
             model (`Union[PreTrainedModel, TFPreTrainedModel, DiffusionPipeline]`):
                 The instance of the model.
 
-            library_name (`Optional[str]`, *optional*)::
-                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers".
         """
-        library_name = TasksManager._infer_library_from_model(model, library_name)
+
+        library_name = TasksManager.infer_library_from_model(model)
 
         if library_name == "diffusers":
             inferred_model_type = None
-            for task_name, pipeline_mapping in cls._DIFFUSERS_TASKS_TO_PIPELINE_MAPPINGS.items():
-                for pipeline_type, pipeline_class_name in pipeline_mapping.items():
-                    if model.__class__.__name__ == pipeline_class_name:
-                        inferred_model_type = pipeline_type
+
+            for task_name, model_mapping in cls._DIFFUSERS_TASKS_TO_MODEL_MAPPING.items():
+                for model_type, model_class_name in model_mapping.items():
+                    if model.__class__.__name__ == model_class_name:
+                        inferred_model_type = model_type
                         break
+                if inferred_model_type is not None:
+                    break
 
             if inferred_model_type is None:
                 raise ValueError(
@@ -2024,13 +2035,14 @@ class TasksManager:
         model_name_or_path: Union[str, Path],
         subfolder: str = "",
         revision: Optional[str] = None,
-        framework: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
+        framework: Optional[str] = None,
         torch_dtype: Optional["torch.dtype"] = None,
         device: Optional[Union["torch.device", str]] = None,
-        library_name: str = None,
+        library_name: Optional[str] = None,
         **model_kwargs,
-    ) -> Union["PreTrainedModel", "TFPreTrainedModel"]:
+    ) -> Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]:
         """
         Retrieves a model from its name and the task to be enabled.
 
@@ -2045,34 +2057,44 @@ class TasksManager:
                 Face Hub, you can specify the subfolder name here.
             revision (`Optional[str]`, *optional*):
                 Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+            cache_dir (`Optional[str]`, *optional*):
+                Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
+            token (`Optional[Union[bool,str]]`, defaults to `None`):
+                The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
+                when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
             framework (`Optional[str]`, *optional*):
                 The framework to use for the export. See `TasksManager.determine_framework` for the priority should
                 none be provided.
-            cache_dir (`Optional[str]`, *optional*):
-                Path to a directory in which a downloaded pretrained model weights have been cached if the standard cache should not be used.
             torch_dtype (`Optional[torch.dtype]`, defaults to `None`):
                 Data type to load the model on. PyTorch-only argument.
             device (`Optional[torch.device]`, defaults to `None`):
                 Device to initialize the model on. PyTorch-only argument. For PyTorch, defaults to "cpu".
-            model_kwargs (`Dict[str, Any]`, *optional*):
-                Keyword arguments to pass to the model `.from_pretrained()` method.
             library_name (`Optional[str]`, defaults to `None`):
                 The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers". See `TasksManager.infer_library_from_model` for the priority should
                 none be provided.
+            model_kwargs (`Dict[str, Any]`, *optional*):
+                Keyword arguments to pass to the model `.from_pretrained()` method.
 
         Returns:
             The instance of the model.
 
         """
-        framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
+
+        if framework is None:
+            framework = TasksManager.determine_framework(
+                model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+            )
+
+        if library_name is None:
+            library_name = TasksManager.infer_library_from_model(
+                model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+            )
 
         original_task = task
         if task == "auto":
-            task = TasksManager.infer_task_from_model(model_name_or_path, subfolder=subfolder, revision=revision)
-
-        library_name = TasksManager.infer_library_from_model(
-            model_name_or_path, subfolder, revision, cache_dir, library_name
-        )
+            task = TasksManager.infer_task_from_model(
+                model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+            )
 
         model_type = None
         model_class_name = None
@@ -2147,7 +2169,7 @@ class TasksManager:
                     kwargs["from_pt"] = True
                     model = model_class.from_pretrained(model_name_or_path, **kwargs)
 
-        TasksManager.standardize_model_attributes(model, library_name)
+        TasksManager.standardize_model_attributes(model)
 
         return model
 

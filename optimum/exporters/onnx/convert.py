@@ -999,14 +999,15 @@ def onnx_export_from_model(
     >>> onnx_export_from_model(model, output="gpt2_onnx/")
     ```
     """
-    library_name = TasksManager._infer_library_from_model(model)
 
-    TasksManager.standardize_model_attributes(model, library_name)
+    TasksManager.standardize_model_attributes(model)
 
     if hasattr(model.config, "export_model_type"):
         model_type = model.config.export_model_type.replace("_", "-")
     else:
         model_type = model.config.model_type.replace("_", "-")
+
+    library_name = TasksManager.infer_library_from_model(model)
 
     custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE
 

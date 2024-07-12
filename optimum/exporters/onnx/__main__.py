@@ -230,10 +230,15 @@ def main_export(
     original_task = task
     task = TasksManager.map_from_synonym(task)
 
-    framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
-    library_name = TasksManager.infer_library_from_model(
-        model_name_or_path, subfolder=subfolder, library_name=library_name
-    )
+    if framework is None:
+        framework = TasksManager.determine_framework(
+            model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+        )
+
+    if library_name is None:
+        library_name = TasksManager.infer_library_from_model(
+            model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+        )
 
     torch_dtype = None
     if framework == "pt":
