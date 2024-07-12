@@ -143,6 +143,7 @@ MODEL_NAMES = {
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
+    "swin-window": "yujiepan/tiny-random-swin-patch4-window7-224",
     "t5": "hf-internal-testing/tiny-random-t5",
     "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
     "trocr": "microsoft/trocr-small-handwritten",
