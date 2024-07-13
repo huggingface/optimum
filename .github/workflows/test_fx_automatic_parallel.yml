@@ -33,7 +33,8 @@ jobs:
     container:
       image: ${{ matrix.config.image }}
       options: --mount type=tmpfs,destination=/tmp --shm-size 64gb --gpus all --ipc host -v /mnt/hf_cache:/mnt/cache/
-
+      env:
+        NCCL_DEBUG: INFO
     defaults:
       run:
         shell: bash

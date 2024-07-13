@@ -426,6 +426,7 @@ class ParallelLayerReplacePass(PassBase):
         if key in layer_cache:
             new_mod = layer_cache[key]
         else:
+            assert ctx.compile_times == 0, "illegal path for recompilation"
             new_mod = VocabParallelEmbedding(ctx, mod)
             layer_cache[key] = new_mod
         setattr(parent_mod, field, new_mod)
