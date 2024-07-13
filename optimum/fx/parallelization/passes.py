@@ -388,7 +388,7 @@ class ParallelLayerReplacePass(PassBase):
             field = node.target
 
         mod: nn.Linear = graph_module.get_submodule(node.target)
-        key, layer_cache = id(mod), ctx.parallel_layer_cache
+        key, layer_cache = node.target, ctx.parallel_layer_cache
         if key in layer_cache:
             new_mod = layer_cache[key]
         else:
@@ -422,7 +422,7 @@ class ParallelLayerReplacePass(PassBase):
             field = node.target
 
         mod: nn.Embedding = graph_module.get_submodule(node.target)
-        key, layer_cache = id(mod), ctx.parallel_layer_cache
+        key, layer_cache = node.target, ctx.parallel_layer_cache
         if key in layer_cache:
             new_mod = layer_cache[key]
         else:

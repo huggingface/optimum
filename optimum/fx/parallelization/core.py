@@ -117,7 +117,7 @@ class ParallelExecutionCtx:
         - example_inputs (`List[Any]`):
             A list of tensors which are used as example inputs for graphs captured by dynamo.
 
-        - parallel_layer_cache (`Dict[int, nn.Module]`):
+        - parallel_layer_cache (`Dict[str, nn.Module]`):
             Cache which maps layers(`nn.Linear`, `nn.Embedding`) to their parallel counterparts.
             Note that we will build the cache in the first compilation process, and for recompilations
             later on, we will directly replace the modules with their parallel counterparts in the cache,
@@ -135,7 +135,7 @@ class ParallelExecutionCtx:
     tp_group: dist.ProcessGroup
     current_device: torch.device
     example_inputs: List[Any] = field(default_factory=list)
-    parallel_layer_cache: Dict[int, nn.Module] = field(default_factory=dict)
+    parallel_layer_cache: Dict[str, nn.Module] = field(default_factory=dict)
     weight_map: Dict[str, str] = field(default_factory=dict)
     compile_times: int = 0
 
