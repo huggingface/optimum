@@ -19,6 +19,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from torch.fx import GraphModule
 
 
 class HashableSlice:
@@ -128,6 +129,9 @@ class ParallelExecutionCtx:
             Mapping between parameter names and their locations on disk, useful when loading weights
             from disk.
 
+        - last_optimized_graph_module (`Optional[GraphModule]`, defaults to `None`):
+            Optimized graph module corresponding to the latest compilation.
+
         - compile_times (`int`, defaults to `0`):
             Number of compilation times happened during the whole process.
     """
@@ -137,6 +141,7 @@ class ParallelExecutionCtx:
     example_inputs: List[Any] = field(default_factory=list)
     parallel_layer_cache: Dict[str, nn.Module] = field(default_factory=dict)
     weight_map: Dict[str, str] = field(default_factory=dict)
+    last_optimized_graph_module: Optional[GraphModule] = None
     compile_times: int = 0
 
 

@@ -28,4 +28,5 @@ def parallelize_backend(
     pass_pipeline = build_parallel_pass_pipeline()
     graph_module = pass_pipeline(graph_module=graph_module, ctx=ctx, config=config)
     ctx.compile_times += 1
+    ctx.last_optimized_graph_module = graph_module
     return graph_module
