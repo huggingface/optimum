@@ -29,7 +29,6 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
-from ..utils import CONFIG_NAME
 from ..utils.import_utils import is_diffusers_available, is_onnx_available
 
 
@@ -1577,8 +1576,6 @@ class TasksManager:
         model: Optional[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]] = None,
         model_class: Optional[Type[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]]] = None,
     ) -> str:
-        inferred_task_name = None
-
         if model is not None and model_class is not None:
             raise ValueError("Either a model or a model class must be provided, but both were given here.")
         if model is None and model_class is None:
@@ -1620,17 +1617,11 @@ class TasksManager:
             for task_name, model_mapping in tasks_to_model_mapping.items():
                 for model_type, model_class_name in model_mapping.items():
                     if target_class_name == model_class_name:
-                        inferred_task_name = task_name
-                        break
-                if inferred_task_name is not None:
-                    break
+                        return task_name
 
-        if inferred_task_name is None:
-            raise ValueError(
-                "The task name could not be automatically inferred. If using the command-line, please provide the argument --task task-name. Example: `--task text-classification`."
-            )
-
-        return inferred_task_name
+        raise ValueError(
+            "The task name could not be automatically inferred. If using the command-line, please provide the argument --task task-name. Example: `--task text-classification`."
+        )
 
     @classmethod
     def _infer_task_from_model_name_or_path(
@@ -1748,7 +1739,11 @@ class TasksManager:
 
         if isinstance(model, str):
             inferred_task_name = cls._infer_task_from_model_name_or_path(
-                model, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+                model_name_or_path=model,
+                subfolder=subfolder,
+                revision=revision,
+                cache_dir=cache_dir,
+                token=token,
             )
         elif type(model) == type:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model_class=model)
@@ -1822,6 +1817,8 @@ class TasksManager:
             `str`: The library name automatically detected from the model repo.
         """
 
+        inferred_library_name = None
+
         all_files, _ = TasksManager.get_model_files(
             model_name_or_path,
             subfolder=subfolder,
@@ -1831,36 +1828,36 @@ class TasksManager:
         )
 
         if "model_index.json" in all_files:
-            library_name = "diffusers"
+            inferred_library_name = "diffusers"
         elif (
             any(file_path.startswith("sentence_") for file_path in all_files)
             or "config_sentence_transformers.json" in all_files
         ):
-            library_name = "sentence_transformers"
-        elif CONFIG_NAME in all_files:
-            # We do not use PretrainedConfig.from_pretrained which has unwanted warnings about model type.
+            inferred_library_name = "sentence_transformers"
+        elif "config.json" in all_files:
             kwargs = {
                 "subfolder": subfolder,
                 "revision": revision,
                 "cache_dir": cache_dir,
                 "token": token,
             }
+            # We do not use PretrainedConfig.from_pretrained which has unwanted warnings about model type.
             config_dict, kwargs = PretrainedConfig.get_config_dict(model_name_or_path, **kwargs)
             model_config = PretrainedConfig.from_dict(config_dict, **kwargs)
 
             if hasattr(model_config, "pretrained_cfg") or hasattr(model_config, "architecture"):
-                library_name = "timm"
+                inferred_library_name = "timm"
             elif hasattr(model_config, "_diffusers_version"):
-                library_name = "diffusers"
+                inferred_library_name = "diffusers"
             else:
-                library_name = "transformers"
+                inferred_library_name = "transformers"
 
-        if library_name is None:
+        if inferred_library_name is None:
             raise ValueError(
                 "The library name could not be automatically inferred. If using the command-line, please provide the argument --library {transformers,diffusers,timm,sentence_transformers}. Example: `--library diffusers`."
             )
 
-        return library_name
+        return inferred_library_name
 
     @classmethod
     def infer_library_from_model(
@@ -1895,7 +1892,11 @@ class TasksManager:
 
         if isinstance(model, str):
             library_name = cls._infer_library_from_model_name_or_path(
-                model, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+                model_name_or_path=model,
+                subfolder=subfolder,
+                revision=revision,
+                cache_dir=cache_dir,
+                token=token,
             )
         elif type(model) == type:
             library_name = cls._infer_library_from_model_or_model_class(model_class=model)
@@ -1935,15 +1936,12 @@ class TasksManager:
                     "Please open an issue or submit a PR to add the support."
                 )
 
+            # `model_type` is a class attribute in Transformers, let's avoid modifying it.
             model.config.export_model_type = inferred_model_type
 
         elif library_name == "timm":
-            # Retrieve model config
-            model_config = PretrainedConfig.from_dict(model.pretrained_cfg)
-
-            # Set config as in transformers
-            setattr(model, "config", model_config)
-
+            # Retrieve model config and set it like in transformers
+            model.config = PretrainedConfig.from_dict(model.pretrained_cfg)
             # `model_type` is a class attribute in Transformers, let's avoid modifying it.
             model.config.export_model_type = model.pretrained_cfg["architecture"]
 
