@@ -1133,7 +1133,8 @@ class TasksManager:
         "vae-decoder",
         "clip-text-model",
         "clip-text-with-projection",
-        "trocr",  # TODO: why?
+        "trocr",  # TODO: why?,
+        "nomic-bert" # because there is no tiny model available
     }
     _SUPPORTED_CLI_MODEL_TYPE = (
         set(_SUPPORTED_MODEL_TYPE.keys())
