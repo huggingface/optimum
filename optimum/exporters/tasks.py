@@ -1457,6 +1457,7 @@ class TasksManager:
         subfolder: str = "",
         framework: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: str = None,
     ) -> str:
         """
         Determines the framework to use for the export.
@@ -1484,7 +1485,7 @@ class TasksManager:
         if framework is not None:
             return framework
 
-        all_files, request_exception = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir)
+        all_files, request_exception = TasksManager.get_model_files(model_name_or_path, subfolder, cache_dir, token=token)
 
         pt_weight_name = Path(WEIGHTS_NAME).stem
         pt_weight_extension = Path(WEIGHTS_NAME).suffix
