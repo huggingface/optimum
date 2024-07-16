@@ -60,7 +60,7 @@ if is_torch_available():
     from transformers.modeling_utils import PreTrainedModel
 
 if is_diffusers_available():
-    from diffusers import ModelMixin
+    from diffusers import DiffusionPipeline, ModelMixin
 
 if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
@@ -264,7 +264,7 @@ def _run_validation(
         atol = config.ATOL_FOR_VALIDATION
 
     if "diffusers" in str(reference_model.__class__) and not is_diffusers_available():
-        raise ImportError("The pip package `diffusers` is required to validate stable diffusion ONNX models.")
+        raise ImportError("The pip package `diffusers` is required to validate diffusion ONNX models.")
 
     framework = "pt" if is_torch_available() and isinstance(reference_model, nn.Module) else "tf"
 
@@ -388,7 +388,7 @@ def _run_validation(
         logger.info(f"\t-[✓] ONNX model output names match reference model ({onnx_output_names})")
 
     if "diffusers" in str(reference_model.__class__) and not is_diffusers_available():
-        raise ImportError("The pip package `diffusers` is required to validate stable diffusion ONNX models.")
+        raise ImportError("The pip package `diffusers` is required to validate diffusion ONNX models.")
 
     # Check the shape and values match
     shape_failures = []
@@ -854,7 +854,7 @@ def export(
         opset = config.DEFAULT_ONNX_OPSET
 
     if "diffusers" in str(model.__class__) and not is_diffusers_available():
-        raise ImportError("The pip package `diffusers` is required to export stable diffusion models to ONNX.")
+        raise ImportError("The pip package `diffusers` is required to export diffusion models to ONNX.")
 
     if not config.is_transformers_support_available:
         import transformers
@@ -912,7 +912,7 @@ def export(
 
 
 def onnx_export_from_model(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
     output: Union[str, Path],
     opset: Optional[int] = None,
     optimize: Optional[str] = None,
@@ -999,14 +999,15 @@ def onnx_export_from_model(
     >>> onnx_export_from_model(model, output="gpt2_onnx/")
     ```
     """
-    library_name = TasksManager._infer_library_from_model(model)
 
-    TasksManager.standardize_model_attributes(model, library_name)
+    TasksManager.standardize_model_attributes(model)
 
     if hasattr(model.config, "export_model_type"):
         model_type = model.config.export_model_type.replace("_", "-")
     else:
         model_type = model.config.model_type.replace("_", "-")
+
+    library_name = TasksManager.infer_library_from_model(model)
 
     custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE
 
@@ -1191,7 +1192,7 @@ def onnx_export_from_model(
         optimizer.optimize(save_dir=output, optimization_config=optimization_config, file_suffix="")
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
-    # TODO: treating stable diffusion separately is quite ugly
+    # TODO: treating diffusion separately is quite ugly
     if not no_post_process and library_name != "diffusers":
         try:
             logger.info("Post-processing the exported models...")

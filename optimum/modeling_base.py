@@ -47,8 +47,8 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
                     user or organization name, like `dbmdz/bert-base-german-cased`.
                 - A path to a *directory* containing a model saved using [`~OptimizedModel.save_pretrained`],
                     e.g., `./my_model_directory/`.
-        from_transformers (`bool`, defaults to `False`):
-            Defines whether the provided `model_id` contains a vanilla Transformers checkpoint.
+        export (`bool`, defaults to `False`):
+            Defines whether the provided `model_id` needs to be exported to the targeted format.
         force_download (`bool`, defaults to `True`):
             Whether or not to force the (re-)download of the model weights and configuration files, overriding the
             cached versions if they exist.
@@ -71,6 +71,10 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
             Whether or not to allow for custom code defined on the Hub in their own modeling. This option should only be set
             to `True` for repositories you trust and in which you have read the code, as it will execute code present on
             the Hub on your local machine.
+        revision (`Optional[str]`, defaults to `None`):
+            The specific model version to use. It can be a branch name, a tag name, or a commit id, since we use a
+            git-based system for storing models and other artifacts on huggingface.co, so `revision` can be any
+            identifier allowed by git.
 """
 
 

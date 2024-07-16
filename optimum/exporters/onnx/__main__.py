@@ -221,13 +221,24 @@ def main_export(
             " and passing it is not required anymore."
         )
 
+    if task in ["stable-diffusion", "stable-diffusion-xl"]:
+        logger.warning(
+            f"The task `{task}` is deprecated and will be removed in a future release of Optimum. "
+            "Please use one of the following tasks instead: `text-to-image`, `image-to-image`, `inpainting`."
+        )
+
     original_task = task
     task = TasksManager.map_from_synonym(task)
 
-    framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
-    library_name = TasksManager.infer_library_from_model(
-        model_name_or_path, subfolder=subfolder, library_name=library_name
-    )
+    if framework is None:
+        framework = TasksManager.determine_framework(
+            model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+        )
+
+    if library_name is None:
+        library_name = TasksManager.infer_library_from_model(
+            model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+        )
 
     torch_dtype = None
     if framework == "pt":
@@ -321,9 +332,7 @@ def main_export(
                 )
             model.config.pad_token_id = pad_token_id
 
-    if "stable-diffusion" in task:
-        model_type = "stable-diffusion"
-    elif hasattr(model.config, "export_model_type"):
+    if hasattr(model.config, "export_model_type"):
         model_type = model.config.export_model_type.replace("_", "-")
     else:
         model_type = model.config.model_type.replace("_", "-")
