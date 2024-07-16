@@ -67,7 +67,7 @@ def parallelize_model(
             Model revision for weights downloading if a model id is passed.
         cache_dir (`Optional[str]`, defaults to `None`):
             Cache directory to store downloaded weights. Defaults to None.
-        local_files_only (bool, defaults to `False`):
+        local_files_only (`bool`, defaults to `False`):
             Whether to use local files only, will avoid downloading from remote if set to `True`.
         kwargs (additional keyword arguments, optional):
             Addtional keyword arguments for overriding fields in parallel config, model config and `Model.__init__`.
