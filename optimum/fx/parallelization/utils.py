@@ -12,13 +12,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import fnmatch
+import hashlib
 import importlib
 import operator
+import os
+import re
+import tempfile
 from collections import defaultdict
 from functools import wraps
 from itertools import chain
-from typing import Callable, Dict, List, Union
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Union
 
+import filelock
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -305,3 +312,114 @@ def move_model_to_device(model: nn.Module, device: Union[torch.device, str]):
         if isinstance(tensor, nn.Parameter):
             new_tensor = nn.Parameter(new_tensor)
         setattr(parent_mod, attr_name, new_tensor)
+
+
+temp_dir = tempfile.gettempdir()
+
+
+def get_lock(model_name_or_path: str, cache_dir: Optional[str] = None):
+    lock_dir = cache_dir or temp_dir
+    os.makedirs(os.path.dirname(lock_dir), exist_ok=True)
+    model_name = model_name_or_path.replace("/", "-")
+    hash_name = hashlib.sha256(model_name.encode()).hexdigest()
+    # add hash to avoid conflict with old users' lock files
+    lock_file_name = hash_name + model_name + ".lock"
+    # mode 0o666 is required for the filelock to be shared across users
+    lock = filelock.FileLock(os.path.join(lock_dir, lock_file_name), mode=0o666)
+    return lock
+
+
+# adpated from vllm.model_executor.model_loader.weight_utils.py
+def download_files_from_hf(
+    model_name_or_path: str,
+    cache_dir: Optional[str],
+    allow_patterns: List[str],
+    revision: Optional[str] = None,
+    local_files_only: bool = False,
+) -> str:
+    """Download model weights, index and config files from Hugging Face Hub.
+
+    Args:
+        model_name_or_path (str): The model name or path.
+        cache_dir (Optional[str]): The cache directory to store the model
+            weights. If None, will use HF defaults.
+        allow_patterns (List[str]): The allowed patterns for the
+            weight files. Files matched by any of the patterns will be
+            downloaded.
+        revision (Optional[str]): The revision of the model.
+        local_files_only(bool): Should only use local files if True.
+
+    Returns:
+        str: The path to the downloaded files.
+    """
+    import huggingface_hub.constants
+    from huggingface_hub import HfFileSystem, snapshot_download
+    from transformers.utils import CONFIG_NAME, SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME
+
+    if not huggingface_hub.constants.HF_HUB_OFFLINE:
+        # Before we download we look at that is available:
+        fs = HfFileSystem()
+        file_list = fs.ls(model_name_or_path, detail=False, revision=revision)
+
+        # depending on what is available we download different things
+        for pattern in allow_patterns:
+            matching = fnmatch.filter(file_list, pattern)
+            if len(matching) > 0:
+                allow_patterns = [pattern]
+                break
+
+    extra_patterns = [CONFIG_NAME, SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME]
+    # Use file lock to prevent multiple processes from
+    # downloading the same model weights at the same time.
+    with get_lock(model_name_or_path, cache_dir):
+        hf_folder = snapshot_download(
+            model_name_or_path,
+            allow_patterns=allow_patterns + extra_patterns,
+            cache_dir=cache_dir,
+            revision=revision,
+            local_files_only=huggingface_hub.constants.HF_HUB_OFFLINE or local_files_only,
+        )
+    return hf_folder
+
+
+# copied from optimum.neuron.utils.misc.py
+def _original_filename_to_safetensors_filename(filename: str) -> str:
+    """Transforms the filename for any kind of checkpoint to a safetensors equivalent."""
+    from transformers.utils import SAFE_WEIGHTS_NAME
+
+    _, extension = filename.rsplit(".", maxsplit=1)
+    pattern = rf"\w+(-[0-9]*-of-[0-9]*)?\.{extension}"
+    match_ = re.match(pattern, filename)
+    if not match_:
+        raise ValueError(f"Could not convert {filename} to a safetensor filename.")
+    group_1 = match_.group(1)
+    index_out_of_total_str = group_1 if group_1 is not None else ""
+    safetensor_filename, safetensor_extension = SAFE_WEIGHTS_NAME.rsplit(".", maxsplit=1)
+    return f"{safetensor_filename}{index_out_of_total_str}.{safetensor_extension}"
+
+
+def convert_bin_to_safetensors(
+    model_name_or_path: str, cache_dir: Optional[str], weight_files: List[str], weight_map: Dict[str, str]
+):
+    """Convert to pytorch bin files to their safetensors equivalent."""
+    from safetensors.torch import save_file
+
+    with get_lock(model_name_or_path, cache_dir):
+        for weight_file in weight_files:
+            weight_file_path = Path(weight_file)
+            safetensors_filename = _original_filename_to_safetensors_filename(weight_file_path.name)
+            output_dir = cache_dir if cache_dir else weight_file_path.parent
+            output_file_path = os.path.join(output_dir, safetensors_filename)
+            if not os.path.isfile(output_file_path):
+                checkpoint = torch.load(weight_file, map_location=torch.device("cpu"))
+                data_pointers = set()
+                for k, v in checkpoint.items():
+                    if v.data_ptr() in data_pointers:
+                        v = v.detach().clone()
+                    v = v.contiguous()
+                    checkpoint[k] = v
+                    data_pointers.add(v.data_ptr())
+                save_file(checkpoint, output_file_path)
+            keys = [key for key, value in weight_map if value == weight_file]
+            for key in keys:
+                weight_map[key] = output_file_path
