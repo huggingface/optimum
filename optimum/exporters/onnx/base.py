@@ -373,7 +373,7 @@ class OnnxConfig(ExportConfig, ABC):
         Whether the installed version of Transformers allows for the ONNX export.
 
         Returns:
-            `bool`: Whether the install version of Transformers is compatible with the model.
+            `bool`: Whether the installed version of Transformers is compatible with the model.
 
         """
         return check_if_transformers_greater(self.MIN_TRANSFORMERS_VERSION)

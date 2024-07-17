@@ -299,6 +299,10 @@ PYTORCH_STABLE_DIFFUSION_MODEL = {
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
 }
 
+PYTORCH_REMOTE_CODE_MODELS = {
+    "nomic-bert": "nomic-ai/nomic-embed-text-v1.5"
+}
+
 PYTORCH_TIMM_MODEL = {
     "default-timm-config": {
         "timm/inception_v3.tf_adv_in1k": ["image-classification"],

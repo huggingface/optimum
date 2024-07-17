@@ -51,6 +51,7 @@ from ..exporters_utils import (
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_STABLE_DIFFUSION_MODEL,
+    PYTORCH_REMOTE_CODE_MODELS,
     PYTORCH_TIMM_MODEL,
     TENSORFLOW_EXPORT_MODELS,
     VALIDATE_EXPORT_ON_SHAPES_SLOW,
@@ -197,7 +198,8 @@ class OnnxExportTestCase(TestCase):
             return
 
         onnx_config = onnx_config_class_constructor(model.config)
-
+        print("Got this ONNX config")
+        print(onnx_config)
         # We need to set this to some value to be able to test the outputs values for batch size > 1.
         if (
             isinstance(onnx_config, OnnxConfigWithPast)
@@ -323,6 +325,7 @@ class OnnxExportTestCase(TestCase):
             - set(PYTORCH_EXPORT_MODELS_TINY.keys())
             - set(PYTORCH_TIMM_MODEL.keys())
             - set(PYTORCH_SENTENCE_TRANSFORMERS_MODEL.keys())
+            - set(PYTORCH_REMOTE_CODE_MODELS.keys())
         )
         if len(missing_models_set) > 0:
             self.fail(f"Not testing all models. Missing models: {missing_models_set}")
