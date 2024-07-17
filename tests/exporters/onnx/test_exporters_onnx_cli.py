@@ -47,6 +47,7 @@ from ..exporters_utils import (
     PYTORCH_TIMM_MODEL,
     PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
     PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES,
+    PYTORCH_REMOTE_CODE_MODELS
 )
 
 
@@ -731,11 +732,23 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
             main_export(model_name_or_path=tmpdir_in, output=tmpdir_out, task="text-classification")
 
+    @parameterized.expand(_get_models_to_test(PYTORCH_REMOTE_CODE_MODELS, library_name="transformers"))
+    @require_torch
     @slow
-    def test_custom_model(self):
+    @pytest.mark.run_slow
+    def test_custom_model(
+            self,
+            test_name: str,
+            model_type: str,
+            model_name: str,
+            task: str,
+            variant: str,
+            monolith: bool,
+            no_post_process: bool,
+    ):
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(
-                f"python3 -m optimum.exporters.onnx --trust-remote-code --model nomic-ai/nomic-embed-text-v1.5 --task feature-extraction {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --trust-remote-code --model {model_name} --task {task} {tmpdirname}",
                 shell=True,
                 capture_output=True,
             )
@@ -743,7 +756,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(
-                f"python3 -m optimum.exporters.onnx --trust-remote-code --model nomic-ai/nomic-embed-text-v1.5 --task feature-extraction {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --trust-remote-code --model {model_name} --task {task} {tmpdirname}",
                 shell=True,
                 check=True,
             )
