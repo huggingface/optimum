@@ -198,8 +198,7 @@ class OnnxExportTestCase(TestCase):
             return
 
         onnx_config = onnx_config_class_constructor(model.config)
-        print("Got this ONNX config")
-        print(onnx_config)
+
         # We need to set this to some value to be able to test the outputs values for batch size > 1.
         if (
             isinstance(onnx_config, OnnxConfigWithPast)
