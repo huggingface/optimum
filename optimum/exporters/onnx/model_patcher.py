@@ -277,7 +277,8 @@ class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
 
 
 def _unmask_unattended_patched(
-    expanded_mask: torch.Tensor, min_dtype: float,
+    expanded_mask: torch.Tensor,
+    min_dtype: float,
 ):
     return expanded_mask
 
