@@ -584,7 +584,8 @@ def export_pytorch(
                 do_constant_folding=do_constant_folding,
                 opset_version=opset,
             )
-
+            import onnxslim
+            onnxslim.slim(output.as_posix(), output.as_posix())
         # check if external data was exported
         # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
         onnx_model = onnx.load(str(output), load_external_data=False)

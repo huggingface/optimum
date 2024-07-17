@@ -221,7 +221,7 @@ DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT = "The usage of `optimum.exporters.onnx
 
 def get_diffusion_models_for_export(
     pipeline: "DiffusionPipeline",
-    int_dtype: str = "int64",
+    int_dtype: str = "int32",
     float_dtype: str = "fp32",
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "ExportConfig"]]:
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="diffusion"))
