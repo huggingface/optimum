@@ -336,18 +336,20 @@ def download_files_from_hf(
     allow_patterns: List[str],
     revision: Optional[str] = None,
     local_files_only: bool = False,
+    skip_download_weights: bool = False,
 ) -> str:
     """Download model weights, index and config files from Hugging Face Hub.
 
     Args:
-        model_name_or_path (str): The model name or path.
-        cache_dir (Optional[str]): The cache directory to store the model
+        model_name_or_path (`str`): The model name or path.
+        cache_dir (`Optional[str]`): The cache directory to store the model
             weights. If None, will use HF defaults.
-        allow_patterns (List[str]): The allowed patterns for the
+        allow_patterns (`List[str]`): The allowed patterns for the
             weight files. Files matched by any of the patterns will be
             downloaded.
-        revision (Optional[str]): The revision of the model.
-        local_files_only(bool): Should only use local files if True.
+        revision (`Optional[str]`, defaults to `None`): The revision of the model.
+        local_files_only(`bool`): Should only use local files if True.
+        skip_download_weights (`bool`, defaults to `False`): Whether to skip downloading weights to disk.
 
     Returns:
         str: The path to the downloaded files.
@@ -356,7 +358,7 @@ def download_files_from_hf(
     from huggingface_hub import HfFileSystem, snapshot_download
     from transformers.utils import CONFIG_NAME, SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME
 
-    if not huggingface_hub.constants.HF_HUB_OFFLINE:
+    if not skip_download_weights and not huggingface_hub.constants.HF_HUB_OFFLINE:
         # Before we download we look at that is available:
         fs = HfFileSystem()
         file_list = fs.ls(model_name_or_path, detail=False, revision=revision)
@@ -368,13 +370,17 @@ def download_files_from_hf(
                 allow_patterns = [pattern]
                 break
 
-    extra_patterns = [CONFIG_NAME, SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME]
+    if skip_download_weights:
+        allow_patterns = [CONFIG_NAME]
+    else:
+        allow_patterns = allow_patterns + [CONFIG_NAME, SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME]
+
     # Use file lock to prevent multiple processes from
     # downloading the same model weights at the same time.
     with get_lock(model_name_or_path, cache_dir):
         hf_folder = snapshot_download(
             model_name_or_path,
-            allow_patterns=allow_patterns + extra_patterns,
+            allow_patterns=allow_patterns,
             cache_dir=cache_dir,
             revision=revision,
             local_files_only=huggingface_hub.constants.HF_HUB_OFFLINE or local_files_only,

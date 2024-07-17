@@ -51,6 +51,7 @@ def parallelize_model(
     revision: str = "main",
     cache_dir: Optional[str] = None,
     local_files_only: bool = False,
+    skip_load_weights: bool = False,
     **kwargs,
 ):
     """
@@ -69,13 +70,11 @@ def parallelize_model(
             Cache directory to store downloaded weights. Defaults to None.
         local_files_only (`bool`, defaults to `False`):
             Whether to use local files only, will avoid downloading from remote if set to `True`.
+        skip_load_weights (`bool`, defaults to `False`):
+            Whether to skip loading weights from disk to model.
         kwargs (additional keyword arguments, optional):
             Addtional keyword arguments for overriding fields in parallel config, model config and `Model.__init__`.
     """
-    from safetensors import safe_open
-    from transformers import AutoConfig
-    from transformers.utils import CONFIG_NAME, SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME
-
     parallel_config = Config()
     for k, v in kwargs.items():
         if k in parallel_config.__dict__:
@@ -83,8 +82,10 @@ def parallelize_model(
     kwargs = {k: v for k, v in kwargs.items() if k not in parallel_config.__dict__}
 
     if isinstance(model, str):
+        from transformers import AutoConfig
+        from transformers.utils import CONFIG_NAME, SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME
+
         is_local = os.path.isdir(model)
-        use_safetensors = False
         allow_patterns = ["*.safetensors", "*.bin"]
         if not is_local:
             hf_folder = download_files_from_hf(
@@ -93,13 +94,11 @@ def parallelize_model(
                 allow_patterns=allow_patterns,
                 revision=revision,
                 local_files_only=local_files_only,
+                skip_download_weights=skip_load_weights,
             )
         else:
             hf_folder = model
-        for pattern in allow_patterns:
-            if len(glob.glob(os.path.join(hf_folder, pattern))) > 0:
-                use_safetensors = pattern == "*.safetensors"
-                break
+
         # should be able to load config using only local files
         model_config, kwargs = AutoConfig.from_pretrained(
             hf_folder, revision=revision, local_files_only=True, return_unused_kwargs=True, **kwargs
@@ -113,25 +112,32 @@ def parallelize_model(
         model_arch = config_dict["architectures"]
         model_cls = getattr(importlib.import_module("transformers"), model_arch[0])
 
-        index_path = os.path.join(hf_folder, SAFE_WEIGHTS_INDEX_NAME if use_safetensors else WEIGHTS_INDEX_NAME)
-        if os.path.isfile(index_path):
-            with open(index_path) as f:
-                index_dict = json.load(f)
-            parallel_ctx.weight_map = index_dict["weight_map"]
-        weight_files = glob.glob(os.path.join(hf_folder, "*.safetensors" if use_safetensors else "*.bin"))
-        if not use_safetensors:
-            weight_map = parallel_ctx.weight_map if parallel_ctx.weight_map else {}
-            convert_bin_to_safetensors(model, cache_dir, weight_files, weight_map)
-            parallel_ctx.weight_map = weight_map
+        if not skip_load_weights:
+            use_safetensors = False
+            for pattern in allow_patterns:
+                if len(glob.glob(os.path.join(hf_folder, pattern))) > 0:
+                    use_safetensors = pattern == "*.safetensors"
+                    break
+            index_path = os.path.join(hf_folder, SAFE_WEIGHTS_INDEX_NAME if use_safetensors else WEIGHTS_INDEX_NAME)
+            if os.path.isfile(index_path):
+                with open(index_path) as f:
+                    index_dict = json.load(f)
+                parallel_ctx.weight_map = index_dict["weight_map"]
+            weight_files = glob.glob(os.path.join(hf_folder, "*.safetensors" if use_safetensors else "*.bin"))
+            if not use_safetensors:
+                weight_map = parallel_ctx.weight_map if parallel_ctx.weight_map else {}
+                convert_bin_to_safetensors(model, cache_dir, weight_files, weight_map)
+                parallel_ctx.weight_map = weight_map
 
-        # try directly construct weight_map from weight files, should have safetensors file on disk in any case
-        if not parallel_ctx.weight_map:
-            weight_map, weight_files = {}, glob.glob(os.path.join(hf_folder, "*.safetensors"))
-            for weight_file in weight_files:
-                with safe_open(filename=weight_file, framework="pt") as f:
-                    for key in f.keys():
-                        weight_map[key] = weight_file
-            parallel_ctx.weight_map = weight_map
+            # try directly construct weight_map from weight files, should have safetensors file on disk in any case
+            if not parallel_ctx.weight_map:
+                from safetensors import safe_open
+                weight_map, weight_files = {}, glob.glob(os.path.join(hf_folder, "*.safetensors"))
+                for weight_file in weight_files:
+                    with safe_open(filename=weight_file, framework="pt") as f:
+                        for key in f.keys():
+                            weight_map[key] = weight_file
+                parallel_ctx.weight_map = weight_map
 
         with MetaAwareMethodsPatcher():
             model = model_cls(model_config, *model_args, **kwargs)
