@@ -24,7 +24,6 @@ import os
 import sys
 from dataclasses import dataclass, field
 from functools import partial
-from pathlib import Path
 from typing import Optional
 
 import datasets
@@ -39,7 +38,6 @@ from utils_qa import postprocess_qa_predictions
 
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
-from optimum.onnxruntime.model import ORTModel
 from optimum.onnxruntime.modeling_ort import ORTModelForQuestionAnswering
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.preprocessors.passes import (
@@ -48,6 +46,7 @@ from optimum.onnxruntime.preprocessors.passes import (
     ExcludeNodeAfter,
     ExcludeNodeFollowedBy,
 )
+from optimum.onnxruntime.utils import evaluation_loop
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -651,25 +650,25 @@ def main():
         quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
 
     # Apply quantization on the model
-    quantizer.quantize(
+    quantized_model_path = quantizer.quantize(
         save_dir=training_args.output_dir,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
         preprocessor=quantization_preprocessor,
         use_external_data_format=onnx_export_args.use_external_data_format,
     )
+    model = ORTModelForQuestionAnswering.from_pretrained(quantized_model_path, provider=optim_args.execution_provider)
 
     # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
 
-        ort_model = ORTModel(
-            Path(training_args.output_dir) / "model_quantized.onnx",
-            execution_provider=optim_args.execution_provider,
+        outputs = evaluation_loop(
+            model=model,
+            dataset=eval_dataset,
             compute_metrics=compute_metrics,
             label_names=["start_positions", "end_positions"],
         )
-        outputs = ort_model.evaluation_loop(eval_dataset)
         predictions = post_processing_function(eval_examples, eval_dataset, outputs.predictions)
         metrics = compute_metrics(predictions)
 
@@ -681,12 +680,11 @@ def main():
     if training_args.do_predict:
         logger.info("*** Predict ***")
 
-        ort_model = ORTModel(
-            Path(training_args.output_dir) / "model_quantized.onnx",
-            execution_provider=optim_args.execution_provider,
+        outputs = evaluation_loop(
+            model=model,
+            dataset=predict_dataset,
             label_names=["start_positions", "end_positions"],
         )
-        outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = post_processing_function(predict_examples, predict_dataset, outputs.predictions)
         metrics = compute_metrics(predictions)
 

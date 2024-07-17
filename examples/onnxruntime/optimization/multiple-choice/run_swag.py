@@ -37,7 +37,7 @@ from transformers.utils import check_min_version
 
 from optimum.onnxruntime import ORTModelForMultipleChoice, ORTOptimizer
 from optimum.onnxruntime.configuration import OptimizationConfig
-from optimum.onnxruntime.model import ORTModel
+from optimum.onnxruntime.utils import evaluation_loop
 
 
 # Will error if the minimal version of Transformers is not installed. The version of transformers must be >= 4.19.0
@@ -236,7 +236,6 @@ def main():
         )
 
     os.makedirs(training_args.output_dir, exist_ok=True)
-    optimized_model_path = os.path.join(training_args.output_dir, "model_optimized.onnx")
 
     tokenizer = AutoTokenizer.from_pretrained(model_args.tokenizer_name or model_args.model_name_or_path)
 
@@ -254,11 +253,16 @@ def main():
     optimizer = ORTOptimizer.from_pretrained(model)
 
     # Optimize the model
-    optimizer.optimize(
+    optimized_model_path = optimizer.optimize(
         optimization_config=optimization_config,
         save_dir=training_args.output_dir,
         use_external_data_format=onnx_export_args.use_external_data_format,
         one_external_file=onnx_export_args.one_external_file,
+    )
+
+    model = ORTModelForMultipleChoice.from_pretrained(
+        optimized_model_path,
+        provider=optim_args.execution_provider,
     )
 
     if training_args.do_eval:
@@ -339,13 +343,12 @@ def main():
         # Evaluation
         logger.info("*** Evaluate ***")
 
-        ort_model = ORTModel(
-            optimized_model_path,
-            execution_provider=optim_args.execution_provider,
-            compute_metrics=compute_metrics,
+        outputs = evaluation_loop(
+            model=model,
+            dataset=eval_dataset,
             label_names=["label"],
+            compute_metrics=compute_metrics,
         )
-        outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
         with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:

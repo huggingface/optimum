@@ -25,7 +25,6 @@ import os
 import sys
 from dataclasses import dataclass, field
 from functools import partial
-from pathlib import Path
 from typing import Optional
 
 import datasets
@@ -40,7 +39,6 @@ from transformers.utils.versions import require_version
 
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
-from optimum.onnxruntime.model import ORTModel
 from optimum.onnxruntime.modeling_ort import ORTModelForTokenClassification
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.preprocessors.passes import (
@@ -49,6 +47,7 @@ from optimum.onnxruntime.preprocessors.passes import (
     ExcludeNodeAfter,
     ExcludeNodeFollowedBy,
 )
+from optimum.onnxruntime.utils import evaluation_loop
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -551,12 +550,15 @@ def main():
         quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
 
     # Apply quantization on the model
-    quantizer.quantize(
+    quantized_model_path = quantizer.quantize(
         save_dir=training_args.output_dir,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
         preprocessor=quantization_preprocessor,
         use_external_data_format=onnx_export_args.use_external_data_format,
+    )
+    model = ORTModelForTokenClassification.from_pretrained(
+        quantized_model_path, provider=optim_args.execution_provider
     )
 
     # Evaluation
@@ -572,12 +574,11 @@ def main():
                 desc="Running tokenizer on the validation dataset",
             )
 
-        ort_model = ORTModel(
-            Path(training_args.output_dir) / "model_quantized.onnx",
-            execution_provider=optim_args.execution_provider,
+        outputs = evaluation_loop(
+            model=model,
+            dataset=eval_dataset,
             compute_metrics=compute_metrics,
         )
-        outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
         with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:
@@ -602,12 +603,11 @@ def main():
                 desc="Running tokenizer on the prediction dataset",
             )
 
-        ort_model = ORTModel(
-            Path(training_args.output_dir) / "model_quantized.onnx",
-            execution_provider=optim_args.execution_provider,
+        outputs = evaluation_loop(
+            model=model,
+            dataset=predict_dataset,
             compute_metrics=compute_metrics,
         )
-        outputs = ort_model.evaluation_loop(predict_dataset)
         predictions = np.argmax(outputs.predictions, axis=2)
 
         # Remove ignored index (special tokens)

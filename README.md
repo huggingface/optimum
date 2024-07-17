@@ -79,8 +79,7 @@ It is possible to export 🤗 Transformers and Diffusers models to the OpenVINO 
 optimum-cli export openvino --model distilbert-base-uncased-finetuned-sst-2-english distilbert_sst2_ov
 ```
 
-If you add `--weight-format int8`, the weights will be quantized to `int8`, check out our [documentation](https://huggingface.co/docs/optimum/main/en/intel/optimization_ov#weight-only-quantization) for more detail on weight only quantization. To apply quantization on both weights and activations, you can find more information [here](https://huggingface.co/docs/optimum/main/en/intel/optimization_ov#static-quantization).
-
+If you add `--weight-format int8`, the weights will be quantized to `int8`, check out our [documentation](https://huggingface.co/docs/optimum/main/intel/openvino/export) for more detail. To apply quantization on both weights and activations, you can find more information [here](https://huggingface.co/docs/optimum/main/intel/openvino/optimization#static-quantization).
 
 To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class. To load a PyTorch checkpoint and convert it to the OpenVINO format on-the-fly, you can set `export=True` when loading your model.
 
@@ -92,13 +91,13 @@ To load a model and run inference with OpenVINO Runtime, you can just replace yo
   model_id = "distilbert-base-uncased-finetuned-sst-2-english"
   tokenizer = AutoTokenizer.from_pretrained(model_id)
 - model = AutoModelForSequenceClassification.from_pretrained(model_id)
-+ model = OVModelForSequenceClassification.from_pretrained("distilbert_sst2_ov")
++ model = OVModelForSequenceClassification.from_pretrained(model_id, export=True)
 
   classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
   results = classifier("He's a dreadful magician.")
 ```
 
-You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/main/intel/openvino/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
 
 ### Neural Compressor
 
