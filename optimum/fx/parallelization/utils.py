@@ -23,6 +23,7 @@ from collections import defaultdict
 from functools import wraps
 from itertools import chain
 from pathlib import Path
+from tqdm.auto import tqdm
 from typing import Callable, Dict, List, Optional, Union
 
 import filelock
@@ -329,6 +330,11 @@ def get_lock(model_name_or_path: str, cache_dir: Optional[str] = None):
     return lock
 
 
+class DisabledTqdm(tqdm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, disable=True)
+
+
 # adpated from vllm.model_executor.model_loader.weight_utils.py
 def download_files_from_hf(
     model_name_or_path: str,
@@ -384,6 +390,7 @@ def download_files_from_hf(
             cache_dir=cache_dir,
             revision=revision,
             local_files_only=huggingface_hub.constants.HF_HUB_OFFLINE or local_files_only,
+            tqdm_class=DisabledTqdm,
         )
     return hf_folder
 

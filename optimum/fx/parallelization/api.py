@@ -83,7 +83,7 @@ def parallelize_model(
 
     if isinstance(model, str):
         from transformers import AutoConfig
-        from transformers.utils import CONFIG_NAME, SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME
+        from transformers.utils import SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME
 
         is_local = os.path.isdir(model)
         allow_patterns = ["*.safetensors", "*.bin"]
@@ -103,13 +103,9 @@ def parallelize_model(
         model_config, kwargs = AutoConfig.from_pretrained(
             hf_folder, revision=revision, local_files_only=True, return_unused_kwargs=True, **kwargs
         )
-        config_path = os.path.join(hf_folder, CONFIG_NAME)
-        if not os.path.isfile(config_path):
-            raise EnvironmentError(f"Can't find config file {config_path} in {hf_folder}")
 
-        with open(config_path) as f:
-            config_dict = json.load(f)
-        model_arch = config_dict["architectures"]
+        # try getting model class info from config
+        model_arch = model_config.architectures
         model_cls = getattr(importlib.import_module("transformers"), model_arch[0])
 
         if not skip_load_weights:
@@ -141,6 +137,8 @@ def parallelize_model(
 
         with MetaAwareMethodsPatcher():
             model = model_cls(model_config, *model_args, **kwargs)
+            # TODO: remove this once support training-time trace
+            model.eval()
 
     move_model_to_device(model, device=parallel_ctx.current_device)
     initialize_parameter_meta(model)
