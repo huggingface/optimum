@@ -23,7 +23,6 @@ from collections import defaultdict
 from functools import wraps
 from itertools import chain
 from pathlib import Path
-from tqdm.auto import tqdm
 from typing import Callable, Dict, List, Optional, Union
 
 import filelock
@@ -31,6 +30,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.fx import Graph, Node
+from tqdm.auto import tqdm
 
 from .core import (
     HashableSlice,

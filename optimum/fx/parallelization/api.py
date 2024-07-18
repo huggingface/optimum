@@ -128,6 +128,7 @@ def parallelize_model(
             # try directly construct weight_map from weight files, should have safetensors file on disk in any case
             if not parallel_ctx.weight_map:
                 from safetensors import safe_open
+
                 weight_map, weight_files = {}, glob.glob(os.path.join(hf_folder, "*.safetensors"))
                 for weight_file in weight_files:
                     with safe_open(filename=weight_file, framework="pt") as f:
