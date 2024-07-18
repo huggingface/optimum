@@ -28,10 +28,14 @@ import torch
 from diffusers import (
     DDIMScheduler,
     DiffusionPipeline,
+    LatentConsistencyModelPipeline,
     LMSDiscreteScheduler,
     PNDMScheduler,
+    StableDiffusionImg2ImgPipeline,
+    StableDiffusionInpaintPipeline,
     StableDiffusionPipeline,
     StableDiffusionXLImg2ImgPipeline,
+    StableDiffusionXLPipeline,
 )
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils import CONFIG_NAME, is_invisible_watermark_available
@@ -73,11 +77,13 @@ logger = logging.getLogger(__name__)
 
 class ORTDiffusionPipeline(ORTModel):
     auto_model_class = DiffusionPipeline
-    main_input_name = "input_ids"
+    main_input_name = "prompt"
     base_model_prefix = "onnx_model"
     config_name = "model_index.json"
     sub_component_config_name = "config.json"
 
+    # TODO: instead of having a bloated init, we should probably have an init per pipeline,
+    # so that we can easily add new pipelines without having to modify the base class
     def __init__(
         self,
         vae_decoder_session: ort.InferenceSession,
@@ -401,7 +407,7 @@ class ORTDiffusionPipeline(ORTModel):
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
-    ) -> "ORTStableDiffusionPipeline":
+    ) -> "ORTDiffusionPipeline":
         if use_auth_token is not None:
             warnings.warn(
                 "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
@@ -568,7 +574,7 @@ class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipelineMi
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline).
     """
 
-    __call__ = StableDiffusionPipelineMixin.__call__
+    auto_model_class = StableDiffusionPipeline
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
@@ -577,7 +583,7 @@ class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline).
     """
 
-    __call__ = StableDiffusionImg2ImgPipelineMixin.__call__
+    auto_model_class = StableDiffusionImg2ImgPipeline
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
@@ -586,7 +592,7 @@ class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInp
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline).
     """
 
-    __call__ = StableDiffusionInpaintPipelineMixin.__call__
+    auto_model_class = StableDiffusionInpaintPipeline
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
@@ -595,12 +601,10 @@ class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyP
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline).
     """
 
-    __call__ = LatentConsistencyPipelineMixin.__call__
+    auto_model_class = LatentConsistencyModelPipeline
 
 
 class ORTStableDiffusionXLPipelineBase(ORTDiffusionPipeline):
-    auto_model_class = StableDiffusionXLImg2ImgPipeline
-
     def __init__(
         self,
         vae_decoder_session: ort.InferenceSession,
@@ -653,7 +657,7 @@ class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffu
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLPipeline).
     """
 
-    __call__ = StableDiffusionXLPipelineMixin.__call__
+    auto_model_class = StableDiffusionXLPipeline
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
@@ -662,7 +666,7 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTStableDiffusionXLPipelineBase, Stab
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLImg2ImgPipeline).
     """
 
-    __call__ = StableDiffusionXLImg2ImgPipelineMixin.__call__
+    auto_model_class = StableDiffusionXLImg2ImgPipeline
 
 
 AUTO_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
