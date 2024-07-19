@@ -26,6 +26,10 @@ from typing import Any, Dict, Optional, Union
 import numpy as np
 import torch
 from diffusers import (
+    AutoPipelineForImage2Image,
+    AutoPipelineForInpainting,
+    AutoPipelineForText2Image,
+    ConfigMixin,
     DDIMScheduler,
     DiffusionPipeline,
     LatentConsistencyModelPipeline,
@@ -37,10 +41,16 @@ from diffusers import (
     StableDiffusionXLImg2ImgPipeline,
     StableDiffusionXLPipeline,
 )
+from diffusers.pipelines.auto_pipeline import (
+    AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
+    AUTO_INPAINT_PIPELINES_MAPPING,
+    AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+)
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils import CONFIG_NAME, is_invisible_watermark_available
 from huggingface_hub import snapshot_download
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+from huggingface_hub.utils import validate_hf_hub_args
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
 from transformers.file_utils import add_end_docstrings
 
@@ -576,6 +586,8 @@ class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipelineMi
 
     auto_model_class = StableDiffusionPipeline
 
+    __call__ = StableDiffusionPipelineMixin.__call__
+
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg2ImgPipelineMixin):
@@ -584,6 +596,8 @@ class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg
     """
 
     auto_model_class = StableDiffusionImg2ImgPipeline
+
+    __call__ = StableDiffusionImg2ImgPipelineMixin.__call__
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
@@ -594,6 +608,8 @@ class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInp
 
     auto_model_class = StableDiffusionInpaintPipeline
 
+    __call__ = StableDiffusionInpaintPipelineMixin.__call__
+
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyPipelineMixin):
@@ -602,6 +618,8 @@ class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyP
     """
 
     auto_model_class = LatentConsistencyModelPipeline
+
+    __call__ = LatentConsistencyPipelineMixin.__call__
 
 
 class ORTStableDiffusionXLPipelineBase(ORTDiffusionPipeline):
@@ -659,6 +677,8 @@ class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffu
 
     auto_model_class = StableDiffusionXLPipeline
 
+    __call__ = StableDiffusionXLPipelineMixin.__call__
+
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionXLImg2ImgPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLImg2ImgPipelineMixin):
@@ -668,23 +688,101 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTStableDiffusionXLPipelineBase, Stab
 
     auto_model_class = StableDiffusionXLImg2ImgPipeline
 
+    __call__ = StableDiffusionXLImg2ImgPipelineMixin.__call__
 
-AUTO_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
+
+ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
+        ("lcm", ORTLatentConsistencyModelPipeline),
         ("stable-diffusion", ORTStableDiffusionPipeline),
         ("stable-diffusion-xl", ORTStableDiffusionXLPipeline),
     ]
 )
 
-AUTO_IMAGE2IMAGE_PIPELINES_MAPPING = OrderedDict(
+ORT_IMAGE2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
         ("stable-diffusion", ORTStableDiffusionImg2ImgPipeline),
         ("stable-diffusion-xl", ORTStableDiffusionXLImg2ImgPipeline),
     ]
 )
 
-AUTO_INPAINT_PIPELINES_MAPPING = OrderedDict(
+ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
     [
         ("stable-diffusion", ORTStableDiffusionInpaintPipeline),
     ]
 )
+
+
+def _get_task_class(ort_mapping, pipeline_class_name, throw_error_if_not_exist: bool = True):
+    for model_type, ort_pipeline_class in ort_mapping.items():
+        if pipeline_class_name == ort_pipeline_class.auto_model_class.__name__:
+            return ort_pipeline_class
+
+    if throw_error_if_not_exist:
+        raise ValueError(f"ORTPipeline can't find a pipeline linked to {pipeline_class_name}")
+
+
+class ORTPipelineBase(ConfigMixin):
+    config_name = "model_index.json"
+
+    ort_pipeline_mapping = None
+    auto_pipeline_mapping = None
+
+    def __init__(self, *args, **kwargs):
+        raise EnvironmentError(
+            f"{self.__class__.__name__} is designed to be instantiated "
+            f"using the `{self.__class__.__name__}.from_pretrained(pretrained_model_name_or_path)` or "
+            f"`{self.__class__.__name__}.from_pipe(pipeline)` methods."
+        )
+
+    @classmethod
+    @validate_hf_hub_args
+    def from_pretrained(cls, pretrained_model_or_path, **kwargs):
+        load_config_kwargs = {
+            "force_download": kwargs.get("force_download", False),
+            "resume_download": kwargs.get("resume_download", None),
+            "local_files_only": kwargs.get("local_files_only", False),
+            "cache_dir": kwargs.get("cache_dir", None),
+            "revision": kwargs.get("revision", None),
+            "proxies": kwargs.get("proxies", None),
+            "token": kwargs.get("token", None),
+        }
+
+        config = cls.load_config(pretrained_model_or_path, **load_config_kwargs)
+
+        original_class_name = config["_class_name"]
+
+        pipeline_cls = _get_task_class(
+            cls.ort_pipeline_mapping,
+            cls.auto_pipeline_mapping,
+            original_class_name,
+        )
+
+        return pipeline_cls.from_pretrained(pretrained_model_or_path, **kwargs)
+
+    @classmethod
+    def from_pipe(cls, **kwargs):
+        raise NotImplementedError(
+            f"from_pipe is not yet implemented for {cls.__name__}. Please use from_pretrained instead."
+        )
+
+
+class ORTPipelineForText2Image(ORTPipelineBase):
+    auto_model_class = AutoPipelineForText2Image
+
+    ort_pipeline_mapping = ORT_TEXT2IMAGE_PIPELINES_MAPPING
+    auto_pipeline_mapping = AUTO_TEXT2IMAGE_PIPELINES_MAPPING
+
+
+class ORTPipelineForImage2Image(ORTPipelineBase):
+    auto_model_class = AutoPipelineForImage2Image
+
+    ort_pipeline_mapping = ORT_IMAGE2IMAGE_PIPELINES_MAPPING
+    auto_pipeline_mapping = AUTO_IMAGE2IMAGE_PIPELINES_MAPPING
+
+
+class ORTPipelineForInpainting(ORTPipelineBase):
+    auto_model_class = AutoPipelineForInpainting
+
+    ort_pipeline_mapping = ORT_INPAINT_PIPELINES_MAPPING
+    auto_pipeline_mapping = AUTO_INPAINT_PIPELINES_MAPPING
