@@ -47,7 +47,7 @@ from ..exporters_utils import (
     PYTORCH_TIMM_MODEL,
     PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
     PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES,
-    PYTORCH_REMOTE_CODE_MODELS
+    PYTORCH_REMOTE_CODE_MODELS,
 )
 
 
@@ -737,14 +737,14 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @slow
     @pytest.mark.run_slow
     def test_custom_model(
-            self,
-            test_name: str,
-            model_type: str,
-            model_name: str,
-            task: str,
-            variant: str,
-            monolith: bool,
-            no_post_process: bool,
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
     ):
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(
