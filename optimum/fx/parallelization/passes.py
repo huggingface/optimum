@@ -514,6 +514,7 @@ class InitializeOrLoadWeightsPass(PassBase):
                 # weights loading
                 if target.source in ctx.weight_map:
                     from safetensors import safe_open
+
                     with safe_open(ctx.weight_map[target.source], framework="pt", device="cpu") as fp:
                         tensor_slice = fp.get_slice(target.source)
                         source_index = [
