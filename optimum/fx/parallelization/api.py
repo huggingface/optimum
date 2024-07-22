@@ -136,10 +136,17 @@ def parallelize_model(
                             weight_map[key] = weight_file
                 parallel_ctx.weight_map = weight_map
 
+        torch_dtype, dtype_orig = kwargs.pop("torch_dtype", None), None
+        if torch_dtype is not None:
+            dtype_orig = model_cls._set_default_torch_dtype(torch_dtype)
+
         with MetaAwareMethodsPatcher():
             model = model_cls(model_config, *model_args, **kwargs)
             # TODO: remove this once support training-time trace
             model.eval()
+
+        if dtype_orig is not None:
+            torch.set_default_dtype(dtype_orig)
 
     move_model_to_device(model, device=parallel_ctx.current_device)
     initialize_parameter_meta(model)
