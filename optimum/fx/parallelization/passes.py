@@ -511,9 +511,27 @@ class InitializeOrLoadWeightsPass(PassBase):
             )
 
             for source, target in sorted(param_meta.mapping.items()):
+                # weights loading
                 if target.source in ctx.weight_map:
-                    # TODO: add weights loading logic
+                    from safetensors import safe_open
+                    with safe_open(ctx.weight_map[target.source], framework="pt", device="cpu") as fp:
+                        tensor_slice = fp.get_slice(target.source)
+                        source_index = [
+                            source.to_slice() if dim == param_meta.dim else slice(None, None, None)
+                            for dim in range(param.ndim)
+                        ]
+                        load_index = [
+                            target.index if dim == param_meta.dim else slice(None, None, None)
+                            for dim in range(param.ndim)
+                        ]
+
+                        tensor = tensor_slice[load_index].contiguous()
+                        tensor = torch.empty_like(tensor).copy_(tensor)
+                        with torch.no_grad():
+                            new_param.data[source_index].copy_(tensor)
                     continue
+
+                # initialization
                 if not param_meta.is_parallel or tp_rank == 0:
                     # initialize weight on master rank
                     weight = torch.empty(*target.shape, dtype=param.dtype, device="cpu")
