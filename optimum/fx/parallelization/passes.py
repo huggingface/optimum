@@ -498,12 +498,12 @@ class InitializeOrLoadWeightsPass(PassBase):
                 new_parameters.append((name, tied_parameters[id(param)]))
                 continue
 
-            shape = (
+            shape = [
                 param.size(dim) // world_size if dim == param_meta.dim and param_meta.is_parallel else param.size(dim)
                 for dim in range(param.ndim)
-            )
+            ]
 
-            if shape == tuple(param.size()) and param.device == ctx.current_device:
+            if not param_meta.is_parallel and param.device == ctx.current_device:
                 new_param = param
             else:
                 new_param = nn.Parameter(

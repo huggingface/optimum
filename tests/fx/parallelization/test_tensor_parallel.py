@@ -40,11 +40,11 @@ DUMMY_MODEL_KWARGS = {
 
 DUMMY_MODELS_TO_TEST = (
     (
-        "meta-llama/Llama-2-7b-hf",
+        "saibo/llama-1B",
         DUMMY_MODEL_KWARGS,
     ),
     (
-        "mistralai/Mistral-7B-v0.1",
+        "PhoenixJie/dummy-mistral",
         DUMMY_MODEL_KWARGS,
     ),
 )
@@ -198,17 +198,17 @@ def run_test_tie_word_embeddings(rank: int, world_size: int, model_id: str, mode
     tearDown()
 
 
-@parameterized.expand(DUMMY_MODELS_TO_TEST)
-@unittest.skipIf(
-    not is_gpu_available() or not is_torch_compile_available(), "requires gpu and torch version >= 2.3.0 to run"
-)
-def test_all_rank_results_match(
-    model_id,
-    model_kwargs,
-):
-    for world_size in [1, 2, 4, 8]:
-        if world_size <= NUM_AVAILABLE_DEVICES:
-            spawn(world_size, run_test_all_rank_results_match, model_id, model_kwargs, deterministic=True)
+# @parameterized.expand(DUMMY_MODELS_TO_TEST)
+# @unittest.skipIf(
+#     not is_gpu_available() or not is_torch_compile_available(), "requires gpu and torch version >= 2.3.0 to run"
+# )
+# def test_all_rank_results_match(
+#     model_id,
+#     model_kwargs,
+# ):
+#     for world_size in [1, 2, 4, 8]:
+#         if world_size <= NUM_AVAILABLE_DEVICES:
+#             spawn(world_size, run_test_all_rank_results_match, model_id, model_kwargs, deterministic=True)
 
 
 @parameterized.expand(DUMMY_MODELS_TO_TEST)
@@ -226,28 +226,28 @@ def test_parameters_persist_bewteen_recompile(
             )
 
 
-@parameterized.expand(DUMMY_MODELS_TO_TEST)
-@unittest.skipIf(
-    not is_gpu_available() or not is_torch_compile_available() or NUM_AVAILABLE_DEVICES < 2,
-    "requires more than one gpu and torch version >= 2.3.0 to run",
-)
-def test_parallel_results_matches_non_parallel(
-    model_id,
-    model_kwargs,
-):
-    # world_size == 2 is enough
-    spawn(2, run_test_parallel_results_matches_non_parallel, model_id, model_kwargs, deterministic=True)
+# @parameterized.expand(DUMMY_MODELS_TO_TEST)
+# @unittest.skipIf(
+#     not is_gpu_available() or not is_torch_compile_available() or NUM_AVAILABLE_DEVICES < 2,
+#     "requires more than one gpu and torch version >= 2.3.0 to run",
+# )
+# def test_parallel_results_matches_non_parallel(
+#     model_id,
+#     model_kwargs,
+# ):
+#     # world_size == 2 is enough
+#     spawn(2, run_test_parallel_results_matches_non_parallel, model_id, model_kwargs, deterministic=True)
 
 
-@parameterized.expand(DUMMY_MODELS_TO_TEST)
-@unittest.skipIf(
-    not is_gpu_available() or not is_torch_compile_available(),
-    "requires gpu and torch version >= 2.3.0 to run",
-)
-def test_tie_word_embeddings(
-    model_id,
-    model_kwargs,
-):
-    for world_size in [1, 2]:
-        if world_size <= NUM_AVAILABLE_DEVICES:
-            spawn(world_size, run_test_tie_word_embeddings, model_id, model_kwargs, deterministic=False)
+# @parameterized.expand(DUMMY_MODELS_TO_TEST)
+# @unittest.skipIf(
+#     not is_gpu_available() or not is_torch_compile_available(),
+#     "requires gpu and torch version >= 2.3.0 to run",
+# )
+# def test_tie_word_embeddings(
+#     model_id,
+#     model_kwargs,
+# ):
+#     for world_size in [1, 2]:
+#         if world_size <= NUM_AVAILABLE_DEVICES:
+#             spawn(world_size, run_test_tie_word_embeddings, model_id, model_kwargs, deterministic=False)

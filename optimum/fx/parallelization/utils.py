@@ -433,6 +433,6 @@ def convert_bin_to_safetensors(
                     checkpoint[k] = v
                     data_pointers.add(v.data_ptr())
                 save_file(checkpoint, output_file_path)
-            keys = [key for key, value in weight_map if value == weight_file]
+            keys = [key for key, value in weight_map.items() if value == weight_file]
             for key in keys:
                 weight_map[key] = output_file_path
