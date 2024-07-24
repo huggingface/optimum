@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import fnmatch
+import glob
 import hashlib
 import importlib
+import json
 import operator
 import os
 import re
@@ -32,11 +34,7 @@ import torch.nn.functional as F
 from torch.fx import Graph, Node
 from tqdm.auto import tqdm
 
-from .core import (
-    HashableSlice,
-    ParameterMeta,
-    ParameterSlice,
-)
+from .core import HashableSlice, ParameterMeta, ParameterSlice
 
 
 def ensure_divisibility(numerator: int, denominator: int) -> None:
@@ -336,10 +334,9 @@ class DisabledTqdm(tqdm):
 
 
 # adpated from vllm.model_executor.model_loader.weight_utils.py
-def download_files_from_hf(
+def download_model_from_hf(
     model_name_or_path: str,
     cache_dir: Optional[str],
-    allow_patterns: List[str],
     revision: Optional[str] = None,
     local_files_only: bool = False,
     skip_download_weights: bool = False,
@@ -350,9 +347,6 @@ def download_files_from_hf(
         model_name_or_path (`str`): The model name or path.
         cache_dir (`Optional[str]`): The cache directory to store the model
             weights. If None, will use HF defaults.
-        allow_patterns (`List[str]`): The allowed patterns for the
-            weight files. Files matched by any of the patterns will be
-            downloaded.
         revision (`Optional[str]`, defaults to `None`): The revision of the model.
         local_files_only(`bool`): Should only use local files if True.
         skip_download_weights (`bool`, defaults to `False`): Whether to skip downloading weights to disk.
@@ -363,6 +357,8 @@ def download_files_from_hf(
     import huggingface_hub.constants
     from huggingface_hub import HfFileSystem, snapshot_download
     from transformers.utils import CONFIG_NAME, SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME
+
+    allow_patterns = ["*.safetensors", "*.bin"]
 
     if not skip_download_weights and not huggingface_hub.constants.HF_HUB_OFFLINE:
         # Before we download we look at that is available:
@@ -377,9 +373,12 @@ def download_files_from_hf(
                 break
 
     if skip_download_weights:
+        # only need to download config file
         allow_patterns = [CONFIG_NAME]
+    elif allow_patterns[0] == "*.safetensors":
+        allow_patterns = allow_patterns + [CONFIG_NAME, SAFE_WEIGHTS_INDEX_NAME]
     else:
-        allow_patterns = allow_patterns + [CONFIG_NAME, SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME]
+        allow_patterns = allow_patterns + [CONFIG_NAME, WEIGHTS_INDEX_NAME]
 
     # Use file lock to prevent multiple processes from
     # downloading the same model weights at the same time.
@@ -436,3 +435,38 @@ def convert_bin_to_safetensors(
             keys = [key for key, value in weight_map.items() if value == weight_file]
             for key in keys:
                 weight_map[key] = output_file_path
+
+
+def try_collect_weight_map(model_name_or_path: str, cache_dir: Optional[str], folder_path: str) -> Dict[str, str]:
+    """Try collecting weight mapping information from the model folder."""
+    from transformers.utils import SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME
+
+    weight_map = {}
+    use_safetensors, weight_patterns = False, ["*safetensors", "*.bin"]
+    for pattern in weight_patterns:
+        if len(glob.glob(os.path.join(folder_path, pattern))) > 0:
+            use_safetensors = pattern == "*.safetensors"
+            break
+    index_path = os.path.join(folder_path, SAFE_WEIGHTS_INDEX_NAME if use_safetensors else WEIGHTS_INDEX_NAME)
+    weight_files = glob.glob(os.path.join(folder_path, "*.safetensors" if use_safetensors else "*.bin"))
+
+    if os.path.isfile(index_path):
+        with open(index_path) as f:
+            index_dict = json.load(f)
+        weight_map = {k: os.path.join(folder_path, v) for k, v in index_dict["weight_map"].items()}
+
+    # convert bin files to safetensors, modify `weight_map` meanwhile
+    if not use_safetensors:
+        convert_bin_to_safetensors(model_name_or_path, cache_dir, weight_files, weight_map)
+
+    # last resort: try directly construct weight_map from weight files
+    if not weight_map:
+        from safetensors import safe_open
+
+        # should have safetensors on disk in any case
+        weight_files = glob.glob(os.path.join(folder_path, "*.safetensors"))
+        for weight_file in weight_files:
+            with safe_open(filename=weight_file, framework="pt") as f:
+                for key in f.keys():
+                    weight_map[key] = weight_file
+    return weight_map
