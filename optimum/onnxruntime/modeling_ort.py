@@ -297,6 +297,10 @@ class ORTModel(OptimizedModel):
         """
         return self._device
 
+    @device.setter
+    def device(self, **kwargs):
+        raise AttributeError("The device attribute is read-only, please use the `to` method to change the device.")
+
     @property
     def use_io_binding(self):
         return check_io_binding(self.providers, self._use_io_binding)
@@ -317,13 +321,13 @@ class ORTModel(OptimizedModel):
         Returns:
             `ORTModel`: the model placed on the requested device.
         """
+
         device, provider_options = parse_device(device)
 
         if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
             return self
 
-        self.device = device
-        provider = get_provider_for_device(self.device)
+        provider = get_provider_for_device(device)
         validate_provider_availability(provider)  # raise error if the provider is not available
 
         # IOBinding is only supported for CPU and CUDA Execution Providers.
@@ -339,6 +343,7 @@ class ORTModel(OptimizedModel):
 
         self.model.set_providers([provider], provider_options=[provider_options])
         self.providers = self.model.get_providers()
+        self._device = device
 
         return self
 
