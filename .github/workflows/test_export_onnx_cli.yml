@@ -17,7 +17,6 @@ jobs:
       matrix:
         python-version: [3.8, 3.9]
         os: [ubuntu-20.04]
-        transformers-version: ["4.33.0", "4.42.*"]
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -28,7 +27,6 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies for pytorch export
       run: |
-        pip install transformers==${{ matrix.transformers-version }}
         pip install .[tests,exporters]
     - name: Test with unittest
       working-directory: tests
