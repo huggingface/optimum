@@ -276,12 +276,13 @@ class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
             model.decoder.model.decoder.config.use_cache = True
 
 
-def _unmask_unattended_patched(
-    expanded_mask: torch.Tensor,
-    min_dtype: float,
+def _unmask_unattended_patched_legacy(
+    expanded_mask: torch.Tensor, attention_mask: torch.Tensor, unmasked_value: Union[bool, float]
 ):
     return expanded_mask
 
+def _unmask_unattended_patched(expanded_mask: torch.Tensor, min_dtype: float):
+    return expanded_mask
 
 def _make_causal_mask_patched(
     input_ids_shape: torch.Size,
@@ -316,7 +317,11 @@ def _make_causal_mask_patched(
 
 
 _make_causal_mask_patched_staticmethod = staticmethod(_make_causal_mask_patched)
-_unmask_unattended_patched_staticmethod = staticmethod(_unmask_unattended_patched)
+
+if _transformers_version >= version.parse("4.39.0"):
+    _unmask_unattended_patched_staticmethod = staticmethod(_unmask_unattended_patched)
+else:
+    _unmask_unattended_patched_staticmethod = staticmethod(_unmask_unattended_patched_legacy)
 
 
 # Adapted from _prepare_4d_causal_attention_mask
