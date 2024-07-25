@@ -1133,7 +1133,7 @@ class MistralModelPatcher(ModelPatcher):
                 self._update_causal_mask_original = self._model._update_causal_mask
 
 
-class CLIPTextModelPatcher(ModelPatcher):
+class CLIPModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
 
