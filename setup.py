@@ -15,7 +15,7 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.33.0,<4.43.0",
+    "transformers[sentencepiece]>=4.29.0,<4.43.0",
     "torch>=1.11",
     "packaging",
     "numpy<2.0",  # transformers requires numpy<2.0 https://github.com/huggingface/transformers/pull/31569
