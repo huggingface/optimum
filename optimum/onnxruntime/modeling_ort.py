@@ -287,6 +287,11 @@ class ORTModel(OptimizedModel):
             if torch_dtype.is_floating_point:
                 return torch_dtype
 
+        for dtype in self.output_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
         return None
 
     @property

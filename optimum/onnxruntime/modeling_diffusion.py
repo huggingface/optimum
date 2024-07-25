@@ -56,6 +56,7 @@ from ..utils import (
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
 )
+from .io_binding import TypeHelper
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
     _ORT_TO_NP_TYPE,
@@ -440,6 +441,24 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             model_save_dir=save_dir,
         )
 
+    @property
+    def dtype(self) -> torch.dtype:
+        """
+        `torch.dtype`: The dtype of the model.
+        """
+
+        for dtype in self.unet.input_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
+        for dtype in self.unet.output_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
+        return None
+
     def to(self, device: Union[torch.device, str, int]):
         """
         Changes the ONNX Runtime provider according to the device.
@@ -496,7 +515,8 @@ class _ORTDiffusionModelPart:
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
         config_path = Path(session._model_path).parent / self.CONFIG_NAME
         self.config = self.parent_model._dict_from_json_file(config_path) if config_path.is_file() else {}
-        self.input_dtype = {inputs.name: _ORT_TO_NP_TYPE[inputs.type] for inputs in self.session.get_inputs()}
+        self.input_dtypes = {inputs.name: inputs.type for inputs in self.session.get_inputs()}
+        self.output_dtypes = {outputs.name: outputs.type for outputs in self.session.get_outputs()}
 
     @property
     def device(self):
