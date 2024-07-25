@@ -57,7 +57,6 @@ from .constants import (
     DECODER_WITH_PAST_ONNX_FILE_PATTERN,
     ENCODER_ONNX_FILE_PATTERN,
 )
-from .io_binding import TypeHelper
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
     ONNX_DECODER_NAME,
@@ -1111,17 +1110,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         `torch.dtype`: The dtype of the model.
         """
 
-        for dtype in self.encoder.input_dtypes:
-            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
-            if torch_dtype.is_floating_point:
-                return torch_dtype
-
-        for dtype in self.encoder.output_dtypes:
-            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
-            if torch_dtype.is_floating_point:
-                return torch_dtype
-
-        return None
+        return self.encoder.dtype or self.decoder.dtype
 
     def to(self, device: Union[torch.device, str, int]):
         """

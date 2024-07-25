@@ -24,6 +24,7 @@ from onnxruntime import InferenceSession
 
 from ..utils import NormalizedConfigManager
 from ..utils.logging import warn_once
+from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
 from .utils import get_ordered_input_names, logging
 
@@ -61,6 +62,20 @@ class ORTModelPart:
     @property
     def device(self):
         return self.parent_model.device
+
+    @property
+    def dtype(self):
+        for dtype in self.input_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
+        for dtype in self.output_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
+        return None
 
     @abstractmethod
     def forward(self, *args, **kwargs):

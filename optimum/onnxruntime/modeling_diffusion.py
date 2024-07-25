@@ -59,7 +59,6 @@ from ..utils import (
 from .io_binding import TypeHelper
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
-    _ORT_TO_NP_TYPE,
     ONNX_WEIGHTS_NAME,
     get_provider_for_device,
     parse_device,
@@ -441,24 +440,6 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             model_save_dir=save_dir,
         )
 
-    @property
-    def dtype(self) -> torch.dtype:
-        """
-        `torch.dtype`: The dtype of the model.
-        """
-
-        for dtype in self.unet.input_dtypes.values():
-            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
-            if torch_dtype.is_floating_point:
-                return torch_dtype
-
-        for dtype in self.unet.output_dtypes.values():
-            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
-            if torch_dtype.is_floating_point:
-                return torch_dtype
-
-        return None
-
     def to(self, device: Union[torch.device, str, int]):
         """
         Changes the ONNX Runtime provider according to the device.
@@ -521,6 +502,20 @@ class _ORTDiffusionModelPart:
     @property
     def device(self):
         return self.parent_model.device
+
+    @property
+    def dtype(self):
+        for dtype in self.input_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
+        for dtype in self.output_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
+        return None
 
     @abstractmethod
     def forward(self, *args, **kwargs):
