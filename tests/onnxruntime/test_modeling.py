@@ -2248,6 +2248,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "codegen",
         "falcon",
         "gemma",
+        "gemma2",
         "gpt2",
         "gpt_bigcode",
         "gpt_neo",

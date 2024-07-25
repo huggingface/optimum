@@ -75,6 +75,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "codegen",
     "falcon",
     "gemma",
+    "gemma2",
     "gpt2",
     "gpt-bigcode",
     "gpt-neo",

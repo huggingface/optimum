@@ -99,6 +99,7 @@ MODEL_NAMES = {
     "falcon": "fxmarty/really-tiny-falcon-testing",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
+    "gemma2": "hf-internal-testing/tiny-random-Gemma2ForCausalLM",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",

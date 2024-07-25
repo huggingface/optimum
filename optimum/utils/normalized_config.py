@@ -242,6 +242,7 @@ class NormalizedConfigManager:
         "electra": NormalizedTextConfig,
         "encoder-decoder": NormalizedEncoderDecoderConfig,
         "gemma": NormalizedTextConfigWithGQA,
+        "gemma2": NormalizedTextConfigWithGQA,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt-bigcode": GPTBigCodeNormalizedTextConfig,
         "gpt-neo": NormalizedTextConfig.with_args(num_attention_heads="num_heads"),

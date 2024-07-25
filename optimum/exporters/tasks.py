@@ -653,6 +653,14 @@ class TasksManager:
             "text-classification",
             onnx="GemmaOnnxConfig",
         ),
+        "gemma2": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            onnx="Gemma2OnnxConfig",
+        ),
         "glpn": supported_tasks_mapping(
             "feature-extraction",
             "depth-estimation",
