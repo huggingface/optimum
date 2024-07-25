@@ -71,6 +71,7 @@ from .config import (
 )
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import (
+    CLIPTextModelPatcher,
     FalconModelPatcher,
     MistralModelPatcher,
     MusicgenModelPatcher,
@@ -978,6 +979,13 @@ class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
 
         return common_outputs
 
+    def patch_model_for_export(
+        self,
+        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> "ModelPatcher":
+        return CLIPTextModelPatcher(self, model, model_kwargs=model_kwargs)
+
 
 class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
     @property
@@ -991,15 +999,6 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
                 common_outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_outputs
-
-    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
-        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
-
-        if framework == "pt":
-            import torch
-
-            dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
-        return dummy_inputs
 
 
 class UNetOnnxConfig(VisionOnnxConfig):

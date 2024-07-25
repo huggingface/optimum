@@ -96,7 +96,7 @@ def _get_submodels_for_export_diffusion(
         pipeline, (StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, StableDiffusionInpaintPipeline)
     )
     is_stable_diffusion_xl = isinstance(
-        pipeline, (StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline, StableDiffusionXLPipeline)
+        pipeline, (StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline)
     )
     is_latent_consistency_model = isinstance(
         pipeline, (LatentConsistencyModelPipeline, LatentConsistencyModelImg2ImgPipeline)
@@ -150,7 +150,6 @@ def _get_submodels_for_export_diffusion(
 
     text_encoder_2 = getattr(pipeline, "text_encoder_2", None)
     if text_encoder_2 is not None:
-        text_encoder_2.config.output_hidden_states = True
         models_for_export["text_encoder_2"] = text_encoder_2
 
     return models_for_export
