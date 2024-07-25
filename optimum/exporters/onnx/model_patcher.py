@@ -281,8 +281,10 @@ def _unmask_unattended_patched_legacy(
 ):
     return expanded_mask
 
+
 def _unmask_unattended_patched(expanded_mask: torch.Tensor, min_dtype: float):
     return expanded_mask
+
 
 def _make_causal_mask_patched(
     input_ids_shape: torch.Size,
