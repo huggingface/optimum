@@ -1152,6 +1152,9 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
     MIN_TORCH_VERSION = version.parse("2.1")
 
+    # needs einsum operator support, available since opset 12
+    DEFAULT_ONNX_OPSET = 12
+
     def __init__(
         self,
         config: "PretrainedConfig",
