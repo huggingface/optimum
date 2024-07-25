@@ -496,26 +496,12 @@ class _ORTDiffusionModelPart:
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
         config_path = Path(session._model_path).parent / self.CONFIG_NAME
         self.config = self.parent_model._dict_from_json_file(config_path) if config_path.is_file() else {}
-        self.input_dtypes = {inputs.name: inputs.type for inputs in self.session.get_inputs()}
-        self.output_dtypes = {outputs.name: outputs.type for outputs in self.session.get_outputs()}
+        self.input_dtype = {inputs.name: inputs.type for inputs in self.session.get_inputs()}
+        self.output_dtype = {outputs.name: outputs.type for outputs in self.session.get_outputs()}
 
     @property
     def device(self):
         return self.parent_model.device
-
-    @property
-    def dtype(self):
-        for dtype in self.input_dtypes.values():
-            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
-            if torch_dtype.is_floating_point:
-                return torch_dtype
-
-        for dtype in self.output_dtypes.values():
-            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
-            if torch_dtype.is_floating_point:
-                return torch_dtype
-
-        return None
 
     @abstractmethod
     def forward(self, *args, **kwargs):
