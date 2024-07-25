@@ -1013,6 +1013,16 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
 
         return common_outputs
 
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
+
+        # TODO: fix should be by casting inputs during inference and not export
+        if framework == "pt":
+            import torch
+
+            dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
+        return dummy_inputs
+
     def patch_model_for_export(
         self,
         model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
