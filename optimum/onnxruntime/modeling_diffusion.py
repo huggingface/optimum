@@ -452,10 +452,14 @@ class ORTStableDiffusionPipelineBase(ORTModel):
         Returns:
             `ORTModel`: the model placed on the requested device.
         """
+
         device, provider_options = parse_device(device)
         provider = get_provider_for_device(device)
         validate_provider_availability(provider)  # raise error if the provider is not available
-        self.device = device
+
+        if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
+            return self
+
         self.vae_decoder.session.set_providers([provider], provider_options=[provider_options])
         self.text_encoder.session.set_providers([provider], provider_options=[provider_options])
         self.unet.session.set_providers([provider], provider_options=[provider_options])
@@ -464,6 +468,8 @@ class ORTStableDiffusionPipelineBase(ORTModel):
             self.vae_encoder.session.set_providers([provider], provider_options=[provider_options])
 
         self.providers = self.vae_decoder.session.get_providers()
+        self._device = device
+
         return self
 
     @classmethod

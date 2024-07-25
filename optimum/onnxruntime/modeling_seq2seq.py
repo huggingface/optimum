@@ -1124,12 +1124,13 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         provider = get_provider_for_device(device)
         validate_provider_availability(provider)  # raise error if the provider is not available
 
-        self.device = device
         self.encoder.session.set_providers([provider], provider_options=[provider_options])
         self.decoder.session.set_providers([provider], provider_options=[provider_options])
         if self.decoder_with_past is not None:
             self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
+
         self.providers = self.encoder.session.get_providers()
+        self._device = device
 
         return self
 
