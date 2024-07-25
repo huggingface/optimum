@@ -27,7 +27,7 @@ from optimum.utils.testing_utils import flatten_dict, require_torch_gpu
 
 MODELS_DICT = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
-    "bark": "ylacombe/bark-small",  # TODO: put a smaller model, this one is 1.7GB...
+    "bark": "hf-internal-testing/tiny-random-BarkModel",
     "bart": "hf-internal-testing/tiny-random-bart",
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bert-generation": "ybelkada/random-tiny-BertGenerationModel",
@@ -359,7 +359,8 @@ class BetterTransformersTestMixin(unittest.TestCase):
             for name, param in bt_model.named_parameters():
                 self.assertFalse(param.device.type == "meta", f"Parameter {name} is on the meta device.")
 
-            bt_model.save_pretrained(tmpdirname)
+            # saving a normal transformers bark model fails because of shared tensors
+            bt_model.save_pretrained(tmpdirname, safe_serialization=hf_model.config.model_type != "bark")
 
             bt_model_from_load = AutoModel.from_pretrained(tmpdirname)
 
