@@ -21,7 +21,6 @@ from pathlib import Path
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
-
 from transformers import AutoConfig, AutoTokenizer
 from transformers.utils import is_torch_available
 
