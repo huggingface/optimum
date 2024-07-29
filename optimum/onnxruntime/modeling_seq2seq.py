@@ -28,11 +28,12 @@ import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+
+import onnxruntime as ort
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoModelForSpeechSeq2Seq,
     AutoModelForVision2Seq,
-    EncoderDecoderCache,
     GenerationConfig,
     Pix2StructForConditionalGeneration,  # Pix2struct does not support AutoModel
 )
@@ -40,8 +41,6 @@ from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
 from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
-
-import onnxruntime as ort
 
 from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
@@ -71,6 +70,11 @@ if check_if_transformers_greater("4.25.0"):
     from transformers.generation import GenerationMixin
 else:
     from transformers.generation_utils import GenerationMixin
+
+if check_if_transformers_greater("4.43.0"):
+    from transformers.cache_utils import EncoderDecoderCache
+else:
+    EncoderDecoderCache = dict
 
 from huggingface_hub.utils import EntryNotFoundError
 
@@ -1346,6 +1350,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
+        cache_position: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
         # Encode if needed : first prediction pass
@@ -1362,6 +1367,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
             past_key_values=past_key_values,
             encoder_hidden_states=encoder_outputs.last_hidden_state,
             encoder_attention_mask=attention_mask,
+            cache_position=cache_position,
             labels=labels,
         )
 
