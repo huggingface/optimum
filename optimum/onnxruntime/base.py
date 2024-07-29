@@ -252,8 +252,8 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
         # no-ops if merged decoder is not used
         use_merged_no_cache = past_key_values is None and self.parent_model.use_merged
         use_merged_cache = past_key_values is not None and self.parent_model.use_merged
-        use_cache_branch_tensor, past_key_values = self.prepare_inputs_for_merged(
-            input_ids, past_key_values, use_torch=use_torch
+        use_cache_branch_tensor, past_key_values, cache_position = self.prepare_inputs_for_merged(
+            input_ids, past_key_values, cache_position, use_torch=use_torch
         )
 
         if self.parent_model.use_io_binding:
@@ -425,20 +425,20 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
 
     def prepare_inputs_for_merged(
         self,
-        input_ids: Union[None, torch.LongTensor, np.ndarray],
-        past_key_values: Union[None, Tuple[torch.FloatTensor], Tuple[np.ndarray]],
+        input_ids: Optional[Union[torch.LongTensor, np.ndarray]],
+        past_key_values: Optional[Tuple[Union[torch.FloatTensor, np.ndarray]]],
+        cache_position: Optional[Union[torch.Tensor, np.ndarray]],
         use_torch: bool,
     ):
-        if self.parent_model.use_merged:
-            constructor = torch if use_torch is True else np
-            # Uses without/with branch of a merged decoder depending on whether real past key values are passed
-            use_cache_branch = constructor.full((1,), past_key_values is not None)
-        else:
-            # Uses separate decoders
-            use_cache_branch = None
+        constructor = torch if use_torch is True else np
 
-        if use_torch and use_cache_branch is not None:
-            use_cache_branch = use_cache_branch.to(self.device)
+        if self.parent_model.use_merged:
+            # Uses without/with branch of a merged decoder depending on whether real past key values are passed
+            use_cache_branch_tensor = constructor.full((1,), past_key_values is not None)
+            if use_torch and use_cache_branch_tensor is not None:
+                use_cache_branch_tensor = use_cache_branch_tensor.to(self.device)
+        else:
+            use_cache_branch_tensor = None
 
         # Generate dummy past for the first forward if uses a merged decoder
         if self.parent_model.use_merged and past_key_values is None:
@@ -454,7 +454,13 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
 
             past_key_values = tuple(key_or_value for _ in range(len(self.key_value_input_names)))
 
-        return use_cache_branch, past_key_values
+        # Generate dummy position cache for the first forward if uses a merged decoder
+        if self.parent_model.use_merged and cache_position is None:
+            cache_position = constructor.zeros((1,), dtype=constructor.int64)
+            if use_torch is True:
+                cache_position = cache_position.to(self.device)
+
+        return use_cache_branch_tensor, past_key_values, cache_position
 
 
 class ORTDecoder(ORTDecoderForSeq2Seq):
