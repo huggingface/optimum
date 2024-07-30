@@ -280,7 +280,7 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 
 class Qwen2OnnxConfig(LlamaOnnxConfig):
-    pass
+    MIN_TRANSFORMERS_VERSION = version.parse("4.37.0")
 
 
 class GemmaOnnxConfig(LlamaOnnxConfig):
@@ -292,6 +292,7 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
 
 
 class Phi3OnnxConfig(PhiOnnxConfig):
@@ -300,6 +301,7 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
+    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -1205,7 +1207,7 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
 
 
 class OwlV2OnnxConfig(OwlViTOnnxConfig):
-    pass
+    MIN_TRANSFORMERS_VERSION = version.parse("4.35.0")
 
 
 class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
