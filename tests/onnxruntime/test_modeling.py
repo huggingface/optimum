@@ -4365,7 +4365,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             # Compare tensor outputs
             self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
 
-        new_tokens = 30
+        new_tokens = 20  # because tiny random speech to text model has a max_position_embeddings of 20
 
         with torch.no_grad():
             transformers_outputs = transformers_model.generate(
