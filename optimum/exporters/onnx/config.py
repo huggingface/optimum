@@ -30,6 +30,7 @@ from ...utils import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
+    check_if_transformers_greater,
     is_diffusers_available,
     logging,
 )
@@ -288,9 +289,13 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         if self._behavior is not ConfigBehavior.ENCODER:
             if self.use_past_in_inputs:
-                common_inputs["cache_position"] = {0: "1"}  # it's 1 when past is used
                 common_inputs["decoder_input_ids"] = {0: "batch_size"}
                 self.add_past_key_values(common_inputs, direction="inputs")
+
+                if check_if_transformers_greater("4.43.0"):
+                    # shape is [1] when using cache and [sequence_length] when not using it
+                    common_inputs["cache_position"] = {0: "1"}
+
             else:
                 common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
 
