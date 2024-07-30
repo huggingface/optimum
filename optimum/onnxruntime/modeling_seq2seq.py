@@ -1482,6 +1482,8 @@ class _ORTModelForWhisper(WhisperGenerationMixin, ORTModelForSpeechSeq2Seq):
                 def __init__(self, stride):
                     self.stride = stride
 
+    # a dummy model attribute that's used in the generate method to compute the input stride
+    # input_stride = self.model.encoder.conv1.stride[0] * self.model.encoder.conv2.stride[0]
     model = DummyWhisperModel()
 
 

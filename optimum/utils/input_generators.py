@@ -690,7 +690,7 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
                 dtype=int_dtype,
             )
 
-        return super().generate(input_name, framework=framework, int_dtype=int_dtype)
+        raise ValueError(f"Unsupported input name {input_name}")
 
 
 # TODO: should it just be merged to DummyTextInputGenerator?

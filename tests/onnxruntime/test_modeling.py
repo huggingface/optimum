@@ -4339,31 +4339,52 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         set_seed(SEED)
         transformers_model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id)
+
         processor = get_preprocessor(model_id)
-
         data = self._generate_random_audio_data()
-
-        features = processor.feature_extractor(data, return_tensors="pt")
+        features = {
+            "np": processor.feature_extractor(data, return_tensors="np"),
+            "pt": processor.feature_extractor(data, return_tensors="pt"),
+        }
 
         decoder_start_token_id = transformers_model.config.decoder_start_token_id
-        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+        decoder_inputs = {
+            "np": {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id},
+            "pt": {"decoder_input_ids": torch.ones((1, 1), dtype=torch.int64) * decoder_start_token_id},
+        }
 
         with torch.no_grad():
-            transformers_outputs = transformers_model(**features, **decoder_inputs)
+            transformers_outputs = transformers_model(**features["pt"], **decoder_inputs["pt"])
 
         for input_type in ["pt", "np"]:
-            features = processor.feature_extractor(data, return_tensors=input_type)
-
-            if input_type == "np":
-                decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id}
-
-            onnx_outputs = onnx_model(**features, **decoder_inputs)
+            onnx_outputs = onnx_model(**features[input_type], **decoder_inputs[input_type])
 
             self.assertTrue("logits" in onnx_outputs)
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # Compare tensor outputs
             self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+
+        new_tokens = 30
+
+        with torch.no_grad():
+            transformers_outputs = transformers_model.generate(
+                **features["pt"],
+                max_new_tokens=new_tokens,
+                min_new_tokens=new_tokens,
+                do_sample=False,
+                num_beams=1,
+            )
+
+        onnx_outputs = onnx_model.generate(
+            **features["pt"],
+            max_new_tokens=new_tokens,
+            min_new_tokens=new_tokens,
+            do_sample=False,
+            num_beams=1,
+        )
+
+        self.assertTrue(torch.equal(onnx_outputs, transformers_outputs))
 
         gc.collect()
 
