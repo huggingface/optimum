@@ -712,14 +712,32 @@ ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
     ]
 )
 
+SUPPORTED_TASKS_MAPPINGS = [
+    ORT_TEXT2IMAGE_PIPELINES_MAPPING,
+    ORT_IMAGE2IMAGE_PIPELINES_MAPPING,
+    ORT_INPAINT_PIPELINES_MAPPING,
+]
 
-def _get_task_class(ort_mapping, pipeline_class_name, throw_error_if_not_exist: bool = True):
-    for model_type, ort_pipeline_class in ort_mapping.items():
-        if pipeline_class_name == ort_pipeline_class.auto_model_class.__name__:
-            return ort_pipeline_class
+
+def _get_task_class(mapping, pipeline_class_name, throw_error_if_not_exist: bool = True):
+    def get_model(pipeline_class_name):
+        for task_mapping in SUPPORTED_TASKS_MAPPINGS:
+            for model_name, pipeline in task_mapping.items():
+                if (
+                    pipeline.__name__ == pipeline_class_name
+                    or pipeline.auto_model_class.__name__ == pipeline_class_name
+                ):
+                    return model_name
+
+    model_name = get_model(pipeline_class_name)
+
+    if model_name is not None:
+        task_class = mapping.get(model_name, None)
+        if task_class is not None:
+            return task_class
 
     if throw_error_if_not_exist:
-        raise ValueError(f"ORTPipeline can't find a pipeline linked to {pipeline_class_name}")
+        raise ValueError(f"AutoPipeline can't find a pipeline linked to {pipeline_class_name} for {model_name}")
 
 
 class ORTPipelineBase(ConfigMixin):
@@ -749,16 +767,12 @@ class ORTPipelineBase(ConfigMixin):
         }
 
         config = cls.load_config(pretrained_model_or_path, **load_config_kwargs)
+        config = config[0] if isinstance(config, tuple) else config
+        class_name = config["_class_name"]
 
-        original_class_name = config["_class_name"]
+        ort_pipeline_cls = _get_task_class(cls.ort_pipeline_mapping, class_name)
 
-        pipeline_cls = _get_task_class(
-            cls.ort_pipeline_mapping,
-            cls.auto_pipeline_mapping,
-            original_class_name,
-        )
-
-        return pipeline_cls.from_pretrained(pretrained_model_or_path, **kwargs)
+        return ort_pipeline_cls.from_pretrained(pretrained_model_or_path, **kwargs)
 
     @classmethod
     def from_pipe(cls, **kwargs):

@@ -88,6 +88,9 @@ else:
         "ORTStableDiffusionXLPipeline",
         "ORTStableDiffusionXLImg2ImgPipeline",
         "ORTLatentConsistencyModelPipeline",
+        "ORTPipelineForText2Image",
+        "ORTPipelineForImage2Image",
+        "ORTPipelineForInpainting",
     ]
 
 
@@ -147,6 +150,9 @@ if TYPE_CHECKING:
     else:
         from .modeling_diffusion import (
             ORTLatentConsistencyModelPipeline,
+            ORTPipelineForImage2Image,
+            ORTPipelineForInpainting,
+            ORTPipelineForText2Image,
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
