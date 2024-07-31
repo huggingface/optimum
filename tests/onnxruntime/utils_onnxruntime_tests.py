@@ -108,7 +108,7 @@ MODEL_NAMES = {
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
-    "latent-consistency": "echarlaix/tiny-random-latent-consistency",
+    "lcm": "echarlaix/tiny-random-latent-consistency",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
     "longt5": "hf-internal-testing/tiny-random-LongT5Model",
@@ -213,9 +213,16 @@ class ORTModelTestMixin(unittest.TestCase):
                     continue
 
                 set_seed(SEED)
-                onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-                    model_id, **model_args, use_io_binding=False, export=True
-                )
+                if hasattr(self, "ORTMODEL_CLASS"):
+                    onnx_model = self.ORTMODEL_CLASS.from_pretrained(
+                        model_id, **model_args, use_io_binding=False, export=True
+                    )
+                elif hasattr(self, "ORTPIPELINE_CLASS"):
+                    onnx_model = self.ORTPIPELINE_CLASS.from_pretrained(
+                        model_id, **model_args, use_io_binding=False, export=True
+                    )
+                else:
+                    raise ValueError("ORTMODEL_CLASS or ORTPIPELINE_CLASS must be defined")
 
                 model_dir = tempfile.mkdtemp(
                     prefix=f"{model_arch_and_params}_{self.TASK}_{model_id.replace('/', '_')}"

@@ -84,6 +84,17 @@ def require_ort_rocm(test_case):
     )
 
 
+def require_ort_cuda(test_case):
+    """Decorator marking a test that requires CUDAExecutionProvider for ONNX Runtime."""
+    import onnxruntime as ort
+
+    providers = ort.get_available_providers()
+
+    return unittest.skipUnless("CUDAExecutionProvider" == providers[0], "test requires CUDAExecutionProvider")(
+        test_case
+    )
+
+
 def require_hf_token(test_case):
     """
     Decorator marking a test that requires huggingface hub token.
