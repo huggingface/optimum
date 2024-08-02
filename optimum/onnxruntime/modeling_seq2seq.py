@@ -39,7 +39,6 @@ from transformers import (
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
-from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
 
 import onnxruntime as ort
 
@@ -65,6 +64,14 @@ from .utils import (
     parse_device,
     validate_provider_availability,
 )
+
+
+if check_if_transformers_greater("4.37.0"):
+    from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
+else:
+
+    class WhisperGenerationMixin:
+        generate = WhisperForConditionalGeneration.generate
 
 
 if check_if_transformers_greater("4.25.0"):

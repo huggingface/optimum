@@ -1460,9 +1460,6 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
         feature_size="num_mel_bins",
         allow_new=True,
     )
-    # a custom generation mixin was introduced in 4.37.0 with batched long form generation
-    # https://github.com/huggingface/transformers/pull/27658
-    MIN_TRANSFORMERS_VERSION = version.parse("4.37.0")
     ATOL_FOR_VALIDATION = 1e-3
 
     @property
