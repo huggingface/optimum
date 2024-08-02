@@ -67,6 +67,8 @@ from .utils import (
 
 
 if check_if_transformers_greater("4.37.0"):
+    # starting from transformers v4.37.0, the whisper generation loop is implemented in the `WhisperGenerationMixin`
+    # and it implements many new features including short and long form generation, and starts with 2 init tokens
     from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
 else:
 
