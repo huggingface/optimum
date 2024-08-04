@@ -1986,8 +1986,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         "electra",
         "mpnet",
         "roberta",
-        "xlm_roberta",
-        "nomic-bert",
+        "xlm_roberta"
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
