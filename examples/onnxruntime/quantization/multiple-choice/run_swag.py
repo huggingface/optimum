@@ -38,7 +38,6 @@ from transformers.utils import check_min_version
 
 from optimum.onnxruntime import ORTModelForMultipleChoice, ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
-from optimum.onnxruntime.model import ORTModel
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.preprocessors.passes import (
     ExcludeGeLUNodes,
@@ -46,6 +45,7 @@ from optimum.onnxruntime.preprocessors.passes import (
     ExcludeNodeAfter,
     ExcludeNodeFollowedBy,
 )
+from optimum.onnxruntime.utils import evaluation_loop
 
 
 # Will error if the minimal version of Transformers is not installed. The version of transformers must be >= 4.19.0
@@ -409,13 +409,14 @@ def main():
         quantization_preprocessor.register_pass(ExcludeNodeFollowedBy("Add", "Softmax"))
 
     # Apply quantization on the model
-    quantizer.quantize(
+    quantized_model_path = quantizer.quantize(
         save_dir=training_args.output_dir,
         calibration_tensors_range=ranges,
         quantization_config=qconfig,
         preprocessor=quantization_preprocessor,
         use_external_data_format=onnx_export_args.use_external_data_format,
     )
+    model = ORTModelForMultipleChoice.from_pretrained(quantized_model_path, provider=optim_args.execution_provider)
 
     # Evaluation
     if training_args.do_eval:
@@ -436,13 +437,12 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
             )
 
-        ort_model = ORTModel(
-            os.path.join(training_args.output_dir, "model_quantized.onnx"),
-            execution_provider=optim_args.execution_provider,
-            compute_metrics=compute_metrics,
+        outputs = evaluation_loop(
+            model=model,
+            dataset=eval_dataset,
             label_names=["label"],
+            compute_metrics=compute_metrics,
         )
-        outputs = ort_model.evaluation_loop(eval_dataset)
 
         # Save evaluation metrics
         with open(os.path.join(training_args.output_dir, "eval_results.json"), "w") as f:

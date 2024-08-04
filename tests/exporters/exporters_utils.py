@@ -56,6 +56,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
+    "clip-vision-model": "fxmarty/clip-vision-model-tiny",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
     "convnextv2": "hf-internal-testing/tiny-random-ConvNextV2Model",
@@ -295,9 +296,10 @@ TENSORFLOW_EXPORT_MODELS = {
     "roberta": "roberta-base",
 }
 
-PYTORCH_STABLE_DIFFUSION_MODEL = {
+PYTORCH_DIFFUSION_MODEL = {
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
+    "lcm": "echarlaix/tiny-random-latent-consistency",
 }
 
 PYTORCH_TIMM_MODEL = {

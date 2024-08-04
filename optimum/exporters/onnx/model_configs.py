@@ -72,6 +72,7 @@ from .config import (
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import (
     FalconModelPatcher,
+    MistralModelPatcher,
     MusicgenModelPatcher,
     SAMModelPatcher,
     SentenceTransformersCLIPPatcher,
@@ -241,7 +242,7 @@ class EsmOnnxConfig(TextEncoderOnnxConfig):
 
 
 class GPT2OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
 
@@ -263,7 +264,7 @@ class GPTNeoOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 
 class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
@@ -282,7 +283,7 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 
 class Qwen2OnnxConfig(LlamaOnnxConfig):
-    pass
+    MIN_TRANSFORMERS_VERSION = version.parse("4.37.0")
 
 
 class GemmaOnnxConfig(LlamaOnnxConfig):
@@ -294,6 +295,7 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
 
 
 class Phi3OnnxConfig(PhiOnnxConfig):
@@ -302,6 +304,7 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
+    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -315,6 +318,11 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return MistralModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):
@@ -604,7 +612,7 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
     def inputs_for_causal_lm(self):
         if self.use_past_in_inputs:
             common_inputs = {
-                "input_ids": {0: "batch_size"},
+                "input_ids": {0: "batch_size", 1: "sequence_length"},
                 "attention_mask": {0: "batch_size", 1: "past_sequence_length + 1"},
             }
             for i in range(self._normalized_config.decoder_num_layers):
@@ -649,7 +657,11 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
             common_outputs = super(OnnxConfigWithPast, self).outputs
             if self.use_past:
                 # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
-                for i in range(self._normalized_config.encoder_num_layers):
+                for i in range(
+                    self._normalized_config.encoder_num_layers
+                    if self.task != "text-generation"
+                    else self._normalized_config.decoder_num_layers
+                ):
                     common_outputs[f"present.{i}.key"] = {0: "batch_size", 2: "past_sequence_length + sequence_length"}
                     common_outputs[f"present.{i}.value"] = {
                         0: "batch_size",
@@ -901,6 +913,22 @@ class SentenceTransformersTransformerOnnxConfig(TextEncoderOnnxConfig):
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     TEXT_CONFIG = "text_config"
     VISION_CONFIG = "vision_config"
+
+
+class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        common_outputs = super().outputs
+        common_outputs["last_hidden_state"] = {0: "batch_size"}
+        common_outputs["pooler_output"] = {0: "batch_size"}
+
+        return common_outputs
 
 
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):
@@ -1168,7 +1196,7 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
 
 
 class OwlV2OnnxConfig(OwlViTOnnxConfig):
-    pass
+    MIN_TRANSFORMERS_VERSION = version.parse("4.35.0")
 
 
 class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):

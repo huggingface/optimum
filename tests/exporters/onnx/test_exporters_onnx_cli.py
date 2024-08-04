@@ -41,9 +41,9 @@ if is_torch_available():
 
 from ..exporters_utils import (
     NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
+    PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
-    PYTORCH_STABLE_DIFFUSION_MODEL,
     PYTORCH_TIMM_MODEL,
     PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
     PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES,
@@ -252,29 +252,29 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
 
-    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
     @require_torch
     @require_vision
     @require_diffusers
-    def test_exporters_cli_pytorch_cpu_stable_diffusion(self, model_type: str, model_name: str):
+    def test_exporters_cli_pytorch_cpu_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type)
 
-    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
     @require_torch_gpu
     @require_vision
     @require_diffusers
     @slow
     @pytest.mark.run_slow
-    def test_exporters_cli_pytorch_gpu_stable_diffusion(self, model_type: str, model_name: str):
+    def test_exporters_cli_pytorch_gpu_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda")
 
-    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
     @require_torch_gpu
     @require_vision
     @require_diffusers
     @slow
     @pytest.mark.run_slow
-    def test_exporters_cli_fp16_stable_diffusion(self, model_type: str, model_name: str):
+    def test_exporters_cli_fp16_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda", fp16=True)
 
     @parameterized.expand(
@@ -594,7 +594,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 check=True,
             )
 
-    def test_stable_diffusion(self):
+    def test_diffusion(self):
         with TemporaryDirectory() as tmpdirname:
             subprocess.run(
                 f"python3 -m optimum.exporters.onnx --model hf-internal-testing/tiny-stable-diffusion-torch --task stable-diffusion {tmpdirname}",

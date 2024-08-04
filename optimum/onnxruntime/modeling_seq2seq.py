@@ -570,6 +570,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
     # Used in from_transformers to export model to onnxORTEncoder
     base_model_prefix = "onnx_model"
+    _supports_cache_class = False
 
     def __init__(
         self,
