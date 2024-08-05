@@ -66,18 +66,21 @@ from .utils import (
 )
 
 
-if check_if_transformers_greater("4.37.0"):
-    # starting from transformers v4.37.0, the whisper generation loop is implemented in the `WhisperGenerationMixin`
-    # and it implements many new features including short and long form generation, and starts with 2 init tokens
-    from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
-else:
-    WhisperGenerationMixin = WhisperForConditionalGeneration
-
-
 if check_if_transformers_greater("4.25.0"):
     from transformers.generation import GenerationMixin
 else:
     from transformers.generation_utils import GenerationMixin
+
+
+# if check_if_transformers_greater("4.37.0"):
+#     # starting from transformers v4.37.0, the whisper generation loop is implemented in the `WhisperGenerationMixin`
+#     # and it implements many new features including short and long form generation, and starts with 2 init tokens
+#     from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
+# else:
+
+#     class WhisperGenerationMixin(WhisperForConditionalGeneration, GenerationMixin):
+#         pass
+
 
 if check_if_transformers_greater("4.43.0"):
     from transformers.cache_utils import EncoderDecoderCache
@@ -1438,13 +1441,16 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
             return super()._from_pretrained(model_id, config, **kwargs)
 
 
-class _ORTModelForWhisper(WhisperGenerationMixin, ORTModelForSpeechSeq2Seq):
+class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGeneration):
     """
     Whisper implements its own generate() method.
     """
 
     auto_model_class = WhisperForConditionalGeneration
+
+    # force the use of the WhisperForConditionalGeneration generate and prepare_inputs_for_generation methods
     prepare_inputs_for_generation = WhisperForConditionalGeneration.prepare_inputs_for_generation
+    generate = WhisperForConditionalGeneration.generate
 
     @classmethod
     def _from_pretrained(
