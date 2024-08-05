@@ -87,10 +87,11 @@ def _get_submodels_for_export_stable_diffusion(
         projection_dim = pipeline.text_encoder.config.projection_dim
 
     # Text encoder
-    if pipeline.text_encoder is not None:
+    text_encoder = getattr(pipeline, "text_encoder", None)
+    if text_encoder is not None:
         if isinstance(pipeline, StableDiffusionXLImg2ImgPipeline):
-            pipeline.text_encoder.config.output_hidden_states = True
-        models_for_export["text_encoder"] = pipeline.text_encoder
+            text_encoder.config.output_hidden_states = True
+        models_for_export["text_encoder"] = text_encoder
 
     # U-NET
     # ONNX export of torch.nn.functional.scaled_dot_product_attention not supported for < v2.1.0
@@ -120,6 +121,7 @@ def _get_submodels_for_export_stable_diffusion(
     text_encoder_2 = getattr(pipeline, "text_encoder_2", None)
     if text_encoder_2 is not None:
         text_encoder_2.config.output_hidden_states = True
+        text_encoder_2.text_model.config.output_hidden_states = True
         models_for_export["text_encoder_2"] = text_encoder_2
 
     return models_for_export

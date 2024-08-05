@@ -4338,31 +4338,52 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         set_seed(SEED)
         transformers_model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id)
+
         processor = get_preprocessor(model_id)
-
         data = self._generate_random_audio_data()
-
-        features = processor.feature_extractor(data, return_tensors="pt")
+        features = {
+            "np": processor.feature_extractor(data, return_tensors="np"),
+            "pt": processor.feature_extractor(data, return_tensors="pt"),
+        }
 
         decoder_start_token_id = transformers_model.config.decoder_start_token_id
-        decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+        decoder_inputs = {
+            "np": {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id},
+            "pt": {"decoder_input_ids": torch.ones((1, 1), dtype=torch.int64) * decoder_start_token_id},
+        }
 
         with torch.no_grad():
-            transformers_outputs = transformers_model(**features, **decoder_inputs)
+            transformers_outputs = transformers_model(**features["pt"], **decoder_inputs["pt"])
 
         for input_type in ["pt", "np"]:
-            features = processor.feature_extractor(data, return_tensors=input_type)
-
-            if input_type == "np":
-                decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id}
-
-            onnx_outputs = onnx_model(**features, **decoder_inputs)
+            onnx_outputs = onnx_model(**features[input_type], **decoder_inputs[input_type])
 
             self.assertTrue("logits" in onnx_outputs)
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # Compare tensor outputs
             self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+
+        new_tokens = 20  # because tiny random speech to text model has a max_position_embeddings of 20
+
+        with torch.no_grad():
+            transformers_outputs = transformers_model.generate(
+                **features["pt"],
+                max_new_tokens=new_tokens,
+                min_new_tokens=new_tokens,
+                do_sample=False,
+                num_beams=1,
+            )
+
+        onnx_outputs = onnx_model.generate(
+            **features["pt"],
+            max_new_tokens=new_tokens,
+            min_new_tokens=new_tokens,
+            do_sample=False,
+            num_beams=1,
+        )
+
+        self.assertTrue(torch.equal(onnx_outputs, transformers_outputs))
 
         gc.collect()
 
@@ -4472,7 +4493,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         generation_length = self.GENERATION_LENGTH
         self.GENERATION_LENGTH = 10
-        _ = model_with_pkv.generate(**features)  # warpup
+        _ = model_with_pkv.generate(**features)  # warmup
         with Timer() as with_pkv_timer:
             outputs_model_with_pkv = model_with_pkv.generate(
                 **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
@@ -4481,15 +4502,22 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         model_without_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(
             self.onnx_model_dirs[model_arch + "_False"], use_cache=False
         )
-        _ = model_without_pkv.generate(**features)  # warpup
+        _ = model_without_pkv.generate(**features)  # warmup
         with Timer() as without_pkv_timer:
             outputs_model_without_pkv = model_without_pkv.generate(
                 **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
             )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
-        self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
-        self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
+        self.assertEqual(
+            outputs_model_with_pkv.shape[1],
+            self.GENERATION_LENGTH + 2 if model_arch == "whisper" else self.GENERATION_LENGTH + 1,
+        )
+        self.assertEqual(
+            outputs_model_without_pkv.shape[1],
+            self.GENERATION_LENGTH + 2 if model_arch == "whisper" else self.GENERATION_LENGTH + 1,
+        )
+
         self.GENERATION_LENGTH = generation_length
         if os.environ.get("TEST_LEVEL", 0) == "1":
             self.assertTrue(
@@ -4546,7 +4574,6 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         )
 
         self.GENERATION_LENGTH = generation_length
-
         self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
 
     @parameterized.expand(
