@@ -53,6 +53,7 @@ from ...utils import (
     NormalizedTextConfig,
     NormalizedTextConfigWithGQA,
     NormalizedVisionConfig,
+    check_if_transformers_greater,
     is_diffusers_available,
     logging,
 )
@@ -71,6 +72,7 @@ from .config import (
 )
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import (
+    CLIPModelPatcher,
     FalconModelPatcher,
     MistralModelPatcher,
     MusicgenModelPatcher,
@@ -913,10 +915,16 @@ class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
 
         return common_outputs
 
+    def patch_model_for_export(
+        self,
+        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> "ModelPatcher":
+        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
+
 
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
-    DEFAULT_ONNX_OPSET = 14
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -934,6 +942,13 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
             "text_embeds": {0: "text_batch_size"},
             "image_embeds": {0: "image_batch_size"},
         }
+
+    def patch_model_for_export(
+        self,
+        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> "ModelPatcher":
+        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class SentenceTransformersCLIPOnnxConfig(CLIPOnnxConfig):
@@ -980,6 +995,13 @@ class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
 
         return common_outputs
 
+    def patch_model_for_export(
+        self,
+        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> "ModelPatcher":
+        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
+
 
 class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
     @property
@@ -997,11 +1019,19 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
 
+        # TODO: fix should be by casting inputs during inference and not export
         if framework == "pt":
             import torch
 
             dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
         return dummy_inputs
+
+    def patch_model_for_export(
+        self,
+        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> "ModelPatcher":
+        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class UNetOnnxConfig(VisionOnnxConfig):
@@ -1134,6 +1164,9 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     # reference model.
     ATOL_FOR_VALIDATION = 1e-4
     MIN_TORCH_VERSION = version.parse("2.1")
+
+    # needs einsum operator support, available since opset 12
+    DEFAULT_ONNX_OPSET = 12
 
     def __init__(
         self,
@@ -1438,7 +1471,12 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
             if self._behavior is not ConfigBehavior.DECODER:
                 common_inputs["input_features"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
 
-            if self._behavior is ConfigBehavior.DECODER and self.use_past_in_inputs is False:
+            if self._behavior is not ConfigBehavior.ENCODER and self.use_past_in_inputs:
+                if check_if_transformers_greater("4.43.0"):
+                    # since https://github.com/huggingface/transformers/pull/31166
+                    common_inputs["cache_position"] = {0: "decoder_sequence_length"}
+
+            if self._behavior is ConfigBehavior.DECODER and not self.use_past_in_inputs:
                 common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / 2"
         return common_inputs
 
