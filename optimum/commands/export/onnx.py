@@ -283,7 +283,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             atol=self.args.atol,
             cache_dir=self.args.cache_dir,
             trust_remote_code=self.args.trust_remote_code,
-            token=self.token,
+            token=self.args.token,
             pad_token_id=self.args.pad_token_id,
             for_ort=self.args.for_ort,
             use_subprocess=True,
