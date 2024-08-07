@@ -133,6 +133,12 @@ def parse_args_onnx(parser):
         help="Allows to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.",
     )
     optional_group.add_argument(
+        "--token",
+        type=str,
+        default=None,
+        help="Hugging Face API token to use for authentication.",
+    )
+    optional_group.add_argument(
         "--pad_token_id",
         type=int,
         default=None,
@@ -277,6 +283,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             atol=self.args.atol,
             cache_dir=self.args.cache_dir,
             trust_remote_code=self.args.trust_remote_code,
+            token=self.token,
             pad_token_id=self.args.pad_token_id,
             for_ort=self.args.for_ort,
             use_subprocess=True,
