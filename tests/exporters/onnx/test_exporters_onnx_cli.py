@@ -33,7 +33,13 @@ from optimum.onnxruntime import (
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
 )
-from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_sentence_transformers, require_timm
+from optimum.utils.testing_utils import (
+    grid_parameters,
+    require_diffusers,
+    require_hf_token,
+    require_sentence_transformers,
+    require_timm,
+)
 
 
 if is_torch_available():
@@ -730,3 +736,13 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             model.save_pretrained(tmpdir_in)
 
             main_export(model_name_or_path=tmpdir_in, output=tmpdir_out, task="text-classification")
+
+    @require_hf_token
+    def test_hf_token(self):
+        with TemporaryDirectory() as tmpdirname:
+            token = os.environ.get("HF_AUTH_TOKEN")
+            subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model optimum-internal-testing/tiny-random-phi-private {tmpdirname} --token {token}",
+                shell=True,
+                check=True,
+            )
