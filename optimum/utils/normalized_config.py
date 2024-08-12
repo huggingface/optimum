@@ -232,6 +232,7 @@ class NormalizedConfigManager:
         "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
         "falcon": NormalizedTextConfig,
         "camembert": NormalizedTextConfig,
+        "canine": NormalizedTextConfig,
         "codegen": GPT2LikeNormalizedTextConfig,
         "cvt": NormalizedVisionConfig,
         "deberta": NormalizedTextConfig,
