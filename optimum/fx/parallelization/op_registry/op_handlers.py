@@ -439,7 +439,7 @@ class FallbackParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
         # last resort, if no input is being parallelized, then we make output also not parallelized,
         # this will give us relief on writing policies for strange ops which don't actually need
         # parallelization in most cases
-        if all([self.extract_axis(arg) is None for arg in self.node.all_input_nodes]):
+        if all(self.extract_axis(arg) is None for arg in self.node.all_input_nodes):
             return [None]
 
         raise NotImplementedError(f"don't know how to propagate axis for {self.node.target}")

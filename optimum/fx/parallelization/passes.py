@@ -194,7 +194,7 @@ class ParallelAxisSolverPass(AnalyzeBase):
         graph: Graph = decompose_and_functionalize(graph_module)(*ctx.example_inputs)
         stable_topological_sort(graph)
 
-        nodes = [node for node in graph.nodes]
+        nodes = list(graph.nodes)
 
         def search(idx: int):
             if idx == len(nodes):

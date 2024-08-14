@@ -15,10 +15,11 @@
 import importlib
 import os
 from functools import partial
-from typing import List, Union
+from typing import List
 
 import torch
 from torch.fx import GraphModule
+from transformers import AutoConfig
 
 from .core import Config, ParallelExecutionCtx
 from .passes import build_parallel_pass_pipeline
@@ -43,7 +44,7 @@ def parallelize_backend(
 
 
 def parallelize_model(
-    model: Union[torch.nn.Module, str],
+    model: str,
     parallel_ctx: ParallelExecutionCtx,
     *model_args,
     **kwargs,
@@ -52,8 +53,8 @@ def parallelize_model(
     API for automatic model parallelism through Pytorch FX.
 
     Args:
-        model (Union[torch.nn.Module, str]):
-            Model to parallelize, could either be a module or a model id on the Huggingface Hub.
+        model (str):
+            Model to parallelize, a model id on the Huggingface Hub.
         parallel_ctx (ParallelExecutionCtx):
             Parallel execution context containing process groups the current process belongs to.
         *model_args (Any):
@@ -80,44 +81,41 @@ def parallelize_model(
             setattr(parallel_config, k, v)
             kwargs.pop(k)
 
-    if isinstance(model, str):
-        from transformers import AutoConfig
-
-        is_local = os.path.isdir(model)
-        if not is_local:
-            hf_folder = download_model_from_hf(
-                model_name_or_path=model,
-                cache_dir=cache_dir,
-                revision=revision,
-                local_files_only=local_files_only,
-                skip_download_weights=skip_load_weights,
-            )
-        else:
-            hf_folder = model
-
-        # should be able to load config using only local files
-        model_config, kwargs = AutoConfig.from_pretrained(
-            hf_folder, revision=revision, local_files_only=True, return_unused_kwargs=True, **kwargs
+    is_local = os.path.isdir(model)
+    if not is_local:
+        hf_folder = download_model_from_hf(
+            model_name_or_path=model,
+            cache_dir=cache_dir,
+            revision=revision,
+            local_files_only=local_files_only,
+            skip_download_weights=skip_load_weights,
         )
+    else:
+        hf_folder = model
 
-        # try getting model class info from config
-        model_arch = model_config.architectures
-        model_cls = getattr(importlib.import_module("transformers"), model_arch[0])
+    # should be able to load config using only local files
+    model_config, kwargs = AutoConfig.from_pretrained(
+        hf_folder, revision=revision, local_files_only=True, return_unused_kwargs=True, **kwargs
+    )
 
-        if not skip_load_weights:
-            parallel_ctx.weight_map = try_collect_weight_map(model, cache_dir, hf_folder)
+    # try getting model class info from config
+    model_arch = model_config.architectures
+    model_cls = getattr(importlib.import_module("transformers"), model_arch[0])
 
-        torch_dtype, dtype_orig = kwargs.pop("torch_dtype", None), None
-        if torch_dtype is not None:
-            dtype_orig = model_cls._set_default_torch_dtype(torch_dtype)
+    if not skip_load_weights:
+        parallel_ctx.weight_map = try_collect_weight_map(model, cache_dir, hf_folder)
 
-        with MetaAwareMethodsPatcher():
-            model = model_cls(model_config, *model_args, **kwargs)
-            # TODO: remove this once support training-time trace
-            model.eval()
+    torch_dtype, dtype_orig = kwargs.pop("torch_dtype", None), None
+    if torch_dtype is not None:
+        dtype_orig = model_cls._set_default_torch_dtype(torch_dtype)
 
-        if dtype_orig is not None:
-            torch.set_default_dtype(dtype_orig)
+    with MetaAwareMethodsPatcher():
+        model = model_cls(model_config, *model_args, **kwargs)
+        # TODO: remove this once support training-time trace
+        model.eval()
+
+    if dtype_orig is not None:
+        torch.set_default_dtype(dtype_orig)
 
     move_model_to_device(model, device=parallel_ctx.current_device)
     initialize_parameter_meta(model)
