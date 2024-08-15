@@ -54,7 +54,8 @@ def parallelize_model(
 
     Args:
         model (str):
-            Model to parallelize, a model id on the Huggingface Hub.
+            Model to parallelize, a model id on the Huggingface Hub or path to a local directory containing config and weights
+            of the model.
         parallel_ctx (ParallelExecutionCtx):
             Parallel execution context containing process groups the current process belongs to.
         *model_args (Any):
