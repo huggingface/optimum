@@ -15,7 +15,7 @@
 import importlib
 import os
 from functools import partial
-from typing import List
+from typing import Callable, List
 
 import torch
 from torch.fx import GraphModule
@@ -48,7 +48,7 @@ def parallelize_model(
     parallel_ctx: ParallelExecutionCtx,
     *model_args,
     **kwargs,
-):
+) -> Callable:
     """
     API for automatic model parallelism through Pytorch FX.
 

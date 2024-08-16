@@ -170,8 +170,8 @@ class ParallelAxisSolverPass(AnalyzeBase):
             - Optimal Solution. Note that since we return the first solution we find, then it might not be optimal in terms of
                 memory consumption and communication overhead. But again we can adjust the order of search and try parallelize
                 as much as we can first before fall back to non-parallelized search paths. And we don't pay too much attention
-                on calculating communication overhead because in practice they are bounded by number of certain layers in the graph
-                under the constraint that only certain layers are allowed to communicate.
+                on calculating communication overhead because in practice they are bounded under the constraint that only certain
+                layers are allowed to communicate.
 
     Our goal is not to solve an optimization problem which tries to give a best solution of parallelizing any model under memory/hardware
     constraints, but rather a cheap solution which relieves you from writing boilerplate code for parallelizing layers of different models.
