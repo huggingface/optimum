@@ -68,6 +68,7 @@ class DecompTracer(GraphAppendingTracer):
 
     See https://github.com/pytorch/pytorch/blob/main/torch/fx/experimental/proxy_tensor.py for more details.
     """
+
     def __init__(self, graph: Graph):
         super().__init__(graph)
         self.tensor_tracker = WeakTensorKeyDictionary()
@@ -77,8 +78,8 @@ class DecompTracer(GraphAppendingTracer):
 class DecompositionInterpreter(Interpreter):
     """
     DecompositionInterpreter takes the high-level graph module, run the iternal nodes following the topo order, and decompose
-    high-level pytorch operators into core aten operators by utilizing torch dispatch infrastructure along the way. 
-    
+    high-level pytorch operators into core aten operators by utilizing torch dispatch infrastructure along the way.
+
     Notes:
         - Certain primitive layers(like `nn.Linear`, `nn.Embedding`, and activation layers) are preserved because we have specific
           heuristic based parallelization strategy for them so that we can conveniently replace them into their parallelized counterparts
