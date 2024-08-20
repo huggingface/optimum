@@ -63,7 +63,7 @@ def trace_decomp_origin():
 class DecompTracer(GraphAppendingTracer):
     """
     DecompTracer is a tracer class which works together with `DecompositionInterpreter`, it keeps track of tensors and their
-    corresponding proxy objects during execution process. When invoked with `create_proxy`, it will creates a node in the containing
+    corresponding proxy objects during execution process. When invoked with `create_proxy`, it creates a node in the containing
     graph and associate the output tensor of the node with the created proxy.
 
     See https://github.com/pytorch/pytorch/blob/main/torch/fx/experimental/proxy_tensor.py for more details.
