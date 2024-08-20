@@ -124,7 +124,7 @@ class OpParallelAxisPropagateHandler:
     ]
 )
 class UnaryOpParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
-    def propagate(self) -> bool:
+    def propagate(self) -> List[int]:
         arg = self.node.all_input_nodes[0]
         axis = self.extract_axis(arg)
         return [axis]

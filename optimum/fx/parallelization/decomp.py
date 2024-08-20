@@ -61,6 +61,13 @@ def trace_decomp_origin():
 
 
 class DecompTracer(GraphAppendingTracer):
+    """
+    DecompTracer is a tracer class which works together with `DecompositionInterpreter`, it keeps track of tensors and their
+    corresponding proxy objects during execution process. When invoked with `create_proxy`, it will creates a node in the containing
+    graph and associate the output tensor of the node with the created proxy.
+
+    See https://github.com/pytorch/pytorch/blob/main/torch/fx/experimental/proxy_tensor.py for more details.
+    """
     def __init__(self, graph: Graph):
         super().__init__(graph)
         self.tensor_tracker = WeakTensorKeyDictionary()
@@ -70,13 +77,15 @@ class DecompTracer(GraphAppendingTracer):
 class DecompositionInterpreter(Interpreter):
     """
     DecompositionInterpreter takes the high-level graph module, run the iternal nodes following the topo order, and decompose
-    high-level pytorch operators into core aten operators by utilizing torch dispatch infrastructure along the way. Note
-    that certain primitive layers(like `nn.Linear`, `nn.Embedding`, and activation layers) are preserved because we have specific
-    heuristic based parallelization strategy for them so that we can conveniently replace them into their parallelized counterparts
-    in the orignal graph module.
+    high-level pytorch operators into core aten operators by utilizing torch dispatch infrastructure along the way. 
+    
+    Notes:
+        - Certain primitive layers(like `nn.Linear`, `nn.Embedding`, and activation layers) are preserved because we have specific
+          heuristic based parallelization strategy for them so that we can conveniently replace them into their parallelized counterparts
+          in the orignal graph module.
 
-    Note that the traced graph is a low-level equivalent representation of the original graph module, and is only used for
-    parallel axis propagation and analysis, the original graph module is still used for real execution.
+        - The traced graph is a low-level equivalent representation of the original graph module, and is only used for
+          parallel axis propagation and analysis, the original graph module is still used for real execution.
     """
 
     def __init__(
@@ -190,14 +199,14 @@ def decompose_and_functionalize(
     leaf_function_targets: List[Callable] = [F.scaled_dot_product_attention],
 ) -> Callable:
     """
-    API to decompose and funcitonalize a high-level graph module.
+    API to decompose and functionalize a high-level graph module.
 
     Args:
-        graph_module (GraphModule):
+        graph_module (`GraphModule`):
             The high-level graph module to be decomposed and functionalized.
-        decomposition_table (Dict[torch._ops.OperatorBase, Callable], defaults to `core_aten_decompostions()`):
+        decomposition_table (`Dict[torch._ops.OperatorBase, Callable]`, defaults to `core_aten_decompostions()`):
             The lookup table which maps high-level torch op to their equivalent low-level implementation.
-        leaf_function_targets (List[Callable], defaults to `[F.scaled_dot_product_attention]`):
+        leaf_function_targets (`List[Callable]`, defaults to `[F.scaled_dot_product_attention]`):
             Functions which will not be traced through for convenience, `F.scaled_dot_product_attention` is
             treated as a leaf function by default so that we don't have to deal with all detailed version of
             sdpas in the traced graph.

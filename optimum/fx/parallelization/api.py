@@ -53,22 +53,22 @@ def parallelize_model(
     API for automatic model parallelism through Pytorch FX.
 
     Args:
-        model (str):
+        model (`str`):
             Model to parallelize, a model id on the Huggingface Hub or path to a local directory containing config and weights
             of the model.
-        parallel_ctx (ParallelExecutionCtx):
+        parallel_ctx (`ParallelExecutionCtx`):
             Parallel execution context containing process groups the current process belongs to.
-        *model_args (Any):
+        *model_args (`Any`):
             Additional postional arguments for intializing the model if a model id is passed.
-        revision (str, defaults to `main`):
+        revision (`str`, defaults to `main`):
             Model revision for weights downloading if a model id is passed.
-        cache_dir (Optional[str], defaults to `None`):
+        cache_dir (`Optional[str]`, defaults to `None`):
             Cache directory to store downloaded weights. Defaults to None.
-        local_files_only (bool, defaults to `False`):
+        local_files_only (`bool`, defaults to `False`):
             Whether to use local files only, will avoid downloading from remote if set to `True`.
-        skip_load_weights (bool, defaults to `False`):
+        skip_load_weights (`bool`, defaults to `False`):
             Whether to skip loading weights from disk to model.
-        **kwargs (Dict[str, Any]):
+        **kwargs (`Dict[str, Any]`):
             Addtional keyword arguments for overriding fields in parallel config, model config and `Model.__init__`.
     """
     revision = kwargs.pop("revision", "main")
