@@ -15,7 +15,7 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.29.0,<4.44.0",
+    "transformers[sentencepiece]>=4.29.0,<4.45.0",
     "torch>=1.11",
     "packaging",
     "numpy<2.0",  # transformers requires numpy<2.0 https://github.com/huggingface/transformers/pull/31569
@@ -80,9 +80,9 @@ EXTRAS_REQUIRE = {
     "nncf": "optimum-intel[nncf]>=1.18.0",
     "neural-compressor": "optimum-intel[neural-compressor]>=1.18.0",
     "ipex": "optimum-intel[ipex]>=1.18.0",
-    "habana": ["optimum-habana", "transformers >= 4.43.0, < 4.44.0"],
-    "neuron": ["optimum-neuron[neuron]>=0.0.20", "transformers >= 4.36.2, < 4.42.0"],
-    "neuronx": ["optimum-neuron[neuronx]>=0.0.20", "transformers >= 4.36.2, < 4.42.0"],
+    "habana": ["optimum-habana", "transformers>=4.43.0,<4.44.0"],
+    "neuron": ["optimum-neuron[neuron]>=0.0.20", "transformers>=4.36.2,<4.42.0"],
+    "neuronx": ["optimum-neuron[neuronx]>=0.0.20", "transformers>=4.36.2,<4.42.0"],
     "graphcore": "optimum-graphcore",
     "furiosa": "optimum-furiosa",
     "amd": "optimum-amd",
