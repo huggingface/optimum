@@ -15,7 +15,7 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.29.0,<4.45.0",
+    "transformers[sentencepiece]>=4.29,<=4.44",
     "torch>=1.11",
     "packaging",
     "numpy<2.0",  # transformers requires numpy<2.0 https://github.com/huggingface/transformers/pull/31569
@@ -24,6 +24,7 @@ REQUIRED_PKGS = [
 ]
 
 # TODO: unpin pytest once https://github.com/huggingface/transformers/pull/29154 is merged & released
+# pytest>=8.0.0 also fails with the transformers version pinned for exporters-tf
 TESTS_REQUIRE = [
     "accelerate",
     "pytest<=8.0.0",
@@ -72,7 +73,7 @@ EXTRAS_REQUIRE = {
         "timm",
         "h5py",
         "numpy<1.24.0",
-        "transformers[sentencepiece]>=4.26.0,<4.38.0",
+        "transformers[sentencepiece]>=4.26,<4.38",
     ],
     "diffusers": ["diffusers"],
     "intel": "optimum-intel>=1.18.0",
