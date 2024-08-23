@@ -338,6 +338,7 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = BloomDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
+    DEFAULT_ONNX_OPSET = 14  # Bloom uses aten::triu that requires opset>=14, and F.scaled_dot_product_attention
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
         if direction not in ["inputs", "outputs"]:
