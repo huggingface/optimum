@@ -23,7 +23,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils import (
-    BloomDummyPastKeyValuesGenerator,
     DummyPastKeyValuesGenerator,
     NormalizedConfigManager,
 )
