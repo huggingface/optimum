@@ -336,8 +336,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             dtype = constructor.float16 if self.use_fp16 else constructor.float32
 
             # TODO: find a way to better handle this controlflow, this is EXTREMELY UGLY.
-            # "1" is the dummy sequence length
-            if self.model_type == "bloom":
+            if self.model_type == "bloom" and not check_if_transformers_greater("4.44"):
                 shape_value = (batch_size * num_attention_heads, 0, embed_size_per_head)
                 shape_key = (batch_size * num_attention_heads, embed_size_per_head, 0)
                 key = constructor.zeros(shape_key, dtype=dtype)
@@ -354,9 +353,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 for name, value in zip(self.key_value_output_names, past_key_values):
                     shape = [*value.shape]
                     index = 1 if "value" in name else 2
-
                     shape[index] += sequence_length
                     pkv_output_shape[name] = shape
+
             elif self.model_type == "gpt_bigcode":
                 # GPT BigCode uses muti-query attention, and has the specificity of putting both key and value in the same cache tensor.
                 shape_key_and_value = (batch_size, 0, embed_size_per_head * 2)
@@ -371,9 +370,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     shape = [*value.shape]
                     shape[1] += sequence_length
                     pkv_output_shape[name] = shape
+
             else:
                 num_key_value_heads = self.num_key_value_heads if self.model_type == "falcon" else num_attention_heads
-
                 shape = (batch_size, num_key_value_heads, 0, embed_size_per_head)
                 key_or_value = constructor.zeros(shape, dtype=dtype)
 
@@ -568,7 +567,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             provider_options=provider_options,
         )
 
-        if config.model_type == "bloom":
+        if config.model_type == "bloom" and not check_if_transformers_greater("4.44"):
             init_cls = ORTBloomForCausalLM
         elif config.model_type == "falcon":
             init_cls = ORTFalconForCausalLM
