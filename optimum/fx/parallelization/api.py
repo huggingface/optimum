@@ -15,11 +15,11 @@
 import importlib
 import os
 from functools import partial
-from typing import Callable, List
+from typing import Callable, List, Optional, Type
 
 import torch
 from torch.fx import GraphModule
-from transformers import AutoConfig
+from transformers import AutoConfig, PretrainedConfig, PreTrainedModel
 
 from .core import Config, ParallelExecutionCtx
 from .passes import build_parallel_pass_pipeline
@@ -44,22 +44,28 @@ def parallelize_backend(
 
 
 def parallelize_model(
-    model: str,
     parallel_ctx: ParallelExecutionCtx,
     *model_args,
+    model_path: Optional[str] = None,
+    model_cls: Optional[Type[PreTrainedModel]] = None,
+    model_config: Optional[PretrainedConfig] = None,
     **kwargs,
 ) -> Callable:
     """
     API for automatic model parallelism through Pytorch FX.
 
     Args:
-        model (`str`):
-            Model to parallelize, a model id on the Huggingface Hub or path to a local directory containing config and weights
-            of the model.
         parallel_ctx (`ParallelExecutionCtx`):
             Parallel execution context containing process groups the current process belongs to.
         *model_args (`Any`):
             Additional postional arguments for intializing the model if a model id is passed.
+        model_path (`str`):
+            Model to parallelize, a model id on the Huggingface Hub or path to a local directory containing config and weights
+            of the model.
+        model_cls (`Optional[Type[PreTrainedModel]]`, defaults to `None`):
+            Model class in transformers library, i.e, `LlamaForCausalLM`.
+        model_config (`Optional[PretrainedConfig]`, defaults to `None`):
+            Model config to intialize the model.
         revision (`str`, defaults to `main`):
             Model revision for weights downloading if a model id is passed.
         cache_dir (`Optional[str]`, defaults to `None`):
@@ -82,29 +88,39 @@ def parallelize_model(
             setattr(parallel_config, k, v)
             kwargs.pop(k)
 
-    is_local = os.path.isdir(model)
-    if not is_local:
-        hf_folder = download_model_from_hf(
-            model_name_or_path=model,
-            cache_dir=cache_dir,
-            revision=revision,
-            local_files_only=local_files_only,
-            skip_download_weights=skip_load_weights,
+    if model_path is not None and (model_cls is not None or model_config is not None):
+        raise ValueError(
+            "Can not accept passing in all of `model_path`, `model_cls` and `model_config`. Only specify "
+            "`model_path` or `model_cls` and `model_config` because there might be conflicts otherwise"
         )
-    else:
-        hf_folder = model
 
-    # should be able to load config using only local files
-    model_config, kwargs = AutoConfig.from_pretrained(
-        hf_folder, revision=revision, local_files_only=True, return_unused_kwargs=True, **kwargs
-    )
+    # Init model instance
+    if model_path is not None:
+        is_local = os.path.isdir(model_path)
+        if not is_local:
+            hf_folder = download_model_from_hf(
+                model_name_or_path=model_path,
+                cache_dir=cache_dir,
+                revision=revision,
+                local_files_only=local_files_only,
+                skip_download_weights=skip_load_weights,
+            )
+        else:
+            hf_folder = model_path
 
-    # try getting model class info from config
-    model_arch = model_config.architectures
-    model_cls = getattr(importlib.import_module("transformers"), model_arch[0])
+        # should be able to load config using only local files
+        model_config, kwargs = AutoConfig.from_pretrained(
+            hf_folder, revision=revision, local_files_only=True, return_unused_kwargs=True, **kwargs
+        )
 
-    if not skip_load_weights:
-        parallel_ctx.weight_map = try_collect_weight_map(model, cache_dir, hf_folder)
+        # try getting model class info from config
+        model_arch = model_config.architectures
+        model_cls = getattr(importlib.import_module("transformers"), model_arch[0])
+
+        if not skip_load_weights:
+            parallel_ctx.weight_map = try_collect_weight_map(model_path, cache_dir, hf_folder)
+    elif model_cls is None or model_config is None:
+        raise ValueError("must provide `model_cls` and `model_config` in the case of not providing `model_path`")
 
     torch_dtype, dtype_orig = kwargs.pop("torch_dtype", None), None
     if torch_dtype is not None:
