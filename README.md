@@ -284,13 +284,13 @@ model = AutoModelForCausalLM.from_pretrained('meta-llama/Meta-Llama-3.1-8B')
 qmodel = QuantizedModelForCausalLM.quantize(model, weights=qint4, exclude='lm_head')
 ```
 
-The quantized model can be saved using save_pretrained:
+The quantized model can be saved using `save_pretrained`:
 
 ```python
 qmodel.save_pretrained('./Llama-3.1-8B-quantized')
 ```
 
-It can later be reloaded using from_pretrained:
+It can later be reloaded using `from_pretrained`:
 
 ```python
 from optimum.quanto import QuantizedModelForCausalLM
