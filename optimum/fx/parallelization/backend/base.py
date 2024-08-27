@@ -52,7 +52,7 @@ class BackEnd(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def post_process(self, graph_module: GraphModule) -> nn.Module:
+    def post_process(self, graph_module: GraphModule, parallel_ctx: "ParallelExecutionCtx") -> nn.Module:
         return graph_module
 
     @abstractmethod

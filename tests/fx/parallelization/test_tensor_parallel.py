@@ -114,17 +114,17 @@ def run_test_parameters_persist_bewteen_recompile(
     yet_another_inputs = prepare_dummy_inputs(model.config, batch_size=2, seq_len=12)
 
     model(**inputs)
-    parameter_ids = {id(param) for _, param in ctx.last_optimized_graph_module.named_parameters()}
+    parameter_ids = {id(param) for _, param in ctx.last_optimized_module.named_parameters()}
 
     model(**another_inputs)
     # check second compilation has been triggered
     assert ctx.compile_times == 2
-    parameter_ids_after_recompile = {id(param) for _, param in ctx.last_optimized_graph_module.named_parameters()}
+    parameter_ids_after_recompile = {id(param) for _, param in ctx.last_optimized_module.named_parameters()}
     assert parameter_ids == parameter_ids_after_recompile
 
     model(**yet_another_inputs)
     assert ctx.compile_times == 3
-    parameter_ids_after_recompile = {id(param) for _, param in ctx.last_optimized_graph_module.named_parameters()}
+    parameter_ids_after_recompile = {id(param) for _, param in ctx.last_optimized_module.named_parameters()}
     assert parameter_ids == parameter_ids_after_recompile
     dist.barrier(tp_group)
     tearDown(tp_group)
@@ -175,7 +175,7 @@ def run_test_tie_word_embeddings(rank: int, world_size: int, model_id: str, mode
     model(**inputs)
 
     embedding_weight, lm_head_weight = None, None
-    graph_module = ctx.last_optimized_graph_module
+    graph_module = ctx.last_optimized_module
     stable_topological_sort(graph_module.graph)
     for node in graph_module.graph.nodes:
         if node.op == "call_module":

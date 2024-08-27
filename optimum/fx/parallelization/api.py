@@ -18,11 +18,11 @@ from functools import partial
 from typing import Callable, List, Optional, Type
 
 import torch
+import torch.nn as nn
 from torch.fx import GraphModule
 from transformers import AutoConfig, PretrainedConfig, PreTrainedModel
 
 from .core import Config, ParallelExecutionCtx
-from .passes import build_parallel_pass_pipeline
 from .utils import (
     MetaAwareMethodsPatcher,
     download_model_from_hf,
@@ -34,13 +34,14 @@ from .utils import (
 
 def parallelize_backend(
     graph_module: GraphModule, example_inputs: List[torch.Tensor], ctx: ParallelExecutionCtx, config: Config
-) -> GraphModule:
+) -> nn.Module:
     ctx.example_inputs = example_inputs
-    pass_pipeline = build_parallel_pass_pipeline()
+    pass_pipeline = ctx.backend.init_parallelization_pass_pipeline()
     graph_module = pass_pipeline(graph_module=graph_module, ctx=ctx, config=config)
+    finalized_module = ctx.backend.post_process(graph_module, ctx)
     ctx.compile_times += 1
-    ctx.last_optimized_graph_module = graph_module
-    return graph_module
+    ctx.last_optimized_module = finalized_module
+    return finalized_module
 
 
 def parallelize_model(

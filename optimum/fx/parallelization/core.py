@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-from torch.fx import GraphModule
+from .backend import BackEnd, DefaultBackend
 
 
 class HashableSlice:
@@ -115,6 +115,9 @@ class ParallelExecutionCtx:
         - current_device (`torch.device`):
             Device correpsonding to the current process.
 
+        - backend (`BackEnd`, defaults to `DefaultBackEnd`):
+            Backend instance which converts layers into their parallelized counterparts.
+
         - example_inputs (`List[Any]`):
             A list of tensors which are used as example inputs for graphs captured by dynamo.
 
@@ -129,8 +132,8 @@ class ParallelExecutionCtx:
             Mapping between parameter names and their locations on disk, useful when loading weights
             from disk.
 
-        - last_optimized_graph_module (`Optional[GraphModule]`, defaults to `None`):
-            Optimized graph module corresponding to the latest compilation.
+        - last_optimized_module (`Optional[nn.Module]`, defaults to `None`):
+            Optimized module corresponding to the latest compilation.
 
         - compile_times (`int`, defaults to `0`):
             Number of compilation times happened during the whole process.
@@ -138,10 +141,11 @@ class ParallelExecutionCtx:
 
     tp_group: dist.ProcessGroup
     current_device: torch.device
+    backend: BackEnd = DefaultBackend()
     example_inputs: List[Any] = field(default_factory=list)
     parallel_layer_cache: Dict[str, nn.Module] = field(default_factory=dict)
     weight_map: Dict[str, str] = field(default_factory=dict)
-    last_optimized_graph_module: Optional[GraphModule] = None
+    last_optimized_module: Optional[nn.Module] = None
     compile_times: int = 0
 
 
