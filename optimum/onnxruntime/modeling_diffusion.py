@@ -53,6 +53,7 @@ from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.utils import validate_hf_hub_args
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
 from transformers.file_utils import add_end_docstrings
+from transformers.modeling_outputs import ModelOutput
 
 import onnxruntime as ort
 
@@ -72,9 +73,9 @@ from ..utils import (
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
 )
+from .io_binding import TypeHelper
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
-    _ORT_TO_NP_TYPE,
     ONNX_WEIGHTS_NAME,
     get_provider_for_device,
     parse_device,
@@ -501,14 +502,23 @@ class _ORTDiffusionModelPart:
 
     CONFIG_NAME = "config.json"
 
+    _prepare_onnx_inputs = ORTModel._prepare_onnx_inputs
+    _prepare_onnx_outputs = ORTModel._prepare_onnx_outputs
+
     def __init__(self, session: ort.InferenceSession, parent_model: ORTModel):
         self.session = session
         self.parent_model = parent_model
-        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
-        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
         config_path = Path(session._model_path).parent / self.CONFIG_NAME
         self.config = self.parent_model._dict_from_json_file(config_path) if config_path.is_file() else {}
-        self.input_dtype = {inputs.name: _ORT_TO_NP_TYPE[inputs.type] for inputs in self.session.get_inputs()}
+        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
+        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+        self.input_dtypes = {input_key.name: input_key.type for input_key in session.get_inputs()}
+        self.output_dtypes = {output_key.name: output_key.type for output_key in session.get_outputs()}
+
+    @property
+    def input_dtype(self):
+        # for backward compatibility
+        return {key: TypeHelper.ort_type_to_numpy_type(value) for key, value in self.input_dtypes.items()}
 
     @property
     def device(self):
@@ -523,12 +533,16 @@ class _ORTDiffusionModelPart:
 
 
 class ORTModelTextEncoder(_ORTDiffusionModelPart):
-    def forward(self, input_ids: np.ndarray):
-        onnx_inputs = {
-            "input_ids": input_ids,
-        }
-        outputs = self.session.run(None, onnx_inputs)
-        return outputs
+    def forward(self, input_ids: Union[np.ndarray, torch.Tensor]):
+        use_torch = isinstance(input_ids, torch.Tensor)
+
+        model_inputs = {"input_ids": input_ids}
+
+        onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+        onnx_outputs = self.session.run(None, onnx_inputs)
+        model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+
+        return ModelOutput(**model_outputs)
 
 
 class ORTModelUnet(_ORTDiffusionModelPart):
@@ -537,45 +551,55 @@ class ORTModelUnet(_ORTDiffusionModelPart):
 
     def forward(
         self,
-        sample: np.ndarray,
-        timestep: np.ndarray,
-        encoder_hidden_states: np.ndarray,
-        text_embeds: Optional[np.ndarray] = None,
-        time_ids: Optional[np.ndarray] = None,
-        timestep_cond: Optional[np.ndarray] = None,
+        sample: Union[np.ndarray, torch.Tensor],
+        timestep: Union[np.ndarray, torch.Tensor],
+        encoder_hidden_states: Union[np.ndarray, torch.Tensor],
+        text_embeds: Optional[Union[np.ndarray, torch.Tensor]] = None,
+        time_ids: Optional[Union[np.ndarray, torch.Tensor]] = None,
+        timestep_cond: Optional[Union[np.ndarray, torch.Tensor]] = None,
     ):
-        onnx_inputs = {
+        use_torch = isinstance(sample, torch.Tensor)
+
+        model_inputs = {
             "sample": sample,
             "timestep": timestep,
             "encoder_hidden_states": encoder_hidden_states,
+            "text_embeds": text_embeds,
+            "time_ids": time_ids,
+            "timestep_cond": timestep_cond,
         }
 
-        if text_embeds is not None:
-            onnx_inputs["text_embeds"] = text_embeds
-        if time_ids is not None:
-            onnx_inputs["time_ids"] = time_ids
-        if timestep_cond is not None:
-            onnx_inputs["timestep_cond"] = timestep_cond
-        outputs = self.session.run(None, onnx_inputs)
-        return outputs
+        onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+        onnx_outputs = self.session.run(None, onnx_inputs)
+        model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+
+        return ModelOutput(**model_outputs)
 
 
 class ORTModelVaeDecoder(_ORTDiffusionModelPart):
-    def forward(self, latent_sample: np.ndarray):
-        onnx_inputs = {
-            "latent_sample": latent_sample,
-        }
-        outputs = self.session.run(None, onnx_inputs)
-        return outputs
+    def forward(self, latent_sample: Union[np.ndarray, torch.Tensor]):
+        use_torch = isinstance(latent_sample, torch.Tensor)
+
+        model_inputs = {"latent_sample": latent_sample}
+
+        onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+        onnx_outputs = self.session.run(None, onnx_inputs)
+        model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+
+        return ModelOutput(**model_outputs)
 
 
 class ORTModelVaeEncoder(_ORTDiffusionModelPart):
-    def forward(self, sample: np.ndarray):
-        onnx_inputs = {
-            "sample": sample,
-        }
-        outputs = self.session.run(None, onnx_inputs)
-        return outputs
+    def forward(self, sample: Union[np.ndarray, torch.Tensor]):
+        use_torch = isinstance(sample, torch.Tensor)
+
+        model_inputs = {"sample": sample}
+
+        onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+        onnx_outputs = self.session.run(None, onnx_inputs)
+        model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+
+        return ModelOutput(**model_outputs)
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
