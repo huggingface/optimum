@@ -77,17 +77,48 @@ class PerformanceRecord:
 
 
 class PerformanceTrackerStore(Protocol):
+    r"""
+    Base interface defining a performance tracker tool
+    """
 
     @staticmethod
     def from_uri(uri: str) -> "PerformanceTrackerStore":
+        r"""
+        Create the `PerformanceTrackerStore` from the provided URI information
+
+        Args:
+         `uri` (`str`):
+            URI specifying over which protocol and where will be stored the record(s)
+
+        Returns:
+            Instance of a `PerformanceTrackerStore` which information are inferred from the specified URI
+        """
         pass
 
     def push(self, collection: str, record: "PerformanceRecord"):
+        r"""
+        Attempt to append the provided record to the underlying tracker putting under the specified collection
+
+        Args:
+            `collection` (`str`):
+                Name of the bucket the specified record should be pushed
+            `record` (`PerformanceRecord`):
+                The materialized record to push
+        """
         pass
 
 
 
 class OpenSearchPerformanceTrackerStore(PerformanceTrackerStore):
+    r"""
+    Amazon Web Services (AWS) OpenSearch based PerformanceTrackerStore
+
+    Supported URIs are as follows:
+    - os://<username:password@><hostname>:<port>
+    - os+aws://<aws_access_key_id:aws_secret_access_key@><hostname>:<port>
+    - os+aws://<hostname>:<port> - will use the stored aws credentials on the system
+    """
+
     # Extract region and service from AWS url (ex: us-east-1.es.amazonaws.com)
     AWS_URL_RE = re.compile(r"([a-z]+-[a-z]+-[0-9])\.(.*)?\.amazonaws.com")
 
@@ -111,7 +142,7 @@ class OpenSearchPerformanceTrackerStore(PerformanceTrackerStore):
         if _uri.scheme == "es+aws":
             from boto3 import Session as AwsSession
             from botocore.credentials import Credentials as AwsCredentials
-            from opensearchpy import AWSV4SignerAuth, Urllib3AWSV4SignerAuth
+            from opensearchpy import Urllib3AWSV4SignerAuth
 
             # Create AWS session from the (eventual) creds
             if not _uri.username and not _uri.password:
