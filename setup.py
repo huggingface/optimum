@@ -91,7 +91,7 @@ EXTRAS_REQUIRE = {
     "quality": QUALITY_REQUIRE,
     "benchmark": BENCHMARK_REQUIRE,
     "doc-build": ["accelerate"],
-    "perf-tracking": ["opensearch-py >= 2.7"]
+    "perf-tracking": ["boto3 >= 1.35", "opensearch-py >= 2.7"]
 }
 
 setup(
