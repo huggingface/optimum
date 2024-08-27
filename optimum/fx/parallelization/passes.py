@@ -26,7 +26,6 @@ from .core import Config, ParallelExecutionCtx, ParameterMeta
 from .decomp import decompose_and_functionalize
 from .distributed import scatter
 from .op_registry import REGISTRY, FallbackParallelAxisPropagateHandler
-from .parallel_layers import ColumnParallelLinear, RowParallelLinear, VocabParallelEmbedding
 from .utils import (
     is_embedding,
     is_linear,
@@ -300,20 +299,23 @@ class ParallelLayerReplacePass(PassBase):
             field = node.target
 
         mod: nn.Linear = graph_module.get_submodule(node.target)
-        key, layer_cache = node.target, ctx.parallel_layer_cache
+        key, layer_cache, backend = node.target, ctx.parallel_layer_cache, ctx.backend
         if key in layer_cache:
             new_mod = layer_cache[key]
         else:
+            assert ctx.compile_times == 0, "illegal path for recompilation"
             if axis == "column":
                 gather_output = ParallelLayerAnnotatePass.get_stored_field_info(
                     node, field="gather_output", must_have=True
                 )
-                new_mod = ColumnParallelLinear(ctx, mod, gather_output)
+                # TODO: enable sequence parallel
+                new_mod = backend.create_column_parallel_linear(mod, ctx, False, gather_output)
             else:
                 input_is_parallel = ParallelLayerAnnotatePass.get_stored_field_info(
                     node, field="input_is_parallel", must_have=True
                 )
-                new_mod = RowParallelLinear(ctx, mod, input_is_parallel)
+                # TODO: enable sequence parallel
+                new_mod = backend.create_row_parallel_linear(mod, ctx, False, input_is_parallel)
             layer_cache[key] = new_mod
         setattr(parent_mod, field, new_mod)
 
@@ -334,12 +336,13 @@ class ParallelLayerReplacePass(PassBase):
             field = node.target
 
         mod: nn.Embedding = graph_module.get_submodule(node.target)
-        key, layer_cache = node.target, ctx.parallel_layer_cache
+        key, layer_cache, backend = node.target, ctx.parallel_layer_cache, ctx.backend
         if key in layer_cache:
             new_mod = layer_cache[key]
         else:
             assert ctx.compile_times == 0, "illegal path for recompilation"
-            new_mod = VocabParallelEmbedding(ctx, mod)
+            # TODO: enable sequence parallel
+            new_mod = backend.create_parallel_embedding(mod, ctx, False)
             layer_cache[key] = new_mod
         setattr(parent_mod, field, new_mod)
 
@@ -484,27 +487,6 @@ class InitializeOrLoadWeightsPass(PassBase):
             setattr(parent_mod, field, new_param)
 
         return graph_module
-
-
-def build_parallel_pass_pipeline() -> PassPipeline:
-    """
-    Ensemble a pass pipeline which contains the following passes:
-        1. `ParallelAxisSolverPass` to find a parallelization solution of tensors in the graph.
-        2. `ParallelLayerAnnotatePass` to annotate parallelized layers according to the solution found in the first step.
-        3. `ParallelLinearReplacePass` to do the actual replacement and modification of hard-coded attributes.
-        4. `InitializeOrLoadWeightsPass` to load or initialize weights for parameters.
-
-    Returns:
-        PassPipeline: the pipeline used for automatic parallelism.
-    """
-    return PassPipeline(
-        [
-            ParallelAxisSolverPass(),
-            ParallelLayerAnnotatePass(),
-            ParallelLayerReplacePass(),
-            InitializeOrLoadWeightsPass(),
-        ]
-    )
 
 
 class PassPipeline:
