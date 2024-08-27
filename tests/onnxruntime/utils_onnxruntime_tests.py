@@ -213,16 +213,9 @@ class ORTModelTestMixin(unittest.TestCase):
                     continue
 
                 set_seed(SEED)
-                if hasattr(self, "ORTMODEL_CLASS"):
-                    onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-                        model_id, **model_args, use_io_binding=False, export=True
-                    )
-                elif hasattr(self, "ORTPIPELINE_CLASS"):
-                    onnx_model = self.ORTPIPELINE_CLASS.from_pretrained(
-                        model_id, **model_args, use_io_binding=False, export=True
-                    )
-                else:
-                    raise ValueError("ORTMODEL_CLASS or ORTPIPELINE_CLASS must be defined")
+                onnx_model = self.ORTMODEL_CLASS.from_pretrained(
+                    model_id, **model_args, use_io_binding=False, export=True
+                )
 
                 model_dir = tempfile.mkdtemp(
                     prefix=f"{model_arch_and_params}_{self.TASK}_{model_id.replace('/', '_')}"
