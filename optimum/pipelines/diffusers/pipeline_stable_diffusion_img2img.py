@@ -16,7 +16,7 @@ import inspect
 from typing import Callable, List, Optional, Union
 
 import numpy as np
-import PIL
+import PIL.Image
 import torch
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.utils import deprecate
@@ -72,6 +72,43 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
                     f" {negative_prompt_embeds.shape}."
                 )
 
+    # Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
+    def prepare_latents(self, image, timesteps, batch_size, num_images_per_prompt, dtype, generator=None):
+        batch_size = batch_size * num_images_per_prompt
+
+        if image.shape[1] == 4:
+            init_latents = image
+        else:
+            init_latents = self.vae_encoder(sample=image)[0] * self.vae_decoder.config.get("scaling_factor", 0.18215)
+
+        if batch_size > init_latents.shape[0] and batch_size % init_latents.shape[0] == 0:
+            # expand init_latents for batch_size
+            additional_image_per_prompt = batch_size // init_latents.shape[0]
+            init_latents = np.concatenate([init_latents] * additional_image_per_prompt, axis=0)
+        elif batch_size > init_latents.shape[0] and batch_size % init_latents.shape[0] != 0:
+            raise ValueError(
+                f"Cannot duplicate `image` of batch size {init_latents.shape[0]} to {batch_size} text prompts."
+            )
+        else:
+            init_latents = np.concatenate([init_latents], axis=0)
+
+        # add noise to latents using the timesteps
+        if isinstance(generator, np.random.RandomState):
+            noise = generator.randn(*init_latents.shape).astype(dtype)
+        elif isinstance(generator, torch.Generator):
+            noise = torch.randn(*init_latents.shape, generator=generator).numpy().astype(dtype)
+        else:
+            raise ValueError(
+                f"Expected `generator` to be of type `np.random.RandomState` or `torch.Generator`, but got"
+                f" {type(generator)}."
+            )
+
+        init_latents = self.scheduler.add_noise(
+            torch.from_numpy(init_latents), torch.from_numpy(noise), torch.from_numpy(timesteps)
+        ).numpy()
+
+        return init_latents
+
     # Adapted from diffusers.pipelines.stable_diffusion.pipeline_onnx_stable_diffusion.OnnxStableDiffusionImg2ImgPipeline.__call__
     def __call__(
         self,
@@ -83,7 +120,7 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
         negative_prompt: Optional[Union[str, List[str]]] = None,
         num_images_per_prompt: int = 1,
         eta: float = 0.0,
-        generator: Optional[np.random.RandomState] = None,
+        generator: Optional[Union[np.random.RandomState, torch.Generator]] = None,
         prompt_embeds: Optional[np.ndarray] = None,
         negative_prompt_embeds: Optional[np.ndarray] = None,
         output_type: str = "pil",
@@ -125,7 +162,7 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
             eta (`float`, defaults to 0.0):
                 Corresponds to parameter eta (η) in the DDIM paper: https://arxiv.org/abs/2010.02502. Only applies to
                 [`schedulers.DDIMScheduler`], will be ignored for others.
-            generator (`Optional[np.random.RandomState]`, defaults to `None`)::
+            generator (`Optional[Union[np.random.RandomState, torch.Generator]]`, defaults to `None`):
                 A np.random.RandomState to make generation deterministic.
             prompt_embeds (`Optional[np.ndarray]`, defaults to `None`):
                 Pre-generated text embeddings. Can be used to easily tweak text inputs, *e.g.* prompt weighting. If not
@@ -168,7 +205,7 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
             batch_size = prompt_embeds.shape[0]
 
         if generator is None:
-            generator = np.random
+            generator = np.random.RandomState()
 
         # set timesteps
         self.scheduler.set_timesteps(num_inference_steps)
@@ -225,12 +262,8 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
         timesteps = self.scheduler.timesteps.numpy()[-init_timestep]
         timesteps = np.array([timesteps] * batch_size * num_images_per_prompt)
 
-        # add noise to latents using the timesteps
-        noise = generator.randn(*init_latents.shape).astype(latents_dtype)
-        init_latents = self.scheduler.add_noise(
-            torch.from_numpy(init_latents), torch.from_numpy(noise), torch.from_numpy(timesteps)
-        )
-        init_latents = init_latents.numpy()
+        # 5. Prepare latent variables
+        latents = self.prepare_latents(image, timesteps, batch_size, num_images_per_prompt, latents_dtype, generator)
 
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
         # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
@@ -276,7 +309,8 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
             # call the callback, if provided
             if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
                 if callback is not None and i % callback_steps == 0:
-                    callback(i, t, latents)
+                    step_idx = i // getattr(self.scheduler, "order", 1)
+                    callback(step_idx, t, latents)
 
         if output_type == "latent":
             image = latents
