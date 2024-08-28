@@ -555,6 +555,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
                 None,
                 None,
             )
+
         return super().generate(input_name, framework=framework, int_dtype=int_dtype)
 
 
@@ -610,7 +611,7 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
     Generates dummy past_key_values inputs for seq2seq architectures.
     """
 
-    SUPPORTED_INPUT_NAMES = ("past_key_values",)
+    SUPPORTED_INPUT_NAMES = ("past_key_values", "cache_position")
 
     def __init__(
         self,
@@ -658,27 +659,38 @@ class DummySeq2SeqPastKeyValuesGenerator(DummyInputGenerator):
             self.decoder_num_layers = self.normalized_config.decoder_num_layers
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        encoder_shape = (
-            self.batch_size,
-            self.encoder_num_attention_heads,
-            self.encoder_sequence_length,
-            self.encoder_hidden_size // self.encoder_num_attention_heads,
-        )
-        decoder_shape = (
-            self.batch_size,
-            self.decoder_num_attention_heads,
-            self.sequence_length,
-            self.decoder_hidden_size // self.decoder_num_attention_heads,
-        )
-        return [
-            (
-                self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
-                self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
-                self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
-                self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
+        if input_name == "past_key_values":
+            encoder_shape = (
+                self.batch_size,
+                self.encoder_num_attention_heads,
+                self.encoder_sequence_length,
+                self.encoder_hidden_size // self.encoder_num_attention_heads,
             )
-            for _ in range(self.decoder_num_layers)
-        ]
+            decoder_shape = (
+                self.batch_size,
+                self.decoder_num_attention_heads,
+                self.sequence_length,
+                self.decoder_hidden_size // self.decoder_num_attention_heads,
+            )
+            return [
+                (
+                    self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
+                    self.random_float_tensor(decoder_shape, framework=framework, dtype=float_dtype),
+                    self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
+                    self.random_float_tensor(encoder_shape, framework=framework, dtype=float_dtype),
+                )
+                for _ in range(self.decoder_num_layers)
+            ]
+
+        elif input_name == "cache_position":
+            return self.random_int_tensor(
+                shape=[1],
+                max_value=self.sequence_length,
+                framework=framework,
+                dtype=int_dtype,
+            )
+
+        raise ValueError(f"Unsupported input name {input_name}")
 
 
 # TODO: should it just be merged to DummyTextInputGenerator?

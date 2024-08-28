@@ -31,7 +31,7 @@ _import_structure = {
     "utils": [
         "get_decoder_models_for_export",
         "get_encoder_decoder_models_for_export",
-        "get_stable_diffusion_models_for_export",
+        "get_diffusion_models_for_export",
         "MODEL_TYPES_REQUIRING_POSITION_IDS",
     ],
     "__main__": ["main_export"],
@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from .utils import (
         get_decoder_models_for_export,
         get_encoder_decoder_models_for_export,
-        get_stable_diffusion_models_for_export,
+        get_diffusion_models_for_export,
         MODEL_TYPES_REQUIRING_POSITION_IDS,
     )
     from .__main__ import main_export

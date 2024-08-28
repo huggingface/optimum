@@ -276,7 +276,24 @@ class ORTModel(OptimizedModel):
 
         self._ordered_input_names = get_ordered_input_names(self.input_names.keys(), func=self.forward)
 
-    # TODO: why do we make device a property since we are only access the value, and do not do any check when setting the value?
+    @property
+    def dtype(self) -> torch.dtype:
+        """
+        `torch.dtype`: The dtype of the model.
+        """
+
+        for dtype in self.input_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
+        for dtype in self.output_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
+        return None
+
     @property
     def device(self) -> torch.device:
         """
@@ -286,8 +303,8 @@ class ORTModel(OptimizedModel):
         return self._device
 
     @device.setter
-    def device(self, value: torch.device):
-        self._device = value
+    def device(self, **kwargs):
+        raise AttributeError("The device attribute is read-only, please use the `to` method to change the device.")
 
     @property
     def use_io_binding(self):
@@ -309,13 +326,13 @@ class ORTModel(OptimizedModel):
         Returns:
             `ORTModel`: the model placed on the requested device.
         """
+
         device, provider_options = parse_device(device)
 
         if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
             return self
 
-        self.device = device
-        provider = get_provider_for_device(self.device)
+        provider = get_provider_for_device(device)
         validate_provider_availability(provider)  # raise error if the provider is not available
 
         # IOBinding is only supported for CPU and CUDA Execution Providers.
@@ -331,6 +348,7 @@ class ORTModel(OptimizedModel):
 
         self.model.set_providers([provider], provider_options=[provider_options])
         self.providers = self.model.get_providers()
+        self._device = device
 
         return self
 
