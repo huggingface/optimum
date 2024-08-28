@@ -125,6 +125,11 @@ class ParallelExecutionCtx:
             because we have to make sure we don't initiate new parameters and replace original ones when
             recompilation happens in training process.
 
+        - param_cache (`Dict[str, nn.Parameter]`):
+            Cache which keeps record of newly created parameters. Similar to `parallel_layer_cache`, we
+            need to make sure all the newly created parameters in the first compilation will still be used
+            when recompilation happens.
+
         - weight_map (`Dict[str, str]`):
             Mapping between parameter names and their locations on disk, useful when loading weights
             from disk.
@@ -140,6 +145,7 @@ class ParallelExecutionCtx:
     current_device: torch.device
     example_inputs: List[Any] = field(default_factory=list)
     parallel_layer_cache: Dict[str, nn.Module] = field(default_factory=dict)
+    param_cache: Dict[str, nn.Parameter] = field(default_factory=dict)
     weight_map: Dict[str, str] = field(default_factory=dict)
     last_optimized_graph_module: Optional[GraphModule] = None
     compile_times: int = 0
