@@ -480,18 +480,21 @@ class ParallelLayerReplacePass(PassBase):
 
 class InitializeOrLoadWeightsPass(PassBase):
     """
-    Make weights loading/initialization a seperate pass for cleaner logic and easier extensibility. This
-    pass will only run once in the very first compilation step.
+    Weights loading and intialization pass, will initialize parameters on current rank and load weights from disk
+    if necessary.
     """
-
-    need_rerun_when_recompile = False
 
     def run(self, graph_module: GraphModule, ctx: ParallelExecutionCtx, config: Config) -> GraphModule:
         world_size = dist.get_world_size(ctx.tp_group)
         tp_rank = dist.get_rank(ctx.tp_group)
 
-        new_parameters, tied_parameters = [], {}
+        new_parameters, tied_parameters, param_cache = [], {}, ctx.param_cache
         for name, param in sorted(graph_module.named_parameters(remove_duplicate=False)):
+            # skip initializing new params when recompilation happens
+            if name in param_cache:
+                new_parameters.append((name, param_cache[name]))
+                continue
+
             param_meta: ParameterMeta = getattr(param, "meta")
             # skip already initialized/loaded tied parameters
             if param_meta.is_tied and id(param) in tied_parameters:
@@ -569,6 +572,8 @@ class InitializeOrLoadWeightsPass(PassBase):
             else:
                 parent_mod = graph_module
                 field = name
+            if name not in param_cache:
+                param_cache[name] = new_param
             setattr(parent_mod, field, new_param)
 
         return graph_module
