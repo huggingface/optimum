@@ -1087,7 +1087,9 @@ class SiglipNormalizedConfig(CLIPNormalizedConfig):
 
 class SiglipOnnxConfig(CLIPOnnxConfig):
     NORMALIZED_CONFIG_CLASS = SiglipNormalizedConfig
-    DEFAULT_ONNX_OPSET = 13
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 13 is not supported.
+    # Support for this operator was added in version 14, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 14
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
