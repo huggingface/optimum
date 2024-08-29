@@ -31,7 +31,6 @@ from .constants import GPTQ_CONFIG, SUPPORT_EXLLAMA_DEVICES
 from .data import get_dataset, prepare_dataset
 from .utils import get_block_name_with_pattern, get_device, get_layers, get_preceding_modules, get_seqlen
 
-
 if is_accelerate_available():
     from accelerate import (
         cpu_offload_with_hook,
@@ -592,10 +591,11 @@ class GPTQQuantizer(object):
             if get_device(model).type not in SUPPORT_EXLLAMA_DEVICES or (
                 hasattr(model, "hf_device_map") and any(d in model.hf_device_map for d in ["cpu", "disk"])
             ):
-                logger.warning(
-                    "Found modules on cpu/disk. Using Exllama/Exllamav2 backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
-                )
-                self.disable_exllama = True
+                if not self.disable_exllama:
+                    logger.warning(
+                        "Found modules on cpu/disk. Using Exllama/Exllamav2 backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
+                    )
+                    self.disable_exllama = True
 
         class StoreAttr(object):
             pass
