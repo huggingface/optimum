@@ -218,6 +218,8 @@ class NormalizedConfigManager:
         'owlvit',
         'perceiver',
         'roformer',
+        'segformer',
+        'siglip',
         'squeezebert',
         'table-transformer',
     """

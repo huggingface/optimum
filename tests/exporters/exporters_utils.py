@@ -146,6 +146,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
     "sam": "fxmarty/sam-vit-tiny-random",
     "segformer": "hf-internal-testing/tiny-random-SegformerModel",
+    "siglip": "HuggingFaceM4/tiny-random-siglip",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "swin": "hf-internal-testing/tiny-random-SwinModel",

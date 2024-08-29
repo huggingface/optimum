@@ -1081,6 +1081,31 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
         return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
+class SiglipNormalizedConfig(CLIPNormalizedConfig):
+    pass
+
+
+class SiglipOnnxConfig(CLIPOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = SiglipNormalizedConfig
+    DEFAULT_ONNX_OPSET = 13
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+            "pixel_values": {0: "image_batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            # NOTE: No attention_mask
+        }
+
+
+class SiglipTextWithProjectionOnnxConfig(CLIPTextWithProjectionOnnxConfig):
+    pass
+
+
+class SiglipTextOnnxConfig(CLIPTextOnnxConfig):
+    pass
+
+
 class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
