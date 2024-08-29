@@ -2727,6 +2727,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "convnextv2",
         "data2vec_vision",
         "deit",
+        "dinov2",
         "levit",
         "mobilenet_v1",
         "mobilenet_v2",

@@ -204,6 +204,7 @@ class NormalizedConfigManager:
         'data2vec-text',
         'data2vec-vision',
         'detr',
+        'dinov2',
         'flaubert',
         'groupvit',
         'hiera',
