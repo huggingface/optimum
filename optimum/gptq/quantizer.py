@@ -27,7 +27,7 @@ from transformers.utils.quantization_config import QuantizationMethod
 
 from ..utils import is_accelerate_available, is_auto_gptq_available
 from ..utils.modeling_utils import recurse_getattr
-from .constants import GPTQ_CONFIG
+from .constants import GPTQ_CONFIG, SUPPORT_EXLLAMA_DEVICES
 from .data import get_dataset, prepare_dataset
 from .utils import get_block_name_with_pattern, get_device, get_layers, get_preceding_modules, get_seqlen
 
@@ -546,7 +546,7 @@ class GPTQQuantizer(object):
 
         if self.bits == 4:
             # device not on gpu
-            if device == torch.device("cpu") or (has_device_map and any(d in devices for d in ["cpu", "disk"])):
+            if device.type not in SUPPORT_EXLLAMA_DEVICES or (has_device_map and any(d in devices for d in ["cpu", "disk"])):
                 if not self.disable_exllama:
                     logger.warning(
                         "Found modules on cpu/disk. Using Exllama/Exllamav2 backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
@@ -589,13 +589,13 @@ class GPTQQuantizer(object):
                 The input model
         """
         if self.bits == 4 and not self.disable_exllama:
-            if get_device(model) == torch.device("cpu") or (
+            if get_device(model).type not in SUPPORT_EXLLAMA_DEVICES or (
                 hasattr(model, "hf_device_map") and any(d in model.hf_device_map for d in ["cpu", "disk"])
             ):
-                raise ValueError(
-                    "Found modules on cpu/disk. Using Exllama or Exllamav2 backend requires all the modules to be on GPU."
-                    "You can deactivate exllama backend by setting `disable_exllama=True` in the quantization config object"
+                logger.warning(
+                    "Found modules on cpu/disk. Using Exllama/Exllamav2 backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
                 )
+                self.disable_exllama = True
 
         class StoreAttr(object):
             pass
