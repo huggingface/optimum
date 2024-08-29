@@ -175,6 +175,7 @@ class ORTConfigManager:
             "clip",
             "vit",
             "swin",
+            "swinv2",
         ]
         model_type = model_type.replace("_", "-")
         if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):

@@ -817,6 +817,10 @@ class SwinOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+class SwinV2OnnxConfig(SwinOnnxConfig):
+    pass
+
+
 class Swin2srOnnxConfig(SwinOnnxConfig):
     pass
 

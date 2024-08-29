@@ -1054,6 +1054,12 @@ class TasksManager:
             "masked-im",
             onnx="SwinOnnxConfig",
         ),
+        "swinv2": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            "masked-im",
+            onnx="SwinV2OnnxConfig",
+        ),
         "swin2sr": supported_tasks_mapping(
             "feature-extraction",
             "image-to-image",
