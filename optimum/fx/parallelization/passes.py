@@ -15,16 +15,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
-import torch
-import torch.distributed as dist
 import torch.nn as nn
 from torch.fx import Graph, GraphModule, Node
 
-from .core import Config, ParallelExecutionCtx, ParameterMeta
 from .decomp import decompose_and_functionalize
-from .distributed import scatter
 from .op_registry import REGISTRY, FallbackParallelAxisPropagateHandler
 from .utils import (
     is_embedding,
@@ -32,6 +28,10 @@ from .utils import (
     is_shape_consumer,
     stable_topological_sort,
 )
+
+
+if TYPE_CHECKING:
+    from .core import Config, ParallelExecutionCtx
 
 
 class PassBase(ABC):
@@ -46,7 +46,7 @@ class PassBase(ABC):
         return cls.__name__
 
     @abstractmethod
-    def run(self, graph_module: GraphModule, ctx: ParallelExecutionCtx, config: Config) -> GraphModule:
+    def run(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> GraphModule:
         """
         Args:
             graph_module (`GraphModule`):
@@ -61,7 +61,7 @@ class PassBase(ABC):
         """
         raise NotImplementedError
 
-    def __call__(self, graph_module: GraphModule, ctx: ParallelExecutionCtx, config: Config) -> GraphModule:
+    def __call__(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> GraphModule:
         # skip running when recompilation happens
         if not self.need_rerun_when_recompile and ctx.compile_times > 0:
             return graph_module
@@ -189,7 +189,7 @@ class ParallelAxisSolverPass(AnalyzeBase):
                     orig_node, {"parallel_axis": self.get_stored_field_info(node, field="parallel_axis")}
                 )
 
-    def run(self, graph_module: GraphModule, ctx: ParallelExecutionCtx, config: Config) -> GraphModule:
+    def run(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> GraphModule:
         graph: Graph = decompose_and_functionalize(graph_module)(*ctx.example_inputs)
         stable_topological_sort(graph)
 
@@ -230,7 +230,7 @@ class ParallelLayerAnnotatePass(AnalyzeBase):
     annotation according to parallelization strategy of input and output tensors.
     """
 
-    def run(self, graph_module: GraphModule, ctx: ParallelExecutionCtx, config: Config) -> GraphModule:
+    def run(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> GraphModule:
         for node in graph_module.graph.nodes:
             if is_linear(node):
                 axis_before = ParallelAxisSolverPass.get_stored_field_info(node.args[0], "parallel_axis")
@@ -283,7 +283,7 @@ class ParallelLayerReplacePass(PassBase):
     """
 
     @staticmethod
-    def handle_linear(node: Node, ctx: ParallelExecutionCtx) -> None:
+    def handle_linear(node: Node, ctx: "ParallelExecutionCtx") -> None:
         graph_module = node.graph.owning_module
         axis = ParallelLayerAnnotatePass.get_stored_field_info(node, field="axis")
         if axis is None:
@@ -320,7 +320,7 @@ class ParallelLayerReplacePass(PassBase):
         setattr(parent_mod, field, new_mod)
 
     @staticmethod
-    def handle_embedding(node: Node, ctx: ParallelExecutionCtx) -> None:
+    def handle_embedding(node: Node, ctx: "ParallelExecutionCtx") -> None:
         graph_module = node.graph.owning_module
         axis = ParallelLayerAnnotatePass.get_stored_field_info(node, field="axis")
         if axis is None:
@@ -347,7 +347,7 @@ class ParallelLayerReplacePass(PassBase):
         setattr(parent_mod, field, new_mod)
 
     @staticmethod
-    def handle_hard_coded_axis_param(node: Node, ctx: ParallelExecutionCtx) -> None:
+    def handle_hard_coded_axis_param(node: Node, ctx: "ParallelExecutionCtx") -> None:
         def extract_shape_from_node(node: Node) -> List[Any]:
             if "size" in node.kwargs:
                 return list(node.kwargs["size"])
@@ -381,7 +381,7 @@ class ParallelLayerReplacePass(PassBase):
         shape[parallel_axis] = shape[parallel_axis] // world_size
         update(node, shape, parallel_axis)
 
-    def run(self, graph_module: GraphModule, ctx: ParallelExecutionCtx, config: Config) -> GraphModule:
+    def run(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> GraphModule:
         for node in graph_module.graph.nodes:
             if is_linear(node):
                 self.handle_linear(node, ctx)
@@ -390,107 +390,6 @@ class ParallelLayerReplacePass(PassBase):
             # correct the attention head num in parallel setting
             elif is_shape_consumer(node):
                 self.handle_hard_coded_axis_param(node, ctx)
-        return graph_module
-
-
-class InitializeOrLoadWeightsPass(PassBase):
-    """
-    Weights loading and intialization pass, will initialize parameters on current rank and load weights from disk
-    if necessary.
-    """
-
-    def run(self, graph_module: GraphModule, ctx: ParallelExecutionCtx, config: Config) -> GraphModule:
-        world_size = dist.get_world_size(ctx.tp_group)
-        tp_rank = dist.get_rank(ctx.tp_group)
-
-        new_parameters, tied_parameters, param_cache = [], {}, ctx.param_cache
-        for name, param in sorted(graph_module.named_parameters(remove_duplicate=False)):
-            # skip initializing new params when recompilation happens
-            if name in param_cache:
-                new_parameters.append((name, param_cache[name]))
-                continue
-
-            param_meta: ParameterMeta = getattr(param, "meta")
-            # skip already initialized/loaded tied parameters
-            if param_meta.is_tied and id(param) in tied_parameters:
-                new_parameters.append((name, tied_parameters[id(param)]))
-                continue
-
-            shape = [
-                param.size(dim) // world_size if dim == param_meta.dim and param_meta.is_parallel else param.size(dim)
-                for dim in range(param.ndim)
-            ]
-
-            if not param_meta.is_parallel and param.device == ctx.current_device:
-                new_param = param
-            else:
-                new_param = nn.Parameter(
-                    torch.zeros(*shape, dtype=param.dtype, device=ctx.current_device),
-                    requires_grad=param.requires_grad,
-                )
-
-            # load weights if possible
-            for source, target in sorted(param_meta.mapping.items()):
-                if target.source in ctx.weight_map:
-                    from safetensors import safe_open
-
-                    with safe_open(ctx.weight_map[target.source], framework="pt", device="cpu") as fp:
-                        tensor_slice = fp.get_slice(target.source)
-                        source_index = [
-                            source.to_slice() if dim == param_meta.dim else slice(None, None, None)
-                            for dim in range(param.ndim)
-                        ]
-                        load_index = [
-                            target.index if dim == param_meta.dim else slice(None, None, None)
-                            for dim in range(param.ndim)
-                        ]
-
-                        tensor = tensor_slice[load_index].contiguous()
-                        tensor = torch.empty_like(tensor).copy_(tensor)
-                        with torch.no_grad():
-                            new_param.data[source_index].copy_(tensor)
-
-            # weights initialization
-            if param_meta.need_initialize:
-                for source, target in sorted(param_meta.mapping.items()):
-                    if target.source in ctx.weight_map:
-                        continue
-                    if not param_meta.is_parallel or tp_rank == 0:
-                        # initialize weight on master rank
-                        weight = torch.empty(*target.shape, dtype=param.dtype, device="cpu")
-                        init_fn = param_meta.init_fn if param_meta.init_fn else config.weight_init_fn
-                        init_fn(weight)
-                        weight = weight.to(ctx.current_device)
-                    else:
-                        weight = None
-                    index = [
-                        source.to_slice() if dim == param_meta.dim else slice(None, None, None)
-                        for dim in range(param.ndim)
-                    ]
-                    with torch.no_grad():
-                        if param_meta.is_parallel:
-                            scatter(ctx.tp_group, weight, new_param.data[index], scatter_dim=param_meta.dim)
-                        else:
-                            new_param.data[index].copy_(weight)
-            setattr(new_param, "meta", param_meta)
-
-            if id(new_param) != id(param):
-                new_parameters.append((name, new_param))
-            if param_meta.is_tied:
-                tied_parameters[id(param)] = new_param
-
-        for name, new_param in new_parameters:
-            prefix_and_field = name.rsplit(".", maxsplit=1)
-            if len(prefix_and_field) == 2:
-                parent_mod = graph_module.get_submodule(prefix_and_field[0])
-                field = prefix_and_field[1]
-            else:
-                parent_mod = graph_module
-                field = name
-            if name not in param_cache:
-                param_cache[name] = new_param
-            setattr(parent_mod, field, new_param)
-
         return graph_module
 
 
@@ -511,7 +410,7 @@ class PassPipeline:
     def append(self, PASS: PassBase) -> None:
         self._passes.append(PASS)
 
-    def __call__(self, graph_module: GraphModule, ctx: ParallelExecutionCtx, config: Config) -> GraphModule:
+    def __call__(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> GraphModule:
         for PASS in self._passes:
             graph_module = PASS(graph_module=graph_module, ctx=ctx, config=config)
 

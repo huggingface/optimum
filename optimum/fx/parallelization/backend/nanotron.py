@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 import torch.nn as nn
 
-# Nanotron
-from nanotron.config import Config
+# Nanotron specific imports
+from nanotron.config import Config as NanotronConfig
 from nanotron.parallel.parameters import NanotronParameter
 from nanotron.parallel.tensor_parallel.enum import TensorParallelLinearMode
 from nanotron.parallel.tensor_parallel.nn import (
@@ -27,21 +27,15 @@ from nanotron.parallel.tensor_parallel.nn import (
 )
 from torch.fx import GraphModule
 
-from ..passes import (
-    ParallelAxisSolverPass,
-    ParallelLayerAnnotatePass,
-    ParallelLayerReplacePass,
-    PassPipeline,
-)
 from .base import BackEnd
 
 
 if TYPE_CHECKING:
-    from ..core import ParallelExecutionCtx
+    from ..core import Config, ParallelExecutionCtx
 
 
 class NanotronBackend(BackEnd):
-    def __init__(self, nanotron_config: Config) -> None:
+    def __init__(self, nanotron_config: NanotronConfig) -> None:
         self.config = nanotron_config
 
     def create_column_parallel_linear(
@@ -134,7 +128,9 @@ class NanotronBackend(BackEnd):
             contiguous_chunks=contiguous_chunks,
         )
 
-    def post_process(self, graph_module: GraphModule, parallel_ctx: "ParallelExecutionCtx") -> nn.Module:
+    def post_process(
+        self, graph_module: GraphModule, parallel_ctx: "ParallelExecutionCtx", config: "Config"
+    ) -> nn.Module:
         for name, param in graph_module.named_parameters():
             if not isinstance(param, NanotronParameter):
                 prefix_and_field = name.rsplit(".", maxsplit=1)
@@ -150,15 +146,3 @@ class NanotronBackend(BackEnd):
                 ), "all parameters should already be on the current device"
                 new_param = NanotronParameter(param.detach(), param.requires_grad)
                 setattr(parent_mod, field, new_param)
-
-    def init_parallelization_pass_pipeline(self) -> PassPipeline:
-        """
-        For nanotron backend, parameter initialization and checkpoint loading is handled outside.
-        """
-        return PassPipeline(
-            [
-                ParallelAxisSolverPass(),
-                ParallelLayerAnnotatePass(),
-                ParallelLayerReplacePass(),
-            ]
-        )
