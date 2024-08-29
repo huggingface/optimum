@@ -772,6 +772,10 @@ class ConvNextV2OnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+class HieraOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 11
+
+
 class MobileViTOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
     DEFAULT_ONNX_OPSET = 11

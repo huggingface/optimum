@@ -206,6 +206,7 @@ class NormalizedConfigManager:
         'detr',
         'flaubert',
         'groupvit',
+        'hiera',
         'ibert',
         'layoutlm',
         'layoutlmv3',

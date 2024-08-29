@@ -705,6 +705,11 @@ class TasksManager:
             "feature-extraction",
             onnx="GroupViTOnnxConfig",
         ),
+        "hiera": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="HieraOnnxConfig",
+        ),
         "hubert": supported_tasks_mapping(
             "feature-extraction",
             "automatic-speech-recognition",

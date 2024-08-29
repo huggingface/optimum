@@ -101,6 +101,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "gpt-neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
+    "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
     "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
@@ -231,6 +232,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "gpt-neox": "EleutherAI/gpt-neox-20b",
     "gptj": "anton-l/gpt-j-tiny-random",  # TODO
     "groupvit": "nvidia/groupvit-gcc-yfcc",
+    "hiera": "facebook/hiera-tiny-224-in1k-hf",
     "ibert": "kssteven/ibert-roberta-base",
     "imagegpt": "openai/imagegpt-small",
     "levit": "facebook/levit-128S",

@@ -105,6 +105,7 @@ MODEL_NAMES = {
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
+    "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
