@@ -158,7 +158,7 @@ class DefaultBackend(BackEnd):
                 for dim in range(param.ndim)
             ]
 
-            if not param_meta.is_parallel and param.device == ctx.current_device:
+            if param.device == ctx.current_device:
                 new_param = param
             else:
                 new_param = nn.Parameter(

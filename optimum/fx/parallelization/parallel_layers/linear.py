@@ -12,15 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import TYPE_CHECKING
+
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..core import (
-    ParallelExecutionCtx,
-    ParameterMeta,
-)
 from ..distributed import (
     differentiable_all_gather,
     differentiable_all_reduce_sum,
@@ -28,6 +26,10 @@ from ..distributed import (
     differentiable_scatter,
 )
 from ..utils import ensure_divisibility
+
+
+if TYPE_CHECKING:
+    from ..core import ParallelExecutionCtx
 
 
 class ColumnParallelLinear(nn.Module):
@@ -43,53 +45,26 @@ class ColumnParallelLinear(nn.Module):
         gather_output(`bool`, defaults to `True`): whether gathering output in the end of forward.
     """
 
-    def __init__(self, ctx: ParallelExecutionCtx, linear: nn.Linear, gather_output: bool = True) -> None:
+    def __init__(self, ctx: "ParallelExecutionCtx", linear: nn.Linear, gather_output: bool = True) -> None:
         super(ColumnParallelLinear, self).__init__()
         self.process_group = ctx.tp_group
         world_size = dist.get_world_size(self.process_group)
-        tp_rank = dist.get_rank(self.process_group)
         ensure_divisibility(linear.out_features, world_size)
 
         out_features = linear.out_features // world_size
         bias = linear.bias is not None
 
-        # modify meta information
-        weight_meta = getattr(linear.weight, "meta", None)
-        assert isinstance(
-            weight_meta, ParameterMeta
-        ), "should have run `initialize_parameter_meta` after moving model to current device"
-
-        if weight_meta.is_modified_meta:
-            assert weight_meta.is_tied, "only tied parameters could already have modified meta"
-        else:
-            weight_meta.need_initialize = True
-            weight_meta.is_parallel = True
-            weight_meta.dim = 0
-            for _, Slice in weight_meta.mapping.items():
-                Slice.index = slice(tp_rank * out_features, (tp_rank + 1) * out_features)
-            weight_meta.is_modified_meta = True
-
-        # skip creating actual parameters
-        self.weight = linear.weight
+        self.weight = nn.Parameter(
+            torch.empty((out_features, linear.in_features), dtype=linear.weight.dtype, device=ctx.current_device),
+            linear.weight.requires_grad,
+        )
         self.gather_output = gather_output
 
         if bias:
-            bias_meta = getattr(linear.bias, "meta", None)
-            assert isinstance(
-                bias_meta, ParameterMeta
-            ), "should have run `initialize_parameter_meta` after moving model to current device"
-
-            if bias_meta.is_modified_meta:
-                assert bias_meta.is_tied, "only tied parameters could already have modified meta"
-            else:
-                bias_meta.need_initialize = True
-                bias_meta.is_parallel = True
-                bias_meta.init_fn = torch.zero_
-                bias_meta.dim = 0
-                for _, Slice in bias_meta.mapping.items():
-                    Slice.index = slice(tp_rank * out_features, (tp_rank + 1) * out_features)
-                bias_meta.is_modified_meta = True
-            self.bias = linear.bias
+            self.bias = nn.Parameter(
+                torch.empty((out_features,), dtype=linear.bias.dtype, device=ctx.current_device),
+                linear.bias.requires_grad,
+            )
         else:
             self.register_parameter("bias", None)
 
@@ -120,48 +95,26 @@ class RowParallelLinear(nn.Module):
         input_is_parallel(`bool`, defaults to `True`): whether the input tensor has already been parallelized.
     """
 
-    def __init__(self, ctx: ParallelExecutionCtx, linear: nn.Linear, input_is_parallel: bool = False) -> None:
+    def __init__(self, ctx: "ParallelExecutionCtx", linear: nn.Linear, input_is_parallel: bool = False) -> None:
         super(RowParallelLinear, self).__init__()
         self.process_group = ctx.tp_group
         world_size = dist.get_world_size(self.process_group)
-        tp_rank = dist.get_rank(self.process_group)
         ensure_divisibility(linear.in_features, world_size)
 
         in_features = linear.in_features // world_size
         bias = linear.bias is not None
 
-        # modify meta information
-        weight_meta = getattr(linear.weight, "meta", None)
-        assert isinstance(
-            weight_meta, ParameterMeta
-        ), "should have run `initialize_parameter_meta` after moving model to current device"
-
-        if weight_meta.is_modified_meta:
-            assert weight_meta.is_tied, "only tied parameters could already have modified meta"
-        else:
-            weight_meta.need_initialize = True
-            weight_meta.is_parallel = True
-            weight_meta.dim = 1
-            for _, Slice in weight_meta.mapping.items():
-                Slice.index = slice(tp_rank * in_features, (tp_rank + 1) * in_features)
-            weight_meta.is_modified_meta = True
-
-        # skip creating actual parameters
-        self.weight = linear.weight
+        self.weight = nn.Parameter(
+            torch.empty((linear.out_features, in_features), dtype=linear.weight.dtype, device=ctx.current_device),
+            linear.weight.requires_grad,
+        )
         self.input_is_parallel = input_is_parallel
 
         if bias:
-            bias_meta = getattr(linear.bias, "meta", None)
-            assert isinstance(
-                bias_meta, ParameterMeta
-            ), "should have run `initialize_parameter_meta` after moving model to current device"
-            if bias_meta.is_modified_meta:
-                assert bias_meta.is_tied, "only tied parameters could already have modified meta"
-            else:
-                bias_meta.need_initialize = True
-                bias_meta.init_fn = torch.zero_
-                bias_meta.is_modified_meta = True
-            self.bias = linear.bias
+            self.bias = nn.Parameter(
+                torch.empty((linear.out_features,), dtype=linear.bias.dtype, device=ctx.current_device),
+                linear.bias.requires_grad,
+            )
         else:
             self.register_parameter("bias", None)
 

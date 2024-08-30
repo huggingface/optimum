@@ -17,7 +17,7 @@ import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..core import ParallelExecutionCtx, ParameterMeta
+from ..core import ParallelExecutionCtx
 from ..distributed import differentiable_all_reduce_sum
 from ..utils import ensure_divisibility
 
@@ -48,23 +48,12 @@ class VocabParallelEmbedding(nn.Module):
         self.vocab_start_idx = tp_rank * num_embeddings
         self.vocab_end_idx = (tp_rank + 1) * num_embeddings
 
-        # modify meta information
-        weight_meta = getattr(embedding.weight, "meta", None)
-        assert isinstance(
-            weight_meta, ParameterMeta
-        ), "should have run `initialize_parameter_meta` after moving model to current device"
-        if weight_meta.is_modified_meta:
-            assert weight_meta.is_tied, "only tied parameters could already have modified meta"
-        else:
-            weight_meta.need_initialize = True
-            weight_meta.is_parallel = True
-            weight_meta.dim = 0
-            for _, Slice in weight_meta.mapping.items():
-                Slice.index = slice(self.vocab_start_idx, self.vocab_end_idx)
-            weight_meta.is_modified_meta = True
-
-        # skip creating actual parameters
-        self.weight = embedding.weight
+        self.weight = nn.Parameter(
+            torch.empty(
+                (num_embeddings, embedding.embedding_dim), dtype=embedding.weight.dtype, device=ctx.current_device
+            ),
+            requires_grad=embedding.weight.requires_grad,
+        )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         input_mask = (input < self.vocab_start_idx) | (input >= self.vocab_end_idx)
