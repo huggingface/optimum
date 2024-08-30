@@ -140,6 +140,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
+    "pvt": "hf-internal-testing/tiny-random-PvtForImageClassification",
     "qwen2": "fxmarty/tiny-dummy-qwen2",
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
@@ -264,6 +265,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
+    "pvt": "hf-internal-testing/tiny-random-PvtForImageClassification",
     "regnet": "facebook/regnet-y-040",
     "resnet": "microsoft/resnet-50",
     "roberta": "roberta-base",

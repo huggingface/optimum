@@ -974,6 +974,11 @@ class TasksManager:
             "image-classification",
             onnx="PoolFormerOnnxConfig",
         ),
+        "pvt": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="PvtOnnxConfig",
+        ),
         "regnet": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",

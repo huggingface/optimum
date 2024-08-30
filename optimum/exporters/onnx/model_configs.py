@@ -776,6 +776,10 @@ class HieraOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+class PvtOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 11
+
+
 class Dinov2DummyInputGenerator(DummyVisionInputGenerator):
     def __init__(
         self,
