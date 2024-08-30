@@ -1135,7 +1135,21 @@ class TasksManager:
             onnx="VisionEncoderDecoderOnnxConfig",
         ),
         "vit": supported_tasks_mapping(
-            "feature-extraction", "image-classification", "masked-im", onnx="ViTOnnxConfig"
+            "feature-extraction",
+            "image-classification",
+            "masked-im",
+            onnx="ViTOnnxConfig",
+        ),
+        "vit-mae": supported_tasks_mapping(
+            "feature-extraction",
+            "masked-im",
+            onnx="VitMAEOnnxConfig",
+        ),
+        "vit-msn": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            "masked-im",
+            onnx="VitMSNOnnxConfig",
         ),
         "vits": supported_tasks_mapping(
             "text-to-audio",

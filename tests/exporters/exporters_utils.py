@@ -157,6 +157,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "t5": "hf-internal-testing/tiny-random-t5",
     "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
     "vit": "hf-internal-testing/tiny-random-vit",
+    "vit-msn": "hf-internal-testing/tiny-random-ViTMSNForImageClassification",
     "vits": "echarlaix/tiny-random-vits",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
     "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
@@ -279,6 +280,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "t5": "t5-small",
     "table-transformer": "microsoft/table-transformer-detection",
     "vit": "google/vit-base-patch16-224",
+    "vit-msn": "facebook/vit-msn-small",
     "yolos": "hustvl/yolos-tiny",
     "whisper": "openai/whisper-tiny.en",
     "hubert": "facebook/hubert-base-ls960",
