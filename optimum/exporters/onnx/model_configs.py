@@ -895,6 +895,22 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
     pass
 
 
+class MaskformerOnnxConfig(ViTOnnxConfig):
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::einsum' to ONNX opset version 11 is not supported.
+    # Support for this operator was added in version 12, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 12
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "image-segmentation":
+            return {
+                "class_queries_logits": {0: "batch_size", 1: "num_queries"},
+                "masks_queries_logits": {0: "batch_size", 1: "num_queries", 2: "height", 3: "width"},
+            }
+        else:
+            return super().outputs
+
+
 class DonutSwinOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 

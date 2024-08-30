@@ -209,7 +209,7 @@ class TasksManager:
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
             "image-classification": "AutoModelForImageClassification",
-            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
+            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation", "AutoModelForInstanceSegmentation", "AutoModelForUniversalSegmentation"),
             "image-to-image": "AutoModelForImageToImage",
             "image-to-text": "AutoModelForVision2Seq",
             "mask-generation": "AutoModel",
@@ -796,6 +796,11 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="MarkupLMOnnxConfig",
+        ),
+        "maskformer": supported_tasks_mapping(
+            "feature-extraction",
+            "image-segmentation",
+            onnx="MaskformerOnnxConfig",
         ),
         "mbart": supported_tasks_mapping(
             "feature-extraction",
