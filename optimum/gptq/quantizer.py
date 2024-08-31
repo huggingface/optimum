@@ -547,7 +547,7 @@ class GPTQQuantizer(object):
         if self.bits == 4:
             # device not on gpu
             if device.type not in SUPPORT_EXLLAMA_DEVICES or (
-                has_device_map and any(d in devices for d in ["cpu", "disk"])
+                has_device_map and any(d in devices for d in ["cpu", "disk", "hpu"])
             ):
                 if not self.disable_exllama:
                     logger.warning(
@@ -592,7 +592,7 @@ class GPTQQuantizer(object):
         """
         if self.bits == 4 and not self.disable_exllama:
             if get_device(model).type not in SUPPORT_EXLLAMA_DEVICES or (
-                hasattr(model, "hf_device_map") and any(d in model.hf_device_map for d in ["cpu", "disk"])
+                hasattr(model, "hf_device_map") and any(d in model.hf_device_map for d in ["cpu", "disk", "hpu"])
             ):
                 if not self.disable_exllama:
                     logger.warning(
