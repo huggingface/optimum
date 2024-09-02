@@ -1937,12 +1937,6 @@ class TasksManager:
                 if inferred_model_type is not None:
                     break
 
-            if inferred_model_type is None:
-                raise ValueError(
-                    f"The export of a DiffusionPipeline model with the class name {model.__class__.__name__} is currently not supported in Optimum. "
-                    "Please open an issue or submit a PR to add the support."
-                )
-
             # `model_type` is a class attribute in Transformers, let's avoid modifying it.
             model.config.export_model_type = inferred_model_type
 
@@ -2068,9 +2062,16 @@ class TasksManager:
                 if original_task == "auto" and config.architectures is not None:
                     model_class_name = config.architectures[0]
 
-        model_class = TasksManager.get_model_class_for_task(
-            task, framework, model_type=model_type, model_class_name=model_class_name, library=library_name
-        )
+        if library_name == "diffusers":
+            config = DiffusionPipeline.load_config(model_name_or_path, **kwargs)
+            class_name = config.get("_class_name", None)
+            loaded_library = importlib.import_module(library_name)
+            model_class = getattr(loaded_library, class_name)
+        else:
+            model_class = TasksManager.get_model_class_for_task(
+                task, framework, model_type=model_type, model_class_name=model_class_name, library=library_name
+            )
+
         if library_name == "timm":
             model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
             model = model.to(torch_dtype).to(device)
