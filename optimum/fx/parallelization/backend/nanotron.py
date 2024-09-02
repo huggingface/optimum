@@ -12,12 +12,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# Nanotron specific imports
+from collections import defaultdict
 from typing import TYPE_CHECKING, Optional, Tuple
 
+import torch.distributed as dist
 import torch.nn as nn
-
-# Nanotron specific imports
 from nanotron.config import Config as NanotronConfig
+from nanotron.parallel import ParallelContext
 from nanotron.parallel.parameters import NanotronParameter
 from nanotron.parallel.tensor_parallel.enum import TensorParallelLinearMode
 from nanotron.parallel.tensor_parallel.nn import (
@@ -25,18 +27,24 @@ from nanotron.parallel.tensor_parallel.nn import (
     TensorParallelEmbedding,
     TensorParallelRowLinear,
 )
+from nanotron.parallel.tied_parameters import tie_parameters
 from torch.fx import GraphModule
 
 from .base import BackEnd
 
 
 if TYPE_CHECKING:
-    from ..core import Config, ParallelExecutionCtx
+    from ..core import Config, ParallelExecutionCtx, ParameterMeta
 
 
 class NanotronBackend(BackEnd):
-    def __init__(self, nanotron_config: NanotronConfig) -> None:
+    """
+    Backend class which glues optimum fx parallelization context and nanotron context.
+    """
+
+    def __init__(self, nanotron_config: NanotronConfig, nanotron_context: ParallelContext) -> None:
         self.config = nanotron_config
+        self.context = nanotron_context
 
     def create_column_parallel_linear(
         self,
@@ -131,7 +139,9 @@ class NanotronBackend(BackEnd):
     def post_process(
         self, graph_module: GraphModule, parallel_ctx: "ParallelExecutionCtx", config: "Config"
     ) -> nn.Module:
+        param_cache, tied_parameter_groups = parallel_ctx.param_cache, defaultdict(list)
         for name, param in graph_module.named_parameters():
+            param_meta: "ParameterMeta" = getattr(param, "meta")
             if not isinstance(param, NanotronParameter):
                 prefix_and_field = name.rsplit(".", maxsplit=1)
                 if len(prefix_and_field) == 2:
@@ -144,5 +154,52 @@ class NanotronBackend(BackEnd):
                 assert (
                     param.device == parallel_ctx.current_device
                 ), "all parameters should already be on the current device"
-                new_param = NanotronParameter(param.detach(), param.requires_grad)
+
+                if name not in param_cache:
+                    new_param = NanotronParameter(param.detach(), param.requires_grad)
+                    param_cache[name] = new_param
+                else:
+                    raise RuntimeError(
+                        "Found already initialized parameter which is not a nanotron parameter in parameter cache!"
+                    )
                 setattr(parent_mod, field, new_param)
+            elif name not in param_cache:
+                param_cache[name] = param
+
+            # now we have NanotronParameter anyway
+            nanotron_param: NanotronParameter = param_cache[name]
+            # we have tied the parameter, in the very first compilation.
+            if nanotron_param.is_tied:
+                continue
+
+            # not tied, must be the very first compilation
+            assert parallel_ctx.compile_times == 0, "illegal path for recompilation"
+            host_name = param_meta.tied_to if param_meta.tied_to is not None else name
+            tied_parameter_groups[host_name].append(name)
+
+        # take care of weights tying
+        for _, groups in tied_parameter_groups:
+            # just one parameter in the group, no need for tying
+            if len(groups) == 1:
+                continue
+
+            ties = [
+                (
+                    target,
+                    (
+                        self.context.get_global_rank(
+                            # TODO: modify this accordingly when ep is supported
+                            ep_rank=0,
+                            # TODO: modify this accordingly when pp is supported
+                            pp_rank=0,
+                            dp_rank=dist.get_rank(self.context.dp_pg),
+                            tp_rank=dist.get_rank(self.context.tp_pg),
+                        ),
+                    ),
+                )
+                for target in groups
+            ]
+            # no new parameters will be created because we make sure every param is already a NanotronParameter
+            tie_parameters(graph_module, ties, self.context, dist.ReduceOp.SUM)
+
+        return graph_module

@@ -79,7 +79,7 @@ class BackEnd(ABC):
             if key not in parameter_mp:
                 parameter_mp[key] = name
             else:
-                param_meta: 'ParameterMeta' = getattr(tensor, 'meta')
+                param_meta: "ParameterMeta" = getattr(tensor, "meta")
                 param_meta.tied_to = parameter_mp[key]
         return graph_module
 

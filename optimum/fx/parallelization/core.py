@@ -92,6 +92,7 @@ class ParameterMeta:
         - mapping (`Dict[HashableSlice, ParameterSlice]`):
             Mapping between the current parameter and weight tensor stored in weight map.
     """
+
     tied_to: Optional[str] = None
     is_parallel: bool = False
     need_initialize: bool = False
