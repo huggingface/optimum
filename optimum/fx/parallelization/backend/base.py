@@ -68,6 +68,22 @@ class BackEnd(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def pre_process(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> GraphModule:
+        """
+        Mark tie information right before we run passes because dynamo tracing will alter the parameter name while our
+        passes don't.
+        """
+        parameter_mp = {}
+        for name, tensor in graph_module.named_parameters(remove_duplicate=False):
+            key = id(tensor)
+            if key not in parameter_mp:
+                parameter_mp[key] = name
+            else:
+                param_meta: 'ParameterMeta' = getattr(tensor, 'meta')
+                param_meta.tied_to = parameter_mp[key]
+        return graph_module
+
+    @abstractmethod
     def post_process(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> nn.Module:
         return graph_module
 
@@ -140,7 +156,7 @@ class DefaultBackend(BackEnd):
         world_size = dist.get_world_size(ctx.tp_group)
         tp_rank = dist.get_rank(ctx.tp_group)
 
-        new_parameters, tied_parameters, param_cache = [], {}, ctx.param_cache
+        new_parameters, param_cache = [], ctx.param_cache
         for name, param in sorted(graph_module.named_parameters(remove_duplicate=False)):
             # skip initializing new params when recompilation happens
             if name in param_cache:
@@ -148,9 +164,8 @@ class DefaultBackend(BackEnd):
                 continue
 
             param_meta: "ParameterMeta" = getattr(param, "meta")
-            # skip already initialized/loaded tied parameters
-            if param_meta.is_tied and id(param) in tied_parameters:
-                new_parameters.append((name, tied_parameters[id(param)]))
+            # skip tied parameters for now
+            if param_meta.tied_to is not None:
                 continue
 
             shape = [
@@ -158,6 +173,7 @@ class DefaultBackend(BackEnd):
                 for dim in range(param.ndim)
             ]
 
+            # if the device is correct, then we directly use the parameter
             if param.device == ctx.current_device:
                 new_param = param
             else:
@@ -213,8 +229,13 @@ class DefaultBackend(BackEnd):
 
             if id(new_param) != id(param):
                 new_parameters.append((name, new_param))
-            if param_meta.is_tied:
-                tied_parameters[id(param)] = new_param
+            param_cache[name] = new_param
+
+        # take care of tied parameters
+        for name, param in sorted(graph_module.named_parameters(remove_duplicate=False)):
+            param_meta: "ParameterMeta" = getattr(param, "meta")
+            if param_meta.tied_to is not None:
+                new_parameters.append((name, param_cache[param_meta.tied_to]))
 
         for name, new_param in new_parameters:
             prefix_and_field = name.rsplit(".", maxsplit=1)
@@ -224,8 +245,6 @@ class DefaultBackend(BackEnd):
             else:
                 parent_mod = graph_module
                 field = name
-            if name not in param_cache:
-                param_cache[name] = new_param
             setattr(parent_mod, field, new_param)
 
         return graph_module

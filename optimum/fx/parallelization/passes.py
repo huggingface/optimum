@@ -301,32 +301,22 @@ class ParallelLayerReplacePass(PassBase):
 
         # modify meta information
         weight_meta: "ParameterMeta" = copy.deepcopy(getattr(mod.weight, "meta"))
-        if weight_meta.is_modified_meta:
-            assert weight_meta.is_tied, "only tied parameters could already have modified meta"
-        else:
-            weight_meta.need_initialize = True
-            weight_meta.is_parallel = True
-            weight_meta.dim = 0 if axis in {"column", "vocab"} else 1
-            for _, Slice in weight_meta.mapping.items():
-                Slice.index = get_current_slice(Slice.shape, weight_meta.dim)
-            weight_meta.is_modified_meta = True
-
+        weight_meta.need_initialize = True
+        weight_meta.is_parallel = True
+        weight_meta.dim = 0 if axis in {"column", "vocab"} else 1
+        for _, Slice in weight_meta.mapping.items():
+            Slice.index = get_current_slice(Slice.shape, weight_meta.dim)
         setattr(new_mod.weight, "meta", weight_meta)
 
         if hasattr(new_mod, "bias") and new_mod.bias is not None:
             bias_meta: "ParameterMeta" = copy.deepcopy(getattr(mod.bias, "meta"))
-            if bias_meta.is_modified_meta:
-                assert bias_meta.is_tied, "only tied parameters could already have modified meta"
-            else:
-                bias_meta.need_initialize = True
-                bias_meta.init_fn = torch.zero_
-                bias_meta.is_modified_meta = True
-
-                if weight_meta.dim == 0:
-                    bias_meta.dim = 0
-                    bias_meta.is_parallel = True
-                    for _, Slice in bias_meta.mapping.items():
-                        Slice.index = get_current_slice(Slice.shape, 0)
+            bias_meta.need_initialize = True
+            bias_meta.init_fn = torch.zero_
+            if weight_meta.dim == 0:
+                bias_meta.dim = 0
+                bias_meta.is_parallel = True
+                for _, Slice in bias_meta.mapping.items():
+                    Slice.index = get_current_slice(Slice.shape, 0)
             setattr(new_mod.bias, "meta", bias_meta)
 
     def handle_linear(self, node: Node, ctx: "ParallelExecutionCtx") -> None:

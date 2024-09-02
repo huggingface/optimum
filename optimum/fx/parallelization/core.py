@@ -73,14 +73,12 @@ class ParameterMeta:
     Parameter meta information.
 
     Attributes:
-        - is_tied (`bool`, defaults to `False`):
-            Whether the parameter is shared accross multiple modules.
+        - tied_to (`Optional[str]`, defaults to `None`):
+            The name of host parameter the current parameter is tied to, i.e., `lm_head.weight` is tied
+            to `embedding_tokens.weight`. If None then it's unique and not shared across modules.
 
         - is_parallel (`bool`, defaults to `False`):
             Whether the parameter needs to be parallelized.
-
-        - is_modified_meta (`bool`, defaults to `False`):
-            Whether the meta has already been modified since initialization.
 
         - need_initialize (`bool`, defaults to `False`):
             Whether need to manually initialize weights if not provided in weight map.
@@ -94,10 +92,8 @@ class ParameterMeta:
         - mapping (`Dict[HashableSlice, ParameterSlice]`):
             Mapping between the current parameter and weight tensor stored in weight map.
     """
-
-    is_tied: bool = False
+    tied_to: Optional[str] = None
     is_parallel: bool = False
-    is_modified_meta: bool = False
     need_initialize: bool = False
     init_fn: Optional[Callable] = None
     dim: int = 0

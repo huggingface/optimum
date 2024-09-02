@@ -37,8 +37,9 @@ def parallelize_backend(
 ) -> nn.Module:
     ctx.example_inputs = example_inputs
     pass_pipeline = ctx.backend.init_parallelization_pass_pipeline()
+    graph_module = ctx.backend.pre_process(graph_module=graph_module, ctx=ctx, config=config)
     graph_module = pass_pipeline(graph_module=graph_module, ctx=ctx, config=config)
-    finalized_module = ctx.backend.post_process(graph_module, ctx)
+    finalized_module = ctx.backend.post_process(graph_module=graph_module, ctx=ctx, config=config)
     ctx.compile_times += 1
     ctx.last_optimized_module = finalized_module
     return finalized_module

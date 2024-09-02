@@ -260,21 +260,15 @@ class MetaAwareMethodsPatcher:
 
 
 def initialize_parameter_meta(model: nn.Module) -> None:
-    parameter_ids = set()
     for name, tensor in model.named_parameters(remove_duplicate=False):
-        key = id(tensor)
-        if key not in parameter_ids:
-            setattr(
-                tensor,
-                "meta",
-                ParameterMeta(
-                    dim=0,
-                    mapping={HashableSlice(None, None, None): ParameterSlice(source=name, shape=tuple(tensor.shape))},
-                ),
-            )
-            parameter_ids.add(key)
-        else:
-            tensor.meta.is_tied = True
+        setattr(
+            tensor,
+            "meta",
+            ParameterMeta(
+                dim=0,
+                mapping={HashableSlice(None, None, None): ParameterSlice(source=name, shape=tuple(tensor.shape))},
+            ),
+        )
 
 
 @torch.no_grad
