@@ -17,7 +17,6 @@ import glob
 import hashlib
 import importlib
 import json
-import operator
 import os
 import re
 import tempfile
@@ -45,6 +44,14 @@ def ensure_divisibility(numerator: int, denominator: int) -> None:
         )
 
 
+def is_activation(node: Node) -> bool:
+    # only consider leaf Module activations
+    if node.op != "call_module":
+        return False
+    mod = node.graph.owning_module
+    return getattr(mod.get_submodule(node.target), "__module__", "").startswith("torch.nn.modules.activation")
+
+
 def is_linear(node: Node) -> bool:
     if node.op != "call_module":
         return False
@@ -65,26 +72,6 @@ def is_shape_consumer(node: Node) -> bool:
     elif node.op == "call_function":
         return node.target in {torch.reshape}
     return False
-
-
-def is_transpose(node: Node) -> bool:
-    if node.op == "call_method":
-        return node.target in {"transpose", "transpose_"}
-    elif node.op == "call_function":
-        return node.target is torch.transpose
-    return False
-
-
-def is_permute(node: Node) -> bool:
-    if node.op == "call_method":
-        return node.target in {"permute"}
-    elif node.op == "call_function":
-        return node.target is torch.permute
-    return False
-
-
-def is_getitem(node: Node) -> bool:
-    return node.op == "call_function" and node.target is operator.getitem
 
 
 def is_output(node: Node) -> bool:

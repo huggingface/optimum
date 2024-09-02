@@ -166,8 +166,13 @@ class Config:
         - weight_init_fn (`Callable`, defaults to `partial(nn.init.normal_, std=0.02)`)
             Initialization function of weights in `nn.Linear` and `nn.Embedding` layers,
             if not provided weights loading path.
+
+        - enable_sequence_parallel (`bool`, defaults to `False`):
+            Whether to enable Megatron-style sequence parallelism in searching parallelization
+            strategies.
     """
 
     lint_and_recompile: bool = True
     clean_markers_after_all_passes: bool = True
     weight_init_fn: Callable = partial(nn.init.normal_, std=0.02)
+    enable_sequence_parallel: bool = False
