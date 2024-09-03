@@ -13,28 +13,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Nanotron specific imports
+import importlib.util
 from collections import defaultdict
 from typing import TYPE_CHECKING, Optional, Tuple
 
 import torch.distributed as dist
 import torch.nn as nn
-from nanotron.config import Config as NanotronConfig
-from nanotron.parallel import ParallelContext
-from nanotron.parallel.parameters import NanotronParameter
-from nanotron.parallel.tensor_parallel.enum import TensorParallelLinearMode
-from nanotron.parallel.tensor_parallel.nn import (
-    TensorParallelColumnLinear,
-    TensorParallelEmbedding,
-    TensorParallelRowLinear,
-)
-from nanotron.parallel.tied_parameters import tie_parameters
 from torch.fx import GraphModule
 
+from ..core import Config, ParallelExecutionCtx, ParameterMeta
 from .base import BackEnd
 
 
+# Check if nanotron is installed
+_nanotron_available = importlib.util.find_spec("nanotron") is not None
+
 if TYPE_CHECKING:
-    from ..core import Config, ParallelExecutionCtx, ParameterMeta
+    from nanotron.config import Config as NanotronConfig
+    from nanotron.parallel import ParallelContext
+    from nanotron.parallel.tensor_parallel.nn import (
+        TensorParallelColumnLinear,
+        TensorParallelEmbedding,
+        TensorParallelRowLinear,
+    )
 
 
 class NanotronBackend(BackEnd):
@@ -42,7 +43,10 @@ class NanotronBackend(BackEnd):
     Backend class which glues optimum fx parallelization context and nanotron context.
     """
 
-    def __init__(self, nanotron_config: NanotronConfig, nanotron_context: ParallelContext) -> None:
+    def __init__(self, nanotron_config: "NanotronConfig", nanotron_context: "ParallelContext") -> None:
+        if not _nanotron_available:
+            raise ImportError("Nanotron is not installed. Please install it to use NanotronBackend.")
+
         self.config = nanotron_config
         self.context = nanotron_context
 
@@ -53,7 +57,10 @@ class NanotronBackend(BackEnd):
         sequence_parallel: bool,
         gather_output: bool,
         contiguous_chunks: Optional[Tuple[int]] = None,
-    ) -> TensorParallelColumnLinear:
+    ) -> "TensorParallelColumnLinear":
+        from nanotron.parallel.tensor_parallel.enum import TensorParallelLinearMode
+        from nanotron.parallel.tensor_parallel.nn import TensorParallelColumnLinear
+
         if gather_output:
             raise ValueError(
                 "Nanotron backend does not support `gather_output=True` in `TensorParallelColumnLinear` yet"
@@ -84,7 +91,10 @@ class NanotronBackend(BackEnd):
         sequence_parallel: bool,
         input_is_parallel: bool,
         contiguous_chunks: Optional[Tuple[int]] = None,
-    ) -> TensorParallelRowLinear:
+    ) -> "TensorParallelRowLinear":
+        from nanotron.parallel.tensor_parallel.enum import TensorParallelLinearMode
+        from nanotron.parallel.tensor_parallel.nn import TensorParallelRowLinear
+
         if not input_is_parallel:
             raise ValueError(
                 "Nanotron backend does not support `input_is_parallel=True` in `TensorParallelRowLinear` yet"
@@ -114,7 +124,10 @@ class NanotronBackend(BackEnd):
         parallel_ctx: "ParallelExecutionCtx",
         sequence_parallel: bool,
         contiguous_chunks: Optional[Tuple[int]] = None,
-    ) -> TensorParallelEmbedding:
+    ) -> "TensorParallelEmbedding":
+        from nanotron.parallel.tensor_parallel.enum import TensorParallelLinearMode
+        from nanotron.parallel.tensor_parallel.nn import TensorParallelEmbedding
+
         if sequence_parallel and self.config.parallelism.tp_mode != TensorParallelLinearMode.REDUCE_SCATTER:
             raise ValueError(
                 "`sequence_parallel` can not be activated when `tp_mode` is not set to `REDUCE_SCATTER` in nanotron backend"
@@ -139,6 +152,9 @@ class NanotronBackend(BackEnd):
     def post_process(
         self, graph_module: GraphModule, parallel_ctx: "ParallelExecutionCtx", config: "Config"
     ) -> nn.Module:
+        from nanotron.parallel.parameters import NanotronParameter
+        from nanotron.parallel.tied_parameters import tie_parameters
+
         param_cache, tied_parameter_groups = parallel_ctx.param_cache, defaultdict(list)
         for name, param in graph_module.named_parameters():
             param_meta: "ParameterMeta" = getattr(param, "meta")

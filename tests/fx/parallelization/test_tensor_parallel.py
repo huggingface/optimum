@@ -80,7 +80,7 @@ def run_test_all_rank_results_match(rank: int, world_size: int, model_id: str, m
     device = torch.device(type="cuda", index=torch.cuda.current_device())
     ctx = ParallelExecutionCtx(tp_group=tp_group, current_device=device)
 
-    model = parallelize_model(model_id, ctx, skip_load_weights=True, **model_kwargs)
+    model = parallelize_model(ctx, model_id_or_path=model_id, skip_load_weights=True, **model_kwargs)
     inputs = prepare_dummy_inputs(model.config)
     logits = model(**inputs)[0]
     tensors = gather_at_main_process(tensor=logits, group=tp_group, rank=rank, world_size=world_size)
@@ -106,7 +106,7 @@ def run_test_parameters_persist_bewteen_recompile(
     device = torch.device(type="cuda", index=torch.cuda.current_device())
     ctx = ParallelExecutionCtx(tp_group=tp_group, current_device=device)
 
-    model = parallelize_model(model_id, ctx, skip_load_weights=True, **model_kwargs)
+    model = parallelize_model(ctx, model_id_or_path=model_id, skip_load_weights=True, **model_kwargs)
     inputs = prepare_dummy_inputs(model.config)
 
     # different shape to trigger recompile
@@ -141,7 +141,7 @@ def run_test_parallel_results_matches_non_parallel(
     device = torch.device(type="cuda", index=torch.cuda.current_device())
     ctx = ParallelExecutionCtx(tp_group=tp_group, current_device=device)
 
-    model = parallelize_model(model_id, ctx, skip_load_weights=True, **model_kwargs)
+    model = parallelize_model(ctx, model_id_or_path=model_id, skip_load_weights=True, **model_kwargs)
     inputs = prepare_dummy_inputs(model.config)
 
     set_seed(SEED)
@@ -153,7 +153,7 @@ def run_test_parallel_results_matches_non_parallel(
     tp_group = dist.new_group()
     set_seed(SEED)
     ctx = ParallelExecutionCtx(tp_group=tp_group, current_device=device)
-    model = parallelize_model(model_id, ctx, skip_load_weights=True, **model_kwargs)
+    model = parallelize_model(ctx, model_id_or_path=model_id, skip_load_weights=True, **model_kwargs)
     parallel_logits = model(**inputs)[0]
 
     torch.testing.assert_close(logits.cpu(), parallel_logits.cpu(), rtol=1e-4, atol=1e-4)
@@ -169,7 +169,7 @@ def run_test_tie_word_embeddings(rank: int, world_size: int, model_id: str, mode
     # prepare config and context
     device = torch.device(type="cuda", index=torch.cuda.current_device())
     ctx = ParallelExecutionCtx(tp_group=tp_group, current_device=device)
-    model = parallelize_model(model_id, ctx, skip_load_weights=True, **model_kwargs)
+    model = parallelize_model(ctx, model_id_or_path=model_id, skip_load_weights=True, **model_kwargs)
 
     inputs = prepare_dummy_inputs(model.config)
     model(**inputs)

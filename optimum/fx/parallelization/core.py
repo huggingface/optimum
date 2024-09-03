@@ -14,13 +14,15 @@
 # limitations under the License.
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 
-from .backend import BackEnd, DefaultBackend
+
+if TYPE_CHECKING:
+    from .backend import BackEnd
 
 
 class HashableSlice:
@@ -113,7 +115,7 @@ class ParallelExecutionCtx:
         - current_device (`torch.device`):
             Device correpsonding to the current process.
 
-        - backend (`BackEnd`, defaults to `DefaultBackEnd`):
+        - backend (`Optional[BackEnd]`, defaults to `None`):
             Backend instance which converts layers into their parallelized counterparts.
 
         - example_inputs (`List[Any]`):
@@ -144,13 +146,19 @@ class ParallelExecutionCtx:
 
     tp_group: dist.ProcessGroup
     current_device: torch.device
-    backend: BackEnd = DefaultBackend()
+    backend: Optional["BackEnd"] = None
     example_inputs: List[Any] = field(default_factory=list)
     parallel_layer_cache: Dict[str, nn.Module] = field(default_factory=dict)
     param_cache: Dict[str, nn.Parameter] = field(default_factory=dict)
     weight_map: Dict[str, str] = field(default_factory=dict)
     last_optimized_module: Optional[nn.Module] = None
     compile_times: int = 0
+
+    def __post_init__(self):
+        if self.backend is None:
+            from .backend import DefaultBackend
+
+            self.backend = DefaultBackend()
 
 
 @dataclass

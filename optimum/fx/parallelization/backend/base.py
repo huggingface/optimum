@@ -13,13 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import Optional, Tuple
 
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 from torch.fx import GraphModule
 
+from ..core import Config, ParallelExecutionCtx, ParameterMeta
 from ..distributed import scatter
 from ..parallel_layers import ColumnParallelLinear, RowParallelLinear, VocabParallelEmbedding
 from ..passes import (
@@ -28,10 +29,6 @@ from ..passes import (
     ParallelLayerReplacePass,
     PassPipeline,
 )
-
-
-if TYPE_CHECKING:
-    from ..core import Config, ParallelExecutionCtx, ParameterMeta
 
 
 class BackEnd(ABC):
@@ -67,7 +64,6 @@ class BackEnd(ABC):
     ) -> nn.Module:
         raise NotImplementedError
 
-    @abstractmethod
     def pre_process(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> GraphModule:
         """
         Mark tie information right before we run passes because dynamo tracing will alter the parameter name while our
@@ -83,11 +79,9 @@ class BackEnd(ABC):
                 param_meta.tied_to = parameter_mp[key]
         return graph_module
 
-    @abstractmethod
     def post_process(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> nn.Module:
         return graph_module
 
-    @abstractmethod
     def init_parallelization_pass_pipeline(
         self,
     ) -> PassPipeline:
@@ -165,7 +159,7 @@ class DefaultBackend(BackEnd):
 
             param_meta: "ParameterMeta" = getattr(param, "meta")
             # skip tied parameters for now
-            if param_meta.tied_to is not None:
+            if param_meta.tied_to is not None and param_meta.tied_to != name:
                 continue
 
             shape = [
@@ -234,7 +228,7 @@ class DefaultBackend(BackEnd):
         # take care of tied parameters
         for name, param in sorted(graph_module.named_parameters(remove_duplicate=False)):
             param_meta: "ParameterMeta" = getattr(param, "meta")
-            if param_meta.tied_to is not None:
+            if param_meta.tied_to is not None and param_meta.tied_to != name:
                 new_parameters.append((name, param_cache[param_meta.tied_to]))
 
         for name, new_param in new_parameters:

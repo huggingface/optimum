@@ -12,13 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING
-
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ..core import ParallelExecutionCtx
 from ..distributed import (
     differentiable_all_gather,
     differentiable_all_reduce_sum,
@@ -26,10 +25,6 @@ from ..distributed import (
     differentiable_scatter,
 )
 from ..utils import ensure_divisibility
-
-
-if TYPE_CHECKING:
-    from ..core import ParallelExecutionCtx
 
 
 class ColumnParallelLinear(nn.Module):
