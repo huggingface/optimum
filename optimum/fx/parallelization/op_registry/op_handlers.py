@@ -24,8 +24,8 @@ from ..utils import is_activation, is_embedding, is_linear
 
 class Registry:
     """
-    Registry class handles registration of parallel axis propagation handlers of different aten ops, to support a new
-    aten op, you need to register the corresponding handler class by decorating it with `register` function.
+    Registry class handles registration of parallel axis propagation handlers of different aten ops.
+    To support a new aten op, you need to register the corresponding handler class by decorating it with `register` function.
     """
 
     def __init__(self) -> None:

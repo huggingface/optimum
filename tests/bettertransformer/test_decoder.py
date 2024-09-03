@@ -23,7 +23,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils import (
-    BloomDummyPastKeyValuesGenerator,
     DummyPastKeyValuesGenerator,
     NormalizedConfigManager,
 )
@@ -136,10 +135,7 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
 
         normalized_config = NormalizedConfigManager.get_normalized_config_class(model.config.model_type)(model.config)
 
-        if model_type == "bloom":
-            pkv_generator_class = BloomDummyPastKeyValuesGenerator
-        else:
-            pkv_generator_class = DummyPastKeyValuesGenerator
+        pkv_generator_class = DummyPastKeyValuesGenerator
 
         pkv_generator = pkv_generator_class(
             task="", normalized_config=normalized_config, batch_size=batch_size, sequence_length=seq_length
