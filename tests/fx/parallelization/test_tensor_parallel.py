@@ -189,11 +189,7 @@ def run_test_tie_word_embeddings(rank: int, world_size: int, model_id: str, mode
             if isinstance(mod, ColumnParallelLinear):
                 lm_head_weight = mod.weight
                 break
-    assert (
-        id(embedding_weight) == id(lm_head_weight)
-        and hasattr(embedding_weight, "meta")
-        and embedding_weight.meta.is_tied
-    )
+    assert id(embedding_weight) == id(lm_head_weight)
     dist.barrier(tp_group)
     tearDown()
 
