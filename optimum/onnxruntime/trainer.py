@@ -55,7 +55,7 @@ from torch import nn
 from torch.utils.data import Dataset, RandomSampler
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
-from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
+from transformers.integrations.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
