@@ -40,6 +40,28 @@ If you want to load a PyTorch checkpoint, set `export=True` to convert your mode
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
 
 
+#### IPEX
+
+You can load your model and apply IPEX optimizations (including weight prepacking and graph mode). For supported architectures like LLaMA, BERT and ViT, further optimizations will be applied by patching the model to use custom operators.
+For now, support is only enabled for CPUs and the original model will be exported via TorchScript. In the future `torch.compile` will be used and model exported via TorchScript will get deprecated.
+
+```diff
+  import torch
+  from transformers import AutoTokenizer, pipeline
+- from transformers import AutoModelForCausalLM
++ from optimum.intel import IPEXModelForCausalLM
+
+  model_id = "gpt2"
+- model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.bfloat16)
++ model = IPEXModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.bfloat16, export=True)
+  tokenizer = AutoTokenizer.from_pretrained(model_id)
+  pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
+  results = pipe("He's a dreadful magician and")
+```
+
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/main/intel/ipex/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/notebooks/ipex).
+
+
 #### ONNX Runtime
 
 To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for graph optimization and quantization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
