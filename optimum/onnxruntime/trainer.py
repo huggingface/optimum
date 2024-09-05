@@ -53,9 +53,9 @@ import torch
 import torch.distributed as dist
 from torch import nn
 from torch.utils.data import Dataset, RandomSampler
+from transformers import __version__ as transformers_version
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
-from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
@@ -81,7 +81,6 @@ from transformers.utils import (
     is_apex_available,
     is_sagemaker_dp_enabled,
     is_sagemaker_mp_enabled,
-    is_torch_tpu_available,
 )
 
 from ..utils import logging
@@ -91,11 +90,28 @@ from .utils import (
 )
 
 
+if version.parse(transformers_version) >= version.parse("4.33"):
+    from transformers.integrations.deepspeed import (
+        deepspeed_init,
+        deepspeed_load_checkpoint,
+        is_deepspeed_zero3_enabled,
+    )
+else:
+    from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
+
 if is_apex_available():
     from apex import amp
 
-if is_torch_tpu_available(check_device=False):
-    import torch_xla.core.xla_model as xm
+if version.parse(transformers_version) >= version.parse("4.39"):
+    from transformers.utils import is_torch_xla_available
+
+    if is_torch_xla_available():
+        import torch_xla.core.xla_model as xm
+else:
+    from transformers.utils import is_torch_tpu_available
+
+    if is_torch_tpu_available(check_device=False):
+        import torch_xla.core.xla_model as xm
 
 if TYPE_CHECKING:
     import optuna
