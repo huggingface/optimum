@@ -276,10 +276,13 @@ class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
             model.decoder.model.decoder.config.use_cache = True
 
 
-def _unmask_unattended_patched(
-    expanded_mask: torch.Tensor,
-    min_dtype: float,
+def _unmask_unattended_patched_legacy(
+    expanded_mask: torch.Tensor, attention_mask: torch.Tensor, unmasked_value: Union[bool, float]
 ):
+    return expanded_mask
+
+
+def _unmask_unattended_patched(expanded_mask: torch.Tensor, min_dtype: float):
     return expanded_mask
 
 
@@ -316,7 +319,11 @@ def _make_causal_mask_patched(
 
 
 _make_causal_mask_patched_staticmethod = staticmethod(_make_causal_mask_patched)
-_unmask_unattended_patched_staticmethod = staticmethod(_unmask_unattended_patched)
+
+if _transformers_version >= version.parse("4.39.0"):
+    _unmask_unattended_patched_staticmethod = staticmethod(_unmask_unattended_patched)
+else:
+    _unmask_unattended_patched_staticmethod = staticmethod(_unmask_unattended_patched_legacy)
 
 
 # Adapted from _prepare_4d_causal_attention_mask
@@ -1131,3 +1138,20 @@ class MistralModelPatcher(ModelPatcher):
                 self._update_causal_mask_original = self._model.model._update_causal_mask
             else:
                 self._update_causal_mask_original = self._model._update_causal_mask
+
+
+class CLIPModelPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if _transformers_version >= version.parse("4.43"):
+            from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
+
+            self.original_sdpa_forward, CLIPSdpaAttention.forward = CLIPSdpaAttention.forward, CLIPAttention.forward
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+        if _transformers_version >= version.parse("4.43"):
+            from transformers.models.clip.modeling_clip import CLIPSdpaAttention
+
+            CLIPSdpaAttention.forward = self.original_sdpa_forward

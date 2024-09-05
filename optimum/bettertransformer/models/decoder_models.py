@@ -216,6 +216,8 @@ class BloomAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BloomAtte
         self.dropout_prob_attn = config.attention_dropout
 
         self.module_mapping = None
+        self.layer_idx = getattr(layer, "layer_idx", None)
+
         submodules = ["query_key_value", "dense", "attention_dropout"]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
