@@ -14,7 +14,6 @@
 
 import gc
 import os
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -43,7 +42,7 @@ from optimum.onnxruntime import (
 from optimum.onnxruntime.configuration import OptimizationConfig
 from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
-from optimum.utils.testing_utils import grid_parameters
+from optimum.utils.testing_utils import grid_parameters, remove_directory
 
 
 class ORTOptimizerTestMixin(unittest.TestCase):
@@ -84,7 +83,7 @@ class ORTOptimizerTestMixin(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         for _, dir_path in cls.onnx_model_dirs.items():
-            shutil.rmtree(dir_path)
+            remove_directory(dir_path)
 
 
 class ORTOptimizerTest(unittest.TestCase):

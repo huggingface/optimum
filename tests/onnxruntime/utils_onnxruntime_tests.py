@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import shutil
 import tempfile
 import unittest
 from typing import Dict
@@ -23,6 +22,7 @@ import torch
 from transformers import set_seed
 
 from optimum.exporters import TasksManager
+from optimum.utils.testing_utils import remove_directory
 
 
 MODEL_NAMES = {
@@ -231,6 +231,6 @@ class ORTModelTestMixin(unittest.TestCase):
         for _, dir_path in cls.onnx_model_dirs.items():
             if isinstance(dir_path, dict):
                 for _, sec_dir_path in dir_path.items():
-                    shutil.rmtree(sec_dir_path)
+                    remove_directory(sec_dir_path)
             else:
-                shutil.rmtree(dir_path)
+                remove_directory(dir_path)
