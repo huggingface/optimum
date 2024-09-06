@@ -197,7 +197,7 @@ class DecompositionInterpreter(Interpreter):
 def decompose_and_functionalize(
     graph_module: GraphModule,
     decomposition_table: Dict[torch._ops.OperatorBase, Callable] = core_aten_decompositions(),
-    leaf_function_targets: List[Callable] = [F.scaled_dot_product_attention],
+    leaf_function_targets: List[Callable] = [F.scaled_dot_product_attention, F.cross_entropy],
 ) -> Callable:
     """
     API to decompose and functionalize a high-level graph module.

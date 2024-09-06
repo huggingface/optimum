@@ -19,7 +19,7 @@ import torch
 from torch.fx import Node
 
 from ..core import Config
-from ..utils import is_activation, is_embedding, is_linear
+from ..utils import is_activation, is_embedding, is_linear, is_cross_entropy, is_cross_entropy_parallel_compatible
 
 
 class Registry:
@@ -334,7 +334,16 @@ class SliceParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
         ndim = arg.meta["val"].ndim
         slice_dim = (slice_dim + ndim) % ndim
         if slice_dim == axis:
-            # slice on the parallel axis is not allowed
+            # slice on the parallel axis is not allowed, except it's a nop
+            start, stop, step = 0, arg.meta["val"].shape[axis], 1
+            if len(self.node.args) > 2:
+                start = self.node.args[2]
+            elif len(self.node.args) > 3:
+                stop = self.node.args[3]
+            elif len(self.node.args) > 4:
+                step = self.node.args[4]
+            if start == 0 and stop >= arg.meta["val"].shape[axis] and step == 1:
+                return [axis]
             return []
         return [axis]
 
@@ -404,12 +413,12 @@ class FallbackParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
         if self.node.op in ["placeholder", "get_attr"]:
             return [None]
         elif self.node.op == "output":
-            for node in self.node.all_input_nodes:
-                # TODO: allow parallelized nodes in output, and append comm ops in graph tp all-gather
-                # parallelized output if intructed
-                if self.extract_axis(node) is not None:
-                    return []
-            return [None]
+            # does not care about if output is being parallelized right now, because if the output is loss,
+            # then it must be not parallelized as long as it comes from sharded cross entropy.
+            # TODO: append all-gather comm ops before all parallelized output nodes if instructed.
+            input_arg = self.node.all_input_nodes[0]
+            axis = self.extract_axis(input_arg)
+            return [axis]
         elif is_linear(self.node):
             input_arg = self.node.all_input_nodes[0]
             axis = self.extract_axis(input_arg)
@@ -436,6 +445,14 @@ class FallbackParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
                 # only support the embedding parameter being parallelized on `vocab` dim or not parallelized for now,
                 # the output can be parallelized on sequence dim or not parallelized
                 return [1, None] if self.config.enable_sequence_parallel else [None]
+            else:
+                return []
+        elif is_cross_entropy(self.node):
+            logits = self.node.all_input_nodes[0]
+            axis = self.extract_axis(logits)
+            if axis is None or (is_cross_entropy_parallel_compatible(self.node) and axis == logits.meta['val'].ndim - 1):
+                # for cross entropy, the input logits parallel axis can only be the last axis or None
+                return [None]
             else:
                 return []
         elif is_activation(self.node):

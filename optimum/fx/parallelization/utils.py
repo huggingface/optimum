@@ -82,6 +82,40 @@ def is_shape_generator(node: Node) -> bool:
     return node.op == "call_method" and node.target == "size"
 
 
+def is_cross_entropy(node: Node) -> bool:
+    if node.op == "call_function":
+        return node.target is F.cross_entropy
+    elif node.op == "call_module":
+        mod = node.graph.owning_module
+        return isinstance(mod.get_submodule(node.target), nn.CrossEntropyLoss)
+    return False
+
+
+def is_cross_entropy_parallel_compatible(node: Node) -> bool:
+    """
+    For now `VocabParallelCrossEntropyLoss` does not support weighted mode, index ignoring and label smoothing.
+    """
+    if node.op == "call_function":
+        weight = node.kwargs.get('weight', None)
+        ignore_index = node.kwargs.get('ignore_index', -100)
+        label_smoothing = node.kwargs.get('label_smoothing', 0.0)
+        if len(node.args) > 2 and weight is None:
+            weight = node.args[2]
+        if len(node.args) > 4 and ignore_index == -100:
+            ignore_index = node.args[4]
+        if len(node.args) > 7 and label_smoothing == 0.0:
+            label_smoothing = node.args[7]
+
+        return weight is None and ignore_index == -100 and label_smoothing == 0.0
+
+    elif node.op == "call_module":
+        mod: nn.CrossEntropyLoss = node.graph.owning_module.get_submodule(node.target)
+        weight, label_smoothing, ignore_index = mod.weight, mod.label_smoothing, mod.ignore_index
+        return weight is None and ignore_index == -100 and label_smoothing == 0.0
+
+    return False
+
+
 def stable_topological_sort(graph: Graph):
     def _args(n: torch.fx.Node) -> List[torch.fx.node.Argument]:
         args: List[torch.fx.node.Argument] = []
