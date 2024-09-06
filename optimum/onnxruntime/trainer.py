@@ -53,7 +53,6 @@ import torch
 import torch.distributed as dist
 from torch import nn
 from torch.utils.data import Dataset, RandomSampler
-from transformers import __version__ as transformers_version
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
@@ -84,13 +83,17 @@ from transformers.utils import (
 )
 
 from ..utils import logging
+from ..utils.import_utils import check_if_transformers_greater
 from .training_args import ORTOptimizerNames, ORTTrainingArguments
 from .utils import (
     is_onnxruntime_training_available,
 )
 
 
-if version.parse(transformers_version) >= version.parse("4.33"):
+if is_apex_available():
+    from apex import amp
+
+if check_if_transformers_greater("4.33"):
     from transformers.integrations.deepspeed import (
         deepspeed_init,
         deepspeed_load_checkpoint,
@@ -99,10 +102,7 @@ if version.parse(transformers_version) >= version.parse("4.33"):
 else:
     from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
 
-if is_apex_available():
-    from apex import amp
-
-if version.parse(transformers_version) >= version.parse("4.39"):
+if check_if_transformers_greater("4.39"):
     from transformers.utils import is_torch_xla_available
 
     if is_torch_xla_available():

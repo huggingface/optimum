@@ -17,12 +17,12 @@ The ORTSeq2SeqTrainer class, to easily train a sequence to sequence model in ðŸ¤
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-from packaging import version
 from torch import nn
 from torch.utils.data import Dataset
 from transformers.trainer_utils import PredictionOutput
 from transformers.utils import is_accelerate_available, logging
 
+from ..utils.import_utils import check_if_transformers_greater
 from .trainer import ORTTrainer
 
 
@@ -33,10 +33,7 @@ else:
         "The package `accelerate` is required to use the ORTTrainer. Please install it following https://huggingface.co/docs/accelerate/basic_tutorials/install."
     )
 
-from transformers import __version__ as transformers_version
-
-
-if version.parse(transformers_version) >= version.parse("4.33"):
+if check_if_transformers_greater("4.33"):
     from transformers.integrations.deepspeed import is_deepspeed_zero3_enabled
 else:
     from transformers.deepspeed import is_deepspeed_zero3_enabled
