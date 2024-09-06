@@ -12,11 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
-import torch.nn as nn
-import torch.distributed as dist
-from typing import Optional
 from functools import wraps
+from typing import Optional
+
+import torch
+import torch.distributed as dist
+import torch.nn as nn
+
 from ..core import ParallelExecutionCtx
 
 
@@ -100,7 +102,7 @@ class _ShardedCrossEntropy(torch.autograd.Function):
         return grad_input, None, None
 
 
-def sharded_cross_entropy(sharded_logits: torch.Tensor, target: torch.Tensor,process_group: dist.ProcessGroup):
+def sharded_cross_entropy(sharded_logits: torch.Tensor, target: torch.Tensor, process_group: dist.ProcessGroup):
     return _ShardedCrossEntropy.apply(sharded_logits, target, process_group)
 
 
@@ -127,15 +129,15 @@ def sharded_cross_entropy_wrapper_fn(process_group: dist.ProcessGroup):
             reduce = True if reduce is None else reduce
 
             if size_average and reduce:
-                reduction = 'mean'
+                reduction = "mean"
             elif reduce:
-                reduction = 'sum'
+                reduction = "sum"
             else:
-                reduction = 'none'
+                reduction = "none"
 
-        if reduction == 'mean':
+        if reduction == "mean":
             return loss.mean()
-        elif reduction == 'sum':
+        elif reduction == "sum":
             return loss.sum()
         return loss
 
@@ -146,15 +148,16 @@ class VocabParallelCrossEntropyLoss(nn.Module):
     """
     Simple parallel cross entropy implementation which does not support weighted mode and label smoothing yet.
     """
-    def __init__(self, ctx: ParallelExecutionCtx, reduction: str = 'mean') -> None:
+
+    def __init__(self, ctx: ParallelExecutionCtx, reduction: str = "mean") -> None:
         super(VocabParallelCrossEntropyLoss, self).__init__()
         self.process_group = ctx.tp_group
         self.reduction = reduction
 
     def forward(self, sharded_logits: torch.Tensor, target: torch.Tensor):
         loss: torch.Tensor = _ShardedCrossEntropy.apply(sharded_logits, target, self.process_group)
-        if self.reduction == 'mean':
+        if self.reduction == "mean":
             return loss.mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             return loss.sum()
         return loss

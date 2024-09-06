@@ -21,6 +21,7 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 from torch.fx import Graph, GraphModule, Node
+
 from .core import Config, ParallelExecutionCtx, ParameterMeta
 from .decomp import decompose_and_functionalize
 from .distributed import scatter
@@ -28,15 +29,15 @@ from .op_registry import REGISTRY, FallbackParallelAxisPropagateHandler
 from .parallel_layers import (
     ColumnParallelLinear,
     RowParallelLinear,
-    VocabParallelEmbedding,
     VocabParallelCrossEntropyLoss,
-    sharded_cross_entropy_wrapper_fn
+    VocabParallelEmbedding,
+    sharded_cross_entropy_wrapper_fn,
 )
 from .utils import (
+    is_cross_entropy,
     is_embedding,
     is_linear,
     is_shape_consumer,
-    is_cross_entropy,
     stable_topological_sort,
 )
 
@@ -282,7 +283,7 @@ class ParallelLayerAnnotatePass(AnalyzeBase):
             elif is_cross_entropy(node):
                 axis_before = ParallelAxisSolverPass.get_stored_field_info(node.args[0], "parallel_axis")
                 if axis_before is not None:
-                    self.place_marker_per_node(node, {'axis' : 'vocab'})
+                    self.place_marker_per_node(node, {"axis": "vocab"})
 
         return graph_module
 
@@ -382,7 +383,6 @@ class ParallelLayerReplacePass(PassBase):
             setattr(parent_mod, field, new_mod)
         else:
             node.target = sharded_cross_entropy_wrapper_fn(process_group=ctx.tp_group)
-
 
     @staticmethod
     def handle_hard_coded_axis_param(node: Node, ctx: ParallelExecutionCtx) -> None:

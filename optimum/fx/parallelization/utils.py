@@ -96,9 +96,9 @@ def is_cross_entropy_parallel_compatible(node: Node) -> bool:
     For now `VocabParallelCrossEntropyLoss` does not support weighted mode, index ignoring and label smoothing.
     """
     if node.op == "call_function":
-        weight = node.kwargs.get('weight', None)
-        ignore_index = node.kwargs.get('ignore_index', -100)
-        label_smoothing = node.kwargs.get('label_smoothing', 0.0)
+        weight = node.kwargs.get("weight", None)
+        ignore_index = node.kwargs.get("ignore_index", -100)
+        label_smoothing = node.kwargs.get("label_smoothing", 0.0)
         if len(node.args) > 2 and weight is None:
             weight = node.args[2]
         if len(node.args) > 4 and ignore_index == -100:

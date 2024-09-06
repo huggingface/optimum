@@ -19,7 +19,7 @@ import torch
 from torch.fx import Node
 
 from ..core import Config
-from ..utils import is_activation, is_embedding, is_linear, is_cross_entropy, is_cross_entropy_parallel_compatible
+from ..utils import is_activation, is_cross_entropy, is_cross_entropy_parallel_compatible, is_embedding, is_linear
 
 
 class Registry:
@@ -450,7 +450,9 @@ class FallbackParallelAxisPropagateHandler(OpParallelAxisPropagateHandler):
         elif is_cross_entropy(self.node):
             logits = self.node.all_input_nodes[0]
             axis = self.extract_axis(logits)
-            if axis is None or (is_cross_entropy_parallel_compatible(self.node) and axis == logits.meta['val'].ndim - 1):
+            if axis is None or (
+                is_cross_entropy_parallel_compatible(self.node) and axis == logits.meta["val"].ndim - 1
+            ):
                 # for cross entropy, the input logits parallel axis can only be the last axis or None
                 return [None]
             else:
