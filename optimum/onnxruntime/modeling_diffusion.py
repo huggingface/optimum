@@ -748,9 +748,9 @@ class ORTDiffusionPipeline(ConfigMixin):
 
 ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
-        ("lcm", ORTLatentConsistencyModelPipeline),
         ("stable-diffusion", ORTStableDiffusionPipeline),
         ("stable-diffusion-xl", ORTStableDiffusionXLPipeline),
+        ("latent-consistency", ORTLatentConsistencyModelPipeline),
     ]
 )
 

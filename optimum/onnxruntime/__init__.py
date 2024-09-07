@@ -91,6 +91,7 @@ else:
         "ORTPipelineForText2Image",
         "ORTPipelineForImage2Image",
         "ORTPipelineForInpainting",
+        "ORTDiffusionPipeline",
     ]
 
 
@@ -149,6 +150,7 @@ if TYPE_CHECKING:
         )
     else:
         from .modeling_diffusion import (
+            ORTDiffusionPipeline,
             ORTLatentConsistencyModelPipeline,
             ORTPipelineForImage2Image,
             ORTPipelineForInpainting,

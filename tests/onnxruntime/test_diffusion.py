@@ -86,7 +86,7 @@ def to_np(image):
 
 class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     ARCHITECTURE_TO_ORTMODEL_CLASS = {
-        "lcm": ORTLatentConsistencyModelPipeline,
+        "latent-consistency": ORTLatentConsistencyModelPipeline,
         "stable-diffusion": ORTStableDiffusionPipeline,
         "stable-diffusion-xl": ORTStableDiffusionXLPipeline,
     }
@@ -150,8 +150,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
-        if model_arch == "lcm":
-            # LCM doesn't support deterministic outputs beyond the first inference step
+        if model_arch == "latent-consistency":
+            # Latent Consistency Model (LCM) doesn't support deterministic outputs beyond the first inference step
             # TODO: Investigate why this is the case
             inputs["num_inference_steps"] = 1
 
@@ -267,7 +267,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
     @require_diffusers
     def test_image_reproducibility(self, model_arch: str):
-        if model_arch in ["lcm"]:
+        if model_arch in ["latent-consistency"]:
             pytest.skip("Latent Consistency Model (LCM) doesn't support deterministic outputs")
 
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -288,8 +288,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
     @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
     def test_negative_prompt(self, model_arch: str):
-        if model_arch in ["lcm"]:
-            pytest.skip("LCM (Latent Consistency Model) does not support negative prompts")
+        if model_arch in ["latent-consistency"]:
+            pytest.skip("Latent Consistency Model (LCM) does not support negative prompts")
 
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)

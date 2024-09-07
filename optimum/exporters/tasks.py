@@ -308,9 +308,9 @@ class TasksManager:
         "image-feature-extraction": "feature-extraction",
         # for backward compatibility and testing (where
         # model task and model type are still the same)
-        "lcm": "text-to-image",
         "stable-diffusion": "text-to-image",
         "stable-diffusion-xl": "text-to-image",
+        "latent-consistency": "text-to-image",
     }
 
     _CUSTOM_CLASSES = {
