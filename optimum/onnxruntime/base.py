@@ -139,8 +139,8 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
         super().__init__(session, parent_model)
 
         config = (
-            self.parent_model.config.encoder
-            if hasattr(self.parent_model.config, "encoder")
+            self.parent_model.config.decoder
+            if hasattr(self.parent_model.config, "decoder")
             else self.parent_model.config
         )
 
