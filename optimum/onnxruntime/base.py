@@ -22,6 +22,7 @@ from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
 from onnxruntime import InferenceSession
 
+from ..utils import NormalizedConfigManager
 from ..utils.logging import warn_once
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
@@ -83,12 +84,18 @@ class ORTEncoder(ORTModelPart):
     Encoder part of the encoder-decoder model for ONNX Runtime inference.
     """
 
-    def forward(
-        self,
-        input_ids: torch.LongTensor,
-        attention_mask: torch.LongTensor,
-        **kwargs,
-    ) -> BaseModelOutput:
+    def __init__(self, session: InferenceSession, parent_model: "ORTModel"):
+        super().__init__(session, parent_model)
+
+        config = (
+            self.parent_model.config.encoder
+            if hasattr(self.parent_model.config, "encoder")
+            else self.parent_model.config
+        )
+
+        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
+
+    def forward(self, input_ids: torch.LongTensor, attention_mask: torch.LongTensor, **kwargs) -> BaseModelOutput:
         use_torch = isinstance(input_ids, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
 
@@ -131,6 +138,14 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
     ):
         super().__init__(session, parent_model)
 
+        config = (
+            self.parent_model.config.encoder
+            if hasattr(self.parent_model.config, "encoder")
+            else self.parent_model.config
+        )
+
+        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
+
         # TODO: make this less hacky.
         self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
@@ -146,11 +161,7 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
 
         self.use_past_in_outputs = len(self.key_value_output_names) > 0
         self.use_past_in_inputs = len(self.key_value_input_names) > 0
-        self.use_fp16 = False
-        for inp in session.get_inputs():
-            if "past_key_values" in inp.name and inp.type == "tensor(float16)":
-                self.use_fp16 = True
-                break
+        self.use_fp16 = self.dtype == torch.float16
 
         # We may use ORTDecoderForSeq2Seq for vision-encoder-decoder models, where models as gpt2
         # can be used but do not support KV caching for the cross-attention key/values, see:
@@ -454,11 +465,3 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
                 cache_position = cache_position.to(self.device)
 
         return use_cache_branch_tensor, past_key_values, cache_position
-
-
-class ORTDecoder(ORTDecoderForSeq2Seq):
-    def __init__(self, *args, **kwargs):
-        logger.warning(
-            "The class `ORTDecoder` is deprecated and will be removed in optimum v1.15.0, please use `ORTDecoderForSeq2Seq` instead."
-        )
-        super().__init__(*args, **kwargs)
