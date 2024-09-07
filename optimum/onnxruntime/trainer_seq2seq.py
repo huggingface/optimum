@@ -19,10 +19,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 from torch import nn
 from torch.utils.data import Dataset
-from transformers.deepspeed import is_deepspeed_zero3_enabled
 from transformers.trainer_utils import PredictionOutput
 from transformers.utils import is_accelerate_available, logging
 
+from ..utils.import_utils import check_if_transformers_greater
 from .trainer import ORTTrainer
 
 
@@ -32,6 +32,11 @@ else:
     raise ImportError(
         "The package `accelerate` is required to use the ORTTrainer. Please install it following https://huggingface.co/docs/accelerate/basic_tutorials/install."
     )
+
+if check_if_transformers_greater("4.33"):
+    from transformers.integrations.deepspeed import is_deepspeed_zero3_enabled
+else:
+    from transformers.deepspeed import is_deepspeed_zero3_enabled
 
 logger = logging.get_logger(__name__)
 
