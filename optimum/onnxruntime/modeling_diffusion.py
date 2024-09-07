@@ -30,7 +30,6 @@ from diffusers import (
     AutoPipelineForText2Image,
     ConfigMixin,
     DDIMScheduler,
-    DiffusionPipeline,
     LatentConsistencyModelPipeline,
     LMSDiscreteScheduler,
     PNDMScheduler,
@@ -87,8 +86,6 @@ class ORTPipeline(ORTModel):
 
     config_name = "model_index.json"
     sub_component_config_name = "config.json"
-
-    main_input_name = "prompt"
 
     def __init__(
         self,
@@ -592,6 +589,7 @@ class ORTStableDiffusionPipeline(ORTPipeline, StableDiffusionPipelineMixin):
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline).
     """
 
+    main_input_name = "prompt"
     auto_model_class = StableDiffusionPipeline
 
     __call__ = StableDiffusionPipelineMixin.__call__
@@ -603,6 +601,7 @@ class ORTStableDiffusionImg2ImgPipeline(ORTPipeline, StableDiffusionImg2ImgPipel
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline).
     """
 
+    main_input_name = "prompt"
     auto_model_class = StableDiffusionImg2ImgPipeline
 
     __call__ = StableDiffusionImg2ImgPipelineMixin.__call__
@@ -614,6 +613,7 @@ class ORTStableDiffusionInpaintPipeline(ORTPipeline, StableDiffusionInpaintPipel
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline).
     """
 
+    main_input_name = "prompt"
     auto_model_class = StableDiffusionInpaintPipeline
 
     __call__ = StableDiffusionInpaintPipelineMixin.__call__
@@ -625,6 +625,7 @@ class ORTLatentConsistencyModelPipeline(ORTPipeline, LatentConsistencyPipelineMi
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline).
     """
 
+    main_input_name = "prompt"
     auto_model_class = LatentConsistencyModelPipeline
 
     __call__ = LatentConsistencyPipelineMixin.__call__
@@ -683,6 +684,7 @@ class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffu
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLPipeline).
     """
 
+    main_input_name = "prompt"
     auto_model_class = StableDiffusionXLPipeline
 
     __call__ = StableDiffusionXLPipelineMixin.__call__
@@ -694,6 +696,7 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTStableDiffusionXLPipelineBase, Stab
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLImg2ImgPipeline).
     """
 
+    main_input_name = "prompt"
     auto_model_class = StableDiffusionXLImg2ImgPipeline
 
     __call__ = StableDiffusionXLImg2ImgPipelineMixin.__call__
@@ -719,6 +722,8 @@ def _get_pipeline_class(class_name: str, throw_error_if_not_exist: bool = True):
 
 
 class ORTDiffusionPipeline(ConfigMixin):
+    config_name = "model_index.json"
+
     @classmethod
     @validate_hf_hub_args
     def from_pretrained(cls, pretrained_model_or_path, **kwargs):
@@ -790,8 +795,7 @@ def _get_task_class(mapping, pipeline_class_name):
 
 
 class ORTPipelineForTask(ConfigMixin):
-    auto_model_class = None
-    ort_pipelines_mapping = None
+    config_name = "model_index.json"
 
     @classmethod
     def from_pretrained(cls, pretrained_model_or_path, **kwargs):

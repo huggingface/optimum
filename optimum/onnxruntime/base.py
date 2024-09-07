@@ -43,6 +43,7 @@ class ORTModelPart:
     def __init__(self, session: InferenceSession, parent_model: "ORTModel"):
         self.session = session
         self.parent_model = parent_model
+        self.main_input_name = self.parent_model.main_input_name
 
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
