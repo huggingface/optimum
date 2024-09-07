@@ -17,7 +17,6 @@ import logging
 import os
 import shutil
 import warnings
-from abc import abstractmethod
 from collections import OrderedDict
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -40,11 +39,6 @@ from diffusers import (
     StableDiffusionPipeline,
     StableDiffusionXLImg2ImgPipeline,
     StableDiffusionXLPipeline,
-)
-from diffusers.pipelines.auto_pipeline import (
-    AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
-    AUTO_INPAINT_PIPELINES_MAPPING,
-    AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
 )
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils import CONFIG_NAME, is_invisible_watermark_available
@@ -73,6 +67,7 @@ from ..utils import (
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
 )
+from .base import ORTModelPart
 from .io_binding import TypeHelper
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
@@ -86,25 +81,25 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
-class ORTDiffusionPipeline(ORTModel):
-    auto_model_class = DiffusionPipeline
-    main_input_name = "prompt"
-    base_model_prefix = "onnx_model"
+class ORTPipeline(ORTModel):
+    auto_model_class = None
+    model_type = "onnx_pipeline"
+
     config_name = "model_index.json"
     sub_component_config_name = "config.json"
 
-    # TODO: instead of having a bloated init, we should probably have an init per pipeline,
-    # so that we can easily add new pipelines without having to modify the base class
+    main_input_name = "prompt"
+
     def __init__(
         self,
         vae_decoder_session: ort.InferenceSession,
-        text_encoder_session: ort.InferenceSession,
         unet_session: ort.InferenceSession,
-        config: Dict[str, Any],
         tokenizer: CLIPTokenizer,
+        config: Dict[str, Any],
         scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
         feature_extractor: Optional[CLIPFeatureExtractor] = None,
         vae_encoder_session: Optional[ort.InferenceSession] = None,
+        text_encoder_session: Optional[ort.InferenceSession] = None,
         text_encoder_2_session: Optional[ort.InferenceSession] = None,
         tokenizer_2: Optional[CLIPTokenizer] = None,
         use_io_binding: Optional[bool] = None,
@@ -113,23 +108,28 @@ class ORTDiffusionPipeline(ORTModel):
         """
         Args:
             vae_decoder_session (`ort.InferenceSession`):
-                The ONNX Runtime inference session associated to the VAE decoder.
-            text_encoder_session (`ort.InferenceSession`):
-                The ONNX Runtime inference session associated to the text encoder.
+                The ONNX Runtime inference session associated to the VAE decoder
             unet_session (`ort.InferenceSession`):
                 The ONNX Runtime inference session associated to the U-NET.
+            tokenizer (`CLIPTokenizer`):
+                Tokenizer of class
+                [CLIPTokenizer](https://huggingface.co/docs/transformers/v4.21.0/en/model_doc/clip#transformers.CLIPTokenizer)
+                for the text encoder.
             config (`Dict[str, Any]`):
                 A config dictionary from which the model components will be instantiated. Make sure to only load
                 configuration files of compatible classes.
-            tokenizer (`CLIPTokenizer`):
-                Tokenizer of class
-                [CLIPTokenizer](https://huggingface.co/docs/transformers/v4.21.0/en/model_doc/clip#transformers.CLIPTokenizer).
             scheduler (`Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler]`):
                 A scheduler to be used in combination with the U-NET component to denoise the encoded image latents.
             feature_extractor (`Optional[CLIPFeatureExtractor]`, defaults to `None`):
                 A model extracting features from generated images to be used as inputs for the `safety_checker`
             vae_encoder_session (`Optional[ort.InferenceSession]`, defaults to `None`):
                 The ONNX Runtime inference session associated to the VAE encoder.
+            text_encoder_session (`Optional[ort.InferenceSession]`, defaults to `None`):
+                The ONNX Runtime inference session associated to the text encoder.
+            tokenizer_2 (`Optional[CLIPTokenizer]`, defaults to `None`):
+                Tokenizer of class
+                [CLIPTokenizer](https://huggingface.co/docs/transformers/v4.21.0/en/model_doc/clip#transformers.CLIPTokenizer)
+                for the second text encoder.
             use_io_binding (`Optional[bool]`, defaults to `None`):
                 Whether to use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
@@ -137,7 +137,7 @@ class ORTDiffusionPipeline(ORTModel):
                 The directory under which the model exported to ONNX was saved.
         """
         self.shared_attributes_init(
-            vae_decoder_session,
+            model=vae_decoder_session,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
         )
@@ -418,7 +418,7 @@ class ORTDiffusionPipeline(ORTModel):
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
-    ) -> "ORTDiffusionPipeline":
+    ) -> "ORTPipeline":
         if use_auth_token is not None:
             warnings.warn(
                 "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
@@ -499,46 +499,27 @@ class ORTDiffusionPipeline(ORTModel):
         self.save_config(save_directory)
 
 
-# TODO : Use ORTModelPart once IOBinding support is added
-class _ORTDiffusionModelPart:
-    """
-    For multi-file ONNX models, represents a part of the model.
-    It has its own `onnxruntime.InferenceSession`, and can perform a forward pass.
-    """
-
+class ORTPipelinePart(ORTModelPart):
     CONFIG_NAME = "config.json"
 
-    _prepare_onnx_inputs = ORTModel._prepare_onnx_inputs
-    _prepare_onnx_outputs = ORTModel._prepare_onnx_outputs
-
-    def __init__(self, session: ort.InferenceSession, parent_model: ORTModel):
-        self.session = session
-        self.parent_model = parent_model
+    def __init__(self, session: ort.InferenceSession, parent_model: ORTPipeline):
         config_path = Path(session._model_path).parent / self.CONFIG_NAME
-        self.config = self.parent_model._dict_from_json_file(config_path) if config_path.is_file() else {}
-        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
-        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
-        self.input_dtypes = {input_key.name: input_key.type for input_key in session.get_inputs()}
-        self.output_dtypes = {output_key.name: output_key.type for output_key in session.get_outputs()}
+
+        if config_path.is_file():
+            # TODO: use FrozenDict
+            self.config = parent_model._dict_from_json_file(config_path)
+        else:
+            self.config = {}
+
+        super().__init__(session, parent_model)
 
     @property
     def input_dtype(self):
-        # for backward compatibility
-        return {key: TypeHelper.ort_type_to_numpy_type(value) for key, value in self.input_dtypes.items()}
-
-    @property
-    def device(self):
-        return self.parent_model.device
-
-    @abstractmethod
-    def forward(self, *args, **kwargs):
-        pass
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
+        # for backward compatibility and diffusion mixins (will be standardized in the future)
+        return {name: TypeHelper.ort_type_to_numpy_type(ort_type) for name, ort_type in self.input_dtypes.items()}
 
 
-class ORTModelTextEncoder(_ORTDiffusionModelPart):
+class ORTModelTextEncoder(ORTPipelinePart):
     def forward(self, input_ids: Union[np.ndarray, torch.Tensor]):
         use_torch = isinstance(input_ids, torch.Tensor)
 
@@ -551,10 +532,7 @@ class ORTModelTextEncoder(_ORTDiffusionModelPart):
         return ModelOutput(**model_outputs)
 
 
-class ORTModelUnet(_ORTDiffusionModelPart):
-    def __init__(self, session: ort.InferenceSession, parent_model: ORTModel):
-        super().__init__(session, parent_model)
-
+class ORTModelUnet(ORTPipelinePart):
     def forward(
         self,
         sample: Union[np.ndarray, torch.Tensor],
@@ -582,7 +560,7 @@ class ORTModelUnet(_ORTDiffusionModelPart):
         return ModelOutput(**model_outputs)
 
 
-class ORTModelVaeDecoder(_ORTDiffusionModelPart):
+class ORTModelVaeDecoder(ORTPipelinePart):
     def forward(self, latent_sample: Union[np.ndarray, torch.Tensor]):
         use_torch = isinstance(latent_sample, torch.Tensor)
 
@@ -595,7 +573,7 @@ class ORTModelVaeDecoder(_ORTDiffusionModelPart):
         return ModelOutput(**model_outputs)
 
 
-class ORTModelVaeEncoder(_ORTDiffusionModelPart):
+class ORTModelVaeEncoder(ORTPipelinePart):
     def forward(self, sample: Union[np.ndarray, torch.Tensor]):
         use_torch = isinstance(sample, torch.Tensor)
 
@@ -609,7 +587,7 @@ class ORTModelVaeEncoder(_ORTDiffusionModelPart):
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipelineMixin):
+class ORTStableDiffusionPipeline(ORTPipeline, StableDiffusionPipelineMixin):
     """
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline).
     """
@@ -620,7 +598,7 @@ class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipelineMi
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg2ImgPipelineMixin):
+class ORTStableDiffusionImg2ImgPipeline(ORTPipeline, StableDiffusionImg2ImgPipelineMixin):
     """
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline).
     """
@@ -631,7 +609,7 @@ class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInpaintPipelineMixin):
+class ORTStableDiffusionInpaintPipeline(ORTPipeline, StableDiffusionInpaintPipelineMixin):
     """
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline).
     """
@@ -642,7 +620,7 @@ class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInp
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyPipelineMixin):
+class ORTLatentConsistencyModelPipeline(ORTPipeline, LatentConsistencyPipelineMixin):
     """
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline).
     """
@@ -652,7 +630,7 @@ class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyP
     __call__ = LatentConsistencyPipelineMixin.__call__
 
 
-class ORTStableDiffusionXLPipelineBase(ORTDiffusionPipeline):
+class ORTStableDiffusionXLPipelineBase(ORTPipeline):
     def __init__(
         self,
         vae_decoder_session: ort.InferenceSession,
@@ -721,6 +699,48 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTStableDiffusionXLPipelineBase, Stab
     __call__ = StableDiffusionXLImg2ImgPipelineMixin.__call__
 
 
+SUPPORTED_ORT_PIPELINES = [
+    ORTStableDiffusionPipeline,
+    ORTStableDiffusionImg2ImgPipeline,
+    ORTStableDiffusionInpaintPipeline,
+    ORTLatentConsistencyModelPipeline,
+    ORTStableDiffusionXLPipeline,
+    ORTStableDiffusionXLImg2ImgPipeline,
+]
+
+
+def _get_pipeline_class(class_name: str, throw_error_if_not_exist: bool = True):
+    for ort_pipeline_class in SUPPORTED_ORT_PIPELINES:
+        if ort_pipeline_class.auto_model_class.__name__ == class_name:
+            return ort_pipeline_class
+
+    if throw_error_if_not_exist:
+        raise ValueError(f"ORTDiffusionPipeline can't find a pipeline linked to {class_name}")
+
+
+class ORTDiffusionPipeline(ConfigMixin):
+    @classmethod
+    @validate_hf_hub_args
+    def from_pretrained(cls, pretrained_model_or_path, **kwargs):
+        load_config_kwargs = {
+            "force_download": kwargs.get("force_download", False),
+            "resume_download": kwargs.get("resume_download", None),
+            "local_files_only": kwargs.get("local_files_only", False),
+            "cache_dir": kwargs.get("cache_dir", None),
+            "revision": kwargs.get("revision", None),
+            "proxies": kwargs.get("proxies", None),
+            "token": kwargs.get("token", None),
+        }
+
+        config = cls.load_config(pretrained_model_or_path, **load_config_kwargs)
+        config = config[0] if isinstance(config, tuple) else config
+        class_name = config["_class_name"]
+
+        ort_pipeline_class = _get_pipeline_class(class_name)
+
+        return ort_pipeline_class.from_pretrained(pretrained_model_or_path, **kwargs)
+
+
 ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
         ("lcm", ORTLatentConsistencyModelPipeline),
@@ -742,49 +762,38 @@ ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
     ]
 )
 
-SUPPORTED_TASKS_MAPPINGS = [
+SUPPORTED_ORT_PIPELINES_MAPPINGS = [
     ORT_TEXT2IMAGE_PIPELINES_MAPPING,
     ORT_IMAGE2IMAGE_PIPELINES_MAPPING,
     ORT_INPAINT_PIPELINES_MAPPING,
 ]
 
 
-def _get_task_class(mapping, pipeline_class_name, throw_error_if_not_exist: bool = True):
-    def get_model(pipeline_class_name):
-        for task_mapping in SUPPORTED_TASKS_MAPPINGS:
-            for model_name, pipeline in task_mapping.items():
+def _get_task_class(mapping, pipeline_class_name):
+    def _get_model_name(pipeline_class_name):
+        for ort_pipelines_mapping in SUPPORTED_ORT_PIPELINES_MAPPINGS:
+            for model_name, ort_pipeline in ort_pipelines_mapping.items():
                 if (
-                    pipeline.__name__ == pipeline_class_name
-                    or pipeline.auto_model_class.__name__ == pipeline_class_name
+                    ort_pipeline.__name__ == pipeline_class_name
+                    or ort_pipeline.auto_model_class.__name__ == pipeline_class_name
                 ):
                     return model_name
 
-    model_name = get_model(pipeline_class_name)
+    model_name = _get_model_name(pipeline_class_name)
 
     if model_name is not None:
         task_class = mapping.get(model_name, None)
         if task_class is not None:
             return task_class
 
-    if throw_error_if_not_exist:
-        raise ValueError(f"AutoPipeline can't find a pipeline linked to {pipeline_class_name} for {model_name}")
+    raise ValueError(f"ORTPipelineForTask can't find a pipeline linked to {pipeline_class_name} for {model_name}")
 
 
-class ORTPipelineBase(ConfigMixin):
-    config_name = "model_index.json"
-
-    ort_pipeline_mapping = None
-    auto_pipeline_mapping = None
-
-    def __init__(self, *args, **kwargs):
-        raise EnvironmentError(
-            f"{self.__class__.__name__} is designed to be instantiated "
-            f"using the `{self.__class__.__name__}.from_pretrained(pretrained_model_name_or_path)` or "
-            f"`{self.__class__.__name__}.from_pipe(pipeline)` methods."
-        )
+class ORTPipelineForTask(ConfigMixin):
+    auto_model_class = None
+    ort_pipelines_mapping = None
 
     @classmethod
-    @validate_hf_hub_args
     def from_pretrained(cls, pretrained_model_or_path, **kwargs):
         load_config_kwargs = {
             "force_download": kwargs.get("force_download", False),
@@ -795,38 +804,25 @@ class ORTPipelineBase(ConfigMixin):
             "proxies": kwargs.get("proxies", None),
             "token": kwargs.get("token", None),
         }
-
         config = cls.load_config(pretrained_model_or_path, **load_config_kwargs)
         config = config[0] if isinstance(config, tuple) else config
         class_name = config["_class_name"]
 
-        ort_pipeline_cls = _get_task_class(cls.ort_pipeline_mapping, class_name)
+        ort_pipeline_class = _get_task_class(cls.ort_pipelines_mapping, class_name)
 
-        return ort_pipeline_cls.from_pretrained(pretrained_model_or_path, **kwargs)
-
-    @classmethod
-    def from_pipe(cls, **kwargs):
-        raise NotImplementedError(
-            f"from_pipe is not yet implemented for {cls.__name__}. Please use from_pretrained instead."
-        )
+        return ort_pipeline_class.from_pretrained(pretrained_model_or_path, **kwargs)
 
 
-class ORTPipelineForText2Image(ORTPipelineBase):
+class ORTPipelineForText2Image(ORTPipelineForTask):
     auto_model_class = AutoPipelineForText2Image
-
-    ort_pipeline_mapping = ORT_TEXT2IMAGE_PIPELINES_MAPPING
-    auto_pipeline_mapping = AUTO_TEXT2IMAGE_PIPELINES_MAPPING
+    ort_pipelines_mapping = ORT_TEXT2IMAGE_PIPELINES_MAPPING
 
 
-class ORTPipelineForImage2Image(ORTPipelineBase):
+class ORTPipelineForImage2Image(ORTPipelineForTask):
     auto_model_class = AutoPipelineForImage2Image
-
-    ort_pipeline_mapping = ORT_IMAGE2IMAGE_PIPELINES_MAPPING
-    auto_pipeline_mapping = AUTO_IMAGE2IMAGE_PIPELINES_MAPPING
+    ort_pipelines_mapping = ORT_IMAGE2IMAGE_PIPELINES_MAPPING
 
 
-class ORTPipelineForInpainting(ORTPipelineBase):
+class ORTPipelineForInpainting(ORTPipelineForTask):
     auto_model_class = AutoPipelineForInpainting
-
-    ort_pipeline_mapping = ORT_INPAINT_PIPELINES_MAPPING
-    auto_pipeline_mapping = AUTO_INPAINT_PIPELINES_MAPPING
+    ort_pipelines_mapping = ORT_INPAINT_PIPELINES_MAPPING

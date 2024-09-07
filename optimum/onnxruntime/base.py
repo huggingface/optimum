@@ -22,7 +22,6 @@ from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
 from onnxruntime import InferenceSession
 
-from ..utils import NormalizedConfigManager
 from ..utils.logging import warn_once
 from .io_binding import TypeHelper
 from .modeling_ort import ORTModel
@@ -41,17 +40,10 @@ class ORTModelPart:
     _prepare_onnx_inputs = ORTModel._prepare_onnx_inputs
     _prepare_onnx_outputs = ORTModel._prepare_onnx_outputs
 
-    def __init__(
-        self,
-        session: InferenceSession,
-        parent_model: "ORTModel",
-    ):
+    def __init__(self, session: InferenceSession, parent_model: "ORTModel"):
         self.session = session
         self.parent_model = parent_model
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-            self.parent_model.config.model_type
-        )(self.parent_model.config)
-        self.main_input_name = self.parent_model.main_input_name
+
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
         self.input_dtypes = {input_key.name: input_key.type for input_key in session.get_inputs()}
