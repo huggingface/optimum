@@ -22,6 +22,7 @@ from diffusers import (
     AutoPipelineForImage2Image,
     AutoPipelineForInpainting,
     AutoPipelineForText2Image,
+    DiffusionPipeline,
 )
 from diffusers.utils import load_image
 from parameterized import parameterized
@@ -29,27 +30,22 @@ from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
 from optimum.onnxruntime import (
-    ORTLatentConsistencyModelPipeline,
+    ORTDiffusionPipeline,
     ORTPipelineForImage2Image,
     ORTPipelineForInpainting,
     ORTPipelineForText2Image,
-    ORTStableDiffusionImg2ImgPipeline,
-    ORTStableDiffusionInpaintPipeline,
-    ORTStableDiffusionPipeline,
-    ORTStableDiffusionXLImg2ImgPipeline,
-    ORTStableDiffusionXLPipeline,
 )
 from optimum.pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_ort_rocm
 
 
-def get_generator(generator_framework, seed):
-    if generator_framework == "np":
+def get_generator(framework, seed):
+    if framework == "np":
         return np.random.RandomState(seed)
-    elif generator_framework == "pt":
+    elif framework == "pt":
         return torch.Generator().manual_seed(seed)
     else:
-        raise ValueError(f"Unknown generator_framework: {generator_framework}")
+        raise ValueError(f"Unknown framework: {framework}")
 
 
 def _generate_prompts(batch_size=1):
@@ -85,11 +81,7 @@ def to_np(image):
 
 
 class ORTPipelineForText2ImageTest(ORTModelTestMixin):
-    ARCHITECTURE_TO_ORTMODEL_CLASS = {
-        "latent-consistency": ORTLatentConsistencyModelPipeline,
-        "stable-diffusion": ORTStableDiffusionPipeline,
-        "stable-diffusion-xl": ORTStableDiffusionXLPipeline,
-    }
+    SUPPORTED_ARCHITECTURES = ["latent-consistency", "stable-diffusion", "stable-diffusion-xl"]
 
     ORTMODEL_CLASS = ORTPipelineForText2Image
     AUTOMODEL_CLASS = AutoPipelineForText2Image
@@ -113,15 +105,23 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             f"does not appear to have a file named {self.ORTMODEL_CLASS.config_name}", str(context.exception)
         )
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_ort_pipeline_class_dispatch(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        self.assertIsInstance(pipeline, self.ARCHITECTURE_TO_ORTMODEL_CLASS[model_arch])
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+        auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
+
+        auto_pipeline = DiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
+        ort_pipeline = ORTDiffusionPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -138,7 +138,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             outputs = pipeline(**inputs, num_images_per_prompt=num_images).images
             self.assertEqual(outputs.shape, (batch_size * num_images, height, width, 3))
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_compare_to_diffusers_pipeline(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -168,9 +168,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             self.assertEqual(ort_pipeline.device, diffusers_pipeline.device)
 
     @parameterized.expand(
-        grid_parameters(
-            {"model_arch": list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()), "provider": ["CUDAExecutionProvider"]}
-        )
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
     )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
@@ -189,9 +187,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
     @parameterized.expand(
-        grid_parameters(
-            {"model_arch": list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()), "provider": ["ROCMExecutionProvider"]}
-        )
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["ROCMExecutionProvider"]})
     )
     @require_torch_gpu
     @require_ort_rocm
@@ -210,7 +206,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -242,7 +238,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         self.assertTrue(auto_callback.has_been_called)
         self.assertEqual(auto_callback.number_of_steps, ort_callback.number_of_steps)
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_shape(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -264,7 +260,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
                     (batch_size, 4, height // pipeline.vae_scale_factor, width // pipeline.vae_scale_factor),
                 )
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_image_reproducibility(self, model_arch: str):
         if model_arch in ["latent-consistency"]:
@@ -286,7 +282,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_negative_prompt(self, model_arch: str):
         if model_arch in ["latent-consistency"]:
             pytest.skip("Latent Consistency Model (LCM) does not support negative prompts")
@@ -335,10 +331,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
 
 class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
-    ARCHITECTURE_TO_ORTMODEL_CLASS = {
-        "stable-diffusion": ORTStableDiffusionImg2ImgPipeline,
-        "stable-diffusion-xl": ORTStableDiffusionXLImg2ImgPipeline,
-    }
+    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl"]
+
     AUTOMODEL_CLASS = AutoPipelineForImage2Image
     ORTMODEL_CLASS = ORTPipelineForImage2Image
 
@@ -364,7 +358,23 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             f"does not appear to have a file named {self.ORTMODEL_CLASS.config_name}", str(context.exception)
         )
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(list(SUPPORTED_ARCHITECTURES))
+    @require_diffusers
+    def test_ort_pipeline_class_dispatch(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
+
+        # auto_pipeline = DiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
+        # ort_pipeline = ORTDiffusionPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        # self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -383,9 +393,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
                 self.assertEqual(outputs.shape, (batch_size * num_images, height, width, 3))
 
     @parameterized.expand(
-        grid_parameters(
-            {"model_arch": list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()), "provider": ["CUDAExecutionProvider"]}
-        )
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
     )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
@@ -406,9 +414,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
     @parameterized.expand(
-        grid_parameters(
-            {"model_arch": list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()), "provider": ["ROCMExecutionProvider"]}
-        )
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["ROCMExecutionProvider"]})
     )
     @require_torch_gpu
     @require_ort_rocm
@@ -429,7 +435,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):
         if model_arch in ["stable-diffusion"]:
@@ -465,7 +471,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         self.assertTrue(ort_callback.has_been_called)
         self.assertEqual(ort_callback.number_of_steps, auto_callback.number_of_steps)
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_shape(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -490,7 +496,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
                         (batch_size, 4, height // pipeline.vae_scale_factor, width // pipeline.vae_scale_factor),
                     )
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_compare_to_diffusers_pipeline(self, model_arch: str):
         pytest.skip("Img2Img models do not support support output reproducibility for some reason")
@@ -509,7 +515,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
 
         self.assertTrue(np.allclose(ort_output, diffusers_output, rtol=1e-2))
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_image_reproducibility(self, model_arch: str):
         pytest.skip("Img2Img models do not support support output reproducibility for some reason")
@@ -532,9 +538,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
 
 
 class ORTPipelineForInpaintingTest(ORTModelTestMixin):
-    ARCHITECTURE_TO_ORTMODEL_CLASS = {
-        "stable-diffusion": ORTStableDiffusionInpaintPipeline,
-    }
+    SUPPORTED_ARCHITECTURES = ["stable-diffusion"]
 
     AUTOMODEL_CLASS = AutoPipelineForInpainting
     ORTMODEL_CLASS = ORTPipelineForInpainting
@@ -568,7 +572,23 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
             f"does not appear to have a file named {self.ORTMODEL_CLASS.config_name}", str(context.exception)
         )
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_ort_pipeline_class_dispatch(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
+
+        # auto_pipeline = DiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
+        # ort_pipeline = ORTDiffusionPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        # self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -587,9 +607,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
                 self.assertEqual(outputs.shape, (batch_size * num_images, height, width, 3))
 
     @parameterized.expand(
-        grid_parameters(
-            {"model_arch": list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()), "provider": ["CUDAExecutionProvider"]}
-        )
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
     )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
@@ -610,9 +628,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
     @parameterized.expand(
-        grid_parameters(
-            {"model_arch": list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()), "provider": ["ROCMExecutionProvider"]}
-        )
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["ROCMExecutionProvider"]})
     )
     @require_torch_gpu
     @require_ort_rocm
@@ -633,7 +649,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -664,7 +680,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         self.assertTrue(ort_callback.has_been_called)
         self.assertEqual(ort_callback.number_of_steps, auto_callback.number_of_steps)
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_shape(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -689,7 +705,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
                         (batch_size, 4, height // pipeline.vae_scale_factor, width // pipeline.vae_scale_factor),
                     )
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_compare_to_diffusers_pipeline(self, model_arch: str):
         if model_arch in ["stable-diffusion"]:
@@ -724,7 +740,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
             np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4),
         )
 
-    @parameterized.expand(list(ARCHITECTURE_TO_ORTMODEL_CLASS.keys()))
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_image_reproducibility(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}

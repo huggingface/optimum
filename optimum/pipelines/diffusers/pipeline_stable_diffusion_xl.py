@@ -418,7 +418,6 @@ class StableDiffusionXLPipelineMixin(DiffusionPipelineMixin):
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps)
         timesteps = self.scheduler.timesteps
-        print("timesteps", timesteps)
 
         # 5. Prepare latent variables
         latents = self.prepare_latents(

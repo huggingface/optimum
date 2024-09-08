@@ -712,13 +712,16 @@ SUPPORTED_ORT_PIPELINES = [
 ]
 
 
-def _get_pipeline_class(class_name: str, throw_error_if_not_exist: bool = True):
+def _get_pipeline_class(pipeline_class_name: str, throw_error_if_not_exist: bool = True):
     for ort_pipeline_class in SUPPORTED_ORT_PIPELINES:
-        if ort_pipeline_class.auto_model_class.__name__ == class_name:
+        if (
+            ort_pipeline_class.__name__ == pipeline_class_name
+            or ort_pipeline_class.auto_model_class.__name__ == pipeline_class_name
+        ):
             return ort_pipeline_class
 
     if throw_error_if_not_exist:
-        raise ValueError(f"ORTDiffusionPipeline can't find a pipeline linked to {class_name}")
+        raise ValueError(f"ORTDiffusionPipeline can't find a pipeline linked to {pipeline_class_name}")
 
 
 class ORTDiffusionPipeline(ConfigMixin):
@@ -777,10 +780,10 @@ SUPPORTED_ORT_PIPELINES_MAPPINGS = [
 def _get_task_class(mapping, pipeline_class_name):
     def _get_model_name(pipeline_class_name):
         for ort_pipelines_mapping in SUPPORTED_ORT_PIPELINES_MAPPINGS:
-            for model_name, ort_pipeline in ort_pipelines_mapping.items():
+            for model_name, ort_pipeline_class in ort_pipelines_mapping.items():
                 if (
-                    ort_pipeline.__name__ == pipeline_class_name
-                    or ort_pipeline.auto_model_class.__name__ == pipeline_class_name
+                    ort_pipeline_class.__name__ == pipeline_class_name
+                    or ort_pipeline_class.auto_model_class.__name__ == pipeline_class_name
                 ):
                     return model_name
 
