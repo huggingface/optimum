@@ -546,7 +546,7 @@ class GPTQQuantizer(object):
 
         if self.bits == 4:
             # device not on gpu
-            if device.type not in SUPPORT_EXLLAMA_DEVICES or (
+            if device.type != "cuda" or (
                 has_device_map and any(d in devices for d in ["cpu", "disk", "hpu"])
             ):
                 if not self.disable_exllama:
