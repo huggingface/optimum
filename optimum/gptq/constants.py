@@ -21,4 +21,3 @@ BLOCK_PATTERNS = [
 ]
 
 GPTQ_CONFIG = "quantize_config.json"
-SUPPORT_EXLLAMA_DEVICES = ["cuda"]
