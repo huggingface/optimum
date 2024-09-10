@@ -79,6 +79,10 @@ except OptionalDependencyNotAvailable:
         "ORTStableDiffusionXLPipeline",
         "ORTStableDiffusionXLImg2ImgPipeline",
         "ORTLatentConsistencyModelPipeline",
+        "ORTPipelineForImage2Image",
+        "ORTPipelineForInpainting",
+        "ORTPipelineForText2Image",
+        "ORTDiffusionPipeline",
     ]
 else:
     _import_structure["modeling_diffusion"] = [
@@ -88,9 +92,9 @@ else:
         "ORTStableDiffusionXLPipeline",
         "ORTStableDiffusionXLImg2ImgPipeline",
         "ORTLatentConsistencyModelPipeline",
-        "ORTPipelineForText2Image",
         "ORTPipelineForImage2Image",
         "ORTPipelineForInpainting",
+        "ORTPipelineForText2Image",
         "ORTDiffusionPipeline",
     ]
 
@@ -141,7 +145,11 @@ if TYPE_CHECKING:
             raise OptionalDependencyNotAvailable()
     except OptionalDependencyNotAvailable:
         from ..utils.dummy_diffusers_objects import (
+            ORTDiffusionPipeline,
             ORTLatentConsistencyModelPipeline,
+            ORTPipelineForImage2Image,
+            ORTPipelineForInpainting,
+            ORTPipelineForText2Image,
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
