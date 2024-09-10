@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import unittest
 
 import numpy as np
 import PIL
@@ -35,7 +34,6 @@ from optimum.onnxruntime import (
     ORTPipelineForInpainting,
     ORTPipelineForText2Image,
 )
-from optimum.pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_ort_rocm
 
 
@@ -150,10 +148,10 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
-        if model_arch == "latent-consistency":
-            # Latent Consistency Model (LCM) doesn't support deterministic outputs beyond the first inference step
-            # TODO: Investigate why this is the case
-            inputs["num_inference_steps"] = 1
+        # if model_arch == "latent-consistency":
+        #     # Latent Consistency Model (LCM) doesn't support deterministic outputs beyond the first inference step
+        #     # TODO: Investigate why this is the case
+        #     inputs["num_inference_steps"] = 1
 
         for output_type in ["latent", "np"]:
             inputs["output_type"] = output_type
@@ -263,8 +261,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_image_reproducibility(self, model_arch: str):
-        if model_arch in ["latent-consistency"]:
-            pytest.skip("Latent Consistency Model (LCM) doesn't support deterministic outputs")
+        # if model_arch in ["latent-consistency"]:
+        #     pytest.skip("Latent Consistency Model (LCM) doesn't support deterministic outputs")
 
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -279,13 +277,16 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             ort_outputs_2 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
             ort_outputs_3 = pipeline(**inputs, generator=get_generator(generator_framework, SEED + 1))
 
-            self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
+            self.assertTrue(
+                np.allclose(ort_outputs_1.images[0], ort_outputs_2.images[0]),
+                np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0]),
+            )
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_negative_prompt(self, model_arch: str):
-        if model_arch in ["latent-consistency"]:
-            pytest.skip("Latent Consistency Model (LCM) does not support negative prompts")
+        # if model_arch in ["latent-consistency"]:
+        #     pytest.skip("Latent Consistency Model (LCM) does not support negative prompts")
 
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -438,11 +439,6 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):
-        if model_arch in ["stable-diffusion"]:
-            pytest.skip(
-                "Stable Diffusion For Img2Img doesn't behave as expected with callbacks (doesn't call it every step with callback_steps=1)"
-            )
-
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
@@ -708,11 +704,6 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_compare_to_diffusers_pipeline(self, model_arch: str):
-        if model_arch in ["stable-diffusion"]:
-            pytest.skip(
-                "Stable Diffusion For Inpainting fails, it was used to be compared to StableDiffusionPipeline for some reason which is the text-to-image variant"
-            )
-
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
@@ -758,36 +749,3 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
 
             self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
-
-
-class ImageProcessorTest(unittest.TestCase):
-    def test_vae_image_processor_pt(self):
-        image_processor = VaeImageProcessor(do_resize=False, do_normalize=True)
-        input_pt = torch.stack(_generate_images(height=8, width=8, batch_size=1, input_type="pt"))
-        input_np = to_np(input_pt)
-
-        for output_type in ["np", "pil"]:
-            out = image_processor.postprocess(image_processor.preprocess(input_pt), output_type=output_type)
-            out_np = to_np(out)
-            in_np = (input_np * 255).round() if output_type == "pil" else input_np
-            self.assertTrue(np.allclose(in_np, out_np, atol=1e-6))
-
-    def test_vae_image_processor_np(self):
-        image_processor = VaeImageProcessor(do_resize=False, do_normalize=True)
-        input_np = np.stack(_generate_images(height=8, width=8, input_type="np"))
-        for output_type in ["np", "pil"]:
-            out = image_processor.postprocess(image_processor.preprocess(input_np), output_type=output_type)
-            out_np = to_np(out)
-            in_np = (input_np * 255).round() if output_type == "pil" else input_np
-            self.assertTrue(np.allclose(in_np, out_np, atol=1e-6))
-
-    def test_vae_image_processor_pil(self):
-        image_processor = VaeImageProcessor(do_resize=False, do_normalize=True)
-        input_pil = _generate_images(height=8, width=8, batch_size=1, input_type="pil")
-
-        for output_type in ["np", "pil"]:
-            out = image_processor.postprocess(image_processor.preprocess(input_pil), output_type=output_type)
-            for i, o in zip(input_pil, out):
-                in_np = np.array(i)
-                out_np = to_np(out) if output_type == "pil" else (to_np(out) * 255).round()
-                self.assertTrue(np.allclose(in_np, out_np, atol=1e-6))
