@@ -242,16 +242,16 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
         device = self.device
 
         # convert numpy arrays to torch tensors
-        prompt_embeds = self.np_to_pt(prompt_embeds) if isinstance(prompt_embeds, np.ndarray) else prompt_embeds
-        latents = self.np_to_pt(latents) if isinstance(latents, np.ndarray) else latents
+        prompt_embeds = self.np_to_pt(prompt_embeds, device) if isinstance(prompt_embeds, np.ndarray) else prompt_embeds
+        latents = self.np_to_pt(latents, device) if isinstance(latents, np.ndarray) else latents
 
         for k, v in kwargs.items():
             if isinstance(v, np.ndarray):
-                kwargs[k] = self.np_to_pt(v)
+                kwargs[k] = self.np_to_pt(v, device)
             elif isinstance(v, list) and all(isinstance(i, np.ndarray) for i in v):
-                kwargs[k] = [self.np_to_pt(i) for i in v]
+                kwargs[k] = [self.np_to_pt(i, device) for i in v]
             elif isinstance(v, dict) and all(isinstance(i, np.ndarray) for i in v.values()):
-                kwargs[k] = {k: self.np_to_pt(v) for k, v in v.items()}
+                kwargs[k] = {k: self.np_to_pt(v, device) for k, v in v.items()}
 
         callback = kwargs.pop("callback", None)
         callback_steps = kwargs.pop("callback_steps", None)
@@ -384,8 +384,8 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
                 )[0]
 
                 # compute the previous noisy sample x_t -> x_t-1
-                
                 latents, denoised = self.scheduler.step(model_pred, t, latents, **extra_step_kwargs, return_dict=False)
+
                 if callback_on_step_end is not None:
                     callback_kwargs = {}
                     for k in callback_on_step_end_tensor_inputs:
