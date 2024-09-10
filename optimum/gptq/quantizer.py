@@ -591,7 +591,7 @@ class GPTQQuantizer(object):
                 The input model
         """
         if self.bits == 4 and not self.disable_exllama:
-            if get_device(model).type not in SUPPORT_EXLLAMA_DEVICES or (
+            if get_device(model).type != "cuda" or (
                 hasattr(model, "hf_device_map") and any(d in model.hf_device_map for d in ["cpu", "disk", "hpu"])
             ):
                 if not self.disable_exllama:
