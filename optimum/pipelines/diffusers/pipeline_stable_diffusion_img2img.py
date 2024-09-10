@@ -19,7 +19,6 @@ import numpy as np
 import PIL.Image
 import torch
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-from diffusers.utils import deprecate
 
 from .pipeline_stable_diffusion import StableDiffusionPipelineMixin
 
@@ -228,31 +227,7 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
 
         latents_dtype = prompt_embeds.dtype
         image = image.astype(latents_dtype)
-        # encode the init image into latents and scale the latents
-        init_latents = self.vae_encoder(sample=image)[0]
-
         scaling_factor = self.vae_decoder.config.get("scaling_factor", 0.18215)
-        init_latents = scaling_factor * init_latents
-
-        if isinstance(prompt, str):
-            prompt = [prompt]
-        if len(prompt) > init_latents.shape[0] and len(prompt) % init_latents.shape[0] == 0:
-            # expand init_latents for batch_size
-            deprecation_message = (
-                f"You have passed {len(prompt)} text prompts (`prompt`), but only {init_latents.shape[0]} initial"
-                " images (`image`). Initial images are now duplicating to match the number of text prompts. Note"
-                " that this behavior is deprecated and will be removed in a version 1.0.0. Please make sure to update"
-                " your script to pass as many initial images as text prompts to suppress this warning."
-            )
-            deprecate("len(prompt) != len(image)", "1.0.0", deprecation_message, standard_warn=False)
-            additional_image_per_prompt = len(prompt) // init_latents.shape[0]
-            init_latents = np.concatenate([init_latents] * additional_image_per_prompt * num_images_per_prompt, axis=0)
-        elif len(prompt) > init_latents.shape[0] and len(prompt) % init_latents.shape[0] != 0:
-            raise ValueError(
-                f"Cannot duplicate `image` of batch size {init_latents.shape[0]} to {len(prompt)} text prompts."
-            )
-        else:
-            init_latents = np.concatenate([init_latents] * num_images_per_prompt, axis=0)
 
         # get the original timestep using init_timestep
         offset = self.scheduler.config.get("steps_offset", 0)
@@ -273,8 +248,6 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
         extra_step_kwargs = {}
         if accepts_eta:
             extra_step_kwargs["eta"] = eta
-
-        latents = init_latents
 
         t_start = max(num_inference_steps - init_timestep + offset, 0)
         timesteps = self.scheduler.timesteps[t_start:].numpy()
