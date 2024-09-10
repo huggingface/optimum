@@ -27,7 +27,7 @@ from transformers.utils.quantization_config import QuantizationMethod
 
 from ..utils import is_accelerate_available, is_auto_gptq_available
 from ..utils.modeling_utils import recurse_getattr
-from .constants import GPTQ_CONFIG, SUPPORT_EXLLAMA_DEVICES
+from .constants import GPTQ_CONFIG
 from .data import get_dataset, prepare_dataset
 from .utils import get_block_name_with_pattern, get_device, get_layers, get_preceding_modules, get_seqlen
 
