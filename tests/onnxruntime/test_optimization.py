@@ -100,6 +100,7 @@ class ORTOptimizerTest(unittest.TestCase):
     )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
+    @pytest.mark.run_in_series
     def test_compare_original_model_with_optimized_model(self, model_cls, model_name):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
@@ -147,6 +148,7 @@ class ORTOptimizerTest(unittest.TestCase):
     )
 
     @parameterized.expand(SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID)
+    @pytest.mark.run_in_series
     def test_compare_original_seq2seq_model_with_optimized_model(self, model_cls, model_name, use_cache):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
@@ -176,6 +178,7 @@ class ORTOptimizerTest(unittest.TestCase):
     )
 
     @parameterized.expand(SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID)
+    @pytest.mark.run_in_series
     def test_compare_original_image_model_with_optimized_model(self, model_cls, model_name):
         optimization_config = OptimizationConfig(optimization_level=2, enable_transformers_specific_optimizations=True)
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -197,6 +200,7 @@ class ORTOptimizerTest(unittest.TestCase):
             self.assertTrue(torch.equal(model_outputs.logits, optimized_model_outputs.logits))
             gc.collect()
 
+    @pytest.mark.run_in_series
     def test_optimization_details(self):
         model_name = "hf-internal-testing/tiny-random-distilbert"
         optimization_config = OptimizationConfig(
@@ -218,6 +222,7 @@ class ORTOptimizerTest(unittest.TestCase):
             self.assertEqual(len(sorted_operators_difference), 0)
             gc.collect()
 
+    @pytest.mark.run_in_series
     def test_optimization_fp16(self):
         model_name = "hf-internal-testing/tiny-random-distilbert"
         optimization_config = OptimizationConfig(optimization_level=0, fp16=True)
@@ -323,6 +328,7 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
             }
         )
     )
+    @pytest.mark.run_in_series
     def test_optimization_levels_cpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
         self._test_optimization_levels(
             test_name=test_name,
@@ -343,6 +349,7 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
     )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
+    @pytest.mark.run_in_series
     def test_optimization_levels_gpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
         for use_io_binding in [False, True]:
             # TODO: investigate why marian with IO Binding fails
@@ -439,6 +446,7 @@ class ORTOptimizerForSpeechSeq2SeqIntegrationTest(ORTOptimizerTestMixin):
             }
         )
     )
+    @pytest.mark.run_in_series
     def test_optimization_levels_cpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
         self._test_optimization_levels(
             test_name=test_name,
@@ -460,6 +468,7 @@ class ORTOptimizerForSpeechSeq2SeqIntegrationTest(ORTOptimizerTestMixin):
     )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
+    @pytest.mark.run_in_series
     def test_optimization_levels_gpu(
         self, test_name: str, model_arch: str, use_cache: bool, use_io_binding: bool, optimization_level: str
     ):
@@ -556,6 +565,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     @parameterized.expand(
         grid_parameters({**FULL_GRID, "use_cache": [False, True], "optimization_level": ["O1", "O2", "O3"]})
     )
+    @pytest.mark.run_in_series
     def test_optimization_levels_cpu(
         self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool, optimization_level: str
     ):
@@ -573,6 +583,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
+    @pytest.mark.run_in_series
     def test_optimization_levels_gpu(
         self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool, optimization_level: str
     ):
@@ -587,6 +598,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
                 use_io_binding=use_io_binding,
             )
 
+    @pytest.mark.run_in_series
     def test_merged_optimization(self):
         ort_model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge")
         self.assertTrue(ort_model.use_cache)
