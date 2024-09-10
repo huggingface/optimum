@@ -39,6 +39,8 @@ from diffusers import (
     StableDiffusionXLImg2ImgPipeline,
     StableDiffusionXLPipeline,
 )
+from diffusers.configuration_utils import FrozenDict
+from diffusers.image_processor import VaeImageProcessor
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils import CONFIG_NAME, is_invisible_watermark_available
 from huggingface_hub import snapshot_download
@@ -58,7 +60,6 @@ from ..pipelines.diffusers.pipeline_stable_diffusion_img2img import StableDiffus
 from ..pipelines.diffusers.pipeline_stable_diffusion_inpaint import StableDiffusionInpaintPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl import StableDiffusionXLPipelineMixin
 from ..pipelines.diffusers.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipelineMixin
-from ..pipelines.diffusers.pipeline_utils import VaeImageProcessor
 from ..utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
@@ -503,10 +504,9 @@ class ORTPipelinePart(ORTModelPart):
         config_path = Path(session._model_path).parent / self.CONFIG_NAME
 
         if config_path.is_file():
-            # TODO: use FrozenDict
-            self.config = parent_model._dict_from_json_file(config_path)
+            self.config = FrozenDict(parent_model._dict_from_json_file(config_path))
         else:
-            self.config = {}
+            self.config = FrozenDict({})
 
         super().__init__(session, parent_model)
 
