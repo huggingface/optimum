@@ -165,45 +165,6 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             )
             self.assertEqual(ort_pipeline.device, diffusers_pipeline.device)
 
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
-    )
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    @require_diffusers
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
-        model_args = {"test_name": test_name, "model_arch": model_arch}
-        self._setup(model_args)
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
-        height, width, batch_size = 32, 64, 1
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-        outputs = pipeline(**inputs).images
-        # Verify model devices
-        self.assertEqual(pipeline.device.type.lower(), "cuda")
-        # Verify model outptus
-        self.assertIsInstance(outputs, np.ndarray)
-        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
-
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["ROCMExecutionProvider"]})
-    )
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    @require_diffusers
-    def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, provider: str):
-        model_args = {"test_name": test_name, "model_arch": model_arch}
-        self._setup(model_args)
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
-        height, width, batch_size = 64, 32, 1
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-        outputs = pipeline(**inputs).images
-        # Verify model devices
-        self.assertEqual(pipeline.device.type.lower(), "cuda")
-        # Verify model outptus
-        self.assertIsInstance(outputs, np.ndarray)
-        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
-
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):
@@ -261,9 +222,6 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_image_reproducibility(self, model_arch: str):
-        # if model_arch in ["latent-consistency"]:
-        #     pytest.skip("Latent Consistency Model (LCM) doesn't support deterministic outputs")
-
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
@@ -273,6 +231,9 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
         for generator_framework in ["np", "pt"]:
+            if model_arch in ["latent-consistency"] and generator_framework == "np":
+                pytest.skip("Latent Consistency Model (LCM) scheduler doesn't support numpy generator")
+
             ort_outputs_1 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
             ort_outputs_2 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
             ort_outputs_3 = pipeline(**inputs, generator=get_generator(generator_framework, SEED + 1))
@@ -285,9 +246,6 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_negative_prompt(self, model_arch: str):
-        # if model_arch in ["latent-consistency"]:
-        #     pytest.skip("Latent Consistency Model (LCM) does not support negative prompts")
-
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
@@ -297,7 +255,9 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         negative_prompt = ["This is a negative prompt"]
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         image_slice_1 = pipeline(
-            **inputs, negative_prompt=negative_prompt, generator=np.random.RandomState(SEED)
+            **inputs,
+            negative_prompt=negative_prompt,
+            generator=torch.Generator().manual_seed(SEED),
         ).images[0, -3:, -3:, -1]
         prompt = inputs.pop("prompt")
 
@@ -326,9 +286,51 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             inputs["prompt_embeds"] = pipeline.text_encoder(text_ids)[0]
             inputs["negative_prompt_embeds"] = pipeline.text_encoder(negative_text_ids)[0]
 
-        image_slice_2 = pipeline(**inputs, generator=np.random.RandomState(SEED)).images[0, -3:, -3:, -1]
+        image_slice_2 = pipeline(
+            **inputs,
+            generator=torch.Generator().manual_seed(SEED),
+        ).images[0, -3:, -3:, -1]
 
         self.assertTrue(np.allclose(image_slice_1, image_slice_2, rtol=1e-1))
+
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
+    )
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
+    @require_diffusers
+    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch}
+        self._setup(model_args)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        height, width, batch_size = 32, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+        outputs = pipeline(**inputs).images
+        # Verify model devices
+        self.assertEqual(pipeline.device.type.lower(), "cuda")
+        # Verify model outptus
+        self.assertIsInstance(outputs, np.ndarray)
+        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["ROCMExecutionProvider"]})
+    )
+    @require_torch_gpu
+    @require_ort_rocm
+    @pytest.mark.rocm_ep_test
+    @require_diffusers
+    def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, provider: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch}
+        self._setup(model_args)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        height, width, batch_size = 64, 32, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+        outputs = pipeline(**inputs).images
+        # Verify model devices
+        self.assertEqual(pipeline.device.type.lower(), "cuda")
+        # Verify model outptus
+        self.assertIsInstance(outputs, np.ndarray)
+        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
 
 class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
@@ -392,49 +394,6 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             for num_images in [1, 3]:
                 outputs = pipeline(**inputs, num_images_per_prompt=num_images).images
                 self.assertEqual(outputs.shape, (batch_size * num_images, height, width, 3))
-
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
-    )
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    @require_diffusers
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
-        model_args = {"test_name": test_name, "model_arch": model_arch}
-        self._setup(model_args)
-
-        height, width, batch_size = 32, 64, 1
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
-        outputs = pipeline(**inputs).images
-        # Verify model devices
-        self.assertEqual(pipeline.device.type.lower(), "cuda")
-        # Verify model outptus
-        self.assertIsInstance(outputs, np.ndarray)
-        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
-
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["ROCMExecutionProvider"]})
-    )
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    @require_diffusers
-    def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, provider: str):
-        model_args = {"test_name": test_name, "model_arch": model_arch}
-        self._setup(model_args)
-
-        height, width, batch_size = 32, 64, 1
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
-        outputs = pipeline(**inputs).images
-        # Verify model devices
-        self.assertEqual(pipeline.device.type.lower(), "cuda")
-        # Verify model outptus
-        self.assertIsInstance(outputs, np.ndarray)
-        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -532,6 +491,49 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
 
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
+    )
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
+    @require_diffusers
+    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 32, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        outputs = pipeline(**inputs).images
+        # Verify model devices
+        self.assertEqual(pipeline.device.type.lower(), "cuda")
+        # Verify model outptus
+        self.assertIsInstance(outputs, np.ndarray)
+        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["ROCMExecutionProvider"]})
+    )
+    @require_torch_gpu
+    @require_ort_rocm
+    @pytest.mark.rocm_ep_test
+    @require_diffusers
+    def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, provider: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 32, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        outputs = pipeline(**inputs).images
+        # Verify model devices
+        self.assertEqual(pipeline.device.type.lower(), "cuda")
+        # Verify model outptus
+        self.assertIsInstance(outputs, np.ndarray)
+        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+
 
 class ORTPipelineForInpaintingTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = ["stable-diffusion"]
@@ -601,49 +603,6 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
             for num_images in [1, 3]:
                 outputs = pipeline(**inputs, num_images_per_prompt=num_images).images
                 self.assertEqual(outputs.shape, (batch_size * num_images, height, width, 3))
-
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
-    )
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    @require_diffusers
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
-        model_args = {"test_name": test_name, "model_arch": model_arch}
-        self._setup(model_args)
-
-        height, width, batch_size = 32, 64, 1
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
-        outputs = pipeline(**inputs).images
-        # Verify model devices
-        self.assertEqual(pipeline.device.type.lower(), "cuda")
-        # Verify model outptus
-        self.assertIsInstance(outputs, np.ndarray)
-        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
-
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["ROCMExecutionProvider"]})
-    )
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    @require_diffusers
-    def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, provider: str):
-        model_args = {"test_name": test_name, "model_arch": model_arch}
-        self._setup(model_args)
-
-        height, width, batch_size = 32, 64, 1
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
-        outputs = pipeline(**inputs).images
-        # Verify model devices
-        self.assertEqual(pipeline.device.type.lower(), "cuda")
-        # Verify model outptus
-        self.assertIsInstance(outputs, np.ndarray)
-        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -749,3 +708,46 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
 
             self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
+
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
+    )
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
+    @require_diffusers
+    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 32, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        outputs = pipeline(**inputs).images
+        # Verify model devices
+        self.assertEqual(pipeline.device.type.lower(), "cuda")
+        # Verify model outptus
+        self.assertIsInstance(outputs, np.ndarray)
+        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["ROCMExecutionProvider"]})
+    )
+    @require_torch_gpu
+    @require_ort_rocm
+    @pytest.mark.rocm_ep_test
+    @require_diffusers
+    def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, provider: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 32, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        outputs = pipeline(**inputs).images
+        # Verify model devices
+        self.assertEqual(pipeline.device.type.lower(), "cuda")
+        # Verify model outptus
+        self.assertIsInstance(outputs, np.ndarray)
+        self.assertEqual(outputs.shape, (batch_size, height, width, 3))

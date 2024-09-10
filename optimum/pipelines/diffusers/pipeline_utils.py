@@ -159,14 +159,3 @@ def retrieve_latents(
         return encoder_output.latents
     else:
         raise AttributeError("Could not access latents of provided encoder_output")
-
-from contextlib import contextmanager
-
-@contextmanager
-def patch_randn_tensor():
-    import diffusers.utils.torch_utils
-
-    old_randn_tensor = diffusers.utils.torch_utils.randn_tensor
-    diffusers.utils.torch_utils.randn_tensor = randn_tensor
-    yield
-    diffusers.utils.torch_utils.randn_tensor = old_randn_tensor
