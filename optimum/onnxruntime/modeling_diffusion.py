@@ -187,12 +187,11 @@ class ORTPipeline(ORTModel):
             )
         self._internal_dict.pop("vae", None)
 
-        if "block_out_channels" in self.vae_decoder.config:
-            self.vae_scale_factor = 2 ** (len(self.vae_decoder.config["block_out_channels"]) - 1)
-        else:
-            self.vae_scale_factor = 8
-
+        self.vae_scale_factor = 2 ** (len(self.vae_decoder.config.block_out_channels) - 1)
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
+        self.mask_processor = VaeImageProcessor(
+            vae_scale_factor=self.vae_scale_factor, do_normalize=False, do_binarize=True, do_convert_grayscale=True
+        )
 
     @staticmethod
     def load_model(
@@ -526,6 +525,11 @@ class ORTModelTextEncoder(ORTPipelinePart):
         onnx_outputs = self.session.run(None, onnx_inputs)
         model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
 
+        if any("hidden_states" in model_output for model_output in model_outputs):
+            model_outputs["hidden_states"] = []
+            for i in range(self.config.num_hidden_layers):
+                model_outputs["hidden_states"].append(model_outputs.pop(f"hidden_states.{i}"))
+
         return ModelOutput(**model_outputs)
 
 
@@ -567,6 +571,9 @@ class ORTModelVaeDecoder(ORTPipelinePart):
         onnx_outputs = self.session.run(None, onnx_inputs)
         model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
 
+        if "latent_sample" in model_outputs:
+            model_outputs["latents"] = model_outputs.pop("latent_sample")
+
         return ModelOutput(**model_outputs)
 
 
@@ -579,6 +586,9 @@ class ORTModelVaeEncoder(ORTPipelinePart):
         onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
         onnx_outputs = self.session.run(None, onnx_inputs)
         model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+
+        if "latent_sample" in model_outputs:
+            model_outputs["latents"] = model_outputs.pop("latent_sample")
 
         return ModelOutput(**model_outputs)
 

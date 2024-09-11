@@ -23,7 +23,6 @@ from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img impo
 from diffusers.utils.deprecation_utils import deprecate
 
 from .pipeline_stable_diffusion import StableDiffusionPipelineMixin
-from .pipeline_utils import patch_randn_tensor
 
 
 logger = logging.getLogger(__name__)
@@ -239,11 +238,19 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
                 second element is a list of `bool`s indicating whether the corresponding generated image contains
                 "not-safe-for-work" (nsfw) content.
         """
+        # must have a compatible torch device
         device = self.device
 
         # convert numpy arrays to torch tensors
-        prompt_embeds = self.np_to_pt(prompt_embeds, device) if isinstance(prompt_embeds, np.ndarray) else prompt_embeds
         latents = self.np_to_pt(latents, device) if isinstance(latents, np.ndarray) else latents
+        prompt_embeds = (
+            self.np_to_pt(prompt_embeds, device) if isinstance(prompt_embeds, np.ndarray) else prompt_embeds
+        )
+        ip_adapter_image_embeds = (
+            [self.np_to_pt(i, device) if isinstance(i, np.ndarray) else i for i in ip_adapter_image_embeds]
+            if ip_adapter_image_embeds is not None
+            else ip_adapter_image_embeds
+        )
 
         for k, v in kwargs.items():
             if isinstance(v, np.ndarray):
@@ -252,6 +259,13 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
                 kwargs[k] = [self.np_to_pt(i, device) for i in v]
             elif isinstance(v, dict) and all(isinstance(i, np.ndarray) for i in v.values()):
                 kwargs[k] = {k: self.np_to_pt(v, device) for k, v in v.items()}
+
+        generator = (
+            self.np_to_pt(generator, device)
+            if (isinstance(generator, list) and isinstance(generator[0], np.random.RandomState))
+            or isinstance(generator, np.random.RandomState)
+            else generator
+        )
 
         callback = kwargs.pop("callback", None)
         callback_steps = kwargs.pop("callback_steps", None)

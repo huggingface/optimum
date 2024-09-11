@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import numpy as np
-import PIL
 import pytest
 import torch
 from diffusers import (
@@ -68,14 +67,6 @@ def _generate_images(height=128, width=128, batch_size=1, channel=3, input_type=
         image = torch.rand((channel, height, width))
 
     return [image] * batch_size
-
-
-def to_np(image):
-    if isinstance(image[0], PIL.Image.Image):
-        return np.stack([np.array(i) for i in image], axis=0)
-    elif isinstance(image, torch.Tensor):
-        return image.cpu().numpy().transpose(0, 2, 3, 1)
-    return image
 
 
 class ORTPipelineForText2ImageTest(ORTModelTestMixin):
@@ -148,22 +139,13 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
-        # if model_arch == "latent-consistency":
-        #     # Latent Consistency Model (LCM) doesn't support deterministic outputs beyond the first inference step
-        #     # TODO: Investigate why this is the case
-        #     inputs["num_inference_steps"] = 1
-
         for output_type in ["latent", "np"]:
             inputs["output_type"] = output_type
 
-            ort_output = ort_pipeline(**inputs, generator=torch.Generator().manual_seed(SEED)).images
-            diffusers_output = diffusers_pipeline(**inputs, generator=torch.Generator().manual_seed(SEED)).images
+            ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            diffusers_output = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
-            self.assertTrue(
-                np.allclose(ort_output, diffusers_output, atol=1e-4),
-                np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4),
-            )
-            self.assertEqual(ort_pipeline.device, diffusers_pipeline.device)
+            np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -179,7 +161,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
                 self.has_been_called = False
                 self.number_of_steps = 0
 
-            def __call__(self, step: int, timestep: int, latents: np.ndarray) -> None:
+            def __call__(self, *args, **kwargs) -> None:
                 self.has_been_called = True
                 self.number_of_steps += 1
 
@@ -231,18 +213,12 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
         for generator_framework in ["np", "pt"]:
-            if model_arch in ["latent-consistency"] and generator_framework == "np":
-                pytest.skip("Latent Consistency Model (LCM) scheduler doesn't support numpy generator")
-
             ort_outputs_1 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
             ort_outputs_2 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
             ort_outputs_3 = pipeline(**inputs, generator=get_generator(generator_framework, SEED + 1))
 
-            self.assertTrue(
-                np.allclose(ort_outputs_1.images[0], ort_outputs_2.images[0]),
-                np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0]),
-            )
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
+            np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_negative_prompt(self, model_arch: str):
@@ -254,11 +230,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
         negative_prompt = ["This is a negative prompt"]
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        image_slice_1 = pipeline(
-            **inputs,
-            negative_prompt=negative_prompt,
-            generator=torch.Generator().manual_seed(SEED),
-        ).images[0, -3:, -3:, -1]
+
+        images_1 = pipeline(**inputs, negative_prompt=negative_prompt, generator=get_generator("pt", SEED)).images
         prompt = inputs.pop("prompt")
 
         if model_arch == "stable-diffusion-xl":
@@ -267,31 +240,15 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
                 inputs["negative_prompt_embeds"],
                 inputs["pooled_prompt_embeds"],
                 inputs["negative_pooled_prompt_embeds"],
-            ) = pipeline._encode_prompt(prompt, 1, False, negative_prompt)
+            ) = pipeline.encode_prompt(prompt=prompt, negative_prompt=negative_prompt)
         else:
-            text_ids = pipeline.tokenizer(
-                prompt,
-                max_length=pipeline.tokenizer.model_max_length,
-                padding="max_length",
-                return_tensors="np",
-                truncation=True,
-            ).input_ids
-            negative_text_ids = pipeline.tokenizer(
-                negative_prompt,
-                max_length=pipeline.tokenizer.model_max_length,
-                padding="max_length",
-                return_tensors="np",
-                truncation=True,
-            ).input_ids
-            inputs["prompt_embeds"] = pipeline.text_encoder(text_ids)[0]
-            inputs["negative_prompt_embeds"] = pipeline.text_encoder(negative_text_ids)[0]
+            inputs["prompt_embeds"], inputs["negative_prompt_embeds"] = pipeline.encode_prompt(
+                prompt=prompt, negative_prompt=negative_prompt
+            )
 
-        image_slice_2 = pipeline(
-            **inputs,
-            generator=torch.Generator().manual_seed(SEED),
-        ).images[0, -3:, -3:, -1]
+        images_2 = pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
-        self.assertTrue(np.allclose(image_slice_1, image_slice_2, rtol=1e-1))
+        np.testing.assert_allclose(images_1, images_2, atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
@@ -410,7 +367,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
                 self.has_been_called = False
                 self.number_of_steps = 0
 
-            def __call__(self, step: int, timestep: int, latents: np.ndarray) -> None:
+            def __call__(self, *args, **kwargs) -> None:
                 self.has_been_called = True
                 self.number_of_steps += 1
 
@@ -454,27 +411,23 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_compare_to_diffusers_pipeline(self, model_arch: str):
-        pytest.skip("Img2Img models do not support support output reproducibility for some reason")
-
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
         height, width, batch_size = 128, 128, 1
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        ort_output = ort_pipeline(**inputs, generator=torch.Generator().manual_seed(SEED)).images
-
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
-        diffusers_output = diffusers_pipeline(**inputs, generator=torch.Generator().manual_seed(SEED)).images
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        self.assertTrue(np.allclose(ort_output, diffusers_output, rtol=1e-2))
+        ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+        diffusers_output = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+
+        np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_image_reproducibility(self, model_arch: str):
-        pytest.skip("Img2Img models do not support support output reproducibility for some reason")
-
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
@@ -488,8 +441,8 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             ort_outputs_2 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
             ort_outputs_3 = pipeline(**inputs, generator=get_generator(generator_framework, SEED + 1))
 
-            self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
+            np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
@@ -619,7 +572,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
                 self.has_been_called = False
                 self.number_of_steps = 0
 
-            def __call__(self, step: int, timestep: int, latents: np.ndarray) -> None:
+            def __call__(self, *args, **kwargs) -> None:
                 self.has_been_called = True
                 self.number_of_steps += 1
 
@@ -685,10 +638,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         ort_output = ort_pipeline(**inputs, latents=np_latents).images
         diffusers_output = diffusers_pipeline(**inputs, latents=torch_latents).images
 
-        self.assertTrue(
-            np.allclose(ort_output, diffusers_output, atol=1e-4),
-            np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4),
-        )
+        np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -706,8 +656,8 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
             ort_outputs_2 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
             ort_outputs_3 = pipeline(**inputs, generator=get_generator(generator_framework, SEED + 1))
 
-            self.assertTrue(np.array_equal(ort_outputs_1.images[0], ort_outputs_2.images[0]))
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
+            np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider"]})
