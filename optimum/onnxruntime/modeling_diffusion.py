@@ -525,8 +525,6 @@ class ORTModelTextEncoder(ORTPipelinePart):
         onnx_outputs = self.session.run(None, onnx_inputs)
         model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
 
-        print("model_outputs", model_outputs.keys())
-
         if any("hidden_states" in model_output for model_output in model_outputs):
             model_outputs["hidden_states"] = []
 
