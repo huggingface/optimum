@@ -79,6 +79,14 @@ except OptionalDependencyNotAvailable:
         "ORTStableDiffusionXLPipeline",
         "ORTStableDiffusionXLImg2ImgPipeline",
         "ORTLatentConsistencyModelPipeline",
+        "ORTPipelineForImage2Image",
+        "ORTPipelineForInpainting",
+        "ORTPipelineForText2Image",
+        "ORTDiffusionPipeline",
+        "ORTModelTextEncoder",
+        "ORTModelUnet",
+        "ORTModelVaeDecoder",
+        "ORTModelVaeEncoder",
     ]
 else:
     _import_structure["modeling_diffusion"] = [
@@ -88,10 +96,14 @@ else:
         "ORTStableDiffusionXLPipeline",
         "ORTStableDiffusionXLImg2ImgPipeline",
         "ORTLatentConsistencyModelPipeline",
-        "ORTPipelineForText2Image",
         "ORTPipelineForImage2Image",
         "ORTPipelineForInpainting",
+        "ORTPipelineForText2Image",
         "ORTDiffusionPipeline",
+        "ORTModelTextEncoder",
+        "ORTModelUnet",
+        "ORTModelVaeDecoder",
+        "ORTModelVaeEncoder",
     ]
 
 
@@ -141,7 +153,15 @@ if TYPE_CHECKING:
             raise OptionalDependencyNotAvailable()
     except OptionalDependencyNotAvailable:
         from ..utils.dummy_diffusers_objects import (
+            ORTDiffusionPipeline,
             ORTLatentConsistencyModelPipeline,
+            ORTModelTextEncoder,
+            ORTModelUnet,
+            ORTModelVaeDecoder,
+            ORTModelVaeEncoder,
+            ORTPipelineForImage2Image,
+            ORTPipelineForInpainting,
+            ORTPipelineForText2Image,
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
@@ -152,6 +172,10 @@ if TYPE_CHECKING:
         from .modeling_diffusion import (
             ORTDiffusionPipeline,
             ORTLatentConsistencyModelPipeline,
+            ORTModelTextEncoder,
+            ORTModelUnet,
+            ORTModelVaeDecoder,
+            ORTModelVaeEncoder,
             ORTPipelineForImage2Image,
             ORTPipelineForInpainting,
             ORTPipelineForText2Image,
