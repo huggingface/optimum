@@ -525,10 +525,17 @@ class ORTModelTextEncoder(ORTPipelinePart):
         onnx_outputs = self.session.run(None, onnx_inputs)
         model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
 
+        print("model_outputs", model_outputs.keys())
+
         if any("hidden_states" in model_output for model_output in model_outputs):
             model_outputs["hidden_states"] = []
+
             for i in range(self.config.num_hidden_layers):
                 model_outputs["hidden_states"].append(model_outputs.pop(f"hidden_states.{i}"))
+
+            # exporter doesnt duplicate last hidden state for some reason
+            # (only returned once as last_hidden_state and not part of the list of hidden_states)
+            model_outputs["hidden_states"].append(model_outputs.get("last_hidden_state"))
 
         return ModelOutput(**model_outputs)
 

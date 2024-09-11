@@ -129,6 +129,59 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
+    def test_compare_prompt_embeds_to_diffusers_pipeline(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        prompt = ["sailing ship in storm by Leonardo da Vinci"]
+        device = torch.device("cpu")
+        num_images_per_prompt = 1
+        do_classifier_free_guidance = True
+
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
+
+        if model_arch == "stable-diffusion-xl":
+            (
+                ort_prompt_embeds,
+                _,
+                ort_pooled_prompt_embeds,
+                _,
+            ) = ort_pipeline.encode_prompt(prompt)
+            (
+                diffusers_prompt_embeds,
+                _,
+                diffusers_pooled_prompt_embeds,
+                _,
+            ) = diffusers_pipeline.encode_prompt(prompt)
+            np.testing.assert_allclose(
+                ort_prompt_embeds.detach().numpy(),
+                diffusers_prompt_embeds.detach().numpy(),
+                atol=1e-4,
+                rtol=1e-2,
+            )
+            np.testing.assert_allclose(
+                ort_pooled_prompt_embeds.detach().numpy(),
+                diffusers_pooled_prompt_embeds.detach().numpy(),
+                atol=1e-4,
+                rtol=1e-2,
+            )
+        else:
+            ort_prompt_embeds, _ = ort_pipeline.encode_prompt(
+                prompt, device, num_images_per_prompt, do_classifier_free_guidance
+            )
+            diffusers_prompt_embeds, _ = diffusers_pipeline.encode_prompt(
+                prompt, device, num_images_per_prompt, do_classifier_free_guidance
+            )
+            np.testing.assert_allclose(
+                ort_prompt_embeds.detach().numpy(),
+                diffusers_prompt_embeds.detach().numpy(),
+                atol=1e-4,
+                rtol=1e-2,
+            )
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
     def test_compare_to_diffusers_pipeline(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)

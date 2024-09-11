@@ -20,6 +20,7 @@ import numpy as np
 import torch
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 from diffusers.image_processor import PipelineImageInput
+from diffusers.loaders.textual_inversion import TextualInversionLoaderMixin
 from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import rescale_noise_cfg, retrieve_timesteps
 from diffusers.utils.deprecation_utils import deprecate
@@ -31,7 +32,8 @@ from .pipeline_utils import DiffusionPipelineMixin
 logger = logging.getLogger(__name__)
 
 
-class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
+class StableDiffusionPipelineMixin(DiffusionPipelineMixin, TextualInversionLoaderMixin):
+    _optional_components = ["safety_checker", "feature_extractor", "image_encoder"]
     _callback_tensor_inputs = ["latents", "prompt_embeds", "negative_prompt_embeds"]
 
     def encode_prompt(
@@ -75,8 +77,18 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
                 Number of layers to be skipped from CLIP while computing the prompt embeddings. A value of 1 means that
                 the output of the pre-final layer will be used for computing the prompt embeddings.
         """
-
         device = device or self.device
+
+        # set lora scale so that monkey patched LoRA
+        # function of text encoder can correctly access it
+        # if lora_scale is not None and isinstance(self, StableDiffusionLoraLoaderMixin):
+        #     self._lora_scale = lora_scale
+
+        # dynamically adjust the LoRA scale
+        # if not USE_PEFT_BACKEND:
+        #     adjust_lora_scale_text_encoder(self.text_encoder, lora_scale)
+        # else:
+        #     scale_lora_layers(self.text_encoder, lora_scale)
 
         if prompt is not None and isinstance(prompt, str):
             batch_size = 1
@@ -86,6 +98,10 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             batch_size = prompt_embeds.shape[0]
 
         if prompt_embeds is None:
+            # textual inversion: process multi-vector tokens if necessary
+            if isinstance(self, TextualInversionLoaderMixin):
+                prompt = self.maybe_convert_prompt(prompt, self.tokenizer)
+
             text_inputs = self.tokenizer(
                 prompt,
                 padding="max_length",
@@ -114,15 +130,15 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
 
             if clip_skip is None:
                 prompt_embeds = self.text_encoder(
-                    text_input_ids.to(device)
-                    #   attention_mask=attention_mask
+                    text_input_ids.to(device),
+                    # attention_mask=attention_mask,
                 )
-                prompt_embeds = next(iter(prompt_embeds.values()))
+                prompt_embeds = prompt_embeds[0]
             else:
                 prompt_embeds = self.text_encoder(
                     text_input_ids.to(device),
                     # attention_mask=attention_mask,
-                    # output_hidden_states=True
+                    # output_hidden_states=True,
                 )
                 # Access the `hidden_states` first, that contains a tuple of
                 # all the hidden states from the encoder layers. Then index into
@@ -169,6 +185,10 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             else:
                 uncond_tokens = negative_prompt
 
+            # textual inversion: process multi-vector tokens if necessary
+            if isinstance(self, TextualInversionLoaderMixin):
+                uncond_tokens = self.maybe_convert_prompt(uncond_tokens, self.tokenizer)
+
             max_length = prompt_embeds.shape[1]
             uncond_input = self.tokenizer(
                 uncond_tokens,
@@ -187,14 +207,21 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
                 uncond_input.input_ids.to(device),
                 # attention_mask=attention_mask,
             )
-            negative_prompt_embeds = next(iter(negative_prompt_embeds.values()))
+            negative_prompt_embeds = negative_prompt_embeds[0]
 
         if do_classifier_free_guidance:
             # duplicate unconditional embeddings for each generation per prompt, using mps friendly method
             seq_len = negative_prompt_embeds.shape[1]
+
             negative_prompt_embeds = negative_prompt_embeds.to(dtype=prompt_embeds_dtype, device=device)
+
             negative_prompt_embeds = negative_prompt_embeds.repeat(1, num_images_per_prompt, 1)
             negative_prompt_embeds = negative_prompt_embeds.view(batch_size * num_images_per_prompt, seq_len, -1)
+
+        # if self.text_encoder is not None:
+        #     if isinstance(self, StableDiffusionLoraLoaderMixin) and USE_PEFT_BACKEND:
+        #         # Retrieve the original scale by scaling back the LoRA layers
+        #         unscale_lora_layers(self.text_encoder, lora_scale)
 
         return prompt_embeds, negative_prompt_embeds
 

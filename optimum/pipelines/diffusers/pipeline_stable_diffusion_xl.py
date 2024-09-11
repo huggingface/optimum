@@ -19,6 +19,7 @@ import numpy as np
 import torch
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 from diffusers.image_processor import PipelineImageInput
+from diffusers.loaders.textual_inversion import TextualInversionLoaderMixin
 from diffusers.pipelines.stable_diffusion_xl.pipeline_output import StableDiffusionXLPipelineOutput
 from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl import rescale_noise_cfg, retrieve_timesteps
 from diffusers.utils.deprecation_utils import deprecate
@@ -147,8 +148,8 @@ class StableDiffusionXLPipelineMixin(StableDiffusionPipelineMixin):
             prompt_embeds_list = []
             prompts = [prompt, prompt_2]
             for prompt, tokenizer, text_encoder in zip(prompts, tokenizers, text_encoders):
-                # if isinstance(self, TextualInversionLoaderMixin):
-                #     prompt = self.maybe_convert_prompt(prompt, tokenizer)
+                if isinstance(self, TextualInversionLoaderMixin):
+                    prompt = self.maybe_convert_prompt(prompt, tokenizer)
 
                 text_inputs = tokenizer(
                     prompt,
@@ -219,8 +220,8 @@ class StableDiffusionXLPipelineMixin(StableDiffusionPipelineMixin):
 
             negative_prompt_embeds_list = []
             for negative_prompt, tokenizer, text_encoder in zip(uncond_tokens, tokenizers, text_encoders):
-                # if isinstance(self, TextualInversionLoaderMixin):
-                #     negative_prompt = self.maybe_convert_prompt(negative_prompt, tokenizer)
+                if isinstance(self, TextualInversionLoaderMixin):
+                    negative_prompt = self.maybe_convert_prompt(negative_prompt, tokenizer)
 
                 max_length = prompt_embeds.shape[1]
                 uncond_input = tokenizer(
