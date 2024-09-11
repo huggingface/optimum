@@ -24,7 +24,7 @@ In the 2.0 version, PyTorch includes a native scaled dot-product attention opera
 We provide an integration with these optimizations out of the box in 🤗 Optimum, so that you can convert any supported 🤗 Transformers model so as to use the optimized paths & `scaled_dot_product_attention` function when relevant.
 
 <Tip warning={true}>
-PyTorch-native `scaled_dot_product_attention` is slowly being natively [made default and integrated in 🤗 Transformers](https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-and-memory-efficient-attention-through-pytorchs-scaleddotproductattention). For models that do support SDPA in Transformers, we deprecate BetterTransformer and recommend you to use directly Transformers and PyTorc latest version for the attention optimizations (Flash Attention, memory-efficient attention) through SDPA.
+PyTorch-native `scaled_dot_product_attention` is slowly being natively [made default and integrated in 🤗 Transformers](https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-and-memory-efficient-attention-through-pytorchs-scaleddotproductattention). For models that do support SDPA in Transformers, we deprecate BetterTransformer and recommend you to use directly Transformers and PyTorch latest version for the attention optimizations (Flash Attention, memory-efficient attention) through SDPA.
 </Tip>
 
 <Tip warning={true}>
