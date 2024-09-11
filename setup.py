@@ -88,6 +88,7 @@ EXTRAS_REQUIRE = {
     "graphcore": "optimum-graphcore",
     "furiosa": "optimum-furiosa",
     "amd": "optimum-amd",
+    "quanto": ["optimum-quanto>=0.2.4"],
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
