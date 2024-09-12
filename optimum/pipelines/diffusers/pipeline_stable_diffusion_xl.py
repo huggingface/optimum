@@ -942,22 +942,14 @@ class StableDiffusionXLPipelineMixin(StableDiffusionPipelineMixin):
 
             # unscale/denormalize the latents
             # denormalize with the mean and std if available and not None
-            has_latents_mean = (
-                hasattr(self.vae.config, "latents_mean") and self.vae.config.latents_mean is not None
-            )
-            has_latents_std = (
-                hasattr(self.vae.config, "latents_std") and self.vae.config.latents_std is not None
-            )
+            has_latents_mean = hasattr(self.vae.config, "latents_mean") and self.vae.config.latents_mean is not None
+            has_latents_std = hasattr(self.vae.config, "latents_std") and self.vae.config.latents_std is not None
             if has_latents_mean and has_latents_std:
                 latents_mean = (
-                    torch.tensor(self.vae.config.latents_mean)
-                    .view(1, 4, 1, 1)
-                    .to(latents.device, latents.dtype)
+                    torch.tensor(self.vae.config.latents_mean).view(1, 4, 1, 1).to(latents.device, latents.dtype)
                 )
                 latents_std = (
-                    torch.tensor(self.vae.config.latents_std)
-                    .view(1, 4, 1, 1)
-                    .to(latents.device, latents.dtype)
+                    torch.tensor(self.vae.config.latents_std).view(1, 4, 1, 1).to(latents.device, latents.dtype)
                 )
                 latents = latents * latents_std / self.vae.config.scaling_factor + latents_mean
             else:
