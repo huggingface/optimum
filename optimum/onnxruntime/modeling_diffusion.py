@@ -29,10 +29,7 @@ from diffusers import (
     AutoPipelineForInpainting,
     AutoPipelineForText2Image,
     ConfigMixin,
-    DDIMScheduler,
     LatentConsistencyModelPipeline,
-    LMSDiscreteScheduler,
-    PNDMScheduler,
     SchedulerMixin,
     StableDiffusionImg2ImgPipeline,
     StableDiffusionInpaintPipeline,
@@ -79,6 +76,9 @@ from .utils import (
     validate_provider_availability,
 )
 
+
+if is_invisible_watermark_available():
+    from diffusers.pipelines.stable_diffusion_xl.watermark import StableDiffusionXLWatermarker
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +169,17 @@ class ORTPipeline(ORTModel):
             self.text_encoder_2_model_path = None
             self.text_encoder_2 = None
 
+        # Create an Vae object to be used by the pipeline mixin with minimal changes
+        class Vae:
+            if self.vae_decoder is not None:
+                config = self.vae_decoder.config
+                encode = self.vae_encoder
+
+            if self.vae_encoder is not None:
+                decode = self.vae_decoder
+
+        self.vae = Vae()
+
         self.scheduler = scheduler
         self.tokenizer = tokenizer
         self.tokenizer_2 = tokenizer_2
@@ -189,18 +200,11 @@ class ORTPipeline(ORTModel):
                 ("diffusers", "OnnxRuntimeModel") if sub_models[name] is not None else (None, None)
             )
 
-        # Create an Vae object to be used by the pipeline mixin with minimal changes
-        class Vae:
-            if self.vae_encoder is not None:
-                config = self.vae_encoder.config
-                decode = self.vae_decoder
-            if self.vae_decoder is not None:
-                config = self.vae_decoder.config
-                encode = self.vae_encoder
+        if hasattr(self.vae.config, "block_out_channels"):
+            self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
+        else:
+            self.vae_scale_factor = 8
 
-        self.vae = Vae()
-
-        self.vae_scale_factor = 2 ** (len(self.vae_decoder.config.block_out_channels) - 1)
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
         self.mask_processor = VaeImageProcessor(
             vae_scale_factor=self.vae_scale_factor, do_normalize=False, do_binarize=True, do_convert_grayscale=True
@@ -661,55 +665,8 @@ class ORTLatentConsistencyModelPipeline(ORTPipeline, LatentConsistencyPipelineMi
     __call__ = LatentConsistencyPipelineMixin.__call__
 
 
-class ORTStableDiffusionXLPipelineBase(ORTPipeline):
-    def __init__(
-        self,
-        vae_decoder_session: ort.InferenceSession,
-        text_encoder_session: ort.InferenceSession,
-        unet_session: ort.InferenceSession,
-        config: Dict[str, Any],
-        tokenizer: CLIPTokenizer,
-        scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
-        feature_extractor: Optional[CLIPFeatureExtractor] = None,
-        vae_encoder_session: Optional[ort.InferenceSession] = None,
-        text_encoder_2_session: Optional[ort.InferenceSession] = None,
-        tokenizer_2: Optional[CLIPTokenizer] = None,
-        use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        add_watermarker: Optional[bool] = None,
-    ):
-        super().__init__(
-            vae_decoder_session=vae_decoder_session,
-            text_encoder_session=text_encoder_session,
-            unet_session=unet_session,
-            config=config,
-            tokenizer=tokenizer,
-            scheduler=scheduler,
-            feature_extractor=feature_extractor,
-            vae_encoder_session=vae_encoder_session,
-            text_encoder_2_session=text_encoder_2_session,
-            tokenizer_2=tokenizer_2,
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
-        )
-
-        add_watermarker = add_watermarker if add_watermarker is not None else is_invisible_watermark_available()
-
-        if add_watermarker:
-            if not is_invisible_watermark_available():
-                raise ImportError(
-                    "`add_watermarker` requires invisible-watermark to be installed, which can be installed with `pip install invisible-watermark`."
-                )
-
-            from ..pipelines.diffusers.watermark import StableDiffusionXLWatermarker
-
-            self.watermark = StableDiffusionXLWatermarker()
-        else:
-            self.watermark = None
-
-
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLPipelineMixin):
+class ORTStableDiffusionXLPipeline(ORTPipeline, StableDiffusionXLPipelineMixin):
     """
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLPipeline).
     """
@@ -719,9 +676,19 @@ class ORTStableDiffusionXLPipeline(ORTStableDiffusionXLPipelineBase, StableDiffu
 
     __call__ = StableDiffusionXLPipelineMixin.__call__
 
+    def __init__(self, *args, add_watermarker: Optional[bool] = None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        add_watermarker = add_watermarker if add_watermarker is not None else is_invisible_watermark_available()
+
+        if add_watermarker:
+            self.watermark = StableDiffusionXLWatermarker()
+        else:
+            self.watermark = None
+
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTStableDiffusionXLImg2ImgPipeline(ORTStableDiffusionXLPipelineBase, StableDiffusionXLImg2ImgPipelineMixin):
+class ORTStableDiffusionXLImg2ImgPipeline(ORTStableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipelineMixin):
     """
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLImg2ImgPipeline).
     """
