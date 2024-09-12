@@ -33,6 +33,7 @@ from diffusers import (
     LatentConsistencyModelPipeline,
     LMSDiscreteScheduler,
     PNDMScheduler,
+    SchedulerMixin,
     StableDiffusionImg2ImgPipeline,
     StableDiffusionInpaintPipeline,
     StableDiffusionPipeline,
@@ -41,6 +42,7 @@ from diffusers import (
 )
 from diffusers.configuration_utils import FrozenDict
 from diffusers.image_processor import VaeImageProcessor
+from diffusers.models.autoencoders.vae import DiagonalGaussianDistribution
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils import CONFIG_NAME, is_invisible_watermark_available
 from huggingface_hub import snapshot_download
@@ -90,34 +92,33 @@ class ORTPipeline(ORTModel):
 
     def __init__(
         self,
-        vae_decoder_session: ort.InferenceSession,
-        unet_session: ort.InferenceSession,
-        tokenizer: CLIPTokenizer,
         config: Dict[str, Any],
-        scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
+        tokenizer: CLIPTokenizer,
+        scheduler: SchedulerMixin,
+        unet_session: ort.InferenceSession,
         feature_extractor: Optional[CLIPFeatureExtractor] = None,
         vae_encoder_session: Optional[ort.InferenceSession] = None,
+        vae_decoder_session: Optional[ort.InferenceSession] = None,
         text_encoder_session: Optional[ort.InferenceSession] = None,
         text_encoder_2_session: Optional[ort.InferenceSession] = None,
         tokenizer_2: Optional[CLIPTokenizer] = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        **kwargs,
     ):
         """
         Args:
-            vae_decoder_session (`ort.InferenceSession`):
-                The ONNX Runtime inference session associated to the VAE decoder
-            unet_session (`ort.InferenceSession`):
-                The ONNX Runtime inference session associated to the U-NET.
+            config (`Dict[str, Any]`):
+                A config dictionary from which the model components will be instantiated. Make sure to only load
+                configuration files of compatible classes.
             tokenizer (`CLIPTokenizer`):
                 Tokenizer of class
                 [CLIPTokenizer](https://huggingface.co/docs/transformers/v4.21.0/en/model_doc/clip#transformers.CLIPTokenizer)
                 for the text encoder.
-            config (`Dict[str, Any]`):
-                A config dictionary from which the model components will be instantiated. Make sure to only load
-                configuration files of compatible classes.
             scheduler (`Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler]`):
                 A scheduler to be used in combination with the U-NET component to denoise the encoded image latents.
+            unet_session (`ort.InferenceSession`):
+                The ONNX Runtime inference session associated to the U-NET.
             feature_extractor (`Optional[CLIPFeatureExtractor]`, defaults to `None`):
                 A model extracting features from generated images to be used as inputs for the `safety_checker`
             vae_encoder_session (`Optional[ort.InferenceSession]`, defaults to `None`):
@@ -134,14 +135,9 @@ class ORTPipeline(ORTModel):
             model_save_dir (`Optional[str]`, defaults to `None`):
                 The directory under which the model exported to ONNX was saved.
         """
-        self.shared_attributes_init(
-            model=vae_decoder_session,
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
-        )
         self._internal_dict = config
-        self.vae_decoder = ORTModelVaeDecoder(vae_decoder_session, self)
-        self.vae_decoder_model_path = Path(vae_decoder_session._model_path)
+        self.shared_attributes_init(model=unet_session, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
+
         self.unet = ORTModelUnet(unet_session, self)
         self.unet_model_path = Path(unet_session._model_path)
 
@@ -153,11 +149,18 @@ class ORTPipeline(ORTModel):
             self.text_encoder = None
 
         if vae_encoder_session is not None:
-            self.vae_encoder_model_path = Path(vae_encoder_session._model_path)
             self.vae_encoder = ORTModelVaeEncoder(vae_encoder_session, self)
+            self.vae_encoder_model_path = Path(vae_encoder_session._model_path)
         else:
-            self.vae_encoder_model_path = None
             self.vae_encoder = None
+            self.vae_encoder_model_path = None
+
+        if vae_decoder_session is not None:
+            self.vae_decoder = ORTModelVaeDecoder(vae_decoder_session, self)
+            self.vae_decoder_model_path = Path(vae_decoder_session._model_path)
+        else:
+            self.vae_decoder = None
+            self.vae_decoder_model_path = None
 
         if text_encoder_2_session is not None:
             self.text_encoder_2_model_path = Path(text_encoder_2_session._model_path)
@@ -166,11 +169,11 @@ class ORTPipeline(ORTModel):
             self.text_encoder_2_model_path = None
             self.text_encoder_2 = None
 
+        self.scheduler = scheduler
         self.tokenizer = tokenizer
         self.tokenizer_2 = tokenizer_2
-        self.scheduler = scheduler
         self.feature_extractor = feature_extractor
-        self.safety_checker = None
+        self.safety_checker = kwargs.get("safety_checker", None)
 
         sub_models = {
             DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER: self.text_encoder,
@@ -185,7 +188,17 @@ class ORTPipeline(ORTModel):
             self._internal_dict[name] = (
                 ("diffusers", "OnnxRuntimeModel") if sub_models[name] is not None else (None, None)
             )
-        self._internal_dict.pop("vae", None)
+
+        # Create an Vae object to be used by the pipeline mixin with minimal changes
+        class Vae:
+            if self.vae_encoder is not None:
+                config = self.vae_encoder.config
+                decode = self.vae_decoder
+            if self.vae_decoder is not None:
+                config = self.vae_decoder.config
+                encode = self.vae_encoder
+
+        self.vae = Vae()
 
         self.vae_scale_factor = 2 ** (len(self.vae_decoder.config.block_out_channels) - 1)
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
@@ -594,6 +607,8 @@ class ORTModelVaeEncoder(ORTPipelinePart):
 
         if "latent_sample" in model_outputs:
             model_outputs["latents"] = model_outputs.pop("latent_sample")
+        elif "latent_parameters" in model_outputs:
+            model_outputs["latent_dist"] = DiagonalGaussianDistribution(model_outputs.pop("latent_parameters"))
 
         return ModelOutput(**model_outputs)
 
