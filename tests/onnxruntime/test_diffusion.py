@@ -129,59 +129,6 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
-    def test_compare_prompt_embeds_to_diffusers_pipeline(self, model_arch: str):
-        model_args = {"test_name": model_arch, "model_arch": model_arch}
-        self._setup(model_args)
-
-        prompt = ["sailing ship in storm by Leonardo da Vinci"]
-        device = torch.device("cpu")
-        num_images_per_prompt = 1
-        do_classifier_free_guidance = True
-
-        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
-
-        if model_arch == "stable-diffusion-xl":
-            (
-                ort_prompt_embeds,
-                _,
-                ort_pooled_prompt_embeds,
-                _,
-            ) = ort_pipeline.encode_prompt(prompt)
-            (
-                diffusers_prompt_embeds,
-                _,
-                diffusers_pooled_prompt_embeds,
-                _,
-            ) = diffusers_pipeline.encode_prompt(prompt)
-            np.testing.assert_allclose(
-                ort_prompt_embeds.detach().numpy(),
-                diffusers_prompt_embeds.detach().numpy(),
-                atol=1e-4,
-                rtol=1e-2,
-            )
-            np.testing.assert_allclose(
-                ort_pooled_prompt_embeds.detach().numpy(),
-                diffusers_pooled_prompt_embeds.detach().numpy(),
-                atol=1e-4,
-                rtol=1e-2,
-            )
-        else:
-            ort_prompt_embeds, _ = ort_pipeline.encode_prompt(
-                prompt, device, num_images_per_prompt, do_classifier_free_guidance
-            )
-            diffusers_prompt_embeds, _ = diffusers_pipeline.encode_prompt(
-                prompt, device, num_images_per_prompt, do_classifier_free_guidance
-            )
-            np.testing.assert_allclose(
-                ort_prompt_embeds.detach().numpy(),
-                diffusers_prompt_embeds.detach().numpy(),
-                atol=1e-4,
-                rtol=1e-2,
-            )
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    @require_diffusers
     def test_compare_to_diffusers_pipeline(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -192,7 +139,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
-        for output_type in ["latent", "np"]:
+        for output_type in ["latent", "np", "pt"]:
             inputs["output_type"] = output_type
 
             ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
@@ -382,11 +329,6 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
 
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
 
-        # auto_pipeline = DiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
-        # ort_pipeline = ORTDiffusionPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
-
-        # self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
-
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
@@ -473,10 +415,13 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
-        diffusers_output = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+        for output_type in ["latent", "np", "pt"]:
+            inputs["output_type"] = output_type
 
-        np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4, rtol=1e-2)
+            ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            diffusers_output = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+
+            np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -587,11 +532,6 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
 
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
 
-        # auto_pipeline = DiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
-        # ort_pipeline = ORTDiffusionPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
-
-        # self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
-
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
@@ -678,20 +618,13 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         height, width, batch_size = 64, 64, 1
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        latents_shape = (
-            batch_size,
-            ort_pipeline.vae_decoder.config["latent_channels"],
-            height // ort_pipeline.vae_scale_factor,
-            width // ort_pipeline.vae_scale_factor,
-        )
+        for output_type in ["latent", "np", "pt"]:
+            inputs["output_type"] = output_type
 
-        np_latents = np.random.rand(*latents_shape).astype(np.float32)
-        torch_latents = torch.from_numpy(np_latents)
+            ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            diffusers_output = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
-        ort_output = ort_pipeline(**inputs, latents=np_latents).images
-        diffusers_output = diffusers_pipeline(**inputs, latents=torch_latents).images
-
-        np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4, rtol=1e-2)
+            np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
