@@ -213,7 +213,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_stable_diffusion_model_from_cache(self):
         _ = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)  # caching
 
-        model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID, local_files_only=True)
+        model = ORTStableDiffusionPipeline.from_pretrained(
+            self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID, local_files_only=True
+        )
 
         self.assertIsInstance(model.text_encoder, ORTModelTextEncoder)
         self.assertIsInstance(model.vae_decoder, ORTModelVaeDecoder)
@@ -229,7 +231,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
         remove_directory(dirpath)
 
         with self.assertRaises(Exception):
-            _ = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID, local_files_only=True)
+            _ = ORTStableDiffusionPipeline.from_pretrained(
+                self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID, local_files_only=True
+            )
 
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
@@ -489,7 +493,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_passing_session_options_stable_diffusion(self):
         options = onnxruntime.SessionOptions()
         options.intra_op_num_threads = 3
-        model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID, session_options=options)
+        model = ORTStableDiffusionPipeline.from_pretrained(
+            self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID, session_options=options
+        )
         self.assertEqual(model.unet.session.get_session_options().intra_op_num_threads, 3)
         self.assertEqual(model.text_encoder.session.get_session_options().intra_op_num_threads, 3)
         self.assertEqual(model.vae_decoder.session.get_session_options().intra_op_num_threads, 3)
