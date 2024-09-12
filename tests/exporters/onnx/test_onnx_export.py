@@ -43,7 +43,7 @@ from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
 from optimum.exporters.onnx.utils import get_speecht5_models_for_export
-from optimum.utils import ONNX_WEIGHTS_NAME, DummyPastKeyValuesGenerator, NormalizedTextConfig
+from optimum.utils import DummyPastKeyValuesGenerator, NormalizedTextConfig
 from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
