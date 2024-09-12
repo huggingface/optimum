@@ -225,30 +225,6 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin, TextualInversionLoade
 
         return prompt_embeds, negative_prompt_embeds
 
-    def encode_image(self, image, device, num_images_per_prompt, output_hidden_states=None):
-        dtype = next(self.image_encoder.parameters()).dtype
-
-        if not isinstance(image, torch.Tensor):
-            image = self.feature_extractor(image, return_tensors="pt").pixel_values
-
-        image = image.to(device=device, dtype=dtype)
-        if output_hidden_states:
-            image_enc_hidden_states = self.image_encoder(image, output_hidden_states=True).hidden_states[-2]
-            image_enc_hidden_states = image_enc_hidden_states.repeat_interleave(num_images_per_prompt, dim=0)
-            uncond_image_enc_hidden_states = self.image_encoder(
-                torch.zeros_like(image), output_hidden_states=True
-            ).hidden_states[-2]
-            uncond_image_enc_hidden_states = uncond_image_enc_hidden_states.repeat_interleave(
-                num_images_per_prompt, dim=0
-            )
-            return image_enc_hidden_states, uncond_image_enc_hidden_states
-        else:
-            image_embeds = self.image_encoder(image).image_embeds
-            image_embeds = image_embeds.repeat_interleave(num_images_per_prompt, dim=0)
-            uncond_image_embeds = torch.zeros_like(image_embeds)
-
-            return image_embeds, uncond_image_embeds
-
     def run_safety_checker(self, image, device, dtype):
         if self.safety_checker is None:
             has_nsfw_concept = None
@@ -262,17 +238,6 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin, TextualInversionLoade
                 images=image, clip_input=safety_checker_input.pixel_values.to(dtype)
             )
         return image, has_nsfw_concept
-
-    def decode_latents(self, latents):
-        latents = 1 / self.vae_decoder.config.scaling_factor * latents
-        image = self.vae_decoder(
-            latents,
-            # return_dict=False,
-        )[0]
-        image = (image / 2 + 0.5).clamp(0, 1)
-        # we always cast to float32 as this does not cause significant overhead and is compatible with bfloat16
-        image = image.cpu().permute(0, 2, 3, 1).float().numpy()
-        return image
 
     def prepare_extra_step_kwargs(self, generator, eta):
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
@@ -699,13 +664,10 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin, TextualInversionLoade
                         callback(step_idx, t, latents)
 
         if not output_type == "latent":
-            image = self.vae_decoder(
-                latents / self.vae_decoder.config.get("scaling_factor"),
+            image = self.vae.decode(
+                latents / self.vae.config.get("scaling_factor"),
                 # return_dict=False,
-                # generator=generator,
-                # TODO: in some models, it might be mandatory to pass generator here for reproducibility
-            )
-            image = next(iter(image.values()))
+            )[0]
             image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
         else:
             image = latents

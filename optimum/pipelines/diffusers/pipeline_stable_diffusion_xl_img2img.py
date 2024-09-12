@@ -192,10 +192,10 @@ class StableDiffusionXLImg2ImgPipelineMixin(StableDiffusionXLPipelineMixin):
             )
 
         latents_mean = latents_std = None
-        if hasattr(self.vae_decoder.config, "latents_mean") and self.vae_decoder.config.latents_mean is not None:
-            latents_mean = torch.tensor(self.vae_decoder.config.latents_mean).view(1, 4, 1, 1)
-        if hasattr(self.vae_decoder.config, "latents_std") and self.vae_decoder.config.latents_std is not None:
-            latents_std = torch.tensor(self.vae_decoder.config.latents_std).view(1, 4, 1, 1)
+        if hasattr(self.vae.config, "latents_mean") and self.vae.config.latents_mean is not None:
+            latents_mean = torch.tensor(self.vae.config.latents_mean).view(1, 4, 1, 1)
+        if hasattr(self.vae.config, "latents_std") and self.vae.config.latents_std is not None:
+            latents_std = torch.tensor(self.vae.config.latents_std).view(1, 4, 1, 1)
 
         # Offload text encoder if `enable_model_cpu_offload` was enabled
         if hasattr(self, "final_offload_hook") and self.final_offload_hook is not None:
@@ -211,7 +211,7 @@ class StableDiffusionXLImg2ImgPipelineMixin(StableDiffusionXLPipelineMixin):
 
         else:
             # make sure the VAE is in float32 mode, as it overflows in float16
-            # if self.vae_decoder.config.force_upcast:
+            # if self.vae.config.force_upcast:
             #     image = image.float()
             #     self.vae_decoder.to(dtype=torch.float32)
 
@@ -230,23 +230,23 @@ class StableDiffusionXLImg2ImgPipelineMixin(StableDiffusionXLPipelineMixin):
                     )
 
                 init_latents = [
-                    retrieve_latents(self.vae_encoder(image[i : i + 1]), generator=generator[i])
+                    retrieve_latents(self.vae.encode(image[i : i + 1]), generator=generator[i])
                     for i in range(batch_size)
                 ]
                 init_latents = torch.cat(init_latents, dim=0)
             else:
-                init_latents = retrieve_latents(self.vae_encoder(image), generator=generator)
+                init_latents = retrieve_latents(self.vae.encode(image), generator=generator)
 
-            # if self.vae_decoder.config.force_upcast:
+            # if self.vae.config.force_upcast:
             #     self.vae_decoder.to(dtype)
 
             init_latents = init_latents.to(dtype)
             if latents_mean is not None and latents_std is not None:
                 latents_mean = latents_mean.to(device=device, dtype=dtype)
                 latents_std = latents_std.to(device=device, dtype=dtype)
-                init_latents = (init_latents - latents_mean) * self.vae_decoder.config.scaling_factor / latents_std
+                init_latents = (init_latents - latents_mean) * self.vae.config.scaling_factor / latents_std
             else:
-                init_latents = self.vae_decoder.config.scaling_factor * init_latents
+                init_latents = self.vae.config.scaling_factor * init_latents
 
         if batch_size > init_latents.shape[0] and batch_size % init_latents.shape[0] == 0:
             # expand init_latents for batch_size
@@ -877,7 +877,7 @@ class StableDiffusionXLImg2ImgPipelineMixin(StableDiffusionXLPipelineMixin):
 
         if not output_type == "latent":
             # make sure the VAE is in float32 mode, as it overflows in float16
-            # needs_upcasting = self.vae_decoder.dtype == torch.float16 and self.vae_decoder.config.force_upcast
+            # needs_upcasting = self.vae_decoder.dtype == torch.float16 and self.vae.config.force_upcast
 
             # if needs_upcasting:
             #     self.upcast_vae()
@@ -889,26 +889,18 @@ class StableDiffusionXLImg2ImgPipelineMixin(StableDiffusionXLPipelineMixin):
 
             # unscale/denormalize the latents
             # denormalize with the mean and std if available and not None
-            has_latents_mean = (
-                hasattr(self.vae_decoder.config, "latents_mean") and self.vae_decoder.config.latents_mean is not None
-            )
-            has_latents_std = (
-                hasattr(self.vae_decoder.config, "latents_std") and self.vae_decoder.config.latents_std is not None
-            )
+            has_latents_mean = hasattr(self.vae.config, "latents_mean") and self.vae.config.latents_mean is not None
+            has_latents_std = hasattr(self.vae.config, "latents_std") and self.vae.config.latents_std is not None
             if has_latents_mean and has_latents_std:
                 latents_mean = (
-                    torch.tensor(self.vae_decoder.config.latents_mean)
-                    .view(1, 4, 1, 1)
-                    .to(latents.device, latents.dtype)
+                    torch.tensor(self.vae.config.latents_mean).view(1, 4, 1, 1).to(latents.device, latents.dtype)
                 )
                 latents_std = (
-                    torch.tensor(self.vae_decoder.config.latents_std)
-                    .view(1, 4, 1, 1)
-                    .to(latents.device, latents.dtype)
+                    torch.tensor(self.vae.config.latents_std).view(1, 4, 1, 1).to(latents.device, latents.dtype)
                 )
-                latents = latents * latents_std / self.vae_decoder.config.scaling_factor + latents_mean
+                latents = latents * latents_std / self.vae.config.scaling_factor + latents_mean
             else:
-                latents = latents / self.vae_decoder.config.scaling_factor
+                latents = latents / self.vae.config.scaling_factor
 
             image = self.vae_decoder(
                 latents,

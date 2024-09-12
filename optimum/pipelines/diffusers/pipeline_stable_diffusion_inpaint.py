@@ -184,14 +184,14 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
     def _encode_vae_image(self, image: torch.Tensor, generator: torch.Generator):
         if isinstance(generator, list):
             image_latents = [
-                retrieve_latents(self.vae_encoder(image[i : i + 1]), generator=generator[i])
+                retrieve_latents(self.vae.encode(image[i : i + 1]), generator=generator[i])
                 for i in range(image.shape[0])
             ]
             image_latents = torch.cat(image_latents, dim=0)
         else:
-            image_latents = retrieve_latents(self.vae_encoder(image), generator=generator)
+            image_latents = retrieve_latents(self.vae.encode(image), generator=generator)
 
-        image_latents = self.vae_encoder.config.scaling_factor * image_latents
+        image_latents = self.vae.config.scaling_factor * image_latents
 
         return image_latents
 
@@ -590,7 +590,7 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
         init_image = init_image.to(dtype=torch.float32)
 
         # 6. Prepare latent variables
-        num_channels_latents = self.vae_decoder.config.latent_channels
+        num_channels_latents = self.vae.config.latent_channels
         num_channels_unet = self.unet.config.in_channels
         return_image_latents = num_channels_unet == 4
 
@@ -753,7 +753,7 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
             #     mask_condition = mask_condition.to(device=device, dtype=masked_image_latents.dtype)
             #     condition_kwargs = {"image": init_image_condition, "mask": mask_condition}
             image = self.vae_decoder(
-                latents / self.vae_decoder.config.scaling_factor,
+                latents / self.vae.config.scaling_factor,
                 # return_dict=False,
                 # generator=generator,
                 **condition_kwargs,

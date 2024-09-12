@@ -139,7 +139,7 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
             else:
                 init_latents = retrieve_latents(self.vae_encoder(image), generator=generator)
 
-            init_latents = self.vae_decoder.config.scaling_factor * init_latents
+            init_latents = self.vae.config.scaling_factor * init_latents
 
         if batch_size > init_latents.shape[0] and batch_size % init_latents.shape[0] == 0:
             # expand init_latents for batch_size
@@ -438,7 +438,7 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
             generator,
         )
 
-        # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
+        # 7. Prepare extra step kwargs.
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
         # 7.1 Add image embeds for IP-Adapter
@@ -508,7 +508,7 @@ class StableDiffusionImg2ImgPipelineMixin(StableDiffusionPipelineMixin):
 
         if not output_type == "latent":
             image = self.vae_decoder(
-                latents / self.vae_decoder.config.scaling_factor,
+                latents / self.vae.config.scaling_factor,
                 # return_dict=False,
                 # generator=generator,
             )[0]

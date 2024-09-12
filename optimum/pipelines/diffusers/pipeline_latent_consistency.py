@@ -421,7 +421,7 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
         denoised = denoised.to(prompt_embeds.dtype)
         if not output_type == "latent":
             image = self.vae_decoder(
-                denoised / self.vae_decoder.config.scaling_factor,
+                denoised / self.vae.config.scaling_factor,
                 # return_dict=False,
             )[0]
             image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
