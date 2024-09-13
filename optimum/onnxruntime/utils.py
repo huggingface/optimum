@@ -401,3 +401,23 @@ def evaluation_loop(
         metrics = {}
 
     return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=len(dataset))
+
+
+def np_to_pt(np_object, device):
+    if isinstance(np_object, np.ndarray):
+        if np_object.ndim == 4:
+            return torch.from_numpy(np_object).permute(0, 3, 1, 2)
+        elif np_object.ndim == 3:
+            return torch.from_numpy(np_object).permute(2, 0, 1)
+        else:
+            return torch.from_numpy(np_object)
+    elif isinstance(np_object, list) and isinstance(np_object[0], np.ndarray):
+        return [np_to_pt(a, device) for a in np_object]
+    elif isinstance(np_object, dict) and isinstance(next(iter(np_object.values())), np.ndarray):
+        return {k: np_to_pt(v, device) for k, v in np_object.items()}
+    elif isinstance(np_object, np.random.RandomState):
+        return torch.Generator(device=device).manual_seed(int(np_object.get_state()[1][0]))
+    elif isinstance(np_object, list) and isinstance(np_object[0], np.random.RandomState):
+        return [torch.Generator(device=device).manual_seed(int(a.get_state()[1][0])) for a in np_object]
+    else:
+        return np_object

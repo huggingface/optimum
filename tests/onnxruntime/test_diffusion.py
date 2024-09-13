@@ -240,10 +240,20 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
                 inputs["negative_prompt_embeds"],
                 inputs["pooled_prompt_embeds"],
                 inputs["negative_pooled_prompt_embeds"],
-            ) = pipeline.encode_prompt(prompt=prompt, negative_prompt=negative_prompt)
+            ) = pipeline.encode_prompt(
+                prompt=prompt,
+                num_images_per_prompt=1,
+                device=torch.device("cpu"),
+                do_classifier_free_guidance=True,
+                negative_prompt=negative_prompt,
+            )
         else:
             inputs["prompt_embeds"], inputs["negative_prompt_embeds"] = pipeline.encode_prompt(
-                prompt=prompt, negative_prompt=negative_prompt
+                prompt=prompt,
+                num_images_per_prompt=1,
+                device=torch.device("cpu"),
+                do_classifier_free_guidance=True,
+                negative_prompt=negative_prompt,
             )
 
         images_2 = pipeline(**inputs, generator=get_generator("pt", SEED)).images
