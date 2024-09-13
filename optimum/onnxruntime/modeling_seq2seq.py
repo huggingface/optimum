@@ -18,7 +18,6 @@ Transformers.
 
 import logging
 import shutil
-import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from tempfile import TemporaryDirectory

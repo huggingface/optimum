@@ -34,11 +34,11 @@ from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
     TORCH_MINIMUM_VERSION,
+    check_if_transformers_greater,
     is_diffusers_available,
     is_torch_onnx_support_available,
     logging,
     require_numpy_strictly_lower,
-    check_if_transformers_greater,
 )
 from ...utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ...utils.save_utils import maybe_save_preprocessors

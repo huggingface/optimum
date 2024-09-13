@@ -14,7 +14,6 @@
 """Classes handling causal-lm related architectures in ONNX Runtime."""
 
 import logging
-import warnings
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
