@@ -89,11 +89,6 @@ from optimum.onnxruntime import (
     ORTModelForSpeechSeq2Seq,
     ORTModelForTokenClassification,
     ORTModelForVision2Seq,
-    ORTModelTextEncoder,
-    ORTModelUnet,
-    ORTModelVaeDecoder,
-    ORTModelVaeEncoder,
-    ORTStableDiffusionPipeline,
 )
 from optimum.onnxruntime.base import ORTDecoderForSeq2Seq, ORTEncoder
 from optimum.onnxruntime.modeling_ort import ORTModel
@@ -106,6 +101,7 @@ from optimum.utils import (
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
     logging,
 )
+from optimum.utils.import_utils import is_diffusers_available
 from optimum.utils.testing_utils import (
     grid_parameters,
     remove_directory,
@@ -113,6 +109,16 @@ from optimum.utils.testing_utils import (
     require_hf_token,
     require_ort_rocm,
 )
+
+
+if is_diffusers_available():
+    from optimum.onnxruntime.modeling_diffusion import (
+        ORTModelTextEncoder,
+        ORTModelUnet,
+        ORTModelVaeDecoder,
+        ORTModelVaeEncoder,
+        ORTStableDiffusionPipeline,
+    )
 
 
 logger = logging.get_logger()

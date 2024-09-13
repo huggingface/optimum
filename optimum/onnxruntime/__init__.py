@@ -83,10 +83,6 @@ except OptionalDependencyNotAvailable:
         "ORTPipelineForInpainting",
         "ORTPipelineForText2Image",
         "ORTDiffusionPipeline",
-        "ORTModelTextEncoder",
-        "ORTModelUnet",
-        "ORTModelVaeDecoder",
-        "ORTModelVaeEncoder",
     ]
 else:
     _import_structure["modeling_diffusion"] = [
@@ -100,10 +96,6 @@ else:
         "ORTPipelineForInpainting",
         "ORTPipelineForText2Image",
         "ORTDiffusionPipeline",
-        "ORTModelTextEncoder",
-        "ORTModelUnet",
-        "ORTModelVaeDecoder",
-        "ORTModelVaeEncoder",
     ]
 
 
@@ -155,10 +147,6 @@ if TYPE_CHECKING:
         from ..utils.dummy_diffusers_objects import (
             ORTDiffusionPipeline,
             ORTLatentConsistencyModelPipeline,
-            ORTModelTextEncoder,
-            ORTModelUnet,
-            ORTModelVaeDecoder,
-            ORTModelVaeEncoder,
             ORTPipelineForImage2Image,
             ORTPipelineForInpainting,
             ORTPipelineForText2Image,
@@ -172,10 +160,6 @@ if TYPE_CHECKING:
         from .modeling_diffusion import (
             ORTDiffusionPipeline,
             ORTLatentConsistencyModelPipeline,
-            ORTModelTextEncoder,
-            ORTModelUnet,
-            ORTModelVaeDecoder,
-            ORTModelVaeEncoder,
             ORTPipelineForImage2Image,
             ORTPipelineForInpainting,
             ORTPipelineForText2Image,
