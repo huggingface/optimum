@@ -658,7 +658,6 @@ class ORTVaeWrapper(ORTPipelinePart):
         super().__init__(vae_decoder.session, parent_model)
 
 
-
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionPipeline(ORTPipeline, StableDiffusionPipeline):
     """
