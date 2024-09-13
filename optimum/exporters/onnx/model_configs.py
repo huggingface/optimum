@@ -154,6 +154,10 @@ class SplinterOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+class ErnieOnnxConfig(BertOnnxConfig):
+    pass
+
+
 class DistilBertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
