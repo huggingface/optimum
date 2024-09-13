@@ -119,7 +119,7 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
 
 
 class AlbertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class ConvBertOnnxConfig(BertOnnxConfig):
@@ -171,11 +171,11 @@ class MPNetOnnxConfig(DistilBertOnnxConfig):
 
 
 class RobertaOnnxConfig(DistilBertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class CamembertOnnxConfig(DistilBertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class FlaubertOnnxConfig(BertOnnxConfig):
@@ -187,7 +187,7 @@ class IBertOnnxConfig(DistilBertOnnxConfig):
 
 
 class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class DebertaOnnxConfig(BertOnnxConfig):

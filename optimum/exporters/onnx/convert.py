@@ -38,6 +38,7 @@ from ...utils import (
     is_torch_onnx_support_available,
     logging,
     require_numpy_strictly_lower,
+    check_if_transformers_greater,
 )
 from ...utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ...utils.save_utils import maybe_save_preprocessors
@@ -1119,6 +1120,18 @@ def onnx_export_from_model(
             atol = onnx_config.ATOL_FOR_VALIDATION
             if isinstance(atol, dict):
                 atol = atol[task.replace("-with-past", "")]
+
+        if check_if_transformers_greater("4.44.99"):
+            misplaced_generation_parameters = model.config._get_non_default_generation_parameters()
+            if model.can_generate() and len(misplaced_generation_parameters) > 0:
+                logger.warning(
+                    "Moving the following attributes in the config to the generation config: "
+                    f"{misplaced_generation_parameters}. You are seeing this warning because you've set "
+                    "generation parameters in the model config, as opposed to in the generation config.",
+                )
+                for param_name, param_value in misplaced_generation_parameters.items():
+                    setattr(model.generation_config, param_name, param_value)
+                    setattr(model.config, param_name, None)
 
         # Saving the model config and preprocessor as this is needed sometimes.
         model.config.save_pretrained(output)
