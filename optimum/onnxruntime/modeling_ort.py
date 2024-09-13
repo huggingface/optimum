@@ -661,8 +661,6 @@ class ORTModel(OptimizedModel):
             force_download=force_download,
             trust_remote_code=trust_remote_code,
         )
-
-        config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
         return cls._from_pretrained(
@@ -1169,7 +1167,6 @@ class ORTModelForFeatureExtraction(ORTModel):
             library_name="transformers",
         )
 
-        config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
         return cls._from_pretrained(
