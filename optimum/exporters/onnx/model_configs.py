@@ -828,7 +828,7 @@ class DetaOnnxConfig(ViTOnnxConfig):
     # OPSET=16 required. Otherwise we get the following error:
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::grid_sampler' to ONNX opset version 12 is not supported. Support for this operator was added in version 16, try exporting with this version.
     DEFAULT_ONNX_OPSET = 16
-    DUMMY_INPUT_GENERATOR_CLASSES = (RTDetrDummyInputGenerator, )
+    DUMMY_INPUT_GENERATOR_CLASSES = (DetaDummyInputGenerator, )
     ATOL_FOR_VALIDATION = 1e-3
 
     @property
