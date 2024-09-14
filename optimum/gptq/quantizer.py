@@ -546,9 +546,7 @@ class GPTQQuantizer(object):
 
         if self.bits == 4:
             # device not on gpu
-            if device.type != "cuda" or (
-                has_device_map and any(d in devices for d in ["cpu", "disk", "hpu"])
-            ):
+            if device.type != "cuda" or (has_device_map and any(d in devices for d in ["cpu", "disk", "hpu"])):
                 if not self.disable_exllama:
                     logger.warning(
                         "Found modules on cpu/disk. Using Exllama/Exllamav2 backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
