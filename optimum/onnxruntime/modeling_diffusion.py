@@ -29,12 +29,14 @@ from diffusers import (
     AutoPipelineForInpainting,
     AutoPipelineForText2Image,
     ConfigMixin,
+    LatentConsistencyModelImg2ImgPipeline,
     LatentConsistencyModelPipeline,
     SchedulerMixin,
     StableDiffusionImg2ImgPipeline,
     StableDiffusionInpaintPipeline,
     StableDiffusionPipeline,
     StableDiffusionXLImg2ImgPipeline,
+    StableDiffusionXLInpaintPipeline,
     StableDiffusionXLPipeline,
 )
 from diffusers.configuration_utils import FrozenDict
@@ -552,11 +554,10 @@ class ORTModelTextEncoder(ORTPipelinePart):
             model_outputs["hidden_states"] = []
             for i in range(self.config.num_hidden_layers):
                 model_outputs["hidden_states"].append(model_outputs.pop(f"hidden_states.{i}"))
-            # exporter doesnt duplicate last hidden state so we need to add it manually
-            # (only returned once as last_hidden_state and not part of the list of hidden_states)
             model_outputs["hidden_states"].append(model_outputs.get("last_hidden_state"))
         else:
-            model_outputs.pop("hidden_states", None)
+            for i in range(self.config.num_hidden_layers):
+                model_outputs.pop(f"hidden_states.{i}", None)
 
         if return_dict:
             return model_outputs
@@ -652,10 +653,10 @@ class ORTModelVaeDecoder(ORTPipelinePart):
 
 class ORTVaeWrapper(ORTPipelinePart):
     def __init__(self, vae_encoder: ORTModelVaeEncoder, vae_decoder: ORTModelVaeDecoder, parent_model: ORTPipeline):
+        super().__init__(vae_decoder.session, parent_model)
+
         self.encode = vae_encoder.forward
         self.decode = vae_decoder.forward
-
-        super().__init__(vae_decoder.session, parent_model)
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
@@ -674,7 +675,7 @@ class ORTStableDiffusionImg2ImgPipeline(ORTPipeline, StableDiffusionImg2ImgPipel
     ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline).
     """
 
-    main_input_name = "prompt"
+    main_input_name = "image"
     auto_model_class = StableDiffusionImg2ImgPipeline
 
 
@@ -686,16 +687,6 @@ class ORTStableDiffusionInpaintPipeline(ORTPipeline, StableDiffusionInpaintPipel
 
     main_input_name = "prompt"
     auto_model_class = StableDiffusionInpaintPipeline
-
-
-@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTLatentConsistencyModelPipeline(ORTPipeline, LatentConsistencyModelPipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline).
-    """
-
-    main_input_name = "prompt"
-    auto_model_class = LatentConsistencyModelPipeline
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
@@ -728,17 +719,8 @@ class ORTStableDiffusionXLPipeline(ORTPipeline, StableDiffusionXLPipeline):
     ):
         add_time_ids = list(original_size + crops_coords_top_left + target_size)
 
-        # passed_add_embed_dim = (
-        #     self.unet.config.addition_time_embed_dim * len(add_time_ids) + text_encoder_projection_dim
-        # )
-        # expected_add_embed_dim = self.unet.add_embedding.linear_1.in_features
-
-        # if expected_add_embed_dim != passed_add_embed_dim:
-        #     raise ValueError(
-        #         f"Model expects an added time embedding vector of length {expected_add_embed_dim}, but a vector of {passed_add_embed_dim} was created. The model has an incorrect config. Please check `unet.config.time_embedding_type` and `text_encoder_2.config.projection_dim`."
-        #     )
-
         add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
+
         return add_time_ids
 
 
@@ -789,29 +771,58 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTPipeline, StableDiffusionXLImg2ImgP
             add_time_ids = list(original_size + crops_coords_top_left + target_size)
             add_neg_time_ids = list(negative_original_size + crops_coords_top_left + negative_target_size)
 
-        # passed_add_embed_dim = (
-        #     self.unet.config.addition_time_embed_dim * len(add_time_ids) + text_encoder_projection_dim
-        # )
-        # expected_add_embed_dim = self.unet.add_embedding.linear_1.in_features
+        add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
+        add_neg_time_ids = torch.tensor([add_neg_time_ids], dtype=dtype)
 
-        # if (
-        #     expected_add_embed_dim > passed_add_embed_dim
-        #     and (expected_add_embed_dim - passed_add_embed_dim) == self.unet.config.addition_time_embed_dim
-        # ):
-        #     raise ValueError(
-        #         f"Model expects an added time embedding vector of length {expected_add_embed_dim}, but a vector of {passed_add_embed_dim} was created. Please make sure to enable `requires_aesthetics_score` with `pipe.register_to_config(requires_aesthetics_score=True)` to make sure `aesthetic_score` {aesthetic_score} and `negative_aesthetic_score` {negative_aesthetic_score} is correctly used by the model."
-        #     )
-        # elif (
-        #     expected_add_embed_dim < passed_add_embed_dim
-        #     and (passed_add_embed_dim - expected_add_embed_dim) == self.unet.config.addition_time_embed_dim
-        # ):
-        #     raise ValueError(
-        #         f"Model expects an added time embedding vector of length {expected_add_embed_dim}, but a vector of {passed_add_embed_dim} was created. Please make sure to disable `requires_aesthetics_score` with `pipe.register_to_config(requires_aesthetics_score=False)` to make sure `target_size` {target_size} is correctly used by the model."
-        #     )
-        # elif expected_add_embed_dim != passed_add_embed_dim:
-        #     raise ValueError(
-        #         f"Model expects an added time embedding vector of length {expected_add_embed_dim}, but a vector of {passed_add_embed_dim} was created. The model has an incorrect config. Please check `unet.config.time_embedding_type` and `text_encoder_2.config.projection_dim`."
-        #     )
+        return add_time_ids, add_neg_time_ids
+
+
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+class ORTStableDiffusionXLInpaintPipeline(ORTPipeline, StableDiffusionXLInpaintPipeline):
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLInpaintPipeline).
+    """
+
+    main_input_name = "image"
+    auto_model_class = StableDiffusionXLInpaintPipeline
+
+    def __init__(self, *args, add_watermarker: Optional[bool] = None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        requires_aesthetics_score = kwargs.get("requires_aesthetics_score", False)
+        force_zeros_for_empty_prompt = kwargs.get("force_zeros_for_empty_prompt", True)
+        self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
+        self.register_to_config(requires_aesthetics_score=requires_aesthetics_score)
+
+        add_watermarker = add_watermarker if add_watermarker is not None else is_invisible_watermark_available()
+
+        if add_watermarker:
+            self.watermark = StableDiffusionXLWatermarker()
+        else:
+            self.watermark = None
+
+    # Adapted from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_inpaint.StableDiffusionXLInpaintPipeline._get_add_time_ids
+    def _get_add_time_ids(
+        self,
+        original_size,
+        crops_coords_top_left,
+        target_size,
+        aesthetic_score,
+        negative_aesthetic_score,
+        negative_original_size,
+        negative_crops_coords_top_left,
+        negative_target_size,
+        dtype,
+        text_encoder_projection_dim=None,
+    ):
+        if self.config.requires_aesthetics_score:
+            add_time_ids = list(original_size + crops_coords_top_left + (aesthetic_score,))
+            add_neg_time_ids = list(
+                negative_original_size + negative_crops_coords_top_left + (negative_aesthetic_score,)
+            )
+        else:
+            add_time_ids = list(original_size + crops_coords_top_left + target_size)
+            add_neg_time_ids = list(negative_original_size + crops_coords_top_left + negative_target_size)
 
         add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
         add_neg_time_ids = torch.tensor([add_neg_time_ids], dtype=dtype)
@@ -819,13 +830,35 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTPipeline, StableDiffusionXLImg2ImgP
         return add_time_ids, add_neg_time_ids
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+class ORTLatentConsistencyModelPipeline(ORTPipeline, LatentConsistencyModelPipeline):
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline).
+    """
+
+    main_input_name = "prompt"
+    auto_model_class = LatentConsistencyModelPipeline
+
+
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+class ORTLatentConsistencyModelImg2ImgPipeline(ORTPipeline, LatentConsistencyModelImg2ImgPipeline):
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency_img2img#diffusers.LatentConsistencyModelImg2ImgPipeline).
+    """
+
+    main_input_name = "image"
+    auto_model_class = LatentConsistencyModelImg2ImgPipeline
+
+
 SUPPORTED_ORT_PIPELINES = [
     ORTStableDiffusionPipeline,
     ORTStableDiffusionImg2ImgPipeline,
     ORTStableDiffusionInpaintPipeline,
-    ORTLatentConsistencyModelPipeline,
     ORTStableDiffusionXLPipeline,
     ORTStableDiffusionXLImg2ImgPipeline,
+    ORTStableDiffusionXLInpaintPipeline,
+    ORTLatentConsistencyModelPipeline,
+    ORTLatentConsistencyModelImg2ImgPipeline,
 ]
 
 
@@ -878,12 +911,14 @@ ORT_IMAGE2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
         ("stable-diffusion", ORTStableDiffusionImg2ImgPipeline),
         ("stable-diffusion-xl", ORTStableDiffusionXLImg2ImgPipeline),
+        ("latent-consistency", ORTLatentConsistencyModelImg2ImgPipeline),
     ]
 )
 
 ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
     [
         ("stable-diffusion", ORTStableDiffusionInpaintPipeline),
+        ("stable-diffusion-xl", ORTStableDiffusionXLInpaintPipeline),
     ]
 )
 

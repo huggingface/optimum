@@ -70,7 +70,7 @@ def _generate_images(height=128, width=128, batch_size=1, channel=3, input_type=
 
 
 class ORTPipelineForText2ImageTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["latent-consistency", "stable-diffusion", "stable-diffusion-xl"]
+    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "latent-consistency"]
 
     ORTMODEL_CLASS = ORTPipelineForText2Image
     AUTOMODEL_CLASS = AutoPipelineForText2Image
@@ -301,14 +301,14 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
 
 class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl"]
+    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "latent-consistency"]
 
     AUTOMODEL_CLASS = AutoPipelineForImage2Image
     ORTMODEL_CLASS = ORTPipelineForImage2Image
 
     TASK = "image-to-image"
 
-    def generate_inputs(self, height=128, width=128, batch_size=1, channel=3, input_type="np"):
+    def generate_inputs(self, height=128, width=128, batch_size=1, channel=3, input_type="pil"):
         inputs = _generate_prompts(batch_size=batch_size)
 
         inputs["image"] = _generate_images(
@@ -497,7 +497,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
 
 
 class ORTPipelineForInpaintingTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["stable-diffusion"]
+    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl"]
 
     AUTOMODEL_CLASS = AutoPipelineForInpainting
     ORTMODEL_CLASS = ORTPipelineForInpainting
@@ -511,12 +511,13 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         inputs = _generate_prompts(batch_size=batch_size)
 
         inputs["image"] = _generate_images(
-            height=height, width=width, batch_size=1, channel=channel, input_type="pil"
+            height=height, width=width, batch_size=batch_size, channel=channel, input_type=input_type
         )[0]
         inputs["mask_image"] = _generate_images(
-            height=height, width=width, batch_size=1, channel=channel, input_type="pil"
+            height=height, width=width, batch_size=batch_size, channel=channel, input_type=input_type
         )[0]
 
+        inputs["strength"] = 0.75
         inputs["height"] = height
         inputs["width"] = width
 
