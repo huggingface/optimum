@@ -833,7 +833,10 @@ class DetaOnnxConfig(ViTOnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        return {"pixel_values": {0: "batch_size"}}
+        return {
+            "pixel_values": {0: "batch_size"},
+            'pixel_mask': {0: "batch_size"}
+               }
 
 
 class DetrOnnxConfig(ViTOnnxConfig):
