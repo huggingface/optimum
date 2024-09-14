@@ -1,26 +1,36 @@
-name: ONNX Runtime / Test ORTTrainer
+name: ONNX Runtime / Python - ORT Training - Test
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: 0 1 */3 * * # at 1am every 3 days
   pull_request:
     types: [opened, synchronize, reopened, labeled]
 
 jobs:
   do-the-job:
-    if: ${{ (github.event_name == 'workflow_dispatch') || (github.event_name == 'schedule') ||  contains( github.event.pull_request.labels.*.name, 'training')}}
-    name: Run ORTTrainer test
+    if: ${{ (github.event_name == 'workflow_dispatch') || contains( github.event.pull_request.labels.*.name, 'training')}}
+
     runs-on:
       group: aws-g6-4xlarge-plus
-    env:
-      AWS_REGION: us-east-1
+
+    container:
+      image: nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-      - name: Build image
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.8
+
+      - name: Install dependencies
         run: |
-          docker build -f tests/onnxruntime/docker/Dockerfile_onnxruntime_trainer -t onnxruntime/train .
-      - name: Run test within docker container
+          pip install --upgrade pip
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+          pip install .[tests,onnxruntime-gpu]
+
+      - name: Test with pytest
         run: |
-          docker run --rm --gpus all -v /mnt/cache/.cache/huggingface:/root/.cache/huggingface --workdir=/workspace/optimum/tests onnxruntime/train:latest
+          RUN_SLOW=1 pytest onnxruntime/training/nightly_test_trainer.py --durations=0 -s -vvvv
+          RUN_SLOW=1 pytest onnxruntime/training/nightly_test_examples.py --durations=0 -s -vvvv
