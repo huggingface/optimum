@@ -203,6 +203,7 @@ class NormalizedConfigManager:
         'convnextv2',
         'data2vec-text',
         'data2vec-vision',
+        'deta',
         'detr',
         'flaubert',
         'groupvit',
