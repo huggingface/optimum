@@ -790,6 +790,17 @@ class ResNetOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     DEFAULT_ONNX_OPSET = 11
 
+class DetaOnnxConfig(ViTOnnxConfig):
+    # OPSET=16 required. Otherwise we get the following error:
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::grid_sampler' to ONNX opset version 12 is not supported. Support for this operator was added in version 16, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 16
+    DUMMY_INPUT_GENERATOR_CLASSES = (RTDetrDummyInputGenerator, )
+    ATOL_FOR_VALIDATION = 1e-3
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"pixel_values": {0: "batch_size"}}
+
 
 class DetrOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
