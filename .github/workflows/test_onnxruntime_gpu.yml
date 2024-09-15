@@ -39,8 +39,11 @@ jobs:
         run: |
           pip uninstall -y opencv-python && pip install opencv-python-headless
 
-      - name: Test with pytest
-        env:
-          LD_LIBRARY_PATH: "$LD_LIBRARY_PATH:/usr/local/lib/python3.10/dist-packages/tensorrt_libs"
+      - name: Update LD_LIBRARY_PATH
         run: |
-          pytest tests/onnxruntime -m "cuda_ep_test" --durations=0 -vvvv -s -n auto
+          python -c "import tensorrt; print(tensorrt.__path__)"
+          export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/lib/python3.8/dist-packages/tensorrt_libs"
+
+      - name: Test with pytest
+        run: |
+          pytest tests/onnxruntime -m "cuda_ep_test or trt_ep_test" --durations=0 -vvvv -s -n auto
