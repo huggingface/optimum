@@ -730,7 +730,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
                     weight_decay=self.weight_decay,
                     logging_dir=tmp_dir,
                     fp16=True,
-                    deepspeed="onnxruntime/ds_configs/ds_config_zero_stage_1.json",
+                    deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_1.json",
                 )
 
                 trainer, _ = get_ort_trainer(
@@ -769,7 +769,7 @@ class ORTTrainerIntegrationDeepSpeedTest(unittest.TestCase):
                     weight_decay=self.weight_decay,
                     logging_dir=tmp_dir,
                     fp16=True,
-                    deepspeed="onnxruntime/ds_configs/ds_config_zero_stage_2.json",
+                    deepspeed="tests/onnxruntime/ds_configs/ds_config_zero_stage_2.json",
                 )
 
                 trainer, _ = get_ort_trainer(

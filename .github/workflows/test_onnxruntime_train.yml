@@ -35,7 +35,8 @@ jobs:
           pip install .[tests,onnxruntime-gpu]
 
       - name: Test with pytest
-        working-directory: tests
+        env:
+          RUN_SLOW: 1
         run: |
-          RUN_SLOW=1 pytest onnxruntime/training/nightly_test_trainer.py --durations=0 -s -vvvv
-          RUN_SLOW=1 pytest onnxruntime/training/nightly_test_examples.py --durations=0 -s -vvvv
+          pytest tests/onnxruntime/training/nightly_test_trainer.py --durations=0 -s -vvvv
+          pytest tests/onnxruntime/training/nightly_test_examples.py --durations=0 -s -vvvv

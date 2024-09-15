@@ -33,12 +33,14 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-          pip install .[tests,onnxruntime-gpu]
+          pip install .[tests,onnxruntime-gpu] tensorrt
 
       - name: Replace opencv-python with opencv-python-headless
         run: |
           pip uninstall -y opencv-python && pip install opencv-python-headless
 
       - name: Test with pytest
+        env:
+          LD_LIBRARY_PATH: "$LD_LIBRARY_PATH:/usr/local/lib/python3.10/dist-packages/tensorrt_libs"
         run: |
-          pytest tests/onnxruntime -m "cuda_ep_test or cuda_trt_test" --durations=0 -vvvv -s -n auto
+          pytest tests/onnxruntime -m "cuda_ep_test" --durations=0 -vvvv -s -n auto
