@@ -41,8 +41,7 @@ jobs:
 
       - name: Update LD_LIBRARY_PATH
         run: |
-          python -c "import tensorrt; print(tensorrt.__path__)"
-          export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/lib/python3.8/dist-packages/tensorrt_libs"
+          export LD_LIBRARY_PATH=$(python -c "import tensorrt; print(tensorrt.__path__[0].replace('/site-packages/tensorrt', '/dist-packages/tensorrt_libs'))"):$LD_LIBRARY_PATH
 
       - name: Test with pytest
         run: |
