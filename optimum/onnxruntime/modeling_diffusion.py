@@ -879,7 +879,7 @@ class ORTDiffusionPipeline(ConfigMixin):
 
     @classmethod
     @validate_hf_hub_args
-    def from_pretrained(cls, pretrained_model_or_path, **kwargs):
+    def from_pretrained(cls, pretrained_model_or_path, **kwargs) -> ORTPipeline:
         load_config_kwargs = {
             "force_download": kwargs.get("force_download", False),
             "resume_download": kwargs.get("resume_download", None),
@@ -953,7 +953,7 @@ class ORTPipelineForTask(ConfigMixin):
     config_name = "model_index.json"
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_or_path, **kwargs):
+    def from_pretrained(cls, pretrained_model_or_path, **kwargs) -> ORTPipeline:
         load_config_kwargs = {
             "force_download": kwargs.get("force_download", False),
             "resume_download": kwargs.get("resume_download", None),

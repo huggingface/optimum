@@ -62,7 +62,7 @@ def _generate_images(height=128, width=128, batch_size=1, channel=3, input_type=
             "/in_paint/overture-creations-5sI6fQgYIuo.png"
         ).resize((width, height))
     elif input_type == "np":
-        image = np.random.rand(height, width, channel)
+        image = np.random.rand(channel, height, width)
     elif input_type == "pt":
         image = torch.rand((channel, height, width))
 
@@ -461,10 +461,9 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        self.assertEqual(pipeline.device.type, "cuda")
+
         outputs = pipeline(**inputs).images
-        # Verify model devices
-        self.assertEqual(pipeline.device.type.lower(), "cuda")
-        # Verify model outptus
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
@@ -650,9 +649,8 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        self.assertEqual(pipeline.device, "cuda")
+
         outputs = pipeline(**inputs).images
-        # Verify model devices
-        self.assertEqual(pipeline.device.type.lower(), "cuda")
-        # Verify model outptus
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))

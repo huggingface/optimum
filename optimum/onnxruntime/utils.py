@@ -407,19 +407,18 @@ def evaluation_loop(
 
 def np_to_pt(np_object, device):
     if isinstance(np_object, np.ndarray):
-        if np_object.ndim == 4:
-            return torch.from_numpy(np_object).permute(0, 3, 1, 2)
-        elif np_object.ndim == 3:
-            return torch.from_numpy(np_object).permute(2, 0, 1)
-        else:
-            return torch.from_numpy(np_object)
-    elif isinstance(np_object, list) and isinstance(np_object[0], np.ndarray):
-        return [np_to_pt(a, device) for a in np_object]
-    elif isinstance(np_object, dict) and isinstance(next(iter(np_object.values())), np.ndarray):
-        return {k: np_to_pt(v, device) for k, v in np_object.items()}
+        return torch.from_numpy(np_object)
     elif isinstance(np_object, np.random.RandomState):
         return torch.Generator(device=device).manual_seed(int(np_object.get_state()[1][0]))
-    elif isinstance(np_object, list) and isinstance(np_object[0], np.random.RandomState):
-        return [torch.Generator(device=device).manual_seed(int(a.get_state()[1][0])) for a in np_object]
+    elif isinstance(np_object, np.random.Generator):
+        return torch.Generator(device=device).manual_seed(int(np_object.bit_generator.state[1][0]))
+    elif isinstance(np_object, list) and isinstance(
+        np_object[0], (np.ndarray, np.random.RandomState, np.random.Generator)
+    ):
+        return [np_to_pt(a, device) for a in np_object]
+    elif isinstance(np_object, dict) and isinstance(
+        next(iter(np_object.values())), (np.ndarray, np.random.RandomState, np.random.Generator)
+    ):
+        return {k: np_to_pt(v, device) for k, v in np_object.items()}
     else:
         return np_object
