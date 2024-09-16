@@ -32,7 +32,8 @@ jobs:
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
           pip install --no-cache-dir torch-ort onnxruntime-training && python -m torch_ort.configure
-          pip install .[tests,onnxruntime] evaluate absl-py rouge_score seqeval sacrebleu nltk scikit-learn
+          pip install --no-cache-dir evaluate absl-py rouge_score seqeval sacrebleu nltk scikit-learn
+          pip install .[tests,onnxruntime-gpu]
 
       - name: Replace opencv-python with opencv-python-headless
         run: |
