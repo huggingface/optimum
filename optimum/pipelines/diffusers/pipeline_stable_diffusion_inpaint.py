@@ -16,7 +16,7 @@ import inspect
 from typing import Callable, List, Optional, Union
 
 import numpy as np
-import PIL
+import PIL.Image
 import torch
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.utils import PIL_INTERPOLATION
@@ -108,7 +108,7 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
         negative_prompt: Optional[Union[str, List[str]]] = None,
         num_images_per_prompt: int = 1,
         eta: float = 0.0,
-        generator: Optional[np.random.RandomState] = None,
+        generator: Optional[Union[np.random.RandomState, torch.Generator]] = None,
         latents: Optional[np.ndarray] = None,
         prompt_embeds: Optional[np.ndarray] = None,
         negative_prompt_embeds: Optional[np.ndarray] = None,
@@ -200,7 +200,7 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
             batch_size = prompt_embeds.shape[0]
 
         if generator is None:
-            generator = np.random
+            generator = np.random.RandomState()
 
         # set timesteps
         self.scheduler.set_timesteps(num_inference_steps)
@@ -229,11 +229,19 @@ class StableDiffusionInpaintPipelineMixin(StableDiffusionPipelineMixin):
             width // self.vae_scale_factor,
         )
         latents_dtype = prompt_embeds.dtype
+
         if latents is None:
-            latents = generator.randn(*latents_shape).astype(latents_dtype)
-        else:
-            if latents.shape != latents_shape:
-                raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {latents_shape}")
+            if isinstance(generator, np.random.RandomState):
+                latents = generator.randn(*latents_shape).astype(latents_dtype)
+            elif isinstance(generator, torch.Generator):
+                latents = torch.randn(*latents_shape, generator=generator).numpy().astype(latents_dtype)
+            else:
+                raise ValueError(
+                    f"Expected `generator` to be of type `np.random.RandomState` or `torch.Generator`, but got"
+                    f" {type(generator)}."
+                )
+        elif latents.shape != latents_shape:
+            raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {latents_shape}")
 
         # prepare mask and masked_image
         mask, masked_image = prepare_mask_and_masked_image(

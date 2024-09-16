@@ -17,7 +17,7 @@ import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import PIL
+import PIL.Image
 import torch
 from diffusers.pipelines.stable_diffusion_xl import StableDiffusionXLPipelineOutput
 
@@ -222,7 +222,7 @@ class StableDiffusionXLImg2ImgPipelineMixin(DiffusionPipelineMixin):
         return timesteps, num_inference_steps - t_start
 
     # Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
-    def prepare_latents(self, image, timestep, batch_size, num_images_per_prompt, dtype, generator=None):
+    def prepare_latents(self, image, timesteps, batch_size, num_images_per_prompt, dtype, generator=None):
         batch_size = batch_size * num_images_per_prompt
 
         if image.shape[1] == 4:
@@ -242,11 +242,22 @@ class StableDiffusionXLImg2ImgPipelineMixin(DiffusionPipelineMixin):
             init_latents = np.concatenate([init_latents], axis=0)
 
         # add noise to latents using the timesteps
-        noise = generator.randn(*init_latents.shape).astype(dtype)
+        if isinstance(generator, np.random.RandomState):
+            noise = generator.randn(*init_latents.shape).astype(dtype)
+        elif isinstance(generator, torch.Generator):
+            noise = torch.randn(*init_latents.shape, generator=generator).numpy().astype(dtype)
+        else:
+            raise ValueError(
+                f"Expected `generator` to be of type `np.random.RandomState` or `torch.Generator`, but got"
+                f" {type(generator)}."
+            )
+
         init_latents = self.scheduler.add_noise(
-            torch.from_numpy(init_latents), torch.from_numpy(noise), torch.from_numpy(timestep)
+            torch.from_numpy(init_latents), torch.from_numpy(noise), torch.from_numpy(timesteps)
         )
-        return init_latents.numpy()
+        init_latents = init_latents.numpy()
+
+        return init_latents
 
     def _get_add_time_ids(
         self, original_size, crops_coords_top_left, target_size, aesthetic_score, negative_aesthetic_score, dtype
@@ -274,7 +285,7 @@ class StableDiffusionXLImg2ImgPipelineMixin(DiffusionPipelineMixin):
         negative_prompt: Optional[Union[str, List[str]]] = None,
         num_images_per_prompt: int = 1,
         eta: float = 0.0,
-        generator: Optional[np.random.RandomState] = None,
+        generator: Optional[Union[np.random.RandomState, torch.Generator]] = None,
         latents: Optional[np.ndarray] = None,
         prompt_embeds: Optional[np.ndarray] = None,
         negative_prompt_embeds: Optional[np.ndarray] = None,
@@ -375,7 +386,7 @@ class StableDiffusionXLImg2ImgPipelineMixin(DiffusionPipelineMixin):
             batch_size = prompt_embeds.shape[0]
 
         if generator is None:
-            generator = np.random
+            generator = np.random.RandomState()
 
         # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
         # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
@@ -482,7 +493,8 @@ class StableDiffusionXLImg2ImgPipelineMixin(DiffusionPipelineMixin):
             # call the callback, if provided
             if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
                 if callback is not None and i % callback_steps == 0:
-                    callback(i, t, latents)
+                    step_idx = i // getattr(self.scheduler, "order", 1)
+                    callback(step_idx, t, latents)
 
         if output_type == "latent":
             image = latents

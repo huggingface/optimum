@@ -36,7 +36,7 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
         original_inference_steps: int = None,
         guidance_scale: float = 8.5,
         num_images_per_prompt: int = 1,
-        generator: Optional[np.random.RandomState] = None,
+        generator: Optional[Union[np.random.RandomState, torch.Generator]] = None,
         latents: Optional[np.ndarray] = None,
         prompt_embeds: Optional[np.ndarray] = None,
         output_type: str = "pil",
@@ -66,7 +66,7 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
                 usually at the expense of lower image quality.
             num_images_per_prompt (`int`, defaults to 1):
                 The number of images to generate per prompt.
-            generator (`Optional[np.random.RandomState]`, defaults to `None`)::
+            generator (`Optional[Union[np.random.RandomState, torch.Generator]]`, defaults to `None`):
                 A np.random.RandomState to make generation deterministic.
             latents (`Optional[np.ndarray]`, defaults to `None`):
                 Pre-generated noisy latents, sampled from a Gaussian distribution, to be used as inputs for image
@@ -121,7 +121,7 @@ class LatentConsistencyPipelineMixin(StableDiffusionPipelineMixin):
             batch_size = prompt_embeds.shape[0]
 
         if generator is None:
-            generator = np.random
+            generator = np.random.RandomState()
 
         prompt_embeds = self._encode_prompt(
             prompt,

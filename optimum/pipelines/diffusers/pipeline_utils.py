@@ -17,7 +17,7 @@ import warnings
 from typing import List, Optional, Union
 
 import numpy as np
-import PIL
+import PIL.Image
 import torch
 from diffusers import ConfigMixin
 from diffusers.image_processor import VaeImageProcessor as DiffusersVaeImageProcessor
@@ -206,7 +206,7 @@ class VaeImageProcessor(DiffusersVaeImageProcessor):
 
     def get_height_width(
         self,
-        image: [PIL.Image.Image, np.ndarray],
+        image: Union[PIL.Image.Image, np.ndarray],
         height: Optional[int] = None,
         width: Optional[int] = None,
     ):
@@ -264,10 +264,10 @@ class VaeImageProcessor(DiffusersVaeImageProcessor):
     # TODO : remove after diffusers v0.21.0 release
     def resize(
         self,
-        image: [PIL.Image.Image, np.ndarray, torch.Tensor],
+        image: Union[PIL.Image.Image, np.ndarray, torch.Tensor],
         height: Optional[int] = None,
         width: Optional[int] = None,
-    ) -> [PIL.Image.Image, np.ndarray, torch.Tensor]:
+    ) -> Union[PIL.Image.Image, np.ndarray, torch.Tensor]:
         """
         Resize image.
         """

@@ -189,7 +189,15 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             )
 
         if latents is None:
-            latents = generator.randn(*shape).astype(dtype)
+            if isinstance(generator, np.random.RandomState):
+                latents = generator.randn(*shape).astype(dtype)
+            elif isinstance(generator, torch.Generator):
+                latents = torch.randn(*shape, generator=generator).numpy().astype(dtype)
+            else:
+                raise ValueError(
+                    f"Expected `generator` to be of type `np.random.RandomState` or `torch.Generator`, but got"
+                    f" {type(generator)}."
+                )
         elif latents.shape != shape:
             raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {shape}")
 
@@ -209,7 +217,7 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
         negative_prompt: Optional[Union[str, List[str]]] = None,
         num_images_per_prompt: int = 1,
         eta: float = 0.0,
-        generator: Optional[np.random.RandomState] = None,
+        generator: Optional[Union[np.random.RandomState, torch.Generator]] = None,
         latents: Optional[np.ndarray] = None,
         prompt_embeds: Optional[np.ndarray] = None,
         negative_prompt_embeds: Optional[np.ndarray] = None,
@@ -248,7 +256,7 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             eta (`float`, defaults to 0.0):
                 Corresponds to parameter eta (η) in the DDIM paper: https://arxiv.org/abs/2010.02502. Only applies to
                 [`schedulers.DDIMScheduler`], will be ignored for others.
-            generator (`Optional[np.random.RandomState]`, defaults to `None`)::
+            generator (`Optional[Union[np.random.RandomState, torch.Generator]]`, defaults to `None`)::
                 A np.random.RandomState to make generation deterministic.
             latents (`Optional[np.ndarray]`, defaults to `None`):
                 Pre-generated noisy latents, sampled from a Gaussian distribution, to be used as inputs for image
@@ -303,7 +311,7 @@ class StableDiffusionPipelineMixin(DiffusionPipelineMixin):
             batch_size = prompt_embeds.shape[0]
 
         if generator is None:
-            generator = np.random
+            generator = np.random.RandomState()
 
         # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
         # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
