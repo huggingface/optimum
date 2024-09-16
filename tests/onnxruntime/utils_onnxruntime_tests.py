@@ -114,7 +114,7 @@ MODEL_NAMES = {
     "longt5": "hf-internal-testing/tiny-random-LongT5Model",
     "llama": "fxmarty/tiny-llama-fast-tokenizer",
     "m2m_100": "hf-internal-testing/tiny-random-m2m_100",
-    "marian": "fxmarty/tiny-marian",  # hf-internal-testing ones are broken
+    "marian": "echarlaix/tiny-random-marian",
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
