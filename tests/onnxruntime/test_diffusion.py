@@ -62,7 +62,7 @@ def _generate_images(height=128, width=128, batch_size=1, channel=3, input_type=
             "/in_paint/overture-creations-5sI6fQgYIuo.png"
         ).resize((width, height))
     elif input_type == "np":
-        image = np.random.rand(channel, height, width)
+        image = np.random.rand(height, width, channel)
     elif input_type == "pt":
         image = torch.rand((channel, height, width))
 
@@ -115,17 +115,16 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     def test_num_images_per_prompt(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
+
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        self.assertEqual(pipeline.vae_scale_factor, 2)
-        self.assertEqual(pipeline.vae_decoder.config["latent_channels"], 4)
-        self.assertEqual(pipeline.unet.config["in_channels"], 4)
 
-        height, width, batch_size = 64, 64, 1
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-
-        for num_images in [1, 3]:
-            outputs = pipeline(**inputs, num_images_per_prompt=num_images).images
-            self.assertEqual(outputs.shape, (batch_size * num_images, height, width, 3))
+        for batch_size in [1, 3]:
+            for height in [64, 128]:
+                for width in [64, 128]:
+                    for num_images_per_prompt in [1, 3]:
+                        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+                        outputs = pipeline(**inputs, num_images_per_prompt=num_images_per_prompt).images
+                        self.assertEqual(outputs.shape, (batch_size * num_images_per_prompt, height, width, 3))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -184,17 +183,21 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     def test_shape(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
-        height, width, batch_size = 128, 64, 1
+
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        height, width, batch_size = 128, 64, 1
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        for output_type in ["np", "pil", "latent"]:
+        for output_type in ["pil", "np", "pt", "latent"]:
             inputs["output_type"] = output_type
             outputs = pipeline(**inputs).images
             if output_type == "pil":
                 self.assertEqual((len(outputs), outputs[0].height, outputs[0].width), (batch_size, height, width))
             elif output_type == "np":
                 self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+            elif output_type == "pt":
+                self.assertEqual(outputs.shape, (batch_size, 3, height, width))
             else:
                 self.assertEqual(
                     outputs.shape,
@@ -334,16 +337,14 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         self._setup(model_args)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        self.assertEqual(pipeline.vae_scale_factor, 2)
-        self.assertEqual(pipeline.vae_decoder.config["latent_channels"], 4)
-        self.assertEqual(pipeline.unet.config["in_channels"], 4)
 
-        batch_size, height = 1, 32
-        for width in [64, 32]:
-            inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-            for num_images in [1, 3]:
-                outputs = pipeline(**inputs, num_images_per_prompt=num_images).images
-                self.assertEqual(outputs.shape, (batch_size * num_images, height, width, 3))
+        for batch_size in [1, 3]:
+            for height in [64, 128]:
+                for width in [64, 128]:
+                    for num_images_per_prompt in [1, 3]:
+                        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+                        outputs = pipeline(**inputs, num_images_per_prompt=num_images_per_prompt).images
+                        self.assertEqual(outputs.shape, (batch_size * num_images_per_prompt, height, width, 3))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -383,18 +384,21 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         self._setup(model_args)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        height, width, batch_size = 32, 64, 1
 
-        for input_type in ["np", "pil", "pt"]:
+        height, width, batch_size = 128, 64, 1
+
+        for input_type in ["pil", "np", "pt"]:
             inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size, input_type=input_type)
 
-            for output_type in ["np", "pil", "latent"]:
+            for output_type in ["pil", "np", "pt", "latent"]:
                 inputs["output_type"] = output_type
                 outputs = pipeline(**inputs).images
                 if output_type == "pil":
                     self.assertEqual((len(outputs), outputs[0].height, outputs[0].width), (batch_size, height, width))
                 elif output_type == "np":
                     self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+                elif output_type == "pt":
+                    self.assertEqual(outputs.shape, (batch_size, 3, height, width))
                 else:
                     self.assertEqual(
                         outputs.shape,
@@ -477,17 +481,14 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
     TASK = "inpainting"
 
     def generate_inputs(self, height=128, width=128, batch_size=1, channel=3, input_type="pil"):
-        assert batch_size == 1, "Inpainting models only support batch_size=1"
-        assert input_type == "pil", "Inpainting models only support input_type='pil'"
-
         inputs = _generate_prompts(batch_size=batch_size)
 
         inputs["image"] = _generate_images(
             height=height, width=width, batch_size=batch_size, channel=channel, input_type=input_type
-        )[0]
+        )
         inputs["mask_image"] = _generate_images(
-            height=height, width=width, batch_size=batch_size, channel=channel, input_type=input_type
-        )[0]
+            height=height, width=width, batch_size=batch_size, channel=1, input_type=input_type
+        )
 
         inputs["strength"] = 0.75
         inputs["height"] = height
@@ -522,16 +523,14 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         self._setup(model_args)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        self.assertEqual(pipeline.vae_scale_factor, 2)
-        self.assertEqual(pipeline.vae_decoder.config["latent_channels"], 4)
-        self.assertEqual(pipeline.unet.config["in_channels"], 4)
 
-        batch_size, height = 1, 32
-        for width in [64, 32]:
-            inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-            for num_images in [1, 3]:
-                outputs = pipeline(**inputs, num_images_per_prompt=num_images).images
-                self.assertEqual(outputs.shape, (batch_size * num_images, height, width, 3))
+        for batch_size in [1, 3]:
+            for height in [64, 128]:
+                for width in [64, 128]:
+                    for num_images_per_prompt in [1, 3]:
+                        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+                        outputs = pipeline(**inputs, num_images_per_prompt=num_images_per_prompt).images
+                        self.assertEqual(outputs.shape, (batch_size * num_images_per_prompt, height, width, 3))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -571,18 +570,21 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         self._setup(model_args)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        height, width, batch_size = 32, 64, 1
 
-        for input_type in ["pil"]:
+        height, width, batch_size = 128, 64, 1
+
+        for input_type in ["pil", "np", "pt"]:
             inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size, input_type=input_type)
 
-            for output_type in ["np", "pil", "latent"]:
+            for output_type in ["pil", "np", "pt", "latent"]:
                 inputs["output_type"] = output_type
                 outputs = pipeline(**inputs).images
                 if output_type == "pil":
                     self.assertEqual((len(outputs), outputs[0].height, outputs[0].width), (batch_size, height, width))
                 elif output_type == "np":
                     self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+                elif output_type == "pt":
+                    self.assertEqual(outputs.shape, (batch_size, 3, height, width))
                 else:
                     self.assertEqual(
                         outputs.shape,

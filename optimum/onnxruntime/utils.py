@@ -405,20 +405,16 @@ def evaluation_loop(
     return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=len(dataset))
 
 
-def np_to_pt(np_object, device):
-    if isinstance(np_object, np.ndarray):
-        return torch.from_numpy(np_object)
-    elif isinstance(np_object, np.random.RandomState):
+def np_to_pt_generators(np_object, device):
+    if isinstance(np_object, np.random.RandomState):
         return torch.Generator(device=device).manual_seed(int(np_object.get_state()[1][0]))
     elif isinstance(np_object, np.random.Generator):
         return torch.Generator(device=device).manual_seed(int(np_object.bit_generator.state[1][0]))
-    elif isinstance(np_object, list) and isinstance(
-        np_object[0], (np.ndarray, np.random.RandomState, np.random.Generator)
-    ):
-        return [np_to_pt(a, device) for a in np_object]
+    elif isinstance(np_object, list) and isinstance(np_object[0], (np.random.RandomState, np.random.Generator)):
+        return [np_to_pt_generators(a, device) for a in np_object]
     elif isinstance(np_object, dict) and isinstance(
-        next(iter(np_object.values())), (np.ndarray, np.random.RandomState, np.random.Generator)
+        next(iter(np_object.values())), (np.random.RandomState, np.random.Generator)
     ):
-        return {k: np_to_pt(v, device) for k, v in np_object.items()}
+        return {k: np_to_pt_generators(v, device) for k, v in np_object.items()}
     else:
         return np_object

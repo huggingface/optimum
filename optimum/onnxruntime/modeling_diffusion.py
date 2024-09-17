@@ -67,7 +67,7 @@ from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
     ONNX_WEIGHTS_NAME,
     get_provider_for_device,
-    np_to_pt,
+    np_to_pt_generators,
     parse_device,
     validate_provider_availability,
 )
@@ -248,7 +248,10 @@ class ORTPipeline(ORTModel):
                 for external_data_path in external_data_paths:
                     shutil.copyfile(external_data_path, model_save_path.parent / external_data_path.name)
                 # copy config
-                shutil.copyfile(model_path.parent / CONFIG_NAME, model_save_path.parent / CONFIG_NAME)
+                shutil.copyfile(
+                    model_path.parent / self.sub_component_config_name,
+                    model_save_path.parent / self.sub_component_config_name,
+                )
 
         self.scheduler.save_pretrained(save_directory / "scheduler")
 
@@ -486,28 +489,28 @@ class ORTPipeline(ORTModel):
         device = self._execution_device
 
         for i in range(len(args)):
-            args[i] = np_to_pt(args[i], device)
+            args[i] = np_to_pt_generators(args[i], device)
 
         for k, v in kwargs.items():
-            kwargs[k] = np_to_pt(v, device)
+            kwargs[k] = np_to_pt_generators(v, device)
 
         return self.auto_model_class.__call__(self, *args, **kwargs)
 
 
 class ORTPipelinePart(ORTModelPart):
     def __init__(self, session: ort.InferenceSession, parent_model: ORTPipeline):
-        config_path = Path(session._model_path).parent / "config.json"
-
-        if config_path.is_file():
-            self.config = FrozenDict(parent_model._dict_from_json_file(config_path))
-        else:
-            self.config = FrozenDict({})
-
         super().__init__(session, parent_model)
+
+        config_path = Path(session._model_path).parent / "config.json"
+        config_dict = parent_model._dict_from_json_file(config_path) if config_path.is_file() else {}
+        self.config = FrozenDict(config_dict)
 
     @property
     def input_dtype(self):
-        # for backward compatibility and diffusion mixins (will be standardized in the future)
+        logger.warning(
+            "The `input_dtype` property is deprecated and will be removed in the next release. "
+            "Please use `input_dtypes` along with `TypeHelper` to get the `numpy` types."
+        )
         return {name: TypeHelper.ort_type_to_numpy_type(ort_type) for name, ort_type in self.input_dtypes.items()}
 
 
@@ -593,7 +596,8 @@ class ORTModelVaeEncoder(ORTPipelinePart):
 
         if "latent_sample" in model_outputs:
             model_outputs["latents"] = model_outputs.pop("latent_sample")
-        elif "latent_parameters" in model_outputs:
+
+        if "latent_parameters" in model_outputs:
             model_outputs["latent_dist"] = DiagonalGaussianDistribution(
                 parameters=model_outputs.pop("latent_parameters")
             )
@@ -631,9 +635,32 @@ class ORTModelVaeDecoder(ORTPipelinePart):
 class ORTVaeWrapper(ORTPipelinePart):
     def __init__(self, vae_encoder: ORTModelVaeEncoder, vae_decoder: ORTModelVaeDecoder, parent_model: ORTPipeline):
         super().__init__(vae_decoder.session, parent_model)
+        self.vae_encoder = vae_encoder
+        self.vae_decoder = vae_decoder
 
-        self.encode = vae_encoder.forward
-        self.decode = vae_decoder.forward
+    def encode(
+        self,
+        sample: Union[np.ndarray, torch.Tensor],
+        return_dict: bool = False,
+    ):
+        return self.vae_encoder(sample, return_dict)
+
+    def decode(
+        self,
+        latent_sample: Union[np.ndarray, torch.Tensor],
+        generator: Optional[torch.Generator] = None,
+        return_dict: bool = False,
+    ):
+        return self.vae_decoder(latent_sample, generator, return_dict)
+
+    def forward(
+        self,
+        sample: Union[np.ndarray, torch.Tensor],
+        generator: Optional[torch.Generator] = None,
+        return_dict: bool = False,
+    ):
+        latent_sample = self.encode(sample).latent_dist.sample(generator=generator)
+        return self.decode(latent_sample, generator, return_dict)
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
@@ -930,6 +957,7 @@ class ORTPipelineForTask(ConfigMixin):
     config_name = "model_index.json"
 
     @classmethod
+    @validate_hf_hub_args
     def from_pretrained(cls, pretrained_model_or_path, **kwargs) -> ORTPipeline:
         load_config_kwargs = {
             "force_download": kwargs.get("force_download", False),

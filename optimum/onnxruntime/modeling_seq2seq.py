@@ -68,7 +68,7 @@ from .utils import (
 if check_if_transformers_greater("4.25.0"):
     from transformers.generation import GenerationMixin
 else:
-    from transformers.generation_utils import GenerationMixin
+    from transformers.generation_utils import GenerationMixin  # type: ignore
 
 
 if check_if_transformers_greater("4.43.0"):
