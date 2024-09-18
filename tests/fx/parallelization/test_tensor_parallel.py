@@ -36,6 +36,7 @@ DUMMY_MODEL_KWARGS = {
     "output_attentions": False,
     "output_hidden_states": False,
     "tie_word_embeddings": True,
+    "return_dict": True,
 }
 
 DUMMY_MODELS_TO_TEST = (
@@ -64,11 +65,10 @@ def prepare_dummy_inputs(
     seq_len: int = 10,
     device: Union[str, torch.device] = "cuda",
 ):
-    return {
-        "input_ids": torch.randint(low=1, high=model_config.vocab_size, size=(batch_size, seq_len), device=device),
-        "attention_mask": torch.ones((batch_size, seq_len), dtype=torch.int64, device=device),
-        "position_ids": torch.arange(0, seq_len, device=device).unsqueeze(0).expand(batch_size, -1),
-    }
+    input_ids = torch.randint(low=1, high=model_config.vocab_size, size=(batch_size, seq_len), device=device)
+    attention_mask = torch.ones((batch_size, seq_len), dtype=torch.int64, device=device)
+    labels = input_ids.clone()
+    return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": labels}
 
 
 def run_test_all_rank_results_match(rank: int, world_size: int, model_id: str, model_kwargs: Dict[str, Any]):
@@ -82,8 +82,8 @@ def run_test_all_rank_results_match(rank: int, world_size: int, model_id: str, m
 
     model = parallelize_model(model_id, ctx, skip_load_weights=True, **model_kwargs)
     inputs = prepare_dummy_inputs(model.config)
-    logits = model(**inputs)[0]
-    tensors = gather_at_main_process(tensor=logits, group=tp_group, rank=rank, world_size=world_size)
+    loss = model(**inputs).loss
+    tensors = gather_at_main_process(tensor=loss, group=tp_group, rank=rank, world_size=world_size)
 
     # check results at main worker process
     if rank == 0:
@@ -145,7 +145,7 @@ def run_test_parallel_results_matches_non_parallel(
     inputs = prepare_dummy_inputs(model.config)
 
     set_seed(SEED)
-    logits = model(**inputs)[0]
+    loss = model(**inputs).loss
 
     torch._dynamo.reset()
     del model
@@ -154,9 +154,9 @@ def run_test_parallel_results_matches_non_parallel(
     set_seed(SEED)
     ctx = ParallelExecutionCtx(tp_group=tp_group, current_device=device)
     model = parallelize_model(model_id, ctx, skip_load_weights=True, **model_kwargs)
-    parallel_logits = model(**inputs)[0]
+    parallel_loss = model(**inputs).loss
 
-    torch.testing.assert_close(logits.cpu(), parallel_logits.cpu(), rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(loss.cpu(), parallel_loss.cpu(), rtol=1e-4, atol=1e-4)
 
     dist.barrier(tp_group)
     tearDown()
