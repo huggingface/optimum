@@ -31,7 +31,6 @@ from diffusers.pipelines import (
     AutoPipelineForImage2Image,
     AutoPipelineForInpainting,
     AutoPipelineForText2Image,
-    DiffusionPipeline,
     LatentConsistencyModelImg2ImgPipeline,
     LatentConsistencyModelPipeline,
     StableDiffusionImg2ImgPipeline,
@@ -77,8 +76,6 @@ logger = logging.getLogger(__name__)
 
 
 class ORTPipeline(ORTModel, ConfigMixin):
-    auto_model_class = None
-
     config_name = "model_index.json"
 
     def __init__(
@@ -492,14 +489,6 @@ class ORTPipelinePart:
         self.config = FrozenDict(**config_dict)
 
     @property
-    def input_dtype(self):
-        logger.warning(
-            "The `input_dtype` property is deprecated and will be removed in the next release. "
-            "Please use `input_dtypes` along with `TypeHelper` to get the `numpy` types."
-        )
-        return {name: TypeHelper.ort_type_to_numpy_type(ort_type) for name, ort_type in self.input_dtypes.items()}
-
-    @property
     def device(self):
         return self.parent_pipeline.device
 
@@ -521,7 +510,7 @@ class ORTPipelinePart:
         for arg in args:
             if isinstance(arg, torch.device):
                 device = arg
-            elif isinstance(arg, str):
+            elif isinstance(arg, (int, str)):
                 device = torch.device(arg)
             elif isinstance(arg, torch.dtype):
                 dtype = arg
@@ -670,12 +659,12 @@ class ORTModelUnet(ORTPipelinePart):
 
 
 class ORTModelVaeEncoder(ORTPipelinePart):
-    def __init__(self, session: ort.InferenceSession, parent_pipeline: ORTPipeline, subfolder: str):
-        super().__init__(session, parent_pipeline, subfolder)
+    # def __init__(self, session: ort.InferenceSession, parent_pipeline: ORTPipeline, subfolder: str):
+    #     super().__init__(session, parent_pipeline, subfolder)
 
-        if not hasattr(self.config, "scaling_factor"):
-            scaling_factor = 2 ** (len(self.config.block_out_channels) - 1)
-            self.config = FrozenDict(**self.config, scaling_factor=scaling_factor)
+    #     if not hasattr(self.config, "scaling_factor"):
+    #         scaling_factor = 2 ** (len(self.config.block_out_channels) - 1)
+    #         self.config = FrozenDict(**self.config, scaling_factor=scaling_factor)
 
     def forward(self, sample: Union[np.ndarray, torch.Tensor], return_dict: bool = False):
         use_torch = isinstance(sample, torch.Tensor)
@@ -868,7 +857,6 @@ def _get_ort_class(pipeline_class_name: str, throw_error_if_not_exist: bool = Tr
 
 
 class ORTDiffusionPipeline(ConfigMixin):
-    auto_model_class = DiffusionPipeline
     config_name = "model_index.json"
 
     @classmethod
@@ -944,7 +932,6 @@ def _get_task_ort_class(mapping, pipeline_class_name):
 
 
 class ORTPipelineForTask(ConfigMixin):
-    auto_model_class = DiffusionPipeline
     config_name = "model_index.json"
 
     @classmethod
