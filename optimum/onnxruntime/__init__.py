@@ -44,6 +44,7 @@ _import_structure = {
         "ORTModelForSemanticSegmentation",
         "ORTModelForSequenceClassification",
         "ORTModelForTokenClassification",
+        "ORTModelForImageToImage",
     ],
     "modeling_seq2seq": [
         "ORTModelForSeq2SeqLM",
@@ -112,6 +113,7 @@ if TYPE_CHECKING:
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
+        ORTModelForImageToImage,
         ORTModelForMaskedLM,
         ORTModelForMultipleChoice,
         ORTModelForQuestionAnswering,
