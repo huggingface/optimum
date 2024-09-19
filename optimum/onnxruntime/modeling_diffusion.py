@@ -13,9 +13,11 @@
 #  limitations under the License.
 
 import importlib
+import inspect
 import logging
 import os
 import shutil
+from abc import abstractmethod
 from collections import OrderedDict
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -24,7 +26,6 @@ from typing import Any, Dict, Optional, Union
 import numpy as np
 import torch
 from diffusers.configuration_utils import ConfigMixin, FrozenDict
-from diffusers.image_processor import VaeImageProcessor
 from diffusers.models.autoencoders.vae import DiagonalGaussianDistribution
 from diffusers.pipelines import (
     AutoPipelineForImage2Image,
@@ -42,7 +43,7 @@ from diffusers.pipelines import (
 )
 from diffusers.schedulers import SchedulerMixin
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
-from diffusers.utils import is_invisible_watermark_available
+from diffusers.utils.constants import CONFIG_NAME
 from huggingface_hub import snapshot_download
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.utils import validate_hf_hub_args
@@ -61,7 +62,6 @@ from ..utils import (
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
 )
-from .base import ORTModelPart
 from .io_binding import TypeHelper
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
@@ -73,103 +73,98 @@ from .utils import (
 )
 
 
-if is_invisible_watermark_available():
-    from diffusers.pipelines.stable_diffusion_xl.watermark import StableDiffusionXLWatermarker
-
 logger = logging.getLogger(__name__)
 
 
 class ORTPipeline(ORTModel, ConfigMixin):
     auto_model_class = None
-    model_type = "onnx_pipeline"
 
     config_name = "model_index.json"
-    sub_component_config_name = "config.json"
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        # diffusers specific arguments
         unet: Optional[ort.InferenceSession] = None,
         vae_encoder: Optional[ort.InferenceSession] = None,
         vae_decoder: Optional[ort.InferenceSession] = None,
         text_encoder: Optional[ort.InferenceSession] = None,
         text_encoder_2: Optional[ort.InferenceSession] = None,
-        scheduler: Optional[SchedulerMixin] = None,
-        tokenizer: Optional[CLIPTokenizer] = None,
-        tokenizer_2: Optional[CLIPTokenizer] = None,
-        feature_extractor: Optional[CLIPFeatureExtractor] = None,
+        image_encoder: Optional[ort.InferenceSession] = None,
+        safety_checker: Optional[ort.InferenceSession] = None,
+        scheduler: Optional["SchedulerMixin"] = None,
+        tokenizer: Optional["CLIPTokenizer"] = None,
+        tokenizer_2: Optional["CLIPTokenizer"] = None,
+        feature_extractor: Optional["CLIPFeatureExtractor"] = None,
+        # stable diffusion xl specific arguments
+        requires_aesthetics_score: bool = False,
+        force_zeros_for_empty_prompt: bool = True,
+        add_watermarker: Optional[bool] = None,
+        # onnxruntime specific arguments
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-        """
-        Args:
-            config (`Dict[str, Any]`):
-                A config dictionary from which the model components will be instantiated. Make sure to only load
-                configuration files of compatible classes.
-            tokenizer (`CLIPTokenizer`):
-                Tokenizer of class
-                [CLIPTokenizer](https://huggingface.co/docs/transformers/v4.21.0/en/model_doc/clip#transformers.CLIPTokenizer)
-                for the text encoder.
-            scheduler (`Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler]`):
-                A scheduler to be used in combination with the U-NET component to denoise the encoded image latents.
-            unet (`ort.InferenceSession`):
-                The ONNX Runtime inference session associated to the U-NET.
-            feature_extractor (`Optional[CLIPFeatureExtractor]`, defaults to `None`):
-                A model extracting features from generated images to be used as inputs for the `safety_checker`
-            vae_encoder (`Optional[ort.InferenceSession]`, defaults to `None`):
-                The ONNX Runtime inference session associated to the VAE encoder.
-            text_encoder (`Optional[ort.InferenceSession]`, defaults to `None`):
-                The ONNX Runtime inference session associated to the text encoder.
-            tokenizer_2 (`Optional[CLIPTokenizer]`, defaults to `None`):
-                Tokenizer of class
-                [CLIPTokenizer](https://huggingface.co/docs/transformers/v4.21.0/en/model_doc/clip#transformers.CLIPTokenizer)
-                for the second text encoder.
-            use_io_binding (`Optional[bool]`, defaults to `None`):
-                Whether to use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
-                `True` if the device is CUDA, otherwise defaults to `False`.
-            model_save_dir (`Optional[str]`, defaults to `None`):
-                The directory under which the model exported to ONNX was saved.
-        """
+        ############################################################################################################
+        self.unet = ORTModelUnet(unet, self, subfolder=DIFFUSION_MODEL_UNET_SUBFOLDER)
+        self.vae_encoder = (
+            ORTModelVaeEncoder(vae_encoder, self, subfolder=DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER)
+            if vae_encoder is not None
+            else None
+        )
+        self.vae_decoder = (
+            ORTModelVaeDecoder(vae_decoder, self, subfolder=DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER)
+            if vae_decoder is not None
+            else None
+        )
+        self.text_encoder = (
+            ORTModelTextEncoder(text_encoder, self, subfolder=DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER)
+            if text_encoder is not None
+            else None
+        )
+        self.text_encoder_2 = (
+            ORTModelTextEncoder(text_encoder_2, self, subfolder=DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER)
+            if text_encoder_2 is not None
+            else None
+        )
+        self.image_encoder = image_encoder  # TODO: maybe implement ORTModelImageEncoder
+        self.safety_checker = safety_checker  # TODO: maybe implement ORTModelSafetyChecker
 
-        self.unet = ORTModelUnet(unet, self)
-        self.vae_encoder = ORTModelVaeEncoder(vae_encoder, self) if vae_encoder is not None else None
-        self.vae_decoder = ORTModelVaeDecoder(vae_decoder, self) if vae_decoder is not None else None
-        self.text_encoder = ORTModelTextEncoder(text_encoder, self) if text_encoder is not None else None
-        self.text_encoder_2 = ORTModelTextEncoder(text_encoder_2, self) if text_encoder_2 is not None else None
-
-        # We create VAE encoder & decoder and wrap them in one object to
-        # be used by the pipeline mixins with minimal code changes (simulating the diffusers API)
-        self.vae = ORTVaeWrapper(self.vae_encoder, self.vae_decoder, self)
+        # We wrap the VAE encoder and decoder in a single object to simplify the API
+        self.vae = ORTWrapperVae(self.vae_encoder, self.vae_decoder)
 
         self.scheduler = scheduler
         self.tokenizer = tokenizer
         self.tokenizer_2 = tokenizer_2
         self.feature_extractor = feature_extractor
-        self.safety_checker = kwargs.get("safety_checker", None)
 
-        if hasattr(self.vae.config, "block_out_channels"):
-            self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
-        else:
-            self.vae_scale_factor = 8  # for old configs without block_out_channels
-
-        self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
-        self.mask_processor = VaeImageProcessor(
-            vae_scale_factor=self.vae_scale_factor, do_normalize=False, do_binarize=True, do_convert_grayscale=True
-        )
-
-        # Modify config to keep the resulting model compatible with diffusers pipelines
-        models_to_subfolder = {
-            self.unet: DIFFUSION_MODEL_UNET_SUBFOLDER,
-            self.vae_decoder: DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
-            self.vae_encoder: DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
-            self.text_encoder: DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
-            self.text_encoder_2: DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
+        all_possible_init_args = {
+            "vae": self.vae,
+            "unet": self.unet,
+            "text_encoder": self.text_encoder,
+            "text_encoder_2": self.text_encoder_2,
+            "image_encoder": self.image_encoder,
+            "safety_checker": self.safety_checker,
+            "scheduler": self.scheduler,
+            "tokenizer": self.tokenizer,
+            "tokenizer_2": self.tokenizer_2,
+            "feature_extractor": self.feature_extractor,
+            "requires_aesthetics_score": requires_aesthetics_score,
+            "force_zeros_for_empty_prompt": force_zeros_for_empty_prompt,
+            "add_watermarker": add_watermarker,
         }
-        for model, model_subfolder in models_to_subfolder.items():
-            config[model_subfolder] = ("optimum", model.__class__.__name__) if model is not None else (None, None)
 
-        self._internal_dict = FrozenDict(config)
+        diffusers_pipeline_args = {}
+        for key in inspect.signature(self.auto_model_class).parameters.keys():
+            if key in all_possible_init_args:
+                diffusers_pipeline_args[key] = all_possible_init_args[key]
+
+        # init stuff like config, vae_scale_factor, image_processor, etc.
+        self.auto_model_class.__init__(self, **diffusers_pipeline_args)
+        # not registered correctly in the config
+        self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
+        self.register_to_config(requires_aesthetics_score=requires_aesthetics_score)
+        ############################################################################################################
+
         self.shared_attributes_init(model=unet, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
 
     @staticmethod
@@ -181,7 +176,7 @@ class ORTPipeline(ORTModel, ConfigMixin):
         text_encoder_2_path: Optional[Union[str, Path]] = None,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
     ):
         """
         Creates three inference sessions for the components of a Diffusion Pipeline (U-NET, VAE, Text Encoders).
@@ -203,7 +198,7 @@ class ORTPipeline(ORTModel, ConfigMixin):
                 for possible providers.
             session_options (`Optional[ort.SessionOptions]`, defaults to `None`):
                 ONNX Runtime session options to use for loading the model. Defaults to `None`.
-            provider_options (`Optional[Dict]`, defaults to `None`):
+            provider_options (`Optional[Dict[str, Any]]`, defaults to `None`):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
         """
@@ -229,8 +224,8 @@ class ORTPipeline(ORTModel, ConfigMixin):
 
         models_to_save_paths = {
             self.unet: save_directory / DIFFUSION_MODEL_UNET_SUBFOLDER / ONNX_WEIGHTS_NAME,
-            self.vae_decoder: save_directory / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
             self.vae_encoder: save_directory / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
+            self.vae_decoder: save_directory / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
             self.text_encoder: save_directory / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
             self.text_encoder_2: save_directory / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER / ONNX_WEIGHTS_NAME,
         }
@@ -245,9 +240,9 @@ class ORTPipeline(ORTModel, ConfigMixin):
                 for external_data_path in external_data_paths:
                     shutil.copyfile(external_data_path, model_save_path.parent / external_data_path.name)
                 # copy model config
-                config_path = model_path.parent / self.sub_component_config_name
+                config_path = model_path.parent / CONFIG_NAME
                 if config_path.is_file():
-                    config_save_path = model_save_path.parent / self.sub_component_config_name
+                    config_save_path = model_save_path.parent / CONFIG_NAME
                     shutil.copyfile(config_path, config_save_path)
 
         self.scheduler.save_pretrained(save_directory / "scheduler")
@@ -264,6 +259,8 @@ class ORTPipeline(ORTModel, ConfigMixin):
         cls,
         model_id: Union[str, Path],
         config: Dict[str, Any],
+        subfolder: str = "",
+        force_download: bool = False,
         local_files_only: bool = False,
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
@@ -273,20 +270,18 @@ class ORTPipeline(ORTModel, ConfigMixin):
         vae_decoder_file_name: str = ONNX_WEIGHTS_NAME,
         text_encoder_file_name: str = ONNX_WEIGHTS_NAME,
         text_encoder_2_file_name: str = ONNX_WEIGHTS_NAME,
+        use_io_binding: Optional[bool] = None,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-        model_id = str(model_id)
-        patterns = set(config.keys())
-        sub_models_to_load = patterns.intersection({"feature_extractor", "tokenizer", "tokenizer_2", "scheduler"})
+        all_components = {key for key in config.keys() if not key.startswith("_")}
+        all_components.update({"vae_encoder", "vae_decoder"})
 
-        if not os.path.isdir(model_id):
-            patterns.update({"vae_encoder", "vae_decoder"})
-            allow_patterns = {os.path.join(k, "*") for k in patterns if not k.startswith("_")}
+        if not os.path.isdir(str(model_id)):
+            allow_patterns = {os.path.join(component, "*") for component in all_components}
             allow_patterns.update(
                 {
                     unet_file_name,
@@ -294,55 +289,49 @@ class ORTPipeline(ORTModel, ConfigMixin):
                     vae_decoder_file_name,
                     text_encoder_file_name,
                     text_encoder_2_file_name,
-                    cls.sub_component_config_name,
                     SCHEDULER_CONFIG_NAME,
                     cls.config_name,
+                    CONFIG_NAME,
                 }
             )
-            # Downloads all repo's files matching the allowed patterns
             model_id = snapshot_download(
                 model_id,
                 cache_dir=cache_dir,
+                force_download=force_download,
                 local_files_only=local_files_only,
-                token=token,
                 revision=revision,
+                token=token,
                 allow_patterns=allow_patterns,
                 ignore_patterns=["*.msgpack", "*.safetensors", "*.bin", "*.xml"],
             )
-        new_model_save_dir = Path(model_id)
+
+        model_save_path = Path(model_id)
 
         sub_models = {}
-        for name in sub_models_to_load:
-            library_name, library_classes = config[name]
+        for name in {"feature_extractor", "tokenizer", "tokenizer_2", "scheduler"}:
+            library_name, library_classes = config.get(name, (None, None))
             if library_classes is not None:
                 library = importlib.import_module(library_name)
                 class_obj = getattr(library, library_classes)
                 load_method = getattr(class_obj, "from_pretrained")
                 # Check if the module is in a subdirectory
-                if (new_model_save_dir / name).is_dir():
-                    sub_models[name] = load_method(new_model_save_dir / name)
+                if (model_save_path / name).is_dir():
+                    sub_models[name] = load_method(model_save_path / name)
                 else:
-                    sub_models[name] = load_method(new_model_save_dir)
+                    sub_models[name] = load_method(model_save_path)
 
-        model_paths = {
-            "unet_path": new_model_save_dir / DIFFUSION_MODEL_UNET_SUBFOLDER / unet_file_name,
-            "vae_encoder_path": new_model_save_dir / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / vae_encoder_file_name,
-            "vae_decoder_path": new_model_save_dir / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / vae_decoder_file_name,
-            "text_encoder_path": new_model_save_dir / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / text_encoder_file_name,
-            "text_encoder_2_path": (
-                new_model_save_dir / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER / text_encoder_2_file_name
-            ),
+        paths = {
+            "unet_path": model_save_path / DIFFUSION_MODEL_UNET_SUBFOLDER / unet_file_name,
+            "vae_encoder_path": model_save_path / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / vae_encoder_file_name,
+            "vae_decoder_path": model_save_path / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / vae_decoder_file_name,
+            "text_encoder_path": model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / text_encoder_file_name,
+            "text_encoder_2_path": model_save_path
+            / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER
+            / text_encoder_2_file_name,
         }
-
-        model_sessions = cls.load_model(
-            **model_paths,
-            provider=provider,
-            session_options=session_options,
-            provider_options=provider_options,
+        models = cls.load_model(
+            **paths, provider=provider, session_options=session_options, provider_options=provider_options
         )
-
-        if model_save_dir is None:
-            model_save_dir = new_model_save_dir
 
         if use_io_binding:
             raise ValueError(
@@ -350,8 +339,7 @@ class ORTPipeline(ORTModel, ConfigMixin):
             )
 
         return cls(
-            config=config,
-            **model_sessions,
+            **models,
             **sub_models,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
@@ -361,49 +349,53 @@ class ORTPipeline(ORTModel, ConfigMixin):
     def _export(
         cls,
         model_id: str,
-        config: Optional[Dict[str, Any]] = None,
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        config: Dict[str, Any],
         subfolder: str = "",
+        force_download: bool = False,
         local_files_only: bool = False,
+        revision: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
         trust_remote_code: bool = False,
+        use_io_binding: Optional[bool] = None,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTPipeline":
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
 
-        save_dir = TemporaryDirectory()
-        save_dir_path = Path(save_dir.name)
+        # we continue passing the model_save_dir from here on to avoid it being cleaned up
+        # might be better to use a persistent temporary directory such as the one implemented in
+        # https://gist.github.com/twolfson/2929dc1163b0a76d2c2b66d51f9bc808
+        model_save_dir = TemporaryDirectory()
+        model_save_path = Path(model_save_dir.name)
 
         main_export(
-            model_name_or_path=model_id,
-            output=save_dir_path,
-            task=task,
+            model_id,
+            output=model_save_path,
             do_validation=False,
             no_post_process=True,
-            subfolder=subfolder,
+            token=token,
             revision=revision,
             cache_dir=cache_dir,
-            token=token,
-            local_files_only=local_files_only,
+            subfolder=subfolder,
             force_download=force_download,
+            local_files_only=local_files_only,
             trust_remote_code=trust_remote_code,
+            library_name="diffusers",
+            task=task,
         )
 
         return cls._from_pretrained(
-            save_dir_path,
+            model_save_path,
             config=config,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
             use_io_binding=use_io_binding,
-            model_save_dir=save_dir,
+            model_save_dir=model_save_dir,
         )
 
     def to(self, device: Union[torch.device, str, int]):
@@ -440,7 +432,7 @@ class ORTPipeline(ORTModel, ConfigMixin):
         if self.text_encoder_2 is not None:
             self.text_encoder_2.session.set_providers([provider], provider_options=[provider_options])
 
-        self.providers = self.vae_decoder.session.get_providers()
+        self.providers = self.unet.session.get_providers()
         self._device = device
 
         return self
@@ -453,32 +445,51 @@ class ORTPipeline(ORTModel, ConfigMixin):
         self.save_config(save_directory)
 
     @property
-    def _execution_device(self):
-        return self.device
+    def components(self) -> Dict[str, Any]:
+        components = {
+            "vae": self.vae,
+            "unet": self.unet,
+            "text_encoder": self.text_encoder,
+            "text_encoder_2": self.text_encoder_2,
+            "image_encoder": self.image_encoder,
+            "safety_checker": self.safety_checker,
+        }
+        components = {k: v for k, v in components.items() if v is not None}
+        return components
 
     def __call__(self, *args, **kwargs):
-        device = self._execution_device
+        # we keep numpy random states support for now
 
+        args = list(args)
         for i in range(len(args)):
-            args[i] = np_to_pt_generators(args[i], device)
+            args[i] = np_to_pt_generators(args[i], self.device)
 
         for k, v in kwargs.items():
-            kwargs[k] = np_to_pt_generators(v, device)
+            kwargs[k] = np_to_pt_generators(v, self.device)
 
         return self.auto_model_class.__call__(self, *args, **kwargs)
 
 
-class ORTPipelinePart(ORTModelPart, ConfigMixin):
-    config_name: str = "config.json"
+class ORTPipelinePart:
+    def __init__(self, session: ort.InferenceSession, parent_pipeline: ORTPipeline, subfolder: str):
+        self.session = session
+        self.subfolder = subfolder
+        self.parent_pipeline = parent_pipeline
 
-    def __init__(self, session: ort.InferenceSession, parent_model: ORTPipeline):
-        super().__init__(session, parent_model)
+        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
+        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+        self.input_dtypes = {input_key.name: input_key.type for input_key in session.get_inputs()}
+        self.output_dtypes = {output_key.name: output_key.type for output_key in session.get_outputs()}
 
-        config_path = Path(session._model_path).parent / self.config_name
-        config_dict = self.load_config(config_path) if config_path.is_file() else {}
-        config_dict = config_dict[0] if isinstance(config_dict, tuple) else config_dict
+        self.model_save_dir = Path(self.session._model_path).parent
+        config_path = self.model_save_dir / CONFIG_NAME
 
-        self._internal_dict = FrozenDict(config_dict)
+        if not config_path.is_file():
+            # config is necessary for the model to work
+            raise ValueError(f"Configuration file for {self.__class__.__name__} not found at {config_path}")
+
+        config_dict = parent_pipeline._dict_from_json_file(config_path)
+        self.config = FrozenDict(**config_dict)
 
     @property
     def input_dtype(self):
@@ -487,6 +498,83 @@ class ORTPipelinePart(ORTModelPart, ConfigMixin):
             "Please use `input_dtypes` along with `TypeHelper` to get the `numpy` types."
         )
         return {name: TypeHelper.ort_type_to_numpy_type(ort_type) for name, ort_type in self.input_dtypes.items()}
+
+    @property
+    def device(self):
+        return self.parent_pipeline.device
+
+    @property
+    def dtype(self):
+        for dtype in self.input_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
+        for dtype in self.output_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
+        return None
+
+    def to(self, *args, device: Optional[Union[torch.device, str, int]] = None, dtype: Optional[torch.dtype] = None):
+        for arg in args:
+            if isinstance(arg, torch.device):
+                device = arg
+            elif isinstance(arg, str):
+                device = torch.device(arg)
+            elif isinstance(arg, torch.dtype):
+                dtype = arg
+
+        if device is not None and device != self.device:
+            raise ValueError(
+                "Cannot change the device of a pipeline part without changing the device of the parent pipeline. "
+                "Please use the `to` method of the parent pipeline to change the device."
+            )
+
+        if dtype is not None and dtype != self.dtype:
+            raise NotImplementedError(
+                f"Cannot change the dtype of the pipeline from {self.dtype} to {dtype}. "
+                f"Please export the pipeline with the desired dtype."
+            )
+
+    def prepare_onnx_inputs(self, use_torch: bool, **inputs: Union[torch.Tensor, np.ndarray]) -> Dict[str, np.ndarray]:
+        onnx_inputs = {}
+
+        # converts pytorch inputs into numpy inputs for onnx
+        for input_name in self.input_names.keys():
+            onnx_inputs[input_name] = inputs.pop(input_name)
+
+            if use_torch:
+                onnx_inputs[input_name] = onnx_inputs[input_name].numpy(force=True)
+
+            if onnx_inputs[input_name].dtype != self.input_dtypes[input_name]:
+                onnx_inputs[input_name] = onnx_inputs[input_name].astype(
+                    TypeHelper.ort_type_to_numpy_type(self.input_dtypes[input_name])
+                )
+
+        return onnx_inputs
+
+    def prepare_onnx_outputs(
+        self, use_torch: bool, *onnx_outputs: np.ndarray
+    ) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
+        model_outputs = {}
+
+        # converts onnxruntime outputs into tensor for standard outputs
+        for output_name, idx in self.output_names.items():
+            model_outputs[output_name] = onnx_outputs[idx]
+
+            if use_torch:
+                model_outputs[output_name] = torch.from_numpy(model_outputs[output_name]).to(self.device)
+
+        return model_outputs
+
+    @abstractmethod
+    def forward(self, *args, **kwargs):
+        pass
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
 
 
 class ORTModelTextEncoder(ORTPipelinePart):
@@ -501,9 +589,9 @@ class ORTModelTextEncoder(ORTPipelinePart):
 
         model_inputs = {"input_ids": input_ids}
 
-        onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+        onnx_inputs = self.prepare_onnx_inputs(use_torch, **model_inputs)
         onnx_outputs = self.session.run(None, onnx_inputs)
-        model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+        model_outputs = self.prepare_onnx_outputs(use_torch, *onnx_outputs)
 
         if output_hidden_states:
             model_outputs["hidden_states"] = []
@@ -521,6 +609,12 @@ class ORTModelTextEncoder(ORTPipelinePart):
 
 
 class ORTModelUnet(ORTPipelinePart):
+    # def __init__(self, session: ort.InferenceSession, parent_pipeline: ORTPipeline, subfolder: str):
+    #     super().__init__(session, parent_pipeline, subfolder)
+
+    #     if not hasattr(self.config, "time_cond_proj_dim"):
+    #         self.config = FrozenDict(**self.config, time_cond_proj_dim=None)
+
     def forward(
         self,
         sample: Union[np.ndarray, torch.Tensor],
@@ -549,25 +643,48 @@ class ORTModelUnet(ORTPipelinePart):
             **(added_cond_kwargs or {}),
         }
 
-        onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+        onnx_inputs = self.prepare_onnx_inputs(use_torch, **model_inputs)
         onnx_outputs = self.session.run(None, onnx_inputs)
-        model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+        model_outputs = self.prepare_onnx_outputs(use_torch, *onnx_outputs)
 
         if return_dict:
             return model_outputs
 
         return ModelOutput(**model_outputs)
 
+    @property
+    def add_embedding(self):
+        return FrozenDict(
+            linear_1=FrozenDict(
+                # this is a hacky way to get the attribute in add_embedding.linear_1.in_features
+                # (StableDiffusionXLImg2ImgPipeline/StableDiffusionXLInpaintPipeline)._get_add_time_ids
+                in_features=self.config.addition_time_embed_dim
+                * (
+                    5  # list(original_size + crops_coords_top_left + (aesthetic_score,))
+                    if self.parent_pipeline.config.requires_aesthetics_score
+                    else 6  # list(original_size + crops_coords_top_left + target_size)
+                )
+                + self.parent_pipeline.text_encoder.config.projection_dim
+            )
+        )
+
 
 class ORTModelVaeEncoder(ORTPipelinePart):
+    def __init__(self, session: ort.InferenceSession, parent_pipeline: ORTPipeline, subfolder: str):
+        super().__init__(session, parent_pipeline, subfolder)
+
+        if not hasattr(self.config, "scaling_factor"):
+            scaling_factor = 2 ** (len(self.config.block_out_channels) - 1)
+            self.config = FrozenDict(**self.config, scaling_factor=scaling_factor)
+
     def forward(self, sample: Union[np.ndarray, torch.Tensor], return_dict: bool = False):
         use_torch = isinstance(sample, torch.Tensor)
 
         model_inputs = {"sample": sample}
 
-        onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+        onnx_inputs = self.prepare_onnx_inputs(use_torch, **model_inputs)
         onnx_outputs = self.session.run(None, onnx_inputs)
-        model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+        model_outputs = self.prepare_onnx_outputs(use_torch, *onnx_outputs)
 
         if "latent_sample" in model_outputs:
             model_outputs["latents"] = model_outputs.pop("latent_sample")
@@ -584,6 +701,13 @@ class ORTModelVaeEncoder(ORTPipelinePart):
 
 
 class ORTModelVaeDecoder(ORTPipelinePart):
+    # def __init__(self, session: ort.InferenceSession, parent_pipeline: ORTPipeline, subfolder: str):
+    #     super().__init__(session, parent_pipeline, subfolder)
+
+    #     if not hasattr(self.config, "scaling_factor"):
+    #         scaling_factor = 2 ** (len(self.config.block_out_channels) - 1)
+    #         self.config = FrozenDict(**self.config, scaling_factor=scaling_factor)
+
     def forward(
         self,
         latent_sample: Union[np.ndarray, torch.Tensor],
@@ -594,9 +718,9 @@ class ORTModelVaeDecoder(ORTPipelinePart):
 
         model_inputs = {"latent_sample": latent_sample}
 
-        onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+        onnx_inputs = self.prepare_onnx_inputs(use_torch, **model_inputs)
         onnx_outputs = self.session.run(None, onnx_inputs)
-        model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+        model_outputs = self.prepare_onnx_outputs(use_torch, *onnx_outputs)
 
         if "latent_sample" in model_outputs:
             model_outputs["latents"] = model_outputs.pop("latent_sample")
@@ -607,36 +731,36 @@ class ORTModelVaeDecoder(ORTPipelinePart):
         return ModelOutput(**model_outputs)
 
 
-class ORTVaeWrapper(ORTPipelinePart):
-    def __init__(self, vae_encoder: ORTModelVaeEncoder, vae_decoder: ORTModelVaeDecoder, parent_model: ORTPipeline):
-        self.vae_encoder = vae_encoder
-        self.vae_decoder = vae_decoder
+class ORTWrapperVae(ORTPipelinePart):
+    def __init__(self, encoder: ORTModelVaeEncoder, decoder: ORTModelVaeDecoder):
+        if encoder is not None:
+            self.encoder = encoder
 
-        super().__init__(vae_decoder.session, parent_model)
+        self.decoder = decoder
 
-    def encode(
-        self,
-        sample: Union[np.ndarray, torch.Tensor],
-        return_dict: bool = False,
-    ):
-        return self.vae_encoder(sample, return_dict)
+    @property
+    def config(self):
+        return self.decoder.config
 
-    def decode(
-        self,
-        latent_sample: Union[np.ndarray, torch.Tensor],
-        generator: Optional[torch.Generator] = None,
-        return_dict: bool = False,
-    ):
-        return self.vae_decoder(latent_sample, generator, return_dict)
+    @property
+    def dtype(self):
+        return self.decoder.dtype
 
-    def forward(
-        self,
-        sample: Union[np.ndarray, torch.Tensor],
-        generator: Optional[torch.Generator] = None,
-        return_dict: bool = False,
-    ):
-        latent_sample = self.encode(sample).latent_dist.sample(generator=generator)
-        return self.decode(latent_sample, generator, return_dict)
+    @property
+    def device(self):
+        return self.decoder.device
+
+    def encode(self, *args, **kwargs):
+        return self.encoder(*args, **kwargs)
+
+    def decode(self, *args, **kwargs):
+        return self.decoder(*args, **kwargs)
+
+    def to(self, *args, **kwargs):
+        if self.encoder is not None:
+            self.encoder.to(*args, **kwargs)
+
+        self.decoder.to(*args, **kwargs)
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
@@ -678,31 +802,6 @@ class ORTStableDiffusionXLPipeline(ORTPipeline, StableDiffusionXLPipeline):
     main_input_name = "prompt"
     auto_model_class = StableDiffusionXLPipeline
 
-    def __init__(self, *args, add_watermarker: Optional[bool] = None, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        requires_aesthetics_score = kwargs.get("requires_aesthetics_score", False)
-        force_zeros_for_empty_prompt = kwargs.get("force_zeros_for_empty_prompt", True)
-        self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
-        self.register_to_config(requires_aesthetics_score=requires_aesthetics_score)
-
-        add_watermarker = add_watermarker if add_watermarker is not None else is_invisible_watermark_available()
-
-        if add_watermarker:
-            self.watermark = StableDiffusionXLWatermarker()
-        else:
-            self.watermark = None
-
-    # Adapted from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl.StableDiffusionXLPipeline._get_add_time_ids
-    def _get_add_time_ids(
-        self, original_size, crops_coords_top_left, target_size, dtype, text_encoder_projection_dim=None
-    ):
-        add_time_ids = list(original_size + crops_coords_top_left + target_size)
-
-        add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
-
-        return add_time_ids
-
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionXLImg2ImgPipeline(ORTPipeline, StableDiffusionXLImg2ImgPipeline):
@@ -713,49 +812,6 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTPipeline, StableDiffusionXLImg2ImgP
     main_input_name = "prompt"
     auto_model_class = StableDiffusionXLImg2ImgPipeline
 
-    def __init__(self, *args, add_watermarker: Optional[bool] = None, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        requires_aesthetics_score = kwargs.get("requires_aesthetics_score", False)
-        force_zeros_for_empty_prompt = kwargs.get("force_zeros_for_empty_prompt", True)
-        self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
-        self.register_to_config(requires_aesthetics_score=requires_aesthetics_score)
-
-        add_watermarker = add_watermarker if add_watermarker is not None else is_invisible_watermark_available()
-
-        if add_watermarker:
-            self.watermark = StableDiffusionXLWatermarker()
-        else:
-            self.watermark = None
-
-    # Adapted from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img.StableDiffusionXLImg2ImgPipeline._get_add_time_ids
-    def _get_add_time_ids(
-        self,
-        original_size,
-        crops_coords_top_left,
-        target_size,
-        aesthetic_score,
-        negative_aesthetic_score,
-        negative_original_size,
-        negative_crops_coords_top_left,
-        negative_target_size,
-        dtype,
-        text_encoder_projection_dim=None,
-    ):
-        if self.config.requires_aesthetics_score:
-            add_time_ids = list(original_size + crops_coords_top_left + (aesthetic_score,))
-            add_neg_time_ids = list(
-                negative_original_size + negative_crops_coords_top_left + (negative_aesthetic_score,)
-            )
-        else:
-            add_time_ids = list(original_size + crops_coords_top_left + target_size)
-            add_neg_time_ids = list(negative_original_size + crops_coords_top_left + negative_target_size)
-
-        add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
-        add_neg_time_ids = torch.tensor([add_neg_time_ids], dtype=dtype)
-
-        return add_time_ids, add_neg_time_ids
-
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionXLInpaintPipeline(ORTPipeline, StableDiffusionXLInpaintPipeline):
@@ -765,49 +821,6 @@ class ORTStableDiffusionXLInpaintPipeline(ORTPipeline, StableDiffusionXLInpaintP
 
     main_input_name = "image"
     auto_model_class = StableDiffusionXLInpaintPipeline
-
-    def __init__(self, *args, add_watermarker: Optional[bool] = None, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        requires_aesthetics_score = kwargs.get("requires_aesthetics_score", False)
-        force_zeros_for_empty_prompt = kwargs.get("force_zeros_for_empty_prompt", True)
-        self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
-        self.register_to_config(requires_aesthetics_score=requires_aesthetics_score)
-
-        add_watermarker = add_watermarker if add_watermarker is not None else is_invisible_watermark_available()
-
-        if add_watermarker:
-            self.watermark = StableDiffusionXLWatermarker()
-        else:
-            self.watermark = None
-
-    # Adapted from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_inpaint.StableDiffusionXLInpaintPipeline._get_add_time_ids
-    def _get_add_time_ids(
-        self,
-        original_size,
-        crops_coords_top_left,
-        target_size,
-        aesthetic_score,
-        negative_aesthetic_score,
-        negative_original_size,
-        negative_crops_coords_top_left,
-        negative_target_size,
-        dtype,
-        text_encoder_projection_dim=None,
-    ):
-        if self.config.requires_aesthetics_score:
-            add_time_ids = list(original_size + crops_coords_top_left + (aesthetic_score,))
-            add_neg_time_ids = list(
-                negative_original_size + negative_crops_coords_top_left + (negative_aesthetic_score,)
-            )
-        else:
-            add_time_ids = list(original_size + crops_coords_top_left + target_size)
-            add_neg_time_ids = list(negative_original_size + crops_coords_top_left + negative_target_size)
-
-        add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
-        add_neg_time_ids = torch.tensor([add_neg_time_ids], dtype=dtype)
-
-        return add_time_ids, add_neg_time_ids
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
