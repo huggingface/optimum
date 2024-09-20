@@ -55,6 +55,7 @@ class Backend(ABC):
         post_process: Perform post-processing on the graph module after parallelization.
         init_parallelization_pass_pipeline: Initialize the parallelization pass pipeline.
     """
+
     @abstractmethod
     def create_column_parallel_linear(
         self,
@@ -116,7 +117,7 @@ class Backend(ABC):
 
     @abstractmethod
     def post_process(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> nn.Module:
-        """ 
+        """
         This method is called after the parallelization passes have been applied. It is used to perform any backend-specific
         post-processing on the graph module.
         """
