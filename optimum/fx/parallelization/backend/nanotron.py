@@ -15,10 +15,11 @@
 # Nanotron specific imports
 import importlib.util
 from collections import defaultdict
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple, Union
 
 import torch.distributed as dist
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.fx import GraphModule
 
 from ..core import Config, ParallelExecutionCtx, ParameterMeta
@@ -148,6 +149,11 @@ class NanotronBackend(Backend):
             dtype=mod.weight.dtype,
             contiguous_chunks=contiguous_chunks,
         )
+
+    def create_parallel_cross_entropy(
+        self, mod_or_fn: Union[nn.CrossEntropyLoss, F.cross_entropy], parallel_ctx: "ParallelExecutionCtx"
+    ):
+        return super().create_parallel_cross_entropy(mod_or_fn, parallel_ctx)
 
     def post_process(
         self, graph_module: GraphModule, parallel_ctx: "ParallelExecutionCtx", config: "Config"

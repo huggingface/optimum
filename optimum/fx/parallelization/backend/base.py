@@ -183,6 +183,11 @@ class DefaultBackend(Backend):
 
         return VocabParallelEmbedding(parallel_ctx, mod)
 
+    def create_parallel_cross_entropy(
+        self, mod_or_fn: Union[nn.CrossEntropyLoss, F.cross_entropy], parallel_ctx: ParallelExecutionCtx
+    ):
+        return super().create_parallel_cross_entropy(mod_or_fn, parallel_ctx)
+
     def post_process(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> nn.Module:
         """
         Initialize or load parameters from checkpoint, and tie them if needed.
