@@ -38,7 +38,7 @@ from ..passes import (
 )
 
 
-class BackEnd(ABC):
+class Backend(ABC):
     @abstractmethod
     def create_column_parallel_linear(
         self,
@@ -85,7 +85,7 @@ class BackEnd(ABC):
     def pre_process(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> GraphModule:
         """
         Mark tie information right before we run passes because dynamo tracing will alter the parameter name while our
-        passes don't.
+        passes do not.
         """
         parameter_mp = {}
         for name, tensor in graph_module.named_parameters(remove_duplicate=False):
@@ -121,7 +121,7 @@ class BackEnd(ABC):
         )
 
 
-class DefaultBackend(BackEnd):
+class DefaultBackend(Backend):
     def create_column_parallel_linear(
         self,
         mod: nn.Linear,

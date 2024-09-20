@@ -22,7 +22,7 @@ import torch.nn as nn
 
 
 if TYPE_CHECKING:
-    from .backend import BackEnd
+    from .backend import Backend
 
 
 class HashableSlice:
@@ -115,7 +115,7 @@ class ParallelExecutionCtx:
         - current_device (`torch.device`):
             Device correpsonding to the current process.
 
-        - backend (`Optional[BackEnd]`, defaults to `None`):
+        - backend (`Optional[Backend]`, defaults to `None`):
             Backend instance which converts layers into their parallelized counterparts.
 
         - example_inputs (`List[Any]`):
@@ -146,7 +146,7 @@ class ParallelExecutionCtx:
 
     tp_group: dist.ProcessGroup
     current_device: torch.device
-    backend: Optional["BackEnd"] = None
+    backend: Optional["Backend"] = None
     example_inputs: List[Any] = field(default_factory=list)
     parallel_layer_cache: Dict[str, nn.Module] = field(default_factory=dict)
     param_cache: Dict[str, nn.Parameter] = field(default_factory=dict)

@@ -61,7 +61,7 @@ def parallelize_model(
             Parallel execution context containing process groups the current process belongs to.
         *model_args (`Any`):
             Additional postional arguments for intializing the model if a model id is passed.
-        model_id_or_path (`str`):
+        model_id_or_path (`Optional[str]`, defaults to `None`):
             Model to parallelize, a model id on the Huggingface Hub or path to a local directory containing config and weights
             of the model.
         model_cls (`Optional[Type[PreTrainedModel]]`, defaults to `None`):

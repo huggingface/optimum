@@ -22,13 +22,13 @@ import torch.nn as nn
 from torch.fx import GraphModule
 
 from ..core import Config, ParallelExecutionCtx, ParameterMeta
-from .base import BackEnd
+from .base import Backend
 
 
 # Check if nanotron is installed
 _nanotron_available = importlib.util.find_spec("nanotron") is not None
 
-if TYPE_CHECKING:
+if TYPE_CHECKING and _nanotron_available:
     from nanotron.config import Config as NanotronConfig
     from nanotron.parallel import ParallelContext
     from nanotron.parallel.tensor_parallel.nn import (
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     )
 
 
-class NanotronBackend(BackEnd):
+class NanotronBackend(Backend):
     """
     Backend class which glues optimum fx parallelization context and nanotron context.
     """
