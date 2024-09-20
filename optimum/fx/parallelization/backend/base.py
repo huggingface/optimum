@@ -99,7 +99,6 @@ class Backend(ABC):
         else:
             return sharded_cross_entropy_wrapper_fn(process_group=parallel_ctx.tp_group)
 
-    @abstractmethod
     def pre_process(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> GraphModule:
         """
         Mark tie information right before we run passes because dynamo tracing will alter the parameter name while our
@@ -115,7 +114,6 @@ class Backend(ABC):
                 param_meta.tied_to = parameter_mp[key]
         return graph_module
 
-    @abstractmethod
     def post_process(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> nn.Module:
         """
         This method is called after the parallelization passes have been applied. It is used to perform any backend-specific
@@ -123,7 +121,6 @@ class Backend(ABC):
         """
         return graph_module
 
-    @abstractmethod
     def init_parallelization_pass_pipeline(self) -> PassPipeline:
         """
         Ensemble a pass pipeline which contains the following passes:
