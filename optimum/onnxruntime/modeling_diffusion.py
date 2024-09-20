@@ -339,7 +339,7 @@ class ORTPipeline(ORTModel, ConfigMixin):
             **models,
             **sub_models,
             use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
+            model_save_dir=model_save_dir or model_save_path,
         )
 
     @classmethod
