@@ -27,6 +27,7 @@ from .decomp import decompose_and_functionalize
 from .op_registry import REGISTRY, FallbackParallelAxisPropagateHandler
 from .utils import (
     ensure_divisibility,
+    is_cross_entropy,
     is_embedding,
     is_linear,
     is_shape_consumer,
@@ -276,6 +277,11 @@ class ParallelLayerAnnotatePass(AnalyzeBase):
                     info["sequence_parallel"] = False
                 self.place_marker_per_node(node, info)
 
+            elif is_cross_entropy(node):
+                axis_before = ParallelAxisSolverPass.get_stored_field_info(node.args[0], "parallel_axis")
+                if axis_before is not None:
+                    self.place_marker_per_node(node, {"axis": "vocab"})
+
         return graph_module
 
 
@@ -383,7 +389,38 @@ class ParallelLayerReplacePass(PassBase):
             layer_cache[key] = new_mod
         setattr(parent_mod, field, new_mod)
 
-    def handle_hard_coded_axis_param(self, node: Node, ctx: "ParallelExecutionCtx") -> None:
+    @staticmethod
+    def handle_cross_entropy(node: Node, ctx: "ParallelExecutionCtx") -> None:
+        axis = ParallelLayerAnnotatePass.get_stored_field_info(node, field="axis")
+        if axis is None:
+            return
+
+        assert axis in {"vocab"}, "Only support parallelization on vocab dim for now."
+        backend = ctx.backend
+        if node.op == "call_module":
+            graph_module = node.graph.owning_module
+            prefix_and_field = node.target.rsplit(".", maxsplit=1)
+            if len(prefix_and_field) == 2:
+                parent_mod = graph_module.get_submodule(prefix_and_field[0])
+                field = prefix_and_field[1]
+            else:
+                parent_mod = graph_module
+                field = node.target
+
+            mod: nn.CrossEntropyLoss = graph_module.get_submodule(node.target)
+            key, layer_cache = node.target, ctx.parallel_layer_cache
+            if key in layer_cache:
+                new_mod = layer_cache[key]
+            else:
+                assert ctx.compile_times == 0, "illegal path for recompilation"
+                new_mod = backend.create_parallel_cross_entropy(mod, ctx)
+                layer_cache[key] = new_mod
+            setattr(parent_mod, field, new_mod)
+        else:
+            node.target = backend.create_parallel_cross_entropy(node.target, ctx)
+
+    @staticmethod
+    def handle_hard_coded_axis_param(node: Node, ctx: "ParallelExecutionCtx") -> None:
         def extract_shape_from_node(node: Node) -> List[Any]:
             if "size" in node.kwargs:
                 return list(node.kwargs["size"])
@@ -423,6 +460,8 @@ class ParallelLayerReplacePass(PassBase):
                 self.handle_linear(node, ctx)
             elif is_embedding(node):
                 self.handle_embedding(node, ctx)
+            elif is_cross_entropy(node):
+                self.handle_cross_entropy(node, ctx)
             # correct the attention head num in parallel setting
             elif is_shape_consumer(node):
                 self.handle_hard_coded_axis_param(node, ctx)

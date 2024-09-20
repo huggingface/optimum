@@ -13,16 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.fx import GraphModule
 
 from ..core import Config, ParallelExecutionCtx, ParameterMeta
 from ..distributed import scatter
-from ..parallel_layers import ColumnParallelLinear, RowParallelLinear, VocabParallelEmbedding
+from ..parallel_layers import (
+    ColumnParallelLinear,
+    RowParallelLinear,
+    VocabParallelEmbedding,
+    VocabParallelCrossEntropyLoss,
+    sharded_cross_entropy_wrapper_fn,
+)
 from ..passes import (
     ParallelAxisSolverPass,
     ParallelLayerAnnotatePass,
@@ -63,6 +70,17 @@ class BackEnd(ABC):
         contiguous_chunks: Optional[Tuple[int]] = None,
     ) -> nn.Module:
         raise NotImplementedError
+
+    @abstractmethod
+    def create_parallel_cross_entropy(
+        self,
+        mod_or_fn: Union[nn.CrossEntropyLoss, F.cross_entropy],
+        parallel_ctx: "ParallelExecutionCtx",
+    ):
+        if isinstance(mod_or_fn, nn.CrossEntropyLoss):
+            return VocabParallelCrossEntropyLoss(ctx=parallel_ctx, reduction=mod_or_fn.reduction)
+        else:
+            return sharded_cross_entropy_wrapper_fn(process_group=parallel_ctx.tp_group)
 
     def pre_process(self, graph_module: GraphModule, ctx: "ParallelExecutionCtx", config: "Config") -> GraphModule:
         """

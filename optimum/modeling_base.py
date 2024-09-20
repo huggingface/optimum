@@ -85,7 +85,6 @@ class PreTrainedModel(ABC):  # noqa: F811
 
 class OptimizedModel(PreTrainedModel):
     config_class = AutoConfig
-    load_tf_weights = None
     base_model_prefix = "optimized_model"
     config_name = CONFIG_NAME
 
@@ -378,10 +377,14 @@ class OptimizedModel(PreTrainedModel):
                 )
             model_id, revision = model_id.split("@")
 
-        library_name = TasksManager.infer_library_from_model(model_id, subfolder, revision, cache_dir, token=token)
+        library_name = TasksManager.infer_library_from_model(
+            model_id, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+        )
 
         if library_name == "timm":
-            config = PretrainedConfig.from_pretrained(model_id, subfolder, revision)
+            config = PretrainedConfig.from_pretrained(
+                model_id, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+            )
 
         if config is None:
             if os.path.isdir(os.path.join(model_id, subfolder)) and cls.config_name == CONFIG_NAME:

@@ -89,15 +89,8 @@ from optimum.onnxruntime import (
     ORTModelForSpeechSeq2Seq,
     ORTModelForTokenClassification,
     ORTModelForVision2Seq,
-    ORTStableDiffusionPipeline,
 )
 from optimum.onnxruntime.base import ORTDecoderForSeq2Seq, ORTEncoder
-from optimum.onnxruntime.modeling_diffusion import (
-    ORTModelTextEncoder,
-    ORTModelUnet,
-    ORTModelVaeDecoder,
-    ORTModelVaeEncoder,
-)
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.pipelines import pipeline
 from optimum.utils import (
@@ -108,7 +101,24 @@ from optimum.utils import (
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
     logging,
 )
-from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm
+from optimum.utils.import_utils import is_diffusers_available
+from optimum.utils.testing_utils import (
+    grid_parameters,
+    remove_directory,
+    require_diffusers,
+    require_hf_token,
+    require_ort_rocm,
+)
+
+
+if is_diffusers_available():
+    from optimum.onnxruntime.modeling_diffusion import (
+        ORTModelTextEncoder,
+        ORTModelUnet,
+        ORTModelVaeDecoder,
+        ORTModelVaeEncoder,
+        ORTStableDiffusionPipeline,
+    )
 
 
 logger = logging.get_logger()
@@ -205,6 +215,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         with self.assertRaises(Exception):
             _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
+    @require_diffusers
     def test_load_stable_diffusion_model_from_cache(self):
         _ = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)  # caching
 
@@ -218,6 +229,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
 
+    @require_diffusers
     def test_load_stable_diffusion_model_from_empty_cache(self):
         dirpath = os.path.join(
             default_cache_path, "models--" + self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID.replace("/", "--")
@@ -300,6 +312,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="FooExecutionProvider")
 
+    @require_diffusers
     def test_load_stable_diffusion_model_from_hub(self):
         model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)
         self.assertIsInstance(model.text_encoder, ORTModelTextEncoder)
@@ -308,6 +321,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
 
+    @require_diffusers
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_load_stable_diffusion_model_cuda_provider(self):
@@ -321,6 +335,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cuda:0"))
 
+    @require_diffusers
     @require_torch_gpu
     @require_ort_rocm
     @pytest.mark.rocm_ep_test
@@ -335,6 +350,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cuda:0"))
 
+    @require_diffusers
     def test_load_stable_diffusion_model_cpu_provider(self):
         model = ORTStableDiffusionPipeline.from_pretrained(
             self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID, provider="CPUExecutionProvider"
@@ -346,6 +362,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cpu"))
 
+    @require_diffusers
     def test_load_stable_diffusion_model_unknown_provider(self):
         with self.assertRaises(ValueError):
             ORTStableDiffusionPipeline.from_pretrained(
@@ -478,6 +495,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.encoder.session.get_session_options().intra_op_num_threads, 3)
         self.assertEqual(model.decoder.session.get_session_options().intra_op_num_threads, 3)
 
+    @require_diffusers
     def test_passing_session_options_stable_diffusion(self):
         options = onnxruntime.SessionOptions()
         options.intra_op_num_threads = 3
@@ -772,6 +790,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.decoder_with_past.session.get_providers()[0], "ROCMExecutionProvider")
         self.assertListEqual(model.providers, ["ROCMExecutionProvider", "CPUExecutionProvider"])
 
+    @require_diffusers
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_passing_provider_options_stable_diffusion(self):
@@ -810,6 +829,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model.vae_encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
         )
 
+    @require_diffusers
     def test_stable_diffusion_model_on_cpu(self):
         model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)
         cpu = torch.device("cpu")
@@ -825,7 +845,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.vae_encoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertListEqual(model.providers, ["CPUExecutionProvider"])
 
-    # test string device input for to()
+    @require_diffusers
     def test_stable_diffusion_model_on_cpu_str(self):
         model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)
         cpu = torch.device("cpu")
@@ -841,6 +861,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.vae_encoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertListEqual(model.providers, ["CPUExecutionProvider"])
 
+    @require_diffusers
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_stable_diffusion_model_on_gpu(self):
@@ -858,6 +879,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.vae_encoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
 
+    @require_diffusers
     @require_torch_gpu
     @require_ort_rocm
     @pytest.mark.rocm_ep_test
@@ -876,6 +898,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.vae_encoder.session.get_providers()[0], "ROCMExecutionProvider")
         self.assertListEqual(model.providers, ["ROCMExecutionProvider", "CPUExecutionProvider"])
 
+    @require_diffusers
     @unittest.skipIf(get_gpu_count() <= 1, "this test requires multi-gpu")
     def test_stable_diffusion_model_on_gpu_id(self):
         model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)
@@ -899,7 +922,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.vae_decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
         self.assertEqual(model.vae_encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
 
-    # test string device input for to()
+    @require_diffusers
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_stable_diffusion_model_on_gpu_str(self):
@@ -916,6 +939,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.vae_encoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
 
+    @require_diffusers
     @require_torch_gpu
     @require_ort_rocm
     @pytest.mark.rocm_ep_test
@@ -975,6 +999,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
             self.assertTrue(CONFIG_NAME in folder_contents)
 
+    @require_diffusers
     def test_save_stable_diffusion_model(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)
@@ -1050,6 +1075,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
             remove_directory(tmpdirname)
 
+    @require_diffusers
     def test_save_load_stable_diffusion_model_with_external_data(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
@@ -1180,6 +1206,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             )
             os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
+    @require_diffusers
     @require_hf_token
     def test_push_stable_diffusion_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:

@@ -268,3 +268,34 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 ```
 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).
+
+
+### Quanto
+
+[Quanto](https://github.com/huggingface/optimum-quanto) is a pytorch quantization backend.
+
+You can quantize a model either using the python API or the `optimum-cli`.
+
+```python
+from transformers import AutoModelForCausalLM
+from optimum.quanto import QuantizedModelForCausalLM, qint4
+
+model = AutoModelForCausalLM.from_pretrained('meta-llama/Meta-Llama-3.1-8B')
+qmodel = QuantizedModelForCausalLM.quantize(model, weights=qint4, exclude='lm_head')
+```
+
+The quantized model can be saved using `save_pretrained`:
+
+```python
+qmodel.save_pretrained('./Llama-3.1-8B-quantized')
+```
+
+It can later be reloaded using `from_pretrained`:
+
+```python
+from optimum.quanto import QuantizedModelForCausalLM
+
+qmodel = QuantizedModelForCausalLM.from_pretrained('Llama-3.1-8B-quantized')
+```
+
+You can see more details and [examples](https://github.com/huggingface/optimum-quanto/tree/main/examples) in the [Quanto](https://github.com/huggingface/optimum-quanto) repository.

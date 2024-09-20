@@ -46,7 +46,6 @@ from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
 from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
-from ..utils.normalized_config import NormalizedConfigManager
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .base import ORTDecoderForSeq2Seq, ORTEncoder
 from .constants import (
@@ -70,16 +69,6 @@ if check_if_transformers_greater("4.25.0"):
     from transformers.generation import GenerationMixin
 else:
     from transformers.generation_utils import GenerationMixin
-
-
-# if check_if_transformers_greater("4.37.0"):
-#     # starting from transformers v4.37.0, the whisper generation loop is implemented in the `WhisperGenerationMixin`
-#     # and it implements many new features including short and long form generation, and starts with 2 init tokens
-#     from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
-# else:
-
-#     class WhisperGenerationMixin(WhisperForConditionalGeneration, GenerationMixin):
-#         pass
 
 
 if check_if_transformers_greater("4.43.0"):
@@ -1165,49 +1154,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     auto_model_class = AutoModelForSeq2SeqLM
     main_input_name = "input_ids"
 
-    def __init__(
-        self,
-        encoder_session: ort.InferenceSession,
-        decoder_session: ort.InferenceSession,
-        config: "PretrainedConfig",
-        onnx_paths: List[str],
-        decoder_with_past_session: Optional[ort.InferenceSession] = None,
-        use_cache: bool = True,
-        use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
-        generation_config: Optional[GenerationConfig] = None,
-        **kwargs,
-    ):
-        super().__init__(
-            encoder_session,
-            decoder_session,
-            config,
-            onnx_paths,
-            decoder_with_past_session,
-            use_cache,
-            use_io_binding,
-            model_save_dir,
-            preprocessors,
-            generation_config,
-            **kwargs,
-        )
-
-        # The normalized_config initialization in ORTModelPart is unfortunately wrong as the top level config is initialized.
-        if config.model_type == "encoder-decoder":
-            self.encoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-                config.encoder.model_type
-            )(config.encoder)
-
-            self.decoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-                config.decoder.model_type
-            )(config.decoder)
-
-            if self.decoder_with_past is not None:
-                self.decoder_with_past.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-                    config.decoder.model_type
-                )(config.decoder)
-
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoder(session, self)
 
@@ -1520,20 +1466,6 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
             generation_config,
             **kwargs,
         )
-
-        # The normalized_config initialization in ORTModelPart is unfortunately wrong as the top level config is initialized.
-        self.encoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-            config.encoder.model_type
-        )(config.encoder)
-
-        self.decoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-            config.decoder.model_type
-        )(config.decoder)
-
-        if self.decoder_with_past is not None:
-            self.decoder_with_past.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-                config.decoder.model_type
-            )(config.decoder)
 
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoderForVisionEncoderDecoder(session, self)
