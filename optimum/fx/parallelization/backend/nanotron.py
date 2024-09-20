@@ -152,6 +152,10 @@ class NanotronBackend(Backend):
     def post_process(
         self, graph_module: GraphModule, parallel_ctx: "ParallelExecutionCtx", config: "Config"
     ) -> nn.Module:
+        """
+        Convert parameters to `NanotronParameter` and tie them if needed. Note that we don't initialize or load weights here
+        because nanotron will do that for us in the trainer class.
+        """
         from nanotron.parallel.parameters import NanotronParameter
         from nanotron.parallel.tied_parameters import tie_parameters
 
