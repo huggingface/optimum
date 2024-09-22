@@ -811,12 +811,14 @@ class DetaDummyInputGenerator(DummyVisionInputGenerator):
             **kwargs,
         )
 
-        from transformers.onnx.utils import get_preprocessor
+        # from transformers.onnx.utils import get_preprocessor
 
-        preprocessor = get_preprocessor(normalized_config._name_or_path)
-        if preprocessor is not None and hasattr(preprocessor, "crop_size"):
-            self.height = preprocessor.crop_size.get("height", self.height)
-            self.width = preprocessor.crop_size.get("width", self.width)
+        # preprocessor = get_preprocessor(normalized_config._name_or_path)
+        # if preprocessor is not None and hasattr(preprocessor, "crop_size"):
+        #     self.height = preprocessor.crop_size.get("height", self.height)
+        #     self.width = preprocessor.crop_size.get("width", self.width)
+        self.width = 1066
+        self.height = 800
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         input_ = super().generate(
