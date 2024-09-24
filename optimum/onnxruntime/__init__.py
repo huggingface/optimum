@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from transformers.utils import OptionalDependencyNotAvailable, _LazyModule
 
-from optimum.utils import is_diffusers_available
+from ..utils import is_diffusers_available
 
 
 _import_structure = {

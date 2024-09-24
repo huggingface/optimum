@@ -2218,7 +2218,7 @@ class ORTModelForImageToImage(ORTModel):
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
         + IMAGE_TO_IMAGE_EXAMPLE.format(
-            processor_class=_PROCESSOR_FOR_IMAGE,
+            processor_class=_PROCESSOR_FOR_DOC,
             model_class="ORTModelForImgageToImage",
             checkpoint="caidas/swin2SR-realworld-sr-x4-64-bsrgan-psnr",
         )

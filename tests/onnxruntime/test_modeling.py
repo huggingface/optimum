@@ -4732,17 +4732,17 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [False], "use_merged": [False]})
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES})
     )
-    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+    def test_compare_to_transformers(self, test_name: str, model_arch: str):
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForImageToImage.from_pretrained(model_id)
+        self._setup({"test_name": test_name, "model_arch": model_arch})
+        onnx_model = ORTModelForImageToImage.from_pretrained(model_id, export=True)
         self.assertIsInstance(onnx_model.config, Swin2SRConfig)
         set_seed(SEED)
 
-        model_id_transformer = "caidas/swin2SR-lightweight-x2-64"
-        transformers_model = AutoModelForImageToImage.from_pretrained(model_id_transformer)
-        image_processor = self._get_preprocessors(model_id_transformer)
+        transformers_model = AutoModelForImageToImage.from_pretrained(model_id)
+        image_processor = self._get_preprocessors(model_id)
 
         data = self._get_sample_image()
         features = image_processor(data, return_tensors="pt")
@@ -4759,11 +4759,12 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [False], "use_merged": [False]})
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES})
     )
-    def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str, use_merged: str):
+    def test_generate_utils(self, test_name: str, model_arch: str):
         model_id = MODEL_NAMES[model_arch]
-        model = ORTModelForImageToImage.from_pretrained(model_id)
+        self._setup({"test_name": test_name, "model_arch": model_arch})
+        model = ORTModelForImageToImage.from_pretrained(model_id, export=True)
         image_processor = self._get_preprocessors(model_id)
 
         data = self._get_sample_image()
@@ -4775,13 +4776,13 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [False], "use_merged": [False]})
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES})
     )
-    def test_pipeline_image_to_image(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+    def test_pipeline_image_to_image(self, test_name: str, model_arch: str):
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForImageToImage.from_pretrained(model_id)
+        self._setup({"test_name": test_name, "model_arch": model_arch})
+        onnx_model = ORTModelForImageToImage.from_pretrained(model_id, export=True)
         image_processor = self._get_preprocessors(model_id)
-
         pipe = pipeline(
             "image-to-image",
             model=onnx_model,
@@ -4794,12 +4795,13 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [False]}))
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES}))
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, use_cache: bool):
+    def test_pipeline_on_gpu(self, test_name: str, model_arch: str):
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForImageToImage.from_pretrained(model_id)
+        self._setup({"test_name": test_name, "model_arch": model_arch})
+        onnx_model = ORTModelForImageToImage.from_pretrained(model_id, export=True)
         image_processor = self._get_preprocessors(model_id)
         pipe = pipeline(
             "image-to-image",
@@ -4815,14 +4817,15 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(outputs, Image.Image)
 
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [False], "use_merged": [False]})
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES})
     )
     @require_torch_gpu
     @require_ort_rocm
     @pytest.mark.rocm_ep_test
-    def test_pipeline_on_rocm(self, test_name: str, model_arch: str, use_cache: bool):
+    def test_pipeline_on_rocm(self, test_name: str, model_arch: str):
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForImageToImage.from_pretrained(model_id)
+        self._setup({"test_name": test_name, "model_arch": model_arch})
+        onnx_model = ORTModelForImageToImage.from_pretrained(model_id, export=True)
         image_processor = self._get_preprocessors(model_id)
         pipe = pipeline(
             "image-to-image",

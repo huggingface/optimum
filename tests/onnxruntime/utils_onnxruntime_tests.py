@@ -144,7 +144,7 @@ MODEL_NAMES = {
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "swin-window": "yujiepan/tiny-random-swin-patch4-window7-224",
-    "swin2sr": "h3110Fr13nd/swin2sr-lightweight-2x-onnx",
+    "swin2sr": "hf-internal-testing/tiny-random-Swin2SRForImageSuperResolution",
     "t5": "hf-internal-testing/tiny-random-t5",
     "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
     "trocr": "microsoft/trocr-small-handwritten",
