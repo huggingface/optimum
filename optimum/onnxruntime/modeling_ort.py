@@ -88,7 +88,6 @@ logger = logging.getLogger(__name__)
 
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
 _FEATURE_EXTRACTOR_FOR_DOC = "AutoFeatureExtractor"
-_PROCESSOR_FOR_IMAGE = "AutoImageProcessor"
 _PROCESSOR_FOR_DOC = "AutoProcessor"
 
 ONNX_MODEL_END_DOCSTRING = r"""

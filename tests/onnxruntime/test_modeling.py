@@ -4731,9 +4731,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
 
         self.assertIn("only supports the tasks", str(context.exception))
 
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES})
-    )
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES}))
     def test_compare_to_transformers(self, test_name: str, model_arch: str):
         model_id = MODEL_NAMES[model_arch]
         self._setup({"test_name": test_name, "model_arch": model_arch})
@@ -4758,9 +4756,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES})
-    )
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES}))
     def test_generate_utils(self, test_name: str, model_arch: str):
         model_id = MODEL_NAMES[model_arch]
         self._setup({"test_name": test_name, "model_arch": model_arch})
@@ -4775,9 +4771,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES})
-    )
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES}))
     def test_pipeline_image_to_image(self, test_name: str, model_arch: str):
         model_id = MODEL_NAMES[model_arch]
         self._setup({"test_name": test_name, "model_arch": model_arch})
@@ -4816,9 +4810,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         self.assertEqual(pipe.model.device.type.lower(), "cuda")
         self.assertIsInstance(outputs, Image.Image)
 
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES})
-    )
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES}))
     @require_torch_gpu
     @require_ort_rocm
     @pytest.mark.rocm_ep_test
