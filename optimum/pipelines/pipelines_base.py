@@ -162,7 +162,7 @@ if is_onnxruntime_available():
         "image-to-image": {
             "impl": ImageToImagePipeline,
             "class": (ORTModelForImageToImage,),
-            "default": "h3110Fr13nd/swin2sr-lightweight-2x-onnx",
+            "default": "caidas/swin2SR-classical-sr-x2-64",
             "type": "image",
         },
     }
