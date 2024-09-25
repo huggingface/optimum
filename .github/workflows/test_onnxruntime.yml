@@ -42,7 +42,6 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install git+https://github.com/huggingface/transformers
           pip install .[tests,onnxruntime]
 
       - name: Test with pytest (in series)

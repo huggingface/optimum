@@ -207,9 +207,10 @@ def codegen_wrapped_scaled_dot_product(
         # causal_mask is always [True, ..., True] otherwise, so executing this
         # is unnecessary
         if query_length > 1:
-
             if not check_if_transformers_greater("4.44.99"):
-                causal_mask = self.causal_mask[:, :, key_length - query_length : key_length, :key_length].to(torch.bool)
+                causal_mask = self.causal_mask[:, :, key_length - query_length : key_length, :key_length].to(
+                    torch.bool
+                )
 
                 causal_mask = torch.where(causal_mask, 0, mask_value)
 
@@ -219,7 +220,6 @@ def codegen_wrapped_scaled_dot_product(
                 # we use torch.min to avoid having tensor(-inf)
                 attention_mask = torch.min(causal_mask, attention_mask)
             else:
-
                 attention_mask = attention_mask[:, :, :, : key.shape[-2]]
 
         sdpa_result = torch.nn.functional.scaled_dot_product_attention(
@@ -227,7 +227,6 @@ def codegen_wrapped_scaled_dot_product(
         )
 
     return sdpa_result, None
-
 
 
 # Adapted from transformers.models.opt.modeling_opt.OPTAttention.forward

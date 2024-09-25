@@ -724,6 +724,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         super()._save_pretrained(save_directory)
         self.generation_config.save_pretrained(save_directory)
 
+
 class ORTGPTBigCodeForCausalLM(ORTModelForCausalLM):
     # Adapted from transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBigCodeForCausalLM.prepare_inputs_for_generation
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
