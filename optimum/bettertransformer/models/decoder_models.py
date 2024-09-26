@@ -238,11 +238,15 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGen
             super(BetterTransformerBaseLayer, self).__init__(config)
 
         self.module_mapping = None
-        submodules = ["attn_dropout", "resid_dropout", "qkv_proj", "out_proj", "causal_mask", "scale_attn"]
+        submodules = ["attn_dropout", "resid_dropout", "qkv_proj", "out_proj", "scale_attn"]
 
         # Attribute only for transformers>=4.28
         if hasattr(layer, "embed_positions"):
             submodules.append("embed_positions")
+
+        # Attribute only for transformers<4.45
+        if hasattr(layer, "causal_mask"):
+            submodules.append("causal_mask")
 
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
