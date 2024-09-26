@@ -42,6 +42,7 @@ from transformers import (
     AutoModelForCausalLM,
     AutoModelForCTC,
     AutoModelForImageClassification,
+    AutoModelForImageToImage,
     AutoModelForMaskedLM,
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
@@ -57,7 +58,9 @@ from transformers import (
     PretrainedConfig,
     set_seed,
 )
+from transformers.modeling_outputs import ImageSuperResolutionOutput
 from transformers.modeling_utils import no_init_weights
+from transformers.models.swin2sr.configuration_swin2sr import Swin2SRConfig
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu, slow
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
@@ -79,6 +82,7 @@ from optimum.onnxruntime import (
     ORTModelForCustomTasks,
     ORTModelForFeatureExtraction,
     ORTModelForImageClassification,
+    ORTModelForImageToImage,
     ORTModelForMaskedLM,
     ORTModelForMultipleChoice,
     ORTModelForPix2Struct,
@@ -4704,6 +4708,136 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
 
+class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = ["swin2sr"]
+
+    ORTMODEL_CLASS = ORTModelForImageToImage
+
+    TASK = "image-to-image"
+
+    def _get_sample_image(self):
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        image = Image.open(requests.get(url, stream=True).raw)
+        return image
+
+    def _get_preprocessors(self, model_id):
+        image_processor = AutoImageProcessor.from_pretrained(model_id)
+
+        return image_processor
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = ORTModelForImageToImage.from_pretrained(MODEL_NAMES["bert"], export=True)
+
+        self.assertIn("only supports the tasks", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_to_transformers(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForImageToImage.from_pretrained(self.onnx_model_dirs[model_arch])
+        self.assertIsInstance(onnx_model.config, Swin2SRConfig)
+        set_seed(SEED)
+
+        transformers_model = AutoModelForImageToImage.from_pretrained(model_id)
+        image_processor = self._get_preprocessors(model_id)
+
+        data = self._get_sample_image()
+        features = image_processor(data, return_tensors="pt")
+
+        with torch.no_grad():
+            transformers_outputs = transformers_model(**features)
+
+        onnx_outputs = onnx_model(**features)
+        self.assertIsInstance(onnx_outputs, ImageSuperResolutionOutput)
+        self.assertTrue("reconstruction" in onnx_outputs)
+        self.assertIsInstance(onnx_outputs.reconstruction, torch.Tensor)
+        self.assertTrue(torch.allclose(onnx_outputs.reconstruction, transformers_outputs.reconstruction, atol=1e-4))
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_generate_utils(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForImageToImage.from_pretrained(self.onnx_model_dirs[model_arch])
+        image_processor = self._get_preprocessors(model_id)
+
+        data = self._get_sample_image()
+        features = image_processor(data, return_tensors="pt")
+
+        outputs = onnx_model(**features)
+        self.assertIsInstance(outputs, ImageSuperResolutionOutput)
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_pipeline_image_to_image(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForImageToImage.from_pretrained(self.onnx_model_dirs[model_arch])
+        image_processor = self._get_preprocessors(model_id)
+        pipe = pipeline(
+            "image-to-image",
+            model=onnx_model,
+            feature_extractor=image_processor,
+        )
+        data = self._get_sample_image()
+        outputs = pipe(data)
+        self.assertEqual(pipe.device, onnx_model.device)
+        self.assertIsInstance(outputs, Image.Image)
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
+    def test_pipeline_on_gpu(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForImageToImage.from_pretrained(self.onnx_model_dirs[model_arch])
+        image_processor = self._get_preprocessors(model_id)
+        pipe = pipeline(
+            "image-to-image",
+            model=onnx_model,
+            feature_extractor=image_processor,
+            device=0,
+        )
+
+        data = self._get_sample_image()
+        outputs = pipe(data)
+
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
+        self.assertIsInstance(outputs, Image.Image)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    @require_ort_rocm
+    @pytest.mark.rocm_ep_test
+    def test_pipeline_on_rocm(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForImageToImage.from_pretrained(self.onnx_model_dirs[model_arch])
+        image_processor = self._get_preprocessors(model_id)
+        pipe = pipeline(
+            "image-to-image",
+            model=onnx_model,
+            feature_extractor=image_processor,
+            device=0,
+        )
+
+        data = self._get_sample_image()
+        outputs = pipe(data)
+
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
+        self.assertIsInstance(outputs, Image.Image)
+
+
 class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = ["vision-encoder-decoder", "trocr", "donut"]
 
@@ -4831,7 +4965,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
                         len(onnx_outputs["past_key_values"][0]), len(transformers_outputs["past_key_values"][0])
                     )
                     for i in range(len(onnx_outputs["past_key_values"])):
-                        print(onnx_outputs["past_key_values"][i])
                         for ort_pkv, trfs_pkv in zip(
                             onnx_outputs["past_key_values"][i], transformers_outputs["past_key_values"][i]
                         ):
@@ -5517,6 +5650,7 @@ class TestBothExportersORTModel(unittest.TestCase):
             ["automatic-speech-recognition", ORTModelForCTCIntegrationTest],
             ["audio-xvector", ORTModelForAudioXVectorIntegrationTest],
             ["audio-frame-classification", ORTModelForAudioFrameClassificationIntegrationTest],
+            ["image-to-image", ORTModelForImageToImageIntegrationTest],
         ]
     )
     def test_find_untested_architectures(self, task: str, test_class):
