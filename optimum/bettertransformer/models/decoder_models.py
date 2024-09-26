@@ -96,13 +96,18 @@ class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttent
             "out_proj",
             "attn_dropout",
             "resid_dropout",
-            "bias",
             "scale_attn",
-            "masked_bias",
         ]
         # Attribute only for transformers>=4.28
         if hasattr(layer, "embed_positions"):
             submodules.append("embed_positions")
+
+        # Attribute only for transformers<4.45
+        if hasattr(layer, "bias"):
+            submodules.append("bias")
+        if hasattr(layer, "masked_bias"):
+            submodules.append("masked_bias")
+
 
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
