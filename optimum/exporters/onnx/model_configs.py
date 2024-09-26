@@ -564,6 +564,7 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
 
 
 class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
