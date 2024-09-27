@@ -2,12 +2,30 @@ name: ONNX Runtime / Python - ORT Training - Test
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - labeled
+      - unlabeled
+      - synchronize
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   do-the-job:
-    if: ${{ (github.event_name == 'workflow_dispatch') || contains( github.event.pull_request.labels.*.name, 'training')}}
+    if: ${{
+      (github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch') ||
+      contains( github.event.pull_request.labels.*.name, 'onnxruntime-training')
+      }}
 
     runs-on:
       group: aws-g6-4xlarge-plus

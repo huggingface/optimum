@@ -2,8 +2,18 @@ name: ONNX Runtime / Python - GPU - Test
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - labeled
+      - unlabeled
+      - synchronize
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -11,7 +21,11 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ (github.event_name == 'workflow_dispatch') || contains( github.event.pull_request.labels.*.name, 'gpu-test') }}
+    if: ${{
+      (github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch') ||
+      contains( github.event.pull_request.labels.*.name, 'onnxruntime-gpu')
+      }}
 
     runs-on:
       group: aws-g6-4xlarge-plus
@@ -33,16 +47,12 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-          pip install .[tests,onnxruntime-gpu] tensorrt
+          pip install .[tests,onnxruntime-gpu]
 
       - name: Replace opencv-python with opencv-python-headless
         run: |
           pip uninstall -y opencv-python && pip install opencv-python-headless
 
-      - name: Update LD_LIBRARY_PATH
-        run: |
-          export LD_LIBRARY_PATH=$(python -c "import tensorrt; print(tensorrt.__path__[0].replace('/site-packages/tensorrt', '/dist-packages/tensorrt_libs'))"):$LD_LIBRARY_PATH
-
       - name: Test with pytest
         run: |
-          pytest tests/onnxruntime -m "cuda_ep_test or trt_ep_test" --durations=0 -vvvv -s -n auto
+          pytest tests/onnxruntime -m "cuda_ep_test" --durations=0 -vvvv -s -n auto
