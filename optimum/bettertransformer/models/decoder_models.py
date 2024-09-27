@@ -43,8 +43,8 @@ from .attention import (
     bloom_forward,
     codegen_wrapped_scaled_dot_product,
     gpt2_wrapped_scaled_dot_product,
-    gptj_wrapped_scaled_dot_product,
     gpt_neo_wrapped_scaled_dot_product,
+    gptj_wrapped_scaled_dot_product,
     opt_forward,
     t5_forward,
 )
@@ -169,7 +169,7 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
 
         self.module_mapping = None
         submodules = ["attn_dropout", "resid_dropout", "k_proj", "v_proj", "q_proj", "out_proj", "bias", "masked_bias"]
-        
+
         # Attribute only for transformers>=4.45
         if hasattr(layer, "layer_idx"):
             submodules.append("layer_idx")
@@ -270,7 +270,7 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGen
         # Attribute only for transformers>=4.45
         if hasattr(layer, "layer_idx"):
             submodules.append("layer_idx")
-            
+
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 

@@ -91,6 +91,7 @@ def gpt2_wrapped_scaled_dot_product(
 
     return sdpa_result, None
 
+
 # Adapted from transformers.models.gptj.modeling_gptj.GPTJAttention._attn
 def gptj_wrapped_scaled_dot_product(
     self,
@@ -131,9 +132,7 @@ def gptj_wrapped_scaled_dot_product(
         # causal_mask is always [True, ..., True] otherwise, so executing this
         # is unnecessary
         if query_length > 1:
-
             if not check_if_transformers_greater("4.44.99"):
-
                 causal_mask = self.bias[:, :, key_length - query_length : key_length, :key_length].to(torch.bool)
 
                 causal_mask = torch.where(causal_mask, 0, mask_value)
