@@ -36,7 +36,5 @@ jobs:
           pip install .[tests,onnxruntime]
 
       - name: Test with pytest
-        env:
-          RUN_SLOW: 1
         run: |
-          pytest tests/onnxruntime -m "run_slow" --durations=0 -s -vvvv -n auto
+          RUN_SLOW=1 pytest tests/onnxruntime -m "run_slow" --durations=0 -s -vvvv -n auto
