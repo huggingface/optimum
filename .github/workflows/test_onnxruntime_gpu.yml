@@ -1,4 +1,4 @@
-name: ONNX Runtime / Python - GPU - Test
+name: ONNX Runtime GPU / Python - Test
 
 on:
   workflow_dispatch:
@@ -24,7 +24,7 @@ jobs:
     if: ${{
       (github.event_name == 'push') ||
       (github.event_name == 'workflow_dispatch') ||
-      contains( github.event.pull_request.labels.*.name, 'onnxruntime-gpu')
+      contains(github.event.pull_request.labels.*.name, 'onnxruntime-gpu')
       }}
 
     runs-on:

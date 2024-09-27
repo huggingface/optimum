@@ -1,4 +1,4 @@
-name: ONNX Runtime / Python - ORT Training - Test
+name: ONNX Runtime Training / Python - Test
 
 on:
   workflow_dispatch:
