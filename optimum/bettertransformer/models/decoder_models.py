@@ -171,8 +171,8 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
         submodules = ["attn_dropout", "resid_dropout", "k_proj", "v_proj", "q_proj", "out_proj", "bias", "masked_bias"]
 
         # Attribute only for transformers>=4.45
-        if hasattr(layer, "layer_idx"):
-            submodules.append("layer_idx")
+        if hasattr(layer, "layer_id"):
+            submodules.append("layer_id")
 
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
