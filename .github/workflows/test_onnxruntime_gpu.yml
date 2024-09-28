@@ -29,7 +29,7 @@ jobs:
       }}
 
     runs-on:
-      group: aws-g5-4xlarge-plus
+      group: aws-g6-4xlarge-plus
 
     container:
       image: nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
