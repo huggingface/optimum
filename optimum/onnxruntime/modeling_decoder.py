@@ -14,7 +14,6 @@
 """Classes handling causal-lm related architectures in ONNX Runtime."""
 
 import logging
-import warnings
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
@@ -149,6 +148,19 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             generation_config = GenerationConfig.from_model_config(config)
 
         self.generation_config = generation_config
+
+        if check_if_transformers_greater("4.44.99"):
+            misplaced_generation_parameters = self.config._get_non_default_generation_parameters()
+            if len(misplaced_generation_parameters) > 0:
+                logger.warning(
+                    "Moving the following attributes in the config to the generation config: "
+                    f"{misplaced_generation_parameters}. You are seeing this warning because you've set "
+                    "generation parameters in the model config, as opposed to in the generation config.",
+                )
+                for param_name, param_value in misplaced_generation_parameters.items():
+                    setattr(self.generation_config, param_name, param_value)
+                    setattr(self.config, param_name, None)
+
         self.onnx_paths = [self.model_path]
         self.use_merged = "use_cache_branch" in self.input_names
         self.model_type = self.config.model_type
@@ -393,7 +405,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -410,15 +421,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModelForCausalLM":
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
+        generation_config = kwargs.pop("generation_config", None)
         model_path = Path(model_id)
 
         # We do not implement the logic for use_cache=False, use_merged=True
@@ -586,6 +589,22 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         else:
             init_cls = ORTModelForCausalLM
 
+        if generation_config is None:
+            try:
+                generation_config = GenerationConfig.from_pretrained(
+                    model_id,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
+                    token=token,
+                    revision=revision,
+                    subfolder=subfolder,
+                )
+            except OSError:
+                logger.info(
+                    "Generation config file not found, using a generation config created from the model config."
+                )
+
         return init_cls(
             model=model,
             config=config,
@@ -593,6 +612,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
             use_cache=use_cache,
+            generation_config=generation_config,
         )
 
     @classmethod
@@ -600,7 +620,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         cls,
         model_id: str,
         config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: str = "main",
         force_download: bool = True,
@@ -616,15 +635,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModelForCausalLM":
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
         file_name = ONNX_WEIGHTS_NAME
 
         if use_merged:
@@ -655,8 +665,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             force_download=force_download,
             trust_remote_code=trust_remote_code,
         )
-
-        config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
         return cls._from_pretrained(
@@ -711,6 +719,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
             for layer_past in past
         )
+
+    def _save_pretrained(self, save_directory: Union[str, Path]):
+        super()._save_pretrained(save_directory)
+        self.generation_config.save_pretrained(save_directory)
 
 
 class ORTGPTBigCodeForCausalLM(ORTModelForCausalLM):

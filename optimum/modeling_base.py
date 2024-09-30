@@ -371,6 +371,9 @@ class OptimizedModel(PreTrainedModel):
             export = from_transformers
 
         if len(model_id.split("@")) == 2:
+            logger.warning(
+                f"Specifying the `revision` as @{model_id.split('@')[1]} is deprecated and will be removed in v1.23, please use the `revision` argument instead."
+            )
             if revision is not None:
                 logger.warning(
                     f"The argument `revision` was set to {revision} but will be ignored for {model_id.split('@')[1]}"
