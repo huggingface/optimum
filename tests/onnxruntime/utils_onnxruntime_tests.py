@@ -151,7 +151,7 @@ MODEL_NAMES = {
     "unispeech_sat": "hf-internal-testing/tiny-random-UnispeechSatModel",
     "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
     "vit": "hf-internal-testing/tiny-random-vit",
-    "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
+    "whisper": "optimum-internal-testing/tiny-random-whisper",
     "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
     "wavlm": "hf-internal-testing/tiny-random-WavlmModel",

@@ -3147,7 +3147,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         "wavlm",
         "wav2vec2",
         "wav2vec2-conformer",
-        # "whisper", saving of the model's config is broken in transformers v4.45.0
+        "whisper",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
