@@ -26,6 +26,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
+import transformers
 from transformers.modeling_utils import get_parameter_dtype
 from transformers.utils import is_tf_available, is_torch_available
 
@@ -1000,6 +1001,10 @@ def onnx_export_from_model(
     >>> onnx_export_from_model(model, output="gpt2_onnx/")
     ```
     """
+    if check_if_transformers_greater("4.44.99"):
+        raise ImportError(
+            f"ONNX conversion disabled for now for transformers version greater than v4.45, found {transformers.__version__}"
+        )
 
     TasksManager.standardize_model_attributes(model)
 
