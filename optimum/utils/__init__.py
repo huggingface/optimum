@@ -49,6 +49,7 @@ from .input_generators import (
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
     DummyCodegenDecoderTextInputGenerator,
+    DummyDecisionTransformerInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyEncodecInputGenerator,
     DummyInputGenerator,
