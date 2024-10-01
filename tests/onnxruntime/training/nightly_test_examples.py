@@ -25,7 +25,7 @@ from transformers.testing_utils import slow
 class ORTTrainerExampleTest(unittest.TestCase):
     def test_text_classification(self):
         subprocess.run(
-            "cp ../examples/onnxruntime/training/text-classification/run_glue.py ./",
+            "cp examples/onnxruntime/training/text-classification/run_glue.py ./",
             shell=True,
         )
 
@@ -51,7 +51,7 @@ class ORTTrainerExampleTest(unittest.TestCase):
 
     def test_token_classification(self):
         subprocess.run(
-            "cp ../examples/onnxruntime/training/token-classification/run_ner.py ./",
+            "cp examples/onnxruntime/training/token-classification/run_ner.py ./",
             shell=True,
         )
 
@@ -75,7 +75,7 @@ class ORTTrainerExampleTest(unittest.TestCase):
 
     def test_translation(self):
         subprocess.run(
-            "cp ../examples/onnxruntime/training/translation/run_translation.py ./",
+            "cp examples/onnxruntime/training/translation/run_translation.py ./",
             shell=True,
         )
 
@@ -105,7 +105,7 @@ class ORTTrainerExampleTest(unittest.TestCase):
     @pytest.mark.skip(reason="skip for now")
     def test_summarization(self):
         subprocess.run(
-            "cp ../examples/onnxruntime/training/summarization/run_summarization.py ./",
+            "cp examples/onnxruntime/training/summarization/run_summarization.py ./",
             shell=True,
         )
 
@@ -139,7 +139,7 @@ class ORTTrainerExampleTest(unittest.TestCase):
     @pytest.mark.skip(reason="skip for now")
     def test_question_answering(self):
         subprocess.run(
-            "cp ../examples/onnxruntime/training/question-answering/run_qa.py ./",
+            "cp examples/onnxruntime/training/question-answering/run_qa.py ./",
             shell=True,
         )
 
@@ -166,7 +166,7 @@ class ORTTrainerExampleTest(unittest.TestCase):
     @pytest.mark.skip(reason="skip for now")
     def test_language_modeling(self):
         subprocess.run(
-            "cp ../examples/onnxruntime/training/question-answering/run_qa.py ./",
+            "cp examples/onnxruntime/training/question-answering/run_qa.py ./",
             shell=True,
         )
 
@@ -194,7 +194,7 @@ class ORTTrainerExampleTest(unittest.TestCase):
     @pytest.mark.skip(reason="skip for now")
     def test_image_classification(self):
         subprocess.run(
-            "cp ../examples/onnxruntime/training/image-classification/run_image_classification.py ./",
+            "cp examples/onnxruntime/training/image-classification/run_image_classification.py ./",
             shell=True,
         )
 
