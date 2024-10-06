@@ -1104,6 +1104,10 @@ class TasksManager:
             onnx="RoFormerOnnxConfig",
             tflite="RoFormerTFLiteConfig",
         ),
+        "rt-detr": supported_tasks_mapping(
+            "object-detection",
+            onnx="RTDetrOnnxConfig",
+        ),
         "sam": supported_tasks_mapping(
             "feature-extraction",
             onnx="SamOnnxConfig",

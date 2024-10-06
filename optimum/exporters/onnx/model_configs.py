@@ -2098,7 +2098,8 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
     # so we won't support for now.
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         hidden_size="hidden_size",
-        num_attention_heads="encoder_attention_heads",  # TODO: bugged in case encoder and decoder have different number of heads
+        num_attention_heads="encoder_attention_heads",
+        # TODO: bugged in case encoder and decoder have different number of heads
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
         allow_new=True,
@@ -2648,3 +2649,15 @@ class PatchTSTOnnxConfig(OnnxConfig):
 
 class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
     pass
+
+
+class RTDetrOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 16
+    ATOL_FOR_VALIDATION = 1e-5
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "pixel_mask": {0: "batch_size"},
+        }
