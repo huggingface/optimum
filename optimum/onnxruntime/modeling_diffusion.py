@@ -170,8 +170,8 @@ class ORTPipeline(ORTModel, ConfigMixin):
     @staticmethod
     def load_model(
         unet_path: Union[str, Path],
+        vae_decoder_path: Optional[Union[str, Path]],
         vae_encoder_path: Optional[Union[str, Path]] = None,
-        vae_decoder_path: Optional[Union[str, Path]] = None,
         text_encoder_path: Optional[Union[str, Path]] = None,
         text_encoder_2_path: Optional[Union[str, Path]] = None,
         provider: str = "CPUExecutionProvider",
@@ -185,10 +185,10 @@ class ORTPipeline(ORTModel, ConfigMixin):
         Args:
             unet_path (`Union[str, Path]`):
                 The path to the U-NET ONNX model.
+            vae_decoder_path (`Union[str, Path]`):
+                The path to the VAE decoder ONNX model.
             vae_encoder_path (`Union[str, Path]`, defaults to `None`):
                 The path to the VAE encoder ONNX model.
-            vae_decoder_path (`Union[str, Path]`, defaults to `None`):
-                The path to the VAE decoder ONNX model.
             text_encoder_path (`Union[str, Path]`, defaults to `None`):
                 The path to the text encoder ONNX model.
             text_encoder_2_path (`Union[str, Path]`, defaults to `None`):
@@ -204,8 +204,8 @@ class ORTPipeline(ORTModel, ConfigMixin):
         """
         paths = {
             "unet": unet_path,
-            "vae_encoder": vae_encoder_path,
             "vae_decoder": vae_decoder_path,
+            "vae_encoder": vae_encoder_path,
             "text_encoder": text_encoder_path,
             "text_encoder_2": text_encoder_2_path,
         }
@@ -224,8 +224,8 @@ class ORTPipeline(ORTModel, ConfigMixin):
 
         models_to_save_paths = {
             self.unet: save_directory / DIFFUSION_MODEL_UNET_SUBFOLDER / ONNX_WEIGHTS_NAME,
-            self.vae_encoder: save_directory / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
             self.vae_decoder: save_directory / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
+            self.vae_encoder: save_directory / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
             self.text_encoder: save_directory / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
             self.text_encoder_2: save_directory / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER / ONNX_WEIGHTS_NAME,
         }
@@ -245,21 +245,20 @@ class ORTPipeline(ORTModel, ConfigMixin):
                     config_save_path = model_save_path.parent / CONFIG_NAME
                     shutil.copyfile(config_path, config_save_path)
 
+        self.tokenizer.save_pretrained(save_directory / "tokenizer")
         self.scheduler.save_pretrained(save_directory / "scheduler")
 
-        if self.tokenizer is not None:
-            self.tokenizer.save_pretrained(save_directory / "tokenizer")
-        if self.tokenizer_2 is not None:
-            self.tokenizer_2.save_pretrained(save_directory / "tokenizer_2")
         if self.feature_extractor is not None:
             self.feature_extractor.save_pretrained(save_directory / "feature_extractor")
+        if self.tokenizer_2 is not None:
+            self.tokenizer_2.save_pretrained(save_directory / "tokenizer_2")
 
     @classmethod
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
         config: Dict[str, Any],
-        subfolder: str = "",
+        subfolder: str = "",  # not used ?
         force_download: bool = False,
         local_files_only: bool = False,
         revision: Optional[str] = None,
@@ -420,11 +419,10 @@ class ORTPipeline(ORTModel, ConfigMixin):
 
         self.unet.session.set_providers([provider], provider_options=[provider_options])
 
+        self.vae_decoder.session.set_providers([provider], provider_options=[provider_options])
+
         if self.vae_encoder is not None:
             self.vae_encoder.session.set_providers([provider], provider_options=[provider_options])
-
-        if self.vae_decoder is not None:
-            self.vae_decoder.session.set_providers([provider], provider_options=[provider_options])
 
         if self.text_encoder is not None:
             self.text_encoder.session.set_providers([provider], provider_options=[provider_options])
@@ -601,12 +599,6 @@ class ORTModelTextEncoder(ORTPipelinePart):
 
 
 class ORTModelUnet(ORTPipelinePart):
-    # def __init__(self, session: ort.InferenceSession, parent_pipeline: ORTPipeline, subfolder: str):
-    #     super().__init__(session, parent_pipeline, subfolder)
-
-    #     if not hasattr(self.config, "time_cond_proj_dim"):
-    #         self.config = FrozenDict(**self.config, time_cond_proj_dim=None)
-
     def forward(
         self,
         sample: Union[np.ndarray, torch.Tensor],
@@ -644,31 +636,8 @@ class ORTModelUnet(ORTPipelinePart):
 
         return ModelOutput(**model_outputs)
 
-    @property
-    def add_embedding(self):
-        return FrozenDict(
-            linear_1=FrozenDict(
-                # this is a hacky way to get the attribute in add_embedding.linear_1.in_features
-                # (StableDiffusionXLImg2ImgPipeline/StableDiffusionXLInpaintPipeline)._get_add_time_ids
-                in_features=self.config.addition_time_embed_dim
-                * (
-                    5  # list(original_size + crops_coords_top_left + (aesthetic_score,))
-                    if self.parent_pipeline.config.requires_aesthetics_score
-                    else 6  # list(original_size + crops_coords_top_left + target_size)
-                )
-                + self.parent_pipeline.text_encoder.config.projection_dim
-            )
-        )
-
 
 class ORTModelVaeEncoder(ORTPipelinePart):
-    # def __init__(self, session: ort.InferenceSession, parent_pipeline: ORTPipeline, subfolder: str):
-    #     super().__init__(session, parent_pipeline, subfolder)
-
-    #     if not hasattr(self.config, "scaling_factor"):
-    #         scaling_factor = 2 ** (len(self.config.block_out_channels) - 1)
-    #         self.config = FrozenDict(**self.config, scaling_factor=scaling_factor)
-
     def forward(self, sample: Union[np.ndarray, torch.Tensor], return_dict: bool = False):
         use_torch = isinstance(sample, torch.Tensor)
 
@@ -693,13 +662,6 @@ class ORTModelVaeEncoder(ORTPipelinePart):
 
 
 class ORTModelVaeDecoder(ORTPipelinePart):
-    # def __init__(self, session: ort.InferenceSession, parent_pipeline: ORTPipeline, subfolder: str):
-    #     super().__init__(session, parent_pipeline, subfolder)
-
-    #     if not hasattr(self.config, "scaling_factor"):
-    #         scaling_factor = 2 ** (len(self.config.block_out_channels) - 1)
-    #         self.config = FrozenDict(**self.config, scaling_factor=scaling_factor)
-
     def forward(
         self,
         latent_sample: Union[np.ndarray, torch.Tensor],
@@ -794,6 +756,19 @@ class ORTStableDiffusionXLPipeline(ORTPipeline, StableDiffusionXLPipeline):
     main_input_name = "prompt"
     auto_model_class = StableDiffusionXLPipeline
 
+    def _get_add_time_ids(
+        self,
+        original_size,
+        crops_coords_top_left,
+        target_size,
+        dtype,
+        text_encoder_projection_dim=None,
+    ):
+        add_time_ids = list(original_size + crops_coords_top_left + target_size)
+
+        add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
+        return add_time_ids
+
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionXLImg2ImgPipeline(ORTPipeline, StableDiffusionXLImg2ImgPipeline):
@@ -804,6 +779,33 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTPipeline, StableDiffusionXLImg2ImgP
     main_input_name = "prompt"
     auto_model_class = StableDiffusionXLImg2ImgPipeline
 
+    def _get_add_time_ids(
+        self,
+        original_size,
+        crops_coords_top_left,
+        target_size,
+        aesthetic_score,
+        negative_aesthetic_score,
+        negative_original_size,
+        negative_crops_coords_top_left,
+        negative_target_size,
+        dtype,
+        text_encoder_projection_dim=None,
+    ):
+        if self.config.requires_aesthetics_score:
+            add_time_ids = list(original_size + crops_coords_top_left + (aesthetic_score,))
+            add_neg_time_ids = list(
+                negative_original_size + negative_crops_coords_top_left + (negative_aesthetic_score,)
+            )
+        else:
+            add_time_ids = list(original_size + crops_coords_top_left + target_size)
+            add_neg_time_ids = list(negative_original_size + crops_coords_top_left + negative_target_size)
+
+        add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
+        add_neg_time_ids = torch.tensor([add_neg_time_ids], dtype=dtype)
+
+        return add_time_ids, add_neg_time_ids
+
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTStableDiffusionXLInpaintPipeline(ORTPipeline, StableDiffusionXLInpaintPipeline):
@@ -813,6 +815,33 @@ class ORTStableDiffusionXLInpaintPipeline(ORTPipeline, StableDiffusionXLInpaintP
 
     main_input_name = "image"
     auto_model_class = StableDiffusionXLInpaintPipeline
+
+    def _get_add_time_ids(
+        self,
+        original_size,
+        crops_coords_top_left,
+        target_size,
+        aesthetic_score,
+        negative_aesthetic_score,
+        negative_original_size,
+        negative_crops_coords_top_left,
+        negative_target_size,
+        dtype,
+        text_encoder_projection_dim=None,
+    ):
+        if self.config.requires_aesthetics_score:
+            add_time_ids = list(original_size + crops_coords_top_left + (aesthetic_score,))
+            add_neg_time_ids = list(
+                negative_original_size + negative_crops_coords_top_left + (negative_aesthetic_score,)
+            )
+        else:
+            add_time_ids = list(original_size + crops_coords_top_left + target_size)
+            add_neg_time_ids = list(negative_original_size + crops_coords_top_left + negative_target_size)
+
+        add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
+        add_neg_time_ids = torch.tensor([add_neg_time_ids], dtype=dtype)
+
+        return add_time_ids, add_neg_time_ids
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
