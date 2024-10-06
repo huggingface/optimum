@@ -80,18 +80,17 @@ class ORTPipeline(ORTModel, ConfigMixin):
 
     def __init__(
         self,
-        # diffusers specific arguments
-        unet: Optional[ort.InferenceSession] = None,
-        vae_encoder: Optional[ort.InferenceSession] = None,
-        vae_decoder: Optional[ort.InferenceSession] = None,
-        text_encoder: Optional[ort.InferenceSession] = None,
-        text_encoder_2: Optional[ort.InferenceSession] = None,
-        image_encoder: Optional[ort.InferenceSession] = None,
-        safety_checker: Optional[ort.InferenceSession] = None,
-        scheduler: Optional["SchedulerMixin"] = None,
-        tokenizer: Optional["CLIPTokenizer"] = None,
-        tokenizer_2: Optional["CLIPTokenizer"] = None,
+        # diffusers mandatory arguments
+        tokenizer: Optional["CLIPTokenizer"],
+        scheduler: Optional["SchedulerMixin"],
+        unet_session: Optional[ort.InferenceSession],
+        vae_decoder_session: Optional[ort.InferenceSession],
+        # diffusers optional arguments
+        vae_encoder_session: Optional[ort.InferenceSession] = None,
+        text_encoder_session: Optional[ort.InferenceSession] = None,
+        text_encoder_2_session: Optional[ort.InferenceSession] = None,
         feature_extractor: Optional["CLIPFeatureExtractor"] = None,
+        tokenizer_2: Optional["CLIPTokenizer"] = None,
         # stable diffusion xl specific arguments
         requires_aesthetics_score: bool = False,
         force_zeros_for_empty_prompt: bool = True,
@@ -101,33 +100,37 @@ class ORTPipeline(ORTModel, ConfigMixin):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-        ############################################################################################################
-        self.unet = ORTModelUnet(unet, self, subfolder=DIFFUSION_MODEL_UNET_SUBFOLDER)
-        self.vae_encoder = (
-            ORTModelVaeEncoder(vae_encoder, self, subfolder=DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER)
-            if vae_encoder is not None
-            else None
+        if kwargs:
+            logger.warning(f"{self.__class__.__name__} received additional arguments that are not used.")
+
+        # mandatory components
+        self.unet = ORTModelUnet(unet_session, self, subfolder=DIFFUSION_MODEL_UNET_SUBFOLDER)
+        self.vae_decoder = ORTModelVaeDecoder(
+            vae_decoder_session, self, subfolder=DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER
         )
-        self.vae_decoder = (
-            ORTModelVaeDecoder(vae_decoder, self, subfolder=DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER)
-            if vae_decoder is not None
+
+        # optional components
+        self.vae_encoder = (
+            ORTModelVaeEncoder(vae_encoder_session, self, subfolder=DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER)
+            if vae_encoder_session is not None
             else None
         )
         self.text_encoder = (
-            ORTModelTextEncoder(text_encoder, self, subfolder=DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER)
-            if text_encoder is not None
+            ORTModelTextEncoder(text_encoder_session, self, subfolder=DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER)
+            if text_encoder_session is not None
             else None
         )
         self.text_encoder_2 = (
-            ORTModelTextEncoder(text_encoder_2, self, subfolder=DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER)
-            if text_encoder_2 is not None
+            ORTModelTextEncoder(text_encoder_2_session, self, subfolder=DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER)
+            if text_encoder_2_session is not None
             else None
         )
-        self.image_encoder = image_encoder  # TODO: maybe implement ORTModelImageEncoder
-        self.safety_checker = safety_checker  # TODO: maybe implement ORTModelSafetyChecker
 
         # We wrap the VAE encoder and decoder in a single object to simplify the API
         self.vae = ORTWrapperVae(self.vae_encoder, self.vae_decoder)
+
+        self.image_encoder = None  # TODO: maybe implement ORTModelImageEncoder
+        self.safety_checker = None  # TODO: maybe implement ORTModelSafetyChecker
 
         self.scheduler = scheduler
         self.tokenizer = tokenizer
@@ -155,14 +158,14 @@ class ORTPipeline(ORTModel, ConfigMixin):
             if key in all_possible_init_args:
                 diffusers_pipeline_args[key] = all_possible_init_args[key]
 
-        # init stuff like config, vae_scale_factor, image_processor, etc.
+        # inits stuff like config, vae_scale_factor, image_processor, etc.
         self.auto_model_class.__init__(self, **diffusers_pipeline_args)
+
         # not registered correctly in the config
         self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
         self.register_to_config(requires_aesthetics_score=requires_aesthetics_score)
-        ############################################################################################################
 
-        self.shared_attributes_init(model=unet, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
+        self.shared_attributes_init(model=unet_session, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
 
     @staticmethod
     def load_model(
