@@ -211,11 +211,11 @@ class ORTPipeline(ORTModel, ConfigMixin):
         }
 
         sessions = {}
-        for model_name, model_path in paths.items():
-            if model_path is not None and model_path.is_file():
-                sessions[model_name] = ORTModel.load_model(model_path, provider, session_options, provider_options)
+        for key, path in paths.items():
+            if path is not None and path.is_file():
+                sessions[f"{key}_session"] = ORTModel.load_model(path, provider, session_options, provider_options)
             else:
-                sessions[model_name] = None
+                sessions[f"{key}_session"] = None
 
         return sessions
 
@@ -321,8 +321,8 @@ class ORTPipeline(ORTModel, ConfigMixin):
 
         paths = {
             "unet_path": model_save_path / DIFFUSION_MODEL_UNET_SUBFOLDER / unet_file_name,
-            "vae_encoder_path": model_save_path / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / vae_encoder_file_name,
             "vae_decoder_path": model_save_path / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / vae_decoder_file_name,
+            "vae_encoder_path": model_save_path / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / vae_encoder_file_name,
             "text_encoder_path": model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / text_encoder_file_name,
             "text_encoder_2_path": model_save_path
             / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER
