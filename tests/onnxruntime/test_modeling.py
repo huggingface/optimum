@@ -227,6 +227,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
 
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
+
     @require_diffusers
     def test_load_stable_diffusion_model_from_empty_cache(self):
         dirpath = os.path.join(
@@ -319,6 +321,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
 
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
+
     @require_diffusers
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
@@ -332,6 +336,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_decoder.session.get_providers(), model.providers)
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cuda:0"))
+
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
 
     @require_diffusers
     @require_torch_gpu
@@ -348,6 +354,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cuda:0"))
 
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
+
     @require_diffusers
     def test_load_stable_diffusion_model_cpu_provider(self):
         model = ORTStableDiffusionPipeline.from_pretrained(
@@ -359,6 +367,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_decoder.session.get_providers(), model.providers)
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cpu"))
+
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
 
     @require_diffusers
     def test_load_stable_diffusion_model_unknown_provider(self):

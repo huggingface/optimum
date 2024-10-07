@@ -25,7 +25,7 @@ from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import torch
-from diffusers.configuration_utils import ConfigMixin, FrozenDict
+from diffusers.configuration_utils import ConfigMixin
 from diffusers.models.autoencoders.vae import DiagonalGaussianDistribution
 from diffusers.pipelines import (
     AutoPipelineForImage2Image,
@@ -100,27 +100,15 @@ class ORTPipeline(ORTModel, ConfigMixin):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-        self.unet = ORTModelUnet(unet_session, self, subfolder=DIFFUSION_MODEL_UNET_SUBFOLDER)
-        self.vae_decoder = ORTModelVaeDecoder(
-            vae_decoder_session, self, subfolder=DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER
-        )
-
-        self.vae_encoder = (
-            ORTModelVaeEncoder(vae_encoder_session, self, subfolder=DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER)
-            if vae_encoder_session is not None
-            else None
-        )
+        self.unet = ORTModelUnet(unet_session, self)
+        self.vae_decoder = ORTModelVaeDecoder(vae_decoder_session, self)
+        self.vae_encoder = ORTModelVaeEncoder(vae_encoder_session, self) if vae_encoder_session is not None else None
         self.text_encoder = (
-            ORTModelTextEncoder(text_encoder_session, self, subfolder=DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER)
-            if text_encoder_session is not None
-            else None
+            ORTModelTextEncoder(text_encoder_session, self) if text_encoder_session is not None else None
         )
         self.text_encoder_2 = (
-            ORTModelTextEncoder(text_encoder_2_session, self, subfolder=DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER)
-            if text_encoder_2_session is not None
-            else None
+            ORTModelTextEncoder(text_encoder_2_session, self) if text_encoder_2_session is not None else None
         )
-
         # We wrap the VAE Decoder & Encoder in a single object to simulate diffusers API
         self.vae = ORTWrapperVae(self.vae_encoder, self.vae_decoder)
 
@@ -154,11 +142,10 @@ class ORTPipeline(ORTModel, ConfigMixin):
             if key in all_pipeline_init_args:
                 diffusers_pipeline_args[key] = all_pipeline_init_args[key]
 
-        # inits stuff like config, vae_scale_factor, image_processor, etc.
+        # inits the diffusers pipeline specific attributes
         self.auto_model_class.__init__(self, **diffusers_pipeline_args)
-        self.register_to_config(requires_aesthetics_score=requires_aesthetics_score)
-        self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
 
+        # inits ort specific attributes
         self.shared_attributes_init(
             model=unet_session, use_io_binding=use_io_binding, model_save_dir=model_save_dir, **kwargs
         )
@@ -469,26 +456,27 @@ class ORTPipeline(ORTModel, ConfigMixin):
         return self.auto_model_class.__call__(self, *args, **kwargs)
 
 
-class ORTPipelinePart:
-    def __init__(self, session: ort.InferenceSession, parent_pipeline: ORTPipeline, subfolder: str):
+class ORTPipelinePart(ConfigMixin):
+    config_name: str = CONFIG_NAME
+
+    def __init__(self, session: ort.InferenceSession, parent_pipeline: ORTPipeline):
+        config_file_path = Path(session._model_path).parent / self.config_name
+
+        if not config_file_path.is_file():
+            # config is mandatory for the model part to be used for inference
+            raise ValueError(f"Configuration file for {self.__class__.__name__} not found at {config_file_path}")
+
+        config_dict = parent_pipeline._dict_from_json_file(config_file_path)
+        self.register_to_config(**config_dict)
+
+        # ort model part
         self.session = session
-        self.subfolder = subfolder
         self.parent_pipeline = parent_pipeline
 
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
         self.input_dtypes = {input_key.name: input_key.type for input_key in session.get_inputs()}
         self.output_dtypes = {output_key.name: output_key.type for output_key in session.get_outputs()}
-
-        self.model_save_dir = Path(self.session._model_path).parent
-        config_path = self.model_save_dir / CONFIG_NAME
-
-        if not config_path.is_file():
-            # config is necessary for the model to work
-            raise ValueError(f"Configuration file for {self.__class__.__name__} not found at {config_path}")
-
-        config_dict = parent_pipeline._dict_from_json_file(config_path)
-        self.config = FrozenDict(**config_dict)
 
     @property
     def device(self):
