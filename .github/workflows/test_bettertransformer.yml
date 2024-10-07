@@ -16,36 +16,35 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.8, 3.9]
-        os: [ubuntu-20.04, macos-13]
-        exclude: [{ python-version: 3.8, os: macos-13 }]
 
-    runs-on: ${{ matrix.os }}
+    runs-on:
+      group: aws-general-8-plus
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Install dependencies (stable)
         run: |
-          pip install .[tests]
           pip install --no-cache-dir --upgrade torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install accelerate
+          pip install .[tests]
 
-      - name: Test with stable pytorch
+      - name: Test with pytest (parallel)
         working-directory: tests
         run: |
-          pytest bettertransformer -s -vvvvv
+          pytest bettertransformer --durations=0 -vvvv -s -n auto
 
-      - name: Install dependencies 2
+      - name: Install dependencies (nightly)
         run: |
           pip uninstall -y torch torchvision torchaudio
           pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
 
-      - name: Test with nightly pytorch
+      - name: Test with pytest (parallel)
         working-directory: tests
         run: |
-          pytest bettertransformer -s -vvvvv
+          pytest bettertransformer --durations=0 -vvvv -s -n auto
