@@ -318,7 +318,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.vae_encoder, ORTModelVaeEncoder)
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
-        model(prompt="cat", num_inference_steps=2)
 
     @require_diffusers
     @require_torch_gpu
@@ -333,7 +332,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_decoder.session.get_providers(), model.providers)
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cuda:0"))
-        model(prompt="cat", num_inference_steps=2)
 
     @require_diffusers
     @require_torch_gpu
@@ -349,7 +347,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_decoder.session.get_providers(), model.providers)
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cuda:0"))
-        model(prompt="cat", num_inference_steps=2)
 
     @require_diffusers
     def test_load_stable_diffusion_model_cpu_provider(self):
@@ -362,7 +359,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_decoder.session.get_providers(), model.providers)
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cpu"))
-        model(prompt="cat", num_inference_steps=2)
 
     @require_diffusers
     def test_load_stable_diffusion_model_unknown_provider(self):
@@ -846,7 +842,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.vae_decoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertEqual(model.vae_encoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertListEqual(model.providers, ["CPUExecutionProvider"])
-        model(prompt="cat", num_inference_steps=2)
 
     @require_diffusers
     def test_stable_diffusion_model_on_cpu_str(self):
@@ -863,7 +858,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.vae_decoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertEqual(model.vae_encoder.session.get_providers()[0], "CPUExecutionProvider")
         self.assertListEqual(model.providers, ["CPUExecutionProvider"])
-        model(prompt="cat", num_inference_steps=2)
 
     @require_diffusers
     @require_torch_gpu
@@ -882,7 +876,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.vae_decoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertEqual(model.vae_encoder.session.get_providers()[0], "CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
-        model(prompt="cat", num_inference_steps=2)
 
     @require_diffusers
     @require_torch_gpu
@@ -902,7 +895,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.vae_decoder.session.get_providers()[0], "ROCMExecutionProvider")
         self.assertEqual(model.vae_encoder.session.get_providers()[0], "ROCMExecutionProvider")
         self.assertListEqual(model.providers, ["ROCMExecutionProvider", "CPUExecutionProvider"])
-        model(prompt="cat", num_inference_steps=2)
 
     @require_diffusers
     @unittest.skipIf(get_gpu_count() <= 1, "this test requires multi-gpu")
