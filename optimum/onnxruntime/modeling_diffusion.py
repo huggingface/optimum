@@ -80,36 +80,31 @@ class ORTPipeline(ORTModel, ConfigMixin):
 
     def __init__(
         self,
-        # diffusers mandatory arguments
-        tokenizer: Optional["CLIPTokenizer"],
-        scheduler: Optional["SchedulerMixin"],
-        unet_session: Optional[ort.InferenceSession],
-        vae_decoder_session: Optional[ort.InferenceSession],
-        # diffusers optional arguments
+        scheduler: "SchedulerMixin",
+        unet_session: ort.InferenceSession,
+        vae_decoder_session: ort.InferenceSession,
+        # optional pipeline models
         vae_encoder_session: Optional[ort.InferenceSession] = None,
         text_encoder_session: Optional[ort.InferenceSession] = None,
         text_encoder_2_session: Optional[ort.InferenceSession] = None,
-        feature_extractor: Optional["CLIPFeatureExtractor"] = None,
+        # optional pipeline submodels
+        tokenizer: Optional["CLIPTokenizer"] = None,
         tokenizer_2: Optional["CLIPTokenizer"] = None,
+        feature_extractor: Optional["CLIPFeatureExtractor"] = None,
         # stable diffusion xl specific arguments
-        requires_aesthetics_score: bool = False,
         force_zeros_for_empty_prompt: bool = True,
+        requires_aesthetics_score: bool = False,
         add_watermarker: Optional[bool] = None,
         # onnxruntime specific arguments
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-        if kwargs:
-            logger.warning(f"{self.__class__.__name__} received additional arguments that are not used.")
-
-        # mandatory components
         self.unet = ORTModelUnet(unet_session, self, subfolder=DIFFUSION_MODEL_UNET_SUBFOLDER)
         self.vae_decoder = ORTModelVaeDecoder(
             vae_decoder_session, self, subfolder=DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER
         )
 
-        # optional components
         self.vae_encoder = (
             ORTModelVaeEncoder(vae_encoder_session, self, subfolder=DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER)
             if vae_encoder_session is not None
@@ -126,24 +121,25 @@ class ORTPipeline(ORTModel, ConfigMixin):
             else None
         )
 
-        # We wrap the VAE encoder and decoder in a single object to simplify the API
+        # We wrap the VAE Decoder & Encoder in a single object to simulate diffusers API
         self.vae = ORTWrapperVae(self.vae_encoder, self.vae_decoder)
-
-        self.image_encoder = None  # TODO: maybe implement ORTModelImageEncoder
-        self.safety_checker = None  # TODO: maybe implement ORTModelSafetyChecker
 
         self.scheduler = scheduler
         self.tokenizer = tokenizer
         self.tokenizer_2 = tokenizer_2
         self.feature_extractor = feature_extractor
 
-        all_possible_init_args = {
+        # we allow passing these as torch models for now
+        self.image_encoder = kwargs.pop("image_encoder", None)  # TODO: maybe implement ORTModelImageEncoder
+        self.safety_checker = kwargs.pop("safety_checker", None)  # TODO: maybe implement ORTModelSafetyChecker
+
+        all_pipeline_init_args = {
             "vae": self.vae,
             "unet": self.unet,
             "text_encoder": self.text_encoder,
             "text_encoder_2": self.text_encoder_2,
-            "image_encoder": self.image_encoder,
             "safety_checker": self.safety_checker,
+            "image_encoder": self.image_encoder,
             "scheduler": self.scheduler,
             "tokenizer": self.tokenizer,
             "tokenizer_2": self.tokenizer_2,
@@ -155,17 +151,17 @@ class ORTPipeline(ORTModel, ConfigMixin):
 
         diffusers_pipeline_args = {}
         for key in inspect.signature(self.auto_model_class).parameters.keys():
-            if key in all_possible_init_args:
-                diffusers_pipeline_args[key] = all_possible_init_args[key]
+            if key in all_pipeline_init_args:
+                diffusers_pipeline_args[key] = all_pipeline_init_args[key]
 
         # inits stuff like config, vae_scale_factor, image_processor, etc.
         self.auto_model_class.__init__(self, **diffusers_pipeline_args)
-
-        # not registered correctly in the config
-        self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
         self.register_to_config(requires_aesthetics_score=requires_aesthetics_score)
+        self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
 
-        self.shared_attributes_init(model=unet_session, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
+        self.shared_attributes_init(
+            model=unet_session, use_io_binding=use_io_binding, model_save_dir=model_save_dir, **kwargs
+        )
 
     @staticmethod
     def load_model(
@@ -175,8 +171,8 @@ class ORTPipeline(ORTModel, ConfigMixin):
         text_encoder_path: Optional[Union[str, Path]] = None,
         text_encoder_2_path: Optional[Union[str, Path]] = None,
         provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
+        session_options: Optional[ort.SessionOptions] = None,
     ):
         """
         Creates three inference sessions for the components of a Diffusion Pipeline (U-NET, VAE, Text Encoders).
@@ -196,11 +192,11 @@ class ORTPipeline(ORTModel, ConfigMixin):
             provider (`str`, defaults to `"CPUExecutionProvider"`):
                 ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
                 for possible providers.
-            session_options (`Optional[ort.SessionOptions]`, defaults to `None`):
-                ONNX Runtime session options to use for loading the model. Defaults to `None`.
             provider_options (`Optional[Dict[str, Any]]`, defaults to `None`):
                 Provider option dictionary corresponding to the provider used. See available options
                 for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
+            session_options (`Optional[ort.SessionOptions]`, defaults to `None`):
+                ONNX Runtime session options to use for loading the model. Defaults to `None`.
         """
         paths = {
             "unet": unet_path,
@@ -209,7 +205,6 @@ class ORTPipeline(ORTModel, ConfigMixin):
             "text_encoder": text_encoder_path,
             "text_encoder_2": text_encoder_2_path,
         }
-
         sessions = {}
         for key, path in paths.items():
             if path is not None and path.is_file():
@@ -223,13 +218,13 @@ class ORTPipeline(ORTModel, ConfigMixin):
         save_directory = Path(save_directory)
 
         models_to_save_paths = {
-            self.unet: save_directory / DIFFUSION_MODEL_UNET_SUBFOLDER / ONNX_WEIGHTS_NAME,
-            self.vae_decoder: save_directory / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
-            self.vae_encoder: save_directory / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
-            self.text_encoder: save_directory / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
-            self.text_encoder_2: save_directory / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER / ONNX_WEIGHTS_NAME,
+            (self.unet, save_directory / DIFFUSION_MODEL_UNET_SUBFOLDER / ONNX_WEIGHTS_NAME),
+            (self.vae_decoder, save_directory / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / ONNX_WEIGHTS_NAME),
+            (self.vae_encoder, save_directory / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / ONNX_WEIGHTS_NAME),
+            (self.text_encoder, save_directory / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / ONNX_WEIGHTS_NAME),
+            (self.text_encoder_2, save_directory / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER / ONNX_WEIGHTS_NAME),
         }
-        for model, model_save_path in models_to_save_paths.items():
+        for model, model_save_path in models_to_save_paths:
             if model is not None:
                 model_path = Path(model.session._model_path)
                 model_save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -245,37 +240,43 @@ class ORTPipeline(ORTModel, ConfigMixin):
                     config_save_path = model_save_path.parent / CONFIG_NAME
                     shutil.copyfile(config_path, config_save_path)
 
-        self.tokenizer.save_pretrained(save_directory / "tokenizer")
         self.scheduler.save_pretrained(save_directory / "scheduler")
 
-        if self.feature_extractor is not None:
-            self.feature_extractor.save_pretrained(save_directory / "feature_extractor")
+        if self.tokenizer is not None:
+            self.tokenizer.save_pretrained(save_directory / "tokenizer")
         if self.tokenizer_2 is not None:
             self.tokenizer_2.save_pretrained(save_directory / "tokenizer_2")
+        if self.feature_extractor is not None:
+            self.feature_extractor.save_pretrained(save_directory / "feature_extractor")
 
     @classmethod
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
         config: Dict[str, Any],
-        subfolder: str = "",  # not used ?
+        subfolder: str = "",
         force_download: bool = False,
         local_files_only: bool = False,
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: Optional[Union[bool, str]] = None,
         unet_file_name: str = ONNX_WEIGHTS_NAME,
-        vae_encoder_file_name: str = ONNX_WEIGHTS_NAME,
         vae_decoder_file_name: str = ONNX_WEIGHTS_NAME,
+        vae_encoder_file_name: str = ONNX_WEIGHTS_NAME,
         text_encoder_file_name: str = ONNX_WEIGHTS_NAME,
         text_encoder_2_file_name: str = ONNX_WEIGHTS_NAME,
         use_io_binding: Optional[bool] = None,
         provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
+        session_options: Optional[ort.SessionOptions] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
+        if use_io_binding:
+            raise ValueError(
+                "IOBinding is not yet available for diffusion pipelines, please set `use_io_binding` to False."
+            )
+
         all_components = {key for key in config.keys() if not key.startswith("_")}
         all_components.update({"vae_encoder", "vae_decoder"})
 
@@ -284,8 +285,8 @@ class ORTPipeline(ORTModel, ConfigMixin):
             allow_patterns.update(
                 {
                     unet_file_name,
-                    vae_encoder_file_name,
                     vae_decoder_file_name,
+                    vae_encoder_file_name,
                     text_encoder_file_name,
                     text_encoder_2_file_name,
                     SCHEDULER_CONFIG_NAME,
@@ -293,6 +294,10 @@ class ORTPipeline(ORTModel, ConfigMixin):
                     CONFIG_NAME,
                 }
             )
+
+            if subfolder:
+                allow_patterns = {os.path.join(subfolder, pattern) for pattern in allow_patterns}
+
             model_id = snapshot_download(
                 model_id,
                 cache_dir=cache_dir,
@@ -306,7 +311,10 @@ class ORTPipeline(ORTModel, ConfigMixin):
 
         model_save_path = Path(model_id)
 
-        sub_models = {}
+        if subfolder:
+            model_save_path = model_save_path / subfolder
+
+        submodels = {}
         for name in {"feature_extractor", "tokenizer", "tokenizer_2", "scheduler"}:
             library_name, library_classes = config.get(name, (None, None))
             if library_classes is not None:
@@ -315,31 +323,24 @@ class ORTPipeline(ORTModel, ConfigMixin):
                 load_method = getattr(class_obj, "from_pretrained")
                 # Check if the module is in a subdirectory
                 if (model_save_path / name).is_dir():
-                    sub_models[name] = load_method(model_save_path / name)
+                    submodels[name] = load_method(model_save_path / name)
                 else:
-                    sub_models[name] = load_method(model_save_path)
+                    submodels[name] = load_method(model_save_path)
 
-        paths = {
-            "unet_path": model_save_path / DIFFUSION_MODEL_UNET_SUBFOLDER / unet_file_name,
-            "vae_decoder_path": model_save_path / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / vae_decoder_file_name,
-            "vae_encoder_path": model_save_path / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / vae_encoder_file_name,
-            "text_encoder_path": model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / text_encoder_file_name,
-            "text_encoder_2_path": model_save_path
-            / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER
-            / text_encoder_2_file_name,
-        }
         models = cls.load_model(
-            **paths, provider=provider, session_options=session_options, provider_options=provider_options
+            unet_path=model_save_path / DIFFUSION_MODEL_UNET_SUBFOLDER / unet_file_name,
+            vae_decoder_path=model_save_path / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / vae_decoder_file_name,
+            vae_encoder_path=model_save_path / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / vae_encoder_file_name,
+            text_encoder_path=model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / text_encoder_file_name,
+            text_encoder_2_path=model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER / text_encoder_2_file_name,
+            provider=provider,
+            provider_options=provider_options,
+            session_options=session_options,
         )
-
-        if use_io_binding:
-            raise ValueError(
-                "IOBinding is not yet available for stable diffusion model, please set `use_io_binding` to False."
-            )
 
         return cls(
             **models,
-            **sub_models,
+            **submodels,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir or model_save_path,
         )
@@ -391,8 +392,8 @@ class ORTPipeline(ORTModel, ConfigMixin):
             model_save_path,
             config=config,
             provider=provider,
-            session_options=session_options,
             provider_options=provider_options,
+            session_options=session_options,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
         )
