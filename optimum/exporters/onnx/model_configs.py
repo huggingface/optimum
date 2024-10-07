@@ -1039,6 +1039,22 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
         return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
+class ChineseCLIPNormalizedConfig(CLIPNormalizedConfig):
+    pass
+
+
+class ChineseCLIPOnnxConfig(CLIPOnnxConfig):
+    pass
+
+
+class ChineseCLIPTextWithProjectionOnnxConfig(CLIPTextWithProjectionOnnxConfig):
+    pass
+
+
+class ChineseCLIPTextOnnxConfig(CLIPTextOnnxConfig):
+    pass
+
+
 class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
