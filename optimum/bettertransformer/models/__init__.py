@@ -60,6 +60,7 @@ class BetterTransformerManager:
         "camembert": {"CamembertLayer": BertLayerBetterTransformer},
         "blip-2": {"T5Attention": T5AttentionLayerBetterTransformer},
         "clip": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
+        "clip_text_model": {"CLIPEncoderLayer": CLIPLayerBetterTransformer},
         "codegen": {"CodeGenAttention": CodegenAttentionLayerBetterTransformer},
         "data2vec-text": {"Data2VecTextLayer": BertLayerBetterTransformer},
         "deit": {"DeiTLayer": ViTLayerBetterTransformer},
