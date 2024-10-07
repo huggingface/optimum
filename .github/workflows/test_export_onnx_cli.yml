@@ -32,6 +32,7 @@ jobs:
         run: |
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,exporters]
+          pip install git+https://github.com/huggingface/accelerate.git
 
       - name: Test with pytest (in parallel)
         working-directory: tests
