@@ -31,10 +31,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip uninstall -y opencv-python
-          pip install opencv-python-headless
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,exporters] git+https://github.com/huggingface/accelerate.git
+
+      - name: Install headless opencv
+        run: |
+          pip uninstall -y opencv-python
+          pip install opencv-python-headless
 
       - name: Test with pytest (parallel)
         working-directory: tests
