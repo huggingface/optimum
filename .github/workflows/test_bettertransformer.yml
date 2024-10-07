@@ -31,7 +31,9 @@ jobs:
 
       - name: Install dependencies (stable)
         run: |
-          pip install --no-cache-dir --upgrade torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip uninstall -y opencv-python
+          pip install opencv-python-headless
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests]
 
       - name: Test with pytest (parallel)
