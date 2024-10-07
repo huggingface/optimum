@@ -77,6 +77,7 @@ logger = logging.getLogger(__name__)
 
 class ORTPipeline(ORTModel, ConfigMixin):
     config_name = "model_index.json"
+    auto_model_class = None
 
     def __init__(
         self,
@@ -241,7 +242,6 @@ class ORTPipeline(ORTModel, ConfigMixin):
         cls,
         model_id: Union[str, Path],
         config: Dict[str, Any],
-        subfolder: str = "",
         force_download: bool = False,
         local_files_only: bool = False,
         revision: Optional[str] = None,
@@ -264,10 +264,8 @@ class ORTPipeline(ORTModel, ConfigMixin):
                 "IOBinding is not yet available for diffusion pipelines, please set `use_io_binding` to False."
             )
 
-        all_components = {key for key in config.keys() if not key.startswith("_")}
-        all_components.update({"vae_encoder", "vae_decoder"})
-
         if not os.path.isdir(str(model_id)):
+            all_components = {key for key in config.keys() if not key.startswith("_")} | {"vae_encoder", "vae_decoder"}
             allow_patterns = {os.path.join(component, "*") for component in all_components}
             allow_patterns.update(
                 {
@@ -281,10 +279,6 @@ class ORTPipeline(ORTModel, ConfigMixin):
                     CONFIG_NAME,
                 }
             )
-
-            if subfolder:
-                allow_patterns = {os.path.join(subfolder, pattern) for pattern in allow_patterns}
-
             model_id = snapshot_download(
                 model_id,
                 cache_dir=cache_dir,
@@ -298,8 +292,8 @@ class ORTPipeline(ORTModel, ConfigMixin):
 
         model_save_path = Path(model_id)
 
-        if subfolder:
-            model_save_path = model_save_path / subfolder
+        if model_save_dir is None:
+            model_save_dir = model_save_path
 
         submodels = {}
         for name in {"feature_extractor", "tokenizer", "tokenizer_2", "scheduler"}:
@@ -329,7 +323,7 @@ class ORTPipeline(ORTModel, ConfigMixin):
             **models,
             **submodels,
             use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir or model_save_path,
+            model_save_dir=model_save_dir,
         )
 
     @classmethod
@@ -437,8 +431,8 @@ class ORTPipeline(ORTModel, ConfigMixin):
             "unet": self.unet,
             "text_encoder": self.text_encoder,
             "text_encoder_2": self.text_encoder_2,
-            "image_encoder": self.image_encoder,
             "safety_checker": self.safety_checker,
+            "image_encoder": self.image_encoder,
         }
         components = {k: v for k, v in components.items() if v is not None}
         return components
@@ -466,17 +460,16 @@ class ORTPipelinePart(ConfigMixin):
             # config is mandatory for the model part to be used for inference
             raise ValueError(f"Configuration file for {self.__class__.__name__} not found at {config_file_path}")
 
-        config_dict = parent_pipeline._dict_from_json_file(config_file_path)
+        config_dict = self._dict_from_json_file(config_file_path)
         self.register_to_config(**config_dict)
 
-        # ort model part
         self.session = session
         self.parent_pipeline = parent_pipeline
 
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
-        self.input_dtypes = {input_key.name: input_key.type for input_key in session.get_inputs()}
-        self.output_dtypes = {output_key.name: output_key.type for output_key in session.get_outputs()}
+        self.input_dtypes = {input_key.name: input_key.type for input_key in self.session.get_inputs()}
+        self.output_dtypes = {output_key.name: output_key.type for output_key in self.session.get_outputs()}
 
     @property
     def device(self):
