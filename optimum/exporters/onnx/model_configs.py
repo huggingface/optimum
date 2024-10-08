@@ -298,14 +298,8 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
     pass
 
 
-class GraniteOnnxConfig(TextDecoderOnnxConfig):
-    # GG TODO: Bump past 4.44.2 once the next release is out
-    MIN_TRANSFORMERS_VERSION = version.parse("4.44.2")
-    DEFAULT_ONNX_OPSET = 14  # Granite follows Llama's default
-
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
-    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+class GraniteOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.45.0")
 
 
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
