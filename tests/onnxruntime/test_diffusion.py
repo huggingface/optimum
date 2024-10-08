@@ -22,6 +22,7 @@ from diffusers import (
     AutoPipelineForText2Image,
     DiffusionPipeline,
 )
+from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 from diffusers.utils import load_image
 from parameterized import parameterized
 from transformers.testing_utils import require_torch_gpu
@@ -290,6 +291,39 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
+    @parameterized.expand(["stable-diffusion", "latent-consistency"])
+    @require_diffusers
+    def test_safety_checker(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        safety_checker = StableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker")
+
+        pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], safety_checker=safety_checker)
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[model_arch], safety_checker=safety_checker
+        )
+
+        self.assertIsInstance(pipeline.safety_checker, StableDiffusionSafetyChecker)
+        self.assertIsInstance(ort_pipeline.safety_checker, StableDiffusionSafetyChecker)
+
+        height, width, batch_size = 32, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED))
+        diffusers_output = pipeline(**inputs, generator=get_generator("pt", SEED))
+
+        ort_nsfw_content_detected = ort_output.nsfw_content_detected
+        diffusers_nsfw_content_detected = diffusers_output.nsfw_content_detected
+
+        self.assertTrue(ort_nsfw_content_detected is not None)
+        self.assertTrue(diffusers_nsfw_content_detected is not None)
+        self.assertEqual(ort_nsfw_content_detected, diffusers_nsfw_content_detected)
+
+        ort_images = ort_output.images
+        diffusers_images = diffusers_output.images
+        np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
+
 
 class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "latent-consistency"]
@@ -470,6 +504,40 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         outputs = pipeline(**inputs).images
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+
+    @parameterized.expand(["stable-diffusion", "latent-consistency"])
+    @require_diffusers
+    def test_safety_checker(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        safety_checker = StableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker")
+
+        pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], safety_checker=safety_checker)
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[model_arch], safety_checker=safety_checker
+        )
+
+        self.assertIsInstance(pipeline.safety_checker, StableDiffusionSafetyChecker)
+        self.assertIsInstance(ort_pipeline.safety_checker, StableDiffusionSafetyChecker)
+
+        height, width, batch_size = 32, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED))
+        diffusers_output = pipeline(**inputs, generator=get_generator("pt", SEED))
+
+        ort_nsfw_content_detected = ort_output.nsfw_content_detected
+        diffusers_nsfw_content_detected = diffusers_output.nsfw_content_detected
+
+        self.assertTrue(ort_nsfw_content_detected is not None)
+        self.assertTrue(diffusers_nsfw_content_detected is not None)
+        self.assertEqual(ort_nsfw_content_detected, diffusers_nsfw_content_detected)
+
+        ort_images = ort_output.images
+        diffusers_images = diffusers_output.images
+
+        np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
 
 
 class ORTPipelineForInpaintingTest(ORTModelTestMixin):
@@ -656,3 +724,36 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         outputs = pipeline(**inputs).images
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+
+    @parameterized.expand(["stable-diffusion"])
+    @require_diffusers
+    def test_safety_checker(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        safety_checker = StableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker")
+
+        pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], safety_checker=safety_checker)
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[model_arch], safety_checker=safety_checker
+        )
+
+        self.assertIsInstance(pipeline.safety_checker, StableDiffusionSafetyChecker)
+        self.assertIsInstance(ort_pipeline.safety_checker, StableDiffusionSafetyChecker)
+
+        height, width, batch_size = 32, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED))
+        diffusers_output = pipeline(**inputs, generator=get_generator("pt", SEED))
+
+        ort_nsfw_content_detected = ort_output.nsfw_content_detected
+        diffusers_nsfw_content_detected = diffusers_output.nsfw_content_detected
+
+        self.assertTrue(ort_nsfw_content_detected is not None)
+        self.assertTrue(diffusers_nsfw_content_detected is not None)
+        self.assertEqual(ort_nsfw_content_detected, diffusers_nsfw_content_detected)
+
+        ort_images = ort_output.images
+        diffusers_images = diffusers_output.images
+        np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)

@@ -191,6 +191,7 @@ class ORTPipeline(ORTModel, ConfigMixin):
         model_id: Union[str, Path],
         config: Dict[str, Any],
         subfolder: str = "",
+        trust_remote_code: bool = False,
         force_download: bool = False,
         local_files_only: bool = False,
         revision: Optional[str] = None,
@@ -302,6 +303,7 @@ class ORTPipeline(ORTModel, ConfigMixin):
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         task: Optional[str] = None,
+        **kwargs,
     ) -> "ORTPipeline":
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
@@ -336,6 +338,7 @@ class ORTPipeline(ORTModel, ConfigMixin):
             session_options=session_options,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
+            **kwargs,
         )
 
     def to(self, device: Union[torch.device, str, int]):
