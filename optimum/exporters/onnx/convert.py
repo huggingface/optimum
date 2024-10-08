@@ -26,6 +26,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
+import transformers
 from transformers.modeling_utils import get_parameter_dtype
 from transformers.utils import is_tf_available, is_torch_available
 
@@ -34,6 +35,7 @@ from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
     TORCH_MINIMUM_VERSION,
+    check_if_transformers_greater,
     is_diffusers_available,
     is_torch_onnx_support_available,
     logging,
@@ -999,6 +1001,10 @@ def onnx_export_from_model(
     >>> onnx_export_from_model(model, output="gpt2_onnx/")
     ```
     """
+    if check_if_transformers_greater("4.44.99"):
+        raise ImportError(
+            f"ONNX conversion disabled for now for transformers version greater than v4.45, found {transformers.__version__}"
+        )
 
     TasksManager.standardize_model_attributes(model)
 
@@ -1119,6 +1125,18 @@ def onnx_export_from_model(
             atol = onnx_config.ATOL_FOR_VALIDATION
             if isinstance(atol, dict):
                 atol = atol[task.replace("-with-past", "")]
+
+        if check_if_transformers_greater("4.44.99"):
+            misplaced_generation_parameters = model.config._get_non_default_generation_parameters()
+            if model.can_generate() and len(misplaced_generation_parameters) > 0:
+                logger.warning(
+                    "Moving the following attributes in the config to the generation config: "
+                    f"{misplaced_generation_parameters}. You are seeing this warning because you've set "
+                    "generation parameters in the model config, as opposed to in the generation config.",
+                )
+                for param_name, param_value in misplaced_generation_parameters.items():
+                    setattr(model.generation_config, param_name, param_value)
+                    setattr(model.config, param_name, None)
 
         # Saving the model config and preprocessor as this is needed sometimes.
         model.config.save_pretrained(output)

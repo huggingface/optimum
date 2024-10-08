@@ -119,7 +119,7 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
 
 
 class AlbertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class ConvBertOnnxConfig(BertOnnxConfig):
@@ -171,11 +171,11 @@ class MPNetOnnxConfig(DistilBertOnnxConfig):
 
 
 class RobertaOnnxConfig(DistilBertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class CamembertOnnxConfig(DistilBertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class FlaubertOnnxConfig(BertOnnxConfig):
@@ -187,7 +187,7 @@ class IBertOnnxConfig(DistilBertOnnxConfig):
 
 
 class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class DebertaOnnxConfig(BertOnnxConfig):
@@ -257,7 +257,7 @@ class ImageGPTOnnxConfig(GPT2OnnxConfig):
 
 
 class GPTNeoOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
 
@@ -564,6 +564,7 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
 
 
 class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",

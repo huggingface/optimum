@@ -14,3 +14,4 @@
 # limitations under the License.
 from .embedding import VocabParallelEmbedding
 from .linear import ColumnParallelLinear, RowParallelLinear
+from .loss import VocabParallelCrossEntropyLoss, sharded_cross_entropy_wrapper_fn

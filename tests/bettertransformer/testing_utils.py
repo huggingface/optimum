@@ -59,12 +59,12 @@ MODELS_DICT = {
     # "llama": "fxmarty/tiny-llama-fast-tokenizer",
     # "llama-gqa": "noamwies/llama-test-gqa-with-better-transformer",
     "m2m_100": "hf-internal-testing/tiny-random-nllb",
-    "marian": "fxmarty/tiny-marian",  # the other tiny ones have a too small max_position_embeddings
+    "marian": "optimum-internal-testing/tiny-random-marian",  # the other tiny ones have a too small max_position_embeddings
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
-    "prophetnet": "hirotasoshu/tiny-random-prophetnet",  # the other tiny ones have a too small max_position_embeddings
+    "prophetnet": "optimum-internal-testing/tiny-random-prophetnet",  # the other tiny ones have a too small max_position_embeddings
     "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "rocbert": "hf-internal-testing/tiny-random-RoCBertModel",
