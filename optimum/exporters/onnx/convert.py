@@ -531,6 +531,7 @@ def export_pytorch(
     FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"
 
     model_kwargs = model_kwargs or {}
+    # num_logits_to_keep was added in transformers 4.45 and isn't added as inputs when exporting the model
     if check_if_transformers_greater("4.44.99") and "num_logits_to_keep" in signature(model.forward).parameters.keys():
         model_kwargs["num_logits_to_keep"] = 0
 
