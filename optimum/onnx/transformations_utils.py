@@ -29,7 +29,6 @@ from ..utils import logging, recurse_getattr
 
 
 logger = logging.get_logger()
-logger.setLevel(logging.INFO)
 
 
 def _find_duplicate_initializers(
