@@ -381,9 +381,13 @@ class OptimizedModel(PreTrainedModel):
                 )
             model_id, revision = model_id.split("@")
 
-        config_folder = (
-            subfolder if find_files_matching_pattern(model_id, cls.config_name)[0].parent == subfolder else ""
-        )
+        if len(find_files_matching_pattern(model_id, cls.config_name, subfolder=subfolder)) == 0:
+            logger.info(
+                f"{cls.config_name} not found in the specified subfolder {subfolder}. Using the top level {cls.config_name}."
+            )
+            config_folder = ""
+        else:
+            config_folder = subfolder
 
         library_name = TasksManager.infer_library_from_model(
             model_id, subfolder=config_folder, revision=revision, cache_dir=cache_dir, token=token
