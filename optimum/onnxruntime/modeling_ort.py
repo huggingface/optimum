@@ -938,7 +938,7 @@ class ORTModel(OptimizedModel):
             onnx_inputs[input_name] = inputs.pop(input_name)
 
             if use_torch:
-                onnx_inputs[input_name] = onnx_inputs[input_name].cpu().detach().numpy()
+                onnx_inputs[input_name] = onnx_inputs[input_name].numpy(force=True)
 
             if onnx_inputs[input_name].dtype != self.input_dtypes[input_name]:
                 onnx_inputs[input_name] = onnx_inputs[input_name].astype(
