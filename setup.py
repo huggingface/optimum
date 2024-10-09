@@ -54,7 +54,6 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "transformers<4.45.0",
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -63,10 +62,9 @@ EXTRAS_REQUIRE = {
         "evaluate",
         "protobuf>=3.20.1",
         "accelerate",  # ORTTrainer requires it.
-        "transformers<4.45.0",
     ],
-    "exporters": ["onnx", "onnxruntime", "timm", "transformers<4.45.0"],
-    "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm", "transformers<4.45.0"],
+    "exporters": ["onnx", "onnxruntime", "timm"],
+    "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm"],
     "exporters-tf": [
         "tensorflow>=2.4,<=2.12.1",
         "tf2onnx",
@@ -77,7 +75,6 @@ EXTRAS_REQUIRE = {
         "numpy<1.24.0",
         "datasets<=2.16",
         "transformers[sentencepiece]>=4.26,<4.38",
-        "transformers<4.45.0",
     ],
     "diffusers": ["diffusers"],
     "intel": "optimum-intel>=1.18.0",
