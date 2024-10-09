@@ -26,7 +26,6 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
-import transformers
 from transformers.modeling_utils import get_parameter_dtype
 from transformers.utils import is_tf_available, is_torch_available
 
@@ -531,6 +530,10 @@ def export_pytorch(
     logger.info(f"Using framework PyTorch: {torch.__version__}")
     FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"
 
+    model_kwargs = model_kwargs or {}
+    if check_if_transformers_greater("4.44.99") and "num_logits_to_keep" in signature(model.forward).parameters.keys():
+        model_kwargs["num_logits_to_keep"] = 0
+
     with torch.no_grad():
         model.config.return_dict = True
         model = model.eval()
@@ -1001,11 +1004,6 @@ def onnx_export_from_model(
     >>> onnx_export_from_model(model, output="gpt2_onnx/")
     ```
     """
-    if check_if_transformers_greater("4.44.99"):
-        raise ImportError(
-            f"ONNX conversion disabled for now for transformers version greater than v4.45, found {transformers.__version__}"
-        )
-
     TasksManager.standardize_model_attributes(model)
 
     if hasattr(model.config, "export_model_type"):
