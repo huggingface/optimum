@@ -79,7 +79,9 @@ except OptionalDependencyNotAvailable:
         "ORTStableDiffusionInpaintPipeline",
         "ORTStableDiffusionXLPipeline",
         "ORTStableDiffusionXLImg2ImgPipeline",
+        "ORTStableDiffusionXLInpaintPipeline",
         "ORTLatentConsistencyModelPipeline",
+        "ORTLatentConsistencyModelImg2ImgPipeline",
         "ORTPipelineForImage2Image",
         "ORTPipelineForInpainting",
         "ORTPipelineForText2Image",
@@ -92,6 +94,8 @@ else:
         "ORTStableDiffusionInpaintPipeline",
         "ORTStableDiffusionXLPipeline",
         "ORTStableDiffusionXLImg2ImgPipeline",
+        "ORTStableDiffusionXLInpaintPipeline",
+        "ORTLatentConsistencyModelImg2ImgPipeline",
         "ORTLatentConsistencyModelPipeline",
         "ORTPipelineForImage2Image",
         "ORTPipelineForInpainting",
@@ -148,6 +152,7 @@ if TYPE_CHECKING:
     except OptionalDependencyNotAvailable:
         from ..utils.dummy_diffusers_objects import (
             ORTDiffusionPipeline,
+            ORTLatentConsistencyModelImg2ImgPipeline,
             ORTLatentConsistencyModelPipeline,
             ORTPipelineForImage2Image,
             ORTPipelineForInpainting,
@@ -156,11 +161,13 @@ if TYPE_CHECKING:
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
             ORTStableDiffusionXLImg2ImgPipeline,
+            ORTStableDiffusionXLInpaintPipeline,
             ORTStableDiffusionXLPipeline,
         )
     else:
         from .modeling_diffusion import (
             ORTDiffusionPipeline,
+            ORTLatentConsistencyModelImg2ImgPipeline,
             ORTLatentConsistencyModelPipeline,
             ORTPipelineForImage2Image,
             ORTPipelineForInpainting,
@@ -169,6 +176,7 @@ if TYPE_CHECKING:
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
             ORTStableDiffusionXLImg2ImgPipeline,
+            ORTStableDiffusionXLInpaintPipeline,
             ORTStableDiffusionXLPipeline,
         )
 else:

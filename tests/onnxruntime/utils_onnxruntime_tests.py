@@ -171,6 +171,11 @@ class ORTModelTestMixin(unittest.TestCase):
         "np": np.ndarray,
     }
 
+    TASK = None
+
+    ORTMODEL_CLASS = None
+    AUTOMODEL_CLASS = None
+
     @classmethod
     def setUpClass(cls):
         cls.onnx_model_dirs = {}

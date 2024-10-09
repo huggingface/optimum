@@ -1112,7 +1112,7 @@ class UNetOnnxConfig(VisionOnnxConfig):
 
 
 class VaeEncoderOnnxConfig(VisionOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-2
+    ATOL_FOR_VALIDATION = 1e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
@@ -1132,12 +1132,12 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "latent_sample": {0: "batch_size", 2: "height_latent", 3: "width_latent"},
+            "latent_parameters": {0: "batch_size", 2: "height_latent", 3: "width_latent"},
         }
 
 
 class VaeDecoderOnnxConfig(VisionOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-3
+    ATOL_FOR_VALIDATION = 1e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
