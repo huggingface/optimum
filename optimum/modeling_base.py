@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from huggingface_hub import create_repo, upload_file
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+from huggingface_hub.errors import OfflineModeIsEnabled
 from transformers import AutoConfig, PretrainedConfig, add_start_docstrings
 
 from .exporters import TasksManager
@@ -381,13 +382,16 @@ class OptimizedModel(PreTrainedModel):
                 )
             model_id, revision = model_id.split("@")
 
-        if len(find_files_matching_pattern(model_id, cls.config_name, subfolder=subfolder)) == 0:
-            logger.info(
-                f"{cls.config_name} not found in the specified subfolder {subfolder}. Using the top level {cls.config_name}."
-            )
-            config_folder = ""
-        else:
-            config_folder = subfolder
+        # TODO: enable this when offline
+        config_folder = subfolder
+        try:
+            if len(find_files_matching_pattern(model_id, cls.config_name, subfolder=subfolder)) == 0:
+                logger.info(
+                    f"{cls.config_name} not found in the specified subfolder {subfolder}. Using the top level {cls.config_name}."
+                )
+                config_folder = ""
+        except OfflineModeIsEnabled:
+            pass
 
         library_name = TasksManager.infer_library_from_model(
             model_id, subfolder=config_folder, revision=revision, cache_dir=cache_dir, token=token
