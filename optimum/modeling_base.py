@@ -382,7 +382,6 @@ class OptimizedModel(PreTrainedModel):
                 )
             model_id, revision = model_id.split("@")
 
-        # TODO: enable this when offline
         config_folder = subfolder
         try:
             if len(find_files_matching_pattern(model_id, cls.config_name, subfolder=subfolder)) == 0:
@@ -391,7 +390,8 @@ class OptimizedModel(PreTrainedModel):
                 )
                 config_folder = ""
         except OfflineModeIsEnabled:
-            pass
+            # TODO: enable this for offline mode by checking the cache
+            logger.info(f"Offline mode enabled, the {cls.config_name} is expected to be in the subfolder {subfolder}.")
 
         library_name = TasksManager.infer_library_from_model(
             model_id, subfolder=config_folder, revision=revision, cache_dir=cache_dir, token=token
