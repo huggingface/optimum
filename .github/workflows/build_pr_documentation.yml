@@ -8,6 +8,7 @@ on:
       - "optimum/**.py"
       - "docs/**.mdx"
       - "docs/**.yml"
+      - ".github/workflows/build_pr_documentation.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
