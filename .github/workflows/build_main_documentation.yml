@@ -10,7 +10,7 @@ on:
 
 jobs:
   build_documentation:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v2
@@ -110,6 +110,8 @@ jobs:
 
       - name: Setup environment
         run: |
+          python -m venv venv-doc
+          source venv-doc/bin/activate
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
@@ -135,6 +137,7 @@ jobs:
 
       - name: Make Furiosa documentation
         run: |
+          source venv-doc/bin/activate
           cd optimum-furiosa
           pip install .
           sudo apt install software-properties-common
@@ -159,6 +162,7 @@ jobs:
       - name: Make TPU documentation
         run: |
           sudo docker system prune -a -f
+          source venv-doc/bin/activate
           cd optimum-tpu
           pip install -U pip
           pip install . -f https://storage.googleapis.com/libtpu-releases/index.html
