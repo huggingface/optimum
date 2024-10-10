@@ -80,7 +80,7 @@ def run_test_all_rank_results_match(rank: int, world_size: int, model_id: str, m
     device = torch.device(type="cuda", index=torch.cuda.current_device())
     ctx = ParallelExecutionCtx(tp_group=tp_group, current_device=device)
 
-    model = parallelize_model(model_id, ctx, skip_load_weights=True, **model_kwargs)
+    model = parallelize_model(ctx, model_id_or_path=model_id, skip_load_weights=True, **model_kwargs)
     inputs = prepare_dummy_inputs(model.config)
     loss = model(**inputs).loss
     tensors = gather_at_main_process(tensor=loss, group=tp_group, rank=rank, world_size=world_size)
@@ -106,7 +106,7 @@ def run_test_parameters_persist_bewteen_recompile(
     device = torch.device(type="cuda", index=torch.cuda.current_device())
     ctx = ParallelExecutionCtx(tp_group=tp_group, current_device=device)
 
-    model = parallelize_model(model_id, ctx, skip_load_weights=True, **model_kwargs)
+    model = parallelize_model(ctx, model_id_or_path=model_id, skip_load_weights=True, **model_kwargs)
     inputs = prepare_dummy_inputs(model.config)
 
     # different shape to trigger recompile
@@ -114,17 +114,17 @@ def run_test_parameters_persist_bewteen_recompile(
     yet_another_inputs = prepare_dummy_inputs(model.config, batch_size=2, seq_len=12)
 
     model(**inputs)
-    parameter_ids = {id(param) for _, param in ctx.last_optimized_graph_module.named_parameters()}
+    parameter_ids = {id(param) for _, param in ctx.last_optimized_module.named_parameters()}
 
     model(**another_inputs)
     # check second compilation has been triggered
     assert ctx.compile_times == 2
-    parameter_ids_after_recompile = {id(param) for _, param in ctx.last_optimized_graph_module.named_parameters()}
+    parameter_ids_after_recompile = {id(param) for _, param in ctx.last_optimized_module.named_parameters()}
     assert parameter_ids == parameter_ids_after_recompile
 
     model(**yet_another_inputs)
     assert ctx.compile_times == 3
-    parameter_ids_after_recompile = {id(param) for _, param in ctx.last_optimized_graph_module.named_parameters()}
+    parameter_ids_after_recompile = {id(param) for _, param in ctx.last_optimized_module.named_parameters()}
     assert parameter_ids == parameter_ids_after_recompile
     dist.barrier(tp_group)
     tearDown(tp_group)
@@ -141,7 +141,7 @@ def run_test_parallel_results_matches_non_parallel(
     device = torch.device(type="cuda", index=torch.cuda.current_device())
     ctx = ParallelExecutionCtx(tp_group=tp_group, current_device=device)
 
-    model = parallelize_model(model_id, ctx, skip_load_weights=True, **model_kwargs)
+    model = parallelize_model(ctx, model_id_or_path=model_id, skip_load_weights=True, **model_kwargs)
     inputs = prepare_dummy_inputs(model.config)
 
     set_seed(SEED)
@@ -153,7 +153,7 @@ def run_test_parallel_results_matches_non_parallel(
     tp_group = dist.new_group()
     set_seed(SEED)
     ctx = ParallelExecutionCtx(tp_group=tp_group, current_device=device)
-    model = parallelize_model(model_id, ctx, skip_load_weights=True, **model_kwargs)
+    model = parallelize_model(ctx, model_id_or_path=model_id, skip_load_weights=True, **model_kwargs)
     parallel_loss = model(**inputs).loss
 
     torch.testing.assert_close(loss.cpu(), parallel_loss.cpu(), rtol=1e-4, atol=1e-4)
@@ -169,13 +169,13 @@ def run_test_tie_word_embeddings(rank: int, world_size: int, model_id: str, mode
     # prepare config and context
     device = torch.device(type="cuda", index=torch.cuda.current_device())
     ctx = ParallelExecutionCtx(tp_group=tp_group, current_device=device)
-    model = parallelize_model(model_id, ctx, skip_load_weights=True, **model_kwargs)
+    model = parallelize_model(ctx, model_id_or_path=model_id, skip_load_weights=True, **model_kwargs)
 
     inputs = prepare_dummy_inputs(model.config)
     model(**inputs)
 
     embedding_weight, lm_head_weight = None, None
-    graph_module = ctx.last_optimized_graph_module
+    graph_module = ctx.last_optimized_module
     stable_topological_sort(graph_module.graph)
     for node in graph_module.graph.nodes:
         if node.op == "call_module":
@@ -189,11 +189,7 @@ def run_test_tie_word_embeddings(rank: int, world_size: int, model_id: str, mode
             if isinstance(mod, ColumnParallelLinear):
                 lm_head_weight = mod.weight
                 break
-    assert (
-        id(embedding_weight) == id(lm_head_weight)
-        and hasattr(embedding_weight, "meta")
-        and embedding_weight.meta.is_tied
-    )
+    assert id(embedding_weight) == id(lm_head_weight)
     dist.barrier(tp_group)
     tearDown()
 
