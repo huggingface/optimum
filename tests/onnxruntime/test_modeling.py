@@ -1265,7 +1265,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         )
 
     @parameterized.expand(("", "onnx"))
-    def test_loading_with_config_in_root(self, subfolder):
+    def test_loading_with_config_not_from_subfolder(self, subfolder):
         # config.json file in the root directory and not in the subfolder
         model_id = "sentence-transformers-testing/stsb-bert-tiny-onnx"
         # hub model
@@ -1276,6 +1276,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             local_dir = Path(tmpdirname) / "model"
             api.snapshot_download(repo_id=model_id, local_dir=local_dir)
             ORTModelForFeatureExtraction.from_pretrained(local_dir, subfolder=subfolder, export=subfolder == "")
+            remove_directory(tmpdirname)
 
 
 class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
