@@ -209,7 +209,7 @@ class TasksManager:
             "feature-extraction": "AutoModel",
             "fill-mask": "AutoModelForMaskedLM",
             "image-classification": "AutoModelForImageClassification",
-            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
+            "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation", "AutoModelForInstanceSegmentation", "AutoModelForUniversalSegmentation"),
             "image-to-image": "AutoModelForImageToImage",
             "image-to-text": "AutoModelForVision2Seq",
             "mask-generation": "AutoModel",
@@ -223,6 +223,7 @@ class TasksManager:
             "text2text-generation": "AutoModelForSeq2SeqLM",
             "text-classification": "AutoModelForSequenceClassification",
             "token-classification": "AutoModelForTokenClassification",
+            "visual-question-answering": "AutoModelForVisualQuestionAnswering",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
         }
@@ -574,6 +575,11 @@ class TasksManager:
             "image-segmentation",
             onnx="DetrOnnxConfig",
         ),
+        "dinov2": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="Dinov2OnnxConfig",
+        ),
         "distilbert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -705,6 +711,11 @@ class TasksManager:
             "feature-extraction",
             onnx="GroupViTOnnxConfig",
         ),
+        "hiera": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="HieraOnnxConfig",
+        ),
         "hubert": supported_tasks_mapping(
             "feature-extraction",
             "automatic-speech-recognition",
@@ -785,6 +796,11 @@ class TasksManager:
             "token-classification",
             "question-answering",
             onnx="MarkupLMOnnxConfig",
+        ),
+        "maskformer": supported_tasks_mapping(
+            "feature-extraction",
+            "image-segmentation",
+            onnx="MaskformerOnnxConfig",
         ),
         "mbart": supported_tasks_mapping(
             "feature-extraction",
@@ -958,6 +974,11 @@ class TasksManager:
             "image-classification",
             onnx="PoolFormerOnnxConfig",
         ),
+        "pvt": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="PvtOnnxConfig",
+        ),
         "regnet": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
@@ -1017,6 +1038,19 @@ class TasksManager:
             "audio-classification",
             onnx="SEWDOnnxConfig",
         ),
+        "siglip": supported_tasks_mapping(
+            "feature-extraction",
+            "zero-shot-image-classification",
+            onnx="SiglipOnnxConfig",
+        ),
+        "siglip-text-model": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="SiglipTextOnnxConfig",
+        ),
+        "siglip-text-with-projection": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="SiglipTextWithProjectionOnnxConfig",
+        ),
         "speech-to-text": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -1048,6 +1082,12 @@ class TasksManager:
             "image-classification",
             "masked-im",
             onnx="SwinOnnxConfig",
+        ),
+        "swinv2": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            "masked-im",
+            onnx="SwinV2OnnxConfig",
         ),
         "swin2sr": supported_tasks_mapping(
             "feature-extraction",
@@ -1095,7 +1135,21 @@ class TasksManager:
             onnx="VisionEncoderDecoderOnnxConfig",
         ),
         "vit": supported_tasks_mapping(
-            "feature-extraction", "image-classification", "masked-im", onnx="ViTOnnxConfig"
+            "feature-extraction",
+            "image-classification",
+            "masked-im",
+            onnx="ViTOnnxConfig",
+        ),
+        "vit-mae": supported_tasks_mapping(
+            "feature-extraction",
+            "masked-im",
+            onnx="VitMAEOnnxConfig",
+        ),
+        "vit-msn": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            "masked-im",
+            onnx="VitMSNOnnxConfig",
         ),
         "vits": supported_tasks_mapping(
             "text-to-audio",
