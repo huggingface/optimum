@@ -118,6 +118,10 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
         }
 
 
+class NomicBertOnnxConfig(BertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14
+
+
 class AlbertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
@@ -792,6 +796,19 @@ class ResNetOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+class SigLIPVisionOnnxConfig(ViTOnnxConfig):
+    pass
+
+
+class SigLIPVisionModelOnnxConfig(SigLIPVisionOnnxConfig):
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "last_hidden_state": {0: "batch_size"},
+            "pooler_output": {0: "batch_size"},
+        }
+
+
 class DetrOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
 
@@ -1037,6 +1054,10 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
         model_kwargs: Optional[Dict[str, Any]] = None,
     ) -> "ModelPatcher":
         return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
+
+
+class SigLIPTextOnnxConfig(CLIPTextOnnxConfig):
+    pass
 
 
 class UNetOnnxConfig(VisionOnnxConfig):
@@ -1793,7 +1814,8 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
     # so we won't support for now.
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         hidden_size="hidden_size",
-        num_attention_heads="encoder_attention_heads",  # TODO: bugged in case encoder and decoder have different number of heads
+        num_attention_heads="encoder_attention_heads",
+        # TODO: bugged in case encoder and decoder have different number of heads
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
         allow_new=True,
