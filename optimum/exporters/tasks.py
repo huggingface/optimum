@@ -217,6 +217,7 @@ class TasksManager:
             "multiple-choice": "AutoModelForMultipleChoice",
             "object-detection": "AutoModelForObjectDetection",
             "question-answering": "AutoModelForQuestionAnswering",
+            "reinforcement-learning": "AutoModel",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
             "text-to-audio": ("AutoModelForTextToSpectrogram", "AutoModelForTextToWaveform"),
             "text-generation": "AutoModelForCausalLM",
@@ -561,6 +562,12 @@ class TasksManager:
             "question-answering",
             onnx="DebertaV2OnnxConfig",
             tflite="DebertaV2TFLiteConfig",
+        ),
+        "decision-transformer": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "reinforcement-learning",
+            onnx="DecisionTransformerOnnxConfig",
         ),
         "deit": supported_tasks_mapping(
             "feature-extraction",
@@ -2060,6 +2067,9 @@ class TasksManager:
             # if original_task in ["auto", "automatic-speech-recognition"]:
             if original_task == "automatic-speech-recognition" or task == "automatic-speech-recognition":
                 if original_task == "auto" and config.architectures is not None:
+                    model_class_name = config.architectures[0]
+            elif original_task == "reinforcement-learning" or task == "reinforcement-learning":
+                if config.architectures is not None:
                     model_class_name = config.architectures[0]
 
         if library_name == "diffusers":
