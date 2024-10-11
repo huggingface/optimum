@@ -16,8 +16,8 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.8, 3.9]
-        os: [ubuntu-20.04, macos-15]
-        exclude: [{ python-version: 3.8, os: macos-15 }]
+        os: [ubuntu-20.04, macos-14]
+        exclude: [{ python-version: 3.8, os: macos-14 }]
 
     runs-on: ${{ matrix.os }}
     steps:
