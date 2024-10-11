@@ -28,7 +28,6 @@ from .convert import export, validate_model_outputs
 
 
 logger = logging.get_logger()
-logger.setLevel(logging.INFO)
 
 
 def main():

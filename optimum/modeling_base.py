@@ -380,27 +380,35 @@ class OptimizedModel(PreTrainedModel):
                 )
             model_id, revision = model_id.split("@")
 
+        all_files, _ = TasksManager.get_model_files(
+            model_id,
+            subfolder=subfolder,
+            cache_dir=cache_dir,
+            revision=revision,
+            token=token,
+        )
+
+        config_folder = subfolder
+        if cls.config_name not in all_files:
+            logger.info(
+                f"{cls.config_name} not found in the specified subfolder {subfolder}. Using the top level {cls.config_name}."
+            )
+            config_folder = ""
+
         library_name = TasksManager.infer_library_from_model(
-            model_id, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+            model_id, subfolder=config_folder, revision=revision, cache_dir=cache_dir, token=token
         )
 
         if library_name == "timm":
             config = PretrainedConfig.from_pretrained(
-                model_id, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+                model_id, subfolder=config_folder, revision=revision, cache_dir=cache_dir, token=token
             )
 
         if config is None:
-            if os.path.isdir(os.path.join(model_id, subfolder)) and cls.config_name == CONFIG_NAME:
-                if CONFIG_NAME in os.listdir(os.path.join(model_id, subfolder)):
+            if os.path.isdir(os.path.join(model_id, config_folder)) and cls.config_name == CONFIG_NAME:
+                if CONFIG_NAME in os.listdir(os.path.join(model_id, config_folder)):
                     config = AutoConfig.from_pretrained(
-                        os.path.join(model_id, subfolder), trust_remote_code=trust_remote_code
-                    )
-                elif CONFIG_NAME in os.listdir(model_id):
-                    config = AutoConfig.from_pretrained(
-                        os.path.join(model_id, CONFIG_NAME), trust_remote_code=trust_remote_code
-                    )
-                    logger.info(
-                        f"config.json not found in the specified subfolder {subfolder}. Using the top level config.json."
+                        os.path.join(model_id, config_folder), trust_remote_code=trust_remote_code
                     )
                 else:
                     raise OSError(f"config.json not found in {model_id} local folder")
@@ -411,7 +419,7 @@ class OptimizedModel(PreTrainedModel):
                     cache_dir=cache_dir,
                     token=token,
                     force_download=force_download,
-                    subfolder=subfolder,
+                    subfolder=config_folder,
                     trust_remote_code=trust_remote_code,
                 )
         elif isinstance(config, (str, os.PathLike)):
@@ -421,7 +429,7 @@ class OptimizedModel(PreTrainedModel):
                 cache_dir=cache_dir,
                 token=token,
                 force_download=force_download,
-                subfolder=subfolder,
+                subfolder=config_folder,
                 trust_remote_code=trust_remote_code,
             )
 
