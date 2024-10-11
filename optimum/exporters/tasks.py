@@ -217,7 +217,7 @@ class TasksManager:
             "multiple-choice": "AutoModelForMultipleChoice",
             "object-detection": "AutoModelForObjectDetection",
             "question-answering": "AutoModelForQuestionAnswering",
-            "reinforcement-learning": "AutoModel",
+            "reinforcement-learning": ("AutoModel",), # multiple auto model families can be used for reinforcement-learning
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
             "text-to-audio": ("AutoModelForTextToSpectrogram", "AutoModelForTextToWaveform"),
             "text-generation": "AutoModelForCausalLM",
