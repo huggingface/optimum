@@ -87,8 +87,9 @@ class NormalizedTextConfig(NormalizedConfig):
 
 class NormalizedDecisionTransformerConfig(NormalizedConfig):
     # REFERENCE: https://huggingface.co/docs/transformers/model_doc/decision_transformer
-    STATE_DIM = "state_dim"
     ACT_DIM = "act_dim"
+    STATE_DIM = "state_dim"
+
     MAX_EP_LEN = "max_ep_len"
     HIDDEN_SIZE = "hidden_size"
 

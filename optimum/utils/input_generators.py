@@ -537,7 +537,7 @@ class DummyDecisionTransformerInputGenerator(DummyTextInputGenerator):
             shape = [self.batch_size, self.sequence_length]
         elif input_name == 'timesteps':
             shape = [self.batch_size, self.sequence_length]
-            return self.random_int_tensor(shape=shape, max_value=max_ep_len, framework=framework, dtype=int_dtype)
+            return self.random_int_tensor(shape=shape, max_value=self.max_ep_len, framework=framework, dtype=int_dtype)
 
         return self.random_float_tensor(shape, min_value=-2., max_value=2., framework=framework, dtype=float_dtype)
 
