@@ -602,6 +602,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 check=True,
             )
 
+    @require_sentence_transformers
     def test_sentence_transformers(self):
         with TemporaryDirectory() as tmpdirname:
             subprocess.run(
