@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
 
 from packaging import version
+from sipbuild.generator.parser.tokens import states
 from transformers.utils import is_tf_available
 
 from ...onnx import merge_decoders
@@ -264,15 +265,19 @@ class DecisionTransformerOnnxConfig(GPT2OnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        dynamic_axis = {0: "batch_size", 1: "sequence_length"}
+        DEFAULT_DUMMY_SHAPES['actions'] = self._normalized_config.config.act_dim
+        DEFAULT_DUMMY_SHAPES['states'] = self._normalized_config.config.state_dim
+        DEFAULT_DUMMY_SHAPES['returns'] = 1
+        DEFAULT_DUMMY_SHAPES['last_hidden_state'] = self._normalized_config.config.hidden_size
 
         return {
-            'actions': dynamic_axis,
-            'timesteps': dynamic_axis,
-            'attention_mask': dynamic_axis,
-            'returns_to_go': dynamic_axis,
-            'states': dynamic_axis,
+            'states': {0: 'batch_size', 1: 'sequence_length', 2: 'states'},
+            'actions': {0: 'batch_size', 1: 'sequence_length', 2: 'actions'},
+            'returns_to_go': {0: 'batch_size', 1: 'sequence_length', 2: 'returns'},
+            'timesteps': {0: 'batch_size', 1: 'sequence_length'},
+            'attention_mask': {0: 'batch_size', 1: 'sequence_length'},
         }
+
 
 class GPTNeoOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14
