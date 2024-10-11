@@ -265,10 +265,6 @@ class DecisionTransformerOnnxConfig(GPT2OnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        DEFAULT_DUMMY_SHAPES['actions'] = self._normalized_config.config.act_dim
-        DEFAULT_DUMMY_SHAPES['states'] = self._normalized_config.config.state_dim
-        DEFAULT_DUMMY_SHAPES['returns'] = 1
-        DEFAULT_DUMMY_SHAPES['last_hidden_state'] = self._normalized_config.config.hidden_size
 
         return {
             'states': {0: 'batch_size', 1: 'sequence_length', 2: 'states'},
