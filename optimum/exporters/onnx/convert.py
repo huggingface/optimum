@@ -1128,7 +1128,7 @@ def onnx_export_from_model(
 
         if check_if_transformers_greater("4.44.99"):
             misplaced_generation_parameters = model.config._get_non_default_generation_parameters()
-            if isinstance(model, GenerationMixin) and len(misplaced_generation_parameters) > 0:
+            if isinstance(model, GenerationMixin) and model.can_generate() and len(misplaced_generation_parameters) > 0:
                 logger.warning(
                     "Moving the following attributes in the config to the generation config: "
                     f"{misplaced_generation_parameters}. You are seeing this warning because you've set "
