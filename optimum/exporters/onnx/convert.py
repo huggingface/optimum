@@ -26,6 +26,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
+from transformers.generation import GenerationMixin
 from transformers.modeling_utils import get_parameter_dtype
 from transformers.utils import is_tf_available, is_torch_available
 
@@ -1127,7 +1128,7 @@ def onnx_export_from_model(
 
         if check_if_transformers_greater("4.44.99"):
             misplaced_generation_parameters = model.config._get_non_default_generation_parameters()
-            if model.can_generate() and len(misplaced_generation_parameters) > 0:
+            if isinstance(model, GenerationMixin) and len(misplaced_generation_parameters) > 0:
                 logger.warning(
                     "Moving the following attributes in the config to the generation config: "
                     f"{misplaced_generation_parameters}. You are seeing this warning because you've set "
