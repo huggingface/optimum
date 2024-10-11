@@ -520,7 +520,6 @@ class DummyDecisionTransformerInputGenerator(DummyTextInputGenerator):
         'states',
     )
 
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.act_dim = self.normalized_config.config.act_dim
