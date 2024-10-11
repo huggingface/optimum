@@ -520,24 +520,25 @@ class DummyDecisionTransformerInputGenerator(DummyTextInputGenerator):
         'states',
     )
 
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.act_dim = self.normalized_config.config.act_dim
+        self.state_dim = self.normalized_config.config.state_dim
+        self.max_ep_len = self.normalized_config.config.max_ep_len
+
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-
-        states = self.normalized_config.config.state_dim
-        actions = self.normalized_config.config.act_dim
-        max_ep_len = self.normalized_config.config.max_ep_len
-
         if input_name == "states":
-            shape = [self.batch_size, self.sequence_length, states]
+            shape = [self.batch_size, self.sequence_length, self.state_dim]
         elif input_name == "actions":
-            shape = [self.batch_size, self.sequence_length, actions]
+            shape = [self.batch_size, self.sequence_length, self.act_dim]
         elif input_name == 'returns_to_go':
             shape = [self.batch_size, self.sequence_length, 1]
-        elif input_name == 'timesteps':
-            shape = [self.batch_size, self.sequence_length]
-            max_value = max_ep_len
-            return self.random_int_tensor(shape=shape, max_value = max_value, framework=framework, dtype=int_dtype)
         elif input_name == "attention_mask":
             shape = [self.batch_size, self.sequence_length]
+        elif input_name == 'timesteps':
+            shape = [self.batch_size, self.sequence_length]
+            return self.random_int_tensor(shape=shape, max_value=max_ep_len, framework=framework, dtype=int_dtype)
 
         return self.random_float_tensor(shape, min_value=-2., max_value=2., framework=framework, dtype=float_dtype)
 
