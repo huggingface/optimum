@@ -267,11 +267,11 @@ class DecisionTransformerOnnxConfig(GPT2OnnxConfig):
     def inputs(self) -> Dict[str, Dict[int, str]]:
 
         return {
-            'states': {0: 'batch_size', 1: 'sequence_length', 2: 'states'},
-            'actions': {0: 'batch_size', 1: 'sequence_length', 2: 'actions'},
-            'returns_to_go': {0: 'batch_size', 1: 'sequence_length', 2: 'returns'},
             'timesteps': {0: 'batch_size', 1: 'sequence_length'},
+            'returns_to_go': {0: 'batch_size', 1: 'sequence_length'},
             'attention_mask': {0: 'batch_size', 1: 'sequence_length'},
+            'actions': {0: 'batch_size', 1: 'sequence_length', 2: 'act_dim'},
+            'states': {0: 'batch_size', 1: 'sequence_length', 2: 'state_dim'},
         }
 
 
