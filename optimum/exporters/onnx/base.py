@@ -175,9 +175,9 @@ class OnnxConfig(ExportConfig, ABC):
         ),
         "reinforcement-learning": OrderedDict(
             {
-                "state_preds": {0: "batch_size", 1: "sequence_length", 2: "states"},
-                "action_preds": {0: "batch_size", 1: "sequence_length", 2: "actions"},
-                "return_preds": {0: "batch_size", 1: "sequence_length", 2: "returns"},
+                "return_preds": {0: "batch_size", 1: "sequence_length"},
+                "action_preds": {0: "batch_size", 1: "sequence_length", 2: "act_dim"},
+                "state_preds": {0: "batch_size", 1: "sequence_length", 2: "state_dim"},
                 "last_hidden_state": {0: "batch_size", 1: "sequence_length", 2: "last_hidden_state"},
             }
         ),
