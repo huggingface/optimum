@@ -108,16 +108,9 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-        # ort specific
-        self.use_io_binding = use_io_binding
-        self._device = get_device_for_provider(
-            provider=next(iter(unet_session.get_providers())),
-            provider_options=next(iter(unet_session.get_provider_options().values())),
-        )
-
-        # This attribute is needed to keep one reference on the temporary directory, since garbage collecting it
-        # would end-up removing the directory containing the underlying ONNX model.
         if isinstance(model_save_dir, TemporaryDirectory):
+            # This attribute is needed to keep one reference on the temporary directory, since garbage collecting it
+            # would end-up removing the directory containing the underlying ONNX model.
             self._model_save_dir_tempdirectory_instance = model_save_dir
             self.model_save_dir = Path(model_save_dir.name)
         elif isinstance(model_save_dir, TemporaryDirectory):
@@ -174,6 +167,14 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
                 diffusers_pipeline_args[key] = all_pipeline_init_args[key]
         self.auto_model_class.__init__(self, **diffusers_pipeline_args)
 
+        if use_io_binding is None:
+            if self.provider == "CUDAExecutionProvider":
+                self.use_io_binding = True
+            else:
+                self.use_io_binding = False
+        else:
+            self.use_io_binding = use_io_binding
+
     @property
     def components(self) -> Dict[str, Any]:
         components = {
@@ -189,7 +190,23 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
 
     @property
     def device(self) -> torch.device:
-        return self._device
+        return self.unet.device
+
+    @property
+    def providers(self):
+        return self.unet.providers
+
+    @property
+    def proviers_options(self):
+        return self.unet.providers_options
+
+    @property
+    def provider(self):
+        return self.unet.provider
+
+    @property
+    def provider_options(self):
+        return self.unet.provider_options
 
     def to(self, *args, device: Optional[Union[torch.device, int, str]] = None, dtype: Optional[torch.dtype] = None):
         for arg in args:
@@ -458,14 +475,15 @@ class ORTPipelinePart(ConfigMixin):
         self.input_shapes = {input_key.name: input_key.shape for input_key in self.session.get_inputs()}
         self.output_shapes = {output_key.name: output_key.shape for output_key in self.session.get_outputs()}
 
-        self._device = get_device_for_provider(
-            provider=next(iter(self.session.get_providers())),
-            provider_options=next(iter(self.session.get_provider_options().values())),
-        )
-
         self._known_symbols = {name: value for name, value in self.config.items() if isinstance(value, int)}
         self._compiled_input_shapes = self._compile_shapes(self.input_shapes)
         self._compiled_output_shapes = self._compile_shapes(self.output_shapes)
+
+        self._providers = self.session.get_providers()
+        self._providers_options = self.session.get_provider_options()
+        self._device = get_device_for_provider(
+            provider=self._providers[0], provider_options=next(iter(self._providers_options.values()))
+        )
 
     def _compile_shapes(self, shapes: Dict[str, Tuple[Union[int, str]]]) -> Dict[str, Tuple[sp.Basic]]:
         compiled_shapes = {}
@@ -477,6 +495,26 @@ class ORTPipelinePart(ConfigMixin):
             compiled_shapes[key] = tuple(dim.subs(self._known_symbols) for dim in shape)
 
         return compiled_shapes
+
+    @property
+    def providers(self):
+        # all providers
+        return self._providers
+
+    @property
+    def provider(self):
+        # main provider
+        return self._providers[0]
+
+    @property
+    def providers_options(self):
+        # all provider options
+        return self._providers_options
+
+    @property
+    def provider_options(self):
+        # main provider options
+        return self.providers_options[self.provider]
 
     @property
     def device(self):
@@ -518,14 +556,30 @@ class ORTPipelinePart(ConfigMixin):
         provider = get_provider_for_device(device)
         validate_provider_availability(provider)
 
+        if self.use_io_binding is False and provider == "CUDAExecutionProvider":
+            self.use_io_binding = True
+            logger.info(
+                "use_io_binding was set to False with a CUDAExecutionProvider, setting it to True as it can speed up inference. "
+                "It is possible to disable this feature manually by setting the use_io_binding attribute back to False."
+            )
+        elif self.use_io_binding is True and provider == "ROCMExecutionProvider":
+            self.use_io_binding = False
+            logger.warning(
+                "use_io_binding was set to True with a ROCMExecutionProvider, setting it to False as it is not supported. "
+                "It is possible to enable this feature manually by setting the use_io_binding attribute back to True."
+            )
+
         self.session.set_providers([provider], provider_options=[provider_options])
 
-        assert (
-            self.session.get_providers()[0] == provider
-        ), f"Failed to set provider to {provider}. Session providers: {self.session.get_providers()}"
-        assert (
-            self.session.get_provider_options()[0] == provider_options
-        ), f"Failed to set provider options to {provider_options}. Session provider options: {self.session.get_provider_options()}"
+        self._providers = self.session.get_providers()
+        self._providers_options = self.session.get_provider_options()
+
+        if self.provider != provider or self.provider_options != provider_options:
+            raise ValueError(
+                f"Failed to set the device to {device}. "
+                f"Requested provider: {provider}, Requested provider options: {provider_options}. "
+                f"Session provider: {self.provider}, Session provider options: {self.provider_options}"
+            )
 
         self._device = device
 
