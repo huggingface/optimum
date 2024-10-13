@@ -17,13 +17,15 @@ import inspect
 import logging
 import os
 import shutil
+import traceback
 from abc import abstractmethod
 from collections import OrderedDict
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
+import sympy as sp
 import torch
 from diffusers.configuration_utils import ConfigMixin
 from diffusers.models.autoencoders.vae import DiagonalGaussianDistribution
@@ -62,10 +64,11 @@ from ..utils import (
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
 )
-from .io_binding import TypeHelper
+from .io_binding import IOBindingHelper, TypeHelper
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
     ONNX_WEIGHTS_NAME,
+    get_device_for_provider,
     get_provider_for_device,
     np_to_pt_generators,
     parse_device,
@@ -86,9 +89,9 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
     def __init__(
         self,
         scheduler: "SchedulerMixin",
-        unet_session: ort.InferenceSession,
-        vae_decoder_session: ort.InferenceSession,
         # optional pipeline models
+        unet_session: Optional[ort.InferenceSession] = None,
+        vae_decoder_session: Optional[ort.InferenceSession] = None,
         vae_encoder_session: Optional[ort.InferenceSession] = None,
         text_encoder_session: Optional[ort.InferenceSession] = None,
         text_encoder_2_session: Optional[ort.InferenceSession] = None,
@@ -105,8 +108,31 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-        self.unet = ORTModelUnet(unet_session, self)
-        self.vae_decoder = ORTModelVaeDecoder(vae_decoder_session, self)
+        # ort specific
+        self.use_io_binding = use_io_binding
+        self._device = get_device_for_provider(
+            provider=next(iter(unet_session.get_providers())),
+            provider_options=next(iter(unet_session.get_provider_options().values())),
+        )
+
+        # This attribute is needed to keep one reference on the temporary directory, since garbage collecting it
+        # would end-up removing the directory containing the underlying ONNX model.
+        if isinstance(model_save_dir, TemporaryDirectory):
+            self._model_save_dir_tempdirectory_instance = model_save_dir
+            self.model_save_dir = Path(model_save_dir.name)
+        elif isinstance(model_save_dir, TemporaryDirectory):
+            self.model_save_dir = Path(model_save_dir.name)
+        elif isinstance(model_save_dir, (str, Path)):
+            self.model_save_dir = Path(model_save_dir)
+        else:
+            self.model_save_dir = Path(unet_session._model_path).parent
+
+        # because OptimizedModel requires it
+        self.preprocessors = kwargs.pop("preprocessors", [])
+
+        # TODO: Maybe move this to from_pretrained so that the pipeline class can be instantiated with ORTModel instances
+        self.unet = ORTModelUnet(unet_session, self) if unet_session is not None else None
+        self.vae_decoder = ORTModelVaeDecoder(vae_decoder_session, self) if vae_decoder_session is not None else None
         self.vae_encoder = ORTModelVaeEncoder(vae_encoder_session, self) if vae_encoder_session is not None else None
         self.text_encoder = (
             ORTModelTextEncoder(text_encoder_session, self) if text_encoder_session is not None else None
@@ -146,13 +172,59 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
         for key in inspect.signature(self.auto_model_class).parameters.keys():
             if key in all_pipeline_init_args:
                 diffusers_pipeline_args[key] = all_pipeline_init_args[key]
-        # inits diffusers pipeline specific attributes (registers modules and config)
         self.auto_model_class.__init__(self, **diffusers_pipeline_args)
 
-        # inits ort specific attributes
-        self.shared_attributes_init(
-            model=unet_session, use_io_binding=use_io_binding, model_save_dir=model_save_dir, **kwargs
-        )
+    @property
+    def components(self) -> Dict[str, Any]:
+        components = {
+            "vae": self.vae,
+            "unet": self.unet,
+            "text_encoder": self.text_encoder,
+            "text_encoder_2": self.text_encoder_2,
+            "safety_checker": self.safety_checker,
+            "image_encoder": self.image_encoder,
+        }
+        components = dict(filter(lambda x: x[1] is not None, components.items()))
+        return components
+
+    @property
+    def device(self) -> torch.device:
+        return self._device
+
+    def to(self, *args, device: Optional[Union[torch.device, int, str]] = None, dtype: Optional[torch.dtype] = None):
+        for arg in args:
+            if isinstance(arg, torch.device):
+                device = arg
+            elif isinstance(arg, (int, str)):
+                device = torch.device(arg)
+            elif isinstance(arg, torch.dtype):
+                dtype = arg
+
+        if dtype is not None and dtype != self.dtype:
+            raise NotImplementedError(
+                f"Cannot change the dtype of the pipeline from {self.dtype} to {dtype}. "
+                f"Please export the pipeline with the desired dtype."
+            )
+
+        if device is not None and device != self.device:
+            for component in self.components.values():
+                if component is not None:
+                    component.to(device=device, dtype=dtype)
+
+        return self
+
+    def __call__(self, *args, **kwargs):
+        # we do this to keep numpy random states support for now
+        # TODO: deprecate and add warnings when a random state is passed
+
+        args = list(args)
+        for i in range(len(args)):
+            args[i] = np_to_pt_generators(args[i], self.device)
+
+        for k, v in kwargs.items():
+            kwargs[k] = np_to_pt_generators(v, self.device)
+
+        return self.auto_model_class.__call__(self, *args, **kwargs)
 
     def _save_pretrained(self, save_directory: Union[str, Path]):
         save_directory = Path(save_directory)
@@ -213,11 +285,6 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-        if use_io_binding:
-            raise ValueError(
-                "IOBinding is not yet available for diffusion pipelines, please set `use_io_binding` to False."
-            )
-
         if not os.path.isdir(str(model_id)):
             all_components = {key for key in config.keys() if not key.startswith("_")} | {"vae_encoder", "vae_decoder"}
             allow_patterns = {os.path.join(component, "*") for component in all_components}
@@ -359,41 +426,6 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
             **kwargs,
         )
 
-    def to(self, device: Union[torch.device, str, int]):
-        """
-        Changes the ONNX Runtime provider according to the device.
-
-        Args:
-            device (`torch.device` or `str` or `int`):
-                Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
-                the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
-
-        Returns:
-            `ORTModel`: the model placed on the requested device.
-        """
-
-        device, provider_options = parse_device(device)
-        provider = get_provider_for_device(device)
-        validate_provider_availability(provider)
-
-        if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
-            return self
-
-        self.unet.session.set_providers([provider], provider_options=[provider_options])
-        self.vae_decoder.session.set_providers([provider], provider_options=[provider_options])
-
-        if self.vae_encoder is not None:
-            self.vae_encoder.session.set_providers([provider], provider_options=[provider_options])
-        if self.text_encoder is not None:
-            self.text_encoder.session.set_providers([provider], provider_options=[provider_options])
-        if self.text_encoder_2 is not None:
-            self.text_encoder_2.session.set_providers([provider], provider_options=[provider_options])
-
-        self.providers = self.unet.session.get_providers()
-        self._device = device
-
-        return self
-
     @classmethod
     def _load_config(cls, config_name_or_path: Union[str, os.PathLike], **kwargs):
         return cls.load_config(config_name_or_path, **kwargs)
@@ -401,45 +433,12 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
     def _save_config(self, save_directory):
         self.save_config(save_directory)
 
-    @property
-    def components(self) -> Dict[str, Any]:
-        components = {
-            "vae": self.vae,
-            "unet": self.unet,
-            "text_encoder": self.text_encoder,
-            "text_encoder_2": self.text_encoder_2,
-            "safety_checker": self.safety_checker,
-            "image_encoder": self.image_encoder,
-        }
-        components = {k: v for k, v in components.items() if v is not None}
-        return components
-
-    def __call__(self, *args, **kwargs):
-        # we do this to keep numpy random states support for now
-        # TODO: deprecate and add warnings when a random state is passed
-
-        args = list(args)
-        for i in range(len(args)):
-            args[i] = np_to_pt_generators(args[i], self.device)
-
-        for k, v in kwargs.items():
-            kwargs[k] = np_to_pt_generators(v, self.device)
-
-        return self.auto_model_class.__call__(self, *args, **kwargs)
-
 
 class ORTPipelinePart(ConfigMixin):
     config_name: str = CONFIG_NAME
 
     def __init__(self, session: ort.InferenceSession, parent_pipeline: ORTDiffusionPipeline):
-        self.session = session
-        self.parent_pipeline = parent_pipeline
-
-        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
-        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
-        self.input_dtypes = {input_key.name: input_key.type for input_key in self.session.get_inputs()}
-        self.output_dtypes = {output_key.name: output_key.type for output_key in self.session.get_outputs()}
-
+        # config should be in the same directory as the onnx model
         config_file_path = Path(session._model_path).parent / self.config_name
         if not config_file_path.is_file():
             # config is mandatory for the model part to be used for inference
@@ -447,9 +446,41 @@ class ORTPipelinePart(ConfigMixin):
         config_dict = self._dict_from_json_file(config_file_path)
         self.register_to_config(**config_dict)
 
+        self.session = session
+        self.parent_pipeline = parent_pipeline
+
+        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
+        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+
+        self.input_dtypes = {input_key.name: input_key.type for input_key in self.session.get_inputs()}
+        self.output_dtypes = {output_key.name: output_key.type for output_key in self.session.get_outputs()}
+
+        self.input_shapes = {input_key.name: input_key.shape for input_key in self.session.get_inputs()}
+        self.output_shapes = {output_key.name: output_key.shape for output_key in self.session.get_outputs()}
+
+        self._device = get_device_for_provider(
+            provider=next(iter(self.session.get_providers())),
+            provider_options=next(iter(self.session.get_provider_options().values())),
+        )
+
+        self._known_symbols = {name: value for name, value in self.config.items() if isinstance(value, int)}
+        self._compiled_input_shapes = self._compile_shapes(self.input_shapes)
+        self._compiled_output_shapes = self._compile_shapes(self.output_shapes)
+
+    def _compile_shapes(self, shapes: Dict[str, Tuple[Union[int, str]]]) -> Dict[str, Tuple[sp.Basic]]:
+        compiled_shapes = {}
+
+        for key, shape in shapes.items():
+            compiled_shapes[key] = tuple(sp.sympify(dim) for dim in shape)
+
+        for key, shape in compiled_shapes.items():
+            compiled_shapes[key] = tuple(dim.subs(self._known_symbols) for dim in shape)
+
+        return compiled_shapes
+
     @property
     def device(self):
-        return self.parent_pipeline.device
+        return self._device
 
     @property
     def dtype(self):
@@ -474,26 +505,154 @@ class ORTPipelinePart(ConfigMixin):
             elif isinstance(arg, torch.dtype):
                 dtype = arg
 
-        if device is not None and device != self.device:
-            raise ValueError(
-                "Cannot change the device of a pipeline part without changing the device of the parent pipeline. "
-                "Please use the `to` method of the parent pipeline to change the device."
-            )
-
         if dtype is not None and dtype != self.dtype:
             raise NotImplementedError(
                 f"Cannot change the dtype of the pipeline from {self.dtype} to {dtype}. "
                 f"Please export the pipeline with the desired dtype."
             )
 
-    def prepare_onnx_inputs(self, use_torch: bool, **inputs: Union[torch.Tensor, np.ndarray]) -> Dict[str, np.ndarray]:
+        if device is None or device == self.device:
+            return self
+
+        device, provider_options = parse_device(device)
+        provider = get_provider_for_device(device)
+        validate_provider_availability(provider)
+
+        self.session.set_providers([provider], provider_options=[provider_options])
+
+        assert (
+            self.session.get_providers()[0] == provider
+        ), f"Failed to set provider to {provider}. Session providers: {self.session.get_providers()}"
+        assert (
+            self.session.get_provider_options()[0] == provider_options
+        ), f"Failed to set provider options to {provider_options}. Session provider options: {self.session.get_provider_options()}"
+
+        self._device = device
+
+        return self
+
+    def _get_output_shapes(self, **model_inputs: torch.Tensor) -> Dict[str, int]:
+        known_symbols = self._known_symbols.copy()
+
+        for input_name, compiled_input_shape in self._compiled_input_shapes.items():
+            input_tensor_shape = model_inputs[input_name].shape
+            for expr, dim in zip(compiled_input_shape, input_tensor_shape):
+                # if the expression is a constant, we skip it since it adds no information
+                if len(expr.free_symbols) == 0:
+                    continue
+
+                if len(expr.free_symbols) == 1:
+                    symbol = expr.free_symbols.pop()
+                    if expr == symbol:
+                        known_symbols[symbol] = dim
+                    else:
+                        resolved_symbol = sp.solve(expr - dim, symbol)
+                        if resolved_symbol:
+                            known_symbols[symbol] = int(resolved_symbol[0])
+                        else:
+                            raise ValueError(
+                                f"Failed to resolve the symbolic dimension {symbol} for the input {input_name}. "
+                                f"Expression: {expr}, Dimension: {dim}"
+                            )
+                else:
+                    raise ValueError(
+                        f"Failed to resolve the symbolic dimensions for the input {input_name}. "
+                        f"Expression: {expr}, Dimension: {dim}"
+                    )
+
+        resolved_output_shapes = {}
+        unresolved_output_shapes = {}
+
+        for output_name, compiled_output_shape in self._compiled_output_shapes.items():
+            shape = tuple(dim.subs(known_symbols) for dim in compiled_output_shape)
+
+            if any(dim.free_symbols for dim in shape):
+                unresolved_output_shapes[output_name] = shape
+            else:
+                resolved_output_shapes[output_name] = shape
+
+        if unresolved_output_shapes:
+            raise ValueError(
+                f"Failed to resolve the symbolic dimensions for the model {self.__class__.__name__}. "
+                f"Unresolved output shapes: {unresolved_output_shapes}"
+            )
+
+        return resolved_output_shapes
+
+    def _get_io_binding_outputs(self, io_binding: ort.IOBinding) -> Dict[str, torch.Tensor]:
+        model_outputs = {}
+
+        ort_outputs = io_binding.get_outputs()
+        for output_name, output_idx in self.output_names.items():
+            model_outputs[output_name] = IOBindingHelper.to_pytorch(ort_outputs[output_idx])
+
+        return model_outputs
+
+    def prepare_io_binding(self, model_inputs: torch.Tensor) -> Tuple[ort.IOBinding, Dict[str, torch.Tensor]]:
+        io_binding = self.session.io_binding()
+
+        for input_name in self.input_names.keys():
+            input_dtype = TypeHelper.ort_type_to_torch_type(self.input_dtypes[input_name])
+
+            if model_inputs[input_name].device != self.device:
+                model_inputs[input_name] = model_inputs[input_name].to(self.device)
+            if model_inputs[input_name].dtype != input_dtype:
+                model_inputs[input_name] = model_inputs[input_name].to(input_dtype)
+            if not model_inputs[input_name].is_contiguous():
+                model_inputs[input_name] = model_inputs[input_name].contiguous()
+
+            io_binding.bind_input(
+                name=input_name,
+                device_id=self.device.index,
+                device_type=model_inputs[input_name].device.type,
+                element_type=TypeHelper.ort_type_to_numpy_type(self.input_dtypes[input_name]),
+                buffer_ptr=model_inputs[input_name].data_ptr(),
+                shape=tuple(model_inputs[input_name].size()),
+            )
+
+        try:
+            model_outputs = {}
+            output_shapes = self._get_output_shapes(**model_inputs)
+            for output_name, output_shape in output_shapes.items():
+                model_outputs[output_name] = torch.empty(
+                    output_shape,
+                    device=self.device,
+                    memory_format=torch.contiguous_format,
+                    dtype=TypeHelper.ort_type_to_torch_type(self.output_dtypes[output_name]),
+                )
+            for output_name, output_tensor in model_outputs.items():
+                io_binding.bind_output(
+                    name=output_name,
+                    device_id=self.device.index,
+                    device_type=self.device.type,
+                    element_type=TypeHelper.ort_type_to_numpy_type(self.output_dtypes[output_name]),
+                    buffer_ptr=output_tensor.data_ptr(),
+                    shape=tuple(output_tensor.size()),
+                )
+
+        except Exception as e:
+            logger.error(
+                f"Failed to prepare IO binding for {self.__class__.__name__}. "
+                f"Exception: {e}\n{traceback.format_exc()}"
+            )
+            model_outputs = None
+            for output_name in self.output_names.keys():
+                io_binding.bind_output(
+                    name=output_name,
+                    device_id=self.device.index,
+                    device_type=self.device.type,
+                    element_type=TypeHelper.ort_type_to_numpy_type(self.output_dtypes[output_name]),
+                )
+
+        return io_binding, model_outputs
+
+    def prepare_onnx_inputs(self, **inputs: Union[torch.Tensor, np.ndarray]) -> Dict[str, np.ndarray]:
         onnx_inputs = {}
 
-        # converts pytorch inputs into numpy inputs for onnx
         for input_name in self.input_names.keys():
             onnx_inputs[input_name] = inputs.pop(input_name)
 
-            if use_torch:
+            if isinstance(onnx_inputs[input_name], torch.Tensor):
                 onnx_inputs[input_name] = onnx_inputs[input_name].numpy(force=True)
 
             if onnx_inputs[input_name].dtype != self.input_dtypes[input_name]:
@@ -503,16 +662,13 @@ class ORTPipelinePart(ConfigMixin):
 
         return onnx_inputs
 
-    def prepare_onnx_outputs(
-        self, use_torch: bool, *onnx_outputs: np.ndarray
-    ) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
+    def prepare_onnx_outputs(self, *onnx_outputs: np.ndarray) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
         model_outputs = {}
 
-        # converts onnxruntime outputs into tensor for standard outputs
         for output_name, idx in self.output_names.items():
             model_outputs[output_name] = onnx_outputs[idx]
 
-            if use_torch:
+            if isinstance(model_outputs[output_name], np.ndarray):
                 model_outputs[output_name] = torch.from_numpy(model_outputs[output_name]).to(self.device)
 
         return model_outputs
@@ -549,8 +705,6 @@ class ORTModelUnet(ORTPipelinePart):
         added_cond_kwargs: Optional[Dict[str, Any]] = None,
         return_dict: bool = False,
     ):
-        use_torch = isinstance(sample, torch.Tensor)
-
         if len(timestep.shape) == 0:
             timestep = timestep.unsqueeze(0)
 
@@ -565,9 +719,15 @@ class ORTModelUnet(ORTPipelinePart):
             **(added_cond_kwargs or {}),
         }
 
-        onnx_inputs = self.prepare_onnx_inputs(use_torch, **model_inputs)
-        onnx_outputs = self.session.run(None, onnx_inputs)
-        model_outputs = self.prepare_onnx_outputs(use_torch, *onnx_outputs)
+        if self.parent_pipeline.use_io_binding:
+            io_binding, model_outputs = self.prepare_io_binding(model_inputs)
+            self.session.run_with_iobinding(io_binding)
+            if model_outputs is None:
+                model_outputs = self.get_io_binding_outputs(io_binding, model_outputs)
+        else:
+            onnx_inputs = self.prepare_onnx_inputs(**model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self.prepare_onnx_outputs(*onnx_outputs)
 
         if return_dict:
             return model_outputs
@@ -583,13 +743,17 @@ class ORTModelTextEncoder(ORTPipelinePart):
         output_hidden_states: Optional[bool] = None,
         return_dict: bool = False,
     ):
-        use_torch = isinstance(input_ids, torch.Tensor)
-
         model_inputs = {"input_ids": input_ids}
 
-        onnx_inputs = self.prepare_onnx_inputs(use_torch, **model_inputs)
-        onnx_outputs = self.session.run(None, onnx_inputs)
-        model_outputs = self.prepare_onnx_outputs(use_torch, *onnx_outputs)
+        if self.parent_pipeline.use_io_binding:
+            io_binding, model_outputs = self.prepare_io_binding(model_inputs)
+            self.session.run_with_iobinding(io_binding)
+            if model_outputs is None:
+                model_outputs = self.get_io_binding_outputs(io_binding, model_outputs)
+        else:
+            onnx_inputs = self.prepare_onnx_inputs(**model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self.prepare_onnx_outputs(*onnx_outputs)
 
         if output_hidden_states:
             model_outputs["hidden_states"] = []
@@ -616,7 +780,9 @@ class ORTModelVaeEncoder(ORTPipelinePart):
                 "The `scaling_factor` attribute is missing from the VAE encoder configuration. "
                 "Please re-export the model with newer version of optimum and diffusers."
             )
-            self.register_to_config(scaling_factor=2 ** (len(self.config.block_out_channels) - 1))
+            self.register_to_config(scaling_factor=0.18215)
+
+        self._known_symbols["len_blocks"] = len(self.config.block_out_channels)
 
     def forward(
         self,
@@ -624,13 +790,17 @@ class ORTModelVaeEncoder(ORTPipelinePart):
         generator: Optional[torch.Generator] = None,
         return_dict: bool = False,
     ):
-        use_torch = isinstance(sample, torch.Tensor)
-
         model_inputs = {"sample": sample}
 
-        onnx_inputs = self.prepare_onnx_inputs(use_torch, **model_inputs)
-        onnx_outputs = self.session.run(None, onnx_inputs)
-        model_outputs = self.prepare_onnx_outputs(use_torch, *onnx_outputs)
+        if self.parent_pipeline.use_io_binding:
+            io_binding, model_outputs = self.prepare_io_binding(model_inputs)
+            self.session.run_with_iobinding(io_binding)
+            if model_outputs is None:
+                model_outputs = self.get_io_binding_outputs(io_binding, model_outputs)
+        else:
+            onnx_inputs = self.prepare_onnx_inputs(**model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self.prepare_onnx_outputs(*onnx_outputs)
 
         if "latent_sample" in model_outputs:
             model_outputs["latents"] = model_outputs.pop("latent_sample")
@@ -653,10 +823,12 @@ class ORTModelVaeDecoder(ORTPipelinePart):
         # can be missing from models exported long ago
         if not hasattr(self.config, "scaling_factor"):
             logger.warning(
-                "The `scaling_factor` attribute is missing from the VAE decoder configuration. "
+                "The `scaling_factor` attribute is missing from the VAE encoder configuration. "
                 "Please re-export the model with newer version of optimum and diffusers."
             )
-            self.register_to_config(scaling_factor=2 ** (len(self.config.block_out_channels) - 1))
+            self.register_to_config(scaling_factor=0.18215)
+
+        self._known_symbols["len_blocks"] = len(self.config.block_out_channels)
 
     def forward(
         self,
@@ -664,13 +836,17 @@ class ORTModelVaeDecoder(ORTPipelinePart):
         generator: Optional[torch.Generator] = None,
         return_dict: bool = False,
     ):
-        use_torch = isinstance(latent_sample, torch.Tensor)
-
         model_inputs = {"latent_sample": latent_sample}
 
-        onnx_inputs = self.prepare_onnx_inputs(use_torch, **model_inputs)
-        onnx_outputs = self.session.run(None, onnx_inputs)
-        model_outputs = self.prepare_onnx_outputs(use_torch, *onnx_outputs)
+        if self.parent_pipeline.use_io_binding:
+            io_binding, model_outputs = self.prepare_io_binding(model_inputs)
+            self.session.run_with_iobinding(io_binding)
+            if model_outputs is None:
+                model_outputs = self.get_io_binding_outputs(io_binding, model_outputs)
+        else:
+            onnx_inputs = self.prepare_onnx_inputs(**model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self.prepare_onnx_outputs(*onnx_outputs)
 
         if "latent_sample" in model_outputs:
             model_outputs["latents"] = model_outputs.pop("latent_sample")

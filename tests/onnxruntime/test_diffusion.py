@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import numpy as np
-import pytest
 import torch
 from diffusers import (
     AutoPipelineForImage2Image,
@@ -272,22 +271,21 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             }
         )
     )
-    @pytest.mark.rocm_ep_test
-    @pytest.mark.cuda_ep_test
-    @pytest.mark.trt_ep_test
     @require_torch_gpu
     @require_diffusers
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         model_args = {"test_name": test_name, "model_arch": model_arch}
         self._setup(model_args)
 
-        height, width, batch_size = 32, 64, 1
+        height, width, batch_size = 32, 64, 2
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name], provider=provider, use_io_binding=True
+        )
+        self.assertEqual(pipeline.device.type, "cuda")
 
         outputs = pipeline(**inputs).images
-
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
@@ -486,19 +484,18 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             }
         )
     )
-    @pytest.mark.rocm_ep_test
-    @pytest.mark.cuda_ep_test
-    @pytest.mark.trt_ep_test
     @require_torch_gpu
     @require_diffusers
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         model_args = {"test_name": test_name, "model_arch": model_arch}
         self._setup(model_args)
 
-        height, width, batch_size = 32, 64, 1
+        height, width, batch_size = 32, 64, 2
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name], provider=provider, use_io_binding=True
+        )
         self.assertEqual(pipeline.device.type, "cuda")
 
         outputs = pipeline(**inputs).images
@@ -706,20 +703,19 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
             }
         )
     )
-    @pytest.mark.rocm_ep_test
-    @pytest.mark.cuda_ep_test
-    @pytest.mark.trt_ep_test
     @require_torch_gpu
     @require_diffusers
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         model_args = {"test_name": test_name, "model_arch": model_arch}
         self._setup(model_args)
 
-        height, width, batch_size = 32, 64, 1
+        height, width, batch_size = 32, 64, 2
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
-        self.assertEqual(pipeline.device, "cuda")
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name], provider=provider, use_io_binding=True
+        )
+        self.assertEqual(pipeline.device.type, "cuda")
 
         outputs = pipeline(**inputs).images
         self.assertIsInstance(outputs, np.ndarray)

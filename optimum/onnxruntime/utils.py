@@ -199,7 +199,7 @@ def get_device_for_provider(provider: str, provider_options: Dict) -> torch.devi
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
     if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider", "ROCMExecutionProvider"]:
-        return torch.device(f"cuda:{provider_options['device_id']}")
+        return torch.device(f"cuda:{provider_options.get('device_id', 0)}")
     else:
         return torch.device("cpu")
 

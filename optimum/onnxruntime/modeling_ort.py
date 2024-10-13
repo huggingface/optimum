@@ -70,7 +70,6 @@ from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessor
 from .io_binding import IOBindingHelper, TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
-    check_io_binding,
     get_device_for_provider,
     get_ordered_input_names,
     get_provider_for_device,
@@ -231,7 +230,7 @@ class ORTModel(OptimizedModel):
                 f" Use `ort_model.to()` to send the outputs to the wanted device."
             )
 
-        self._use_io_binding = use_io_binding
+        self.use_io_binding = use_io_binding
 
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
@@ -308,14 +307,6 @@ class ORTModel(OptimizedModel):
     def device(self, **kwargs):
         raise AttributeError("The device attribute is read-only, please use the `to` method to change the device.")
 
-    @property
-    def use_io_binding(self):
-        return check_io_binding(self.providers, self._use_io_binding)
-
-    @use_io_binding.setter
-    def use_io_binding(self, value: bool):
-        self._use_io_binding = value
-
     def to(self, device: Union[torch.device, str, int]):
         """
         Changes the ONNX Runtime provider according to the device.
@@ -338,7 +329,7 @@ class ORTModel(OptimizedModel):
         validate_provider_availability(provider)  # raise error if the provider is not available
 
         # IOBinding is only supported for CPU and CUDA Execution Providers.
-        if device.type == "cuda" and self._use_io_binding is False and provider == "CUDAExecutionProvider":
+        if device.type == "cuda" and self.use_io_binding is False and provider == "CUDAExecutionProvider":
             self.use_io_binding = True
             logger.info(
                 "use_io_binding was set to False, setting it to True because it can provide a huge speedup on GPUs. "
