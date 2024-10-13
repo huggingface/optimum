@@ -138,13 +138,15 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
-        for output_type in ["latent", "np", "pt"]:
-            inputs["output_type"] = output_type
+        for use_io_binding in [False, True]:
+            for output_type in ["latent", "np", "pt"]:
+                inputs["output_type"] = output_type
+                ort_pipeline.use_io_binding = use_io_binding
 
-            ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
-            diffusers_output = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+                ort_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+                diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
-            np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4, rtol=1e-2)
+                np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -280,14 +282,16 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         height, width, batch_size = 32, 64, 2
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], provider=provider, use_io_binding=True
-        )
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
         self.assertEqual(pipeline.device.type, "cuda")
 
-        outputs = pipeline(**inputs).images
-        self.assertIsInstance(outputs, np.ndarray)
-        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
+        for use_io_binding in [False, True]:
+            pipeline.use_io_binding = use_io_binding
+
+            images = pipeline(**inputs).images
+
+            self.assertIsInstance(images, np.ndarray)
+            self.assertEqual(images.shape, (batch_size, height, width, 3))
 
     @parameterized.expand(["stable-diffusion", "latent-consistency"])
     @require_diffusers
@@ -446,16 +450,18 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         height, width, batch_size = 128, 128, 1
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
-        for output_type in ["latent", "np", "pt"]:
-            inputs["output_type"] = output_type
+        for use_io_binding in [False, True]:
+            for output_type in ["latent", "np", "pt"]:
+                inputs["output_type"] = output_type
+                ort_pipeline.use_io_binding = use_io_binding
 
-            ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
-            diffusers_output = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+                ort_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+                diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
-            np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4, rtol=1e-2)
+                np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -475,32 +481,6 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
 
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
             np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=1e-4, rtol=1e-2)
-
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_arch": SUPPORTED_ARCHITECTURES,
-                "provider": ["CUDAExecutionProvider", "ROCMExecutionProvider", "TensorrtExecutionProvider"],
-            }
-        )
-    )
-    @require_torch_gpu
-    @require_diffusers
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
-        model_args = {"test_name": test_name, "model_arch": model_arch}
-        self._setup(model_args)
-
-        height, width, batch_size = 32, 64, 2
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], provider=provider, use_io_binding=True
-        )
-        self.assertEqual(pipeline.device.type, "cuda")
-
-        outputs = pipeline(**inputs).images
-        self.assertIsInstance(outputs, np.ndarray)
-        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
     @parameterized.expand(["stable-diffusion", "latent-consistency"])
     @require_diffusers
@@ -535,6 +515,34 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         diffusers_images = diffusers_output.images
 
         np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "provider": ["CUDAExecutionProvider", "ROCMExecutionProvider", "TensorrtExecutionProvider"],
+            }
+        )
+    )
+    @require_torch_gpu
+    @require_diffusers
+    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 32, 64, 2
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        self.assertEqual(pipeline.device.type, "cuda")
+
+        for use_io_binding in [False, True]:
+            pipeline.use_io_binding = use_io_binding
+
+            images = pipeline(**inputs).images
+
+            self.assertIsInstance(images, np.ndarray)
+            self.assertEqual(images.shape, (batch_size, height, width, 3))
 
 
 class ORTPipelineForInpaintingTest(ORTModelTestMixin):
@@ -662,19 +670,21 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
+        height, width, batch_size = 128, 128, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
-        height, width, batch_size = 64, 64, 1
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+        for use_io_binding in [False, True]:
+            for output_type in ["latent", "np", "pt"]:
+                inputs["output_type"] = output_type
+                ort_pipeline.use_io_binding = use_io_binding
 
-        for output_type in ["latent", "np", "pt"]:
-            inputs["output_type"] = output_type
+                ort_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+                diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
-            ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
-            diffusers_output = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
-
-            np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4, rtol=1e-2)
+                np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -694,32 +704,6 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
 
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
             np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=1e-4, rtol=1e-2)
-
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_arch": SUPPORTED_ARCHITECTURES,
-                "provider": ["CUDAExecutionProvider", "ROCMExecutionProvider", "TensorrtExecutionProvider"],
-            }
-        )
-    )
-    @require_torch_gpu
-    @require_diffusers
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
-        model_args = {"test_name": test_name, "model_arch": model_arch}
-        self._setup(model_args)
-
-        height, width, batch_size = 32, 64, 2
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], provider=provider, use_io_binding=True
-        )
-        self.assertEqual(pipeline.device.type, "cuda")
-
-        outputs = pipeline(**inputs).images
-        self.assertIsInstance(outputs, np.ndarray)
-        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
     @parameterized.expand(["stable-diffusion"])
     @require_diffusers
@@ -753,3 +737,31 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         ort_images = ort_output.images
         diffusers_images = diffusers_output.images
         np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
+
+    @parameterized.expand(
+        grid_parameters(
+            {
+                "model_arch": SUPPORTED_ARCHITECTURES,
+                "provider": ["CUDAExecutionProvider", "ROCMExecutionProvider", "TensorrtExecutionProvider"],
+            }
+        )
+    )
+    @require_torch_gpu
+    @require_diffusers
+    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+        model_args = {"test_name": test_name, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 32, 64, 2
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        self.assertEqual(pipeline.device.type, "cuda")
+
+        for use_io_binding in [False, True]:
+            pipeline.use_io_binding = use_io_binding
+
+            images = pipeline(**inputs).images
+
+            self.assertIsInstance(images, np.ndarray)
+            self.assertEqual(images.shape, (batch_size, height, width, 3))
