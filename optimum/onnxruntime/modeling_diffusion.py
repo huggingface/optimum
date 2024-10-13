@@ -603,8 +603,8 @@ class ORTPipelinePart(ConfigMixin):
 
             io_binding.bind_input(
                 name=input_name,
-                device_id=self.device.index,
                 device_type=model_inputs[input_name].device.type,
+                device_id=self.device.index if self.device.index is not None else -1,
                 element_type=TypeHelper.ort_type_to_numpy_type(self.input_dtypes[input_name]),
                 buffer_ptr=model_inputs[input_name].data_ptr(),
                 shape=tuple(model_inputs[input_name].size()),
@@ -623,8 +623,8 @@ class ORTPipelinePart(ConfigMixin):
             for output_name, output_tensor in model_outputs.items():
                 io_binding.bind_output(
                     name=output_name,
-                    device_id=self.device.index,
                     device_type=self.device.type,
+                    device_id=self.device.index if self.device.index is not None else -1,
                     element_type=TypeHelper.ort_type_to_numpy_type(self.output_dtypes[output_name]),
                     buffer_ptr=output_tensor.data_ptr(),
                     shape=tuple(output_tensor.size()),
