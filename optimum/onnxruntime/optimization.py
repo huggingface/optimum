@@ -104,7 +104,7 @@ class ORTOptimizer:
                     "Please re-export your model. This can be done by using the optimum-cli ONNX export tool or `ORTModelForCausalLM.from_pretrained(..., export=True, use_merged=False)`."
                 )
             else:
-                onnx_model_path.append(model_or_path.model._model_path)
+                onnx_model_path.append(model_or_path.model_path)
             config = model_or_path.config
         elif os.path.isdir(model_or_path):
             from_ortmodel = False
