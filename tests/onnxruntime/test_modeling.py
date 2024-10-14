@@ -975,7 +975,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         if token is None:
             self.skipTest(
-                "Test requires a read token for optimum-internal-testing in the environment variable `HF_HUB_READ_TOKEN`."
+                "Test requires a read access token for optimum-internal-testing in the environment variable `HF_HUB_READ_TOKEN`."
             )
 
         model = ORTModelForCustomTasks.from_pretrained(
