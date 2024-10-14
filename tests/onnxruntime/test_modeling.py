@@ -979,7 +979,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             )
 
         model = ORTModelForCustomTasks.from_pretrained(
-            "optimum-internal-testing/tiny-random-phi-private", token=token, export=True
+            "optimum-internal-testing/tiny-random-phi-private", revision="onnx", token=token
         )
 
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
