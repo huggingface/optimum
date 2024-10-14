@@ -19,6 +19,7 @@ import warnings
 from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import onnx
 from datasets import Dataset, load_dataset
@@ -286,6 +287,7 @@ class ORTQuantizer(OptimumQuantizer):
         calibration_tensors_range: Optional[Dict[str, Tuple[float, float]]] = None,
         use_external_data_format: bool = False,
         preprocessor: Optional[QuantizationPreprocessor] = None,
+        extra_options: Optional[Dict[str, Any]] = {}
     ) -> Path:
         """
         Quantizes a model given the optimization specifications defined in `quantization_config`.
@@ -382,6 +384,7 @@ class ORTQuantizer(OptimumQuantizer):
                 "AddQDQPairToWeight": quantization_config.qdq_add_pair_to_weight,
                 "DedicatedQDQPair": quantization_config.qdq_dedicated_pair,
                 "QDQOpTypePerChannelSupportToAxis": quantization_config.qdq_op_type_per_channel_support_to_axis,
+                **extra_options,
             },
         }
 
