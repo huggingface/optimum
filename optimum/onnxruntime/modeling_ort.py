@@ -206,18 +206,6 @@ class ORTModel(OptimizedModel):
                 f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
             )
 
-        self._providers = model.get_providers()
-        self._providers_options = model.get_provider_options()
-        self._device = get_device_for_provider(provider=self.provider, provider_options=self.provider_options)
-
-        if use_io_binding is None:
-            if self.provider == "CUDAExecutionProvider":
-                self.use_io_binding = True
-            else:
-                self.use_io_binding = False
-        else:
-            self.use_io_binding = use_io_binding
-
         if isinstance(model_save_dir, TemporaryDirectory):
             # This attribute is needed to keep one reference on the temporary directory, since garbage collecting it
             # would end-up removing the directory containing the underlying ONNX model.
@@ -239,8 +227,14 @@ class ORTModel(OptimizedModel):
         # Define the pattern here to avoid recomputing it everytime.
         self.output_shape_inference_pattern = re.compile(r"([a-zA-Z_]+)|([0-9]+)|([+-/*])|([\(\)])")
 
-        # because OptimizedModel requires it
+        # OptimizedModel requires it
         self.preprocessors = preprocessors
+
+        self.use_io_binding = use_io_binding or model.get_providers()[0] == "CUDAExecutionProvider"
+
+        self._providers = model.get_providers()
+        self._providers_options = model.get_provider_options()
+        self._device = get_device_for_provider(provider=self.provider, provider_options=self.provider_options)
 
     def __init__(
         self,
@@ -252,9 +246,6 @@ class ORTModel(OptimizedModel):
         **kwargs,
     ):
         super().__init__(model, config)
-
-        self.model_path = Path(model._model_path)
-        self.model_name = self.model_path.name
 
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(model.get_inputs())}
         self.input_dtypes = {input_key.name: input_key.type for input_key in model.get_inputs()}

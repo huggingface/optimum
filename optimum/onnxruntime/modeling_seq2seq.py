@@ -613,36 +613,23 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 Refer to https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationMixin.generate.
         """
 
-        # TODO: remove at version 2.0
-        def show_deprecated_argument(arg_name):
-            if kwargs.pop(arg_name, None) is not None:
-                logger.warning(
-                    f"The {arg_name} argument to create an {self.__class__.__name__} is deprecated, and not used "
-                    "anymore."
-                )
-
-        show_deprecated_argument("last_encoder_model_name")
-        show_deprecated_argument("last_decoder_model_name")
-        show_deprecated_argument("last_decoder_with_past_model_name")
-        if kwargs:
-            raise ValueError(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
-            )
-
         ABC.__init__(self)
 
-        if use_io_binding is None:
-            if decoder_session.get_providers()[0] == "CUDAExecutionProvider":
-                use_io_binding = True
-            else:
-                use_io_binding = False
+        # TODO: remove at version 2.0
+        for arg_name in ["last_encoder_model_name", "last_decoder_model_name", "last_decoder_with_past_model_name"]:
+            if kwargs.pop(arg_name, None) is not None:
+                raise ValueError(
+                    f"The {arg_name} argument to create an {self.__class__.__name__} is deprecated, and not used anymore."
+                )
 
         self.shared_attributes_init(
             encoder_session,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
+            **kwargs,
         )
+
         self.config = config
         self.name_or_path = config.name_or_path
 
@@ -1120,18 +1107,25 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             `ORTModel`: the model placed on the requested device.
         """
         device, provider_options = parse_device(device)
+        provider = get_provider_for_device(device)
+        validate_provider_availability(provider)
 
-        if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
+        if device is None or device == self.device:
             return self
 
-        provider = get_provider_for_device(device)
-        validate_provider_availability(provider)  # raise error if the provider is not available
+        for session in [self.encoder.session, self.decoder.session, self.decoder_with_past.session]:
+            session.set_providers([provider], provider_options=[provider_options])
 
-        self.encoder.session.set_providers([provider], provider_options=[provider_options])
-        self.decoder.session.set_providers([provider], provider_options=[provider_options])
-        if self.decoder_with_past is not None:
-            self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
-        self.providers = self.encoder.session.get_providers()
+        self._providers = self.encoder.session.get_providers()
+        self._providers_options = self.encoder.session.get_provider_options()
+
+        if self.provider != provider or self.provider_options != provider_options:
+            raise ValueError(
+                f"Failed to set the device to {device}. "
+                f"Requested provider {provider} with options: {provider_options}, "
+                f"but got provider {self.provider} with options: {self.provider_options}."
+            )
+
         self._device = device
 
         return self
