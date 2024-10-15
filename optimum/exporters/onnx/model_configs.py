@@ -27,6 +27,7 @@ from ...utils import (
     DummyAudioInputGenerator,
     DummyCodegenDecoderTextInputGenerator,
     DummyDecoderTextInputGenerator,
+    DummyDecisionTransformerInputGenerator,
     DummyEncodecInputGenerator,
     DummyInputGenerator,
     DummyIntGenerator,
@@ -254,6 +255,23 @@ class CodeGenOnnxConfig(GPT2OnnxConfig):
 
 class ImageGPTOnnxConfig(GPT2OnnxConfig):
     pass
+
+
+class DecisionTransformerOnnxConfig(GPT2OnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyDecisionTransformerInputGenerator,
+    )
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+
+        return {
+            'timesteps': {0: 'batch_size', 1: 'sequence_length'},
+            'returns_to_go': {0: 'batch_size', 1: 'sequence_length'},
+            'attention_mask': {0: 'batch_size', 1: 'sequence_length'},
+            'actions': {0: 'batch_size', 1: 'sequence_length', 2: 'act_dim'},
+            'states': {0: 'batch_size', 1: 'sequence_length', 2: 'state_dim'},
+        }
 
 
 class GPTNeoOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
