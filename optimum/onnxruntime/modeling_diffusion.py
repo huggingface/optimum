@@ -51,6 +51,7 @@ from transformers.file_utils import add_end_docstrings
 from transformers.modeling_outputs import ModelOutput
 
 import onnxruntime as ort
+from optimum.utils import check_if_diffusers_greater
 
 from ..exporters.onnx import main_export
 from ..onnx.utils import _get_model_external_data_paths
@@ -65,7 +66,6 @@ from .io_binding import TypeHelper
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
     ONNX_WEIGHTS_NAME,
-    check_if_diffusers_greater,
     get_provider_for_device,
     np_to_pt_generators,
     parse_device,
