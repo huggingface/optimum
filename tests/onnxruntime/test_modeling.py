@@ -2354,14 +2354,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertFalse(model.use_merged)
         self.assertTrue(model.use_cache)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
-        self.assertEqual(model.onnx_paths[0].name, ONNX_DECODER_WITH_PAST_NAME)
+        self.assertEqual(model.model_path.name, ONNX_DECODER_WITH_PAST_NAME)
 
         model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge")
 
         self.assertTrue(model.use_merged)
         self.assertTrue(model.use_cache)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
-        self.assertEqual(model.onnx_paths[0].name, ONNX_DECODER_MERGED_NAME)
+        self.assertEqual(model.model_path.name, ONNX_DECODER_MERGED_NAME)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:

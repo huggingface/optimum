@@ -206,8 +206,16 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
         return self._validate_same_attribute_value_across_components("dtype")
 
     @property
+    def providers(self) -> Tuple[str]:
+        return self._validate_same_attribute_value_across_components("providers")
+
+    @property
     def provider(self) -> str:
         return self._validate_same_attribute_value_across_components("provider")
+
+    @property
+    def providers_options(self) -> Dict[str, Dict[str, Any]]:
+        return self._validate_same_attribute_value_across_components("providers_options")
 
     @property
     def provider_options(self) -> Dict[str, Any]:
@@ -461,7 +469,9 @@ class ORTPipelinePart(ConfigMixin):
             self.register_to_config(**self._dict_from_json_file(config_file_path))
 
         self.session = session
-        self.use_io_binding = use_io_binding or session.get_providers()[0] in ["CUDAExecutionProvider"]
+        self.use_io_binding = (
+            use_io_binding if use_io_binding is not None else session.get_providers()[0] in ["CUDAExecutionProvider"]
+        )
 
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.input_shapes = {input_key.name: input_key.shape for input_key in self.session.get_inputs()}
@@ -495,8 +505,16 @@ class ORTPipelinePart(ConfigMixin):
         return self._device
 
     @property
+    def proverties(self):
+        return self._providers
+
+    @property
     def provider(self):
         return self._providers[0]
+
+    @property
+    def providers_options(self):
+        return self._providers_options
 
     @property
     def provider_options(self):
@@ -802,7 +820,7 @@ class ORTModelVaeEncoder(ORTPipelinePart):
             )
             self.register_to_config(scaling_factor=0.18215)
 
-        self._known_symbols["len_blocks"] = len(self.config.block_out_channels)
+        self._known_symbols["down_scaling_factor"] = 2 ** (len(self.config.down_block_types) - 1)
 
     def forward(
         self,
@@ -848,7 +866,7 @@ class ORTModelVaeDecoder(ORTPipelinePart):
             )
             self.register_to_config(scaling_factor=0.18215)
 
-        self._known_symbols["len_blocks"] = len(self.config.block_out_channels)
+        self._known_symbols["up_scaling_factor"] = 2 ** (len(self.config.up_block_types) - 1)
 
     def forward(
         self,

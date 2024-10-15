@@ -230,7 +230,9 @@ class ORTModel(OptimizedModel):
         # OptimizedModel requires it
         self.preprocessors = preprocessors
 
-        self.use_io_binding = use_io_binding or model.get_providers()[0] == "CUDAExecutionProvider"
+        self.use_io_binding = (
+            use_io_binding if use_io_binding is not None else model.get_providers()[0] in ["CUDAExecutionProvider"]
+        )
 
         self._providers = model.get_providers()
         self._providers_options = model.get_provider_options()
@@ -266,6 +268,24 @@ class ORTModel(OptimizedModel):
         self._ordered_input_names = get_ordered_input_names(self.input_names.keys(), func=self.forward)
 
     @property
+    def device(self):
+        return self._device
+
+    @property
+    def dtype(self) -> torch.dtype:
+        for dtype in self.input_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
+        for dtype in self.output_dtypes.values():
+            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
+            if torch_dtype.is_floating_point:
+                return torch_dtype
+
+        return None
+
+    @property
     def providers(self):
         # all providers
         return self._providers
@@ -284,24 +304,6 @@ class ORTModel(OptimizedModel):
     def provider_options(self):
         # main provider options
         return self.providers_options[self.provider]
-
-    @property
-    def device(self):
-        return self._device
-
-    @property
-    def dtype(self) -> torch.dtype:
-        for dtype in self.input_dtypes.values():
-            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
-            if torch_dtype.is_floating_point:
-                return torch_dtype
-
-        for dtype in self.output_dtypes.values():
-            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
-            if torch_dtype.is_floating_point:
-                return torch_dtype
-
-        return None
 
     def to(self, *args, device: Optional[Union[torch.device, str, int]] = None, dtype: Optional[torch.dtype] = None):
         for arg in args:

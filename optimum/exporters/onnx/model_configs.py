@@ -1132,7 +1132,11 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "latent_parameters": {0: "batch_size", 2: "sample_height / len_blocks", 3: "sample_width / len_blocks"},
+            "latent_parameters": {
+                0: "batch_size",
+                2: "sample_height / down_scaling_factor",
+                3: "sample_width / down_scaling_factor",
+            },
         }
 
 
@@ -1156,7 +1160,11 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "sample": {0: "batch_size", 2: "latent_height * len_blocks", 3: "latent_width * len_blocks"},
+            "sample": {
+                0: "batch_size",
+                2: "latent_height * up_scaling_factor",
+                3: "latent_width * up_scaling_factor",
+            },
         }
 
 
