@@ -161,7 +161,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     setattr(self.generation_config, param_name, param_value)
                     setattr(self.config, param_name, None)
 
-        self.model_path = Path(model._model_path)
         self.use_merged = "use_cache_branch" in self.input_names
         self.model_type = self.config.model_type
 

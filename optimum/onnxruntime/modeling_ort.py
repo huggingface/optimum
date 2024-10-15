@@ -247,6 +247,8 @@ class ORTModel(OptimizedModel):
     ):
         super().__init__(model, config)
 
+        self.model_path = Path(model._model_path)
+
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(model.get_inputs())}
         self.input_dtypes = {input_key.name: input_key.type for input_key in model.get_inputs()}
 
