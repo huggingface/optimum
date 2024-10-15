@@ -26,7 +26,6 @@ from typing import Any, Dict, Optional, Union
 import numpy as np
 import torch
 from diffusers.configuration_utils import ConfigMixin
-from diffusers.models.autoencoders.vae import DiagonalGaussianDistribution
 from diffusers.pipelines import (
     AutoPipelineForImage2Image,
     AutoPipelineForInpainting,
@@ -66,11 +65,18 @@ from .io_binding import TypeHelper
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
     ONNX_WEIGHTS_NAME,
+    check_if_diffusers_greater,
     get_provider_for_device,
     np_to_pt_generators,
     parse_device,
     validate_provider_availability,
 )
+
+
+if check_if_diffusers_greater("0.25.0"):
+    from diffusers.models.autoencoders.vae import DiagonalGaussianDistribution
+else:
+    from diffusers.models.vae import DiagonalGaussianDistribution
 
 
 logger = logging.getLogger(__name__)
