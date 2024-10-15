@@ -26,7 +26,6 @@ from typing import Any, Dict, Optional, Union
 import numpy as np
 import torch
 from diffusers.configuration_utils import ConfigMixin
-from diffusers.models.autoencoders.vae import DiagonalGaussianDistribution
 from diffusers.pipelines import (
     AutoPipelineForImage2Image,
     AutoPipelineForInpainting,
@@ -52,6 +51,7 @@ from transformers.file_utils import add_end_docstrings
 from transformers.modeling_outputs import ModelOutput
 
 import onnxruntime as ort
+from optimum.utils import check_if_diffusers_greater
 
 from ..exporters.onnx import main_export
 from ..onnx.utils import _get_model_external_data_paths
@@ -71,6 +71,12 @@ from .utils import (
     parse_device,
     validate_provider_availability,
 )
+
+
+if check_if_diffusers_greater("0.25.0"):
+    from diffusers.models.autoencoders.vae import DiagonalGaussianDistribution
+else:
+    from diffusers.models.vae import DiagonalGaussianDistribution
 
 
 logger = logging.getLogger(__name__)
