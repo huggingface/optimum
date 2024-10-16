@@ -408,7 +408,7 @@ class GPTQQuantizer(object):
         blocks = recurse_getattr(model, self.block_name_to_quantize)
 
         if not has_device_map:
-            # put modules from module_name_preceding_first_block on cuda
+            # put modules from module_name_preceding_first_block on cuda or cpu
             to_device = "cuda:0" if torch.cuda.is_available() else "cpu"
             for module_name in self.module_name_preceding_first_block:
                 module = recurse_getattr(model, module_name)
