@@ -153,6 +153,9 @@ class XLMOnnxConfig(BertOnnxConfig):
 class SplinterOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
+class CanineOnnxConfig(BertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 13
+
 
 class DistilBertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
