@@ -17,7 +17,6 @@ import inspect
 import logging
 import os
 import shutil
-import traceback
 from abc import abstractmethod
 from collections import OrderedDict
 from pathlib import Path
@@ -64,7 +63,7 @@ from ..utils import (
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
 )
-from .io_binding import IOBindingHelper, TypeHelper
+from .io_binding import TypeHelper
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .utils import (
     ONNX_WEIGHTS_NAME,
@@ -192,7 +191,10 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
             if hasattr(component, attribute)
         }
 
-        if len(set(attribute_values.values())) > 1:
+        if len(attribute_values) == 0:
+            raise ValueError(f"Attribute {attribute} is not defined for any component.")
+        # make sure there is exactly one value for the attribute (bypass unhashable types)
+        elif len(set(map(str, attribute_values.values()))) > 1:
             raise ValueError(f"Attribute {attribute} is not the same across components: {attribute_values}.")
 
         return next(iter(attribute_values.values()))
@@ -469,25 +471,27 @@ class ORTPipelinePart(ConfigMixin):
             self.register_to_config(**self._dict_from_json_file(config_file_path))
 
         self.session = session
-        self.use_io_binding = (
-            use_io_binding if use_io_binding is not None else session.get_providers()[0] in ["CUDAExecutionProvider"]
-        )
-
-        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
-        self.input_shapes = {input_key.name: input_key.shape for input_key in self.session.get_inputs()}
-        self.input_dtypes = {input_key.name: input_key.type for input_key in self.session.get_inputs()}
-
-        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
-        self.output_shapes = {output_key.name: output_key.shape for output_key in self.session.get_outputs()}
-        self.output_dtypes = {output_key.name: output_key.type for output_key in self.session.get_outputs()}
-
-        self._known_symbols = {k: v for k, v in self.config.items() if isinstance(v, int)}
-        self._compiled_output_shapes = self._compile_shapes(self.output_shapes)
-        self._compiled_input_shapes = self._compile_shapes(self.input_shapes)
 
         self._providers = self.session.get_providers()
         self._providers_options = self.session.get_provider_options()
         self._device = get_device_for_provider(provider=self.provider, provider_options=self.provider_options)
+
+        self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
+        self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+        self.input_dtypes = {input_key.name: input_key.type for input_key in self.session.get_inputs()}
+        self.output_dtypes = {output_key.name: output_key.type for output_key in self.session.get_outputs()}
+        self.input_shapes = {input_key.name: input_key.shape for input_key in self.session.get_inputs()}
+        self.output_shapes = {output_key.name: output_key.shape for output_key in self.session.get_outputs()}
+
+        # io binding stuff
+        self.use_io_binding = (
+            use_io_binding if use_io_binding is not None else self.provider in ["CUDAExecutionProvider"]
+        )
+
+        self._known_symbols = {k: v for k, v in self.config.items() if isinstance(v, int)}
+        self._compiled_output_shapes = self._compile_shapes(self.output_shapes)
+        self._compiled_input_shapes = self._compile_shapes(self.input_shapes)
+        self._output_buffers = {}
 
     def _compile_shapes(self, shapes: Dict[str, Tuple[Union[int, str]]]) -> Dict[str, Tuple[sp.Basic]]:
         compiled_shapes = {}
@@ -505,7 +509,7 @@ class ORTPipelinePart(ConfigMixin):
         return self._device
 
     @property
-    def proverties(self):
+    def providers(self):
         return self._providers
 
     @property
@@ -576,11 +580,9 @@ class ORTPipelinePart(ConfigMixin):
         for input_name, compiled_input_shape in self._compiled_input_shapes.items():
             input_tensor_shape = model_inputs[input_name].shape
             for expr, dim in zip(compiled_input_shape, input_tensor_shape):
-                # if the expression is a constant, we skip it since it adds no information
                 if len(expr.free_symbols) == 0:
                     continue
-
-                if len(expr.free_symbols) == 1:
+                elif len(expr.free_symbols) == 1:
                     symbol = expr.free_symbols.pop()
                     if expr == symbol:
                         known_symbols[symbol] = dim
@@ -595,7 +597,7 @@ class ORTPipelinePart(ConfigMixin):
                             )
                 else:
                     raise ValueError(
-                        f"Failed to resolve the symbolic dimensions for the input {input_name}. "
+                        f"Symbolic dimension for the input {input_name} has more than one free symbol. "
                         f"Expression: {expr}, Dimension: {dim}"
                     )
 
@@ -618,71 +620,43 @@ class ORTPipelinePart(ConfigMixin):
 
         return resolved_output_shapes
 
-    def _get_io_binding_outputs(self, io_binding: ort.IOBinding) -> Dict[str, torch.Tensor]:
-        model_outputs = {}
-
-        ort_outputs = io_binding.get_outputs()
-        for output_name, output_idx in self.output_names.items():
-            model_outputs[output_name] = IOBindingHelper.to_pytorch(ort_outputs[output_idx])
-
-        return model_outputs
-
     def _prepare_io_binding(self, model_inputs: torch.Tensor) -> Tuple[ort.IOBinding, Dict[str, torch.Tensor]]:
         io_binding = self.session.io_binding()
 
         for input_name in self.input_names.keys():
             input_dtype = TypeHelper.ort_type_to_torch_type(self.input_dtypes[input_name])
 
-            if model_inputs[input_name].device != self.device:
-                model_inputs[input_name] = model_inputs[input_name].to(self.device)
             if model_inputs[input_name].dtype != input_dtype:
                 model_inputs[input_name] = model_inputs[input_name].to(input_dtype)
-            if not model_inputs[input_name].is_contiguous():
-                model_inputs[input_name] = model_inputs[input_name].contiguous()
 
             io_binding.bind_input(
                 name=input_name,
-                device_type=model_inputs[input_name].device.type,
+                device_type=self.device.type,
                 device_id=self.device.index if self.device.index is not None else -1,
                 element_type=TypeHelper.ort_type_to_numpy_type(self.input_dtypes[input_name]),
                 buffer_ptr=model_inputs[input_name].data_ptr(),
                 shape=tuple(model_inputs[input_name].size()),
             )
 
-        try:
-            model_outputs = {}
-            output_shapes = self._get_output_shapes(**model_inputs)
-            for output_name, output_shape in output_shapes.items():
-                model_outputs[output_name] = torch.empty(
-                    output_shape,
-                    device=self.device,
-                    memory_format=torch.contiguous_format,
-                    dtype=TypeHelper.ort_type_to_torch_type(self.output_dtypes[output_name]),
-                )
-            for output_name, output_tensor in model_outputs.items():
-                io_binding.bind_output(
-                    name=output_name,
-                    device_type=self.device.type,
-                    device_id=self.device.index if self.device.index is not None else -1,
-                    element_type=TypeHelper.ort_type_to_numpy_type(self.output_dtypes[output_name]),
-                    buffer_ptr=output_tensor.data_ptr(),
-                    shape=tuple(output_tensor.size()),
-                )
-        except Exception as e:
-            logger.error(
-                f"Failed to prepare IO binding for {self.__class__.__name__}. "
-                f"Exception: {e}\n{traceback.format_exc()}"
-            )
-            model_outputs = None
-            for output_name in self.output_names.keys():
-                io_binding.bind_output(
-                    name=output_name,
-                    device_id=self.device.index,
-                    device_type=self.device.type,
-                    element_type=TypeHelper.ort_type_to_numpy_type(self.output_dtypes[output_name]),
-                )
+        current_output_shapes = self._get_output_shapes(**model_inputs)
 
-        return io_binding, model_outputs
+        for output_name in self.output_names.keys():
+            output_dtype = TypeHelper.ort_type_to_torch_type(self.output_dtypes[output_name])
+            output_shape = current_output_shapes[output_name]
+
+            if output_name not in self._output_buffers or self._output_buffers[output_name].shape != output_shape:
+                self._output_buffers[output_name] = torch.empty(output_shape, device=self.device, dtype=output_dtype)
+
+            io_binding.bind_output(
+                name=output_name,
+                device_type=self.device.type,
+                device_id=self.device.index if self.device.index is not None else -1,
+                element_type=TypeHelper.ort_type_to_numpy_type(self.output_dtypes[output_name]),
+                buffer_ptr=self._output_buffers[output_name].data_ptr(),
+                shape=tuple(self._output_buffers[output_name].size()),
+            )
+
+        return io_binding, model_inputs, self._output_buffers
 
     def _prepare_onnx_inputs(self, **inputs: Union[torch.Tensor, np.ndarray]) -> Dict[str, np.ndarray]:
         onnx_inputs = {}
@@ -758,10 +732,8 @@ class ORTModelUnet(ORTPipelinePart):
         }
 
         if self.use_io_binding:
-            io_binding, model_outputs = self._prepare_io_binding(model_inputs)
+            io_binding, model_inputs, model_outputs = self._prepare_io_binding(model_inputs)
             self.session.run_with_iobinding(io_binding)
-            if model_outputs is None:
-                model_outputs = self._get_io_binding_outputs(io_binding, model_outputs)
         else:
             onnx_inputs = self._prepare_onnx_inputs(**model_inputs)
             onnx_outputs = self.session.run(None, onnx_inputs)
@@ -784,10 +756,8 @@ class ORTModelTextEncoder(ORTPipelinePart):
         model_inputs = {"input_ids": input_ids}
 
         if self.use_io_binding:
-            io_binding, model_outputs = self._prepare_io_binding(model_inputs)
+            io_binding, model_inputs, model_outputs = self._prepare_io_binding(model_inputs)
             self.session.run_with_iobinding(io_binding)
-            if model_outputs is None:
-                model_outputs = self._get_io_binding_outputs(io_binding, model_outputs)
         else:
             onnx_inputs = self._prepare_onnx_inputs(**model_inputs)
             onnx_outputs = self.session.run(None, onnx_inputs)
@@ -820,8 +790,6 @@ class ORTModelVaeEncoder(ORTPipelinePart):
             )
             self.register_to_config(scaling_factor=0.18215)
 
-        self._known_symbols["down_scaling_factor"] = 2 ** (len(self.config.down_block_types) - 1)
-
     def forward(
         self,
         sample: Union[np.ndarray, torch.Tensor],
@@ -831,10 +799,8 @@ class ORTModelVaeEncoder(ORTPipelinePart):
         model_inputs = {"sample": sample}
 
         if self.use_io_binding:
-            io_binding, model_outputs = self._prepare_io_binding(model_inputs)
+            io_binding, model_inputs, model_outputs = self._prepare_io_binding(model_inputs)
             self.session.run_with_iobinding(io_binding)
-            if model_outputs is None:
-                model_outputs = self._get_io_binding_outputs(io_binding, model_outputs)
         else:
             onnx_inputs = self._prepare_onnx_inputs(**model_inputs)
             onnx_outputs = self.session.run(None, onnx_inputs)
@@ -866,8 +832,6 @@ class ORTModelVaeDecoder(ORTPipelinePart):
             )
             self.register_to_config(scaling_factor=0.18215)
 
-        self._known_symbols["up_scaling_factor"] = 2 ** (len(self.config.up_block_types) - 1)
-
     def forward(
         self,
         latent_sample: Union[np.ndarray, torch.Tensor],
@@ -877,10 +841,8 @@ class ORTModelVaeDecoder(ORTPipelinePart):
         model_inputs = {"latent_sample": latent_sample}
 
         if self.use_io_binding:
-            io_binding, model_outputs = self._prepare_io_binding(model_inputs)
+            io_binding, model_inputs, model_outputs = self._prepare_io_binding(model_inputs)
             self.session.run_with_iobinding(io_binding)
-            if model_outputs is None:
-                model_outputs = self._get_io_binding_outputs(io_binding, model_outputs)
         else:
             onnx_inputs = self._prepare_onnx_inputs(**model_inputs)
             onnx_outputs = self.session.run(None, onnx_inputs)
