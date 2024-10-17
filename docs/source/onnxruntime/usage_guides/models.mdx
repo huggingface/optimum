@@ -9,7 +9,7 @@ to run accelerated inference without rewriting your APIs.
 
 ### Transformers models
 
-Once your model was [exported to the ONNX format](..exporters.onnx.usage_guides.export_a_model), you can load it by replacing the `AutoModelForXxx` class with the corresponding `ORTModelForXxx`.
+Once your model was [exported to the ONNX format](https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model), you can load it by replacing the `AutoModelForXxx` class with the corresponding `ORTModelForXxx`.
 
 ```diff
   from transformers import AutoTokenizer, pipeline
@@ -24,12 +24,12 @@ Once your model was [exported to the ONNX format](..exporters.onnx.usage_guides.
   result = pipe("He never went out without a book under his arm")
 ```
 
-More information for all the supported `ORTModelForXxx` in our [documentation](.package_reference.modeling_ort)
+More information for all the supported `ORTModelForXxx` in our [documentation](https://huggingface.co/docs/optimum/main/en/onnxruntime/package_reference/modeling_ort)
 
 
 ### Diffusers models
 
-Once your model was [exported to the ONNX format](..exporters.onnx.usage_guides.export_a_model), you can load it by replacing the `DiffusionPipeline` class with the corresponding `ORTDiffusionPipeline`.
+Once your model was [exported to the ONNX format](https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model), you can load it by replacing the `DiffusionPipeline` class with the corresponding `ORTDiffusionPipeline`.
 
 
 ```diff
@@ -56,6 +56,7 @@ Simply pass `export=True` to the [`~optimum.onnxruntime.ORTModel.from_pretrained
 >>> model = ORTModelForSequenceClassification.from_pretrained(model_id, export=True)
 ```
 
+
 ## Pushing your model to the Hub
 
 You can also call `push_to_hub` directly on your model to upload it to the [Hub](https://hf.co/models).
@@ -67,7 +68,7 @@ You can also call `push_to_hub` directly on your model to upload it to the [Hub]
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
 >>> model = ORTModelForSequenceClassification.from_pretrained(model_id, export=True)
 
->>> # Save the converted model
+>>> # Save the converted model locally
 >>> output_dir = "a_local_path_for_convert_onnx_model"
 >>> model.save_pretrained(output_dir)
 
