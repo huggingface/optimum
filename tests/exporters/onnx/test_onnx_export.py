@@ -50,6 +50,7 @@ from optimum.utils.testing_utils import grid_parameters, require_diffusers
 from ..exporters_utils import (
     PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_REMOTE_CODE_MODELS,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_TIMM_MODEL,
     TENSORFLOW_EXPORT_MODELS,
@@ -318,6 +319,7 @@ class OnnxExportTestCase(TestCase):
             - set(PYTORCH_EXPORT_MODELS_TINY.keys())
             - set(PYTORCH_TIMM_MODEL.keys())
             - set(PYTORCH_SENTENCE_TRANSFORMERS_MODEL.keys())
+            - set(PYTORCH_REMOTE_CODE_MODELS.keys())
         )
         if len(missing_models_set) > 0:
             self.fail(f"Not testing all models. Missing models: {missing_models_set}")
