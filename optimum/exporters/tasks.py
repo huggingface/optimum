@@ -335,6 +335,10 @@ class TasksManager:
     }
 
     _DIFFUSERS_SUPPORTED_MODEL_TYPE = {
+        "t5-encoder": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="T5EncoderOnnxConfig",
+        ),
         "clip-text-model": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPTextOnnxConfig",
@@ -346,6 +350,10 @@ class TasksManager:
         "unet": supported_tasks_mapping(
             "semantic-segmentation",
             onnx="UNetOnnxConfig",
+        ),
+        "sd3-transformer": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="SD3TransformerOnnxConfig",
         ),
         "vae-encoder": supported_tasks_mapping(
             "semantic-segmentation",

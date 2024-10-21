@@ -1015,21 +1015,12 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
             "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
             "pooler_output": {0: "batch_size"},
         }
+
         if self._normalized_config.output_hidden_states:
             for i in range(self._normalized_config.num_layers + 1):
                 common_outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_outputs
-
-    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
-        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
-
-        # TODO: fix should be by casting inputs during inference and not export
-        if framework == "pt":
-            import torch
-
-            dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
-        return dummy_inputs
 
     def patch_model_for_export(
         self,
@@ -1157,6 +1148,76 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
             "sample": {0: "batch_size", 2: "height", 3: "width"},
+        }
+
+
+class PooledProjectionsDummyInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = "pooled_projections"
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        **kwargs,
+    ):
+        self.task = task
+        self.batch_size = batch_size
+        self.pooled_projection_dim = normalized_config.config.pooled_projection_dim
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        return self.random_float_tensor(
+            [self.batch_size, self.pooled_projection_dim], framework=framework, dtype=float_dtype
+        )
+
+
+class DummyTransformerTimestpsInputGenerator(DummyTimestepInputGenerator):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "timestep":
+            shape = [self.batch_size]
+            return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=float_dtype)
+        return super().generate(input_name, framework, int_dtype, float_dtype)
+
+
+class SD3TransformerOnnxConfig(UNetOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        (DummyTransformerTimestpsInputGenerator,)
+        + UNetOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+        + (PooledProjectionsDummyInputGenerator,)
+    )
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        image_size="sample_size",
+        num_channels="in_channels",
+        hidden_size="joint_attention_dim",
+        vocab_size="attention_head_dim",
+        allow_new=True,
+    )
+
+    @property
+    def inputs(self):
+        common_inputs = super().inputs
+        common_inputs["pooled_projections"] = {0: "batch_size"}
+        return common_inputs
+
+    def rename_ambiguous_inputs(self, inputs):
+        #  The input name in the model signature is `x, hence the export input name is updated.
+        hidden_states = inputs.pop("sample", None)
+        if hidden_states is not None:
+            inputs["hidden_states"] = hidden_states
+        return inputs
+
+
+class T5EncoderOnnxConfig(CLIPTextOnnxConfig):
+    @property
+    def inputs(self):
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self):
+        return {
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
         }
 
 
