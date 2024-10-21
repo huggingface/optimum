@@ -141,6 +141,7 @@ MODEL_NAMES = {
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
     "speech_to_text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
+    "stable-diffusion-3": "yujiepan/stable-diffusion-3-tiny-random",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "swin-window": "yujiepan/tiny-random-swin-patch4-window7-224",
