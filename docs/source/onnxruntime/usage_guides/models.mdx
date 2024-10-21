@@ -9,7 +9,7 @@ to run accelerated inference without rewriting your APIs.
 
 ### Transformers models
 
-Once your model was [exported to the ONNX format](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model), you can load it by replacing the `AutoModelForXxx` class with the corresponding `ORTModelForXxx`.
+Once your model was [exported to the ONNX format](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model), you can load it by replacing `AutoModelForXxx` with the corresponding `ORTModelForXxx` class.
 
 ```diff
   from transformers import AutoTokenizer, pipeline
@@ -29,7 +29,7 @@ More information for all the supported `ORTModelForXxx` in our [documentation](h
 
 ### Diffusers models
 
-Once your model was [exported to the ONNX format](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model), you can load it by replacing the `DiffusionPipeline` class with the corresponding `ORTDiffusionPipeline`.
+Once your model was [exported to the ONNX format](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model), you can load it by replacing `DiffusionPipeline` with the corresponding `ORTDiffusionPipeline` class.
 
 
 ```diff
@@ -46,7 +46,7 @@ Once your model was [exported to the ONNX format](https://huggingface.co/docs/op
 
 ### Sentence Transformers models
 
-Once your model was [exported to the ONNX format](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model), you can load it by replacing the `AutoModel` class with the corresponding `ORTModelForFeatureExtraction`.
+Once your model was [exported to the ONNX format](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model), you can load it by replacing `AutoModel` with the corresponding `ORTModelForFeatureExtraction` class.
 
 ```diff
   from transformers import AutoTokenizer
@@ -60,7 +60,7 @@ Once your model was [exported to the ONNX format](https://huggingface.co/docs/op
   outputs = model(**inputs)
 ```
 
-You can also load your ONNX model directly using the `SentenceTransformer` class, just make sure to have `sentence-transformers>=3.2.1` installed. If the model wasn't already converted to ONNX, it will be converted automatically on-the-fly.
+You can also load your ONNX model directly using the [`sentence_transformers.SentenceTransformer`](https://sbert.net/docs/sentence_transformer/usage/efficiency.html#onnx) class, just make sure to have `sentence-transformers>=3.2` installed. If the model wasn't already converted to ONNX, it will be converted automatically on-the-fly.
 
 ```diff
   from sentence_transformers import SentenceTransformer
