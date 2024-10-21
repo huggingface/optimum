@@ -53,10 +53,9 @@ Once your model was [exported to the ONNX format](https://huggingface.co/docs/op
 - from transformers import AutoModel
 + from optimum.onnxruntime import ORTModelForFeatureExtraction
 
-  model_id = "sentence-transformers/all-MiniLM-L6-v2"
-  tokenizer = AutoTokenizer.from_pretrained(model_id)
-- model = AutoModel.from_pretrained(model_id)
-+ model = ORTModelForFeatureExtraction.from_pretrained(model_id, export=True)
+  tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+- model = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
++ model = ORTModelForFeatureExtraction.from_pretrained("optimum/all-MiniLM-L6-v2")
   inputs = tokenizer("This is an example sentence", return_tensors="pt")
   outputs = model(**inputs)
 ```
@@ -87,9 +86,8 @@ Once your model was [exported to the ONNX format](https://huggingface.co/docs/op
   from timm.data import resolve_data_config, create_transform
 + from optimum.onnxruntime import ORTModelForImageClassification
 
-  model_id = "timm/mobilenetv3_large_100.ra_in1k"
-- model = create_model(model_id, pretrained=True)
-+ model = ORTModelForImageClassification.from_pretrained(model_id, export=True)
+- model = create_model("timm/mobilenetv3_large_100.ra_in1k", pretrained=True)
++ model = ORTModelForImageClassification.from_pretrained("optimum/mobilenetv3_large_100.ra_in1k")
   transform = create_transform(**resolve_data_config(model.config.pretrained_cfg, model=model))
   url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/beignets-task-guide.png"
   image = Image.open(requests.get(url, stream=True).raw)
