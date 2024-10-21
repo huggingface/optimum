@@ -71,6 +71,25 @@ class ORTModelPart:
 
         return None
 
+    def to(self, *args, device: Optional[Union[torch.device, str, int]] = None, dtype: Optional[torch.dtype] = None):
+        for arg in args:
+            if isinstance(arg, torch.device):
+                device = arg
+            elif isinstance(arg, torch.dtype):
+                dtype = arg
+
+        if device is not None and device != self.device:
+            raise ValueError(
+                "Cannot change the device of a model part without changing the device of the parent model. "
+                "Please use the `to` method of the parent model to change the device."
+            )
+
+        if dtype is not None and dtype != self.dtype:
+            raise NotImplementedError(
+                f"Cannot change the dtype of the model from {self.dtype} to {dtype}. "
+                f"Please export the model with the desired dtype."
+            )
+
     @abstractmethod
     def forward(self, *args, **kwargs):
         pass

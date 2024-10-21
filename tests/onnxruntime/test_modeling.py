@@ -28,6 +28,7 @@ import pytest
 import requests
 import timm
 import torch
+from huggingface_hub import HfApi
 from huggingface_hub.constants import default_cache_path
 from parameterized import parameterized
 from PIL import Image
@@ -148,7 +149,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
         self.LARGE_ONNX_SEQ2SEQ_MODEL_ID = "facebook/mbart-large-en-ro"
         self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
-        self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID = "hf-internal-testing/tiny-random-OnnxStableDiffusionPipeline"
+        self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID = "optimum-internal-testing/tiny-stable-diffusion-onnx"
 
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
@@ -222,16 +223,16 @@ class ORTModelIntegrationTest(unittest.TestCase):
     @require_diffusers
     def test_load_stable_diffusion_model_from_cache(self):
         _ = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)  # caching
-
         model = ORTStableDiffusionPipeline.from_pretrained(
             self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID, local_files_only=True
         )
-
         self.assertIsInstance(model.text_encoder, ORTModelTextEncoder)
         self.assertIsInstance(model.vae_decoder, ORTModelVaeDecoder)
         self.assertIsInstance(model.vae_encoder, ORTModelVaeEncoder)
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
+
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
 
     @require_diffusers
     def test_load_stable_diffusion_model_from_empty_cache(self):
@@ -325,6 +326,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
 
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
+
     @require_diffusers
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
@@ -338,6 +341,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_decoder.session.get_providers(), model.providers)
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cuda:0"))
+
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
 
     @require_diffusers
     @require_torch_gpu
@@ -354,6 +359,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cuda:0"))
 
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
+
     @require_diffusers
     def test_load_stable_diffusion_model_cpu_provider(self):
         model = ORTStableDiffusionPipeline.from_pretrained(
@@ -365,6 +372,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_decoder.session.get_providers(), model.providers)
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cpu"))
+
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
 
     @require_diffusers
     def test_load_stable_diffusion_model_unknown_provider(self):
@@ -965,9 +974,13 @@ class ORTModelIntegrationTest(unittest.TestCase):
         token = os.environ.get("HF_HUB_READ_TOKEN", None)
 
         if token is None:
-            self.skipTest("Test requires a token for fxmartyclone in the environment variable `HF_HUB_READ_TOKEN`.")
+            self.skipTest(
+                "Test requires a read access token for optimum-internal-testing in the environment variable `HF_HUB_READ_TOKEN`."
+            )
 
-        model = ORTModelForCustomTasks.from_pretrained("optimum-internal-testing/tiny-random-phi-private", token=token)
+        model = ORTModelForCustomTasks.from_pretrained(
+            "optimum-internal-testing/tiny-random-phi-private", revision="onnx", token=token
+        )
 
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
@@ -1254,6 +1267,20 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertTrue(
             torch.allclose(pt_logits, ort_logits, atol=1e-4), f" Maxdiff: {torch.abs(pt_logits - ort_logits).max()}"
         )
+
+    @parameterized.expand(("", "onnx"))
+    def test_loading_with_config_not_from_subfolder(self, subfolder):
+        # config.json file in the root directory and not in the subfolder
+        model_id = "sentence-transformers-testing/stsb-bert-tiny-onnx"
+        # hub model
+        ORTModelForFeatureExtraction.from_pretrained(model_id, subfolder=subfolder, export=subfolder == "")
+        # local model
+        api = HfApi()
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            local_dir = Path(tmpdirname) / "model"
+            api.snapshot_download(repo_id=model_id, local_dir=local_dir)
+            ORTModelForFeatureExtraction.from_pretrained(local_dir, subfolder=subfolder, export=subfolder == "")
+            remove_directory(tmpdirname)
 
 
 class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):

@@ -602,6 +602,15 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 check=True,
             )
 
+    @require_sentence_transformers
+    def test_sentence_transformers(self):
+        with TemporaryDirectory() as tmpdirname:
+            subprocess.run(
+                f"python3 -m optimum.exporters.onnx --model sentence-transformers-testing/stsb-bert-tiny-onnx --task feature-extraction {tmpdirname}",
+                shell=True,
+                check=True,
+            )
+
     def test_legacy(self):
         with TemporaryDirectory() as tmpdirname:
             subprocess.run(

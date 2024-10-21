@@ -43,7 +43,7 @@ from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
 from optimum.exporters.onnx.utils import get_speecht5_models_for_export
-from optimum.utils import ONNX_WEIGHTS_NAME, DummyPastKeyValuesGenerator, NormalizedTextConfig
+from optimum.utils import DummyPastKeyValuesGenerator, NormalizedTextConfig
 from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
@@ -292,27 +292,22 @@ class OnnxExportTestCase(TestCase):
 
                 gc.collect()
 
-    def _onnx_export_sd(self, model_type: str, model_name: str, device="cpu"):
+    def _onnx_export_diffusion_models(self, model_type: str, model_name: str, device="cpu"):
         pipeline = TasksManager.get_model_from_task(model_type, model_name, device=device)
         models_and_onnx_configs = get_diffusion_models_for_export(pipeline)
-        output_names = [os.path.join(name_dir, ONNX_WEIGHTS_NAME) for name_dir in models_and_onnx_configs]
-        model, _ = models_and_onnx_configs["vae_encoder"]
-        model.forward = lambda sample: {"latent_sample": model.encode(x=sample)["latent_dist"].parameters}
 
         with TemporaryDirectory() as tmpdirname:
             _, onnx_outputs = export_models(
                 models_and_onnx_configs=models_and_onnx_configs,
                 opset=14,
                 output_dir=Path(tmpdirname),
-                output_names=output_names,
                 device=device,
             )
             validate_models_outputs(
                 models_and_onnx_configs=models_and_onnx_configs,
                 onnx_named_outputs=onnx_outputs,
                 output_dir=Path(tmpdirname),
-                atol=1e-3,
-                onnx_files_subpaths=output_names,
+                atol=1e-4,
                 use_subprocess=False,
             )
 
@@ -403,7 +398,7 @@ class OnnxExportTestCase(TestCase):
     @require_vision
     @require_diffusers
     def test_pytorch_export_for_diffusion_models(self, model_type, model_name):
-        self._onnx_export_sd(model_type, model_name)
+        self._onnx_export_diffusion_models(model_type, model_name)
 
     @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
     @require_torch
@@ -414,7 +409,7 @@ class OnnxExportTestCase(TestCase):
     @pytest.mark.run_slow
     @pytest.mark.gpu_test
     def test_pytorch_export_for_diffusion_models_cuda(self, model_type, model_name):
-        self._onnx_export_sd(model_type, model_name, device="cuda")
+        self._onnx_export_diffusion_models(model_type, model_name, device="cuda")
 
 
 class CustomWhisperOnnxConfig(WhisperOnnxConfig):
