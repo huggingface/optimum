@@ -27,7 +27,7 @@ from optimum.utils.testing_utils import flatten_dict, require_torch_gpu
 
 MODELS_DICT = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
-    "bark": "ylacombe/bark-small",  # TODO: put a smaller model, this one is 1.7GB...
+    "bark": "ylacombe/bark-small",
     "bart": "hf-internal-testing/tiny-random-bart",
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bert-generation": "ybelkada/random-tiny-BertGenerationModel",
@@ -59,12 +59,12 @@ MODELS_DICT = {
     # "llama": "fxmarty/tiny-llama-fast-tokenizer",
     # "llama-gqa": "noamwies/llama-test-gqa-with-better-transformer",
     "m2m_100": "hf-internal-testing/tiny-random-nllb",
-    "marian": "fxmarty/tiny-marian",  # the other tiny ones have a too small max_position_embeddings
+    "marian": "optimum-internal-testing/tiny-random-marian",  # the other tiny ones have a too small max_position_embeddings
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
-    "prophetnet": "hirotasoshu/tiny-random-prophetnet",  # the other tiny ones have a too small max_position_embeddings
+    "prophetnet": "optimum-internal-testing/tiny-random-prophetnet",  # the other tiny ones have a too small max_position_embeddings
     "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "rocbert": "hf-internal-testing/tiny-random-RoCBertModel",
@@ -359,7 +359,8 @@ class BetterTransformersTestMixin(unittest.TestCase):
             for name, param in bt_model.named_parameters():
                 self.assertFalse(param.device.type == "meta", f"Parameter {name} is on the meta device.")
 
-            bt_model.save_pretrained(tmpdirname)
+            # saving a normal transformers bark model fails because of shared tensors
+            bt_model.save_pretrained(tmpdirname, safe_serialization=hf_model.config.model_type != "bark")
 
             bt_model_from_load = AutoModel.from_pretrained(tmpdirname)
 

@@ -53,6 +53,7 @@ from ...utils import (
     NormalizedTextConfig,
     NormalizedTextConfigWithGQA,
     NormalizedVisionConfig,
+    check_if_transformers_greater,
     is_diffusers_available,
     logging,
 )
@@ -71,6 +72,7 @@ from .config import (
 )
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import (
+    CLIPModelPatcher,
     FalconModelPatcher,
     MistralModelPatcher,
     MusicgenModelPatcher,
@@ -121,7 +123,7 @@ class NomicBertOnnxConfig(BertOnnxConfig):
 
 
 class AlbertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class ConvBertOnnxConfig(BertOnnxConfig):
@@ -173,11 +175,11 @@ class MPNetOnnxConfig(DistilBertOnnxConfig):
 
 
 class RobertaOnnxConfig(DistilBertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class CamembertOnnxConfig(DistilBertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class FlaubertOnnxConfig(BertOnnxConfig):
@@ -189,7 +191,7 @@ class IBertOnnxConfig(DistilBertOnnxConfig):
 
 
 class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
-    pass
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class DebertaOnnxConfig(BertOnnxConfig):
@@ -259,7 +261,7 @@ class ImageGPTOnnxConfig(GPT2OnnxConfig):
 
 
 class GPTNeoOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
 
@@ -283,7 +285,7 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 
 class Qwen2OnnxConfig(LlamaOnnxConfig):
-    pass
+    MIN_TRANSFORMERS_VERSION = version.parse("4.37.0")
 
 
 class GemmaOnnxConfig(LlamaOnnxConfig):
@@ -295,6 +297,7 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
 
 
 class Phi3OnnxConfig(PhiOnnxConfig):
@@ -303,6 +306,7 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
+    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -338,27 +342,31 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = BloomDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
+    DEFAULT_ONNX_OPSET = 14  # Bloom uses aten::triu that requires opset>=14, and F.scaled_dot_product_attention
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
-        if direction not in ["inputs", "outputs"]:
-            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
-
-        if direction == "inputs":
-            decoder_sequence_name = "past_sequence_length"
-            name = "past_key_values"
+        if check_if_transformers_greater("4.44"):
+            super().add_past_key_values(inputs_or_outputs, direction)
         else:
-            decoder_sequence_name = "past_sequence_length + 1"
-            name = "present"
+            if direction not in ["inputs", "outputs"]:
+                raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
-        for i in range(self._normalized_config.num_layers):
-            inputs_or_outputs[f"{name}.{i}.key"] = {
-                0: "batch_size x num_heads",
-                2: decoder_sequence_name,
-            }
-            inputs_or_outputs[f"{name}.{i}.value"] = {
-                0: "batch_size x num_heads",
-                1: decoder_sequence_name,
-            }
+            if direction == "inputs":
+                decoder_sequence_name = "past_sequence_length"
+                name = "past_key_values"
+            else:
+                decoder_sequence_name = "past_sequence_length + 1"
+                name = "present"
+
+            for i in range(self._normalized_config.num_layers):
+                inputs_or_outputs[f"{name}.{i}.key"] = {
+                    0: "batch_size x num_heads",
+                    2: decoder_sequence_name,
+                }
+                inputs_or_outputs[f"{name}.{i}.value"] = {
+                    0: "batch_size x num_heads",
+                    1: decoder_sequence_name,
+                }
 
 
 class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -560,6 +568,7 @@ class BartDummyTextInputGenerator(DummyTextInputGenerator):
 
 
 class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
@@ -915,10 +924,16 @@ class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
 
         return common_outputs
 
+    def patch_model_for_export(
+        self,
+        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> "ModelPatcher":
+        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
+
 
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
-    DEFAULT_ONNX_OPSET = 14
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -936,6 +951,13 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
             "text_embeds": {0: "text_batch_size"},
             "image_embeds": {0: "image_batch_size"},
         }
+
+    def patch_model_for_export(
+        self,
+        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> "ModelPatcher":
+        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class SentenceTransformersCLIPOnnxConfig(CLIPOnnxConfig):
@@ -982,6 +1004,13 @@ class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
 
         return common_outputs
 
+    def patch_model_for_export(
+        self,
+        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> "ModelPatcher":
+        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
+
 
 class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
     @property
@@ -999,11 +1028,19 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
 
+        # TODO: fix should be by casting inputs during inference and not export
         if framework == "pt":
             import torch
 
             dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
         return dummy_inputs
+
+    def patch_model_for_export(
+        self,
+        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> "ModelPatcher":
+        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class UNetOnnxConfig(VisionOnnxConfig):
@@ -1079,7 +1116,7 @@ class UNetOnnxConfig(VisionOnnxConfig):
 
 
 class VaeEncoderOnnxConfig(VisionOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-2
+    ATOL_FOR_VALIDATION = 1e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
@@ -1099,12 +1136,12 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "latent_sample": {0: "batch_size", 2: "height_latent", 3: "width_latent"},
+            "latent_parameters": {0: "batch_size", 2: "height_latent", 3: "width_latent"},
         }
 
 
 class VaeDecoderOnnxConfig(VisionOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-3
+    ATOL_FOR_VALIDATION = 1e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
@@ -1136,6 +1173,9 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     # reference model.
     ATOL_FOR_VALIDATION = 1e-4
     MIN_TORCH_VERSION = version.parse("2.1")
+
+    # needs einsum operator support, available since opset 12
+    DEFAULT_ONNX_OPSET = 12
 
     def __init__(
         self,
@@ -1177,7 +1217,7 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
 
 
 class OwlV2OnnxConfig(OwlViTOnnxConfig):
-    pass
+    MIN_TRANSFORMERS_VERSION = version.parse("4.35.0")
 
 
 class LayoutLMOnnxConfig(TextAndVisionOnnxConfig):
@@ -1440,7 +1480,12 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
             if self._behavior is not ConfigBehavior.DECODER:
                 common_inputs["input_features"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
 
-            if self._behavior is ConfigBehavior.DECODER and self.use_past_in_inputs is False:
+            if self._behavior is not ConfigBehavior.ENCODER and self.use_past_in_inputs:
+                if check_if_transformers_greater("4.43.0"):
+                    # since https://github.com/huggingface/transformers/pull/31166
+                    common_inputs["cache_position"] = {0: "decoder_sequence_length"}
+
+            if self._behavior is ConfigBehavior.DECODER and not self.use_past_in_inputs:
                 common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / 2"
         return common_inputs
 

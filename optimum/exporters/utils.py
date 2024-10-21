@@ -46,11 +46,6 @@ if is_diffusers_available():
 
     from diffusers import (
         DiffusionPipeline,
-        LatentConsistencyModelImg2ImgPipeline,
-        LatentConsistencyModelPipeline,
-        StableDiffusionImg2ImgPipeline,
-        StableDiffusionInpaintPipeline,
-        StableDiffusionPipeline,
         StableDiffusionXLImg2ImgPipeline,
         StableDiffusionXLInpaintPipeline,
         StableDiffusionXLPipeline,
@@ -92,35 +87,22 @@ def _get_submodels_for_export_diffusion(
     Returns the components of a Stable Diffusion model.
     """
 
-    is_stable_diffusion = isinstance(
-        pipeline, (StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, StableDiffusionInpaintPipeline)
-    )
     is_stable_diffusion_xl = isinstance(
-        pipeline, (StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline, StableDiffusionXLPipeline)
+        pipeline, (StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline)
     )
-    is_latent_consistency_model = isinstance(
-        pipeline, (LatentConsistencyModelPipeline, LatentConsistencyModelImg2ImgPipeline)
-    )
-
     if is_stable_diffusion_xl:
         projection_dim = pipeline.text_encoder_2.config.projection_dim
-    elif is_stable_diffusion:
-        projection_dim = pipeline.text_encoder.config.projection_dim
-    elif is_latent_consistency_model:
-        projection_dim = pipeline.text_encoder.config.projection_dim
     else:
-        raise ValueError(
-            f"The export of a DiffusionPipeline model with the class name {pipeline.__class__.__name__} is currently not supported in Optimum. "
-            "Please open an issue or submit a PR to add the support."
-        )
+        projection_dim = pipeline.text_encoder.config.projection_dim
 
     models_for_export = {}
 
     # Text encoder
-    if pipeline.text_encoder is not None:
+    text_encoder = getattr(pipeline, "text_encoder", None)
+    if text_encoder is not None:
         if is_stable_diffusion_xl:
-            pipeline.text_encoder.config.output_hidden_states = True
-        models_for_export["text_encoder"] = pipeline.text_encoder
+            text_encoder.config.output_hidden_states = True
+        models_for_export["text_encoder"] = text_encoder
 
     # U-NET
     # ONNX export of torch.nn.functional.scaled_dot_product_attention not supported for < v2.1.0
@@ -138,7 +120,8 @@ def _get_submodels_for_export_diffusion(
     vae_encoder = copy.deepcopy(pipeline.vae)
     if not is_torch_greater_or_equal_than_2_1:
         vae_encoder = override_diffusers_2_0_attn_processors(vae_encoder)
-    vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample)["latent_dist"].sample()}
+    # we return the distribution parameters to be able to recreate it in the decoder
+    vae_encoder.forward = lambda sample: {"latent_parameters": vae_encoder.encode(x=sample)["latent_dist"].parameters}
     models_for_export["vae_encoder"] = vae_encoder
 
     # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
@@ -151,6 +134,7 @@ def _get_submodels_for_export_diffusion(
     text_encoder_2 = getattr(pipeline, "text_encoder_2", None)
     if text_encoder_2 is not None:
         text_encoder_2.config.output_hidden_states = True
+        text_encoder_2.text_model.config.output_hidden_states = True
         models_for_export["text_encoder_2"] = text_encoder_2
 
     return models_for_export

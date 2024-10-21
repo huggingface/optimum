@@ -112,9 +112,9 @@ MODEL_NAMES = {
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
     "longt5": "hf-internal-testing/tiny-random-LongT5Model",
-    "llama": "fxmarty/tiny-llama-fast-tokenizer",
+    "llama": "optimum-internal-testing/tiny-random-llama",
     "m2m_100": "hf-internal-testing/tiny-random-m2m_100",
-    "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
+    "marian": "echarlaix/tiny-random-marian",
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
@@ -144,6 +144,7 @@ MODEL_NAMES = {
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "swin-window": "yujiepan/tiny-random-swin-patch4-window7-224",
+    "swin2sr": "hf-internal-testing/tiny-random-Swin2SRForImageSuperResolution",
     "t5": "hf-internal-testing/tiny-random-t5",
     "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
     "trocr": "microsoft/trocr-small-handwritten",
@@ -151,7 +152,7 @@ MODEL_NAMES = {
     "unispeech_sat": "hf-internal-testing/tiny-random-UnispeechSatModel",
     "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
     "vit": "hf-internal-testing/tiny-random-vit",
-    "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
+    "whisper": "optimum-internal-testing/tiny-random-whisper",
     "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
     "wavlm": "hf-internal-testing/tiny-random-WavlmModel",
@@ -169,6 +170,11 @@ class ORTModelTestMixin(unittest.TestCase):
         "pt": torch.Tensor,
         "np": np.ndarray,
     }
+
+    TASK = None
+
+    ORTMODEL_CLASS = None
+    AUTOMODEL_CLASS = None
 
     @classmethod
     def setUpClass(cls):

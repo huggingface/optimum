@@ -15,6 +15,9 @@
 from typing import Optional, Tuple
 
 import torch
+import torch.nn.functional as F
+
+from ...utils import check_if_transformers_greater
 
 
 # TODO (CRITICAL): Layer-wise attention scaling is broken for several archs.
@@ -23,7 +26,7 @@ import torch
 def raise_on_head_mask(head_mask: Optional[torch.Tensor]):
     if head_mask is not None:
         raise ValueError(
-            "layer_head_mask different than None is unsupported for now with BetterTransformer, please"
+            "layer_head_mask (or head_mask) different than None is unsupported for now with BetterTransformer, please"
             "open a PR or an issue at https://github.com/huggingface/optimum."
         )
 
@@ -76,6 +79,71 @@ def gpt2_wrapped_scaled_dot_product(
             causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
             if attention_mask is not None:
                 attention_mask = causal_mask + attention_mask
+
+        sdpa_result = torch.nn.functional.scaled_dot_product_attention(
+            query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=False
+        )
+
+    # in gpt-neo-x and gpt-j the query and keys are always in fp32
+    # thus we need to cast them to the value dtype
+    if self.downcast_qk:
+        sdpa_result = sdpa_result.to(value.dtype)
+
+    return sdpa_result, None
+
+
+# Adapted from transformers.models.gptj.modeling_gptj.GPTJAttention._attn
+def gptj_wrapped_scaled_dot_product(
+    self,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attention_mask: Optional[torch.Tensor] = None,
+    head_mask: Optional[torch.Tensor] = None,
+):
+    raise_on_head_mask(head_mask)
+    batch_size = query.shape[0]
+
+    mask_value = torch.finfo(value.dtype).min
+    mask_value = torch.full([], mask_value, dtype=value.dtype)
+
+    # in gpt-neo-x and gpt-j the query and keys are always in fp32
+    # thus we need to cast them to the value dtype
+    if self.downcast_qk:
+        query = query.to(value.dtype)
+        key = key.to(value.dtype)
+
+    if batch_size == 1 and attention_mask is not None and attention_mask[0, 0, -1, -1] < -1:
+        raise ValueError("BetterTransformer does not support padding='max_length' with a batch size of 1.")
+
+    dropout_p = self.dropout_prob_attn if self.training else 0.0
+    if batch_size == 1 or self.training:
+        if query.shape[2] > 1:
+            sdpa_result = torch.nn.functional.scaled_dot_product_attention(
+                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=True
+            )
+        else:
+            sdpa_result = torch.nn.functional.scaled_dot_product_attention(
+                query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=False
+            )
+    else:
+        query_length, key_length = query.size(-2), key.size(-2)
+
+        # causal_mask is always [True, ..., True] otherwise, so executing this
+        # is unnecessary
+        if query_length > 1:
+            if not check_if_transformers_greater("4.44.99"):
+                causal_mask = self.bias[:, :, key_length - query_length : key_length, :key_length].to(torch.bool)
+
+                causal_mask = torch.where(causal_mask, 0, mask_value)
+
+                # torch.Tensor.expand does no memory copy
+                causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
+                if attention_mask is not None:
+                    attention_mask = causal_mask + attention_mask
+
+            else:
+                attention_mask = attention_mask[:, :, :, : key.shape[-2]]
 
         sdpa_result = torch.nn.functional.scaled_dot_product_attention(
             query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=False
@@ -192,7 +260,7 @@ def codegen_wrapped_scaled_dot_product(
                 query, key, value, attn_mask=None, dropout_p=dropout_p, is_causal=True
             )
         else:
-            # in this case, which is the later decoding steps, the `causal_mask`` in
+            # in this case, which is the later decoding steps, the `causal_mask` in
             # https://github.com/huggingface/transformers/blob/ae54e3c3b18bac0832ad62ea9b896dfd52a09850/src/transformers/models/gpt2/modeling_gpt2.py#L195
             # is [True, ..., True] so actually not causal
             sdpa_result = torch.nn.functional.scaled_dot_product_attention(
@@ -204,15 +272,20 @@ def codegen_wrapped_scaled_dot_product(
         # causal_mask is always [True, ..., True] otherwise, so executing this
         # is unnecessary
         if query_length > 1:
-            causal_mask = self.causal_mask[:, :, key_length - query_length : key_length, :key_length].to(torch.bool)
+            if not check_if_transformers_greater("4.44.99"):
+                causal_mask = self.causal_mask[:, :, key_length - query_length : key_length, :key_length].to(
+                    torch.bool
+                )
 
-            causal_mask = torch.where(causal_mask, 0, mask_value)
+                causal_mask = torch.where(causal_mask, 0, mask_value)
 
-            # torch.Tensor.expand does no memory copy
-            causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
+                # torch.Tensor.expand does no memory copy
+                causal_mask = causal_mask.expand(batch_size, -1, -1, -1)
 
-            # we use torch.min to avoid having tensor(-inf)
-            attention_mask = torch.min(causal_mask, attention_mask)
+                # we use torch.min to avoid having tensor(-inf)
+                attention_mask = torch.min(causal_mask, attention_mask)
+            else:
+                attention_mask = attention_mask[:, :, :, : key.shape[-2]]
 
         sdpa_result = torch.nn.functional.scaled_dot_product_attention(
             query, key, value, attn_mask=attention_mask, dropout_p=dropout_p, is_causal=False
@@ -534,88 +607,159 @@ def bart_forward(
     return attn_output, None, past_key_value
 
 
-# Adapted from transformers.models.bloom.modeling_bloom.BloomAttention.forward
-def bloom_forward(
-    self,
-    hidden_states: torch.Tensor,
-    residual: torch.Tensor,
-    alibi: torch.Tensor,
-    attention_mask: torch.Tensor,
-    layer_past: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-    head_mask: Optional[torch.Tensor] = None,
-    use_cache: bool = False,
-    output_attentions: bool = False,
-    **kwargs,
-):
-    raise_on_head_mask(head_mask)
+if check_if_transformers_greater("4.44"):
+    from transformers.cache_utils import Cache
+    from transformers.models.bloom.modeling_bloom import dropout_add
 
-    if output_attentions is True:
-        raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+    # Adapted from transformers.models.bloom.modeling_bloom.BloomAttention.forward
+    def bloom_forward(
+        self,
+        hidden_states: torch.Tensor,
+        residual: torch.Tensor,
+        alibi: torch.Tensor,
+        attention_mask: torch.Tensor,
+        layer_past: Optional[Cache] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        use_cache: bool = False,
+        output_attentions: bool = False,
+        cache_position: Optional[torch.LongTensor] = None,
+    ):
+        raise_on_head_mask(head_mask)
 
-    fused_qkv = self.query_key_value(hidden_states)  # [batch_size, seq_length, 3 x hidden_size]
+        if output_attentions is True:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
 
-    # 3 x [batch_size, seq_length, num_heads, head_dim]
-    (query_layer, key_layer, value_layer) = self._split_heads(fused_qkv)
+        batch_size, q_length, _ = hidden_states.shape
+        # [batch_size, seq_length, 3 x hidden_size]
+        fused_qkv = self.query_key_value(hidden_states)
+        # 3 x [batch_size, num_heads, seq_length, head_dim]
+        query_layer, key_layer, value_layer = self._reshape(fused_qkv)
 
-    batch_size, q_length, _, _ = query_layer.shape
+        if layer_past is not None:
+            cache_kwargs = {"cache_position": cache_position}
+            key_layer, value_layer = layer_past.update(key_layer, value_layer, self.layer_idx, cache_kwargs)
 
-    # Permute to [batch_size, num_heads, seq_length, head_dim]
-    query_layer = query_layer.transpose(1, 2)
+        alibi = alibi.reshape(batch_size, -1, *alibi.shape[1:])
 
-    if layer_past is not None:
-        past_key, past_value = layer_past
-        past_key = past_key.transpose(1, 2)
+        if attention_mask is not None:  # no matter the length, we just slice it
+            kv_length = cache_position[-1] + 1  # cache position is 0-indexed while length should start from 1
+            causal_mask = attention_mask[:, :, :, :kv_length]
+            alibi = torch.masked_fill(alibi, causal_mask.bool(), torch.finfo(alibi.dtype).min)
 
-        key_layer = key_layer.transpose(1, 2).reshape(batch_size * self.num_heads, q_length, self.head_dim)
-        value_layer = value_layer.transpose(1, 2).reshape(batch_size * self.num_heads, q_length, self.head_dim)
-
-        # concatenate along seq_length dimension
-        key_layer = torch.cat((past_key, key_layer), dim=1)
-        value_layer = torch.cat((past_value, value_layer), dim=1)
-
-        # untangle batch_size from self.num_heads
-        key_layer = key_layer.reshape(batch_size, self.num_heads, *key_layer.shape[1:])
-        value_layer = value_layer.reshape(batch_size, self.num_heads, *value_layer.shape[1:])
-    else:
-        key_layer = key_layer.transpose(1, 2)
-        value_layer = value_layer.transpose(1, 2)
-
-    alibi = alibi.reshape(batch_size, -1, *alibi.shape[1:])
-    alibi = torch.masked_fill(alibi, attention_mask, torch.finfo(alibi.dtype).min)
-
-    context_layer = torch.nn.functional.scaled_dot_product_attention(
-        query_layer,
-        key_layer,
-        value_layer,
-        attn_mask=alibi,
-        dropout_p=self.dropout_prob_attn if self.training else 0.0,
-    )
-
-    # Transform [batch_size, num_heads, seq_length, head_dim] to [batch_size, seq_length, num_heads * head_dim]
-    context_layer = context_layer.transpose(1, 2)
-    context_layer = context_layer.reshape(*context_layer.shape[:2], -1)
-
-    # aggregate results across tp ranks. See here: https://github.com/pytorch/pytorch/issues/76232
-    if self.pretraining_tp > 1 and self.slow_but_exact:
-        slices = self.hidden_size / self.pretraining_tp
-        output_tensor = torch.zeros_like(context_layer)
-        for i in range(self.pretraining_tp):
-            output_tensor = output_tensor + torch.nn.functional.linear(
-                context_layer[:, :, int(i * slices) : int((i + 1) * slices)],
-                self.dense.weight[:, int(i * slices) : int((i + 1) * slices)],
-            )
-    else:
-        output_tensor = self.dense(context_layer)
-
-    output_tensor = torch.nn.functional.dropout(output_tensor, p=self.hidden_dropout, training=self.training)
-    output_tensor = residual + output_tensor
-
-    if use_cache is True:
-        present = (
-            key_layer.reshape(-1, *key_layer.shape[2:]).transpose(1, 2),
-            value_layer.reshape(-1, *value_layer.shape[2:]),
+        context_layer = torch.nn.functional.scaled_dot_product_attention(
+            query_layer,
+            key_layer,
+            value_layer,
+            attn_mask=alibi,
+            dropout_p=self.dropout_prob_attn if self.training else 0.0,
         )
-    else:
-        present = None
 
-    return (output_tensor, present)
+        # Transform [batch_size, num_heads, seq_length, head_dim] to [batch_size, seq_length, num_heads * head_dim]
+        context_layer = context_layer.transpose(1, 2)
+        context_layer = context_layer.reshape(batch_size, q_length, self.hidden_size)
+
+        # aggregate results across tp ranks. See here: https://github.com/pytorch/pytorch/issues/76232
+        if self.pretraining_tp > 1 and self.slow_but_exact:
+            slices = self.hidden_size / self.pretraining_tp
+            output_tensor = torch.zeros_like(context_layer)
+            for i in range(self.pretraining_tp):
+                output_tensor = output_tensor + F.linear(
+                    context_layer[:, :, int(i * slices) : int((i + 1) * slices)],
+                    self.dense.weight[:, int(i * slices) : int((i + 1) * slices)],
+                )
+        else:
+            output_tensor = self.dense(context_layer)
+
+        output_tensor = dropout_add(output_tensor, residual, self.hidden_dropout, self.training)
+
+        outputs = (output_tensor, layer_past)
+
+        return outputs
+
+else:
+    # Adapted from transformers.models.bloom.modeling_bloom.BloomAttention.forward
+    def bloom_forward(
+        self,
+        hidden_states: torch.Tensor,
+        residual: torch.Tensor,
+        alibi: torch.Tensor,
+        attention_mask: torch.Tensor,
+        layer_past: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        use_cache: bool = False,
+        output_attentions: bool = False,
+        **kwargs,
+    ):
+        raise_on_head_mask(head_mask)
+
+        if output_attentions is True:
+            raise ValueError("output_attentions=True can not be supported with BetterTransformer.")
+
+        # [batch_size, seq_length, 3 x hidden_size]
+        fused_qkv = self.query_key_value(hidden_states)
+
+        # 3 x [batch_size, seq_length, num_heads, head_dim]
+        (query_layer, key_layer, value_layer) = self._split_heads(fused_qkv)
+
+        batch_size, q_length, _, _ = query_layer.shape
+
+        # Permute to [batch_size, num_heads, seq_length, head_dim]
+        query_layer = query_layer.transpose(1, 2)
+
+        if layer_past is not None:
+            past_key, past_value = layer_past
+            past_key = past_key.transpose(1, 2)
+
+            key_layer = key_layer.transpose(1, 2).reshape(batch_size * self.num_heads, q_length, self.head_dim)
+            value_layer = value_layer.transpose(1, 2).reshape(batch_size * self.num_heads, q_length, self.head_dim)
+
+            # concatenate along seq_length dimension
+            key_layer = torch.cat((past_key, key_layer), dim=1)
+            value_layer = torch.cat((past_value, value_layer), dim=1)
+
+            # untangle batch_size from self.num_heads
+            key_layer = key_layer.reshape(batch_size, self.num_heads, *key_layer.shape[1:])
+            value_layer = value_layer.reshape(batch_size, self.num_heads, *value_layer.shape[1:])
+        else:
+            key_layer = key_layer.transpose(1, 2)
+            value_layer = value_layer.transpose(1, 2)
+
+        alibi = alibi.reshape(batch_size, -1, *alibi.shape[1:])
+        alibi = torch.masked_fill(alibi, attention_mask, torch.finfo(alibi.dtype).min)
+
+        context_layer = torch.nn.functional.scaled_dot_product_attention(
+            query_layer,
+            key_layer,
+            value_layer,
+            attn_mask=alibi,
+            dropout_p=self.dropout_prob_attn if self.training else 0.0,
+        )
+
+        # Transform [batch_size, num_heads, seq_length, head_dim] to [batch_size, seq_length, num_heads * head_dim]
+        context_layer = context_layer.transpose(1, 2)
+        context_layer = context_layer.reshape(*context_layer.shape[:2], -1)
+
+        # aggregate results across tp ranks. See here: https://github.com/pytorch/pytorch/issues/76232
+        if self.pretraining_tp > 1 and self.slow_but_exact:
+            slices = self.hidden_size / self.pretraining_tp
+            output_tensor = torch.zeros_like(context_layer)
+            for i in range(self.pretraining_tp):
+                output_tensor = output_tensor + torch.nn.functional.linear(
+                    context_layer[:, :, int(i * slices) : int((i + 1) * slices)],
+                    self.dense.weight[:, int(i * slices) : int((i + 1) * slices)],
+                )
+        else:
+            output_tensor = self.dense(context_layer)
+
+        output_tensor = torch.nn.functional.dropout(output_tensor, p=self.hidden_dropout, training=self.training)
+        output_tensor = residual + output_tensor
+
+        if use_cache is True:
+            present = (
+                key_layer.reshape(-1, *key_layer.shape[2:]).transpose(1, 2),
+                value_layer.reshape(-1, *value_layer.shape[2:]),
+            )
+        else:
+            present = None
+
+        return (output_tensor, present)

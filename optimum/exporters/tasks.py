@@ -162,7 +162,9 @@ def get_transformers_tasks_to_model_mapping(tasks_to_model_loader, framework="pt
         for model_loader in model_loaders:
             model_loader_class = getattr(auto_modeling_module, model_loader, None)
             if model_loader_class is not None:
-                # we can just update the model_type to model_class mapping since we only need one either way
+                # we can just update the model_type to model_class mapping since
+                # we can only have one task->model_type->model_class either way
+                # e.g. we merge automatic-speech-recognition's SpeechSeq2Seq and CTC models
                 tasks_to_model_mapping[task_name].update(model_loader_class._model_mapping._model_mapping)
 
     return tasks_to_model_mapping
@@ -306,9 +308,9 @@ class TasksManager:
         "image-feature-extraction": "feature-extraction",
         # for backward compatibility and testing (where
         # model task and model type are still the same)
-        "lcm": "text-to-image",
         "stable-diffusion": "text-to-image",
         "stable-diffusion-xl": "text-to-image",
+        "latent-consistency": "text-to-image",
     }
 
     _CUSTOM_CLASSES = {
@@ -1768,6 +1770,7 @@ class TasksManager:
         model: Optional[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]] = None,
         model_class: Optional[Type[Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]]] = None,
     ):
+        inferred_library_name = None
         if model is not None and model_class is not None:
             raise ValueError("Either a model or a model class must be provided, but both were given here.")
         if model is None and model_class is None:
@@ -1776,20 +1779,20 @@ class TasksManager:
         target_class_module = model.__class__.__module__ if model is not None else model_class.__module__
 
         if target_class_module.startswith("sentence_transformers"):
-            library_name = "sentence_transformers"
+            inferred_library_name = "sentence_transformers"
         elif target_class_module.startswith("transformers"):
-            library_name = "transformers"
+            inferred_library_name = "transformers"
         elif target_class_module.startswith("diffusers"):
-            library_name = "diffusers"
+            inferred_library_name = "diffusers"
         elif target_class_module.startswith("timm"):
-            library_name = "timm"
+            inferred_library_name = "timm"
 
-        if library_name is None:
+        if inferred_library_name is None:
             raise ValueError(
                 "The library name could not be automatically inferred. If using the command-line, please provide the argument --library {transformers,diffusers,timm,sentence_transformers}. Example: `--library diffusers`."
             )
 
-        return library_name
+        return inferred_library_name
 
     @classmethod
     def _infer_library_from_model_name_or_path(
@@ -1935,12 +1938,6 @@ class TasksManager:
                 if inferred_model_type is not None:
                     break
 
-            if inferred_model_type is None:
-                raise ValueError(
-                    f"The export of a DiffusionPipeline model with the class name {model.__class__.__name__} is currently not supported in Optimum. "
-                    "Please open an issue or submit a PR to add the support."
-                )
-
             # `model_type` is a class attribute in Transformers, let's avoid modifying it.
             model.config.export_model_type = inferred_model_type
 
@@ -2066,9 +2063,16 @@ class TasksManager:
                 if original_task == "auto" and config.architectures is not None:
                     model_class_name = config.architectures[0]
 
-        model_class = TasksManager.get_model_class_for_task(
-            task, framework, model_type=model_type, model_class_name=model_class_name, library=library_name
-        )
+        if library_name == "diffusers":
+            config = DiffusionPipeline.load_config(model_name_or_path, **kwargs)
+            class_name = config.get("_class_name", None)
+            loaded_library = importlib.import_module(library_name)
+            model_class = getattr(loaded_library, class_name)
+        else:
+            model_class = TasksManager.get_model_class_for_task(
+                task, framework, model_type=model_type, model_class_name=model_class_name, library=library_name
+            )
+
         if library_name == "timm":
             model = model_class(f"hf_hub:{model_name_or_path}", pretrained=True, exportable=True)
             model = model.to(torch_dtype).to(device)

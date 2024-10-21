@@ -206,6 +206,10 @@ class BetterTransformer(object):
             The converted model if the conversion has been successful.
         """
 
+        logger.warning(
+            "The class `optimum.bettertransformers.transformation.BetterTransformer` is deprecated and will be removed in a future release."
+        )
+
         hf_config = model.config
         if hf_config.model_type in ["falcon", "gpt_bigcode", "llama", "whisper"]:
             raise ValueError(

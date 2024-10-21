@@ -44,6 +44,7 @@ from .attention import (
     codegen_wrapped_scaled_dot_product,
     gpt2_wrapped_scaled_dot_product,
     gpt_neo_wrapped_scaled_dot_product,
+    gptj_wrapped_scaled_dot_product,
     opt_forward,
     t5_forward,
 )
@@ -82,7 +83,7 @@ class GPT2AttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPT2Attent
 
 
 class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttention, nn.Module):
-    _attn = gpt2_wrapped_scaled_dot_product
+    _attn = gptj_wrapped_scaled_dot_product
 
     def __init__(self, layer: "nn.Module", config: "PretrainedConfig"):
         super().__init__(config)
@@ -96,13 +97,21 @@ class GPTJAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTJAttent
             "out_proj",
             "attn_dropout",
             "resid_dropout",
-            "bias",
             "scale_attn",
-            "masked_bias",
         ]
         # Attribute only for transformers>=4.28
         if hasattr(layer, "embed_positions"):
             submodules.append("embed_positions")
+
+        # Attribute only for transformers<4.45
+        if hasattr(layer, "bias"):
+            submodules.append("bias")
+        if hasattr(layer, "masked_bias"):
+            submodules.append("masked_bias")
+
+        # Attribute only for transformers>=4.45
+        if hasattr(layer, "layer_idx"):
+            submodules.append("layer_idx")
 
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
@@ -127,6 +136,11 @@ class GPTNeoXAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoX
 
         self.module_mapping = None
         submodules = ["rotary_emb", "query_key_value", "dense", "bias", "masked_bias", "norm_factor"]
+
+        # Attribute only for transformers>=4.45
+        if hasattr(layer, "layer_idx"):
+            submodules.append("layer_idx")
+
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
@@ -155,6 +169,11 @@ class GPTNeoAttentionLayerBetterTransformer(BetterTransformerBaseLayer, GPTNeoSe
 
         self.module_mapping = None
         submodules = ["attn_dropout", "resid_dropout", "k_proj", "v_proj", "q_proj", "out_proj", "bias", "masked_bias"]
+
+        # Attribute only for transformers>=4.45
+        if hasattr(layer, "layer_id"):
+            submodules.append("layer_id")
+
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
 
@@ -216,6 +235,8 @@ class BloomAttentionLayerBetterTransformer(BetterTransformerBaseLayer, BloomAtte
         self.dropout_prob_attn = config.attention_dropout
 
         self.module_mapping = None
+        self.layer_idx = getattr(layer, "layer_idx", None)
+
         submodules = ["query_key_value", "dense", "attention_dropout"]
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))
@@ -236,11 +257,19 @@ class CodegenAttentionLayerBetterTransformer(BetterTransformerBaseLayer, CodeGen
             super(BetterTransformerBaseLayer, self).__init__(config)
 
         self.module_mapping = None
-        submodules = ["attn_dropout", "resid_dropout", "qkv_proj", "out_proj", "causal_mask", "scale_attn"]
+        submodules = ["attn_dropout", "resid_dropout", "qkv_proj", "out_proj", "scale_attn"]
 
         # Attribute only for transformers>=4.28
         if hasattr(layer, "embed_positions"):
             submodules.append("embed_positions")
+
+        # Attribute only for transformers<4.45
+        if hasattr(layer, "causal_mask"):
+            submodules.append("causal_mask")
+
+        # Attribute only for transformers>=4.45
+        if hasattr(layer, "layer_idx"):
+            submodules.append("layer_idx")
 
         for attr in submodules:
             setattr(self, attr, getattr(layer, attr))

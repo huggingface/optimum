@@ -8,7 +8,8 @@ on:
 jobs:
   do-the-job:
     name: Start self-hosted EC2 runner
-    runs-on: [single-gpu, nvidia-gpu, t4, ci]
+    runs-on:
+      group: aws-g6-4xlarge-plus
     env:
       AWS_REGION: us-east-1
     steps:

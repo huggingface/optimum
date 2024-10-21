@@ -55,7 +55,6 @@ from torch import nn
 from torch.utils.data import Dataset, RandomSampler
 from transformers.data.data_collator import DataCollator
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
-from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
@@ -81,10 +80,10 @@ from transformers.utils import (
     is_apex_available,
     is_sagemaker_dp_enabled,
     is_sagemaker_mp_enabled,
-    is_torch_tpu_available,
 )
 
 from ..utils import logging
+from ..utils.import_utils import check_if_transformers_greater
 from .training_args import ORTOptimizerNames, ORTTrainingArguments
 from .utils import (
     is_onnxruntime_training_available,
@@ -94,8 +93,25 @@ from .utils import (
 if is_apex_available():
     from apex import amp
 
-if is_torch_tpu_available(check_device=False):
-    import torch_xla.core.xla_model as xm
+if check_if_transformers_greater("4.33"):
+    from transformers.integrations.deepspeed import (
+        deepspeed_init,
+        deepspeed_load_checkpoint,
+        is_deepspeed_zero3_enabled,
+    )
+else:
+    from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
+
+if check_if_transformers_greater("4.39"):
+    from transformers.utils import is_torch_xla_available as is_torch_tpu_xla_available
+
+    if is_torch_tpu_xla_available():
+        import torch_xla.core.xla_model as xm
+else:
+    from transformers.utils import is_torch_tpu_available as is_torch_tpu_xla_available
+
+    if is_torch_tpu_xla_available(check_device=False):
+        import torch_xla.core.xla_model as xm
 
 if TYPE_CHECKING:
     import optuna
@@ -719,7 +735,7 @@ class ORTTrainer(Trainer):
 
                 if (
                     args.logging_nan_inf_filter
-                    and not is_torch_tpu_available()
+                    and not is_torch_tpu_xla_available()
                     and (torch.isnan(tr_loss_step) or torch.isinf(tr_loss_step))
                 ):
                     # if loss is nan or inf simply add the average of previous logged losses

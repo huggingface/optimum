@@ -20,7 +20,8 @@ on:
 
 jobs:
   test_gptq:
-    runs-on: [single-gpu, nvidia-gpu, t4, ci]
+    runs-on:
+      group: aws-g6-4xlarge-plus
 
     steps:
       - name: Checkout code
