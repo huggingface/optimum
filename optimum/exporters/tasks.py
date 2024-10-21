@@ -1178,12 +1178,14 @@ class TasksManager:
         "transformers": _SUPPORTED_MODEL_TYPE,
     }
     _UNSUPPORTED_CLI_MODEL_TYPE = {
+        "clip-text-model",
+        "clip-text-with-projection",
+        "sd3-transformer",
+        "t5-encoder",
+        "trocr",  # supported through the vision-encoder-decoder model type
         "unet",
         "vae-encoder",
         "vae-decoder",
-        "clip-text-model",
-        "clip-text-with-projection",
-        "trocr",  # supported through the vision-encoder-decoder model type
     }
     _SUPPORTED_CLI_MODEL_TYPE = (
         set(_SUPPORTED_MODEL_TYPE.keys())
