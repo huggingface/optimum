@@ -32,6 +32,9 @@ from diffusers.pipelines import (
     AutoPipelineForText2Image,
     LatentConsistencyModelImg2ImgPipeline,
     LatentConsistencyModelPipeline,
+    StableDiffusion3Img2ImgPipeline,
+    StableDiffusion3InpaintPipeline,
+    StableDiffusion3Pipeline,
     StableDiffusionImg2ImgPipeline,
     StableDiffusionInpaintPipeline,
     StableDiffusionPipeline,
@@ -57,7 +60,9 @@ from ..exporters.onnx import main_export
 from ..onnx.utils import _get_model_external_data_paths
 from ..utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
+    DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
+    DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER,
     DIFFUSION_MODEL_UNET_SUBFOLDER,
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
@@ -76,7 +81,7 @@ from .utils import (
 if check_if_diffusers_greater("0.25.0"):
     from diffusers.models.autoencoders.vae import DiagonalGaussianDistribution
 else:
-    from diffusers.models.vae import DiagonalGaussianDistribution
+    from diffusers.models.vae import DiagonalGaussianDistribution  # type: ignore
 
 
 logger = logging.getLogger(__name__)
@@ -92,15 +97,18 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
     def __init__(
         self,
         scheduler: "SchedulerMixin",
-        unet_session: ort.InferenceSession,
         vae_decoder_session: ort.InferenceSession,
         # optional pipeline models
+        unet_session: Optional[ort.InferenceSession] = None,
+        transformer_session: Optional[ort.InferenceSession] = None,
         vae_encoder_session: Optional[ort.InferenceSession] = None,
         text_encoder_session: Optional[ort.InferenceSession] = None,
         text_encoder_2_session: Optional[ort.InferenceSession] = None,
+        text_encoder_3_session: Optional[ort.InferenceSession] = None,
         # optional pipeline submodels
         tokenizer: Optional["CLIPTokenizer"] = None,
         tokenizer_2: Optional["CLIPTokenizer"] = None,
+        tokenizer_3: Optional["CLIPTokenizer"] = None,
         feature_extractor: Optional["CLIPFeatureExtractor"] = None,
         # stable diffusion xl specific arguments
         force_zeros_for_empty_prompt: bool = True,
@@ -111,16 +119,20 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-        self.unet = ORTModelUnet(unet_session, self)
-        self.vae_decoder = ORTModelVaeDecoder(vae_decoder_session, self)
-        self.vae_encoder = ORTModelVaeEncoder(vae_encoder_session, self) if vae_encoder_session is not None else None
+        self.unet = ORTModelUnet(unet_session, self) if unet_session is not None else None
+        self.transformer = ORTModelTransformer(transformer_session, self) if transformer_session is not None else None
         self.text_encoder = (
             ORTModelTextEncoder(text_encoder_session, self) if text_encoder_session is not None else None
         )
         self.text_encoder_2 = (
             ORTModelTextEncoder(text_encoder_2_session, self) if text_encoder_2_session is not None else None
         )
+        self.text_encoder_3 = (
+            ORTModelTextEncoder(text_encoder_3_session, self) if text_encoder_3_session is not None else None
+        )
         # We wrap the VAE Decoder & Encoder in a single object to simulate diffusers API
+        self.vae_encoder = ORTModelVaeEncoder(vae_encoder_session, self) if vae_encoder_session is not None else None
+        self.vae_decoder = ORTModelVaeDecoder(vae_decoder_session, self) if vae_decoder_session is not None else None
         self.vae = ORTWrapperVae(self.vae_encoder, self.vae_decoder)
 
         # we allow passing these as torch models for now
@@ -130,18 +142,22 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
         self.scheduler = scheduler
         self.tokenizer = tokenizer
         self.tokenizer_2 = tokenizer_2
+        self.tokenizer_3 = tokenizer_3
         self.feature_extractor = feature_extractor
 
         all_pipeline_init_args = {
             "vae": self.vae,
             "unet": self.unet,
+            "transformer": self.transformer,
             "text_encoder": self.text_encoder,
             "text_encoder_2": self.text_encoder_2,
+            "text_encoder_3": self.text_encoder_3,
             "safety_checker": self.safety_checker,
             "image_encoder": self.image_encoder,
             "scheduler": self.scheduler,
             "tokenizer": self.tokenizer,
             "tokenizer_2": self.tokenizer_2,
+            "tokenizer_3": self.tokenizer_3,
             "feature_extractor": self.feature_extractor,
             "requires_aesthetics_score": requires_aesthetics_score,
             "force_zeros_for_empty_prompt": force_zeros_for_empty_prompt,
@@ -157,7 +173,10 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
 
         # inits ort specific attributes
         self.shared_attributes_init(
-            model=unet_session, use_io_binding=use_io_binding, model_save_dir=model_save_dir, **kwargs
+            model=unet_session if unet_session is not None else transformer_session,
+            use_io_binding=use_io_binding,
+            model_save_dir=model_save_dir,
+            **kwargs,
         )
 
     def _save_pretrained(self, save_directory: Union[str, Path]):
@@ -165,10 +184,12 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
 
         models_to_save_paths = {
             (self.unet, save_directory / DIFFUSION_MODEL_UNET_SUBFOLDER),
+            (self.transformer, save_directory / DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER),
             (self.vae_decoder, save_directory / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER),
             (self.vae_encoder, save_directory / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER),
             (self.text_encoder, save_directory / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER),
             (self.text_encoder_2, save_directory / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER),
+            (self.text_encoder_3, save_directory / DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER),
         }
         for model, save_path in models_to_save_paths:
             if model is not None:
@@ -192,6 +213,8 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
             self.tokenizer.save_pretrained(save_directory / "tokenizer")
         if self.tokenizer_2 is not None:
             self.tokenizer_2.save_pretrained(save_directory / "tokenizer_2")
+        if self.tokenizer_3 is not None:
+            self.tokenizer_3.save_pretrained(save_directory / "tokenizer_3")
         if self.feature_extractor is not None:
             self.feature_extractor.save_pretrained(save_directory / "feature_extractor")
 
@@ -208,10 +231,12 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: Optional[Union[bool, str]] = None,
         unet_file_name: str = ONNX_WEIGHTS_NAME,
+        transformer_file_name: str = ONNX_WEIGHTS_NAME,
         vae_decoder_file_name: str = ONNX_WEIGHTS_NAME,
         vae_encoder_file_name: str = ONNX_WEIGHTS_NAME,
         text_encoder_file_name: str = ONNX_WEIGHTS_NAME,
         text_encoder_2_file_name: str = ONNX_WEIGHTS_NAME,
+        text_encoder_3_file_name: str = ONNX_WEIGHTS_NAME,
         use_io_binding: Optional[bool] = None,
         provider: str = "CPUExecutionProvider",
         provider_options: Optional[Dict[str, Any]] = None,
@@ -230,10 +255,12 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
             allow_patterns.update(
                 {
                     unet_file_name,
+                    transformer_file_name,
                     vae_decoder_file_name,
                     vae_encoder_file_name,
                     text_encoder_file_name,
                     text_encoder_2_file_name,
+                    text_encoder_3_file_name,
                     SCHEDULER_CONFIG_NAME,
                     cls.config_name,
                     CONFIG_NAME,
@@ -259,10 +286,12 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
 
         model_paths = {
             "unet": model_save_path / DIFFUSION_MODEL_UNET_SUBFOLDER / unet_file_name,
+            "transformer": model_save_path / DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER / transformer_file_name,
             "vae_decoder": model_save_path / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / vae_decoder_file_name,
             "vae_encoder": model_save_path / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / vae_encoder_file_name,
             "text_encoder": model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / text_encoder_file_name,
             "text_encoder_2": model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER / text_encoder_2_file_name,
+            "text_encoder_3": model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER / text_encoder_3_file_name,
         }
 
         sessions = {}
@@ -276,7 +305,7 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
                 )
 
         submodels = {}
-        for submodel in {"scheduler", "tokenizer", "tokenizer_2", "feature_extractor"}:
+        for submodel in {"scheduler", "tokenizer", "tokenizer_2", "tokenizer_3", "feature_extractor"}:
             if kwargs.get(submodel, None) is not None:
                 submodels[submodel] = kwargs.pop(submodel)
             elif config.get(submodel, (None, None))[0] is not None:
@@ -385,17 +414,24 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
         if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
             return self
 
-        self.unet.session.set_providers([provider], provider_options=[provider_options])
         self.vae_decoder.session.set_providers([provider], provider_options=[provider_options])
 
+        if self.unet is not None:
+            self.unet.session.set_providers([provider], provider_options=[provider_options])
+        if self.transformer is not None:
+            self.transformer.session.set_providers([provider], provider_options=[provider_options])
         if self.vae_encoder is not None:
             self.vae_encoder.session.set_providers([provider], provider_options=[provider_options])
         if self.text_encoder is not None:
             self.text_encoder.session.set_providers([provider], provider_options=[provider_options])
         if self.text_encoder_2 is not None:
             self.text_encoder_2.session.set_providers([provider], provider_options=[provider_options])
+        if self.text_encoder_3 is not None:
+            self.text_encoder_3.session.set_providers([provider], provider_options=[provider_options])
 
-        self.providers = self.unet.session.get_providers()
+        self.providers = (
+            self.unet.session.get_providers() if self.unet is not None else self.transformer.session.get_providers()
+        )
         self._device = device
 
         return self
@@ -412,8 +448,10 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
         components = {
             "vae": self.vae,
             "unet": self.unet,
+            "transformer": self.transformer,
             "text_encoder": self.text_encoder,
             "text_encoder_2": self.text_encoder_2,
+            "text_encoder_3": self.text_encoder_3,
             "safety_checker": self.safety_checker,
             "image_encoder": self.image_encoder,
         }
@@ -581,6 +619,39 @@ class ORTModelUnet(ORTPipelinePart):
         return ModelOutput(**model_outputs)
 
 
+class ORTModelTransformer(ORTPipelinePart):
+    def forward(
+        self,
+        hidden_states: Union[np.ndarray, torch.Tensor],
+        timestep: Union[np.ndarray, torch.Tensor],
+        encoder_hidden_states: Union[np.ndarray, torch.Tensor],
+        pooled_projections: Union[np.ndarray, torch.Tensor],
+        joint_attention_kwargs: Optional[Dict[str, Any]] = None,
+        return_dict: bool = False,
+    ):
+        use_torch = isinstance(hidden_states, torch.Tensor)
+
+        if len(timestep.shape) == 0:
+            timestep = timestep.unsqueeze(0)
+
+        model_inputs = {
+            "hidden_states": hidden_states,
+            "timestep": timestep,
+            "encoder_hidden_states": encoder_hidden_states,
+            "pooled_projections": pooled_projections,
+            **(joint_attention_kwargs or {}),
+        }
+
+        onnx_inputs = self.prepare_onnx_inputs(use_torch, **model_inputs)
+        onnx_outputs = self.session.run(None, onnx_inputs)
+        model_outputs = self.prepare_onnx_outputs(use_torch, *onnx_outputs)
+
+        if return_dict:
+            return model_outputs
+
+        return ModelOutput(**model_outputs)
+
+
 class ORTModelTextEncoder(ORTPipelinePart):
     def forward(
         self,
@@ -599,11 +670,17 @@ class ORTModelTextEncoder(ORTPipelinePart):
 
         if output_hidden_states:
             model_outputs["hidden_states"] = []
-            for i in range(self.config.num_hidden_layers):
+            num_layers = (
+                self.config.num_hidden_layers if hasattr(self.config, "num_hidden_layers") else self.num_decoder_layers
+            )
+            for i in range(num_layers):
                 model_outputs["hidden_states"].append(model_outputs.pop(f"hidden_states.{i}"))
             model_outputs["hidden_states"].append(model_outputs.get("last_hidden_state"))
         else:
-            for i in range(self.config.num_hidden_layers):
+            num_layers = (
+                self.config.num_hidden_layers if hasattr(self.config, "num_hidden_layers") else self.num_decoder_layers
+            )
+            for i in range(num_layers):
                 model_outputs.pop(f"hidden_states.{i}", None)
 
         if return_dict:
@@ -871,6 +948,39 @@ class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsi
     auto_model_class = LatentConsistencyModelImg2ImgPipeline
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+class ORTStableDiffusion3Pipeline(ORTDiffusionPipeline, StableDiffusion3Pipeline):
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Pipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusion3Pipeline).
+    """
+
+    main_input_name = "prompt"
+    export_feature = "text-to-image"
+    auto_model_class = StableDiffusion3Pipeline
+
+
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+class ORTStableDiffusion3Img2ImgPipeline(ORTDiffusionPipeline, StableDiffusion3Img2ImgPipeline):
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusion3Img2ImgPipeline).
+    """
+
+    main_input_name = "image"
+    export_feature = "image-to-image"
+    auto_model_class = StableDiffusion3Img2ImgPipeline
+
+
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+class ORTStableDiffusion3InpaintPipeline(ORTDiffusionPipeline, StableDiffusion3InpaintPipeline):
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3InpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusion3InpaintPipeline).
+    """
+
+    main_input_name = "prompt"
+    export_feature = "inpainting"
+    auto_model_class = StableDiffusion3InpaintPipeline
+
+
 SUPPORTED_ORT_PIPELINES = [
     ORTStableDiffusionPipeline,
     ORTStableDiffusionImg2ImgPipeline,
@@ -880,6 +990,9 @@ SUPPORTED_ORT_PIPELINES = [
     ORTStableDiffusionXLInpaintPipeline,
     ORTLatentConsistencyModelPipeline,
     ORTLatentConsistencyModelImg2ImgPipeline,
+    ORTStableDiffusion3Pipeline,
+    ORTStableDiffusion3Img2ImgPipeline,
+    ORTStableDiffusion3InpaintPipeline,
 ]
 
 
@@ -900,6 +1013,7 @@ ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
         ("stable-diffusion", ORTStableDiffusionPipeline),
         ("stable-diffusion-xl", ORTStableDiffusionXLPipeline),
         ("latent-consistency", ORTLatentConsistencyModelPipeline),
+        ("stable-diffusion-3", ORTStableDiffusion3Pipeline),
     ]
 )
 
@@ -908,6 +1022,7 @@ ORT_IMAGE2IMAGE_PIPELINES_MAPPING = OrderedDict(
         ("stable-diffusion", ORTStableDiffusionImg2ImgPipeline),
         ("stable-diffusion-xl", ORTStableDiffusionXLImg2ImgPipeline),
         ("latent-consistency", ORTLatentConsistencyModelImg2ImgPipeline),
+        ("stable-diffusion-3", ORTStableDiffusion3Img2ImgPipeline),
     ]
 )
 
@@ -915,6 +1030,7 @@ ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
     [
         ("stable-diffusion", ORTStableDiffusionInpaintPipeline),
         ("stable-diffusion-xl", ORTStableDiffusionXLInpaintPipeline),
+        ("stable-diffusion-3", ORTStableDiffusion3InpaintPipeline),
     ]
 )
 

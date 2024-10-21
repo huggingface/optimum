@@ -71,7 +71,8 @@ def _generate_images(height=128, width=128, batch_size=1, channel=3, input_type=
 
 
 class ORTPipelineForText2ImageTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "latent-consistency"]
+    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "latent-consistency", "stable-diffusion-3"]
+    CALLBACK_SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "latent-consistency"]
 
     ORTMODEL_CLASS = ORTPipelineForText2Image
     AUTOMODEL_CLASS = AutoPipelineForText2Image
@@ -147,7 +148,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
             np.testing.assert_allclose(ort_output, diffusers_output, atol=1e-4, rtol=1e-2)
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @parameterized.expand(CALLBACK_SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -200,9 +201,19 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             elif output_type == "pt":
                 self.assertEqual(outputs.shape, (batch_size, 3, height, width))
             else:
+                out_channels = (
+                    pipeline.unet.config.out_channels
+                    if pipeline.unet is not None
+                    else pipeline.transformer.config.out_channels
+                )
                 self.assertEqual(
                     outputs.shape,
-                    (batch_size, 4, height // pipeline.vae_scale_factor, width // pipeline.vae_scale_factor),
+                    (
+                        batch_size,
+                        out_channels,
+                        height // pipeline.vae_scale_factor,
+                        width // pipeline.vae_scale_factor,
+                    ),
                 )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
@@ -246,6 +257,21 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
                 inputs["negative_pooled_prompt_embeds"],
             ) = pipeline.encode_prompt(
                 prompt=prompt,
+                num_images_per_prompt=1,
+                device=torch.device("cpu"),
+                do_classifier_free_guidance=True,
+                negative_prompt=negative_prompt,
+            )
+        elif model_arch == "stable-diffusion-3":
+            (
+                inputs["prompt_embeds"],
+                inputs["negative_prompt_embeds"],
+                inputs["pooled_prompt_embeds"],
+                inputs["negative_pooled_prompt_embeds"],
+            ) = pipeline.encode_prompt(
+                prompt=prompt,
+                prompt_2=prompt,
+                prompt_3=prompt,
                 num_images_per_prompt=1,
                 device=torch.device("cpu"),
                 do_classifier_free_guidance=True,
@@ -326,7 +352,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
 
 class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "latent-consistency"]
+    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "latent-consistency", "stable-diffusion-3"]
+    CALLBACK_SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "latent-consistency"]
 
     AUTOMODEL_CLASS = AutoPipelineForImage2Image
     ORTMODEL_CLASS = ORTPipelineForImage2Image
@@ -380,7 +407,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
                         outputs = pipeline(**inputs, num_images_per_prompt=num_images_per_prompt).images
                         self.assertEqual(outputs.shape, (batch_size * num_images_per_prompt, height, width, 3))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @parameterized.expand(CALLBACK_SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -434,9 +461,19 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
                 elif output_type == "pt":
                     self.assertEqual(outputs.shape, (batch_size, 3, height, width))
                 else:
+                    out_channels = (
+                        pipeline.unet.config.out_channels
+                        if pipeline.unet is not None
+                        else pipeline.transformer.config.out_channels
+                    )
                     self.assertEqual(
                         outputs.shape,
-                        (batch_size, 4, height // pipeline.vae_scale_factor, width // pipeline.vae_scale_factor),
+                        (
+                            batch_size,
+                            out_channels,
+                            height // pipeline.vae_scale_factor,
+                            width // pipeline.vae_scale_factor,
+                        ),
                     )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
@@ -541,7 +578,8 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
 
 
 class ORTPipelineForInpaintingTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl"]
+    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "stable-diffusion-3"]
+    CALLBACK_SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl"]
 
     AUTOMODEL_CLASS = AutoPipelineForInpainting
     ORTMODEL_CLASS = ORTPipelineForInpainting
@@ -600,7 +638,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
                         outputs = pipeline(**inputs, num_images_per_prompt=num_images_per_prompt).images
                         self.assertEqual(outputs.shape, (batch_size * num_images_per_prompt, height, width, 3))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @parameterized.expand(CALLBACK_SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -654,9 +692,19 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
                 elif output_type == "pt":
                     self.assertEqual(outputs.shape, (batch_size, 3, height, width))
                 else:
+                    out_channels = (
+                        pipeline.unet.config.out_channels
+                        if pipeline.unet is not None
+                        else pipeline.transformer.config.out_channels
+                    )
                     self.assertEqual(
                         outputs.shape,
-                        (batch_size, 4, height // pipeline.vae_scale_factor, width // pipeline.vae_scale_factor),
+                        (
+                            batch_size,
+                            out_channels,
+                            height // pipeline.vae_scale_factor,
+                            width // pipeline.vae_scale_factor,
+                        ),
                     )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)

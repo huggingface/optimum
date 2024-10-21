@@ -319,6 +319,7 @@ class OnnxConfig(ExportConfig, ABC):
                 input_shapes = {}
             dummy_inputs = self.generate_dummy_inputs(framework="np", **input_shapes)
             dummy_inputs = self.generate_dummy_inputs_for_validation(dummy_inputs, onnx_input_names=onnx_input_names)
+            dummy_inputs = self.rename_ambiguous_inputs(dummy_inputs)
 
             onnx_inputs = {}
             for name, value in dummy_inputs.items():

@@ -335,6 +335,10 @@ class TasksManager:
     }
 
     _DIFFUSERS_SUPPORTED_MODEL_TYPE = {
+        "t5-encoder": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="T5EncoderOnnxConfig",
+        ),
         "clip-text-model": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPTextOnnxConfig",
@@ -346,6 +350,10 @@ class TasksManager:
         "unet": supported_tasks_mapping(
             "semantic-segmentation",
             onnx="UNetOnnxConfig",
+        ),
+        "sd3-transformer": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="SD3TransformerOnnxConfig",
         ),
         "vae-encoder": supported_tasks_mapping(
             "semantic-segmentation",
@@ -1170,12 +1178,14 @@ class TasksManager:
         "transformers": _SUPPORTED_MODEL_TYPE,
     }
     _UNSUPPORTED_CLI_MODEL_TYPE = {
+        "clip-text-model",
+        "clip-text-with-projection",
+        "sd3-transformer",
+        "t5-encoder",
+        "trocr",  # supported through the vision-encoder-decoder model type
         "unet",
         "vae-encoder",
         "vae-decoder",
-        "clip-text-model",
-        "clip-text-with-projection",
-        "trocr",  # supported through the vision-encoder-decoder model type
     }
     _SUPPORTED_CLI_MODEL_TYPE = (
         set(_SUPPORTED_MODEL_TYPE.keys())
