@@ -121,6 +121,7 @@ MODEL_NAMES = {
     "mobilenet_v1": "google/mobilenet_v1_0.75_192",
     "mobilenet_v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
+    "mobilevitv2": "hf-internal-testing/tiny-random-MobileViTV2Model",
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
