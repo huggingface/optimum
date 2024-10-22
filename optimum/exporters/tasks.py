@@ -1384,7 +1384,6 @@ class TasksManager:
             except ModuleNotFoundError:
                 raise ValueError(f"`{library}` selected as model source, but `{library}` is not installed. Please install it.")
 
-
             return getattr(loaded_library, class_name)
         else:
             if framework == "pt":
@@ -2230,4 +2229,3 @@ class TasksManager:
             exporter_config_constructor = partial(exporter_config_constructor, **exporter_config_kwargs)
 
         return exporter_config_constructor
-
