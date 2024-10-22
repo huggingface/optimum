@@ -300,6 +300,7 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
 
 class GraniteOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.45.0")
+    MIN_TORCH_VERSION = version.parse("2.5.0")
 
 
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
