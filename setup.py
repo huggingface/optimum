@@ -15,7 +15,8 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.29",
+    "transformers @ git+https://github.com/huggingface/transformers.git",
+    # "transformers[sentencepiece]>=4.29",
     "torch>=1.11",
     "packaging",
     "numpy",
