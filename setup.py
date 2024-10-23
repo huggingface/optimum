@@ -77,7 +77,7 @@ EXTRAS_REQUIRE = {
         "h5py",
         "numpy<1.24.0",
         "datasets<=2.16",
-        "transformers[sentencepiece]>=4.26,<4.38",
+        # "transformers[sentencepiece]>=4.26,<4.38",
     ],
     "diffusers": ["diffusers"],
     "intel": "optimum-intel>=1.18.0",
