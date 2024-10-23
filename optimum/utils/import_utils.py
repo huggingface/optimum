@@ -193,6 +193,22 @@ def check_if_diffusers_greater(target_version: str) -> bool:
     return version.parse(_diffusers_version) >= version.parse(target_version)
 
 
+def check_if_torch_greater(target_version: str) -> bool:
+    """
+    Checks whether the current install of torch is greater than or equal to the target version.
+
+    Args:
+        target_version (str): version used as the reference for comparison.
+
+    Returns:
+        bool: whether the check is True or not.
+    """
+    if not is_torch_available():
+        return False
+
+    return version.parse(torch_version) >= version.parse(target_version)
+
+
 @contextmanager
 def require_numpy_strictly_lower(package_version: str, message: str):
     if not version.parse(np.__version__) < version.parse(package_version):

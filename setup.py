@@ -38,7 +38,6 @@ TESTS_REQUIRE = [
     "diffusers>=0.17.0",
     "torchaudio",
     "einops",
-    "invisible-watermark",
     "timm",
     "scikit-learn",
     "rjieba",
