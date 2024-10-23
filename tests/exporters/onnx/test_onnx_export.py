@@ -299,7 +299,6 @@ class OnnxExportTestCase(TestCase):
         with TemporaryDirectory() as tmpdirname:
             _, onnx_outputs = export_models(
                 models_and_onnx_configs=models_and_onnx_configs,
-                opset=14,
                 output_dir=Path(tmpdirname),
                 device=device,
             )
@@ -307,7 +306,6 @@ class OnnxExportTestCase(TestCase):
                 models_and_onnx_configs=models_and_onnx_configs,
                 onnx_named_outputs=onnx_outputs,
                 output_dir=Path(tmpdirname),
-                atol=1e-4,
                 use_subprocess=False,
             )
 
