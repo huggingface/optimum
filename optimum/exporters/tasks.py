@@ -1182,15 +1182,17 @@ class TasksManager:
         "transformers": _SUPPORTED_MODEL_TYPE,
     }
     _UNSUPPORTED_CLI_MODEL_TYPE = {
-        # diffusers submodels
+        # diffusers model types
         "clip-text-model",
         "clip-text-model-with-projection",
-        "flux-transformer-model",
+        "flux-transformer-2d-model",
         "sd3-transformer-2d-model",
         "t5-encoder-model",
         "unet-2d-condition",
         "vae-encoder",
         "vae-decoder",
+        # redundant model types
+        "trocr",  # same as vision-encoder-decoder
     }
     _SUPPORTED_CLI_MODEL_TYPE = (
         set(_SUPPORTED_MODEL_TYPE.keys())
