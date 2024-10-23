@@ -224,7 +224,9 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
     @require_torch_gpu
     @require_accelerate
     def test_accelerate_compatibility_cpu_gpu(self, keep_original_model=True, max_memory=None):
-        hf_model = AutoModelForCausalLM.from_pretrained("gpt2", device_map="auto", max_memory=max_memory, attn_implementation="eager").eval()
+        hf_model = AutoModelForCausalLM.from_pretrained(
+            "gpt2", device_map="auto", max_memory=max_memory, attn_implementation="eager"
+        ).eval()
         bt_model = BetterTransformer.transform(
             hf_model, keep_original_model=keep_original_model, max_memory=max_memory
         )

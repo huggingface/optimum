@@ -327,9 +327,9 @@ class T5AttentionLayerBetterTransformer(BetterTransformerBaseLayer, T5Attention,
             setattr(self, "relative_attention_bias", layer.relative_attention_bias)
             self.original_layers_mapping["relative_attention_bias"] = "relative_attention_bias"
 
-        self.module_mapping = None
-
+        self.layer_idx = getattr(layer, "layer_idx", None)
         self.is_decoder = layer.is_decoder
+        self.module_mapping = None
 
     def forward(self, *args, **kwargs):
         return t5_forward(self, *args, **kwargs)

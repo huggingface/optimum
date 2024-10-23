@@ -45,6 +45,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         "mbart",
         "pegasus",
         "prophetnet",
+        "t5",
     ]
 
     FULL_GRID = {
