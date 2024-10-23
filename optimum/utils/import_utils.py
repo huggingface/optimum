@@ -206,7 +206,7 @@ def check_if_torch_greater(target_version: str) -> bool:
     if not is_torch_available():
         return False
 
-    return version.parse(torch_version) >= version.parse(target_version)
+    return torch_version >= version.parse(target_version)
 
 
 @contextmanager

@@ -40,6 +40,7 @@ TESTS_REQUIRE = [
     "einops",
     "timm",
     "scikit-learn",
+    "sentencepiece",
     "rjieba",
 ]
 

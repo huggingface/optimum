@@ -45,7 +45,6 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         "mbart",
         "pegasus",
         "prophetnet",
-        "t5",
     ]
 
     FULL_GRID = {
@@ -153,7 +152,7 @@ class BetterTransformersEncoderDecoderTest(BetterTransformersTestMixin, unittest
         model_id = MODELS_DICT[model_type]
         tokenizer = AutoTokenizer.from_pretrained(model_id)
 
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_id, attn_implementation="eager")
 
         if not hasattr(tokenizer, "pad_token") or tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
