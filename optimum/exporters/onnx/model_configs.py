@@ -72,7 +72,6 @@ from .config import (
 )
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import (
-    CLIPModelPatcher,
     FalconModelPatcher,
     MistralModelPatcher,
     MusicgenModelPatcher,
@@ -907,6 +906,7 @@ class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
 
 class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -920,16 +920,10 @@ class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
 
         return common_outputs
 
-    def patch_model_for_export(
-        self,
-        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> "ModelPatcher":
-        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
-
 
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -947,13 +941,6 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
             "text_embeds": {0: "text_batch_size"},
             "image_embeds": {0: "image_batch_size"},
         }
-
-    def patch_model_for_export(
-        self,
-        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> "ModelPatcher":
-        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class SentenceTransformersCLIPOnnxConfig(CLIPOnnxConfig):
@@ -1000,13 +987,6 @@ class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
 
         return common_outputs
 
-    def patch_model_for_export(
-        self,
-        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> "ModelPatcher":
-        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
-
 
 class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
     @property
@@ -1030,13 +1010,6 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
 
             dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
         return dummy_inputs
-
-    def patch_model_for_export(
-        self,
-        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> "ModelPatcher":
-        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class UNetOnnxConfig(VisionOnnxConfig):

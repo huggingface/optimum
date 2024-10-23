@@ -1138,20 +1138,3 @@ class MistralModelPatcher(ModelPatcher):
                 self._update_causal_mask_original = self._model.model._update_causal_mask
             else:
                 self._update_causal_mask_original = self._model._update_causal_mask
-
-
-class CLIPModelPatcher(ModelPatcher):
-    def __enter__(self):
-        super().__enter__()
-
-        if _transformers_version >= version.parse("4.43"):
-            from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
-
-            self.original_sdpa_forward, CLIPSdpaAttention.forward = CLIPSdpaAttention.forward, CLIPAttention.forward
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        super().__exit__(exc_type, exc_value, traceback)
-        if _transformers_version >= version.parse("4.43"):
-            from transformers.models.clip.modeling_clip import CLIPSdpaAttention
-
-            CLIPSdpaAttention.forward = self.original_sdpa_forward
