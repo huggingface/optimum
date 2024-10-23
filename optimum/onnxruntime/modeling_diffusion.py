@@ -30,6 +30,7 @@ from diffusers.pipelines import (
     AutoPipelineForImage2Image,
     AutoPipelineForInpainting,
     AutoPipelineForText2Image,
+    FluxPipeline,
     LatentConsistencyModelImg2ImgPipeline,
     LatentConsistencyModelPipeline,
     StableDiffusion3Img2ImgPipeline,
@@ -481,8 +482,12 @@ class ORTPipelinePart(ConfigMixin):
 
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
+
         self.input_dtypes = {input_key.name: input_key.type for input_key in self.session.get_inputs()}
         self.output_dtypes = {output_key.name: output_key.type for output_key in self.session.get_outputs()}
+
+        self.input_shapes = {input_key.name: input_key.shape for input_key in self.session.get_inputs()}
+        self.output_shapes = {output_key.name: output_key.shape for output_key in self.session.get_outputs()}
 
         config_file_path = Path(session._model_path).parent / self.config_name
         if not config_file_path.is_file():
@@ -581,13 +586,18 @@ class ORTModelUnet(ORTPipelinePart):
             )
             self.register_to_config(time_cond_proj_dim=None)
 
+        if len(self.input_shapes["timestep"]) > 0:
+            logger.warning(
+                "The exported unet onnx model expects a non scalar timestep input. "
+                "We will have to unsqueeze the timestep input at each iteration which might be inefficient. "
+                "Please re-export the pipeline with newer version of optimum and diffusers to avoid this warning."
+            )
+
     def forward(
         self,
         sample: Union[np.ndarray, torch.Tensor],
         timestep: Union[np.ndarray, torch.Tensor],
         encoder_hidden_states: Union[np.ndarray, torch.Tensor],
-        text_embeds: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        time_ids: Optional[Union[np.ndarray, torch.Tensor]] = None,
         timestep_cond: Optional[Union[np.ndarray, torch.Tensor]] = None,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         added_cond_kwargs: Optional[Dict[str, Any]] = None,
@@ -595,15 +605,13 @@ class ORTModelUnet(ORTPipelinePart):
     ):
         use_torch = isinstance(sample, torch.Tensor)
 
-        if len(timestep.shape) == 0:
+        if len(self.input_shapes["timestep"]) > 0:
             timestep = timestep.unsqueeze(0)
 
         model_inputs = {
             "sample": sample,
             "timestep": timestep,
             "encoder_hidden_states": encoder_hidden_states,
-            "text_embeds": text_embeds,
-            "time_ids": time_ids,
             "timestep_cond": timestep_cond,
             **(cross_attention_kwargs or {}),
             **(added_cond_kwargs or {}),
@@ -623,22 +631,25 @@ class ORTModelTransformer(ORTPipelinePart):
     def forward(
         self,
         hidden_states: Union[np.ndarray, torch.Tensor],
-        timestep: Union[np.ndarray, torch.Tensor],
         encoder_hidden_states: Union[np.ndarray, torch.Tensor],
         pooled_projections: Union[np.ndarray, torch.Tensor],
+        timestep: Union[np.ndarray, torch.Tensor],
+        guidance: Optional[Union[np.ndarray, torch.Tensor]] = None,
+        txt_ids: Optional[Union[np.ndarray, torch.Tensor]] = None,
+        img_ids: Optional[Union[np.ndarray, torch.Tensor]] = None,
         joint_attention_kwargs: Optional[Dict[str, Any]] = None,
         return_dict: bool = False,
     ):
         use_torch = isinstance(hidden_states, torch.Tensor)
 
-        if len(timestep.shape) == 0:
-            timestep = timestep.unsqueeze(0)
-
         model_inputs = {
             "hidden_states": hidden_states,
-            "timestep": timestep,
             "encoder_hidden_states": encoder_hidden_states,
             "pooled_projections": pooled_projections,
+            "timestep": timestep,
+            "guidance": guidance,
+            "txt_ids": txt_ids,
+            "img_ids": img_ids,
             **(joint_attention_kwargs or {}),
         }
 
@@ -670,16 +681,12 @@ class ORTModelTextEncoder(ORTPipelinePart):
 
         if output_hidden_states:
             model_outputs["hidden_states"] = []
-            num_layers = (
-                self.config.num_hidden_layers if hasattr(self.config, "num_hidden_layers") else self.num_decoder_layers
-            )
+            num_layers = self.num_hidden_layers if hasattr(self, "num_hidden_layers") else self.num_decoder_layers
             for i in range(num_layers):
                 model_outputs["hidden_states"].append(model_outputs.pop(f"hidden_states.{i}"))
             model_outputs["hidden_states"].append(model_outputs.get("last_hidden_state"))
         else:
-            num_layers = (
-                self.config.num_hidden_layers if hasattr(self.config, "num_hidden_layers") else self.num_decoder_layers
-            )
+            num_layers = self.num_hidden_layers if hasattr(self, "num_hidden_layers") else self.num_decoder_layers
             for i in range(num_layers):
                 model_outputs.pop(f"hidden_states.{i}", None)
 
@@ -697,7 +704,7 @@ class ORTModelVaeEncoder(ORTPipelinePart):
         if not hasattr(self.config, "scaling_factor"):
             logger.warning(
                 "The `scaling_factor` attribute is missing from the VAE encoder configuration. "
-                "Please re-export the model with newer version of optimum and diffusers."
+                "Please re-export the model with newer version of optimum and diffusers to avoid this warning."
             )
             self.register_to_config(scaling_factor=2 ** (len(self.config.block_out_channels) - 1))
 
@@ -737,7 +744,7 @@ class ORTModelVaeDecoder(ORTPipelinePart):
         if not hasattr(self.config, "scaling_factor"):
             logger.warning(
                 "The `scaling_factor` attribute is missing from the VAE decoder configuration. "
-                "Please re-export the model with newer version of optimum and diffusers."
+                "Please re-export the model with newer version of optimum and diffusers to avoid this warning."
             )
             self.register_to_config(scaling_factor=2 ** (len(self.config.block_out_channels) - 1))
 
@@ -981,6 +988,17 @@ class ORTStableDiffusion3InpaintPipeline(ORTDiffusionPipeline, StableDiffusion3I
     auto_model_class = StableDiffusion3InpaintPipeline
 
 
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+class ORTFluxPipeline(ORTDiffusionPipeline, FluxPipeline):
+    """
+    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux/text2img#diffusers.FluxPipeline).
+    """
+
+    main_input_name = "prompt"
+    export_feature = "text-to-image"
+    auto_model_class = FluxPipeline
+
+
 SUPPORTED_ORT_PIPELINES = [
     ORTStableDiffusionPipeline,
     ORTStableDiffusionImg2ImgPipeline,
@@ -993,6 +1011,7 @@ SUPPORTED_ORT_PIPELINES = [
     ORTStableDiffusion3Pipeline,
     ORTStableDiffusion3Img2ImgPipeline,
     ORTStableDiffusion3InpaintPipeline,
+    ORTFluxPipeline,
 ]
 
 
@@ -1010,27 +1029,28 @@ def _get_ort_class(pipeline_class_name: str, throw_error_if_not_exist: bool = Tr
 
 ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
-        ("stable-diffusion", ORTStableDiffusionPipeline),
-        ("stable-diffusion-xl", ORTStableDiffusionXLPipeline),
+        ("flux", ORTFluxPipeline),
         ("latent-consistency", ORTLatentConsistencyModelPipeline),
+        ("stable-diffusion", ORTStableDiffusionPipeline),
         ("stable-diffusion-3", ORTStableDiffusion3Pipeline),
+        ("stable-diffusion-xl", ORTStableDiffusionXLPipeline),
     ]
 )
 
 ORT_IMAGE2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
-        ("stable-diffusion", ORTStableDiffusionImg2ImgPipeline),
-        ("stable-diffusion-xl", ORTStableDiffusionXLImg2ImgPipeline),
         ("latent-consistency", ORTLatentConsistencyModelImg2ImgPipeline),
+        ("stable-diffusion", ORTStableDiffusionImg2ImgPipeline),
         ("stable-diffusion-3", ORTStableDiffusion3Img2ImgPipeline),
+        ("stable-diffusion-xl", ORTStableDiffusionXLImg2ImgPipeline),
     ]
 )
 
 ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
     [
         ("stable-diffusion", ORTStableDiffusionInpaintPipeline),
-        ("stable-diffusion-xl", ORTStableDiffusionXLInpaintPipeline),
         ("stable-diffusion-3", ORTStableDiffusion3InpaintPipeline),
+        ("stable-diffusion-xl", ORTStableDiffusionXLInpaintPipeline),
     ]
 )
 

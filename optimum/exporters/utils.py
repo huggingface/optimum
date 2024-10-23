@@ -21,7 +21,9 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Un
 
 import torch
 from packaging import version
+from transformers.models.clip.modeling_clip import CLIPTextModel, CLIPTextModelWithProjection
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5HifiGan
+from transformers.models.t5.modeling_t5 import T5EncoderModel
 from transformers.utils import is_tf_available, is_torch_available
 
 from ..utils import (
@@ -53,10 +55,20 @@ if is_diffusers_available():
 
     if check_if_diffusers_greater("0.30.0"):
         from diffusers import (
+            FluxTransformer2DModel,
+            SD3Transformer2DModel,
             StableDiffusion3Img2ImgPipeline,
             StableDiffusion3InpaintPipeline,
             StableDiffusion3Pipeline,
+            UNet2DConditionModel,
         )
+    else:
+        FluxTransformer2DModel = None
+        SD3Transformer2DModel = None
+        StableDiffusion3Img2ImgPipeline = None
+        StableDiffusion3InpaintPipeline = None
+        StableDiffusion3Pipeline = None
+        UNet2DConditionModel = None
 
     from diffusers.models.attention_processor import (
         Attention,
@@ -88,6 +100,23 @@ DECODER_WITH_PAST_NAME = "decoder_with_past_model"
 DECODER_MERGED_NAME = "decoder_model_merged"
 
 
+def _get_diffusers_model_type(model):
+    if isinstance(model, CLIPTextModel):
+        return "clip-text-model"
+    elif isinstance(model, CLIPTextModelWithProjection):
+        return "clip-text-model-with-projection"
+    elif isinstance(model, T5EncoderModel):
+        return "t5-encoder-model"
+    elif isinstance(model, FluxTransformer2DModel):
+        return "flux-transformer-2d-model"
+    elif isinstance(model, SD3Transformer2DModel):
+        return "sd3-transformer-2d-model"
+    elif isinstance(model, UNet2DConditionModel):
+        return "unet-2d-condition"
+    else:
+        raise ValueError(f"Unknown model class: {model.__class__}")
+
+
 def _get_submodels_for_export_diffusion(
     pipeline: "DiffusionPipeline",
 ) -> Dict[str, Union["PreTrainedModel", "ModelMixin"]]:
@@ -97,11 +126,13 @@ def _get_submodels_for_export_diffusion(
 
     models_for_export = {}
 
-    is_stable_diffusion_xl = isinstance(
-        pipeline, (StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline)
+    is_sdxl = isinstance(
+        pipeline,
+        (StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline, StableDiffusionXLPipeline),
     )
-    is_stable_diffusion_3 = isinstance(
-        pipeline, (StableDiffusion3Pipeline, StableDiffusion3Img2ImgPipeline, StableDiffusion3InpaintPipeline)
+    is_sd3 = isinstance(
+        pipeline,
+        (StableDiffusion3Img2ImgPipeline, StableDiffusion3InpaintPipeline, StableDiffusion3Pipeline),
     )
 
     is_torch_greater_or_equal_than_2_1 = version.parse(torch.__version__) >= version.parse("2.1.0")
@@ -109,30 +140,27 @@ def _get_submodels_for_export_diffusion(
     # Text encoder
     text_encoder = getattr(pipeline, "text_encoder", None)
     if text_encoder is not None:
-        if is_stable_diffusion_xl or is_stable_diffusion_3:
+        if is_sdxl or is_sd3:
             text_encoder.config.output_hidden_states = True
             text_encoder.text_model.config.output_hidden_states = True
 
-        if is_stable_diffusion_3:
-            text_encoder.config.export_model_type = "clip-text-with-projection"
-        else:
-            text_encoder.config.export_model_type = "clip-text-model"
-
+        text_encoder.config.export_model_type = _get_diffusers_model_type(text_encoder)
         models_for_export["text_encoder"] = text_encoder
 
     # Text encoder 2
     text_encoder_2 = getattr(pipeline, "text_encoder_2", None)
     if text_encoder_2 is not None:
-        text_encoder_2.config.output_hidden_states = True
-        text_encoder_2.text_model.config.output_hidden_states = True
-        text_encoder_2.config.export_model_type = "clip-text-with-projection"
+        if is_sdxl or is_sd3:
+            text_encoder_2.config.output_hidden_states = True
+            text_encoder_2.text_model.config.output_hidden_states = True
 
+        text_encoder_2.config.export_model_type = _get_diffusers_model_type(text_encoder_2)
         models_for_export["text_encoder_2"] = text_encoder_2
 
     # Text encoder 3
     text_encoder_3 = getattr(pipeline, "text_encoder_3", None)
     if text_encoder_3 is not None:
-        text_encoder_3.config.export_model_type = "t5-encoder"
+        text_encoder_3.config.export_model_type = _get_diffusers_model_type(text_encoder_3)
         models_for_export["text_encoder_3"] = text_encoder_3
 
     # U-NET
@@ -147,7 +175,7 @@ def _get_submodels_for_export_diffusion(
         unet.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
         unet.config.time_cond_proj_dim = getattr(pipeline.unet.config, "time_cond_proj_dim", None)
         unet.config.text_encoder_projection_dim = pipeline.text_encoder.config.projection_dim
-        unet.config.export_model_type = "unet"
+        unet.config.export_model_type = _get_diffusers_model_type(unet)
         models_for_export["unet"] = unet
 
     # Transformer
@@ -160,7 +188,7 @@ def _get_submodels_for_export_diffusion(
         transformer.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
         transformer.config.time_cond_proj_dim = getattr(pipeline.transformer.config, "time_cond_proj_dim", None)
         transformer.config.text_encoder_projection_dim = pipeline.text_encoder.config.projection_dim
-        transformer.config.export_model_type = "sd3-transformer"
+        transformer.config.export_model_type = _get_diffusers_model_type(transformer)
         models_for_export["transformer"] = transformer
 
     # VAE Encoder
@@ -346,55 +374,54 @@ def get_diffusion_models_for_export(
 
     # Text encoder
     if "text_encoder" in models_for_export:
+        text_encoder = models_for_export["text_encoder"]
         text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
-            model=pipeline.text_encoder, exporter=exporter, library_name="diffusers", task="feature-extraction"
+            model=text_encoder, exporter=exporter, library_name="diffusers", task="feature-extraction"
         )
         text_encoder_export_config = text_encoder_config_constructor(
-            pipeline.text_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
+            text_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
         )
         models_for_export["text_encoder"] = (models_for_export["text_encoder"], text_encoder_export_config)
 
     # Text encoder 2
     if "text_encoder_2" in models_for_export:
+        text_encoder_2 = models_for_export["text_encoder_2"]
         export_config_constructor = TasksManager.get_exporter_config_constructor(
-            model=pipeline.text_encoder_2, exporter=exporter, library_name="diffusers", task="feature-extraction"
+            model=text_encoder_2, exporter=exporter, library_name="diffusers", task="feature-extraction"
         )
-        export_config = export_config_constructor(
-            pipeline.text_encoder_2.config, int_dtype=int_dtype, float_dtype=float_dtype
-        )
+        export_config = export_config_constructor(text_encoder_2.config, int_dtype=int_dtype, float_dtype=float_dtype)
         models_for_export["text_encoder_2"] = (models_for_export["text_encoder_2"], export_config)
 
     # Text encoder 3
     if "text_encoder_3" in models_for_export:
+        text_encoder_3 = models_for_export["text_encoder_3"]
         export_config_constructor = TasksManager.get_exporter_config_constructor(
-            model=pipeline.text_encoder_3, exporter=exporter, library_name="diffusers", task="feature-extraction"
+            model=text_encoder_3, exporter=exporter, library_name="diffusers", task="feature-extraction"
         )
-        export_config = export_config_constructor(
-            pipeline.text_encoder_3.config, int_dtype=int_dtype, float_dtype=float_dtype
-        )
+        export_config = export_config_constructor(text_encoder_3.config, int_dtype=int_dtype, float_dtype=float_dtype)
         models_for_export["text_encoder_3"] = (models_for_export["text_encoder_3"], export_config)
 
     # U-NET
     if "unet" in models_for_export:
+        unet = models_for_export["unet"]
         export_config_constructor = TasksManager.get_exporter_config_constructor(
-            model=pipeline.unet, exporter=exporter, library_name="diffusers", task="semantic-segmentation"
+            model=unet, exporter=exporter, library_name="diffusers", task="semantic-segmentation"
         )
-        unet_export_config = export_config_constructor(
-            pipeline.unet.config, int_dtype=int_dtype, float_dtype=float_dtype
-        )
+        unet_export_config = export_config_constructor(unet.config, int_dtype=int_dtype, float_dtype=float_dtype)
         models_for_export["unet"] = (models_for_export["unet"], unet_export_config)
 
     # Transformer
     if "transformer" in models_for_export:
+        transformer = models_for_export["transformer"]
         export_config_constructor = TasksManager.get_exporter_config_constructor(
-            model=pipeline.transformer, exporter=exporter, library_name="diffusers", task="semantic-segmentation"
+            model=transformer, exporter=exporter, library_name="diffusers", task="semantic-segmentation"
         )
         transformer_export_config = export_config_constructor(
-            pipeline.transformer.config, int_dtype=int_dtype, float_dtype=float_dtype
+            transformer.config, int_dtype=int_dtype, float_dtype=float_dtype
         )
         models_for_export["transformer"] = (models_for_export["transformer"], transformer_export_config)
 
-    # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
+    # VAE Encoder
     vae_encoder = models_for_export["vae_encoder"]
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_encoder,
@@ -403,10 +430,12 @@ def get_diffusion_models_for_export(
         task="semantic-segmentation",
         model_type="vae-encoder",
     )
-    vae_export_config = vae_config_constructor(vae_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype)
-    models_for_export["vae_encoder"] = (vae_encoder, vae_export_config)
+    vae_encoder_export_config = vae_config_constructor(
+        vae_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
+    )
+    models_for_export["vae_encoder"] = (vae_encoder, vae_encoder_export_config)
 
-    # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
+    # VAE Decoder
     vae_decoder = models_for_export["vae_decoder"]
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_decoder,
@@ -415,8 +444,10 @@ def get_diffusion_models_for_export(
         task="semantic-segmentation",
         model_type="vae-decoder",
     )
-    vae_export_config = vae_config_constructor(vae_decoder.config, int_dtype=int_dtype, float_dtype=float_dtype)
-    models_for_export["vae_decoder"] = (vae_decoder, vae_export_config)
+    vae_decoder_export_config = vae_config_constructor(
+        vae_decoder.config, int_dtype=int_dtype, float_dtype=float_dtype
+    )
+    models_for_export["vae_decoder"] = (vae_decoder, vae_decoder_export_config)
 
     return models_for_export
 
