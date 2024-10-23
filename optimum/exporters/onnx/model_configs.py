@@ -480,7 +480,7 @@ class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
 
 
 class T5OnnxConfig(TextSeq2SeqOnnxConfig):
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14  # T5 uses aten::triu that requires opset>=14
     DUMMY_INPUT_GENERATOR_CLASSES = TextSeq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (
         T5DummySeq2SeqPastKeyValuesGenerator,
     )
