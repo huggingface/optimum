@@ -296,6 +296,7 @@ TENSORFLOW_EXPORT_MODELS = {
 }
 
 PYTORCH_DIFFUSION_MODEL = {
+    "flux": "optimum-internal-testing/tiny-random-flux",
     "latent-consistency": "echarlaix/tiny-random-latent-consistency",
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-3": "yujiepan/stable-diffusion-3-tiny-random",

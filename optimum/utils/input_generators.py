@@ -871,8 +871,8 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name == "timestep":
-            shape = [self.batch_size]
-            return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=int_dtype)
+            shape = []  # a scalar with no dimension (it can be int or float depending on the sd architecture)
+            return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=float_dtype)
 
         if input_name == "text_embeds":
             dim = self.text_encoder_projection_dim

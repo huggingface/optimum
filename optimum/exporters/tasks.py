@@ -335,7 +335,7 @@ class TasksManager:
     }
 
     _DIFFUSERS_SUPPORTED_MODEL_TYPE = {
-        "t5-encoder": supported_tasks_mapping(
+        "t5-encoder-model": supported_tasks_mapping(
             "feature-extraction",
             onnx="T5EncoderOnnxConfig",
         ),
@@ -343,17 +343,21 @@ class TasksManager:
             "feature-extraction",
             onnx="CLIPTextOnnxConfig",
         ),
-        "clip-text-with-projection": supported_tasks_mapping(
+        "clip-text-model-with-projection": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPTextWithProjectionOnnxConfig",
         ),
-        "unet": supported_tasks_mapping(
+        "flux-transformer-2d-model": supported_tasks_mapping(
             "semantic-segmentation",
-            onnx="UNetOnnxConfig",
+            onnx="FluxTransformerOnnxConfig",
         ),
-        "sd3-transformer": supported_tasks_mapping(
+        "sd3-transformer-2d-model": supported_tasks_mapping(
             "semantic-segmentation",
             onnx="SD3TransformerOnnxConfig",
+        ),
+        "unet-2d-condition": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="UNetOnnxConfig",
         ),
         "vae-encoder": supported_tasks_mapping(
             "semantic-segmentation",
@@ -1178,12 +1182,13 @@ class TasksManager:
         "transformers": _SUPPORTED_MODEL_TYPE,
     }
     _UNSUPPORTED_CLI_MODEL_TYPE = {
+        # diffusers submodels
         "clip-text-model",
-        "clip-text-with-projection",
-        "sd3-transformer",
-        "t5-encoder",
-        "trocr",  # supported through the vision-encoder-decoder model type
-        "unet",
+        "clip-text-model-with-projection",
+        "flux-transformer-model",
+        "sd3-transformer-2d-model",
+        "t5-encoder-model",
+        "unet-2d-condition",
         "vae-encoder",
         "vae-decoder",
     }
