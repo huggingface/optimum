@@ -1223,14 +1223,11 @@ def _prepare_4d_causal_attention_mask_with_cache_position_patched(
     return causal_mask
 
 
-from transformers import Phi3ForCausalLM
-
-
 class Phi3ModelPatcher(ModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Phi3ForCausalLM,
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
