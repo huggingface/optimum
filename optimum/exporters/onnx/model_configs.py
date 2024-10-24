@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
 
 from packaging import version
+
 from transformers.utils import is_tf_available
 
 from ...onnx import merge_decoders
@@ -28,6 +29,8 @@ from ...utils import (
     DummyCodegenDecoderTextInputGenerator,
     DummyDecoderTextInputGenerator,
     DummyEncodecInputGenerator,
+    DummyFluxTransformerTextInputGenerator,
+    DummyFluxTransformerVisionInputGenerator,
     DummyInputGenerator,
     DummyIntGenerator,
     DummyPastKeyValuesGenerator,
@@ -38,6 +41,9 @@ from ...utils import (
     DummySpeechT5InputGenerator,
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
+    DummyTransformerTextInputGenerator,
+    DummyTransformerTimestpsInputGenerator,
+    DummyTransformerVisionInputGenerator,
     DummyVisionEmbeddingsGenerator,
     DummyVisionEncoderDecoderPastKeyValuesGenerator,
     DummyVisionInputGenerator,
@@ -1168,39 +1174,6 @@ class T5EncoderOnnxConfig(CLIPTextOnnxConfig):
         }
 
 
-class DummyTransformerTimestpsInputGenerator(DummyTimestepInputGenerator):
-    SUPPORTED_INPUT_NAMES = ("timestep",)
-
-    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        if input_name == "timestep":
-            shape = [self.batch_size]  # With transformer diffusers, timestep is a 1D tensor
-            return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=float_dtype)
-
-        return super().generate(input_name, framework, int_dtype, float_dtype)
-
-
-class DummyTransformerVisionInputGenerator(DummyVisionInputGenerator):
-    SUPPORTED_INPUT_NAMES = ("hidden_states",)
-
-
-class DummyTransformerTextInputGenerator(DummySeq2SeqDecoderTextInputGenerator):
-    SUPPORTED_INPUT_NAMES = (
-        "encoder_hidden_states",
-        "pooled_projection",
-    )
-
-    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        if input_name == "encoder_hidden_states":
-            return super().generate(input_name, framework, int_dtype, float_dtype)[0]
-
-        elif input_name == "pooled_projections":
-            return self.random_float_tensor(
-                [self.batch_size, self.normalized_config.projection_size], framework=framework, dtype=float_dtype
-            )
-
-        return super().generate(input_name, framework, int_dtype, float_dtype)
-
-
 class SD3TransformerOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
@@ -1246,46 +1219,6 @@ class SD3TransformerOnnxConfig(VisionOnnxConfig):
         }
 
 
-class DummyFluxTransformerVisionInputGenerator(DummyTransformerVisionInputGenerator):
-    SUPPORTED_INPUT_NAMES = (
-        "hidden_states",
-        "img_ids",
-    )
-
-    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        if input_name == "hidden_states":
-            shape = [self.batch_size, (self.height // 2) * (self.width // 2), self.num_channels]
-            return self.random_float_tensor(shape, framework=framework, dtype=float_dtype)
-        elif input_name == "img_ids":
-            shape = (
-                [(self.height // 2) * (self.width // 2), 3]
-                if check_if_diffusers_greater("0.31.0")
-                else [self.batch_size, (self.height // 2) * (self.width // 2), 3]
-            )
-            return self.random_int_tensor(shape, max_value=1, framework=framework, dtype=int_dtype)
-
-        return super().generate(input_name, framework, int_dtype, float_dtype)
-
-
-class DummyFluxTransformerTextInputGenerator(DummyTransformerTextInputGenerator):
-    SUPPORTED_INPUT_NAMES = (
-        "encoder_hidden_states",
-        "pooled_projections",
-        "txt_ids",
-    )
-
-    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        if input_name == "txt_ids":
-            shape = (
-                [self.sequence_length, 3]
-                if check_if_diffusers_greater("0.31.0")
-                else [self.batch_size, self.sequence_length, 3]
-            )
-            return self.random_int_tensor(shape, max_value=1, framework=framework, dtype=int_dtype)
-
-        return super().generate(input_name, framework, int_dtype, float_dtype)
-
-
 class FluxTransformerOnnxConfig(SD3TransformerOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTransformerTimestpsInputGenerator,
@@ -1296,7 +1229,6 @@ class FluxTransformerOnnxConfig(SD3TransformerOnnxConfig):
     @property
     def inputs(self):
         common_inputs = super().inputs
-
         common_inputs["hidden_states"] = {0: "batch_size", 1: "packed_height_width"}
         common_inputs["txt_ids"] = (
             {0: "sequence_length"} if check_if_diffusers_greater("0.31.0") else {0: "batch_size", 1: "sequence_length"}
