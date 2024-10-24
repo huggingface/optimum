@@ -269,7 +269,7 @@ class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 class OPTOnnxConfig(TextDecoderOnnxConfig):
     # OPT does not require position_ids input.
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
