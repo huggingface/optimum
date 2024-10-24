@@ -76,6 +76,7 @@ from .model_patcher import (
     FalconModelPatcher,
     MistralModelPatcher,
     MusicgenModelPatcher,
+    Phi3ModelPatcher,
     SAMModelPatcher,
     SentenceTransformersCLIPPatcher,
     SentenceTransformersTransformerPatcher,
@@ -303,6 +304,11 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
     MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return Phi3ModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -2156,8 +2162,8 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         DummySeq2SeqPastKeyValuesGenerator,
         DummyPix2StructInputGenerator,
     )
-    # Min operator needs to support int64, which is the case for opset>=12
-    DEFAULT_ONNX_OPSET = 12
+
+    DEFAULT_ONNX_OPSET = 14  # use 'aten::triu' now which is opset 14
 
     @property
     def inputs(self):
