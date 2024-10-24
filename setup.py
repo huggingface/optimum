@@ -15,7 +15,7 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers@git+https://github.com/huggingface/transformers.git@fix-pix2struct",
+    "transformers>=4.29,<4.47",
     "torch>=1.11",
     "packaging",
     "numpy",
@@ -54,7 +54,8 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "transformers<4.47.0",
+        # "transformers<4.47.0",
+        "transformers@git+https://github.com/huggingface/transformers.git@fix-pix2struct",
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -63,10 +64,23 @@ EXTRAS_REQUIRE = {
         "evaluate",
         "protobuf>=3.20.1",
         "accelerate",  # ORTTrainer requires it.
-        "transformers<4.47.0",
+        # "transformers<4.47.0",
+        "transformers@git+https://github.com/huggingface/transformers.git@fix-pix2struct",
     ],
-    "exporters": ["onnx", "onnxruntime", "timm", "transformers<4.47.0"],
-    "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm", "transformers<4.47.0"],
+    "exporters": [
+        "onnx",
+        "onnxruntime",
+        "timm",
+        # "transformers<4.47.0",
+        "transformers@git+https://github.com/huggingface/transformers.git@fix-pix2struct",
+    ],
+    "exporters-gpu": [
+        "onnx",
+        "onnxruntime-gpu",
+        "timm",
+        # "transformers<4.47.0",
+        "transformers@git+https://github.com/huggingface/transformers.git@fix-pix2struct",
+    ],
     "exporters-tf": [
         "tensorflow>=2.4,<=2.12.1",
         "tf2onnx",
