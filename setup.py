@@ -15,7 +15,7 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers>=4.29",
+    "transformers@git+https://github.com/huggingface/transformers.git@fix-pix2struct",
     "torch>=1.11",
     "packaging",
     "numpy",
