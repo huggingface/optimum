@@ -76,6 +76,7 @@ from .model_patcher import (
     FalconModelPatcher,
     MistralModelPatcher,
     MusicgenModelPatcher,
+    Phi3ModelPatcher,
     SAMModelPatcher,
     SentenceTransformersCLIPPatcher,
     SentenceTransformersTransformerPatcher,
@@ -155,7 +156,7 @@ class SplinterOnnxConfig(BertOnnxConfig):
 
 
 class DistilBertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for transformers>=4.46.0
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -268,7 +269,7 @@ class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 class OPTOnnxConfig(TextDecoderOnnxConfig):
     # OPT does not require position_ids input.
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
@@ -303,6 +304,11 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
     MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return Phi3ModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -480,7 +486,7 @@ class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
 
 
 class T5OnnxConfig(TextSeq2SeqOnnxConfig):
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14  # T5 uses aten::triu that requires opset>=14
     DUMMY_INPUT_GENERATOR_CLASSES = TextSeq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (
         T5DummySeq2SeqPastKeyValuesGenerator,
     )
@@ -2027,6 +2033,7 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
 class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyVisionEncoderDecoderPastKeyValuesGenerator)
 
@@ -2156,8 +2163,8 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         DummySeq2SeqPastKeyValuesGenerator,
         DummyPix2StructInputGenerator,
     )
-    # Min operator needs to support int64, which is the case for opset>=12
-    DEFAULT_ONNX_OPSET = 12
+
+    DEFAULT_ONNX_OPSET = 14  # use 'aten::triu' now which is opset 14
 
     @property
     def inputs(self):
@@ -2310,3 +2317,5 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
+
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.

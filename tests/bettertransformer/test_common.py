@@ -28,7 +28,7 @@ from optimum.utils.testing_utils import grid_parameters
 
 class BetterTransformerIntegrationTests(unittest.TestCase):
     def test_raise_error_on_double_transform_call(self):
-        model = AutoModel.from_pretrained("hf-internal-testing/tiny-random-BertModel")
+        model = AutoModel.from_pretrained("hf-internal-testing/tiny-random-BertModel", attn_implementation="eager")
 
         with self.assertRaises(Exception) as cm:
             bt_model = BetterTransformer.transform(model)
@@ -59,7 +59,7 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
         )
         for model_id in model_ids:
             with self.assertRaises(ValueError), tempfile.TemporaryDirectory() as tmpdirname:
-                hf_model = AutoModel.from_pretrained(model_id).eval()
+                hf_model = AutoModel.from_pretrained(model_id, attn_implementation="eager").eval()
                 bt_model = BetterTransformer.transform(hf_model, keep_original_model=False)
                 bt_model.save_pretrained(tmpdirname)
 
@@ -73,7 +73,7 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
             MODELS_DICT[model_type] if isinstance(MODELS_DICT[model_type], tuple) else (MODELS_DICT[model_type],)
         )
         for model_id in model_ids:
-            hf_random_model = AutoModel.from_pretrained(model_id)
+            hf_random_model = AutoModel.from_pretrained(model_id, attn_implementation="eager")
             converted_model = BetterTransformer.transform(hf_random_model)
 
             self.assertTrue(
@@ -99,7 +99,7 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
         )
         for model_id in model_ids:
             # get hf and bt model
-            hf_model = AutoModel.from_pretrained(model_id)
+            hf_model = AutoModel.from_pretrained(model_id, attn_implementation="eager")
             # get bt model and invert it
             bt_model = BetterTransformer.transform(hf_model, keep_original_model=keep_original_model)
 
@@ -145,9 +145,11 @@ class BetterTransformerIntegrationTests(unittest.TestCase):
             )()  # random config class for the model to test
             hf_random_config.hidden_act = "silu"
 
-            hf_random_model = AutoModel.from_config(hf_random_config).eval()
+            hf_random_model = AutoModel.from_config(hf_random_config, attn_implementation="eager").eval()
+
             with self.assertRaises(ValueError) as cm:
                 _ = BetterTransformer.transform(hf_random_model, keep_original_model=True)
+
             self.assertTrue("Activation function" in str(cm.exception))
 
     def test_dict_class_consistency(self):
