@@ -55,6 +55,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
+    "canine": "google/canine-s",
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "clip-vision-model": "fxmarty/clip-vision-model-tiny",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",

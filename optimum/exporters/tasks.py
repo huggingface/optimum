@@ -482,6 +482,14 @@ class TasksManager:
             onnx="CamembertOnnxConfig",
             tflite="CamembertTFLiteConfig",
         ),
+        "canine": supported_tasks_mapping(
+            "text-classification",
+            "masked-lm",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="CanineOnnxConfig",
+        ),
         "clip": supported_tasks_mapping(
             "feature-extraction",
             "zero-shot-image-classification",
