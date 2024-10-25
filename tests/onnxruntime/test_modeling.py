@@ -2314,6 +2314,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "llama",
         "mistral",
         "mpt",
+        "opt",
         "phi3",
         "qwen2",
     ]
