@@ -34,7 +34,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests,exporters,exporters-tf]
+          pip install .[tests,exporters-tf]
 
       - name: Test with pytest
         run: |
