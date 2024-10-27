@@ -2652,6 +2652,8 @@ class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
 
 
 class RTDetrOnnxConfig(ViTOnnxConfig):
+    # Export the operator 'aten::grid_sampler' to ONNX fails under opset 16.
+    # Support for this operator was added in version 16.
     DEFAULT_ONNX_OPSET = 16
     ATOL_FOR_VALIDATION = 1e-5
 
