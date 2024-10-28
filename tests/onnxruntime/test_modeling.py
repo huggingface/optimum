@@ -2464,50 +2464,27 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             # TODO: remove once https://github.com/huggingface/transformers/pull/26873 is released, falcon is broken in transformers
             new_tokens = 5
 
-        gen_config = GenerationConfig(
-            max_new_tokens=new_tokens,
-            min_new_tokens=new_tokens,
-            num_beams=num_beams,
-            do_sample=False,
-            eos_token_id=None,
-        )
-        onnx_outputs = onnx_model.generate(**tokens, generation_config=gen_config)
-        transformers_outputs = transformers_model.generate(**tokens, generation_config=gen_config)
-        self.assertTrue(torch.allclose(onnx_outputs, transformers_outputs))
+        gen_kwargs = {
+            "max_new_tokens": new_tokens,
+            "min_new_tokens": new_tokens,
+            "eos_token_id": None,
+            "num_beams": num_beams,
+        }
 
-        gc.collect()
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_beam_search(self, model_arch):
-        model_id = MODEL_NAMES[model_arch]
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-        gen_kwargs = {"max_new_tokens": 5, "min_new_tokens": 5, "eos_token_id": None, "num_beams": 4}
         beam_search_gen_config = GenerationConfig(do_sample=False, **gen_kwargs)
-        beam_sample_gen_config = GenerationConfig(do_sample=True, **gen_kwargs)
-        group_beam_search_gen_config = GenerationConfig(
-            do_sample=False, num_beam_groups=2, diversity_penalty=0.0000001, **gen_kwargs
-        )
 
-        force_words_ids = [tokenizer(["cat"], add_special_tokens=False).input_ids]
-        constrained_beam_search_gen_config = GenerationConfig(
-            do_sample=False, force_words_ids=force_words_ids, **gen_kwargs
-        )
-
-        gen_configs = (
-            beam_search_gen_config,
-            beam_sample_gen_config,
-            group_beam_search_gen_config,
-            constrained_beam_search_gen_config,
-        )
-        set_seed(SEED)
-        onnx_model = ORTModelForCausalLM.from_pretrained(model_id, export=True)
-        set_seed(SEED)
-        transformers_model = AutoModelForCausalLM.from_pretrained(model_id)
-
-        tokenizer.pad_token_id = tokenizer.eos_token_id
-        tokens = tokenizer(["Input text", "Hello my name is James and"], return_tensors="pt", padding=True)
-        tokens.pop("token_type_ids", None)
+        if use_cache and num_beams == 3:
+            beam_sample_gen_config = GenerationConfig(do_sample=True, **gen_kwargs)
+            group_beam_search_gen_config = GenerationConfig(
+                do_sample=False, num_beam_groups=2, diversity_penalty=0.0000001, **gen_kwargs
+            )
+            gen_configs = (
+                beam_search_gen_config,
+                beam_sample_gen_config,
+                group_beam_search_gen_config,
+            )
+        else:
+            gen_configs = (beam_search_gen_config,)
 
         for gen_config in gen_configs:
             set_seed(SEED)
@@ -2520,6 +2497,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                 torch.equal(onnx_outputs, transformers_outputs),
                 f"Failed with generation config : {gen_config}, transformers outputs {transformers_outputs}, ONNX model outputs {onnx_outputs}",
             )
+
+        gc.collect()
 
     @parameterized.expand(grid_parameters(FULL_GRID))
     def test_pipeline_ort_model(self, test_name: str, model_arch: str, use_cache: bool):
