@@ -20,7 +20,6 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
-
 from transformers.utils import is_tf_available, is_torch_available
 
 from ..utils import check_if_diffusers_greater, check_if_transformers_greater
