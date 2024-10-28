@@ -2482,13 +2482,17 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         tokenizer = AutoTokenizer.from_pretrained(model_id)
 
-        gen_kwargs = {"max_new_tokens": 5, "min_new_tokens":5, "eos_token_id":None, "num_beams":4}
+        gen_kwargs = {"max_new_tokens": 5, "min_new_tokens": 5, "eos_token_id": None, "num_beams": 4}
         beam_search_gen_config = GenerationConfig(do_sample=False, **gen_kwargs)
         beam_sample_gen_config = GenerationConfig(do_sample=True, **gen_kwargs)
-        group_beam_search_gen_config = GenerationConfig(do_sample=False, num_beam_groups=2, diversity_penalty=0.0000001, **gen_kwargs)
+        group_beam_search_gen_config = GenerationConfig(
+            do_sample=False, num_beam_groups=2, diversity_penalty=0.0000001, **gen_kwargs
+        )
 
         force_words_ids = [tokenizer(["cat"], add_special_tokens=False).input_ids]
-        constrained_beam_search_gen_config = GenerationConfig(do_sample=False, force_words_ids=force_words_ids, **gen_kwargs)
+        constrained_beam_search_gen_config = GenerationConfig(
+            do_sample=False, force_words_ids=force_words_ids, **gen_kwargs
+        )
 
         gen_configs = (
             beam_search_gen_config,

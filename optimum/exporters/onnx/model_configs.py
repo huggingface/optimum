@@ -266,13 +266,15 @@ class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
-
 # OPT does not take position_ids as input for transfomers < v4.46, needs it for transformers >= v4.46
 if check_if_transformers_greater("4.45.99"):
+
     class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
         DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
         NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
 else:
+
     class OPTOnnxConfig(TextDecoderOnnxConfig):
         DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
         NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
