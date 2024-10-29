@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8, 3.9]
+        python-version: [3.9]
         os: [ubuntu-20.04, macos-13]
 
     runs-on: ${{ matrix.os }}
@@ -34,7 +34,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests,exporters,exporters-tf]
+          pip install .[tests,exporters-tf]
 
       - name: Test with pytest
         run: |

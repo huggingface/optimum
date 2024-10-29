@@ -155,7 +155,7 @@ class SplinterOnnxConfig(BertOnnxConfig):
 
 
 class DistilBertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for transformers>=4.46.0
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -266,10 +266,18 @@ class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
-class OPTOnnxConfig(TextDecoderOnnxConfig):
-    # OPT does not require position_ids input.
-    DEFAULT_ONNX_OPSET = 13
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+# OPT does not take position_ids as input for transfomers < v4.46, needs it for transformers >= v4.46
+if check_if_transformers_greater("4.45.99"):
+
+    class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+else:
+
+    class OPTOnnxConfig(TextDecoderOnnxConfig):
+        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -303,6 +311,15 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
     MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
+
+    def __init__(self, *args, **kwargs):
+        # TODO : replace check_if_transformers_greater with is_transformers_available
+        if check_if_transformers_greater("4.46.0") and not check_if_transformers_greater("4.46.1"):
+            logger.error(
+                "Found transformers v4.46.0 while trying to exporting a Phi3 model, this specific version of transformers is not supported. "
+                "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
+            )
+        super().__init__(*args, **kwargs)
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -480,7 +497,7 @@ class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
 
 
 class T5OnnxConfig(TextSeq2SeqOnnxConfig):
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14  # T5 uses aten::triu that requires opset>=14
     DUMMY_INPUT_GENERATOR_CLASSES = TextSeq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (
         T5DummySeq2SeqPastKeyValuesGenerator,
     )
@@ -2027,6 +2044,7 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
 class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyVisionEncoderDecoderPastKeyValuesGenerator)
 
@@ -2156,8 +2174,21 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         DummySeq2SeqPastKeyValuesGenerator,
         DummyPix2StructInputGenerator,
     )
-    # Min operator needs to support int64, which is the case for opset>=12
-    DEFAULT_ONNX_OPSET = 12
+
+    DEFAULT_ONNX_OPSET = 14  # use 'aten::triu' now which is opset 14
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TODO : replace check_if_transformers_greater with is_transformers_available
+        if (
+            check_if_transformers_greater("4.46.0")
+            and not check_if_transformers_greater("4.46.1")
+            and self._behavior is ConfigBehavior.DECODER
+        ):
+            logger.error(
+                "Found transformers v4.46.0 while trying to exporting a Pix2Struct model, this specific version of transformers is not supported. "
+                "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
+            )
 
     @property
     def inputs(self):
@@ -2310,3 +2341,5 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
+
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.

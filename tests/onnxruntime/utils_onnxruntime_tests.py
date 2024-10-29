@@ -125,6 +125,7 @@ MODEL_NAMES = {
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
+    "opt": "hf-internal-testing/tiny-random-OPTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver_text": "hf-internal-testing/tiny-random-language_perceiver",
     "perceiver_vision": "hf-internal-testing/tiny-random-vision_perceiver_conv",

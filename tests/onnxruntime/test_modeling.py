@@ -54,6 +54,7 @@ from transformers import (
     AutoModelForTokenClassification,
     AutoModelForVision2Seq,
     AutoTokenizer,
+    GenerationConfig,
     MBartForConditionalGeneration,
     Pix2StructForConditionalGeneration,  # Pix2Struct does not work with AutoModel
     PretrainedConfig,
@@ -106,7 +107,7 @@ from optimum.utils import (
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
     logging,
 )
-from optimum.utils.import_utils import is_diffusers_available
+from optimum.utils.import_utils import check_if_transformers_greater, is_diffusers_available
 from optimum.utils.testing_utils import (
     grid_parameters,
     remove_directory,
@@ -2326,9 +2327,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "llama",
         "mistral",
         "mpt",
-        "phi3",
-        "qwen2",
+        "opt",
     ]
+
+    if check_if_transformers_greater("4.40"):
+        SUPPORTED_ARCHITECTURES.extend(["gemma", "phi3", "qwen2"])
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
@@ -2338,7 +2341,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     ORTMODEL_CLASS = ORTModelForCausalLM
     TASK = "text-generation"
 
-    GENERATION_LENGTH = 100
+    GENERATION_LENGTH = 90
     SPEEDUP_CACHE = 1.1
 
     @parameterized.expand([(False,), (True,)])
@@ -2411,7 +2414,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertNotIn(ONNX_DECODER_WITH_PAST_NAME, folder_contents)
             self.assertNotIn(ONNX_WEIGHTS_NAME, folder_contents)
 
-    @parameterized.expand(grid_parameters({**FULL_GRID, "num_beams": [1, 3]}))
+    @parameterized.expand(grid_parameters({**FULL_GRID, "num_beams": [1, 4]}))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, num_beams: int):
         use_io_binding = None
         if use_cache is False:
@@ -2474,25 +2477,39 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             # TODO: remove once https://github.com/huggingface/transformers/pull/26873 is released, falcon is broken in transformers
             new_tokens = 5
 
-        onnx_outputs = onnx_model.generate(
-            **tokens,
-            num_beams=num_beams,
-            do_sample=False,
-            min_new_tokens=new_tokens,
-            max_new_tokens=new_tokens,
-            eos_token_id=None,
-        )
+        gen_kwargs = {
+            "max_new_tokens": new_tokens,
+            "min_new_tokens": new_tokens,
+            "eos_token_id": None,
+            "num_beams": num_beams,
+        }
 
-        transformers_outputs = transformers_model.generate(
-            **tokens,
-            num_beams=num_beams,
-            do_sample=False,
-            min_new_tokens=new_tokens,
-            max_new_tokens=new_tokens,
-            eos_token_id=None,
-        )
+        beam_search_gen_config = GenerationConfig(do_sample=False, **gen_kwargs)
 
-        self.assertTrue(torch.allclose(onnx_outputs, transformers_outputs))
+        if use_cache and num_beams == 4:
+            beam_sample_gen_config = GenerationConfig(do_sample=True, **gen_kwargs)
+            group_beam_search_gen_config = GenerationConfig(
+                do_sample=False, num_beam_groups=2, diversity_penalty=0.0000001, **gen_kwargs
+            )
+            gen_configs = (
+                beam_search_gen_config,
+                beam_sample_gen_config,
+                group_beam_search_gen_config,
+            )
+        else:
+            gen_configs = (beam_search_gen_config,)
+
+        for gen_config in gen_configs:
+            set_seed(SEED)
+            with torch.no_grad():
+                transformers_outputs = transformers_model.generate(**tokens, generation_config=gen_config)
+            set_seed(SEED)
+            onnx_outputs = onnx_model.generate(**tokens, generation_config=gen_config)
+
+            self.assertTrue(
+                torch.equal(onnx_outputs, transformers_outputs),
+                f"Failed with generation config : {gen_config}, transformers outputs {transformers_outputs}, ONNX model outputs {onnx_outputs}",
+            )
 
         gc.collect()
 
