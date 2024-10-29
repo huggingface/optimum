@@ -312,6 +312,15 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
     MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
 
+    def __init__(self, *args, **kwargs):
+        # TODO : replace check_if_transformers_greater with is_transformers_available
+        if check_if_transformers_greater("4.46.0") and not check_if_transformers_greater("4.46.1"):
+            logger.error(
+                "Found transformers v4.46.0 while trying to exporting a Phi3 model, this specific version of transformers is not supported. "
+                "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
+            )
+        super().__init__(*args, **kwargs)
+
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     # This is because of the patching of torch.triu in AttentionMaskConverter, that exists from transformers>=4.35
@@ -2167,6 +2176,19 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
     )
 
     DEFAULT_ONNX_OPSET = 14  # use 'aten::triu' now which is opset 14
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TODO : replace check_if_transformers_greater with is_transformers_available
+        if (
+            check_if_transformers_greater("4.46.0")
+            and not check_if_transformers_greater("4.46.1")
+            and self._behavior is ConfigBehavior.DECODER
+        ):
+            logger.error(
+                "Found transformers v4.46.0 while trying to exporting a Pix2Struct model, this specific version of transformers is not supported. "
+                 "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
+            )
 
     @property
     def inputs(self):
