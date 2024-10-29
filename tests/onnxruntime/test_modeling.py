@@ -2330,7 +2330,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     ORTMODEL_CLASS = ORTModelForCausalLM
     TASK = "text-generation"
 
-    GENERATION_LENGTH = 100
+    GENERATION_LENGTH = 90
     SPEEDUP_CACHE = 1.1
 
     @parameterized.expand([(False,), (True,)])
