@@ -107,7 +107,7 @@ from optimum.utils import (
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
     logging,
 )
-from optimum.utils.import_utils import is_diffusers_available
+from optimum.utils.import_utils import is_diffusers_available, check_if_transformers_greater
 from optimum.utils.testing_utils import (
     grid_parameters,
     remove_directory,
@@ -2316,9 +2316,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "mistral",
         "mpt",
         "opt",
-        "phi3",
-        "qwen2",
     ]
+
+
+    if check_if_transformers_greater("4.40"):
+        SUPPORTED_ARCHITECTURES.extend(["gemma", "phi3", "qwen2"])
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
