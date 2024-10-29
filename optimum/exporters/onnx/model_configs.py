@@ -2187,7 +2187,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         ):
             logger.error(
                 "Found transformers v4.46.0 while trying to exporting a Pix2Struct model, this specific version of transformers is not supported. "
-                 "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
+                "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
             )
 
     @property
