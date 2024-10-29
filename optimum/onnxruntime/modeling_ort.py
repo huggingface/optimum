@@ -931,7 +931,6 @@ class ORTModel(OptimizedModel):
         self, use_torch: bool, **inputs: Union[torch.Tensor, np.ndarray]
     ) -> Dict[str, np.ndarray]:
         onnx_inputs = {}
-
         # converts pytorch inputs into numpy inputs for onnx
         for input_name in self.input_names.keys():
             onnx_inputs[input_name] = inputs.pop(input_name)
@@ -1085,6 +1084,9 @@ class ORTModelForFeatureExtraction(ORTModel):
     ):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
+
+        if token_type_ids is None and "token_type_ids" in self.input_names:
+            token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
@@ -1241,6 +1243,9 @@ class ORTModelForMaskedLM(ORTModel):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
+        if token_type_ids is None and "token_type_ids" in self.input_names:
+            token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
+
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_ids,
@@ -1329,6 +1334,9 @@ class ORTModelForQuestionAnswering(ORTModel):
     ):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
+
+        if token_type_ids is None and "token_type_ids" in self.input_names:
+            token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
@@ -1437,6 +1445,9 @@ class ORTModelForSequenceClassification(ORTModel):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
+        if token_type_ids is None and "token_type_ids" in self.input_names:
+            token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
+
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_ids,
@@ -1527,6 +1538,9 @@ class ORTModelForTokenClassification(ORTModel):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
+        if token_type_ids is None and "token_type_ids" in self.input_names:
+            token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
+
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 input_ids,
@@ -1609,6 +1623,9 @@ class ORTModelForMultipleChoice(ORTModel):
     ):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
+
+        if token_type_ids is None and "token_type_ids" in self.input_names:
+            token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
         if self.device.type == "cuda" and self.use_io_binding:
             io_binding, output_shapes, output_buffers = self.prepare_io_binding(
