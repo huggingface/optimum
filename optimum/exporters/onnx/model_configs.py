@@ -295,7 +295,7 @@ class Qwen2OnnxConfig(LlamaOnnxConfig):
 class GemmaOnnxConfig(LlamaOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
-    pass
+    MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
 
 
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
