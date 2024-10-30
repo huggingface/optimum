@@ -2318,7 +2318,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "bloom",
         "codegen",
         "falcon",
-        "gemma",
         "gpt2",
         "gpt_bigcode",
         "gpt_neo",
@@ -2330,8 +2329,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "opt",
     ]
 
-    if check_if_transformers_greater("4.40"):
-        SUPPORTED_ARCHITECTURES.extend(["gemma", "phi3", "qwen2"])
+    if check_if_transformers_greater("4.37"):
+        SUPPORTED_ARCHITECTURES.append("qwen2")
+
+    if check_if_transformers_greater("4.38"):
+        SUPPORTED_ARCHITECTURES.append("gemma")
+
+    if check_if_transformers_greater("4.41"):
+        SUPPORTED_ARCHITECTURES.append("phi3")
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
