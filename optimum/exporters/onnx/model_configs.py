@@ -298,6 +298,11 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
     pass
 
 
+class GraniteOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.45.0")
+    MIN_TORCH_VERSION = version.parse("2.5.0")
+
+
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
