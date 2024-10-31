@@ -2325,7 +2325,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "gptj",
         "llama",
         "mistral",
-        "mpt",
         "opt",
     ]
 
@@ -2335,8 +2334,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     if check_if_transformers_greater("4.38"):
         SUPPORTED_ARCHITECTURES.append("gemma")
 
+    # TODO: fix "mpt" for which inference fails for transformers < v4.41
     if check_if_transformers_greater("4.41"):
-        SUPPORTED_ARCHITECTURES.append("phi3")
+        SUPPORTED_ARCHITECTURES.extend(["phi3", "mpt"])
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
@@ -2449,7 +2449,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         transformers_model = AutoModelForCausalLM.from_pretrained(model_id)
         transformers_model = transformers_model.eval()
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer("This is a sample input", return_tensors="pt")
         position_ids = None
         if model_arch.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
             input_shape = tokens["input_ids"].shape
@@ -2471,7 +2471,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         # Compare batched generation.
         tokenizer.pad_token_id = tokenizer.eos_token_id
         tokenizer.padding_side = "left"
-        tokens = tokenizer(["Today is a nice day and I am longer", "This is me"], return_tensors="pt", padding=True)
+        tokens = tokenizer(["This is", "This is a sample input"], return_tensors="pt", padding=True)
         onnx_model.generation_config.eos_token_id = None
         transformers_model.generation_config.eos_token_id = None
         onnx_model.config.eos_token_id = None
