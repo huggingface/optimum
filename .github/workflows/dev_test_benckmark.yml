@@ -27,7 +27,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install wheel
-        pip install .[tests,onnxruntime,benchmark]
+        pip install .[tests,onnxruntime,benchmark] datasets
         pip install -U git+https://github.com/huggingface/evaluate
         pip install -U git+https://github.com/huggingface/diffusers
         pip install -U git+https://github.com/huggingface/transformers
