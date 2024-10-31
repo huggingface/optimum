@@ -2326,6 +2326,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "llama",
         "mistral",
         "mpt",
+        "opt",
     ]
 
     if check_if_transformers_greater("4.37"):
