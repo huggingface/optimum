@@ -69,6 +69,7 @@ _diffusers_available = _is_package_available("diffusers")
 _auto_gptq_available = _is_package_available("auto_gptq")
 _timm_available = _is_package_available("timm")
 _sentence_transformers_available = _is_package_available("sentence_transformers")
+_datasets_available = _is_package_available("datasets")
 
 torch_version = None
 if is_torch_available():
@@ -129,6 +130,10 @@ def is_timm_available():
 
 def is_sentence_transformers_available():
     return _sentence_transformers_available
+
+
+def is_datasets_available():
+    return _datasets_available
 
 
 def is_auto_gptq_available():
