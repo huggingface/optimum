@@ -15,15 +15,12 @@
 
 """Utilities for model preparation to export."""
 
-
 import copy
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 from packaging import version
-from transformers.models.clip.modeling_clip import CLIPTextModel, CLIPTextModelWithProjection
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5HifiGan
-from transformers.models.t5.modeling_t5 import T5EncoderModel
 from transformers.utils import is_tf_available, is_torch_available
 
 from ..utils import (
@@ -46,30 +43,7 @@ if is_diffusers_available():
             "Please update diffusers by running `pip install --upgrade diffusers`"
         )
 
-    from diffusers import (
-        DiffusionPipeline,
-        StableDiffusionXLImg2ImgPipeline,
-        StableDiffusionXLInpaintPipeline,
-        StableDiffusionXLPipeline,
-    )
-
-    if check_if_diffusers_greater("0.30.0"):
-        from diffusers import (
-            FluxTransformer2DModel,
-            SD3Transformer2DModel,
-            StableDiffusion3Img2ImgPipeline,
-            StableDiffusion3InpaintPipeline,
-            StableDiffusion3Pipeline,
-            UNet2DConditionModel,
-        )
-    else:
-        FluxTransformer2DModel = None
-        SD3Transformer2DModel = None
-        StableDiffusion3Img2ImgPipeline = None
-        StableDiffusion3InpaintPipeline = None
-        StableDiffusion3Pipeline = None
-        UNet2DConditionModel = None
-
+    from diffusers import DiffusionPipeline
     from diffusers.models.attention_processor import (
         Attention,
         AttnAddedKVProcessor,
@@ -100,21 +74,18 @@ DECODER_WITH_PAST_NAME = "decoder_with_past_model"
 DECODER_MERGED_NAME = "decoder_model_merged"
 
 
-def _get_diffusers_model_type(model):
-    if isinstance(model, CLIPTextModel):
-        return "clip-text-model"
-    elif isinstance(model, CLIPTextModelWithProjection):
-        return "clip-text-model-with-projection"
-    elif isinstance(model, T5EncoderModel):
-        return "t5-encoder-model"
-    elif isinstance(model, FluxTransformer2DModel):
-        return "flux-transformer-2d-model"
-    elif isinstance(model, SD3Transformer2DModel):
-        return "sd3-transformer-2d-model"
-    elif isinstance(model, UNet2DConditionModel):
-        return "unet-2d-condition"
-    else:
-        raise ValueError(f"Unknown model class: {model.__class__}")
+_DIFFUSERS_CLASS_NAME_TO_SUBMODEL_TYPE = {
+    "CLIPTextModel": "clip-text-model",
+    "CLIPTextModelWithProjection": "clip-text-with-projection",
+    "FluxTransformer2DModel": "flux-transformer-2d",
+    "SD3Transformer2DModel": "sd3-transformer-2d",
+    "UNet2DConditionModel": "unet-2d-condition",
+    "T5EncoderModel": "t5-encoder",
+}
+
+
+def _get_diffusers_submodel_type(submodel):
+    return _DIFFUSERS_CLASS_NAME_TO_SUBMODEL_TYPE.get(submodel.__class__.__name__)
 
 
 def _get_submodels_for_export_diffusion(
@@ -126,16 +97,9 @@ def _get_submodels_for_export_diffusion(
 
     models_for_export = {}
 
-    is_sdxl = isinstance(
-        pipeline,
-        (StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline, StableDiffusionXLPipeline),
-    )
-    is_sd3 = isinstance(
-        pipeline,
-        (StableDiffusion3Img2ImgPipeline, StableDiffusion3InpaintPipeline, StableDiffusion3Pipeline),
-    )
-
     is_torch_greater_or_equal_than_2_1 = version.parse(torch.__version__) >= version.parse("2.1.0")
+    is_sdxl = pipeline.__class__.__name__.startswith("StableDiffusionXL")
+    is_sd3 = pipeline.__class__.__name__.startswith("StableDiffusion3")
 
     # Text encoder
     text_encoder = getattr(pipeline, "text_encoder", None)
@@ -144,7 +108,7 @@ def _get_submodels_for_export_diffusion(
             text_encoder.config.output_hidden_states = True
             text_encoder.text_model.config.output_hidden_states = True
 
-        text_encoder.config.export_model_type = _get_diffusers_model_type(text_encoder)
+        text_encoder.config.export_model_type = _get_diffusers_submodel_type(text_encoder)
         models_for_export["text_encoder"] = text_encoder
 
     # Text encoder 2
@@ -154,13 +118,13 @@ def _get_submodels_for_export_diffusion(
             text_encoder_2.config.output_hidden_states = True
             text_encoder_2.text_model.config.output_hidden_states = True
 
-        text_encoder_2.config.export_model_type = _get_diffusers_model_type(text_encoder_2)
+        text_encoder_2.config.export_model_type = _get_diffusers_submodel_type(text_encoder_2)
         models_for_export["text_encoder_2"] = text_encoder_2
 
     # Text encoder 3
     text_encoder_3 = getattr(pipeline, "text_encoder_3", None)
     if text_encoder_3 is not None:
-        text_encoder_3.config.export_model_type = _get_diffusers_model_type(text_encoder_3)
+        text_encoder_3.config.export_model_type = _get_diffusers_submodel_type(text_encoder_3)
         models_for_export["text_encoder_3"] = text_encoder_3
 
     # U-NET
@@ -175,7 +139,7 @@ def _get_submodels_for_export_diffusion(
         unet.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
         unet.config.time_cond_proj_dim = getattr(pipeline.unet.config, "time_cond_proj_dim", None)
         unet.config.text_encoder_projection_dim = pipeline.text_encoder.config.projection_dim
-        unet.config.export_model_type = _get_diffusers_model_type(unet)
+        unet.config.export_model_type = _get_diffusers_submodel_type(unet)
         models_for_export["unet"] = unet
 
     # Transformer
@@ -188,7 +152,7 @@ def _get_submodels_for_export_diffusion(
         transformer.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
         transformer.config.time_cond_proj_dim = getattr(pipeline.transformer.config, "time_cond_proj_dim", None)
         transformer.config.text_encoder_projection_dim = pipeline.text_encoder.config.projection_dim
-        transformer.config.export_model_type = _get_diffusers_model_type(transformer)
+        transformer.config.export_model_type = _get_diffusers_submodel_type(transformer)
         models_for_export["transformer"] = transformer
 
     # VAE Encoder

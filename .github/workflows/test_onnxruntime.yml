@@ -1,5 +1,3 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 name: ONNX Runtime / Python - Test
 
 on:
@@ -17,10 +15,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8, 3.9]
         os: [ubuntu-20.04, windows-2019, macos-13]
+        transformers-version: ["4.45.*", "latest"]
+        test-pattern:
+          [
+            "tests/onnxruntime/test_modeling.py",
+            "tests/onnxruntime/test_diffusion.py",
+            "tests/onnxruntime/test_optimization.py",
+            "tests/onnxruntime/test_quantization.py",
+          ]
 
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Free Disk Space (Ubuntu)
         if: matrix.os == 'ubuntu-20.04'
@@ -33,10 +39,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python ${{ matrix.python-version }}
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: 3.9
 
       - name: Install dependencies
         run: |
@@ -44,14 +50,16 @@ jobs:
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,onnxruntime]
 
+      - name: Install transformers ${{ matrix.transformers-version }}
+        if: ${{ matrix.transformers-version != 'latest' }}
+        run: pip install transformers==${{ matrix.transformers-version }}
+
       - name: Test with pytest (in series)
-        working-directory: tests
         run: |
-          pytest onnxruntime -m "run_in_series" --durations=0 -vvvv -s
+          pytest ${{ matrix.test-pattern }} -m "run_in_series" --durations=0 -vvvv -s
 
       - name: Test with pytest (in parallel)
+        run: |
+          pytest ${{ matrix.test-pattern }} -m "not run_in_series" --durations=0 -vvvv -s
         env:
           HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
-        working-directory: tests
-        run: |
-          pytest onnxruntime -m "not run_in_series" --durations=0 -vvvv -s -n auto
