@@ -138,8 +138,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
         for batch_size in [1, 3]:
-            for height in [64, 128]:
-                for width in [64, 128]:
+            for height in [16, 32]:
+                for width in [16, 32]:
                     for num_images_per_prompt in [1, 3]:
                         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
                         outputs = pipeline(**inputs, num_images_per_prompt=num_images_per_prompt).images
@@ -379,8 +379,8 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
         for batch_size in [1, 3]:
-            for height in [64, 128]:
-                for width in [64, 128]:
+            for height in [16, 32]:
+                for width in [16, 32]:
                     for num_images_per_prompt in [1, 3]:
                         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
                         outputs = pipeline(**inputs, num_images_per_prompt=num_images_per_prompt).images
@@ -611,8 +611,8 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
         for batch_size in [1, 3]:
-            for height in [64, 128]:
-                for width in [64, 128]:
+            for height in [16, 32]:
+                for width in [16, 32]:
                     for num_images_per_prompt in [1, 3]:
                         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
                         outputs = pipeline(**inputs, num_images_per_prompt=num_images_per_prompt).images
