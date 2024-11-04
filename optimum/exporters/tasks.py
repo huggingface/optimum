@@ -335,23 +335,23 @@ class TasksManager:
     }
 
     _DIFFUSERS_SUPPORTED_MODEL_TYPE = {
-        "t5-encoder-model": supported_tasks_mapping(
+        "t5-encoder": supported_tasks_mapping(
             "feature-extraction",
             onnx="T5EncoderOnnxConfig",
         ),
-        "clip-text-model": supported_tasks_mapping(
+        "clip-text": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPTextOnnxConfig",
         ),
-        "clip-text-model-with-projection": supported_tasks_mapping(
+        "clip-text-with-projection": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPTextWithProjectionOnnxConfig",
         ),
-        "flux-transformer-2d-model": supported_tasks_mapping(
+        "flux-transformer-2d": supported_tasks_mapping(
             "semantic-segmentation",
             onnx="FluxTransformerOnnxConfig",
         ),
-        "sd3-transformer-2d-model": supported_tasks_mapping(
+        "sd3-transformer-2d": supported_tasks_mapping(
             "semantic-segmentation",
             onnx="SD3TransformerOnnxConfig",
         ),
@@ -1190,11 +1190,11 @@ class TasksManager:
     }
     _UNSUPPORTED_CLI_MODEL_TYPE = {
         # diffusers model types
-        "clip-text-model",
-        "clip-text-model-with-projection",
-        "flux-transformer-2d-model",
-        "sd3-transformer-2d-model",
-        "t5-encoder-model",
+        "clip-text",
+        "clip-text-with-projection",
+        "flux-transformer-2d",
+        "sd3-transformer-2d",
+        "t5-encoder",
         "unet-2d-condition",
         "vae-encoder",
         "vae-decoder",

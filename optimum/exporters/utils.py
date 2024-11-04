@@ -75,7 +75,7 @@ DECODER_MERGED_NAME = "decoder_model_merged"
 
 
 _DIFFUSERS_CLASS_NAME_TO_SUBMODEL_TYPE = {
-    "CLIPTextModel": "clip-text-model",
+    "CLIPTextModel": "clip-text",
     "CLIPTextModelWithProjection": "clip-text-with-projection",
     "FluxTransformer2DModel": "flux-transformer-2d",
     "SD3Transformer2DModel": "sd3-transformer-2d",
