@@ -27,7 +27,7 @@ from ...utils import (
     is_diffusers_available,
     logging,
 )
-from ...utils.import_utils import _diffusers_version
+from ...utils.import_utils import _diffusers_version, check_if_transformers_greater
 from ..utils import (
     _get_submodels_and_export_configs,
 )
@@ -86,7 +86,12 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "phi",
     "phi3",
     "qwen2",
+    "granite",
 }
+
+
+if check_if_transformers_greater("4.45.99"):
+    MODEL_TYPES_REQUIRING_POSITION_IDS.add("opt")
 
 
 def check_onnxruntime_requirements(minimum_version: version.Version):

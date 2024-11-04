@@ -927,6 +927,13 @@ class TasksManager:
             "text-classification",
             onnx="LlamaOnnxConfig",
         ),
+        "granite": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            onnx="GraniteOnnxConfig",
+        ),
         "pegasus": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",

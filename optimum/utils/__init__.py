@@ -31,6 +31,7 @@ from .import_utils import (
     TRANSFORMERS_MINIMUM_VERSION,
     check_if_diffusers_greater,
     check_if_pytorch_greater,
+    check_if_torch_greater,
     check_if_transformers_greater,
     is_accelerate_available,
     is_auto_gptq_available,
