@@ -18,12 +18,7 @@ jobs:
         os: [ubuntu-20.04, windows-2019, macos-13]
         transformers-version: ["4.45.*", "latest"]
         test-pattern:
-          [
-            "tests/onnxruntime/test_modeling.py",
-            "tests/onnxruntime/test_diffusion.py",
-            "tests/onnxruntime/test_optimization.py",
-            "tests/onnxruntime/test_quantization.py",
-          ]
+          ["*modeling*", "*diffusion*", "*optimization*", "*quantization*"]
 
     runs-on: ${{ matrix.os }}
 
@@ -54,12 +49,13 @@ jobs:
         name: Downgrade Transformers
         run: pip install transformers==${{ matrix.transformers-version }}
 
-      - name: Test with pytest (in series)
+      - if: ${{ matrix.test-pattern == '*modeling*' }}
+        name: Test with pytest (in series)
         run: |
-          pytest ${{ matrix.test-pattern }} -m "run_in_series" --durations=0 -vvvv -s
+          pytest tests/onnxruntime/${{ matrix.test-pattern }} -m "run_in_series" --durations=0 -vvvv -s
 
       - name: Test with pytest (in parallel)
         run: |
-          pytest ${{ matrix.test-pattern }} -m "not run_in_series" --durations=0 -vvvv -s -n auto
+          pytest tests/onnxruntime/${{ matrix.test-pattern }} -m "not run_in_series" --durations=0 -vvvv -s -n auto
         env:
           HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
