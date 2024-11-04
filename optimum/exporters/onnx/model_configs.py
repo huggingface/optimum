@@ -373,7 +373,7 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
                 decoder_sequence_name = "past_sequence_length"
                 name = "past_key_values"
             else:
-                decoder_sequence_name = "past_sequence_length + 1"
+                decoder_sequence_name = "past_sequence_length + sequence_length"
                 name = "present"
 
             for i in range(self._normalized_config.num_layers):
@@ -403,7 +403,7 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
             decoder_sequence_name = "past_sequence_length"
             name = "past_key_values"
         else:
-            decoder_sequence_name = "past_sequence_length + 1"
+            decoder_sequence_name = "past_sequence_length + sequence_length"
             name = "present"
 
         for i in range(self._normalized_config.num_layers):
@@ -638,7 +638,7 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
         if self.use_past_in_inputs:
             common_inputs = {
                 "input_ids": {0: "batch_size", 1: "sequence_length"},
-                "attention_mask": {0: "batch_size", 1: "past_sequence_length + 1"},
+                "attention_mask": {0: "batch_size", 1: "past_sequence_length + sequence_length"},
             }
             for i in range(self._normalized_config.decoder_num_layers):
                 common_inputs[f"past_key_values.{i}.key"] = {
@@ -2216,7 +2216,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
             common_inputs["encoder_outputs"] = {0: "batch_size"}
 
             # Contrary to other seq2seq archs as t5 and bart, Pix2Struct DO make use of the decoder_attention_mask input.
-            common_inputs["decoder_attention_mask"] = {0: "batch_size", 1: "past_sequence_length + 1"}
+            common_inputs["decoder_attention_mask"] = {0: "batch_size", 1: "past_sequence_length + sequence_length"}
 
         return common_inputs
 
