@@ -45,12 +45,8 @@ jobs:
         name: Downgrade Transformers
         run: pip install transformers==${{ matrix.transformers-version }}
 
-      - name: Test with pytest (in series)
+      - name: Test with pytest
         run: |
-          pytest tests/onnxruntime -m "run_in_series" --durations=0
-
-      - name: Test with pytest (in parallel)
-        run: |
-          pytest tests/onnxruntime -m "not run_in_series" --durations=0 -n auto -k "test_num_images_per_prompt"
+          pytest tests/onnxruntime --durations=0
         env:
           HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
