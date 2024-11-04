@@ -2,9 +2,11 @@ name: ONNX Runtime / Python - Test
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -16,20 +18,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, windows-2019, macos-13]
-        transformers-version: ["4.45.*", "latest"]
-        test-pattern:
-          ["*modeling*", "*diffusion*", "*optimization*", "*quantization*"]
+        transformers-version: ["latest"]
 
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Free Disk Space (Ubuntu)
-        if: matrix.os == 'ubuntu-20.04'
+      - if: matrix.os == 'ubuntu-20.04'
+        name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          swap-storage: false
-          large-packages: false
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -49,13 +45,12 @@ jobs:
         name: Downgrade Transformers
         run: pip install transformers==${{ matrix.transformers-version }}
 
-      - if: ${{ matrix.test-pattern == '*modeling*' }}
-        name: Test with pytest (in series)
+      - name: Test with pytest (in series)
         run: |
-          pytest tests/onnxruntime/${{ matrix.test-pattern }} -m "run_in_series" --durations=0 -vvvv -s
+          pytest tests/onnxruntime -m "run_in_series" --durations=0 -vvvv -s
 
       - name: Test with pytest (in parallel)
         run: |
-          pytest tests/onnxruntime/${{ matrix.test-pattern }} -m "not run_in_series" --durations=0 -vvvv -s -n auto
+          pytest tests/onnxruntime -m "not run_in_series" --durations=0 -vvvv -s -n auto
         env:
           HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
