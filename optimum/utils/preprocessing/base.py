@@ -138,7 +138,7 @@ class TaskProcessor(ABC):
     ) -> Union["DatasetDict", "Dataset"]:
         requires_backends(self, ["datasets"])
 
-        from datasets import DatasetDict
+        from datasets import Dataset, DatasetDict
         from datasets import load_dataset as datasets_load_dataset
 
         dataset = datasets_load_dataset(path, **load_dataset_kwargs)
