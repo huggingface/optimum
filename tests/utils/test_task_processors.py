@@ -19,6 +19,7 @@ import string
 from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
 from unittest import TestCase
 
+import pytest
 from datasets import DatasetDict
 from transformers import AutoConfig, AutoFeatureExtractor, AutoTokenizer
 
@@ -124,6 +125,7 @@ class TaskProcessorTestBase:
         self.assertDictEqual(preprocessor_kwargs, clone)
 
     @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset_unallowed_data_keys(self):
         task_processor = TaskProcessorsManager.get_task_processor_class_for_task(self.TASK_NAME)(
             self.CONFIG, self.PREPROCESSOR
@@ -191,18 +193,22 @@ class TaskProcessorTestBase:
         return dataset
 
     @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset(self):
         return self._test_load_dataset(False, False, False)
 
     @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset_by_guessing_data_keys(self):
         return self._test_load_dataset(False, True, False)
 
     @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset_and_only_keep_necessary_columns(self):
         return self._test_load_dataset(False, False, True)
 
     @require_datasets
+    @pytest.mark.datasets_test
     def test_load_default_dataset(self):
         return self._test_load_dataset(True, False, False)
 
@@ -214,6 +220,7 @@ class TextClassificationProcessorTest(TestCase, TaskProcessorTestBase):
     WRONG_PREPROCESSOR = IMAGE_PROCESSOR
 
     @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset_with_max_length(self):
         max_length = random.randint(4, 16)
         dataset = self._test_load_dataset(False, False, True, max_length=max_length)
@@ -231,6 +238,7 @@ class TokenClassificationProcessorTest(TestCase, TaskProcessorTestBase):
     WRONG_PREPROCESSOR = IMAGE_PROCESSOR
 
     @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset_with_max_length(self):
         max_length = random.randint(4, 16)
         dataset = self._test_load_dataset(False, False, True, max_length=max_length)
@@ -241,6 +249,7 @@ class TokenClassificationProcessorTest(TestCase, TaskProcessorTestBase):
         self.assertEqual(len(input_ids), max_length)
 
     @require_datasets
+    @pytest.mark.datasets_test
     def test_load_default_dataset(self):
         self.skipTest(
             "Skipping so as not to execute conll2003 remote code (test would require trust_remote_code=True)"
@@ -254,6 +263,7 @@ class QuestionAnsweringProcessorTest(TestCase, TaskProcessorTestBase):
     WRONG_PREPROCESSOR = IMAGE_PROCESSOR
 
     @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset_with_max_length(self):
         max_length = 384
         dataset = self._test_load_dataset(False, False, True, max_length=max_length)

@@ -32,9 +32,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests] datasets
+          pip install .[tests]
 
       - name: Test with pytest
         working-directory: tests
         run: |
-          python -m pytest -s -vvvv utils
+          pytest utils -s -n auto -m "not datasets_test" --durations=0
+
+      - name: Install datasets
+        run: |
+          pip install datasets
+
+      - name: Tests needing datasets
+        working-directory: tests
+        run: |
+          pytest utils -s -n auto -m "datasets_test" --durations=0
