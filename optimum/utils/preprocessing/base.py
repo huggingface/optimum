@@ -20,15 +20,16 @@ import itertools
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
-from datasets import Dataset, DatasetDict
-from datasets import load_dataset as datasets_load_dataset
 from transformers import PreTrainedTokenizerBase
 from transformers.image_processing_utils import BaseImageProcessor
+
+from optimum.utils.import_utils import requires_backends
 
 from .. import logging
 
 
 if TYPE_CHECKING:
+    from datasets import Dataset, DatasetDict
     from transformers import PretrainedConfig
 
 
@@ -102,11 +103,14 @@ class TaskProcessor(ABC):
 
     def prepare_dataset(
         self,
-        dataset: Union[DatasetDict, Dataset],
+        dataset: Union["DatasetDict", "Dataset"],
         data_keys: Dict[str, str],
         ref_keys: Optional[List[str]] = None,
         split: Optional[str] = None,
-    ) -> Union[DatasetDict, Dataset]:
+    ) -> Union["DatasetDict", "Dataset"]:
+        requires_backends(self, ["datasets"])
+        from datasets import Dataset
+
         if isinstance(dataset, Dataset) and split is not None:
             raise ValueError("A Dataset and a split name were provided, but splits are for DatasetDict.")
         elif split is not None:
@@ -131,7 +135,12 @@ class TaskProcessor(ABC):
         num_samples: Optional[int] = None,
         shuffle: bool = False,
         **load_dataset_kwargs,
-    ) -> Union[DatasetDict, Dataset]:
+    ) -> Union["DatasetDict", "Dataset"]:
+        requires_backends(self, ["datasets"])
+
+        from datasets import DatasetDict
+        from datasets import load_dataset as datasets_load_dataset
+
         dataset = datasets_load_dataset(path, **load_dataset_kwargs)
 
         if isinstance(dataset, DatasetDict) and load_smallest_split:
