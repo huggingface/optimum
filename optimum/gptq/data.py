@@ -18,7 +18,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
-from optimum.utils.import_utils import is_datasets_available, DATASETS_IMPORT_ERROR
+
+from optimum.utils.import_utils import DATASETS_IMPORT_ERROR, is_datasets_available
 
 
 if is_datasets_available():
@@ -117,7 +118,6 @@ def collate_data(
 
 
 def get_wikitext2(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
-            
     if not is_datasets_available():
         raise ImportError(DATASETS_IMPORT_ERROR.format("get_wikitext2"))
 
@@ -168,7 +168,6 @@ def get_c4(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
 
 
 def get_c4_new(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
-
     if not is_datasets_available():
         raise ImportError(DATASETS_IMPORT_ERROR.format("get_c4_new"))
 
