@@ -235,6 +235,12 @@ TRANSFORMERS_IMPORT_ERROR = """requires the transformers>={0} library but it was
 -U transformers`. Please note that you may need to restart your runtime after installation.
 """
 
+DATASETS_IMPORT_ERROR = """
+{0} requires the datasets library but it was not found in your environment. You can install it with pip:
+`pip install datasets`. Please note that you may need to restart your runtime after installation.
+"""
+
+
 BACKENDS_MAPPING = OrderedDict(
     [
         ("diffusers", (is_diffusers_available, DIFFUSERS_IMPORT_ERROR)),
@@ -250,6 +256,7 @@ BACKENDS_MAPPING = OrderedDict(
             "transformers_434",
             (lambda: check_if_transformers_greater("4.34"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.34")),
         ),
+        ("datasets", (is_datasets_available, DATASETS_IMPORT_ERROR)),
     ]
 )
 

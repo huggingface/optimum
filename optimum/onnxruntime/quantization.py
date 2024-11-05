@@ -28,7 +28,7 @@ from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibrationDataReader, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
-from optimum.utils.import_utils import is_datasets_available
+from optimum.utils.import_utils import requires_backends
 
 from ..quantization_base import OptimumQuantizer
 from ..utils.save_utils import maybe_save_preprocessors
@@ -474,11 +474,7 @@ class ORTQuantizer(OptimumQuantizer):
                 "provided."
             )
 
-        if not is_datasets_available():
-            raise ImportError(
-                "`get_calibration_dataset` requires the datasets library but it was not found in your environment. "
-                "You can install it with pip: `pip install datasets`."
-            )
+        requires_backends(self, ["datasets"])
 
         from datasets import load_dataset
 

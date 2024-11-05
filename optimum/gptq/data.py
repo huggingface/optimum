@@ -18,7 +18,11 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
-from datasets import load_dataset
+from optimum.utils.import_utils import is_datasets_available, DATASETS_IMPORT_ERROR
+
+
+if is_datasets_available():
+    from datasets import load_dataset
 
 
 """
@@ -113,6 +117,10 @@ def collate_data(
 
 
 def get_wikitext2(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
+            
+    if not is_datasets_available():
+        raise ImportError(DATASETS_IMPORT_ERROR.format("get_wikitext2"))
+
     if split == "train":
         data = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
     elif split == "validation":
@@ -132,6 +140,9 @@ def get_wikitext2(tokenizer: Any, seqlen: int, nsamples: int, split: str = "trai
 
 
 def get_c4(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
+    if not is_datasets_available():
+        raise ImportError(DATASETS_IMPORT_ERROR.format("get_c4"))
+
     if split == "train":
         data = load_dataset("allenai/c4", split="train", data_files={"train": "en/c4-train.00000-of-01024.json.gz"})
     elif split == "validation":
@@ -157,6 +168,10 @@ def get_c4(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
 
 
 def get_c4_new(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
+
+    if not is_datasets_available():
+        raise ImportError(DATASETS_IMPORT_ERROR.format("get_c4_new"))
+
     if split == "train":
         data = load_dataset("allenai/c4", split="train", data_files={"train": "en/c4-train.00000-of-01024.json.gz"})
     elif split == "validation":
