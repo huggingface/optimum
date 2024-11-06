@@ -117,6 +117,7 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
             "token_type_ids": dynamic_axis,
         }
 
+
 class VisualBertOnnxConfig(TextAndVisionOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
@@ -127,7 +128,7 @@ class VisualBertOnnxConfig(TextAndVisionOnnxConfig):
             "attention_mask": {0: "batch_size", 1: "sequence_length"},
             "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
         }
-    
+
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {

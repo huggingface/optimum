@@ -197,7 +197,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
             "document-question-answering-with-past",
         ],
     },
-     "visualbert": "hf-internal-testing/tiny-random-VisualBertModel",
+    "visualbert": "hf-internal-testing/tiny-random-VisualBertModel",
 }
 
 
