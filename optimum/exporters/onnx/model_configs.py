@@ -117,6 +117,24 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
             "token_type_ids": dynamic_axis,
         }
 
+class VisualBertOnnxConfig(TextAndVisionOnnxConfig):
+    DEFAULT_ONNX_OPSET = 11
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
+            "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+        }
+    
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
+            "pooler_output": {0: "batch_size"},
+        }
+
 
 class AlbertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
