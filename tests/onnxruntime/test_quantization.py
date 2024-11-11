@@ -55,8 +55,9 @@ class ORTQuantizerTest(unittest.TestCase):
         },
         "ort_model_with_onnx_model_in_subfolder": {
             "model_or_path": ORTModelForFeatureExtraction.from_pretrained(
-                "sentence-transformers-testing/stsb-bert-tiny-onnx",
+                "sentence-transformers/all-MiniLM-L6-v2",
                 subfolder="onnx",
+                file_name="model.onnx",
             )
         },
     }
