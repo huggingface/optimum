@@ -134,6 +134,7 @@ class ORTQuantizer(OptimumQuantizer):
             model_or_path = Path(model_or_path)
 
         path = None
+        config = None
         if isinstance(model_or_path, ORTModelForConditionalGeneration):
             raise NotImplementedError(ort_quantizer_error_message)
         elif isinstance(model_or_path, Path) and file_name is None:
@@ -147,13 +148,13 @@ class ORTQuantizer(OptimumQuantizer):
             file_name = onnx_files[0].name
 
         if isinstance(model_or_path, ORTModel):
-            if path is None:
-                path = Path(model_or_path.model._model_path)
+            path = Path(model_or_path.model._model_path)
+            config = model_or_path.config
         elif os.path.isdir(model_or_path):
             path = Path(model_or_path) / file_name
         else:
             raise ValueError(f"Unable to load model from {model_or_path}.")
-        return cls(path)
+        return cls(path, config=config)
 
     def fit(
         self,
