@@ -1140,6 +1140,12 @@ class SiglipTextOnnxConfig(CLIPTextOnnxConfig):
     pass
 
 
+class SiglipVisionModelOnnxConfig(CLIPVisionModelOnnxConfig):
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
+    # Support for this operator was added in version 14, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 14
+
+
 class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu

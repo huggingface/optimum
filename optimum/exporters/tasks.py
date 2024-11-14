@@ -1051,6 +1051,10 @@ class TasksManager:
             "feature-extraction",
             onnx="SiglipTextWithProjectionOnnxConfig",
         ),
+        "siglip-vision-model": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="SiglipVisionModelOnnxConfig",
+        ),
         "speech-to-text": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -1229,6 +1233,8 @@ class TasksManager:
         "vae-decoder",
         "clip-text-model",
         "clip-text-with-projection",
+        "siglip-text-model",
+        "siglip-text-with-projection",
         "trocr",  # supported through the vision-encoder-decoder model type
     }
     _SUPPORTED_CLI_MODEL_TYPE = (
