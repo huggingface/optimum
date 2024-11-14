@@ -41,17 +41,11 @@ class ORTModelPart:
     _prepare_onnx_inputs = ORTModel._prepare_onnx_inputs
     _prepare_onnx_outputs = ORTModel._prepare_onnx_outputs
 
-    def __init__(
-        self,
-        session: InferenceSession,
-        parent_model: "ORTModel",
-    ):
+    def __init__(self, session: InferenceSession, parent_model: "ORTModel"):
         self.session = session
         self.parent_model = parent_model
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-            self.parent_model.config.model_type
-        )(self.parent_model.config)
         self.main_input_name = self.parent_model.main_input_name
+
         self.input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
         self.input_dtypes = {input_key.name: input_key.type for input_key in session.get_inputs()}
@@ -77,6 +71,25 @@ class ORTModelPart:
 
         return None
 
+    def to(self, *args, device: Optional[Union[torch.device, str, int]] = None, dtype: Optional[torch.dtype] = None):
+        for arg in args:
+            if isinstance(arg, torch.device):
+                device = arg
+            elif isinstance(arg, torch.dtype):
+                dtype = arg
+
+        if device is not None and device != self.device:
+            raise ValueError(
+                "Cannot change the device of a model part without changing the device of the parent model. "
+                "Please use the `to` method of the parent model to change the device."
+            )
+
+        if dtype is not None and dtype != self.dtype:
+            raise NotImplementedError(
+                f"Cannot change the dtype of the model from {self.dtype} to {dtype}. "
+                f"Please export the model with the desired dtype."
+            )
+
     @abstractmethod
     def forward(self, *args, **kwargs):
         pass
@@ -90,12 +103,18 @@ class ORTEncoder(ORTModelPart):
     Encoder part of the encoder-decoder model for ONNX Runtime inference.
     """
 
-    def forward(
-        self,
-        input_ids: torch.LongTensor,
-        attention_mask: torch.LongTensor,
-        **kwargs,
-    ) -> BaseModelOutput:
+    def __init__(self, session: InferenceSession, parent_model: "ORTModel"):
+        super().__init__(session, parent_model)
+
+        config = (
+            self.parent_model.config.encoder
+            if hasattr(self.parent_model.config, "encoder")
+            else self.parent_model.config
+        )
+
+        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
+
+    def forward(self, input_ids: torch.LongTensor, attention_mask: torch.LongTensor, **kwargs) -> BaseModelOutput:
         use_torch = isinstance(input_ids, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
 
@@ -138,6 +157,14 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
     ):
         super().__init__(session, parent_model)
 
+        config = (
+            self.parent_model.config.decoder
+            if hasattr(self.parent_model.config, "decoder")
+            else self.parent_model.config
+        )
+
+        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
+
         # TODO: make this less hacky.
         self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
@@ -153,11 +180,7 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
 
         self.use_past_in_outputs = len(self.key_value_output_names) > 0
         self.use_past_in_inputs = len(self.key_value_input_names) > 0
-        self.use_fp16 = False
-        for inp in session.get_inputs():
-            if "past_key_values" in inp.name and inp.type == "tensor(float16)":
-                self.use_fp16 = True
-                break
+        self.use_fp16 = self.dtype == torch.float16
 
         # We may use ORTDecoderForSeq2Seq for vision-encoder-decoder models, where models as gpt2
         # can be used but do not support KV caching for the cross-attention key/values, see:
@@ -461,11 +484,3 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
                 cache_position = cache_position.to(self.device)
 
         return use_cache_branch_tensor, past_key_values, cache_position
-
-
-class ORTDecoder(ORTDecoderForSeq2Seq):
-    def __init__(self, *args, **kwargs):
-        logger.warning(
-            "The class `ORTDecoder` is deprecated and will be removed in optimum v1.15.0, please use `ORTDecoderForSeq2Seq` instead."
-        )
-        super().__init__(*args, **kwargs)

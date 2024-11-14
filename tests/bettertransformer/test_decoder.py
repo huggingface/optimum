@@ -23,7 +23,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from optimum.bettertransformer import BetterTransformer
 from optimum.utils import (
-    BloomDummyPastKeyValuesGenerator,
     DummyPastKeyValuesGenerator,
     NormalizedConfigManager,
 )
@@ -132,14 +131,11 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
 
         model_id = MODELS_DICT[model_type]
 
-        model = AutoModelForCausalLM.from_pretrained(model_id)
+        model = AutoModelForCausalLM.from_pretrained(model_id, attn_implementation="eager")
 
         normalized_config = NormalizedConfigManager.get_normalized_config_class(model.config.model_type)(model.config)
 
-        if model_type == "bloom":
-            pkv_generator_class = BloomDummyPastKeyValuesGenerator
-        else:
-            pkv_generator_class = DummyPastKeyValuesGenerator
+        pkv_generator_class = DummyPastKeyValuesGenerator
 
         pkv_generator = pkv_generator_class(
             task="", normalized_config=normalized_config, batch_size=batch_size, sequence_length=seq_length
@@ -171,7 +167,7 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
         model_id = MODELS_DICT[model_type]
         tokenizer = AutoTokenizer.from_pretrained(model_id)
 
-        model = AutoModelForCausalLM.from_pretrained(model_id)
+        model = AutoModelForCausalLM.from_pretrained(model_id, attn_implementation="eager")
 
         if not hasattr(tokenizer, "pad_token") or tokenizer.pad_token is None:
             if tokenizer.eos_token != "":
@@ -228,7 +224,9 @@ class BetterTransformersDecoderTest(BetterTransformersTestMixin, unittest.TestCa
     @require_torch_gpu
     @require_accelerate
     def test_accelerate_compatibility_cpu_gpu(self, keep_original_model=True, max_memory=None):
-        hf_model = AutoModelForCausalLM.from_pretrained("gpt2", device_map="auto", max_memory=max_memory).eval()
+        hf_model = AutoModelForCausalLM.from_pretrained(
+            "gpt2", device_map="auto", max_memory=max_memory, attn_implementation="eager"
+        ).eval()
         bt_model = BetterTransformer.transform(
             hf_model, keep_original_model=keep_original_model, max_memory=max_memory
         )

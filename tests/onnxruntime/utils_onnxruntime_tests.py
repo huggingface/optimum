@@ -105,6 +105,7 @@ MODEL_NAMES = {
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJForCausalLM",
+    "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
     "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
@@ -114,9 +115,9 @@ MODEL_NAMES = {
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
     "longt5": "hf-internal-testing/tiny-random-LongT5Model",
-    "llama": "fxmarty/tiny-llama-fast-tokenizer",
+    "llama": "optimum-internal-testing/tiny-random-llama",
     "m2m_100": "hf-internal-testing/tiny-random-m2m_100",
-    "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
+    "marian": "echarlaix/tiny-random-marian",
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
@@ -127,6 +128,7 @@ MODEL_NAMES = {
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
+    "opt": "hf-internal-testing/tiny-random-OPTModel",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver_text": "hf-internal-testing/tiny-random-language_perceiver",
     "perceiver_vision": "hf-internal-testing/tiny-random-vision_perceiver_conv",
@@ -149,6 +151,7 @@ MODEL_NAMES = {
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "swinv2": "hf-internal-testing/tiny-random-Swinv2Model",
     "swin-window": "yujiepan/tiny-random-swin-patch4-window7-224",
+    "swin2sr": "hf-internal-testing/tiny-random-Swin2SRForImageSuperResolution",
     "t5": "hf-internal-testing/tiny-random-t5",
     "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
     "trocr": "microsoft/trocr-small-handwritten",
@@ -156,7 +159,7 @@ MODEL_NAMES = {
     "unispeech_sat": "hf-internal-testing/tiny-random-UnispeechSatModel",
     "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
     "vit": "hf-internal-testing/tiny-random-vit",
-    "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
+    "whisper": "optimum-internal-testing/tiny-random-whisper",
     "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
     "wavlm": "hf-internal-testing/tiny-random-WavlmModel",
@@ -174,6 +177,11 @@ class ORTModelTestMixin(unittest.TestCase):
         "pt": torch.Tensor,
         "np": np.ndarray,
     }
+
+    TASK = None
+
+    ORTMODEL_CLASS = None
+    AUTOMODEL_CLASS = None
 
     @classmethod
     def setUpClass(cls):

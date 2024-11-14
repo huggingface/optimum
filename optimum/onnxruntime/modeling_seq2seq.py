@@ -18,7 +18,6 @@ Transformers.
 
 import logging
 import shutil
-import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -46,7 +45,6 @@ from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
 from ..utils import check_if_transformers_greater
 from ..utils.file_utils import validate_file_exists
-from ..utils.normalized_config import NormalizedConfigManager
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .base import ORTDecoderForSeq2Seq, ORTEncoder
 from .constants import (
@@ -69,17 +67,7 @@ from .utils import (
 if check_if_transformers_greater("4.25.0"):
     from transformers.generation import GenerationMixin
 else:
-    from transformers.generation_utils import GenerationMixin
-
-
-# if check_if_transformers_greater("4.37.0"):
-#     # starting from transformers v4.37.0, the whisper generation loop is implemented in the `WhisperGenerationMixin`
-#     # and it implements many new features including short and long form generation, and starts with 2 init tokens
-#     from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
-# else:
-
-#     class WhisperGenerationMixin(WhisperForConditionalGeneration, GenerationMixin):
-#         pass
+    from transformers.generation_utils import GenerationMixin  # type: ignore
 
 
 if check_if_transformers_greater("4.43.0"):
@@ -717,6 +705,18 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             generation_config = GenerationConfig.from_model_config(config)
         self.generation_config = generation_config
 
+        if check_if_transformers_greater("4.44.99"):
+            misplaced_generation_parameters = self.config._get_non_default_generation_parameters()
+            if len(misplaced_generation_parameters) > 0:
+                logger.warning(
+                    "Moving the following attributes in the config to the generation config: "
+                    f"{misplaced_generation_parameters}. You are seeing this warning because you've set "
+                    "generation parameters in the model config, as opposed to in the generation config.",
+                )
+                for param_name, param_value in misplaced_generation_parameters.items():
+                    setattr(self.generation_config, param_name, param_value)
+                    setattr(self.config, param_name, None)
+
     @abstractmethod
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         pass
@@ -791,7 +791,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -810,15 +809,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
+        generation_config = kwargs.pop("generation_config", None)
         model_path = Path(model_id)
 
         # We do not implement the logic for use_cache=False, use_merged=True
@@ -1007,19 +998,21 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
 
-        generation_config = None
-        try:
-            generation_config = GenerationConfig.from_pretrained(
-                model_id,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                local_files_only=local_files_only,
-                token=token,
-                revision=revision,
-                subfolder=subfolder,
-            )
-        except OSError:
-            logger.info("Generation config file not found, using a generation config created from the model config.")
+        if generation_config is None:
+            try:
+                generation_config = GenerationConfig.from_pretrained(
+                    model_id,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
+                    token=token,
+                    revision=revision,
+                    subfolder=subfolder,
+                )
+            except OSError:
+                logger.info(
+                    "Generation config file not found, using a generation config created from the model config."
+                )
 
         onnx_paths = [encoder_path]
         if use_merged is False:
@@ -1046,7 +1039,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         cls,
         model_id: str,
         config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: str = "main",
         force_download: bool = True,
@@ -1062,15 +1054,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModelForConditionalGeneration":
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
         if use_cache is False and use_merged is True:
             raise ValueError(
                 "The incompatible arguments use_cache=False, use_merged=True were passed to"
@@ -1102,8 +1085,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             force_download=force_download,
             trust_remote_code=trust_remote_code,
         )
-
-        config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
         return cls._from_pretrained(
@@ -1164,49 +1145,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
 
     auto_model_class = AutoModelForSeq2SeqLM
     main_input_name = "input_ids"
-
-    def __init__(
-        self,
-        encoder_session: ort.InferenceSession,
-        decoder_session: ort.InferenceSession,
-        config: "PretrainedConfig",
-        onnx_paths: List[str],
-        decoder_with_past_session: Optional[ort.InferenceSession] = None,
-        use_cache: bool = True,
-        use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
-        generation_config: Optional[GenerationConfig] = None,
-        **kwargs,
-    ):
-        super().__init__(
-            encoder_session,
-            decoder_session,
-            config,
-            onnx_paths,
-            decoder_with_past_session,
-            use_cache,
-            use_io_binding,
-            model_save_dir,
-            preprocessors,
-            generation_config,
-            **kwargs,
-        )
-
-        # The normalized_config initialization in ORTModelPart is unfortunately wrong as the top level config is initialized.
-        if config.model_type == "encoder-decoder":
-            self.encoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-                config.encoder.model_type
-            )(config.encoder)
-
-            self.decoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-                config.decoder.model_type
-            )(config.decoder)
-
-            if self.decoder_with_past is not None:
-                self.decoder_with_past.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-                    config.decoder.model_type
-                )(config.decoder)
 
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoder(session, self)
@@ -1520,20 +1458,6 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
             generation_config,
             **kwargs,
         )
-
-        # The normalized_config initialization in ORTModelPart is unfortunately wrong as the top level config is initialized.
-        self.encoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-            config.encoder.model_type
-        )(config.encoder)
-
-        self.decoder.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-            config.decoder.model_type
-        )(config.decoder)
-
-        if self.decoder_with_past is not None:
-            self.decoder_with_past.normalized_config = NormalizedConfigManager.get_normalized_config_class(
-                config.decoder.model_type
-            )(config.decoder)
 
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoderForVisionEncoderDecoder(session, self)

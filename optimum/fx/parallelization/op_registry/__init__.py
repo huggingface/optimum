@@ -12,6 +12,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from .embedding import VocabParallelEmbedding
-from .linear import ColumnParallelLinear, RowParallelLinear
-from .loss import VocabParallelCrossEntropyLoss, sharded_cross_entropy_wrapper_fn
+from .op_handlers import REGISTRY, FallbackParallelAxisPropagateHandler

@@ -285,6 +285,7 @@ class NormalizedConfigManager:
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
         "qwen2": NormalizedTextConfig,
+        "granite": NormalizedTextConfigWithGQA,
     }
 
     @classmethod

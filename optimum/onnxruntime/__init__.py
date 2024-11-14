@@ -44,6 +44,7 @@ _import_structure = {
         "ORTModelForSemanticSegmentation",
         "ORTModelForSequenceClassification",
         "ORTModelForTokenClassification",
+        "ORTModelForImageToImage",
     ],
     "modeling_seq2seq": [
         "ORTModelForSeq2SeqLM",
@@ -78,7 +79,13 @@ except OptionalDependencyNotAvailable:
         "ORTStableDiffusionInpaintPipeline",
         "ORTStableDiffusionXLPipeline",
         "ORTStableDiffusionXLImg2ImgPipeline",
+        "ORTStableDiffusionXLInpaintPipeline",
         "ORTLatentConsistencyModelPipeline",
+        "ORTLatentConsistencyModelImg2ImgPipeline",
+        "ORTPipelineForImage2Image",
+        "ORTPipelineForInpainting",
+        "ORTPipelineForText2Image",
+        "ORTDiffusionPipeline",
     ]
 else:
     _import_structure["modeling_diffusion"] = [
@@ -87,7 +94,13 @@ else:
         "ORTStableDiffusionInpaintPipeline",
         "ORTStableDiffusionXLPipeline",
         "ORTStableDiffusionXLImg2ImgPipeline",
+        "ORTStableDiffusionXLInpaintPipeline",
+        "ORTLatentConsistencyModelImg2ImgPipeline",
         "ORTLatentConsistencyModelPipeline",
+        "ORTPipelineForImage2Image",
+        "ORTPipelineForInpainting",
+        "ORTPipelineForText2Image",
+        "ORTDiffusionPipeline",
     ]
 
 
@@ -104,6 +117,7 @@ if TYPE_CHECKING:
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
+        ORTModelForImageToImage,
         ORTModelForMaskedLM,
         ORTModelForMultipleChoice,
         ORTModelForQuestionAnswering,
@@ -137,20 +151,32 @@ if TYPE_CHECKING:
             raise OptionalDependencyNotAvailable()
     except OptionalDependencyNotAvailable:
         from ..utils.dummy_diffusers_objects import (
+            ORTDiffusionPipeline,
+            ORTLatentConsistencyModelImg2ImgPipeline,
             ORTLatentConsistencyModelPipeline,
+            ORTPipelineForImage2Image,
+            ORTPipelineForInpainting,
+            ORTPipelineForText2Image,
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
             ORTStableDiffusionXLImg2ImgPipeline,
+            ORTStableDiffusionXLInpaintPipeline,
             ORTStableDiffusionXLPipeline,
         )
     else:
         from .modeling_diffusion import (
+            ORTDiffusionPipeline,
+            ORTLatentConsistencyModelImg2ImgPipeline,
             ORTLatentConsistencyModelPipeline,
+            ORTPipelineForImage2Image,
+            ORTPipelineForInpainting,
+            ORTPipelineForText2Image,
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
             ORTStableDiffusionXLImg2ImgPipeline,
+            ORTStableDiffusionXLInpaintPipeline,
             ORTStableDiffusionXLPipeline,
         )
 else:

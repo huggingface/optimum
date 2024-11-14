@@ -24,6 +24,7 @@ from transformers import (
     FillMaskPipeline,
     ImageClassificationPipeline,
     ImageSegmentationPipeline,
+    ImageToImagePipeline,
     ImageToTextPipeline,
     Pipeline,
     PreTrainedTokenizer,
@@ -55,6 +56,7 @@ if is_onnxruntime_available():
         ORTModelForCausalLM,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
+        ORTModelForImageToImage,
         ORTModelForMaskedLM,
         ORTModelForQuestionAnswering,
         ORTModelForSemanticSegmentation,
@@ -156,6 +158,12 @@ if is_onnxruntime_available():
             "class": (ORTModelForAudioClassification,),
             "default": "superb/hubert-base-superb-ks",
             "type": "audio",
+        },
+        "image-to-image": {
+            "impl": ImageToImagePipeline,
+            "class": (ORTModelForImageToImage,),
+            "default": "caidas/swin2SR-classical-sr-x2-64",
+            "type": "image",
         },
     }
 else:
