@@ -110,9 +110,9 @@ class OnnxRuntimeRun(Run):
         model_class = FeaturesManager.get_model_class_for_feature(get_autoclass_name(self.task))
         self.torch_model = model_class.from_pretrained(run_config["model_name_or_path"])
 
-        self.return_body[
-            "model_type"
-        ] = self.torch_model.config.model_type  # return_body is initialized in parent class
+        self.return_body["model_type"] = (
+            self.torch_model.config.model_type
+        )  # return_body is initialized in parent class
 
     def _launch_time(self, trial):
         batch_size = trial.suggest_categorical("batch_size", self.batch_sizes)
