@@ -312,6 +312,7 @@ class TasksManager:
         "lcm": "text-to-image",
         "stable-diffusion": "text-to-image",
         "stable-diffusion-xl": "text-to-image",
+        "pretraining": "feature-extraction",
     }
 
     _CUSTOM_CLASSES = {
