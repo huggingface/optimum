@@ -343,6 +343,7 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 class MPTOnnxConfig(TextDecoderOnnxConfig):
     # MPT does not require position_ids input.
     DEFAULT_ONNX_OPSET = 13
+    # TODO: fix inference for transformers < v4.41 for beam_search > 1
     MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
