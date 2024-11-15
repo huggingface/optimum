@@ -20,9 +20,9 @@ from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
 from unittest import TestCase
 
 import pytest
-from datasets import DatasetDict
 from transformers import AutoConfig, AutoFeatureExtractor, AutoTokenizer
 
+from optimum.utils.import_utils import is_datasets_available
 from optimum.utils.preprocessing import TaskProcessorsManager
 from optimum.utils.testing_utils import require_datasets
 
@@ -30,6 +30,9 @@ from optimum.utils.testing_utils import require_datasets
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedTokenizerBase
     from transformers.image_processing_utils import BaseImageProcessor
+
+if is_datasets_available():
+    from datasets import DatasetDict
 
 
 TEXT_MODEL_NAME = "bert-base-uncased"
