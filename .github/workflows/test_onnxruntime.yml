@@ -1,12 +1,12 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 name: ONNX Runtime / Python - Test
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -17,14 +17,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, windows-2019, macos-13]
+        os: [ubuntu-20.04, windows-2019, macos-15]
         transformers-version: ["latest"]
+        include:
+          - transformers-version: "4.45.*"
+            os: ubuntu-20.04
 
     runs-on: ${{ matrix.os }}
 
     steps:
-      - if: matrix.os == 'ubuntu-20.04'
-        name: Free Disk Space (Ubuntu)
+      - name: Free Disk Space (Ubuntu)
+        if: matrix.os == 'ubuntu-20.04'
         uses: jlumbroso/free-disk-space@main
 
       - name: Checkout code
@@ -39,14 +42,18 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests,onnxruntime] transformers[testing]
+          pip install .[tests,onnxruntime]
 
-      - if: ${{ matrix.transformers-version != 'latest' }}
-        name: Downgrade Transformers
+      - name: Install transformers ${{ matrix.transformers-version }}
+        if: ${{ matrix.transformers-version != 'latest' }}
         run: pip install transformers==${{ matrix.transformers-version }}
 
-      - name: Test with pytest
+      - name: Test with pytest (in series)
         run: |
-          pytest tests/onnxruntime --durations=0
+          pytest tests/onnxruntime -m "run_in_series" --durations=0 -vvvv -s
+
+      - name: Test with pytest (in parallel)
+        run: |
+          pytest tests/onnxruntime -m "not run_in_series" --durations=0 -vvvv -s -n auto
         env:
           HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
