@@ -70,7 +70,6 @@ from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessor
 from .io_binding import IOBindingHelper, TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
-    check_io_binding,
     get_device_for_provider,
     get_ordered_input_names,
     get_provider_for_device,
@@ -188,50 +187,36 @@ class ORTModel(OptimizedModel):
         model: ort.InferenceSession,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
+        preprocessors: Optional[List[Any]] = None,
         **kwargs,
     ):
         """
         Initializes attributes that may be shared among several ONNX Runtime inference sesssions.
         """
+
         # TODO: remove at version 2.0
         if kwargs.pop("latest_model_name", None) is not None:
             logger.warning(
                 f"The latest_model_name argument to create an {self.__class__.__name__} is deprecated, and not used "
                 "anymore."
             )
+
         if kwargs:
             raise ValueError(
                 f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
             )
 
-        self.providers = model.get_providers()
-        self._device = get_device_for_provider(
-            self.providers[0], provider_options=model.get_provider_options()[self.providers[0]]
-        )
-
-        # This attribute is needed to keep one reference on the temporary directory, since garbage collecting it
-        # would end-up removing the directory containing the underlying ONNX model.
-        self._model_save_dir_tempdirectory_instance = None
-        if model_save_dir is None:
-            self.model_save_dir = Path(model._model_path).parent
-        elif isinstance(model_save_dir, TemporaryDirectory):
+        if isinstance(model_save_dir, TemporaryDirectory):
+            # This attribute is needed to keep one reference on the temporary directory, since garbage collecting it
+            # would end-up removing the directory containing the underlying ONNX model.
             self._model_save_dir_tempdirectory_instance = model_save_dir
             self.model_save_dir = Path(model_save_dir.name)
-        elif isinstance(model_save_dir, str):
+        elif isinstance(model_save_dir, TemporaryDirectory):
+            self.model_save_dir = Path(model_save_dir.name)
+        elif isinstance(model_save_dir, (str, Path)):
             self.model_save_dir = Path(model_save_dir)
         else:
-            self.model_save_dir = model_save_dir
-
-        self.preprocessors = preprocessors if preprocessors is not None else []
-
-        if self._device is None:
-            logger.warning(
-                f"ORTModel outputs will be sent to CPU as the device could not be inferred from the execution provider {self.providers[0]}."
-                f" Use `ort_model.to()` to send the outputs to the wanted device."
-            )
-
-        self._use_io_binding = use_io_binding
+            self.model_save_dir = Path(model._model_path).parent
 
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
@@ -242,25 +227,35 @@ class ORTModel(OptimizedModel):
         # Define the pattern here to avoid recomputing it everytime.
         self.output_shape_inference_pattern = re.compile(r"([a-zA-Z_]+)|([0-9]+)|([+-/*])|([\(\)])")
 
+        # OptimizedModel requires it
+        self.preprocessors = preprocessors
+
+        self.use_io_binding = (
+            use_io_binding if use_io_binding is not None else model.get_providers()[0] in ["CUDAExecutionProvider"]
+        )
+
+        self._providers = model.get_providers()
+        self._providers_options = model.get_provider_options()
+        self._device = get_device_for_provider(provider=self.provider, provider_options=self.provider_options)
+
     def __init__(
         self,
         model: ort.InferenceSession,
         config: "PretrainedConfig",
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
+        preprocessors: Optional[List[Any]] = None,
         **kwargs,
     ):
         super().__init__(model, config)
 
-        if use_io_binding is None:
-            if model.get_providers()[0] == "CUDAExecutionProvider":
-                use_io_binding = True
-            else:
-                use_io_binding = False
-
         self.model_path = Path(model._model_path)
-        self.model_name = self.model_path.name
+
+        self.input_names = {input_key.name: idx for idx, input_key in enumerate(model.get_inputs())}
+        self.input_dtypes = {input_key.name: input_key.type for input_key in model.get_inputs()}
+
+        self.output_names = {output_key.name: idx for idx, output_key in enumerate(model.get_outputs())}
+        self.output_dtypes = {output_key.name: output_key.type for output_key in model.get_outputs()}
 
         self.shared_attributes_init(
             model,
@@ -270,20 +265,14 @@ class ORTModel(OptimizedModel):
             **kwargs,
         )
 
-        self.input_names = {input_key.name: idx for idx, input_key in enumerate(model.get_inputs())}
-        self.input_dtypes = {input_key.name: input_key.type for input_key in model.get_inputs()}
-
-        self.output_names = {output_key.name: idx for idx, output_key in enumerate(model.get_outputs())}
-        self.output_dtypes = {output_key.name: output_key.type for output_key in model.get_outputs()}
-
         self._ordered_input_names = get_ordered_input_names(self.input_names.keys(), func=self.forward)
 
     @property
-    def dtype(self) -> torch.dtype:
-        """
-        `torch.dtype`: The dtype of the model.
-        """
+    def device(self):
+        return self._device
 
+    @property
+    def dtype(self) -> torch.dtype:
         for dtype in self.input_dtypes.values():
             torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
             if torch_dtype.is_floating_point:
@@ -297,59 +286,72 @@ class ORTModel(OptimizedModel):
         return None
 
     @property
-    def device(self) -> torch.device:
-        """
-        `torch.device`: The device on which the module is (assuming that all the module parameters are on the same
-        device).
-        """
-        return self._device
-
-    @device.setter
-    def device(self, **kwargs):
-        raise AttributeError("The device attribute is read-only, please use the `to` method to change the device.")
+    def providers(self):
+        # all providers
+        return self._providers
 
     @property
-    def use_io_binding(self):
-        return check_io_binding(self.providers, self._use_io_binding)
+    def provider(self):
+        # main provider
+        return self._providers[0]
 
-    @use_io_binding.setter
-    def use_io_binding(self, value: bool):
-        self._use_io_binding = value
+    @property
+    def providers_options(self):
+        # all provider options
+        return self._providers_options
 
-    def to(self, device: Union[torch.device, str, int]):
-        """
-        Changes the ONNX Runtime provider according to the device.
+    @property
+    def provider_options(self):
+        # main provider options
+        return self.providers_options[self.provider]
 
-        Args:
-            device (`torch.device` or `str` or `int`):
-                Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
-                the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
+    def to(self, *args, device: Optional[Union[torch.device, str, int]] = None, dtype: Optional[torch.dtype] = None):
+        for arg in args:
+            if isinstance(arg, torch.device):
+                device = arg
+            elif isinstance(arg, (int, str)):
+                device = torch.device(arg)
+            elif isinstance(arg, torch.dtype):
+                dtype = arg
 
-        Returns:
-            `ORTModel`: the model placed on the requested device.
-        """
-
-        device, provider_options = parse_device(device)
-
-        if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
-            return self
-
-        provider = get_provider_for_device(device)
-        validate_provider_availability(provider)  # raise error if the provider is not available
-
-        # IOBinding is only supported for CPU and CUDA Execution Providers.
-        if device.type == "cuda" and self._use_io_binding is False and provider == "CUDAExecutionProvider":
-            self.use_io_binding = True
-            logger.info(
-                "use_io_binding was set to False, setting it to True because it can provide a huge speedup on GPUs. "
-                "It is possible to disable this feature manually by setting the use_io_binding attribute back to False."
+        if dtype is not None and dtype != self.dtype:
+            raise NotImplementedError(
+                f"Cannot change the dtype of the pipeline from {self.dtype} to {dtype}. "
+                f"Please export the pipeline with the desired dtype."
             )
 
-        if provider == "ROCMExecutionProvider":
+        if device is None or device == self.device:
+            return self
+
+        device, provider_options = parse_device(device)
+        provider = get_provider_for_device(device)
+        validate_provider_availability(provider)
+
+        if self.use_io_binding is False and provider == "CUDAExecutionProvider":
+            self.use_io_binding = True
+            logger.info(
+                "use_io_binding was set to False with a CUDAExecutionProvider, setting it to True as it can speed up inference. "
+                "It is possible to disable this feature manually by setting the use_io_binding attribute back to False."
+            )
+        elif self.use_io_binding is True and provider == "ROCMExecutionProvider":
             self.use_io_binding = False
+            logger.warning(
+                "use_io_binding was set to True with a ROCMExecutionProvider, setting it to False as it is not supported. "
+                "It is possible to enable this feature manually by setting the use_io_binding attribute back to True."
+            )
 
         self.model.set_providers([provider], provider_options=[provider_options])
-        self.providers = self.model.get_providers()
+
+        self._providers = self.model.get_providers()
+        self._providers_options = self.model.get_provider_options()
+
+        if self.provider != provider or self.provider_options != provider_options:
+            raise RuntimeError(
+                f"Failed to set the device to {device}. "
+                f"Requested provider: {provider}, Requested provider options: {provider_options}. "
+                f"Session provider: {self.provider}, Session provider options: {self.provider_options}"
+            )
+
         self._device = device
 
         return self
