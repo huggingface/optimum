@@ -309,7 +309,7 @@ def pipeline(
     accelerator: Optional[str] = "ort",
     revision: Optional[str] = None,
     trust_remote_code: Optional[bool] = None,
-    *model_kwargs,
+    model_kwargs: Optional[Dict[str, Any]] = None,  # Changed to explicit kwarg
     **kwargs,
 ) -> Pipeline:
     targeted_task = "translation" if task.startswith("translation") else task
@@ -367,6 +367,9 @@ def pipeline(
     else:
         load_feature_extractor = True
 
+    if model_kwargs is None:
+        model_kwargs = {}
+
     model, model_id, tokenizer, feature_extractor = MAPPING_LOADING_FUNC[accelerator](
         model,
         targeted_task,
@@ -378,7 +381,7 @@ def pipeline(
         config=config,
         hub_kwargs=hub_kwargs,
         token=token,
-        *model_kwargs,
+        model_kwargs=model_kwargs,
         **kwargs,
     )
 
