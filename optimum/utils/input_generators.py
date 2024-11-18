@@ -1413,7 +1413,7 @@ class DummyIntGenerator(DummyInputGenerator):
         return self.random_int_tensor(shape=(1,), min_value=20, max_value=22, framework=framework, dtype=int_dtype)
 
 
-class DummyTransformerTimestpsInputGenerator(DummyTimestepInputGenerator):
+class DummyTransformerTimestepInputGenerator(DummyTimestepInputGenerator):
     SUPPORTED_INPUT_NAMES = ("timestep",)
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):

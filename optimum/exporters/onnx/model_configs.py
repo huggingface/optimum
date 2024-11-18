@@ -42,7 +42,7 @@ from ...utils import (
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
     DummyTransformerTextInputGenerator,
-    DummyTransformerTimestpsInputGenerator,
+    DummyTransformerTimestepInputGenerator,
     DummyTransformerVisionInputGenerator,
     DummyVisionEmbeddingsGenerator,
     DummyVisionEncoderDecoderPastKeyValuesGenerator,
@@ -1207,7 +1207,7 @@ class SD3TransformerOnnxConfig(VisionOnnxConfig):
     DEFAULT_ONNX_OPSET = 14
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
-        DummyTransformerTimestpsInputGenerator,
+        DummyTransformerTimestepInputGenerator,
         DummyTransformerVisionInputGenerator,
         DummyTransformerTextInputGenerator,
     )
@@ -1247,7 +1247,7 @@ class SD3TransformerOnnxConfig(VisionOnnxConfig):
 
 class FluxTransformerOnnxConfig(SD3TransformerOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
-        DummyTransformerTimestpsInputGenerator,
+        DummyTransformerTimestepInputGenerator,
         DummyFluxTransformerVisionInputGenerator,
         DummyFluxTransformerTextInputGenerator,
     )
@@ -2124,9 +2124,9 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
             # for Speech2text, we need to name the second axis as
             # encoder_sequence_length / 2 * self._config.num_conv_layers as the axis name is
             # used for dummy input generation
-            common_outputs["last_hidden_state"][
-                1
-            ] = f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
+            common_outputs["last_hidden_state"][1] = (
+                f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
+            )
         return common_outputs
 
 

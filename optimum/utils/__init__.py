@@ -68,7 +68,7 @@ from .input_generators import (
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
     DummyTransformerTextInputGenerator,
-    DummyTransformerTimestpsInputGenerator,
+    DummyTransformerTimestepInputGenerator,
     DummyTransformerVisionInputGenerator,
     DummyVisionEmbeddingsGenerator,
     DummyVisionEncoderDecoderPastKeyValuesGenerator,
