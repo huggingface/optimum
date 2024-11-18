@@ -30,6 +30,7 @@ from optimum.onnxruntime import (
     AutoQuantizationConfig,
     ORTConfig,
     ORTModelForCausalLM,
+    ORTModelForFeatureExtraction,
     ORTModelForSeq2SeqLM,
     ORTModelForSequenceClassification,
     ORTQuantizer,
@@ -50,6 +51,13 @@ class ORTQuantizerTest(unittest.TestCase):
         "ort_model_class": {
             "model_or_path": ORTModelForSequenceClassification.from_pretrained(
                 "optimum/distilbert-base-uncased-finetuned-sst-2-english"
+            )
+        },
+        "ort_model_with_onnx_model_in_subfolder": {
+            "model_or_path": ORTModelForFeatureExtraction.from_pretrained(
+                "sentence-transformers/all-MiniLM-L6-v2",
+                subfolder="onnx",
+                file_name="model.onnx",
             )
         },
     }
