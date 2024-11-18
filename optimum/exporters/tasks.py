@@ -212,6 +212,7 @@ class TasksManager:
             "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
             "image-to-image": "AutoModelForImageToImage",
             "image-to-text": "AutoModelForVision2Seq",
+            "keypoint-detection": "VitPoseForPoseEstimation",  # TODO support AutoModelForXXX
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
             "multiple-choice": "AutoModelForMultipleChoice",
@@ -1104,6 +1105,7 @@ class TasksManager:
         "vit": supported_tasks_mapping(
             "feature-extraction", "image-classification", "masked-im", onnx="ViTOnnxConfig"
         ),
+        "vitpose": supported_tasks_mapping("feature-extraction", "keypoint-detection", onnx="VitPoseOnnxConfig"),
         "vits": supported_tasks_mapping(
             "text-to-audio",
             onnx="VitsOnnxConfig",
