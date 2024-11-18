@@ -2323,6 +2323,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "gpt_neo",
         "gpt_neox",
         "gptj",
+        "granite",
         "llama",
         "mistral",
         "opt",
