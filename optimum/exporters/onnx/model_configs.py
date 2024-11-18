@@ -295,7 +295,7 @@ class Qwen2OnnxConfig(LlamaOnnxConfig):
 class GemmaOnnxConfig(LlamaOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
-    pass
+    MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
 
 
 class GraniteOnnxConfig(LlamaOnnxConfig):
@@ -348,6 +348,8 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 class MPTOnnxConfig(TextDecoderOnnxConfig):
     # MPT does not require position_ids input.
     DEFAULT_ONNX_OPSET = 13
+    # TODO: fix inference for transformers < v4.41 for beam_search > 1
+    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
     )
