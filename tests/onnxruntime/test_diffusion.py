@@ -34,6 +34,7 @@ from optimum.onnxruntime import (
     ORTPipelineForInpainting,
     ORTPipelineForText2Image,
 )
+from optimum.utils import check_if_transformers_greater
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
 
@@ -75,21 +76,25 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         "stable-diffusion",
         "stable-diffusion-xl",
         "latent-consistency",
-        "stable-diffusion-3",
-        "flux",
     ]
+    if check_if_transformers_greater("4.45"):
+        SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "flux"]
+
     NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES = [
         "stable-diffusion",
         "stable-diffusion-xl",
         "latent-consistency",
-        "stable-diffusion-3",
     ]
+    if check_if_transformers_greater("4.45"):
+        NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
+
     CALLBACK_SUPPORTED_ARCHITECTURES = [
         "stable-diffusion",
         "stable-diffusion-xl",
         "latent-consistency",
-        "flux",
     ]
+    if check_if_transformers_greater("4.45"):
+        CALLBACK_SUPPORTED_ARCHITECTURES += ["flux"]
 
     ORTMODEL_CLASS = ORTPipelineForText2Image
     AUTOMODEL_CLASS = AutoPipelineForText2Image
@@ -290,9 +295,9 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
+        self.assertEqual(pipeline.device.type, "cuda")
 
         outputs = pipeline(**inputs).images
-
         self.assertIsInstance(outputs, np.ndarray)
         self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
@@ -331,8 +336,19 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
 
 class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "latent-consistency", "stable-diffusion-3"]
-    CALLBACK_SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "latent-consistency"]
+    SUPPORTED_ARCHITECTURES = [
+        "stable-diffusion",
+        "stable-diffusion-xl",
+        "latent-consistency",
+    ]
+    if check_if_transformers_greater("4.45"):
+        SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
+
+    CALLBACK_SUPPORTED_ARCHITECTURES = [
+        "stable-diffusion",
+        "stable-diffusion-xl",
+        "latent-consistency",
+    ]
 
     AUTOMODEL_CLASS = AutoPipelineForImage2Image
     ORTMODEL_CLASS = ORTPipelineForImage2Image
@@ -558,8 +574,17 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
 
 
 class ORTPipelineForInpaintingTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl", "stable-diffusion-3"]
-    CALLBACK_SUPPORTED_ARCHITECTURES = ["stable-diffusion", "stable-diffusion-xl"]
+    SUPPORTED_ARCHITECTURES = [
+        "stable-diffusion",
+        "stable-diffusion-xl",
+    ]
+    if check_if_transformers_greater("4.45"):
+        SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
+
+    CALLBACK_SUPPORTED_ARCHITECTURES = [
+        "stable-diffusion",
+        "stable-diffusion-xl",
+    ]
 
     AUTOMODEL_CLASS = AutoPipelineForInpainting
     ORTMODEL_CLASS = ORTPipelineForInpainting
@@ -748,7 +773,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
-        self.assertEqual(pipeline.device, "cuda")
+        self.assertEqual(pipeline.device.type, "cuda")
 
         outputs = pipeline(**inputs).images
         self.assertIsInstance(outputs, np.ndarray)
