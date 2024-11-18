@@ -1696,7 +1696,7 @@ IMAGE_CLASSIFICATION_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForImageClassification(ORTModel):
     """
-    ONNX Model for image-classification tasks. This class officially supports beit, convnext, convnextv2, data2vec_vision, deit, levit, mobilenet_v1, mobilenet_v2, mobilevit, poolformer, resnet, segformer, swin, vit.
+    ONNX Model for image-classification tasks. This class officially supports beit, convnext, convnextv2, data2vec_vision, deit, dinov2, levit, mobilenet_v1, mobilenet_v2, mobilevit, poolformer, resnet, segformer, swin, swinv2, vit.
     """
 
     auto_model_class = AutoModelForImageClassification
@@ -1784,7 +1784,7 @@ SEMANTIC_SEGMENTATION_EXAMPLE = r"""
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSemanticSegmentation(ORTModel):
     """
-    ONNX Model for semantic-segmentation, with an all-MLP decode head on top e.g. for ADE20k, CityScapes. This class officially supports segformer.
+    ONNX Model for semantic-segmentation, with an all-MLP decode head on top e.g. for ADE20k, CityScapes. This class officially supports maskformer, segformer.
     """
 
     auto_model_class = AutoModelForSemanticSegmentation
