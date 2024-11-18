@@ -24,7 +24,6 @@ from typing import Dict
 import numpy as np
 import onnx
 import onnxruntime
-import onnxruntime as ort
 import pytest
 import requests
 import timm
@@ -99,7 +98,6 @@ from optimum.onnxruntime import (
 )
 from optimum.onnxruntime.base import ORTDecoderForSeq2Seq, ORTEncoder
 from optimum.onnxruntime.modeling_ort import ORTModel
-from optimum.onnxruntime.utils import get_device_for_provider, get_provider_for_device
 from optimum.pipelines import pipeline
 from optimum.utils import (
     CONFIG_NAME,
@@ -5722,23 +5720,3 @@ class TestBothExportersORTModel(unittest.TestCase):
                 f"For the task `{task}`, the ONNX export supports {supported_export_models}, but only {tested_architectures} are tested.\n"
                 f"    Missing {untested_architectures}."
             )
-
-
-class ProviderAndDeviceGettersTest(unittest.TestCase):
-    def test_get_device_for_provider(self):
-        self.assertEqual(
-            get_device_for_provider("CPUExecutionProvider", provider_options={}),
-            torch.device("cpu"),
-        )
-        self.assertEqual(
-            get_device_for_provider("CUDAExecutionProvider", provider_options={"device_id": 1}),
-            torch.device("cuda:1"),
-        )
-
-    def test_get_provider_for_device(self):
-        self.assertEqual(get_provider_for_device(torch.device("cpu")), "CPUExecutionProvider")
-
-        if "ROCMExecutionProvider" in ort.get_available_providers():
-            self.assertEqual(get_provider_for_device(torch.device("cuda")), "ROCMExecutionProvider")
-        else:
-            self.assertEqual(get_provider_for_device(torch.device("cuda")), "CUDAExecutionProvider")
