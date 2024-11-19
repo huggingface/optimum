@@ -26,14 +26,11 @@ jobs:
             os: ubuntu-20.04
 
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Free Disk Space (Ubuntu)
         if: matrix.os == 'ubuntu-20.04'
         uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          swap-storage: false
-          large-packages: false
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -54,13 +51,11 @@ jobs:
         run: pip install transformers==${{ matrix.transformers-version }}
 
       - name: Test with pytest (in series)
-        working-directory: tests
         run: |
-          pytest onnxruntime -m "run_in_series" --durations=0 -vvvv -s
+          pytest tests/onnxruntime -m "run_in_series" --durations=0 -vvvv -s
 
       - name: Test with pytest (in parallel)
+        run: |
+          pytest tests/onnxruntime -m "not run_in_series" --durations=0 -vvvv -s -n auto
         env:
           HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
-        working-directory: tests
-        run: |
-          pytest onnxruntime -m "not run_in_series" --durations=0 -vvvv -s -n auto

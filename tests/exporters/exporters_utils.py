@@ -297,9 +297,11 @@ TENSORFLOW_EXPORT_MODELS = {
 }
 
 PYTORCH_DIFFUSION_MODEL = {
-    "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
-    "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
+    "flux": "optimum-internal-testing/tiny-random-flux",
     "latent-consistency": "echarlaix/tiny-random-latent-consistency",
+    "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
+    "stable-diffusion-3": "yujiepan/stable-diffusion-3-tiny-random",
+    "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
 }
 
 PYTORCH_TIMM_MODEL = {

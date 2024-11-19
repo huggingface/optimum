@@ -42,10 +42,10 @@ from optimum.utils.testing_utils import grid_parameters
 class ORTQuantizerTest(unittest.TestCase):
     LOAD_CONFIGURATION = {
         "local_asset": {
-            "model_or_path": "assets/onnx",
+            "model_or_path": "tests/assets/onnx",
         },
         "local_asset_different_name": {
-            "model_or_path": "assets/onnx",
+            "model_or_path": "tests/assets/onnx",
             "file_name": "different_name.onnx",
         },
         "ort_model_class": {

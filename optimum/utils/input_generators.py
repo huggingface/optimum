@@ -22,7 +22,7 @@ from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 from transformers.utils import is_tf_available, is_torch_available
 
-from ..utils import check_if_transformers_greater
+from ..utils import check_if_diffusers_greater, check_if_transformers_greater
 from .normalized_config import (
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
@@ -36,7 +36,7 @@ if is_torch_available():
     import torch
 
 if is_tf_available():
-    import tensorflow as tf
+    import tensorflow as tf  # type: ignore
 
 
 def check_framework_is_available(func):
@@ -871,8 +871,8 @@ class DummyTimestepInputGenerator(DummyInputGenerator):
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         if input_name == "timestep":
-            shape = [self.batch_size]
-            return self.random_int_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=int_dtype)
+            shape = []  # a scalar with no dimension (it can be int or float depending on the sd architecture)
+            return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=float_dtype)
 
         if input_name == "text_embeds":
             dim = self.text_encoder_projection_dim
@@ -1411,3 +1411,76 @@ class DummyIntGenerator(DummyInputGenerator):
         float_dtype: str = "fp32",
     ):
         return self.random_int_tensor(shape=(1,), min_value=20, max_value=22, framework=framework, dtype=int_dtype)
+
+
+class DummyTransformerTimestepInputGenerator(DummyTimestepInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("timestep",)
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "timestep":
+            shape = [self.batch_size]  # With transformer diffusers, timestep is a 1D tensor
+            return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=float_dtype)
+
+        return super().generate(input_name, framework, int_dtype, float_dtype)
+
+
+class DummyTransformerVisionInputGenerator(DummyVisionInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("hidden_states",)
+
+
+class DummyTransformerTextInputGenerator(DummySeq2SeqDecoderTextInputGenerator):
+    SUPPORTED_INPUT_NAMES = (
+        "encoder_hidden_states",
+        "pooled_projection",
+    )
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "encoder_hidden_states":
+            return super().generate(input_name, framework, int_dtype, float_dtype)[0]
+
+        elif input_name == "pooled_projections":
+            return self.random_float_tensor(
+                [self.batch_size, self.normalized_config.projection_size], framework=framework, dtype=float_dtype
+            )
+
+        return super().generate(input_name, framework, int_dtype, float_dtype)
+
+
+class DummyFluxTransformerVisionInputGenerator(DummyTransformerVisionInputGenerator):
+    SUPPORTED_INPUT_NAMES = (
+        "hidden_states",
+        "img_ids",
+    )
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "hidden_states":
+            shape = [self.batch_size, (self.height // 2) * (self.width // 2), self.num_channels]
+            return self.random_float_tensor(shape, framework=framework, dtype=float_dtype)
+        elif input_name == "img_ids":
+            shape = (
+                [(self.height // 2) * (self.width // 2), 3]
+                if check_if_diffusers_greater("0.31.0")
+                else [self.batch_size, (self.height // 2) * (self.width // 2), 3]
+            )
+            return self.random_int_tensor(shape, max_value=1, framework=framework, dtype=int_dtype)
+
+        return super().generate(input_name, framework, int_dtype, float_dtype)
+
+
+class DummyFluxTransformerTextInputGenerator(DummyTransformerTextInputGenerator):
+    SUPPORTED_INPUT_NAMES = (
+        "encoder_hidden_states",
+        "pooled_projections",
+        "txt_ids",
+    )
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "txt_ids":
+            shape = (
+                [self.sequence_length, 3]
+                if check_if_diffusers_greater("0.31.0")
+                else [self.batch_size, self.sequence_length, 3]
+            )
+            return self.random_int_tensor(shape, max_value=1, framework=framework, dtype=int_dtype)
+
+        return super().generate(input_name, framework, int_dtype, float_dtype)
