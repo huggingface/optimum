@@ -74,6 +74,7 @@ from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER
 from .model_patcher import (
     CLIPModelPatcher,
     FalconModelPatcher,
+    MgpstrModelPatcher,
     MistralModelPatcher,
     MusicgenModelPatcher,
     SAMModelPatcher,
@@ -82,7 +83,6 @@ from .model_patcher import (
     SpeechT5ModelPatcher,
     VisionEncoderDecoderPatcher,
     WavLMModelPatcher,
-    MgpstrModelPatcher,
 )
 
 
