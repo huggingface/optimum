@@ -117,6 +117,7 @@ MODEL_NAMES = {
     "m2m_100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "echarlaix/tiny-random-marian",
     "mbart": "hf-internal-testing/tiny-random-mbart",
+    "mgp-str": "hf-internal-testing/tiny-random-MgpstrForSceneTextRecognition",
     "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
     "mobilenet_v1": "google/mobilenet_v1_0.75_192",
