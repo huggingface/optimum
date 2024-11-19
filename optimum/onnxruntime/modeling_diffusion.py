@@ -1075,6 +1075,7 @@ ORT_IMAGE2IMAGE_PIPELINES_MAPPING = OrderedDict(
 ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
     [
         ("stable-diffusion", ORTStableDiffusionInpaintPipeline),
+        ("stable-diffusion-3", ORTStableDiffusion3InpaintPipeline),
         ("stable-diffusion-xl", ORTStableDiffusionXLInpaintPipeline),
     ]
 )
