@@ -527,13 +527,12 @@ class MgpstrModelPatcher(ModelPatcher):
             char_logits, bpe_logits, wp_logits = self.orig_forward(*args, **kwargs).logits
 
             return {
-                'char_logits': char_logits,
-                'bpe_logits': bpe_logits,
-                'wp_logits': wp_logits,
+                "char_logits": char_logits,
+                "bpe_logits": bpe_logits,
+                "wp_logits": wp_logits,
             }
 
         self.patched_forward = patched_forward
-
 
 
 class SAMModelPatcher(ModelPatcher):
