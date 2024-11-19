@@ -337,10 +337,6 @@ def _run_validation(
             ref_outputs = reference_model(**copy_reference_model_inputs)
     ref_outputs_dict = {}
 
-    # If the torch model outputs a tuple or list, we simply rename to the corresponding output name
-    if isinstance(ref_outputs, (tuple, list)):
-        ref_outputs = dict(zip(config.outputs.keys(), ref_outputs))
-
     # We flatten potential collection of outputs (i.e. past_keys) to a flat structure
     for name, value in ref_outputs.items():
         # Overwriting the output name as "present" since it is the name used for the ONNX outputs
