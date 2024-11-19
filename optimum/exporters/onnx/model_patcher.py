@@ -523,8 +523,14 @@ class MgpstrModelPatcher(ModelPatcher):
             signature = inspect.signature(self.orig_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
-            outputs = self.orig_forward(*args, **kwargs)
-            return outputs.logits
+            # logits is a tuple, so we unpack it and return them as separate outputs
+            char_logits, bpe_logits, wp_logits = self.orig_forward(*args, **kwargs).logits
+
+            return {
+                'char_logits': char_logits,
+                'bpe_logits': bpe_logits,
+                'wp_logits': wp_logits,
+            }
 
         self.patched_forward = patched_forward
 
