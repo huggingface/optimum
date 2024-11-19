@@ -799,6 +799,7 @@ class TasksManager:
         ),
         "mgp-str": supported_tasks_mapping(
             "feature-extraction",
+            "image-to-text",
             onnx="MgpstrOnnxConfig",
         ),
         "mistral": supported_tasks_mapping(
