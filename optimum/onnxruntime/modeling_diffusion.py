@@ -30,12 +30,8 @@ from diffusers.pipelines import (
     AutoPipelineForImage2Image,
     AutoPipelineForInpainting,
     AutoPipelineForText2Image,
-    FluxPipeline,
     LatentConsistencyModelImg2ImgPipeline,
     LatentConsistencyModelPipeline,
-    StableDiffusion3Img2ImgPipeline,
-    StableDiffusion3InpaintPipeline,
-    StableDiffusion3Pipeline,
     StableDiffusionImg2ImgPipeline,
     StableDiffusionInpaintPipeline,
     StableDiffusionPipeline,
@@ -955,48 +951,78 @@ class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsi
     auto_model_class = LatentConsistencyModelImg2ImgPipeline
 
 
-@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTStableDiffusion3Pipeline(ORTDiffusionPipeline, StableDiffusion3Pipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Pipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusion3Pipeline).
-    """
+class ORTUnavailablePipeline:
+    MIN_VERSION = None
 
-    main_input_name = "prompt"
-    export_feature = "text-to-image"
-    auto_model_class = StableDiffusion3Pipeline
-
-
-@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTStableDiffusion3Img2ImgPipeline(ORTDiffusionPipeline, StableDiffusion3Img2ImgPipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusion3Img2ImgPipeline).
-    """
-
-    main_input_name = "image"
-    export_feature = "image-to-image"
-    auto_model_class = StableDiffusion3Img2ImgPipeline
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError(
+            f"The pipeline {self.__class__.__name__} is not available in the current version of `diffusers`. "
+            f"Please upgrade `diffusers` to {self.MIN_VERSION} or later."
+        )
 
 
-@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTStableDiffusion3InpaintPipeline(ORTDiffusionPipeline, StableDiffusion3InpaintPipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3InpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusion3InpaintPipeline).
-    """
+if check_if_diffusers_greater("0.29.0"):
+    from diffusers import StableDiffusion3Img2ImgPipeline, StableDiffusion3Pipeline
 
-    main_input_name = "prompt"
-    export_feature = "inpainting"
-    auto_model_class = StableDiffusion3InpaintPipeline
+    @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+    class ORTStableDiffusion3Pipeline(ORTDiffusionPipeline, StableDiffusion3Pipeline):
+        """
+        ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Pipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusion3Pipeline).
+        """
+
+        main_input_name = "prompt"
+        export_feature = "text-to-image"
+        auto_model_class = StableDiffusion3Pipeline
+
+    @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+    class ORTStableDiffusion3Img2ImgPipeline(ORTDiffusionPipeline, StableDiffusion3Img2ImgPipeline):
+        """
+        ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusion3Img2ImgPipeline).
+        """
+
+        main_input_name = "image"
+        export_feature = "image-to-image"
+        auto_model_class = StableDiffusion3Img2ImgPipeline
+
+else:
+
+    class ORTStableDiffusion3Pipeline(ORTUnavailablePipeline):
+        MIN_VERSION = "0.29.0"
+
+    class ORTStableDiffusion3Img2ImgPipeline(ORTUnavailablePipeline):
+        MIN_VERSION = "0.29.0"
 
 
-@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTFluxPipeline(ORTDiffusionPipeline, FluxPipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux/text2img#diffusers.FluxPipeline).
-    """
+if check_if_diffusers_greater("0.30.0"):
+    from diffusers import FluxPipeline, StableDiffusion3InpaintPipeline
 
-    main_input_name = "prompt"
-    export_feature = "text-to-image"
-    auto_model_class = FluxPipeline
+    @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+    class ORTStableDiffusion3InpaintPipeline(ORTDiffusionPipeline, StableDiffusion3InpaintPipeline):
+        """
+        ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3InpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusion3InpaintPipeline).
+        """
+
+        main_input_name = "prompt"
+        export_feature = "inpainting"
+        auto_model_class = StableDiffusion3InpaintPipeline
+
+    @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+    class ORTFluxPipeline(ORTDiffusionPipeline, FluxPipeline):
+        """
+        ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux/text2img#diffusers.FluxPipeline).
+        """
+
+        main_input_name = "prompt"
+        export_feature = "text-to-image"
+        auto_model_class = FluxPipeline
+
+else:
+
+    class ORTStableDiffusion3InpaintPipeline(ORTUnavailablePipeline):
+        MIN_VERSION = "0.30.0"
+
+    class ORTFluxPipeline(ORTUnavailablePipeline):
+        MIN_VERSION = "0.30.0"
 
 
 SUPPORTED_ORT_PIPELINES = [
@@ -1049,7 +1075,6 @@ ORT_IMAGE2IMAGE_PIPELINES_MAPPING = OrderedDict(
 ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
     [
         ("stable-diffusion", ORTStableDiffusionInpaintPipeline),
-        ("stable-diffusion-3", ORTStableDiffusion3InpaintPipeline),
         ("stable-diffusion-xl", ORTStableDiffusionXLInpaintPipeline),
     ]
 )
