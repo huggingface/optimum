@@ -101,6 +101,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "gpt-neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt-neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
+    "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
     "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel",
@@ -297,9 +298,11 @@ TENSORFLOW_EXPORT_MODELS = {
 }
 
 PYTORCH_DIFFUSION_MODEL = {
-    "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
-    "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
+    "flux": "optimum-internal-testing/tiny-random-flux",
     "latent-consistency": "echarlaix/tiny-random-latent-consistency",
+    "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
+    "stable-diffusion-3": "yujiepan/stable-diffusion-3-tiny-random",
+    "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
 }
 
 PYTORCH_TIMM_MODEL = {

@@ -336,7 +336,11 @@ class TasksManager:
     }
 
     _DIFFUSERS_SUPPORTED_MODEL_TYPE = {
-        "clip-text-model": supported_tasks_mapping(
+        "t5-encoder": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="T5EncoderOnnxConfig",
+        ),
+        "clip-text": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPTextOnnxConfig",
         ),
@@ -344,7 +348,15 @@ class TasksManager:
             "feature-extraction",
             onnx="CLIPTextWithProjectionOnnxConfig",
         ),
-        "unet": supported_tasks_mapping(
+        "flux-transformer-2d": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="FluxTransformerOnnxConfig",
+        ),
+        "sd3-transformer-2d": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="SD3TransformerOnnxConfig",
+        ),
+        "unet-2d-condition": supported_tasks_mapping(
             "semantic-segmentation",
             onnx="UNetOnnxConfig",
         ),
@@ -922,6 +934,13 @@ class TasksManager:
             "text-classification",
             onnx="LlamaOnnxConfig",
         ),
+        "granite": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            onnx="GraniteOnnxConfig",
+        ),
         "pegasus": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -1177,12 +1196,17 @@ class TasksManager:
         "transformers": _SUPPORTED_MODEL_TYPE,
     }
     _UNSUPPORTED_CLI_MODEL_TYPE = {
-        "unet",
+        # diffusers model types
+        "clip-text",
+        "clip-text-with-projection",
+        "flux-transformer-2d",
+        "sd3-transformer-2d",
+        "t5-encoder",
+        "unet-2d-condition",
         "vae-encoder",
         "vae-decoder",
-        "clip-text-model",
-        "clip-text-with-projection",
-        "trocr",  # supported through the vision-encoder-decoder model type
+        # redundant model types
+        "trocr",  # same as vision-encoder-decoder
     }
     _SUPPORTED_CLI_MODEL_TYPE = (
         set(_SUPPORTED_MODEL_TYPE.keys())

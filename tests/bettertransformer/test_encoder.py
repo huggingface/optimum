@@ -181,7 +181,9 @@ class BetterTransformersEncoderTest(BetterTransformersTestMixin):
         If this works for roberta, it should work for all other models too.
         """
 
-        hf_model = AutoModel.from_pretrained("xlm-roberta-base", device_map="auto", max_memory=max_memory).eval()
+        hf_model = AutoModel.from_pretrained(
+            "xlm-roberta-base", device_map="auto", max_memory=max_memory, attn_implementation="eager"
+        ).eval()
         bt_model = BetterTransformer.transform(
             hf_model, keep_original_model=keep_original_model, max_memory=max_memory
         )

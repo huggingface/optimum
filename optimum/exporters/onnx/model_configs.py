@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model specific ONNX configurations."""
+
 import random
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
@@ -29,6 +30,8 @@ from ...utils import (
     DummyDecoderTextInputGenerator,
     DummyDecisionTransformerInputGenerator,
     DummyEncodecInputGenerator,
+    DummyFluxTransformerTextInputGenerator,
+    DummyFluxTransformerVisionInputGenerator,
     DummyInputGenerator,
     DummyIntGenerator,
     DummyPastKeyValuesGenerator,
@@ -39,6 +42,9 @@ from ...utils import (
     DummySpeechT5InputGenerator,
     DummyTextInputGenerator,
     DummyTimestepInputGenerator,
+    DummyTransformerTextInputGenerator,
+    DummyTransformerTimestepInputGenerator,
+    DummyTransformerVisionInputGenerator,
     DummyVisionEmbeddingsGenerator,
     DummyVisionEncoderDecoderPastKeyValuesGenerator,
     DummyVisionInputGenerator,
@@ -54,6 +60,7 @@ from ...utils import (
     NormalizedTextConfig,
     NormalizedTextConfigWithGQA,
     NormalizedVisionConfig,
+    check_if_diffusers_greater,
     check_if_transformers_greater,
     is_diffusers_available,
     logging,
@@ -156,7 +163,7 @@ class SplinterOnnxConfig(BertOnnxConfig):
 
 
 class DistilBertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for transformers>=4.46.0
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -284,10 +291,18 @@ class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
-class OPTOnnxConfig(TextDecoderOnnxConfig):
-    # OPT does not require position_ids input.
-    DEFAULT_ONNX_OPSET = 13
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+# OPT does not take position_ids as input for transfomers < v4.46, needs it for transformers >= v4.46
+if check_if_transformers_greater("4.45.99"):
+
+    class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+else:
+
+    class OPTOnnxConfig(TextDecoderOnnxConfig):
+        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+        NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -305,7 +320,12 @@ class Qwen2OnnxConfig(LlamaOnnxConfig):
 class GemmaOnnxConfig(LlamaOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
-    pass
+    MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
+
+
+class GraniteOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.45.0")
+    MIN_TORCH_VERSION = version.parse("2.5.0")
 
 
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -321,6 +341,15 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
     MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
+
+    def __init__(self, *args, **kwargs):
+        # TODO : replace check_if_transformers_greater with is_transformers_available
+        if check_if_transformers_greater("4.46.0") and not check_if_transformers_greater("4.46.1"):
+            logger.error(
+                "Found transformers v4.46.0 while trying to exporting a Phi3 model, this specific version of transformers is not supported. "
+                "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
+            )
+        super().__init__(*args, **kwargs)
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -344,6 +373,8 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 class MPTOnnxConfig(TextDecoderOnnxConfig):
     # MPT does not require position_ids input.
     DEFAULT_ONNX_OPSET = 13
+    # TODO: fix inference for transformers < v4.41 for beam_search > 1
+    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
     )
@@ -498,7 +529,7 @@ class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
 
 
 class T5OnnxConfig(TextSeq2SeqOnnxConfig):
-    DEFAULT_ONNX_OPSET = 13
+    DEFAULT_ONNX_OPSET = 14  # T5 uses aten::triu that requires opset>=14
     DUMMY_INPUT_GENERATOR_CLASSES = TextSeq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1] + (
         T5DummySeq2SeqPastKeyValuesGenerator,
     )
@@ -1033,21 +1064,12 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
             "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
             "pooler_output": {0: "batch_size"},
         }
+
         if self._normalized_config.output_hidden_states:
             for i in range(self._normalized_config.num_layers + 1):
                 common_outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_outputs
-
-    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
-        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
-
-        # TODO: fix should be by casting inputs during inference and not export
-        if framework == "pt":
-            import torch
-
-            dummy_inputs["input_ids"] = dummy_inputs["input_ids"].to(dtype=torch.int32)
-        return dummy_inputs
 
     def patch_model_for_export(
         self,
@@ -1058,7 +1080,7 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
 
 
 class UNetOnnxConfig(VisionOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-3
+    ATOL_FOR_VALIDATION = 1e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
@@ -1081,17 +1103,19 @@ class UNetOnnxConfig(VisionOnnxConfig):
     def inputs(self) -> Dict[str, Dict[int, str]]:
         common_inputs = {
             "sample": {0: "batch_size", 2: "height", 3: "width"},
-            "timestep": {0: "steps"},
+            "timestep": {},  # a scalar with no dimension
             "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
         }
 
-        # TODO : add text_image, image and image_embeds
+        # TODO : add addition_embed_type == text_image, image and image_embeds
+        # https://github.com/huggingface/diffusers/blob/9366c8f84bfe47099ff047272661786ebb54721d/src/diffusers/models/unets/unet_2d_condition.py#L671
         if getattr(self._normalized_config, "addition_embed_type", None) == "text_time":
             common_inputs["text_embeds"] = {0: "batch_size"}
             common_inputs["time_ids"] = {0: "batch_size"}
 
         if getattr(self._normalized_config, "time_cond_proj_dim", None) is not None:
             common_inputs["timestep_cond"] = {0: "batch_size"}
+
         return common_inputs
 
     @property
@@ -1130,7 +1154,7 @@ class UNetOnnxConfig(VisionOnnxConfig):
 
 
 class VaeEncoderOnnxConfig(VisionOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-4
+    ATOL_FOR_VALIDATION = 3e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
@@ -1175,6 +1199,101 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
             "sample": {0: "batch_size", 2: "height", 3: "width"},
+        }
+
+
+class T5EncoderOnnxConfig(TextEncoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    ATOL_FOR_VALIDATION = 1e-4
+    DEFAULT_ONNX_OPSET = 12  # int64 was supported since opset 12
+
+    @property
+    def inputs(self):
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self):
+        return {
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
+        }
+
+
+class SD3TransformerOnnxConfig(VisionOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-4
+    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
+    # operator support, available since opset 14
+    DEFAULT_ONNX_OPSET = 14
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTransformerTimestepInputGenerator,
+        DummyTransformerVisionInputGenerator,
+        DummyTransformerTextInputGenerator,
+    )
+
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        image_size="sample_size",
+        num_channels="in_channels",
+        vocab_size="attention_head_dim",
+        hidden_size="joint_attention_dim",
+        projection_size="pooled_projection_dim",
+        allow_new=True,
+    )
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = {
+            "hidden_states": {0: "batch_size", 2: "height", 3: "width"},
+            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
+            "pooled_projections": {0: "batch_size"},
+            "timestep": {0: "step"},
+        }
+
+        return common_inputs
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "out_hidden_states": {0: "batch_size", 2: "height", 3: "width"},
+        }
+
+    @property
+    def torch_to_onnx_output_map(self) -> Dict[str, str]:
+        return {
+            "sample": "out_hidden_states",
+        }
+
+
+class FluxTransformerOnnxConfig(SD3TransformerOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTransformerTimestepInputGenerator,
+        DummyFluxTransformerVisionInputGenerator,
+        DummyFluxTransformerTextInputGenerator,
+    )
+
+    @property
+    def inputs(self):
+        common_inputs = super().inputs
+        common_inputs["hidden_states"] = {0: "batch_size", 1: "packed_height_width"}
+        common_inputs["txt_ids"] = (
+            {0: "sequence_length"} if check_if_diffusers_greater("0.31.0") else {0: "batch_size", 1: "sequence_length"}
+        )
+        common_inputs["img_ids"] = (
+            {0: "packed_height_width"}
+            if check_if_diffusers_greater("0.31.0")
+            else {0: "batch_size", 1: "packed_height_width"}
+        )
+
+        if getattr(self._normalized_config, "guidance_embeds", False):
+            common_inputs["guidance"] = {0: "batch_size"}
+
+        return common_inputs
+
+    @property
+    def outputs(self):
+        return {
+            "out_hidden_states": {0: "batch_size", 1: "packed_height_width"},
         }
 
 
@@ -2045,6 +2164,7 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
 class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     ATOL_FOR_VALIDATION = 1e-3
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyVisionEncoderDecoderPastKeyValuesGenerator)
 
@@ -2174,8 +2294,21 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         DummySeq2SeqPastKeyValuesGenerator,
         DummyPix2StructInputGenerator,
     )
-    # Min operator needs to support int64, which is the case for opset>=12
-    DEFAULT_ONNX_OPSET = 12
+
+    DEFAULT_ONNX_OPSET = 14  # use 'aten::triu' now which is opset 14
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TODO : replace check_if_transformers_greater with is_transformers_available
+        if (
+            check_if_transformers_greater("4.46.0")
+            and not check_if_transformers_greater("4.46.1")
+            and self._behavior is ConfigBehavior.DECODER
+        ):
+            logger.error(
+                "Found transformers v4.46.0 while trying to exporting a Pix2Struct model, this specific version of transformers is not supported. "
+                "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
+            )
 
     @property
     def inputs(self):
@@ -2328,3 +2461,5 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
+
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.

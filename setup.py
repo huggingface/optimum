@@ -15,7 +15,7 @@ except Exception as error:
 REQUIRED_PKGS = [
     "coloredlogs",
     "sympy",
-    "transformers[sentencepiece]>=4.29",
+    "transformers>=4.29",
     "torch>=1.11",
     "packaging",
     "numpy",
@@ -37,9 +37,9 @@ TESTS_REQUIRE = [
     "diffusers>=0.17.0",
     "torchaudio",
     "einops",
-    "invisible-watermark",
     "timm",
     "scikit-learn",
+    "sentencepiece",
     "rjieba",
 ]
 
@@ -54,7 +54,7 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "transformers<4.46.0",
+        "transformers>=4.36,<4.47.0",
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -63,10 +63,20 @@ EXTRAS_REQUIRE = {
         "evaluate",
         "protobuf>=3.20.1",
         "accelerate",  # ORTTrainer requires it.
-        "transformers<4.46.0",
+        "transformers>=4.36,<4.47.0",
     ],
-    "exporters": ["onnx", "onnxruntime", "timm", "transformers<4.46.0"],
-    "exporters-gpu": ["onnx", "onnxruntime-gpu", "timm", "transformers<4.46.0"],
+    "exporters": [
+        "onnx",
+        "onnxruntime",
+        "timm",
+        "transformers>=4.36,<4.47.0",
+    ],
+    "exporters-gpu": [
+        "onnx",
+        "onnxruntime-gpu",
+        "timm",
+        "transformers>=4.36,<4.47.0",
+    ],
     "exporters-tf": [
         "tensorflow>=2.4,<=2.12.1",
         "tf2onnx",
@@ -76,7 +86,7 @@ EXTRAS_REQUIRE = {
         "h5py",
         "numpy<1.24.0",
         "datasets<=2.16",
-        "transformers[sentencepiece]>=4.26,<4.38",
+        "transformers>=4.36,<4.38",
     ],
     "diffusers": ["diffusers"],
     "intel": "optimum-intel>=1.18.0",
@@ -113,9 +123,10 @@ setup(
         "Intended Audience :: Education",
         "Intended Audience :: Science/Research",
         "Operating System :: OS Independent",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     keywords="transformers, quantization, pruning, optimization, training, inference, onnx, onnx runtime, intel, "
@@ -127,7 +138,7 @@ setup(
     packages=find_namespace_packages(include=["optimum*"]),
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS_REQUIRE,
-    python_requires=">=3.7.0",
+    python_requires=">=3.9.0",
     include_package_data=True,
     zip_safe=False,
     entry_points={"console_scripts": ["optimum-cli=optimum.commands.optimum_cli:main"]},

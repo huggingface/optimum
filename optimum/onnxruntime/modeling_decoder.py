@@ -340,7 +340,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if self.model_type == "gemma":
                 num_attention_heads = self.normalized_config.num_key_value_heads
                 embed_size_per_head = self.normalized_config.head_dim
-            elif self.model_type in {"mistral", "llama", "qwen2"}:
+            elif self.model_type in {"mistral", "llama", "qwen2", "granite"}:
                 num_attention_heads = self.normalized_config.num_key_value_heads
             else:
                 num_attention_heads = self.normalized_config.num_attention_heads
@@ -582,7 +582,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             init_cls = ORTFalconForCausalLM
         elif config.model_type == "mpt":
             init_cls = ORTMPTForCausalLM
-        elif config.model_type == "opt":
+        # if model was exported with position_ids it means the model was exported with transformers >= v4.46
+        elif config.model_type == "opt" and "position_ids" not in input_dims:
             init_cls = ORTOPTForCausalLM
         elif config.model_type == "gpt_bigcode":
             init_cls = ORTGPTBigCodeForCausalLM
@@ -839,7 +840,6 @@ class ORTOPTForCausalLM(ORTModelForCausalLM):
 
         attention_mask = kwargs.get("attention_mask", None)
         use_cache = kwargs.get("use_cache", None)
-
         return {
             "input_ids": input_ids,
             "past_key_values": past_key_values,

@@ -1183,6 +1183,10 @@ def onnx_export_from_model(
         if tokenizer_2 is not None:
             tokenizer_2.save_pretrained(output.joinpath("tokenizer_2"))
 
+        tokenizer_3 = getattr(model, "tokenizer_3", None)
+        if tokenizer_3 is not None:
+            tokenizer_3.save_pretrained(output.joinpath("tokenizer_3"))
+
         model.save_config(output)
 
     if float_dtype == "bf16":
