@@ -173,14 +173,6 @@ class OnnxConfig(ExportConfig, ABC):
                 "end_logits": {0: "batch_size", 1: "sequence_length"},
             }
         ),
-        "reinforcement-learning": OrderedDict(
-            {
-                "state_preds": {0: "batch_size", 1: "sequence_length", 2: "state_dim"},
-                "action_preds": {0: "batch_size", 1: "sequence_length", 2: "act_dim"},
-                "return_preds": {0: "batch_size", 1: "sequence_length"},
-                "last_hidden_state": {0: "batch_size", 1: "sequence_length", 2: "last_hidden_state"},
-            }
-        ),
         "semantic-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
         "text2text-generation": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
         "text-classification": OrderedDict({"logits": {0: "batch_size"}}),

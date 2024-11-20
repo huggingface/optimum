@@ -217,9 +217,7 @@ class TasksManager:
             "multiple-choice": "AutoModelForMultipleChoice",
             "object-detection": "AutoModelForObjectDetection",
             "question-answering": "AutoModelForQuestionAnswering",
-            "reinforcement-learning": (
-                "AutoModel",
-            ),  # multiple auto model families can be used for reinforcement-learning
+            "reinforcement-learning": "AutoModel",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
             "text-to-audio": ("AutoModelForTextToSpectrogram", "AutoModelForTextToWaveform"),
             "text-generation": "AutoModelForCausalLM",
@@ -579,7 +577,6 @@ class TasksManager:
         ),
         "decision-transformer": supported_tasks_mapping(
             "feature-extraction",
-            "feature-extraction-with-past",
             "reinforcement-learning",
             onnx="DecisionTransformerOnnxConfig",
         ),
