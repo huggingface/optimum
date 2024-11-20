@@ -85,15 +85,6 @@ class NormalizedTextConfig(NormalizedConfig):
     EOS_TOKEN_ID = "eos_token_id"
 
 
-class NormalizedDecisionTransformerConfig(NormalizedConfig):
-    # REFERENCE: https://huggingface.co/docs/transformers/model_doc/decision_transformer
-    ACT_DIM = "act_dim"
-    STATE_DIM = "state_dim"
-
-    MAX_EP_LEN = "max_ep_len"
-    HIDDEN_SIZE = "hidden_size"
-
-
 class NormalizedTextConfigWithGQA(NormalizedTextConfig):
     NUM_KEY_VALUE_HEADS = "num_key_value_heads"
 
@@ -245,7 +236,6 @@ class NormalizedConfigManager:
         "cvt": NormalizedVisionConfig,
         "deberta": NormalizedTextConfig,
         "deberta-v2": NormalizedTextConfig,
-        "decision-transformer": NormalizedDecisionTransformerConfig,
         "deit": NormalizedVisionConfig,
         "distilbert": NormalizedTextConfig.with_args(num_attention_heads="n_heads", hidden_size="dim"),
         "donut-swin": NormalizedVisionConfig,
