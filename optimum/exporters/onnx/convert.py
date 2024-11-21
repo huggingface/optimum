@@ -564,7 +564,7 @@ def export_pytorch(
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
         custom_export_fn (`Optional[Callable[..., None]]`, defaults to `None`):
-            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` is be used.
+            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` will be used.
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
@@ -810,7 +810,7 @@ def export_models(
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
         custom_export_fn (`Optional[Callable[..., None]]`, defaults to `None`):
-            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` is be used.
+            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` will be used.
         providers (`Optional[List[str]]`, defaults to `None`):
             ONNXRuntime execution provides used for the dynamic axis fix and the model validation. If `None` provided, it will be determined by the `device` param.
         session_options (`Optional["SessionOptions"]`, defaults to `None`):
@@ -906,7 +906,7 @@ def export(
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
         custom_export_fn (`Optional[Callable[..., None]]`, defaults to `None`):
-            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` is be used.
+            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` will be used.
         providers (`Optional[List[str]]`, defaults to `None`):
             ONNXRuntime execution provides used for the dynamic axis fix and the model validation. If `None` provided, it will be determined by the `device` param.
         session_options (`Optional["SessionOptions"]`, defaults to `None`):
@@ -1074,7 +1074,7 @@ def onnx_export_from_model(
         disable_dynamic_axes_fix (`Optional[bool]`, defaults to `False`):
             Whether to disable the default dynamic axes fixing.
         custom_export_fn (`Optional[Callable[..., None]]`, defaults to `None`):
-            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` is be used.
+            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` will be used.
         providers (`Optional[List[str]]`, defaults to `None`):
             ONNXRuntime execution provides used for the dynamic axis fix and the model validation. If `None` provided, it will be determined by the `device` param.
         session_options (`Optional["SessionOptions"]`, defaults to `None`):

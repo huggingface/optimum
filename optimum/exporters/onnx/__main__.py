@@ -187,7 +187,7 @@ def main_export(
         disable_dynamic_axes_fix (`Optional[bool]`, defaults to `False`):
             Whether to disable the default dynamic axes fixing.
         custom_export_fn (`Optional[Callable[..., None]]`, defaults to `None`):
-            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` is be used.
+            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` will be used.
         providers (`Optional[List[str]]`, defaults to `None`):
             ONNXRuntime execution provides used for the dynamic axis fix and the model validation. If `None` provided, it will be determined by the `device` param.
         session_options (`Optional["SessionOptions"]`, defaults to `None`):
