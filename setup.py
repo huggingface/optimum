@@ -13,14 +13,11 @@ except Exception as error:
 
 
 REQUIRED_PKGS = [
-    "coloredlogs",
-    "sympy",
     "transformers>=4.29",
     "torch>=1.11",
     "packaging",
     "numpy",
     "huggingface_hub>=0.8.0",
-    "datasets",
 ]
 
 # TODO: unpin pytest once https://github.com/huggingface/transformers/pull/29154 is merged & released
