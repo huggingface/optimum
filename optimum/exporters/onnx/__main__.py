@@ -22,7 +22,7 @@ from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, AutoTokenizer
-from transformers.utils import is_torch_available
+from transformers.utils import is_torch_available, is_tf_available
 
 from ...commands.export.onnx import parse_args_onnx
 from ...configuration_utils import _transformers_version
@@ -36,17 +36,30 @@ from .convert import onnx_export_from_model
 if is_torch_available():
     import torch
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
+if is_tf_available():
+    import tensorflow as tf
+
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union, List
 
 
 if TYPE_CHECKING:
     from .base import OnnxConfig
+    from ...utils.import_utils import is_onnxruntime_available, is_diffusers_available
+    if is_onnxruntime_available():
+        from onnxruntime import SessionOptions
+    if is_torch_available():
+        from transformers.modeling_utils import PreTrainedModel
+    if is_diffusers_available():
+        from diffusers import DiffusionPipeline
+    if is_tf_available():
+        from transformers.modeling_tf_utils import TFPreTrainedModel
 
 logger = logging.get_logger()
 
 
 def main_export(
-    model_name_or_path: str,
+    model_name_or_path_or_obj: Union[str, "PreTrainedModel",
+                                     "TFPreTrainedModel", "DiffusionPipeline"],
     output: Union[str, Path],
     task: str = "auto",
     opset: Optional[int] = None,
@@ -78,6 +91,10 @@ def main_export(
     legacy: bool = False,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
+    disable_dynamic_axes_fix: bool = False,
+    custom_export_fn: Optional[Callable[..., None]] = None,
+    providers: Optional[List[str]] = None,
+    session_options: Optional["SessionOptions"] = None,
     **kwargs_shapes,
 ):
     """
@@ -86,8 +103,9 @@ def main_export(
     Args:
         > Required parameters
 
-        model_name_or_path (`str`):
+        model_name_or_path_or_obj (`Union[str, "PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]`):
             Model ID on huggingface.co or path on disk to the model repository to export. Example: `model_name_or_path="BAAI/bge-m3"` or `mode_name_or_path="/path/to/model_folder`.
+            It is also possible to pass a model object to skip getting models from the export task.
         output (`Union[str, Path]`):
             Path indicating the directory where to store the generated ONNX model.
 
@@ -166,6 +184,14 @@ def main_export(
             If True, disables the use of dynamic axes during ONNX export.
         do_constant_folding (bool, defaults to `True`):
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
+        disable_dynamic_axes_fix (`Optional[bool]`, defaults to `False`):
+            Whether to disable the default dynamic axes fixing.
+        custom_export_fn (`Optional[Callable[..., None]]`, defaults to `None`):
+            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` is be used.
+        providers (`Optional[List[str]]`, defaults to `None`):
+            ONNXRuntime execution provides used for the dynamic axis fix and the model validation. If `None` provided, it will be determined by the `device` param.
+        session_options (`Optional["SessionOptions"]`, defaults to `None`):
+            ONNXRuntime session options used for the dynamic axis fix and the model validation. If `None` provided, a default `SessionOptions` object will be created.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -225,6 +251,24 @@ def main_export(
             f"The task `{task}` is deprecated and will be removed in a future release of Optimum. "
             "Please use one of the following tasks instead: `text-to-image`, `image-to-image`, `inpainting`."
         )
+
+    if isinstance(model_name_or_path_or_obj, str):
+        model = None
+        model_name_or_path = model_name_or_path_or_obj
+    else:
+        model = model_name_or_path_or_obj
+        model_name_or_path = model.config._name_or_path
+
+    if providers is None:
+        if device.startswith("cuda"):
+            if (is_torch_available()
+                    and torch.version.hip) or (is_tf_available()
+                                               and tf.test.is_built_with_rocm()):
+                providers = ["ROCMExecutionProvider"]
+            else:
+                providers = ["CUDAExecutionProvider"]
+        else:
+            providers = ["CPUExecutionProvider"]
 
     original_task = task
     task = TasksManager.map_from_synonym(task)
@@ -300,22 +344,23 @@ def main_export(
         if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and _transformers_version >= version.parse("4.35.99"):
             loading_kwargs["attn_implementation"] = "eager"
 
-    model = TasksManager.get_model_from_task(
-        task,
-        model_name_or_path,
-        subfolder=subfolder,
-        revision=revision,
-        cache_dir=cache_dir,
-        token=token,
-        local_files_only=local_files_only,
-        force_download=force_download,
-        trust_remote_code=trust_remote_code,
-        framework=framework,
-        torch_dtype=torch_dtype,
-        device=device,
-        library_name=library_name,
-        **loading_kwargs,
-    )
+    if model is None:
+        model = TasksManager.get_model_from_task(
+            task,
+            model_name_or_path,
+            subfolder=subfolder,
+            revision=revision,
+            cache_dir=cache_dir,
+            token=token,
+            local_files_only=local_files_only,
+            force_download=force_download,
+            trust_remote_code=trust_remote_code,
+            framework=framework,
+            torch_dtype=torch_dtype,
+            device=device,
+            library_name=library_name,
+            **loading_kwargs,
+        )
 
     needs_pad_token_id = task == "text-classification" and getattr(model.config, "pad_token_id", None) is None
 
@@ -390,6 +435,10 @@ def main_export(
         task=task,
         use_subprocess=use_subprocess,
         do_constant_folding=do_constant_folding,
+        disable_dynamic_axes_fix=disable_dynamic_axes_fix,
+        custom_export_fn=custom_export_fn,
+        providers=providers,
+        session_options=session_options,
         **kwargs_shapes,
     )
 

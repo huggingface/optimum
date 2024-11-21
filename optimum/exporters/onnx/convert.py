@@ -22,7 +22,7 @@ import traceback
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union, TYPE_CHECKING
 
 import numpy as np
 import onnx
@@ -65,8 +65,13 @@ if is_diffusers_available():
     from diffusers import DiffusionPipeline, ModelMixin
 
 if is_tf_available():
+    import tensorflow as tf
     from transformers.modeling_tf_utils import TFPreTrainedModel
 
+if TYPE_CHECKING:
+    from ...utils.import_utils import is_onnxruntime_available
+    if is_onnxruntime_available():
+        from onnxruntime import SessionOptions
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -111,6 +116,8 @@ def validate_models_outputs(
     device: str = "cpu",
     use_subprocess: Optional[bool] = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
+    providers: Optional[List[str]] = None,
+    session_options: Optional["SessionOptions"] = None,
 ):
     """
     Validates the export of several models, by checking that the outputs from both the reference and the exported model match.
@@ -137,6 +144,10 @@ def validate_models_outputs(
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export and validation.
+        providers (`Optional[List[str]]`, defaults to `None`):
+            ONNXRuntime execution provides used for the dynamic axis fix and the model validation. If `None` provided, it will be determined by the `device` param.
+        session_options (`Optional["SessionOptions"]`, defaults to `None`):
+            ONNXRuntime session options used for the dynamic axis fix and the model validation. If `None` provided, a default `SessionOptions` object will be created.
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
@@ -174,6 +185,8 @@ def validate_models_outputs(
                 device=device,
                 use_subprocess=use_subprocess,
                 model_kwargs=model_kwargs,
+                providers=providers,
+                session_options=session_options,
             )
         except Exception as e:
             exceptions.append((onnx_model_path, e))
@@ -194,6 +207,8 @@ def validate_model_outputs(
     device: str = "cpu",
     use_subprocess: Optional[bool] = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
+    providers: Optional[List[str]] = None,
+    session_options: Optional["SessionOptions"] = None,
 ):
     """
     Validates the export by checking that the outputs from both the reference and the exported model match.
@@ -217,6 +232,10 @@ def validate_model_outputs(
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export and validation.
+        providers (`Optional[List[str]]`, defaults to `None`):
+            ONNXRuntime execution provides used for the dynamic axis fix and the model validation. If `None` provided, it will be determined by the `device` param.
+        session_options (`Optional["SessionOptions"]`, defaults to `None`):
+            ONNXRuntime session options used for the dynamic axis fix and the model validation. If `None` provided, a default `SessionOptions` object will be created.
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
@@ -243,18 +262,23 @@ def validate_model_outputs(
             input_shapes,
             device,
             model_kwargs=model_kwargs,
+            providers=providers,
+            session_options=session_options,
         )
 
 
 def _run_validation(
     config: OnnxConfig,
-    reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
+    reference_model: Union["PreTrainedModel", "TFPreTrainedModel",
+                           "ModelMixin"],
     onnx_model: Path,
     onnx_named_outputs: List[str],
     atol: Optional[float] = None,
     input_shapes: Optional[Dict] = None,
     device: str = "cpu",
     model_kwargs: Optional[Dict[str, Any]] = None,
+    providers: Optional[List[str]] = None,
+    session_options: Optional["SessionOptions"] = None,
 ):
     from onnxruntime import GraphOptimizationLevel, SessionOptions
 
@@ -275,16 +299,25 @@ def _run_validation(
     reference_model_inputs = config.generate_dummy_inputs(framework=framework, **input_shapes)
 
     # Create ONNX Runtime session
-    session_options = SessionOptions()
+    if session_options is None:
+        session_options = SessionOptions()
+    # backup the original optimization level
+    original_opt_level = session_options.graph_optimization_level
     # We could well set ORT_DISABLE_ALL here, but it makes CUDA export with O4 of gpt_neo fail
     session_options.graph_optimization_level = GraphOptimizationLevel.ORT_ENABLE_BASIC
 
-    if device.startswith("cuda"):
-        provider = "CUDAExecutionProvider"
-    else:
-        provider = "CPUExecutionProvider"
+    if providers is None:
+        if device.startswith("cuda"):
+            if (is_torch_available()
+                    and torch.version.hip) or (is_tf_available()
+                                               and tf.test.is_built_with_rocm()):
+                providers = ["ROCMExecutionProvider"]
+            else:
+                providers = ["CUDAExecutionProvider"]
+        else:
+            providers = ["CPUExecutionProvider"]
 
-    session = PickableInferenceSession(onnx_model.as_posix(), sess_options=session_options, providers=[provider])
+    session = PickableInferenceSession(onnx_model.as_posix(), sess_options=session_options, providers=providers)
 
     # Sometimes the exported model can have more outputs than what is specified in the ONNX config because the original
     # PyTorch model has more outputs that were forgotten in the config, so we check for that.
@@ -372,6 +405,9 @@ def _run_validation(
     # Compute outputs from the ONNX model
     onnx_outputs = session.run(onnx_named_outputs, onnx_inputs)
 
+    # restore the original optimization level
+    session_options.graph_optimization_level = original_opt_level
+
     # Modify the ONNX output names to match the reference model output names
     onnx_to_torch = {v: k for k, v in config.torch_to_onnx_output_map.items()}
     onnx_named_outputs = [onnx_to_torch.get(k, k) for k in onnx_named_outputs]
@@ -446,6 +482,8 @@ class ValidationProcess(mp.Process):
         input_shapes: Optional[Dict] = None,
         device: str = "cpu",
         model_kwargs: Optional[Dict[str, Any]] = None,
+        providers: Optional[List[str]] = None,
+        session_options: Optional["SessionOptions"] = None,
     ):
         super().__init__()
         self._pconn, self._cconn = mp.Pipe()
@@ -458,6 +496,8 @@ class ValidationProcess(mp.Process):
         self.input_shapes = input_shapes
         self.device = device
         self.model_kwargs = model_kwargs
+        self.providers = providers
+        self.session_options = session_options
 
     def run(self):
         try:
@@ -470,6 +510,8 @@ class ValidationProcess(mp.Process):
                 input_shapes=self.input_shapes,
                 device=self.device,
                 model_kwargs=self.model_kwargs,
+                providers=self.providers,
+                session_options=self.session_options,
             )
         except Exception as e:
             tb = traceback.format_exc()
@@ -493,6 +535,7 @@ def export_pytorch(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
+    custom_export_fn: Optional[Callable[..., None]] = None
 ) -> Tuple[List[str], List[str]]:
     """
     Exports a PyTorch model to an ONNX Intermediate Representation.
@@ -520,12 +563,17 @@ def export_pytorch(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
+        custom_export_fn (`Optional[Callable[..., None]]`, defaults to `None`):
+            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` is be used.
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
         the ONNX configuration.
     """
-    from torch.onnx import export as onnx_export
+    if custom_export_fn is not None:
+        onnx_export = custom_export_fn
+    else:
+        from torch.onnx import export as onnx_export
     from torch.utils._pytree import tree_map
 
     logger.info(f"Using framework PyTorch: {torch.__version__}")
@@ -724,6 +772,9 @@ def export_models(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
+    custom_export_fn: Optional[Callable[..., None]] = None,
+    providers: Optional[List[str]] = None,
+    session_options: Optional["SessionOptions"] = None,
 ) -> Tuple[List[List[str]], List[List[str]]]:
     """
     Exports a Pytorch or TensorFlow encoder decoder model to an ONNX Intermediate Representation.
@@ -758,6 +809,12 @@ def export_models(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
+        custom_export_fn (`Optional[Callable[..., None]]`, defaults to `None`):
+            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` is be used.
+        providers (`Optional[List[str]]`, defaults to `None`):
+            ONNXRuntime execution provides used for the dynamic axis fix and the model validation. If `None` provided, it will be determined by the `device` param.
+        session_options (`Optional["SessionOptions"]`, defaults to `None`):
+            ONNXRuntime session options used for the dynamic axis fix and the model validation. If `None` provided, a default `SessionOptions` object will be created.
     Returns:
         `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
         outputs from the ONNX configuration.
@@ -792,6 +849,9 @@ def export_models(
                 no_dynamic_axes=no_dynamic_axes,
                 do_constant_folding=do_constant_folding,
                 model_kwargs=model_kwargs,
+                custom_export_fn=custom_export_fn,
+                providers=providers,
+                session_options=session_options,
             )
         )
 
@@ -811,6 +871,9 @@ def export(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
+    custom_export_fn: Optional[Callable[..., None]] = None,
+    providers: Optional[List[str]] = None,
+    session_options: Optional["SessionOptions"] = None,
 ) -> Tuple[List[str], List[str]]:
     """
     Exports a Pytorch or TensorFlow model to an ONNX Intermediate Representation.
@@ -842,6 +905,12 @@ def export(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
+        custom_export_fn (`Optional[Callable[..., None]]`, defaults to `None`):
+            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` is be used.
+        providers (`Optional[List[str]]`, defaults to `None`):
+            ONNXRuntime execution provides used for the dynamic axis fix and the model validation. If `None` provided, it will be determined by the `device` param.
+        session_options (`Optional["SessionOptions"]`, defaults to `None`):
+            ONNXRuntime session options used for the dynamic axis fix and the model validation. If `None` provided, a default `SessionOptions` object will be created.
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
@@ -895,6 +964,7 @@ def export(
             no_dynamic_axes=no_dynamic_axes,
             do_constant_folding=do_constant_folding,
             model_kwargs=model_kwargs,
+            custom_export_fn=custom_export_fn
         )
 
     elif is_tf_available() and issubclass(type(model), TFPreTrainedModel):
@@ -914,7 +984,11 @@ def export(
         )
 
     if not disable_dynamic_axes_fix:
-        config.fix_dynamic_axes(output, device=device, input_shapes=input_shapes, dtype=dtype)
+        config.fix_dynamic_axes(output,
+                                providers=providers,
+                                session_options=session_options,
+                                input_shapes=input_shapes,
+                                dtype=dtype)
     return export_output
 
 
@@ -938,6 +1012,10 @@ def onnx_export_from_model(
     task: Optional[str] = None,
     use_subprocess: bool = False,
     do_constant_folding: bool = True,
+    disable_dynamic_axes_fix: bool = False,
+    custom_export_fn: Optional[Callable[..., None]] = None,
+    providers: Optional[List[str]] = None,
+    session_options: Optional["SessionOptions"] = None,
     **kwargs_shapes,
 ):
     """
@@ -993,6 +1071,14 @@ def onnx_export_from_model(
             If True, disables the use of dynamic axes during ONNX export.
         do_constant_folding (bool, defaults to `True`):
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
+        disable_dynamic_axes_fix (`Optional[bool]`, defaults to `False`):
+            Whether to disable the default dynamic axes fixing.
+        custom_export_fn (`Optional[Callable[..., None]]`, defaults to `None`):
+            Customized PyTorch ONNX export function. If `None` provided, `torch.onnx.export` is be used.
+        providers (`Optional[List[str]]`, defaults to `None`):
+            ONNXRuntime execution provides used for the dynamic axis fix and the model validation. If `None` provided, it will be determined by the `device` param.
+        session_options (`Optional["SessionOptions"]`, defaults to `None`):
+            ONNXRuntime session options used for the dynamic axis fix and the model validation. If `None` provided, a default `SessionOptions` object will be created.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -1205,6 +1291,10 @@ def onnx_export_from_model(
         no_dynamic_axes=no_dynamic_axes,
         do_constant_folding=do_constant_folding,
         model_kwargs=model_kwargs,
+        disable_dynamic_axes_fix=disable_dynamic_axes_fix,
+        custom_export_fn=custom_export_fn,
+        providers=providers,
+        session_options=session_options,
     )
 
     if optimize is not None:
@@ -1254,6 +1344,8 @@ def onnx_export_from_model(
                 device=device,
                 use_subprocess=use_subprocess,
                 model_kwargs=model_kwargs,
+                providers=providers,
+                session_options=session_options,
             )
             logger.info(f"The ONNX export succeeded and the exported model was saved at: {output.as_posix()}")
         except ShapeError as e:

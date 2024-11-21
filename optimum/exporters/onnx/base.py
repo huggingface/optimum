@@ -63,6 +63,9 @@ if TYPE_CHECKING:
     if is_diffusers_available():
         from diffusers import ModelMixin
 
+    if is_onnxruntime_available():
+        from onnxruntime import SessionOptions
+
     from .model_patcher import PatchingSpec
 
 logger = logging.get_logger(__name__)
@@ -269,9 +272,12 @@ class OnnxConfig(ExportConfig, ABC):
             raise ValueError(f"The variant {value} is not supported for the ONNX config {self.__class__.__name__}.")
         self._variant = value
 
-    def fix_dynamic_axes(
-        self, model_path: "Path", device: str = "cpu", dtype: Optional[str] = None, input_shapes: Optional[Dict] = None
-    ):
+    def fix_dynamic_axes(self,
+                         model_path: "Path",
+                         providers: List[str],
+                         session_options: Optional["SessionOptions"] = None,
+                         dtype: Optional[str] = None,
+                         input_shapes: Optional[Dict] = None):
         """
         Fixes potential issues with dynamic axes.
         During the export, ONNX will infer some axes to be dynamic which are actually static. This method is called
@@ -280,6 +286,10 @@ class OnnxConfig(ExportConfig, ABC):
         Args:
             model_path (`Path`):
                 The path of the freshly exported ONNX model.
+            providers (`Optional[List[str]]`):
+                ONNXRuntime execution provides used for the dynamic axis fix and the model validation.
+            session_options (`Optional["SessionOptions"]`, defaults to `None`):
+                ONNXRuntime session options used for the dynamic axis fix and the model validation. If `None` provided, a default `SessionOptions` object will be created.
         """
         if not (is_onnx_available() and is_onnxruntime_available()):
             raise RuntimeError(
@@ -296,12 +306,10 @@ class OnnxConfig(ExportConfig, ABC):
         for output in self.outputs.values():
             allowed_dynamic_axes |= set(output.values())
 
-        if device.startswith("cuda"):
-            providers = ["CUDAExecutionProvider"]
-        else:
-            providers = ["CPUExecutionProvider"]
-
-        session_options = SessionOptions()
+        if session_options is None:
+            session_options = SessionOptions()
+        # backup the original optimization level
+        original_opt_level = session_options.graph_optimization_level
         session_options.graph_optimization_level = GraphOptimizationLevel.ORT_DISABLE_ALL  # no need to optimize here
         session = InferenceSession(model_path.as_posix(), providers=providers, sess_options=session_options)
 
@@ -349,6 +357,8 @@ class OnnxConfig(ExportConfig, ABC):
             )
             del onnx_model
             gc.collect()
+        # restore the original optimization level
+        session_options.graph_optimization_level = original_opt_level
 
     def patch_model_for_export(
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
