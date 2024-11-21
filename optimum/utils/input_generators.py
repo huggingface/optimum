@@ -513,11 +513,11 @@ class DummyDecisionTransformerInputGenerator(DummyTextInputGenerator):
     """
 
     SUPPORTED_INPUT_NAMES = (
+        "states",
         "actions",
         "timesteps",
-        "attention_mask",
         "returns_to_go",
-        "states",
+        "attention_mask",
     )
 
     def __init__(self, *args, **kwargs):
@@ -531,6 +531,8 @@ class DummyDecisionTransformerInputGenerator(DummyTextInputGenerator):
             shape = [self.batch_size, self.sequence_length, self.state_dim]
         elif input_name == "actions":
             shape = [self.batch_size, self.sequence_length, self.act_dim]
+        elif input_name == "rewards":
+            shape = [self.batch_size, self.sequence_length, 1]
         elif input_name == "returns_to_go":
             shape = [self.batch_size, self.sequence_length, 1]
         elif input_name == "attention_mask":

@@ -266,27 +266,25 @@ class ImageGPTOnnxConfig(GPT2OnnxConfig):
 
 class DecisionTransformerOnnxConfig(OnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyDecisionTransformerInputGenerator,)
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
-        act_dim="act_dim", state_dim="state_dim", max_ep_len="max_ep_len", hidden_size="hidden_size", allow_new=True
-    )
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {
+            "states": {0: "batch_size", 1: "sequence_length"},
+            "actions": {0: "batch_size", 1: "sequence_length"},
             "timesteps": {0: "batch_size", 1: "sequence_length"},
             "returns_to_go": {0: "batch_size", 1: "sequence_length"},
             "attention_mask": {0: "batch_size", 1: "sequence_length"},
-            "actions": {0: "batch_size", 1: "sequence_length", 2: "act_dim"},
-            "states": {0: "batch_size", 1: "sequence_length", 2: "state_dim"},
         }
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "state_preds": {0: "batch_size", 1: "sequence_length", 2: "state_dim"},
-            "action_preds": {0: "batch_size", 1: "sequence_length", 2: "act_dim"},
+            "state_preds": {0: "batch_size", 1: "sequence_length"},
+            "action_preds": {0: "batch_size", 1: "sequence_length"},
             "return_preds": {0: "batch_size", 1: "sequence_length"},
-            "last_hidden_state": {0: "batch_size", 1: "sequence_length", 2: "last_hidden_state"},
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
         }
 
 
