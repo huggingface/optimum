@@ -222,6 +222,7 @@ class TasksManager:
             "text-generation": "AutoModelForCausalLM",
             "text2text-generation": "AutoModelForSeq2SeqLM",
             "text-classification": "AutoModelForSequenceClassification",
+            "time-series-forecasting": "PatchTSTForPrediction",  # TODO: AutoModelForPrediction is not yet supported
             "token-classification": "AutoModelForTokenClassification",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
@@ -910,6 +911,10 @@ class TasksManager:
             "question-answering",
             "text-classification",
             onnx="OPTOnnxConfig",
+        ),
+        "patchtst": supported_tasks_mapping(
+            "time-series-forecasting",
+            onnx="PatchTSTOnnxConfig",
         ),
         "qwen2": supported_tasks_mapping(
             "feature-extraction",

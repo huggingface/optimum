@@ -113,6 +113,20 @@ class PatchingSpec:
     op_wrapper: Optional[Callable] = None
 
 
+# An ONNX-export-compatible version of `tensor.unfold`. Without this, we get:
+# torch.onnx.errors.SymbolicValueError: Unsupported: ONNX export of operator Unfold, input size not accessible.
+# See https://github.com/pytorch/pytorch/issues/81871 for more information
+def onnx_compatible_unfold(self, dimension, size, step):
+    num_patches = (self.size(dimension) - size) // step + 1
+    return torch.stack(
+        [self[:, i : i + size, :] for i in range(0, num_patches * step, step)],
+        dim=1,
+    ).transpose(3, 2)
+
+
+UNSUPPORTED_OPS_PATCHING_SPEC = [PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold)]
+
+
 class ModelPatcher:
     def __init__(
         self,
@@ -122,9 +136,11 @@ class ModelPatcher:
     ):
         self._model = model
 
-        patching_specs = config.PATCHING_SPECS
+        patching_specs = config.PATCHING_SPECS or []
+        patching_specs.extend(UNSUPPORTED_OPS_PATCHING_SPEC)
+
         self._patching_specs = []
-        for spec in patching_specs if patching_specs is not None else []:
+        for spec in patching_specs:
             final_spec = spec
             if spec.orig_op is None:
                 final_spec = dataclasses.replace(spec, orig_op=getattr(spec.o, spec.name))
