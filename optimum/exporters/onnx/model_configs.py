@@ -2483,3 +2483,7 @@ class PatchTSTOnnxConfig(OnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {"past_values": {0: "batch_size", 1: "sequence_length"}}
+
+
+class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
+    pass

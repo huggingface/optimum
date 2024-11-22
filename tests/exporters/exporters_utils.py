@@ -129,6 +129,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "owlv2": "hf-internal-testing/tiny-random-Owlv2Model",
     "owlvit": "hf-tiny-model-private/tiny-random-OwlViTModel",
     "patchtst": "ibm/test-patchtst",
+    "patchtsmixer": "ibm/test-patchtsmixer",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
         "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],
@@ -257,6 +258,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "owlv2": "google/owlv2-base-patch16",
     "owlvit": "google/owlvit-base-patch32",
     "patchtst": "ibm/test-patchtst",
+    "patchtsmixer": "ibm/test-patchtsmixer",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
