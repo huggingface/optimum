@@ -2484,6 +2484,13 @@ class PatchTSTOnnxConfig(OnnxConfig):
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {"past_values": {0: "batch_size", 1: "sequence_length"}}
 
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "feature-extraction":
+            return {"last_hidden_state": {0: "batch_size"}}
+        else:
+            return super().outputs
+
 
 class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
     pass
