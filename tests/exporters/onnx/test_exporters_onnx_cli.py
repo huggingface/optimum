@@ -15,14 +15,16 @@
 import os
 import subprocess
 import unittest
+from unittest import mock
+import itertools
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Dict, Optional
+from typing import Dict, Optional, Union, TYPE_CHECKING, List, Callable
 
 import onnx
 import pytest
 from parameterized import parameterized
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, is_torch_available
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, is_torch_available, AutoModel
 from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
 
 from optimum.exporters.error_utils import MinimumVersionError
@@ -33,11 +35,15 @@ from optimum.onnxruntime import (
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
 )
+from optimum.utils.import_utils import is_onnxruntime_available
 from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_sentence_transformers, require_timm
 
 
 if is_torch_available():
     from optimum.exporters.tasks import TasksManager
+
+if is_onnxruntime_available():
+    import onnxruntime as ort
 
 from ..exporters_utils import (
     NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
@@ -48,6 +54,15 @@ from ..exporters_utils import (
     PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
     PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES,
 )
+
+if TYPE_CHECKING:
+    from optimum.utils.import_utils import is_diffusers_available
+    from transformers import is_tf_available
+    from transformers.modeling_utils import PreTrainedModel
+    if is_diffusers_available():
+        from diffusers import DiffusionPipeline
+    if is_tf_available():
+        from transformers.modeling_tf_utils import TFPreTrainedModel
 
 
 def _get_models_to_test(export_models_dict: Dict, library_name: str):
@@ -174,7 +189,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
     def _onnx_export(
         self,
-        model_name: str,
+        model_name: Union[str, "PreTrainedModel", "TFPreTrainedModel",
+                          "DiffusionPipeline"],
         task: str,
         monolith: bool = False,
         no_post_process: bool = False,
@@ -184,6 +200,11 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         variant: str = "default",
         no_dynamic_axes: bool = False,
         model_kwargs: Optional[Dict] = None,
+        do_validation: bool = True,
+        disable_dynamic_axes_fix: bool = False,
+        custom_export_fn: Optional[Callable[..., None]] = None,
+        providers: Optional[List[str]] = None,
+        session_options: Optional["ort.SessionOptions"] = None,
     ):
         # We need to set this to some value to be able to test the outputs values for batch size > 1.
         if task == "text-classification":
@@ -206,13 +227,19 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     no_dynamic_axes=no_dynamic_axes,
                     pad_token_id=pad_token_id,
                     model_kwargs=model_kwargs,
+                    do_validation=do_validation,
+                    disable_dynamic_axes_fix=disable_dynamic_axes_fix,
+                    custom_export_fn=custom_export_fn,
+                    providers=providers,
+                    session_options=session_options,
                 )
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
 
     def _onnx_export_no_dynamic_axes(
         self,
-        model_name: str,
+        model_name: Union[str, "PreTrainedModel", "TFPreTrainedModel",
+                          "DiffusionPipeline"],
         task: str,
         input_shape: dict,
         input_shape_for_validation: tuple,
@@ -739,3 +766,119 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             model.save_pretrained(tmpdir_in)
 
             main_export(model_name_or_path=tmpdir_in, output=tmpdir_out, task="text-classification")
+
+    @parameterized.expand(itertools.product([False, True], ["cuda", "cpu"]))
+    @require_vision
+    @require_torch_gpu
+    @slow
+    @pytest.mark.run_slow
+    def test_customized_export(
+        self,
+        use_custom_op: bool,
+        device: str,
+    ):
+        import torch.version
+        from torch import nn
+        from torch.autograd import Function
+        from torch.onnx import export as pytorch_export, symbolic_helper
+
+        class CustomActivationFunc(Function):
+            @staticmethod
+            def forward(ctx, input_tensor):
+                return input_tensor
+
+            @staticmethod
+            def backward(ctx, grad_outputs: torch.Tensor):
+                return grad_outputs
+
+            @staticmethod
+            @symbolic_helper.parse_args("v")
+            def symbolic(g, input_tensor):
+                ret = g.op('CustomDomain::CustomActivation', input_tensor)
+                ret.setType(input_tensor.type())
+                return ret
+
+        class CustomActivation(nn.Module):
+            def forward(self, input_tensor):
+                return CustomActivationFunc.apply(input_tensor)
+
+        def replace_activation(model: nn.Module):
+            if hasattr(model, "intermediate_act_fn"):
+                setattr(model, "intermediate_act_fn", CustomActivation())
+            for child in model.children():
+                replace_activation(child)
+
+        test_name, model_type, model_name, task, variant, monolith, no_post_process = _get_models_to_test(
+            {
+                "beit":
+                "hf-internal-testing/tiny-random-BeitForImageClassification"
+            },
+            library_name="transformers")[0]
+
+        if device.startswith("cuda"):
+            if torch.version.hip:
+                providers = ["ROCMExecutionProvider"]
+            else:
+                providers = ["CUDAExecutionProvider"]
+        else:
+            providers = ["CPUExecutionProvider"]
+
+        if is_onnxruntime_available():
+            do_validation = True
+            so = ort.SessionOptions()
+        else:
+            do_validation = False
+            so = None
+
+        custom_export_mock = mock.MagicMock(side_effect=pytorch_export)
+
+        model = AutoModel.from_pretrained(model_name).to(device)
+        TasksManager.standardize_model_attributes(model)
+
+        if use_custom_op:
+            replace_activation(model)
+            if do_validation:
+                with pytest.raises(Exception):
+                    # this one will fail because no custom ops are registered in onnxruntime
+                    self._onnx_export(
+                        model,
+                        task,
+                        monolith,
+                        no_post_process,
+                        variant=variant,
+                        device=model.device,
+                        disable_dynamic_axes_fix=not do_validation,
+                        do_validation=do_validation,
+                        custom_export_fn=custom_export_mock,
+                        providers=providers,
+                        session_options=so,
+                    )
+            self._onnx_export(
+                model,
+                task,
+                monolith,
+                no_post_process,
+                variant=variant,
+                device=model.device,
+                disable_dynamic_axes_fix=True,
+                do_validation=False,
+                custom_export_fn=custom_export_mock,
+                providers=providers,
+                session_options=so,
+            )
+        else:
+            self._onnx_export(
+                model,
+                task,
+                monolith,
+                no_post_process,
+                variant=variant,
+                device=model.device,
+                disable_dynamic_axes_fix=not do_validation,
+                do_validation=do_validation,
+                custom_export_fn=custom_export_mock,
+                providers=providers,
+                session_options=so,
+            )
+
+        custom_export_mock.assert_called()

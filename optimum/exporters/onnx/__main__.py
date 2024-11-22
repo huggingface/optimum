@@ -58,8 +58,8 @@ logger = logging.get_logger()
 
 
 def main_export(
-    model_name_or_path_or_obj: Union[str, "PreTrainedModel",
-                                     "TFPreTrainedModel", "DiffusionPipeline"],
+    model_name_or_path: Union[str, "PreTrainedModel", "TFPreTrainedModel",
+                              "DiffusionPipeline"],
     output: Union[str, Path],
     task: str = "auto",
     opset: Optional[int] = None,
@@ -103,7 +103,7 @@ def main_export(
     Args:
         > Required parameters
 
-        model_name_or_path_or_obj (`Union[str, "PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]`):
+        model_name_or_path (`Union[str, "PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]`):
             Model ID on huggingface.co or path on disk to the model repository to export. Example: `model_name_or_path="BAAI/bge-m3"` or `mode_name_or_path="/path/to/model_folder`.
             It is also possible to pass a model object to skip getting models from the export task.
         output (`Union[str, Path]`):
@@ -252,11 +252,11 @@ def main_export(
             "Please use one of the following tasks instead: `text-to-image`, `image-to-image`, `inpainting`."
         )
 
-    if isinstance(model_name_or_path_or_obj, str):
+    if isinstance(model_name_or_path, str):
         model = None
-        model_name_or_path = model_name_or_path_or_obj
+        model_name_or_path = model_name_or_path
     else:
-        model = model_name_or_path_or_obj
+        model = model_name_or_path
         model_name_or_path = model.config._name_or_path
 
     if providers is None:
