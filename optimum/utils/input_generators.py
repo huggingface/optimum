@@ -507,6 +507,43 @@ class DummyDecoderTextInputGenerator(DummyTextInputGenerator):
     )
 
 
+class DummyDecisionTransformerInputGenerator(DummyTextInputGenerator):
+    """
+    Generates dummy decision transformer inputs.
+    """
+
+    SUPPORTED_INPUT_NAMES = (
+        "states",
+        "actions",
+        "timesteps",
+        "returns_to_go",
+        "attention_mask",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.act_dim = self.normalized_config.config.act_dim
+        self.state_dim = self.normalized_config.config.state_dim
+        self.max_ep_len = self.normalized_config.config.max_ep_len
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "states":
+            shape = [self.batch_size, self.sequence_length, self.state_dim]
+        elif input_name == "actions":
+            shape = [self.batch_size, self.sequence_length, self.act_dim]
+        elif input_name == "rewards":
+            shape = [self.batch_size, self.sequence_length, 1]
+        elif input_name == "returns_to_go":
+            shape = [self.batch_size, self.sequence_length, 1]
+        elif input_name == "attention_mask":
+            shape = [self.batch_size, self.sequence_length]
+        elif input_name == "timesteps":
+            shape = [self.batch_size, self.sequence_length]
+            return self.random_int_tensor(shape=shape, max_value=self.max_ep_len, framework=framework, dtype=int_dtype)
+
+        return self.random_float_tensor(shape, min_value=-2.0, max_value=2.0, framework=framework, dtype=float_dtype)
+
+
 class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
     SUPPORTED_INPUT_NAMES = (
         "decoder_input_ids",
