@@ -437,8 +437,21 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
     def _load_config(cls, config_name_or_path: Union[str, os.PathLike], **kwargs):
         return cls.load_config(config_name_or_path, **kwargs)
 
-    def _save_config(self, save_directory):
-        self.save_config(save_directory)
+    def _save_config(self, save_directory: Union[str, Path]):
+        model_dir = (
+            self.model_save_dir
+            if not isinstance(self.model_save_dir, TemporaryDirectory)
+            else self.model_save_dir.name
+        )
+        save_dir = Path(save_directory)
+        original_config = Path(model_dir) / self.config_name
+        if original_config.exists():
+            if not save_dir.exists():
+                save_dir.mkdir(parents=True)
+
+            shutil.copy(original_config, save_dir)
+        else:
+            self.save_config(save_directory)
 
     @property
     def components(self) -> Dict[str, Any]:

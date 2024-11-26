@@ -1508,6 +1508,7 @@ class DummyFluxTransformerTextInputGenerator(DummyTransformerTextInputGenerator)
     SUPPORTED_INPUT_NAMES = (
         "encoder_hidden_states",
         "pooled_projections",
+        "guidance",
         "txt_ids",
     )
 
@@ -1519,5 +1520,8 @@ class DummyFluxTransformerTextInputGenerator(DummyTransformerTextInputGenerator)
                 else [self.batch_size, self.sequence_length, 3]
             )
             return self.random_int_tensor(shape, max_value=1, framework=framework, dtype=int_dtype)
+        elif input_name == "guidance":
+            shape = [self.batch_size]
+            return self.random_float_tensor(shape, min_value=0, max_value=1, framework=framework, dtype=float_dtype)
 
         return super().generate(input_name, framework, int_dtype, float_dtype)
