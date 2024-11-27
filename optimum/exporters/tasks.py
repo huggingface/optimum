@@ -2128,6 +2128,7 @@ class TasksManager:
                 device=device,
                 cache_folder=cache_folder,
                 token=token,
+                revision=revision,
                 trust_remote_code=trust_remote_code,
             )
         else:
