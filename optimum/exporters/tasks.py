@@ -2139,6 +2139,7 @@ class TasksManager:
                         device = torch.device(device)
                     elif device is None:
                         device = torch.device("cpu")
+                    kwargs["device_map"] = device
 
                     # TODO : fix EulerDiscreteScheduler loading to enable for SD models
                     if version.parse(torch.__version__) >= version.parse("2.0") and library_name != "diffusers":
