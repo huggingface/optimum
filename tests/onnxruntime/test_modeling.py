@@ -143,7 +143,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.TEST_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
-        self.LOCAL_MODEL_PATH = "assets/onnx"
+        self.LOCAL_MODEL_PATH = "tests/assets/onnx"
         self.ONNX_MODEL_ID = "philschmid/distilbert-onnx"
         self.TINY_ONNX_MODEL_ID = "fxmarty/resnet-tiny-beans"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
@@ -2318,21 +2318,28 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "bloom",
         "codegen",
         "falcon",
-        "gemma",
         "gpt2",
         "gpt_bigcode",
         "gpt_neo",
         "gpt_neox",
         "gptj",
-        "granite",
         "llama",
         "mistral",
-        "mpt",
         "opt",
     ]
 
-    if check_if_transformers_greater("4.40"):
-        SUPPORTED_ARCHITECTURES.extend(["gemma", "phi3", "qwen2"])
+    if check_if_transformers_greater("4.37"):
+        SUPPORTED_ARCHITECTURES.append("qwen2")
+
+    if check_if_transformers_greater("4.38"):
+        SUPPORTED_ARCHITECTURES.append("gemma")
+
+    # TODO: fix "mpt" for which inference fails for transformers < v4.41
+    if check_if_transformers_greater("4.41"):
+        SUPPORTED_ARCHITECTURES.extend(["phi3", "mpt"])
+
+    if check_if_transformers_greater("4.45"):
+        SUPPORTED_ARCHITECTURES.append("granite")
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
@@ -2445,7 +2452,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         transformers_model = AutoModelForCausalLM.from_pretrained(model_id)
         transformers_model = transformers_model.eval()
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer("This is a sample input", return_tensors="pt")
         position_ids = None
         if model_arch.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
             input_shape = tokens["input_ids"].shape
@@ -2467,7 +2474,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         # Compare batched generation.
         tokenizer.pad_token_id = tokenizer.eos_token_id
         tokenizer.padding_side = "left"
-        tokens = tokenizer(["Today is a nice day and I am longer", "This is me"], return_tensors="pt", padding=True)
+        tokens = tokenizer(["This is", "This is a sample input"], return_tensors="pt", padding=True)
         onnx_model.generation_config.eos_token_id = None
         transformers_model.generation_config.eos_token_id = None
         onnx_model.config.eos_token_id = None
@@ -4598,14 +4605,14 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
-        self.assertEqual(
-            outputs_model_with_pkv.shape[1],
-            self.GENERATION_LENGTH + 2 if model_arch == "whisper" else self.GENERATION_LENGTH + 1,
-        )
-        self.assertEqual(
-            outputs_model_without_pkv.shape[1],
-            self.GENERATION_LENGTH + 2 if model_arch == "whisper" else self.GENERATION_LENGTH + 1,
-        )
+
+        if model_arch == "whisper" and check_if_transformers_greater("4.43"):
+            gen_length = self.GENERATION_LENGTH + 2
+        else:
+            gen_length = self.GENERATION_LENGTH + 1
+
+        self.assertEqual(outputs_model_with_pkv.shape[1], gen_length)
+        self.assertEqual(outputs_model_without_pkv.shape[1], gen_length)
 
         self.GENERATION_LENGTH = generation_length
         if os.environ.get("TEST_LEVEL", 0) == "1":

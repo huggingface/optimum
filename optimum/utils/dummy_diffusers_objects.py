@@ -15,6 +15,50 @@
 from .import_utils import DummyObject, requires_backends
 
 
+class ORTDiffusionPipeline(metaclass=DummyObject):
+    _backends = ["diffusers"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["diffusers"])
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        requires_backends(cls, ["diffusers"])
+
+
+class ORTPipelineForText2Image(metaclass=DummyObject):
+    _backends = ["diffusers"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["diffusers"])
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        requires_backends(cls, ["diffusers"])
+
+
+class ORTPipelineForImage2Image(metaclass=DummyObject):
+    _backends = ["diffusers"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["diffusers"])
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        requires_backends(cls, ["diffusers"])
+
+
+class ORTPipelineForInpainting(metaclass=DummyObject):
+    _backends = ["diffusers"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["diffusers"])
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        requires_backends(cls, ["diffusers"])
+
+
 class ORTStableDiffusionPipeline(metaclass=DummyObject):
     _backends = ["diffusers"]
 
@@ -70,6 +114,17 @@ class ORTStableDiffusionXLImg2ImgPipeline(metaclass=DummyObject):
         requires_backends(cls, ["diffusers"])
 
 
+class ORTStableDiffusionXLInpaintPipeline(metaclass=DummyObject):
+    _backends = ["diffusers"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["diffusers"])
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        requires_backends(cls, ["diffusers"])
+
+
 class ORTLatentConsistencyModelPipeline(metaclass=DummyObject):
     _backends = ["diffusers"]
 
@@ -81,7 +136,7 @@ class ORTLatentConsistencyModelPipeline(metaclass=DummyObject):
         requires_backends(cls, ["diffusers"])
 
 
-class ORTDiffusionPipeline(metaclass=DummyObject):
+class ORTLatentConsistencyModelImg2ImgPipeline(metaclass=DummyObject):
     _backends = ["diffusers"]
 
     def __init__(self, *args, **kwargs):
@@ -92,7 +147,7 @@ class ORTDiffusionPipeline(metaclass=DummyObject):
         requires_backends(cls, ["diffusers"])
 
 
-class ORTPipelineForText2Image(metaclass=DummyObject):
+class ORTStableDiffusion3Pipeline(metaclass=DummyObject):
     _backends = ["diffusers"]
 
     def __init__(self, *args, **kwargs):
@@ -103,7 +158,7 @@ class ORTPipelineForText2Image(metaclass=DummyObject):
         requires_backends(cls, ["diffusers"])
 
 
-class ORTPipelineForImage2Image(metaclass=DummyObject):
+class ORTStableDiffusion3Img2ImgPipeline(metaclass=DummyObject):
     _backends = ["diffusers"]
 
     def __init__(self, *args, **kwargs):
@@ -114,7 +169,18 @@ class ORTPipelineForImage2Image(metaclass=DummyObject):
         requires_backends(cls, ["diffusers"])
 
 
-class ORTPipelineForInpainting(metaclass=DummyObject):
+class ORTStableDiffusion3InpaintPipeline(metaclass=DummyObject):
+    _backends = ["diffusers"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["diffusers"])
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        requires_backends(cls, ["diffusers"])
+
+
+class ORTFluxPipeline(metaclass=DummyObject):
     _backends = ["diffusers"]
 
     def __init__(self, *args, **kwargs):

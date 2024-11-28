@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.9]
+        python-version: ['3.9']
         os: [ubuntu-20.04, windows-2019, macos-13]
 
     runs-on: ${{ matrix.os }}
@@ -36,5 +36,5 @@ jobs:
         shell: bash
         run: |
           # Setting HUGGINGFACE_CO_STAGING to true for only one job of the matrix as the staging tests cannot run in parallel.
-          export HUGGINGFACE_CO_STAGING=${{ matrix.python-version == '3.8' && matrix.os == 'ubuntu-20.04' }}
+          export HUGGINGFACE_CO_STAGING=${{ matrix.python-version == '3.9' && matrix.os == 'ubuntu-20.04' }}
           pytest tests/test_*.py
