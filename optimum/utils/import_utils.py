@@ -67,6 +67,7 @@ _pydantic_available = _is_package_available("pydantic")
 _accelerate_available = _is_package_available("accelerate")
 _diffusers_available = _is_package_available("diffusers")
 _auto_gptq_available = _is_package_available("auto_gptq")
+_gptqmodel_available = _is_package_available("gptqmodel")
 _timm_available = _is_package_available("timm")
 _sentence_transformers_available = _is_package_available("sentence_transformers")
 _datasets_available = _is_package_available("datasets")
@@ -145,6 +146,10 @@ def is_auto_gptq_available():
             raise ImportError(
                 f"Found an incompatible version of auto-gptq. Found version {version_autogptq}, but only version above {AUTOGPTQ_MINIMUM_VERSION} are supported"
             )
+
+
+def is_gptqmodel_available():
+    return _gptqmodel_available
 
 
 @contextmanager
