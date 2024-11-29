@@ -12,18 +12,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version:
-        - 3.8
         os:
         - ubuntu-20.04
         - macos-13
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
-    - name: Setup Python ${{ matrix.python-version }}
+    - name: Setup Python
       uses: actions/setup-python@v2
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: '3.9'
     - name: Install dependencies
       run: |
         pip install .[tests]
