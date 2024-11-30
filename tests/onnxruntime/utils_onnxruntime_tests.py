@@ -135,6 +135,7 @@ MODEL_NAMES = {
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "qwen2": "fxmarty/tiny-dummy-qwen2",
+    "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
     "roformer": "hf-internal-testing/tiny-random-RoFormerModel",
