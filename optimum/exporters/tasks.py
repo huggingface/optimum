@@ -431,6 +431,15 @@ class TasksManager:
             onnx="BertOnnxConfig",
             tflite="BertTFLiteConfig",
         ),
+        "rembert": supported_tasks_mapping(
+            "text-generation",
+            "fill-mask",
+            "text-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="RemBertOnnxConfig",
+        ),
         # For big-bird and bigbird-pegasus being unsupported, refer to model_configs.py
         # "big-bird": supported_tasks_mapping(
         #     "feature-extraction",
