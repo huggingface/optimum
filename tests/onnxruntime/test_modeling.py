@@ -1312,6 +1312,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         "squeezebert",
         "xlm_qa",
         "xlm_roberta",
+        "rembert",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
@@ -1502,6 +1503,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         "squeezebert",
         "xlm",
         "xlm_roberta",
+        "rembert",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
@@ -1682,6 +1684,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "squeezebert",
         "xlm",
         "xlm_roberta",
+        "rembert",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
@@ -1882,6 +1885,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         "squeezebert",
         "xlm",
         "xlm_roberta",
+        "rembert",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
@@ -2227,6 +2231,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
         "squeezebert",
         "xlm",
         "xlm_roberta",
+        "rembert",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}

@@ -138,6 +138,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "phi3": "Xenova/tiny-random-Phi3ForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     # "rembert": "google/rembert",
+    "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "qwen2": "fxmarty/tiny-dummy-qwen2",
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
@@ -257,7 +258,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "owlv2": "google/owlv2-base-patch16",
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
-    # "rembert": "google/rembert",
+    "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "regnet": "facebook/regnet-y-040",
     "resnet": "microsoft/resnet-50",
