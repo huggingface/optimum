@@ -432,8 +432,8 @@ class TasksManager:
             tflite="BertTFLiteConfig",
         ),
         "rembert": supported_tasks_mapping(
-            "text-generation",
             "fill-mask",
+            "feature-extraction",
             "text-classification",
             "multiple-choice",
             "token-classification",
