@@ -680,9 +680,19 @@ class GPTQQuantizer(object):
             quantizers (`Dict[str,Tuple]`):
                 A mapping of the layer name and the data needed to pack the layer
         """
-        QuantLinear = hf_select_quant_linear(
-            bits=self.bits, group_size=self.group_size, desc_act=self.desc_act, sym=self.sym
-        )
+        if is_gptqmodel_available():
+            QuantLinear = hf_select_quant_linear(
+                bits=self.bits, group_size=self.group_size, desc_act=self.desc_act, sym=self.sym
+            )
+        else:
+            QuantLinear = hf_select_quant_linear(
+                use_triton=False,
+                desc_act=self.desc_act,
+                group_size=self.group_size,
+                bits=self.bits,
+                disable_exllama=self.disable_exllama or self.exllama_version != ExllamaVersion.ONE,
+                disable_exllamav2=self.disable_exllama or self.exllama_version != ExllamaVersion.TWO,
+            )
         logger.info("Packing model...")
         layers = get_layers(model)
         layers = {n: layers[n] for n in quantizers}
