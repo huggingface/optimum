@@ -168,7 +168,7 @@ class ModelPatcher:
                         filterd_outputs[name] = value
             elif isinstance(outputs, (list, tuple)):
                 outputs_list = list(config.outputs.keys())
-                dict(zip(outputs_list, outputs))
+                filterd_outputs = dict(zip(outputs_list, outputs))
             else:
                 if len(config.outputs) > 1:
                     num_outputs = len(config.outputs)
