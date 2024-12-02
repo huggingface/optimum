@@ -564,9 +564,10 @@ class GPTQQuantizer(object):
                     h.remove()
                 for name in subset_name_list:
                     logger.info(f"Quantizing {name} in block {i + 1}/{len(blocks)}...")
-                    scale, zero, g_idx, _, _, _ = gptq[name].fasterquant(
+                    quant_outputs = gptq[name].fasterquant(
                         percdamp=self.damp_percent, group_size=self.group_size, actorder=self.desc_act
                     )
+                    scale, zero, g_idx = quant_outputs[0], quant_outputs[1], quant_outputs[2]
                     quantizers[f"{self.block_name_to_quantize}.{i}.{name}"] = (
                         gptq[name].quantizer,
                         scale,
