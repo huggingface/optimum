@@ -45,16 +45,24 @@ if is_auto_gptq_available():
     from auto_gptq import exllama_set_max_input_length
     from auto_gptq.modeling._utils import autogptq_post_init as gptq_post_init
     from auto_gptq.quantization import GPTQ
-    from auto_gptq.utils.import_utils import dynamically_import_QuantLinear as select_quant_linear
+    from auto_gptq.utils.import_utils import dynamically_import_QuantLinear as hf_select_quant_linear
 
 
 if is_gptqmodel_available():
     from gptqmodel import exllama_set_max_input_length
     from gptqmodel.quantization import GPTQ
-    from gptqmodel.utils.importer import select_quant_linear
+    from gptqmodel.utils.importer import hf_select_quant_linear
     from gptqmodel.utils.model import gptqmodel_post_init as gptq_post_init
 
 logger = getLogger(__name__)
+
+
+if not is_gptqmodel_available():
+    logger.warning("auto_gptq will be deprecated in the future, please `pip install gptqmodel` for gptq model")
+
+
+def has_device_more_than_cpu():
+    return torch.cuda.is_available() or (hasattr(torch, "xpu") and torch.xpu.is_available())
 
 
 class ExllamaVersion(int, Enum):
@@ -262,9 +270,19 @@ class GPTQQuantizer(object):
             name (`str`, defaults to `""`):
                 To keep track of the name of the current module
         """
-        QuantLinear = select_quant_linear(
-            bits=self.bits, group_size=self.group_size, desc_act=self.desc_act, sym=self.sym
-        )
+        if is_gptqmodel_available():
+            QuantLinear = hf_select_quant_linear(
+                bits=self.bits, group_size=self.group_size, desc_act=self.desc_act, sym=self.sym
+            )
+        else:
+            QuantLinear = hf_select_quant_linear(
+                use_triton=False,
+                desc_act=self.desc_act,
+                group_size=self.group_size,
+                bits=self.bits,
+                disable_exllama=self.disable_exllama or self.exllama_version != ExllamaVersion.ONE,
+                disable_exllamav2=self.disable_exllama or self.exllama_version != ExllamaVersion.TWO,
+            )
         if isinstance(module, QuantLinear):
             return
         for attr in dir(module):
@@ -283,16 +301,37 @@ class GPTQQuantizer(object):
                     in_features = layer.weight.shape[0]
                     out_features = layer.weight.shape[1]
                 bias = layer.bias is not None
-                new_layer = QuantLinear(
-                    self.bits,
-                    self.group_size,
-                    self.desc_act,
-                    self.sym,
-                    in_features,
-                    out_features,
-                    bias,
-                    weight_dtype=layer.weight.dtype,
-                )
+                if is_gptqmodel_available():
+                    new_layer = QuantLinear(
+                        self.bits,
+                        self.group_size,
+                        self.desc_act,
+                        self.sym,
+                        in_features,
+                        out_features,
+                        bias,
+                        weight_dtype=layer.weight.dtype,
+                    )
+                else:
+                    if not (self.desc_act) or self.group_size == -1:
+                        new_layer = QuantLinear(
+                            self.bits,
+                            self.group_size,
+                            in_features,
+                            out_features,
+                            bias,
+                            use_cuda_fp16=self.use_cuda_fp16,
+                            weight_dtype=layer.weight.dtype,
+                        )
+                    else:
+                        new_layer = QuantLinear(
+                            self.bits,
+                            self.group_size,
+                            in_features,
+                            out_features,
+                            bias,
+                            weight_dtype=layer.weight.dtype,
+                        )
                 new_layer.device = device
                 setattr(module, attr, new_layer.to(device))
         for name1, child in module.named_children():
@@ -320,7 +359,7 @@ class GPTQQuantizer(object):
 
         if not is_auto_gptq_available() and not is_gptqmodel_available():
             raise RuntimeError(
-                "auto-gptq or gptqmodel is required in order to perform quantzation : `pip install auto-gptq`"
+                "gptqmodel or auto-gptq is required in order to perform quantzation : `pip install gptqmodel` or `pip install auto-gptq`"
             )
 
         gptq_supports_cpu = (
@@ -411,8 +450,8 @@ class GPTQQuantizer(object):
         blocks = recurse_getattr(model, self.block_name_to_quantize)
 
         if not has_device_map:
-            # put modules from module_name_preceding_first_block on cuda or cpu
-            to_device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            # put modules from module_name_preceding_first_block on cuda or xpu or cpu
+            to_device = 0 if has_device_more_than_cpu() else "cpu"
             for module_name in self.module_name_preceding_first_block:
                 module = recurse_getattr(model, module_name)
                 if module is None:
@@ -440,7 +479,7 @@ class GPTQQuantizer(object):
             for data in dataset:
                 for k, v in data.items():
                     # put the data on gpu, we won't put them back to cpu
-                    if (not has_device_map or device.type == "cpu") and torch.cuda.is_available():
+                    if (not has_device_map or device.type == "cpu") and has_device_more_than_cpu():
                         data[k] = v.to(0)
                     else:
                         data[k] = v.to(device)
@@ -458,6 +497,8 @@ class GPTQQuantizer(object):
                     raise ValueError(f"Module {module_name} was not found in model")
 
         torch.cuda.empty_cache()
+        if hasattr(torch, "xpu"):
+            torch.xpu.empty_cache()
 
         # Step 3: Quantize the blocks
         quantizers = {}
@@ -469,7 +510,7 @@ class GPTQQuantizer(object):
                 for data in dataset:
                     for k, v in data.items():
                         # put the data on gpu, we won't put them back to cpu
-                        if (not has_device_map or device.type == "cpu") and torch.cuda.is_available():
+                        if (not has_device_map or device.type == "cpu") and has_device_more_than_cpu():
                             data[k] = v.to(0)
                         else:
                             data[k] = v.to(device)
@@ -481,7 +522,7 @@ class GPTQQuantizer(object):
 
             # move block to cuda if needed
             # in case we have offload modules, we need to put them on cuda because of GPTQ object
-            if (not has_device_map or get_device(block) == torch.device("cpu")) and torch.cuda.is_available():
+            if (not has_device_map or get_device(block) == torch.device("cpu")) and has_device_more_than_cpu():
                 block = block.to(0)
             layers = get_layers(block)
             if isinstance(self.modules_in_block_to_quantize, list) and len(self.modules_in_block_to_quantize) > 0:
@@ -551,6 +592,8 @@ class GPTQQuantizer(object):
                 del layer_inputs
                 layer_inputs = []
             torch.cuda.empty_cache()
+            if hasattr(torch, "xpu"):
+                torch.xpu.empty_cache()
 
         if self.bits == 4:
             # device not on gpu
@@ -586,6 +629,8 @@ class GPTQQuantizer(object):
         model = self.post_init_model(model)
 
         torch.cuda.empty_cache()
+        if hasattr(torch, "xpu"):
+            torch.xpu.empty_cache()
         return model
 
     def post_init_model(self, model):
@@ -634,7 +679,7 @@ class GPTQQuantizer(object):
             quantizers (`Dict[str,Tuple]`):
                 A mapping of the layer name and the data needed to pack the layer
         """
-        QuantLinear = select_quant_linear(
+        QuantLinear = hf_select_quant_linear(
             bits=self.bits, group_size=self.group_size, desc_act=self.desc_act, sym=self.sym
         )
         logger.info("Packing model...")
@@ -739,10 +784,12 @@ def load_quantized_model(
     Returns:
         `nn.Module`: The quantized model
     """
-    if not torch.cuda.is_available():
-        raise RuntimeError("No GPU found. A GPU is needed to run quantized model.")
-    if not is_auto_gptq_available():
-        raise RuntimeError("auto-gptq is required in order to load quantized weights : `pip install auto-gptq`")
+    if not torch.cuda.is_available() and not is_gptqmodel_available():
+        raise RuntimeError("No GPU found. A GPU is needed to run quantized model by auto_gptq.")
+    if not is_auto_gptq_available() and not is_gptqmodel_available():
+        raise RuntimeError(
+            "gptqmodel or auto-gptq is required in order to load quantized weights : `pip install gptqmodel` or `pip install auto-gptq`"
+        )
     if not is_accelerate_available():
         raise RuntimeError(
             "You need to install accelerate in order to load and dispatch weights to"
