@@ -287,7 +287,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "speech-to-text": "codenamewei/speech-to-text",
     "xlm": "xlm-clm-ende-1024",
     "xlm-roberta": "Unbabel/xlm-roberta-comet-small",
-    "visual_bert": "uclanlp/visualbert-vqa-coco-pre",
+    "visual-bert": "uclanlp/visualbert-vqa-coco-pre",
 }
 
 TENSORFLOW_EXPORT_MODELS = {
