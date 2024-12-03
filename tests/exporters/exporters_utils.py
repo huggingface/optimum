@@ -197,7 +197,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
             "document-question-answering-with-past",
         ],
     },
-    "visualbert": "hf-internal-testing/tiny-random-VisualBertModel",
+    "visual_bert": "hf-internal-testing/tiny-random-VisualBertModel",
 }
 
 
@@ -287,7 +287,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "speech-to-text": "codenamewei/speech-to-text",
     "xlm": "xlm-clm-ende-1024",
     "xlm-roberta": "Unbabel/xlm-roberta-comet-small",
-    "visualbert": "unc-nlp/visualbert-uncased",
+    "visual_bert": "uclanlp/visualbert-vqa-coco-pre",
 }
 
 TENSORFLOW_EXPORT_MODELS = {

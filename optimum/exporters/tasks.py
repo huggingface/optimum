@@ -1108,10 +1108,10 @@ class TasksManager:
             "text-to-audio",
             onnx="VitsOnnxConfig",
         ),
-        "visualbert": supported_tasks_mapping(
+        "visual_bert": supported_tasks_mapping(
             "multiple-choice",
             "question-answering",
-            "image-to-text",
+            "feature-extraction",
             onnx="VisualBertOnnxConfig",
         ),
         "wavlm": supported_tasks_mapping(

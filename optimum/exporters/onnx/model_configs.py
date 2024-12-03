@@ -121,6 +121,8 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
 class VisualBertOnnxConfig(TextAndVisionOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {
