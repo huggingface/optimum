@@ -1108,7 +1108,7 @@ class TasksManager:
             "text-to-audio",
             onnx="VitsOnnxConfig",
         ),
-        "visual_bert": supported_tasks_mapping(
+        "visual-bert": supported_tasks_mapping(
             "multiple-choice",
             "question-answering",
             "feature-extraction",
