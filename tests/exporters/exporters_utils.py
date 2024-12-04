@@ -116,6 +116,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "hf-internal-testing/tiny-random-mbart",
+    "mgp-str": "hf-internal-testing/tiny-random-MgpstrForSceneTextRecognition",
     "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
     "mobilenet-v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
@@ -247,6 +248,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "marian": "Helsinki-NLP/opus-mt-en-de",
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "mbart": "sshleifer/tiny-mbart",
+    "mgp-str": "alibaba-damo/mgp-str-base",
     "mobilebert": "google/mobilebert-uncased",
     # "mobilenet_v1": "google/mobilenet_v1_0.75_192",
     # "mobilenet_v2": "google/mobilenet_v2_0.35_96",

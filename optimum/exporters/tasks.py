@@ -211,7 +211,7 @@ class TasksManager:
             "image-classification": "AutoModelForImageClassification",
             "image-segmentation": ("AutoModelForImageSegmentation", "AutoModelForSemanticSegmentation"),
             "image-to-image": "AutoModelForImageToImage",
-            "image-to-text": "AutoModelForVision2Seq",
+            "image-to-text": ("AutoModelForVision2Seq", "AutoModel"),
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
             "multiple-choice": "AutoModelForMultipleChoice",
@@ -823,6 +823,11 @@ class TasksManager:
             "text-classification",
             "question-answering",
             onnx="MBartOnnxConfig",
+        ),
+        "mgp-str": supported_tasks_mapping(
+            "feature-extraction",
+            "image-to-text",
+            onnx="MgpstrOnnxConfig",
         ),
         "mistral": supported_tasks_mapping(
             "feature-extraction",
