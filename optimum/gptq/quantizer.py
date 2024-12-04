@@ -33,6 +33,7 @@ from .constants import GPTQ_CONFIG
 from .data import get_dataset, prepare_dataset
 from .utils import get_block_name_with_pattern, get_device, get_layers, get_preceding_modules, get_seqlen
 
+
 if is_accelerate_available():
     from accelerate import (
         cpu_offload_with_hook,
@@ -47,16 +48,13 @@ if is_auto_gptq_available():
     from auto_gptq.utils.import_utils import dynamically_import_QuantLinear as hf_select_quant_linear
 
 if is_gptqmodel_available():
-    from gptqmodel import exllama_set_max_input_length, BACKEND
+    from gptqmodel import exllama_set_max_input_length
     from gptqmodel.quantization import GPTQ
     from gptqmodel.utils.importer import hf_select_quant_linear
-    from gptqmodel.utils.model import hf_gptqmodel_post_init as gptq_post_init
     from gptqmodel.utils.model import hf_convert_gptq_v1_to_v2_format, hf_convert_gptq_v2_to_v1_format
+    from gptqmodel.utils.model import hf_gptqmodel_post_init as gptq_post_init
 
 logger = getLogger(__name__)
-
-if not is_gptqmodel_available():
-    logger.warning("auto_gptq will be deprecated in the future, please `pip install gptqmodel` for gptq model")
 
 
 def has_device_more_than_cpu():
@@ -371,22 +369,35 @@ class GPTQQuantizer(object):
 
         if not is_auto_gptq_available() and not is_gptqmodel_available():
             raise RuntimeError(
-                "gptqmodel or auto-gptq is required in order to perform gptq quantzation: `pip install gptqmodel` or `pip install auto-gptq`"
+                "gptqmodel or auto-gptq is required in order to perform gptq quantzation: `pip install gptqmodel` or `pip install auto-gptq`. Please notice that auto-gptq will be deprecated in the future."
+            )
+        elif is_gptqmodel_available() and is_auto_gptq_available():
+            logger.warning(
+                "Detected gptqmodel and auto-gptq, will use gptqmodel. The auto_gptq will be deprecated in the future."
             )
 
         gptq_supports_cpu = (
-                                    is_auto_gptq_available()
-                                    and version.parse(importlib.metadata.version("auto-gptq")) > version.parse("0.4.2")
-                            ) or is_gptqmodel_available()
-        
-        if not gptq_supports_cpu and not torch.cuda.is_available():
-            raise RuntimeError("No cuda gpu or cpu support using Intel/IPEX found. A gpu or avx512 enabled cpu with Intel/IPEX is required for quantization.")
+            is_auto_gptq_available()
+            and version.parse(importlib.metadata.version("auto-gptq")) > version.parse("0.4.2")
+        ) or (
+            is_gptqmodel_available()
+            and version.parse(importlib.metadata.version("gptqmodel")) > version.parse("1.3.0")
+        )
 
-        if self.sym == False and not is_gptqmodel_available():
-            raise ValueError("Asymmetric sym=False quantization is not supported with auto-gptq. Please use gptqmodel: `pip install gptqmodel`")
+        if not gptq_supports_cpu and not torch.cuda.is_available():
+            raise RuntimeError(
+                "No cuda gpu or cpu support using Intel/IPEX found. A gpu or cpu with Intel/IPEX is required for quantization."
+            )
+
+        if not self.sym and not is_gptqmodel_available():
+            raise ValueError(
+                "Asymmetric sym=False quantization is not supported with auto-gptq. Please use gptqmodel: `pip install gptqmodel`"
+            )
 
         if self.checkpoint_format == "gptq_v2" and not is_gptqmodel_available():
-            raise ValueError("gptq_v2 format only supported with gptqmodel. Please install gptqmodel: `pip install gptqmodel`")
+            raise ValueError(
+                "gptq_v2 format only supported with gptqmodel. Please install gptqmodel: `pip install gptqmodel`"
+            )
 
         model.eval()
 
@@ -654,7 +665,7 @@ class GPTQQuantizer(object):
 
         # convert gptqmodel internal gptq_v2 format to v1 for saving/compat
         # sym=False is valid for gptq_v2 format only. for sym=True, need to convert to v1 before save.
-        if self.sym != False and self.checkpoint_format == "gptq_v2":
+        if self.sym and self.checkpoint_format == "gptq_v2":
             model = hf_convert_gptq_v2_to_v1_format(model, self.bits, self.quant_linear)
             self.checkpoint_format = "gptq"
 
@@ -691,17 +702,17 @@ class GPTQQuantizer(object):
         model.quantize_config.desc_act = self.desc_act
         model = gptq_post_init(model, use_act_order=self.desc_act)
         if (
-                self.desc_act
-                and (not self.disable_exllama and self.exllama_version == ExllamaVersion.ONE)
-                and self.max_input_length is not None
+            self.desc_act
+            and (not self.disable_exllama and self.exllama_version == ExllamaVersion.ONE)
+            and self.max_input_length is not None
         ):
             model = exllama_set_max_input_length(model, self.max_input_length)
         return model
 
     def pack_model(
-            self,
-            model: nn.Module,
-            quantizers: Dict[str, Tuple],
+        self,
+        model: nn.Module,
+        quantizers: Dict[str, Tuple],
     ):
         """
         Pack the model by replacing the layers by quantized layers
@@ -821,7 +832,7 @@ def load_quantized_model(
         raise RuntimeError("No GPU found. A GPU is needed to run quantized model by auto_gptq.")
     if not is_auto_gptq_available() and not is_gptqmodel_available():
         raise RuntimeError(
-            "gptqmodel or auto-gptq is required in order to load quantized weights : `pip install gptqmodel` or `pip install auto-gptq`"
+            "gptqmodel (`pip install gptqmodel`) or auto-gptq (`pip install auto-gptq`) is required in order to load quantized weights. Please notice that auto-gptq will be deprecated in the future."
         )
     if not is_accelerate_available():
         raise RuntimeError(
