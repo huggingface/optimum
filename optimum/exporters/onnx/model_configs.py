@@ -1875,6 +1875,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
             try:
                 from ...onnx import merge_decoders
+
                 # The decoder with past does not output the cross attention past key values as they are constant,
                 # hence the need for strict=False
                 merge_decoders(
