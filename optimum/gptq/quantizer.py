@@ -381,7 +381,7 @@ class GPTQQuantizer(object):
             and version.parse(importlib.metadata.version("auto-gptq")) > version.parse("0.4.2")
         ) or (
             is_gptqmodel_available()
-            and version.parse(importlib.metadata.version("gptqmodel")) > version.parse("1.3.0")
+            and version.parse(importlib.metadata.version("gptqmodel")) > version.parse("1.3.1")
         )
 
         if not gptq_supports_cpu and not torch.cuda.is_available():
