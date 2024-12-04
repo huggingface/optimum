@@ -16,7 +16,8 @@
 """Utilities for model preparation to export."""
 
 import copy
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from inspect import signature
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import torch
 from packaging import version
@@ -675,3 +676,27 @@ def _get_submodels_and_export_configs(
         export_config = next(iter(models_and_export_configs.values()))[1]
 
     return export_config, models_and_export_configs
+
+
+def check_dummy_inputs_are_allowed(
+    model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], dummy_input_names: Iterable[str]
+):
+    """
+    Checks that the dummy inputs from the ONNX config is a subset of the allowed inputs for `model`.
+    Args:
+        model (`Union[transformers.PreTrainedModel, transformers.TFPreTrainedModel`]):
+            The model instance.
+        model_inputs (`Iterable[str]`):
+            The model input names.
+    """
+
+    forward = model.forward if is_torch_available() and isinstance(model, nn.Module) else model.call
+    forward_parameters = signature(forward).parameters
+    forward_inputs_set = set(forward_parameters.keys())
+    dummy_input_names = set(dummy_input_names)
+
+    # We are fine if config_inputs has more keys than model_inputs
+    if not dummy_input_names.issubset(forward_inputs_set):
+        raise ValueError(
+            f"Config dummy inputs are not a subset of the model inputs: {dummy_input_names} vs {forward_inputs_set}"
+        )
