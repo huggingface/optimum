@@ -158,12 +158,12 @@ class GPTQTest(unittest.TestCase):
                 disable_exllama=self.disable_exllama,
                 exllama_config=self.exllama_config,
             )
-            # Only auto-gptq need to check the quant type
             if is_auto_gptq_available() and not is_gptqmodel_available():
-                if self.disable_exllama:
-                    self.check_quantized_layers_type(quantized_model_from_saved, "cuda-old")
-                else:
-                    self.check_quantized_layers_type(quantized_model_from_saved, "exllama")
+                quant_type = "cuda-old" if self.disable_exllama else "exllama"
+            else:
+                quant_type = "ipex" if self.device_map_for_quantization == "cpu" else "cuda"
+
+            self.check_quantized_layers_type(quantized_model_from_saved, quant_type)
 
             # transformers and auto-gptq compatibility
             # quantized models are more compatible with device map than
