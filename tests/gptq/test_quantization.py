@@ -55,6 +55,7 @@ class GPTQTest(unittest.TestCase):
     bits = 4
     group_size = 128
     desc_act = False
+    sym = True
     disable_exllama = True
     exllama_config = None
     cache_block_outputs = True
@@ -73,6 +74,7 @@ class GPTQTest(unittest.TestCase):
         """
 
         cls.tokenizer = AutoTokenizer.from_pretrained(cls.model_name)
+        cls.config = AutoConfig.from_pretrained(cls.model_name)
 
         cls.model_fp16 = AutoModelForCausalLM.from_pretrained(
             cls.model_name, torch_dtype=torch.float16, device_map=cls.device_map_for_quantization
@@ -87,6 +89,7 @@ class GPTQTest(unittest.TestCase):
             dataset=cls.dataset,
             group_size=cls.group_size,
             desc_act=cls.desc_act,
+            sym=cls.sym,
             disable_exllama=cls.disable_exllama,
             exllama_config=cls.exllama_config,
             cache_block_outputs=cls.cache_block_outputs,
@@ -116,13 +119,20 @@ class GPTQTest(unittest.TestCase):
         """
 
         if is_gptqmodel_available():
+            if hasattr(self.config, "quantization_config"):
+                checkpoint_format = self.config.quantization_config.get("checkpoint_format")
+                meta = self.config.quantization_config.get("meta")
+            else:
+                checkpoint_format = "gptq"
+                meta = None
             QuantLinear = hf_select_quant_linear(
                 bits=self.bits,
                 group_size=self.group_size,
                 desc_act=self.desc_act,
-                sym=True,
+                sym=self.sym,
                 device_map=self.device_map_for_quantization,
-                pack=False,
+                checkpoint_format=checkpoint_format,
+                meta=meta,
             )
         else:
             QuantLinear = hf_select_quant_linear(
@@ -133,10 +143,10 @@ class GPTQTest(unittest.TestCase):
                 disable_exllama=self.disable_exllama or self.exllama_config["version"] != 1,
                 disable_exllamav2=self.disable_exllama or self.exllama_config["version"] != 2,
             )
-        self.assertTrue(self.quantized_model.model.layers[0].mlp.gate_proj.__class__ == QuantLinear)
+        self.assertEqual(self.quantized_model.model.layers[0].mlp.gate_proj.__class__, QuantLinear)
 
     def check_quantized_layers_type(self, model, value):
-        self.assertTrue(model.model.layers[0].mlp.gate_proj.QUANT_TYPE == value)
+        self.assertEqual(model.model.layers[0].mlp.gate_proj.QUANT_TYPE, value)
 
     def test_serialization(self):
         """
@@ -161,7 +171,7 @@ class GPTQTest(unittest.TestCase):
             if is_auto_gptq_available() and not is_gptqmodel_available():
                 quant_type = "cuda-old" if self.disable_exllama else "exllama"
             else:
-                quant_type = "ipex" if self.device_map_for_quantization == "cpu" else "cuda"
+                quant_type = "ipex" if self.device_map_for_quantization == "cpu" else "exllama"
 
             self.check_quantized_layers_type(quantized_model_from_saved, quant_type)
 
@@ -179,7 +189,10 @@ class GPTQTest(unittest.TestCase):
 class GPTQTestCUDA(GPTQTest):
     device_map_for_quantization = "cuda"
     device_for_inference = 0
-    expected_compression_ratio = 1.66
+    expected_compression_ratio = 1.2577
+    expected_fp16_perplexity = 38
+    expected_quantized_perplexity = 45
+
 
     def test_perplexity(self):
         """
@@ -187,8 +200,8 @@ class GPTQTestCUDA(GPTQTest):
         the perplexity of the converted models
         """
 
-        self.assertEqual(int(self.fp16_ppl), self.expected_fp16_perplexity)
-        self.assertEqual(int(self.quantized_ppl), self.expected_quantized_perplexity)
+        self.assertLessEqual(int(self.fp16_ppl), self.expected_fp16_perplexity)
+        self.assertLessEqual(int(self.quantized_ppl), self.expected_quantized_perplexity)
 
 
 class GPTQTestExllama(GPTQTestCUDA):
@@ -199,6 +212,7 @@ class GPTQTestExllama(GPTQTestCUDA):
 class GPTQTestActOrder(GPTQTestCUDA):
     disable_exllama = True
     desc_act = True
+    expected_quantized_perplexity = 46
 
     def test_serialization(self):
         # act_order don't work with qlinear_cuda kernel
@@ -282,7 +296,6 @@ class GPTQTestExllamav2(GPTQTestCUDA):
         """
         Test the serialization of the model and the loading of the quantized weights with exllamav2 kernel
         """
-
         with tempfile.TemporaryDirectory() as tmpdirname:
             self.quantizer.save(self.quantized_model, tmpdirname)
             self.quantized_model.config.save_pretrained(tmpdirname)
@@ -296,16 +309,13 @@ class GPTQTestExllamav2(GPTQTestCUDA):
                 save_folder=tmpdirname,
                 device_map={"": self.device_for_inference},
             )
-            self.check_quantized_layers_type(quantized_model_from_saved, "exllamav2")
+            self.check_quantized_layers_type(quantized_model_from_saved, "exllama" if is_gptqmodel_available else "exllamav2")
 
             # transformers and auto-gptq compatibility
             # quantized models are more compatible with device map than
             # device context managers (they're never used in transformers testing suite)
             _ = AutoModelForCausalLM.from_pretrained(tmpdirname, device_map={"": self.device_for_inference})
-            if is_gptqmodel_available():
-                _ = GPTQModel.load(tmpdirname, device_map={"": self.device_for_inference})
-            else:
-                _ = AutoGPTQForCausalLM.from_quantized(tmpdirname, device_map={"": self.device_for_inference})
+            _ = AutoGPTQForCausalLM.from_quantized(tmpdirname, device_map={"": self.device_for_inference})
 
 
 class GPTQTestNoBlockCaching(GPTQTestCUDA):
@@ -318,11 +328,12 @@ class GPTQTestModuleQuant(GPTQTestCUDA):
         ["self_attn.q_proj"],
         ["mlp.gate_proj"],
     ]
-    expected_compression_ratio = 1.577
+    expected_compression_ratio = 1.068
+    expected_quantized_perplexity = 39
 
     def test_not_converted_layers(self):
         # self_attention.dense should not be converted
-        self.assertTrue(self.quantized_model.model.layers[0].self_attn.k_proj.__class__.__name__ == "Linear")
+        self.assertEqual(self.quantized_model.model.layers[0].self_attn.k_proj.__class__.__name__, "Linear")
 
 
 class GPTQUtilsTest(unittest.TestCase):

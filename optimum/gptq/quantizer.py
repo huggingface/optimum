@@ -32,6 +32,7 @@ from ..utils.modeling_utils import recurse_getattr
 from .constants import GPTQ_CONFIG
 from .data import get_dataset, prepare_dataset
 from .utils import get_block_name_with_pattern, get_device, get_layers, get_preceding_modules, get_seqlen
+from ..version import __version__ as optimum_version
 
 
 if is_accelerate_available():
@@ -46,6 +47,7 @@ if is_auto_gptq_available():
     from auto_gptq.modeling._utils import autogptq_post_init as gptq_post_init
     from auto_gptq.quantization import GPTQ
     from auto_gptq.utils.import_utils import dynamically_import_QuantLinear as hf_select_quant_linear
+    from auto_gptq import __version__ as autogptq_version
 
 if is_gptqmodel_available():
     from gptqmodel import exllama_set_max_input_length
@@ -53,6 +55,7 @@ if is_gptqmodel_available():
     from gptqmodel.utils.importer import hf_select_quant_linear
     from gptqmodel.utils.model import hf_convert_gptq_v1_to_v2_format, hf_convert_gptq_v2_to_v1_format
     from gptqmodel.utils.model import hf_gptqmodel_post_init as gptq_post_init
+    from gptqmodel.version import __version__ as gptqmodel_version
 
 logger = getLogger(__name__)
 
@@ -80,15 +83,17 @@ class GPTQQuantizer(object):
         desc_act: bool = False,
         sym: bool = True,
         true_sequential: bool = True,
-        use_cuda_fp16: bool = False,
         checkpoint_format: str = "gptq",
+        meta: Optional[Dict[str, any]] = None,
+        backend: Optional[str] = None,
+        use_cuda_fp16: bool = False,
         model_seqlen: Optional[int] = None,
         block_name_to_quantize: Optional[str] = None,
         module_name_preceding_first_block: Optional[List[str]] = None,
         batch_size: int = 1,
         pad_token_id: Optional[int] = None,
         disable_exllama: bool = False,
-        exllama_config: Dict[str, Any] = None,
+        exllama_config: Optional[Dict[str, Any]] = None,
         max_input_length: Optional[int] = None,
         cache_block_outputs: Optional[bool] = True,
         modules_in_block_to_quantize: Optional[List[List[str]]] = None,
@@ -117,6 +122,14 @@ class GPTQQuantizer(object):
                 Whether to perform sequential quantization even within a single Transformer block.
                 Instead of quantizing the entire block at once, we perform layer-wise quantization.
                 As a result, each layer undergoes quantization using inputs that have passed through the previously quantized layers.
+            checkpoint_format (`str`, *optional*, defaults to `gptq`):
+                GPTQ weight format. `gptq`(v1) is supported by both gptqmodel and auto-gptq. `gptq_v2` is gptqmodel only.
+            meta (`Dict[str, any]`, *optional*):
+                Properties, such as tooling:version, that do not directly contributes to quantization or quant inference are stored in meta.
+                i.e. `meta.quantizer`: ["optimum:_version_", "gptqmodel:_version_"]
+            backend (`str`, *optional*):
+                Controls which gptq kernel to be used. Valid values for gptqmodel are `auto`, `auto_trainable` and more. For auto-gptq, only 
+                valid value is None and `auto_trainable`. Ref gptqmodel backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
             use_cuda_fp16 (`bool`, defaults to `False`):
                 Whether or not to use optimized cuda kernel for fp16 model. Need to have model in fp16.
             model_seqlen (`Optional[int]`, defaults to `None`):
@@ -152,6 +165,9 @@ class GPTQQuantizer(object):
         self.desc_act = desc_act
         self.sym = sym
         self.true_sequential = true_sequential
+        self.checkpoint_format = checkpoint_format.lower()
+        self.meta = meta
+        self.backend = backend.lower() if backend is not None else None
         self.use_cuda_fp16 = use_cuda_fp16
         self.model_seqlen = model_seqlen
         self.block_name_to_quantize = block_name_to_quantize
@@ -164,7 +180,6 @@ class GPTQQuantizer(object):
         self.quant_method = QuantizationMethod.GPTQ
         self.cache_block_outputs = cache_block_outputs
         self.modules_in_block_to_quantize = modules_in_block_to_quantize
-        self.checkpoint_format = checkpoint_format
 
         self.serialization_keys = [
             "bits",
@@ -177,6 +192,7 @@ class GPTQQuantizer(object):
             "quant_method",
             "modules_in_block_to_quantize",
             "checkpoint_format",
+            "meta",
         ]
 
         if self.bits not in [2, 3, 4, 8]:
@@ -198,15 +214,17 @@ class GPTQQuantizer(object):
                 )
         self.exllama_version = self.exllama_config["version"]
 
-    def select_quant_linear(self, pack: bool, device_map: Union[str, dict]):
+    def select_quant_linear(self, device_map: Union[str, dict]):
         if is_gptqmodel_available():
             self.quant_linear = hf_select_quant_linear(
                 bits=self.bits,
                 group_size=self.group_size,
                 desc_act=self.desc_act,
                 sym=self.sym,
+                checkpoint_format=self.checkpoint_format,
+                meta=self.meta,
                 device_map=device_map,
-                pack=pack,
+                backend=self.backend,
             )
         else:
             self.quant_linear = hf_select_quant_linear(
@@ -225,6 +243,20 @@ class GPTQQuantizer(object):
         gptq_dict = {}
         for key in self.serialization_keys:
             gptq_dict[key] = getattr(self, key)
+
+        if gptq_dict.get("meta") is None:
+            gptq_dict["meta"] = {}
+            
+        meta = gptq_dict["meta"]
+        # store both optimum:version and gptq_lib:version into quantize_config.meta.quantizer
+        if meta.get("quantizer") is None:
+            meta["quantizer"] = [f"optimum:{optimum_version}"]
+
+            if is_gptqmodel_available():
+                meta["quantizer"].append(f"gptqmodel:{gptqmodel_version}")
+            elif is_auto_gptq_available():
+                meta["quantizer"].append(f"auto_gptq:{autogptq_version}")
+
         return gptq_dict
 
     @classmethod
@@ -263,7 +295,7 @@ class GPTQQuantizer(object):
                     )
                     del layers_to_be_replaced[name]
 
-        self.select_quant_linear(pack=False, device_map=kwargs.get("device_map", None))
+        self.select_quant_linear(device_map=kwargs.get("device_map", None))
 
         self._replace_by_quant_layers(model, layers_to_be_replaced)
 
@@ -379,10 +411,7 @@ class GPTQQuantizer(object):
         gptq_supports_cpu = (
             is_auto_gptq_available()
             and version.parse(importlib.metadata.version("auto-gptq")) > version.parse("0.4.2")
-        ) or (
-            is_gptqmodel_available()
-            and version.parse(importlib.metadata.version("gptqmodel")) > version.parse("1.3.1")
-        )
+        ) or is_gptqmodel_available()
 
         if not gptq_supports_cpu and not torch.cuda.is_available():
             raise RuntimeError(
@@ -663,18 +692,12 @@ class GPTQQuantizer(object):
         # Step 5: Any post-initialization that require device information, for example buffers initialization on device.
         model = self.post_init_model(model)
 
-        # convert gptqmodel internal gptq_v2 format to v1 for saving/compat
-        # sym=False is valid for gptq_v2 format only. for sym=True, need to convert to v1 before save.
-        if self.sym and self.checkpoint_format == "gptq_v2":
-            model = hf_convert_gptq_v2_to_v1_format(model, self.bits, self.quant_linear)
-            self.checkpoint_format = "gptq"
-
         torch.cuda.empty_cache()
         if hasattr(torch, "xpu"):
             torch.xpu.empty_cache()
         return model
 
-    def post_init_model(self, model, **kwargs):
+    def post_init_model(self, model):
         """
         Post-initialization that require device information, for example buffers initialization on device.
 
@@ -695,8 +718,8 @@ class GPTQQuantizer(object):
         class StoreAttr(object):
             pass
 
-        if is_gptqmodel_available() and self.checkpoint_format == "gptq":
-            model = hf_convert_gptq_v1_to_v2_format(model, self.bits, self.quant_linear)
+        if is_gptqmodel_available():
+            model, _ = hf_convert_gptq_v1_to_v2_format(model, self.bits, self.quant_linear, self.checkpoint_format, self.meta)
 
         model.quantize_config = StoreAttr()
         model.quantize_config.desc_act = self.desc_act
@@ -727,7 +750,7 @@ class GPTQQuantizer(object):
         layers = get_layers(model)
         layers = {n: layers[n] for n in quantizers}
 
-        self.select_quant_linear(pack=True, device_map=model.hf_device_map)
+        self.select_quant_linear(device_map=model.hf_device_map)
 
         self._replace_by_quant_layers(model, quantizers)
         qlayers = get_layers(model, [self.quant_linear])
@@ -765,6 +788,12 @@ class GPTQQuantizer(object):
                 Whether to save the model using `safetensors` or the traditional PyTorch way (that uses `pickle`).
 
         """
+
+        # convert gptqmodel internal gptq_v2 format to v1 for max compatibility
+        model, converted = hf_convert_gptq_v2_to_v1_format(model, self.sym, self.bits, self.quant_linear, self.checkpoint_format, self.meta)
+        if converted:
+            self.checkpoint_format = "gptq"
+
         os.makedirs(save_dir, exist_ok=True)
         model.save_pretrained(save_dir, max_shard_size=max_shard_size, safe_serialization=safe_serialization)
         with open(os.path.join(save_dir, GPTQ_CONFIG), "w", encoding="utf-8") as f:
@@ -871,7 +900,7 @@ def load_quantized_model(
     quantizer.exllama_version = quantizer.exllama_config["version"]
     quantizer.max_input_length = max_input_length
 
-    model = quantizer.convert_model(model)
+    model = quantizer.convert_model(model, device_map=device_map)
 
     if no_split_module_classes is None:
         no_split_module_classes = quantizer.get_no_split_module_classes(model)
