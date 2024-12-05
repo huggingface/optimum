@@ -17,8 +17,8 @@ import os
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Dict
-from unittest import TestCase
+from typing import Callable, Dict, Optional, List
+from unittest import TestCase, mock
 
 import onnx
 import pytest
@@ -43,7 +43,7 @@ from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
 from optimum.exporters.onnx.utils import get_speecht5_models_for_export
-from optimum.utils import DummyPastKeyValuesGenerator, NormalizedTextConfig
+from optimum.utils import DummyPastKeyValuesGenerator, NormalizedTextConfig, is_onnxruntime_available
 from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
@@ -60,6 +60,8 @@ from ..exporters_utils import (
 if is_torch_available() or is_tf_available():
     from optimum.exporters.tasks import TasksManager
 
+if is_onnxruntime_available():
+    import onnxruntime as ort
 
 SEED = 42
 
@@ -179,6 +181,10 @@ class OnnxExportTestCase(TestCase):
         shapes_to_validate: Dict,
         monolith: bool,
         device="cpu",
+        do_validation: bool = True,
+        custom_export_fn: Optional[Callable[..., None]] = None,
+        providers: Optional[List[str]] = None,
+        session_options: Optional["ort.SessionOptions"] = None,
     ):
         library_name = TasksManager.infer_library_from_model(model_name)
 
@@ -256,39 +262,44 @@ class OnnxExportTestCase(TestCase):
                 output_dir=Path(tmpdirname),
                 device=device,
                 model_kwargs=model_kwargs,
+                custom_export_fn=custom_export_fn,
+                providers=providers,
+                session_options=session_options,
             )
-            input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True, add_test_name=False)
-            for input_shapes in input_shapes_iterator:
-                skip = False
-                for _, model_onnx_conf in models_and_onnx_configs.items():
-                    if (
-                        hasattr(model_onnx_conf[0].config, "max_position_embeddings")
-                        and input_shapes["sequence_length"] >= model_onnx_conf[0].config.max_position_embeddings
-                    ):
-                        skip = True
-                        break
-                    if (
-                        model_type == "groupvit"
-                        and input_shapes["sequence_length"]
-                        >= model_onnx_conf[0].config.text_config.max_position_embeddings
-                    ):
-                        skip = True
-                        break
-                if skip:
-                    continue
 
-                try:
-                    validate_models_outputs(
-                        models_and_onnx_configs=models_and_onnx_configs,
-                        onnx_named_outputs=onnx_outputs,
-                        atol=atol,
-                        output_dir=Path(tmpdirname),
-                        input_shapes=input_shapes,
-                        device=device,
-                        model_kwargs=model_kwargs,
-                    )
-                except AtolError as e:
-                    print(f"The ONNX export succeeded with the warning: {e}")
+            if do_validation:
+                input_shapes_iterator = grid_parameters(shapes_to_validate, yield_dict=True, add_test_name=False)
+                for input_shapes in input_shapes_iterator:
+                    skip = False
+                    for _, model_onnx_conf in models_and_onnx_configs.items():
+                        if (
+                            hasattr(model_onnx_conf[0].config, "max_position_embeddings")
+                            and input_shapes["sequence_length"] >= model_onnx_conf[0].config.max_position_embeddings
+                        ):
+                            skip = True
+                            break
+                        if (
+                            model_type == "groupvit"
+                            and input_shapes["sequence_length"]
+                            >= model_onnx_conf[0].config.text_config.max_position_embeddings
+                        ):
+                            skip = True
+                            break
+                    if skip:
+                        continue
+
+                    try:
+                        validate_models_outputs(
+                            models_and_onnx_configs=models_and_onnx_configs,
+                            onnx_named_outputs=onnx_outputs,
+                            atol=atol,
+                            output_dir=Path(tmpdirname),
+                            input_shapes=input_shapes,
+                            device=device,
+                            model_kwargs=model_kwargs,
+                        )
+                    except AtolError as e:
+                        print(f"The ONNX export succeeded with the warning: {e}")
 
                 gc.collect()
 
@@ -347,6 +358,44 @@ class OnnxExportTestCase(TestCase):
             monolith=monolith,
         )
 
+    @require_torch
+    @require_vision
+    @slow
+    @pytest.mark.run_slow
+    def test_pytorch_customized_export_on_cpu(self):
+        from torch.onnx import export as pytorch_export
+
+        providers = ["CPUExecutionProvider"]
+
+        test_name, model_type, model_name, task, onnx_config_class_constructor, monolith = _get_models_to_test(
+            {
+                "beit":
+                "hf-internal-testing/tiny-random-BeitForImageClassification"
+            })[0]
+
+        if is_onnxruntime_available():
+            do_validation = True
+            so = ort.SessionOptions()
+        else:
+            do_validation = False
+            so = None
+
+        custom_export_mock = mock.MagicMock(side_effect=pytorch_export)
+        self._onnx_export(
+            test_name,
+            model_type,
+            model_name,
+            task,
+            onnx_config_class_constructor,
+            shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
+            monolith=monolith,
+            custom_export_fn=custom_export_mock,
+            providers=providers,
+            session_options=so,
+            do_validation=do_validation,
+        )
+        custom_export_mock.assert_called_once()
+
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
@@ -376,6 +425,51 @@ class OnnxExportTestCase(TestCase):
             shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
             monolith=monolith,
         )
+
+    @require_torch
+    @require_vision
+    @require_torch_gpu
+    @slow
+    @pytest.mark.run_slow
+    @pytest.mark.gpu_test
+    def test_pytorch_customized_export_on_cuda(self):
+        import torch.version
+        from torch.onnx import export as pytorch_export
+
+        if torch.version.hip:
+            providers = ["ROCMExecutionProvider"]
+        else:
+            providers = ["CUDAExecutionProvider"]
+
+        test_name, model_type, model_name, task, onnx_config_class_constructor, monolith = _get_models_to_test(
+            {
+                "beit":
+                "hf-internal-testing/tiny-random-BeitForImageClassification"
+            })[0]
+
+        if is_onnxruntime_available():
+            do_validation = True
+            so = ort.SessionOptions()
+        else:
+            do_validation = False
+            so = None
+
+        custom_export_mock = mock.MagicMock(side_effect=pytorch_export)
+        self._onnx_export(
+            test_name,
+            model_type,
+            model_name,
+            task,
+            onnx_config_class_constructor,
+            device="cuda",
+            shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
+            monolith=monolith,
+            custom_export_fn=custom_export_mock,
+            providers=providers,
+            session_options=so,
+            do_validation=do_validation,
+        )
+        custom_export_mock.assert_called_once()
 
     @parameterized.expand(_get_models_to_test(TENSORFLOW_EXPORT_MODELS))
     @slow
