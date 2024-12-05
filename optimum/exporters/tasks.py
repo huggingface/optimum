@@ -747,6 +747,10 @@ class TasksManager:
             "question-answering",
             onnx="IBertOnnxConfig",
         ),
+        "ijepa": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="IJepaOnnxConfig",
+        ),
         "imagegpt": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",

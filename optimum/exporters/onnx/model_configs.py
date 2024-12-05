@@ -913,6 +913,10 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
     pass
 
 
+class IJepaOnnxConfig(ViTOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-2
+
+
 class DonutSwinOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
