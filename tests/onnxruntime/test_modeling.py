@@ -2831,6 +2831,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "mobilenet_v1",
         "mobilenet_v2",
         "mobilevit",
+        "mobilevitv2",
         "perceiver_vision",
         "poolformer",
         "resnet",
