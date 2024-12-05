@@ -37,6 +37,7 @@ from .import_utils import (
     is_auto_gptq_available,
     is_datasets_available,
     is_diffusers_available,
+    is_gptqmodel_available,
     is_onnx_available,
     is_onnxruntime_available,
     is_pydantic_available,
