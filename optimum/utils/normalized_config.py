@@ -77,6 +77,11 @@ class NormalizedConfig:
         return True
 
 
+class NormalizedTimeSeriesForecastingConfig(NormalizedConfig):
+    NUM_INPUT_CHANNELS = "num_input_channels"
+    CONTEXT_LENGTH = "context_length"
+
+
 class NormalizedTextConfig(NormalizedConfig):
     VOCAB_SIZE = "vocab_size"
     HIDDEN_SIZE = "hidden_size"
