@@ -324,6 +324,15 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
+class OlmoOnnxConfig(LlamaOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-4
+    MIN_TRANSFORMERS_VERSION = version.parse("4.40.0")
+
+
+class Olmo2OnnxConfig(OlmoOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.47.0")
+
+
 class Qwen2OnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.37.0")
 
