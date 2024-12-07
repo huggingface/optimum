@@ -949,6 +949,20 @@ class TasksManager:
             "text-generation-with-past",
             onnx="GraniteOnnxConfig",
         ),
+        "olmo": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            onnx="OlmoOnnxConfig",
+        ),
+        "olmo2": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            onnx="Olmo2OnnxConfig",
+        ),
         "pegasus": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
