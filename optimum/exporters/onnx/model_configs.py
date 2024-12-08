@@ -2475,3 +2475,48 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
 
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+
+class PaliGemmaOnnxConfig(GemmaOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyVisionInputGenerator)
+    NORMALIZED_CONFIG_CLASS = NormalizedTextAndVisionConfig.with_args(
+        text_config="text_config", vision_config="vision_config"
+    )
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        dynamic_axis = {0: "batch_size", 1: "sequence_length"}
+        if self.task == "feature-extraction":
+            return {
+                "input_ids": dynamic_axis,
+                "attention_mask": dynamic_axis,
+                "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            }
+        elif self.task == "text-generation":
+            return {
+                "input_ids": dynamic_axis,
+                "attention_mask": dynamic_axis,
+            }
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
+        if framework == "pt":
+            if self.task == "feature-extraction":
+                generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
+                prefix_tensor = generator.constant_tensor(
+                    shape=[dummy_inputs["input_ids"].shape[0], 1024],
+                    value=self._normalized_config.image_token_index,
+                    framework=framework,
+                )
+                dummy_inputs["input_ids"] = generator.concat_inputs([prefix_tensor, dummy_inputs["input_ids"]], dim=1)
+                dummy_inputs["attention_mask"] = generator.random_mask_tensor(
+                    shape=[generator.batch_size, generator.sequence_length + 1024],
+                    padding_side=generator.padding_side,
+                    framework=framework,
+                    dtype="int64",
+                )
+        return dummy_inputs
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        if self.task == "feature-extraction":
+            return ColPaliModelPatcher(self, model, model_kwargs=model_kwargs)
+        else:
+            return super().patch_model_for_export(model, model_kwargs=model_kwargs)
