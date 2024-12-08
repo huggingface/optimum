@@ -14,15 +14,18 @@
 
 import logging
 import os
-from typing import Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
 
 import numpy as np
-from datasets import Dataset
 from transformers import EvalPrediction
 from transformers.trainer_pt_utils import nested_concat
 from transformers.trainer_utils import EvalLoopOutput
 
 from onnxruntime import InferenceSession
+
+
+if TYPE_CHECKING:
+    from datasets import Dataset
 
 
 logger = logging.getLogger(__name__)
@@ -59,7 +62,7 @@ class ORTModel:
         self.session = InferenceSession(str(model_path), providers=[execution_provider])
         self.onnx_input_names = {input_key.name: idx for idx, input_key in enumerate(self.session.get_inputs())}
 
-    def evaluation_loop(self, dataset: Dataset):
+    def evaluation_loop(self, dataset: "Dataset"):
         """
         Run evaluation and returns metrics and predictions.
 

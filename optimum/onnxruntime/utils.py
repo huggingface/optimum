@@ -128,6 +128,7 @@ class ORTConfigManager:
         "gpt-neo": "gpt2",
         "gpt-neox": "gpt2",
         "gptj": "gpt2",
+        "granite": "gpt2",
         # longt5 with O4 results in segmentation fault
         "longt5": "bert",
         "llama": "gpt2",

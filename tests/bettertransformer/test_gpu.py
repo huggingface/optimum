@@ -26,7 +26,9 @@ def timing_cuda(model, num_batches, input_ids, masks, decoder_input_ids):
 
 
 def benchmark(model_name: str, num_batches: int, batch_size: int, max_seqlen: int, is_half: bool):
-    hf_model = AutoModel.from_pretrained(model_name, torch_dtype=torch.float16 if is_half else None).eval()
+    hf_model = AutoModel.from_pretrained(
+        model_name, torch_dtype=torch.float16 if is_half else None, attn_implementation="eager"
+    ).eval()
     hf_model = hf_model.to("cuda:0")
     bt_model = BetterTransformer.transform(hf_model, keep_original_model=True)
 

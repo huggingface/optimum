@@ -67,6 +67,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "data2vec-audio": "hf-internal-testing/tiny-random-Data2VecAudioModel",
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
+    "decision-transformer": "edbeeching/decision-transformer-gym-hopper-medium",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
     "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel",
@@ -100,6 +101,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "gpt-neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt-neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
+    "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
     "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel",
@@ -136,6 +138,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "phi3": "Xenova/tiny-random-Phi3ForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     # "rembert": "google/rembert",
+    "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "qwen2": "fxmarty/tiny-dummy-qwen2",
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
@@ -255,7 +258,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "owlv2": "google/owlv2-base-patch16",
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
-    # "rembert": "google/rembert",
+    "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "regnet": "facebook/regnet-y-040",
     "resnet": "microsoft/resnet-50",
@@ -296,9 +299,11 @@ TENSORFLOW_EXPORT_MODELS = {
 }
 
 PYTORCH_DIFFUSION_MODEL = {
-    "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
-    "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
+    "flux": "optimum-internal-testing/tiny-random-flux",
     "latent-consistency": "echarlaix/tiny-random-latent-consistency",
+    "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
+    "stable-diffusion-3": "yujiepan/stable-diffusion-3-tiny-random",
+    "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
 }
 
 PYTORCH_TIMM_MODEL = {
