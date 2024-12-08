@@ -829,6 +829,10 @@ class BeitOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+class DiTOnnxConfig(BeitOnnxConfig):
+    pass
+
+
 class ConvNextOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
