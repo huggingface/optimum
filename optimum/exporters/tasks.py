@@ -949,6 +949,10 @@ class TasksManager:
             "text-generation-with-past",
             onnx="GraniteOnnxConfig",
         ),
+        "paligemma": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="PaliGemmaOnnxConfig",
+        ),
         "pegasus": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
