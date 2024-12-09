@@ -646,6 +646,15 @@ class TasksManager:
             "text2text-generation-with-past",
             onnx="EncoderDecoderOnnxConfig",
         ),
+        "ernie": supported_tasks_mapping(
+            "feature-extraction",
+            "fill-mask",
+            "text-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="ErnieOnnxConfig",
+        ),
         "esm": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
