@@ -40,6 +40,26 @@ If you want to load a PyTorch checkpoint, set `export=True` to convert your mode
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
 
 
+#### IPEX
+To load a model and run inference with IPEX optimization, you can just replace your `AutoModelForXxx` class with the corresponding `IPEXModelForXxx` class.
+
+```diff
+- from transformers import AutoModelForSequenceClassification
++ from optimum.intel import IPEXModelForSequenceClassification
+  from transformers import AutoTokenizer, pipeline
+
+  # Download a tokenizer and model from the Hub and convert to IPEX format
+  model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+  tokenizer = AutoTokenizer.from_pretrained(model_id)
+- model = AutoModelForSequenceClassification.from_pretrained(model_id)
++ model = IPEXModelForSequenceClassification.from_pretrained(model_id)
+
+  # Run inference!
+  classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+  results = classifier("He's a dreadful magician.")
+```
+
+
 #### ONNX Runtime
 
 To accelerate inference with ONNX Runtime, 🤗 Optimum uses _configuration objects_ to define parameters for graph optimization and quantization. These objects are then used to instantiate dedicated _optimizers_ and _quantizers_.
