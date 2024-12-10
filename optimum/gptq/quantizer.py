@@ -88,7 +88,7 @@ class GPTQQuantizer(object):
             dataset (`Union[List[str], str, Any]`, defaults to `None`):
                 The dataset used for quantization. You can provide your own dataset in a list of string or in a list of tokenized data
                 (e.g. [{ "input_ids": [ 1, 100, 15, ... ],"attention_mask": [ 1, 1, 1, ... ]},...])
-                or just use the original datasets used in GPTQ paper ['wikitext2','c4','c4-new','ptb','ptb-new'].
+                or just use the original datasets used in GPTQ paper ['wikitext2','c4','c4-new'].
             group_size (int, defaults to 128):
                 The group size to use for quantization. Recommended value is 128 and -1 uses per-column quantization.
             damp_percent (`float`, defaults to `0.1`):
@@ -546,7 +546,7 @@ class GPTQQuantizer(object):
 
         if self.bits == 4:
             # device not on gpu
-            if device == torch.device("cpu") or (has_device_map and any(d in devices for d in ["cpu", "disk"])):
+            if device.type != "cuda" or (has_device_map and any(d in devices for d in ["cpu", "disk", "hpu"])):
                 if not self.disable_exllama:
                     logger.warning(
                         "Found modules on cpu/disk. Using Exllama/Exllamav2 backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
@@ -589,13 +589,14 @@ class GPTQQuantizer(object):
                 The input model
         """
         if self.bits == 4 and not self.disable_exllama:
-            if get_device(model) == torch.device("cpu") or (
-                hasattr(model, "hf_device_map") and any(d in model.hf_device_map for d in ["cpu", "disk"])
+            if get_device(model).type != "cuda" or (
+                hasattr(model, "hf_device_map") and any(d in model.hf_device_map for d in ["cpu", "disk", "hpu"])
             ):
-                raise ValueError(
-                    "Found modules on cpu/disk. Using Exllama or Exllamav2 backend requires all the modules to be on GPU."
-                    "You can deactivate exllama backend by setting `disable_exllama=True` in the quantization config object"
-                )
+                if not self.disable_exllama:
+                    logger.warning(
+                        "Found modules on cpu/disk. Using Exllama/Exllamav2 backend requires all the modules to be on GPU. Setting `disable_exllama=True`"
+                    )
+                    self.disable_exllama = True
 
         class StoreAttr(object):
             pass

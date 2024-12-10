@@ -44,6 +44,7 @@ _import_structure = {
         "ORTModelForSemanticSegmentation",
         "ORTModelForSequenceClassification",
         "ORTModelForTokenClassification",
+        "ORTModelForImageToImage",
     ],
     "modeling_seq2seq": [
         "ORTModelForSeq2SeqLM",
@@ -73,21 +74,51 @@ try:
         raise OptionalDependencyNotAvailable()
 except OptionalDependencyNotAvailable:
     _import_structure[".utils.dummy_diffusers_objects"] = [
-        "ORTStableDiffusionPipeline",
+        "ORTDiffusionPipeline",
+        "ORTPipelineForText2Image",
+        "ORTPipelineForImage2Image",
+        "ORTPipelineForInpainting",
+        # flux
+        "ORTFluxPipeline",
+        # lcm
+        "ORTLatentConsistencyModelImg2ImgPipeline",
+        "ORTLatentConsistencyModelPipeline",
+        # sd3
+        "ORTStableDiffusion3Img2ImgPipeline",
+        "ORTStableDiffusion3InpaintPipeline",
+        "ORTStableDiffusion3Pipeline",
+        # sd
         "ORTStableDiffusionImg2ImgPipeline",
         "ORTStableDiffusionInpaintPipeline",
-        "ORTStableDiffusionXLPipeline",
+        "ORTStableDiffusionPipeline",
+        # xl
         "ORTStableDiffusionXLImg2ImgPipeline",
-        "ORTLatentConsistencyModelPipeline",
+        "ORTStableDiffusionXLInpaintPipeline",
+        "ORTStableDiffusionXLPipeline",
     ]
 else:
     _import_structure["modeling_diffusion"] = [
-        "ORTStableDiffusionPipeline",
+        "ORTDiffusionPipeline",
+        "ORTPipelineForText2Image",
+        "ORTPipelineForImage2Image",
+        "ORTPipelineForInpainting",
+        # flux
+        "ORTFluxPipeline",
+        # lcm
+        "ORTLatentConsistencyModelImg2ImgPipeline",
+        "ORTLatentConsistencyModelPipeline",
+        # sd3
+        "ORTStableDiffusion3Img2ImgPipeline",
+        "ORTStableDiffusion3InpaintPipeline",
+        "ORTStableDiffusion3Pipeline",
+        # sd
         "ORTStableDiffusionImg2ImgPipeline",
         "ORTStableDiffusionInpaintPipeline",
-        "ORTStableDiffusionXLPipeline",
+        "ORTStableDiffusionPipeline",
+        # xl
         "ORTStableDiffusionXLImg2ImgPipeline",
-        "ORTLatentConsistencyModelPipeline",
+        "ORTStableDiffusionXLInpaintPipeline",
+        "ORTStableDiffusionXLPipeline",
     ]
 
 
@@ -104,6 +135,7 @@ if TYPE_CHECKING:
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
+        ORTModelForImageToImage,
         ORTModelForMaskedLM,
         ORTModelForMultipleChoice,
         ORTModelForQuestionAnswering,
@@ -137,20 +169,54 @@ if TYPE_CHECKING:
             raise OptionalDependencyNotAvailable()
     except OptionalDependencyNotAvailable:
         from ..utils.dummy_diffusers_objects import (
+            # generic entrypoint
+            ORTDiffusionPipeline,
+            # flux
+            ORTFluxPipeline,
+            # lcm
+            ORTLatentConsistencyModelImg2ImgPipeline,
             ORTLatentConsistencyModelPipeline,
+            # task-specific entrypoints
+            ORTPipelineForImage2Image,
+            ORTPipelineForInpainting,
+            ORTPipelineForText2Image,
+            # sd3
+            ORTStableDiffusion3Img2ImgPipeline,
+            ORTStableDiffusion3InpaintPipeline,
+            ORTStableDiffusion3Pipeline,
+            # sd
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
+            # xl
             ORTStableDiffusionXLImg2ImgPipeline,
+            ORTStableDiffusionXLInpaintPipeline,
             ORTStableDiffusionXLPipeline,
         )
     else:
         from .modeling_diffusion import (
+            # generic entrypoint
+            ORTDiffusionPipeline,
+            # flux
+            ORTFluxPipeline,
+            # lcm
+            ORTLatentConsistencyModelImg2ImgPipeline,
             ORTLatentConsistencyModelPipeline,
+            # task-specific entrypoints
+            ORTPipelineForImage2Image,
+            ORTPipelineForInpainting,
+            ORTPipelineForText2Image,
+            # sd3
+            ORTStableDiffusion3Img2ImgPipeline,
+            ORTStableDiffusion3InpaintPipeline,
+            ORTStableDiffusion3Pipeline,
+            # sd
             ORTStableDiffusionImg2ImgPipeline,
             ORTStableDiffusionInpaintPipeline,
             ORTStableDiffusionPipeline,
+            # xl
             ORTStableDiffusionXLImg2ImgPipeline,
+            ORTStableDiffusionXLInpaintPipeline,
             ORTStableDiffusionXLPipeline,
         )
 else:

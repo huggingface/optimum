@@ -43,7 +43,6 @@ if TYPE_CHECKING:
     from .base import OnnxConfig
 
 logger = logging.get_logger()
-logger.setLevel(logging.INFO)
 
 
 def main_export(

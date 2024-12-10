@@ -34,11 +34,10 @@ from ...utils import logging
 
 
 if _transformers_version > version.parse("4.34.99"):
-    from transformers.modeling_attn_mask_utils import AttentionMaskConverter, _prepare_4d_causal_attention_mask
+    from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 if _transformers_version >= version.parse("4.36"):
     from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask_for_sdpa
 else:
-    _prepare_4d_causal_attention_mask = None
     _prepare_4d_causal_attention_mask_for_sdpa = None
     AttentionMaskConverter = None
 
@@ -169,7 +168,7 @@ class ModelPatcher:
                         filterd_outputs[name] = value
             elif isinstance(outputs, (list, tuple)):
                 outputs_list = list(config.outputs.keys())
-                dict(zip(outputs_list, outputs))
+                filterd_outputs = dict(zip(outputs_list, outputs))
             else:
                 if len(config.outputs) > 1:
                     num_outputs = len(config.outputs)

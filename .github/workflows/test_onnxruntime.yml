@@ -17,26 +17,28 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8, 3.9]
-        os: [ubuntu-20.04, windows-2019, macos-13]
+        transformers-version: ["latest"]
+        os: [ubuntu-20.04, windows-2019, macos-15]
+        include:
+          - transformers-version: "4.36.*"
+            os: ubuntu-20.04
+          - transformers-version: "4.45.*"
+            os: ubuntu-20.04
 
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Free Disk Space (Ubuntu)
         if: matrix.os == 'ubuntu-20.04'
         uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          swap-storage: false
-          large-packages: false
 
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python ${{ matrix.python-version }}
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.9'
 
       - name: Install dependencies
         run: |
@@ -44,14 +46,16 @@ jobs:
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,onnxruntime]
 
+      - name: Install transformers ${{ matrix.transformers-version }}
+        if: ${{ matrix.transformers-version != 'latest' }}
+        run: pip install transformers==${{ matrix.transformers-version }}
+
       - name: Test with pytest (in series)
-        working-directory: tests
         run: |
-          pytest onnxruntime -m "run_in_series" --durations=0 -vvvv -s
+          pytest tests/onnxruntime -m "run_in_series" --durations=0 -vvvv -s
 
       - name: Test with pytest (in parallel)
-        env:
-          FXMARTYCLONE_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
-        working-directory: tests
         run: |
-          pytest onnxruntime -m "not run_in_series" --durations=0 -vvvv -s -n auto
+          pytest tests/onnxruntime -m "not run_in_series" --durations=0 -vvvv -s -n auto
+        env:
+          HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}

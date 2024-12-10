@@ -1,6 +1,4 @@
-from typing import Dict, List
-
-from datasets import Dataset
+from typing import TYPE_CHECKING, Dict, List
 
 from ...runs_base import Calibrator
 from .. import ORTQuantizer
@@ -9,10 +7,14 @@ from ..preprocessors import QuantizationPreprocessor
 from ..preprocessors.passes import ExcludeGeLUNodes, ExcludeLayerNormNodes, ExcludeNodeAfter, ExcludeNodeFollowedBy
 
 
+if TYPE_CHECKING:
+    from datasets import Dataset
+
+
 class OnnxRuntimeCalibrator(Calibrator):
     def __init__(
         self,
-        calibration_dataset: Dataset,
+        calibration_dataset: "Dataset",
         quantizer: ORTQuantizer,
         model_path: str,
         qconfig: QuantizationConfig,

@@ -2,13 +2,12 @@ import os
 import subprocess
 from contextlib import contextmanager
 from time import perf_counter_ns
-from typing import Set
+from typing import TYPE_CHECKING, Set
 
 import numpy as np
 import optuna
 import torch
 import transformers
-from datasets import Dataset
 from tqdm import trange
 
 from . import version as optimum_version
@@ -20,6 +19,9 @@ from .utils.preprocessing import (
 )
 from .utils.runs import RunConfig, cpu_info_command
 
+
+if TYPE_CHECKING:
+    from datasets import Dataset
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -34,7 +36,7 @@ def get_autoclass_name(task):
 
 class Calibrator:
     def __init__(
-        self, calibration_dataset: Dataset, quantizer, model_path, qconfig, calibration_params, node_exclusion
+        self, calibration_dataset: "Dataset", quantizer, model_path, qconfig, calibration_params, node_exclusion
     ):
         self.calibration_dataset = calibration_dataset
         self.quantizer = quantizer

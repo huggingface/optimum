@@ -24,7 +24,7 @@ jobs:
         config:
           - name: GPU-enabled Optimum Test Suite
             image: nvidia/cuda:12.4.1-devel-ubuntu22.04
-        gpu_target: ["nvidia-multi-gpu-a10-runners"]
+        gpu_target: ["aws-g5-12xlarge-plus"]
 
     name: ${{ matrix.config.name }}
     runs-on:
@@ -35,7 +35,6 @@ jobs:
       options: --mount type=tmpfs,destination=/tmp --shm-size 64gb --gpus all --ipc host -v /mnt/hf_cache:/mnt/cache/
       env:
         NCCL_DEBUG: INFO
-        HF_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
     defaults:
       run:
         shell: bash
