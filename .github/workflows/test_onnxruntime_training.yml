@@ -1,4 +1,4 @@
-name: ONNX Runtime GPU / Python - Test
+name: ONNX Runtime Training / Python - Test
 
 on:
   workflow_dispatch:
@@ -20,19 +20,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  do-the-job:
     if: ${{
       (github.event_name == 'push') ||
       (github.event_name == 'workflow_dispatch') ||
-      contains( github.event.pull_request.labels.*.name, 'gpu') ||
-      contains(github.event.pull_request.labels.*.name, 'onnxruntime-gpu')
+      contains( github.event.pull_request.labels.*.name, 'training') ||
+      contains( github.event.pull_request.labels.*.name, 'onnxruntime-training')
       }}
 
     runs-on:
       group: aws-g6-4xlarge-plus
 
     container:
-      image: nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+      image: nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
       options: --gpus all
 
     steps:
@@ -45,9 +45,13 @@ jobs:
           python-version: 3.8
 
       - name: Install dependencies
+        env:
+          TORCH_CUDA_ARCH_LIST: "5.0 6.0 7.0 7.5 8.0 8.6 9.0+PTX"
         run: |
           pip install --upgrade pip
-          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+          pip install --no-cache-dir torch-ort onnxruntime-training && python -m torch_ort.configure
+          pip install --no-cache-dir evaluate absl-py rouge_score seqeval sacrebleu nltk scikit-learn
           pip install .[tests,onnxruntime-gpu]
 
       - name: Replace opencv-python with opencv-python-headless
@@ -56,4 +60,5 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/onnxruntime -m "cuda_ep_test" --durations=0 -vvvv -s -n auto
+          RUN_SLOW=1 pytest tests/onnxruntime/training/nightly_test_trainer.py --durations=0 -s -vvvv
+          RUN_SLOW=1 pytest tests/onnxruntime/training/nightly_test_examples.py --durations=0 -s -vvvv
