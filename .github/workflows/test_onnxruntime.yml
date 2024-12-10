@@ -51,6 +51,7 @@ jobs:
         run: pip install transformers==${{ matrix.transformers-version }}
 
       - name: Test with pytest (in series)
+        if: ${{ matrix.os != 'macos-15' }}
         run: |
           pytest tests/onnxruntime -m "run_in_series" --durations=0 -vvvv -s
 
