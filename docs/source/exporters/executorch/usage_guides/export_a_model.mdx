@@ -1,0 +1,124 @@
+<!--Copyright 2024 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# Export a model to ExecuTorch with optimum.exporters.executorch
+
+If you need to deploy 🤗 Transformers models for on-device use cases, we recommend
+exporting them to a serialized format that can be distributed and executed on specialized
+runtimes and hardware. In this guide, we'll show you how to export these
+models to [ExecuTorch](https://pytorch.org/executorch/main/intro-overview.html).
+
+
+## Why ExecuTorch?
+
+ExecuTorch is the ideal solution for deploying PyTorch models on edge devices, offering a streamlined process from
+export to deployment without leaving PyTorch ecosystem.
+
+Supporting on-device AI presents unique challenges with diverse hardware, critical power requirements, low/no internet
+connectivity, and realtime processing needs. These constraints have historically prevented or slowed down the creation
+of scalable and performant on-device AI solutions. We designed ExecuTorch, backed by our industry partners like Meta,
+Arm, Apple, Qualcomm, MediaTek, etc. to be highly portable and provide superior developer productivity without losing on
+performance.
+
+
+## Summary
+
+Exporting a PyTorch model to ExecuTorch is as simple as
+
+```bash
+optimum-cli export executorch --model "meta-llama/Llama-3.2-1B" --task "text-generation" --recipe "xnnpack" --output_dir "meta_llama3_2_1b"
+```
+
+Check out the help for more options:
+
+```bash
+optimum-cli export executorch --help
+```
+
+
+## Exporting a model to ExecuTorch using the CLI
+
+To export a 🤗 Transformers model to ExecuTorch, you'll first need to install some extra
+dependencies:
+
+```bash
+pip install optimum[exporters-executorch]
+```
+
+The Optimum ExecuTorch export can be used through Optimum command-line:
+
+```bash
+optimum-cli export executorch --help
+
+usage: optimum-cli export executorch [-h] -m MODEL [-o OUTPUT_DIR] [--task TASK] [--recipe RECIPE]
+
+options:
+  -h, --help            show this help message and exit
+
+Required arguments:
+  -m MODEL, --model MODEL
+                        Model ID on huggingface.co or path on disk to load model from.
+  -o OUTPUT_DIR, --output_dir OUTPUT_DIR
+                        Path indicating the directory where to store the generated ExecuTorch model.
+  --task TASK           The task to export the model for. Available tasks depend on the model, but are among: ['audio-classification', 'feature-extraction', 'image-to-text',
+                        'sentence-similarity', 'depth-estimation', 'image-segmentation', 'audio-frame-classification', 'masked-im', 'semantic-segmentation', 'text-classification',
+                        'audio-xvector', 'mask-generation', 'question-answering', 'text-to-audio', 'automatic-speech-recognition', 'image-to-image', 'multiple-choice', 'image-
+                        classification', 'text2text-generation', 'token-classification', 'object-detection', 'zero-shot-object-detection', 'zero-shot-image-classification', 'text-
+                        generation', 'fill-mask'].
+  --recipe RECIPE       Pre-defined recipes for export to ExecuTorch. Defaults to "xnnpack".
+
+```
+
+Exporting a checkpoint can be done as follows:
+
+```bash
+optimum-cli export executorch --model "meta-llama/Llama-3.2-1B" --task "text-generation" --recipe "xnnpack" --output_dir "meta_llama3_2_1b"
+```
+
+You should see a `model.pte` file is stored under "./meta_llama3_2_1b/":
+
+```bash
+meta_llama3_2_1b/
+└── model.pte
+```
+
+This will fetch the model on the Hub and exports the PyTorch model with the specialized recipe. The resulting `model.pte` file can then be run on the [XNNPACK backend](https://pytorch.org/executorch/main/tutorial-xnnpack-delegate-lowering.html), or on many
+other ExecuTorh supported backends if exports with different recipes, e.g. Apple's [Core ML](https://pytorch.org/executorch/main/build-run-coreml.html) or [MPS](https://pytorch.org/executorch/main/build-run-mps.html), [Qualcomm's SoCs](https://pytorch.org/executorch/main/build-run-qualcomm-ai-engine-direct-backend.html), [ARM's Ethos-U](https://pytorch.org/executorch/main/executorch-arm-delegate-tutorial.html), [Xtensa HiFi4 DSP](https://pytorch.org/executorch/main/build-run-xtensa.html), [Vulkan GPU](https://pytorch.org/executorch/main/build-run-vulkan.html), [MediaTek](https://pytorch.org/executorch/main/build-run-mediatek-backend.html), etc.
+
+For example, we can load and run the model with [ExecuTorch
+Runtime](https://pytorch.org/executorch/main/runtime-overview.html) using the `optimum.executorchruntime` package as follows:
+
+```python
+>>> from transformers import AutoTokenizer
+>>> from optimum.executorchruntime import ExecuTorchModelForCausalLM
+
+>>> tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B")  # doctest: +SKIP
+>>> model = ExecuTorchModelForCausalLM.from_pretrained("meta_llama3_2_1b/", export=False)  # doctest: +SKIP
+
+>>> generated_text = model.text_generation(tokenizer=tokenizer, prompt="Simply put, the theory of relativity states that", max_seq_len=45)  # doctest: +SKIP
+```
+
+Printing the `generated_text` would give that:
+
+```
+"Simply put, the theory of relativity states that the laws of physics are the same in all inertial frames of reference. In other words, the laws of physics are the same in all inertial frames of reference."
+```
+
+As you can see, converting a model to ExecuTorch does not mean leaving the Hugging Face ecosystem. You end up with a similar API as regular 🤗 Transformers models!
+
+It is also possible to export the model to ExecuTorch directly from the `ExecuTorchModelForCausalLM` class by doing the following:
+
+```python
+>>> from optimum.executorchruntime import ExecuTorchModelForCausalLM
+
+>>> model = ExecuTorchModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B", export=True, task="text-generation", recipe="xnnpack")
+```
