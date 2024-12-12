@@ -82,6 +82,7 @@ from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER
 from .model_patcher import (
     CLIPModelPatcher,
     FalconModelPatcher,
+    MgpstrModelPatcher,
     MistralModelPatcher,
     MusicgenModelPatcher,
     SAMModelPatcher,
@@ -931,6 +932,21 @@ class TimmDefaultOnnxConfig(ViTOnnxConfig):
     @property
     def torch_to_onnx_input_map(self) -> Dict[str, str]:
         return {"x": "pixel_values"}
+
+
+class MgpstrOnnxConfig(ViTOnnxConfig):
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "char_logits": {0: "batch_size"},
+            "bpe_logits": {0: "batch_size"},
+            "wp_logits": {0: "batch_size"},
+        }
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return MgpstrModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class SentenceTransformersTransformerOnnxConfig(TextEncoderOnnxConfig):

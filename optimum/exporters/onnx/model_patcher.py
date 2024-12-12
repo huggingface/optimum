@@ -509,6 +509,32 @@ class WavLMModelPatcher(ModelPatcher):
         self.patched_forward = patched_forward
 
 
+class MgpstrModelPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+
+        @functools.wraps(self.orig_forward)
+        def patched_forward(*args, **kwargs):
+            signature = inspect.signature(self.orig_forward)
+            args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
+
+            # logits is a tuple, so we unpack it and return them as separate outputs
+            char_logits, bpe_logits, wp_logits = self.orig_forward(*args, **kwargs).logits
+
+            return {
+                "char_logits": char_logits,
+                "bpe_logits": bpe_logits,
+                "wp_logits": wp_logits,
+            }
+
+        self.patched_forward = patched_forward
+
+
 class SAMModelPatcher(ModelPatcher):
     def __init__(
         self,
