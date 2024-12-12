@@ -33,7 +33,7 @@ class TestExportToExecuTorchCLI(unittest.TestCase):
     @slow
     @pytest.mark.run_slow
     def test_llama3_2_1b_export_to_executorch(self):
-        model_id = "meta-llama/Llama-3.2-1B"
+        model_id = "NousResearch/Llama-3.2-1B"
         task = "text-generation"
         recipe = "xnnpack"
         with tempfile.TemporaryDirectory() as tempdir:
@@ -47,7 +47,7 @@ class TestExportToExecuTorchCLI(unittest.TestCase):
     @slow
     @pytest.mark.run_slow
     def test_llama3_2_3b_export_to_executorch(self):
-        model_id = "meta-llama/Llama-3.2-3B"
+        model_id = "NousResearch/Hermes-3-Llama-3.2-3B"
         task = "text-generation"
         recipe = "xnnpack"
         with tempfile.TemporaryDirectory() as tempdir:
@@ -75,7 +75,7 @@ class TestExportToExecuTorchCLI(unittest.TestCase):
     @slow
     @pytest.mark.run_slow
     def test_gemma2_export_to_executorch(self):
-        model_id = "google/gemma-2-2b"
+        model_id = "unsloth/gemma-2-2b-it"
         task = "text-generation"
         recipe = "xnnpack"
         with tempfile.TemporaryDirectory() as tempdir:
@@ -89,7 +89,7 @@ class TestExportToExecuTorchCLI(unittest.TestCase):
     @slow
     @pytest.mark.run_slow
     def test_gemma_export_to_executorch(self):
-        model_id = "google/gemma-2b"
+        model_id = "weqweasdas/RM-Gemma-2B"
         task = "text-generation"
         recipe = "xnnpack"
         with tempfile.TemporaryDirectory() as tempdir:
