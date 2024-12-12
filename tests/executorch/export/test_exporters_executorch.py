@@ -74,7 +74,6 @@ class TestExportToExecuTorchCLI(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
-    @pytest.mark.skip
     def test_gemma2_export_to_executorch(self):
         model_id = "unsloth/gemma-2-2b-it"
         task = "text-generation"
@@ -89,7 +88,6 @@ class TestExportToExecuTorchCLI(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
-    @pytest.mark.skip
     def test_gemma_export_to_executorch(self):
         model_id = "weqweasdas/RM-Gemma-2B"
         task = "text-generation"
