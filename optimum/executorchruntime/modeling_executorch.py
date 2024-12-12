@@ -17,7 +17,7 @@ import os
 import warnings
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import List, Optional, Union
 
 import torch
 from executorch.extension.pybindings.portable_lib import (
@@ -33,10 +33,6 @@ from transformers import (
 
 from ..exporters.executorch import main_export
 from ..modeling_base import OptimizedModel
-
-
-if TYPE_CHECKING:
-    from transformers import PretrainedConfig
 
 
 logger = logging.getLogger(__name__)
