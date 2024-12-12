@@ -812,6 +812,10 @@ class ViTOnnxConfig(VisionOnnxConfig):
         return common_outputs
 
 
+class VitPoseOnnxConfig(ViTOnnxConfig):
+    pass
+
+
 class CvTOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     ATOL_FOR_VALIDATION = 1e-2

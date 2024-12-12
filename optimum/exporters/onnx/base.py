@@ -156,6 +156,9 @@ class OnnxConfig(ExportConfig, ABC):
         "image-to-image": OrderedDict(
             {"reconstruction": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
         ),
+        "keypoint-detection": OrderedDict(
+            {"heatmaps": {0: "batch_size", 1: "num_keypoints", 2: "height", 3: "width"}}
+        ),
         "mask-generation": OrderedDict({"logits": {0: "batch_size"}}),
         "masked-im": OrderedDict(
             {"reconstruction" if check_if_transformers_greater("4.29.0") else "logits": {0: "batch_size"}}
