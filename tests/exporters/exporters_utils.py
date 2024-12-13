@@ -127,6 +127,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mt5": "lewtun/tiny-random-mt5",
     "musicgen": "hf-internal-testing/tiny-random-MusicgenForConditionalGeneration",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
+    "olmo": "hf-internal-testing/tiny-random-OlmoForCausalLM",
+    "olmo2": "hf-internal-testing/tiny-random-Olmo2ForCausalLM",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "owlv2": "hf-internal-testing/tiny-random-Owlv2Model",
     "owlvit": "hf-tiny-model-private/tiny-random-OwlViTModel",
