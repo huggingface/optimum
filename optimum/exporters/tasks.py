@@ -2127,6 +2127,7 @@ class TasksManager:
             use_auth_token = model_kwargs.pop("use_auth_token", None)
             token = model_kwargs.pop("token", None)
             trust_remote_code = model_kwargs.pop("trust_remote_code", False)
+            model_kwargs["torch_dtype"] = torch_dtype
 
             if use_auth_token is not None:
                 warnings.warn(
@@ -2144,6 +2145,7 @@ class TasksManager:
                 token=token,
                 revision=revision,
                 trust_remote_code=trust_remote_code,
+                model_kwargs=model_kwargs,
             )
         else:
             try:
