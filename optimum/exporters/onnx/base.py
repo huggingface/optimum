@@ -179,6 +179,14 @@ class OnnxConfig(ExportConfig, ABC):
         "text-generation": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "visual-question-answering": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "zero-shot-audio-classification": OrderedDict(
+            {
+                "logits_per_audio": {0: "audio_batch_size", 1: "text_batch_size"},
+                "logits_per_text": {0: "text_batch_size", 1: "audio_batch_size"},
+                "text_embeds": {0: "text_batch_size"},
+                "audio_embeds": {0: "audio_batch_size"},
+            }
+        ),
         "zero-shot-image-classification": OrderedDict(
             {
                 "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
