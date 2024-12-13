@@ -127,6 +127,10 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
         }
 
 
+class NomicBertOnnxConfig(BertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14
+
+
 class AlbertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
