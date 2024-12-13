@@ -241,6 +241,7 @@ class NormalizedConfigManager:
         "donut-swin": NormalizedVisionConfig,
         "electra": NormalizedTextConfig,
         "encoder-decoder": NormalizedEncoderDecoderConfig,
+        "ernie": NormalizedTextConfig,
         "gemma": NormalizedTextConfigWithGQA,
         "gpt2": GPT2LikeNormalizedTextConfig,
         "gpt-bigcode": GPTBigCodeNormalizedTextConfig,
