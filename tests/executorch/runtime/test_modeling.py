@@ -20,7 +20,10 @@ import unittest
 import pytest
 from executorch.extension.pybindings.portable_lib import ExecuTorchModule
 from transformers import AutoTokenizer
-from transformers.testing_utils import slow
+from transformers.testing_utils import (
+    require_read_token,
+    slow,
+)
 
 from optimum.executorchruntime import ExecuTorchModelForCausalLM
 
@@ -33,7 +36,7 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
     @pytest.mark.run_slow
     def test_load_model_from_hub(self):
         model = ExecuTorchModelForCausalLM.from_pretrained(
-            model_name_or_path="meta-llama/Llama-3.2-1B",
+            model_name_or_path="NousResearch/Llama-3.2-1B",
             export=True,
             task="text-generation",
             recipe="xnnpack",
@@ -46,7 +49,7 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
     def test_load_model_from_local_path(self):
         from optimum.exporters.executorch import main_export
 
-        model_id = "meta-llama/Llama-3.2-1B"
+        model_id = "NousResearch/Llama-3.2-1B"
         task = "text-generation"
         recipe = "xnnpack"
 
@@ -70,6 +73,7 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
+    @require_read_token
     def test_llama3_2_1b_text_generation_with_xnnpack(self):
         model_id = "meta-llama/Llama-3.2-1B"
         model = ExecuTorchModelForCausalLM.from_pretrained(
@@ -92,6 +96,7 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
+    @require_read_token
     def test_llama3_2_3b_text_generation_with_xnnpack(self):
         model_id = "meta-llama/Llama-3.2-3B"
         model = ExecuTorchModelForCausalLM.from_pretrained(
@@ -118,6 +123,7 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
+    @require_read_token
     def test_qwen2_5_text_generation_with_xnnpack(self):
         model_id = "Qwen/Qwen2.5-0.5B"
         model = ExecuTorchModelForCausalLM.from_pretrained(
@@ -140,6 +146,7 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
+    @require_read_token
     def test_gemma2_text_generation_with_xnnpack(self):
         model_id = "google/gemma-2-2b"
         model = ExecuTorchModelForCausalLM.from_pretrained(
@@ -162,6 +169,7 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
+    @require_read_token
     def test_gemma_text_generation_with_xnnpack(self):
         model_id = "google/gemma-2b"
         model = ExecuTorchModelForCausalLM.from_pretrained(
@@ -184,6 +192,7 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
+    @require_read_token
     def test_olmo_text_generation_with_xnnpack(self):
         model_id = "allenai/OLMo-1B-hf"
         model = ExecuTorchModelForCausalLM.from_pretrained(
