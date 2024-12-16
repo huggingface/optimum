@@ -29,10 +29,10 @@ from transformers.utils.quantization_config import QuantizationMethod
 
 from ..utils import is_accelerate_available, is_auto_gptq_available, is_gptqmodel_available
 from ..utils.modeling_utils import recurse_getattr
+from ..version import __version__ as optimum_version
 from .constants import GPTQ_CONFIG
 from .data import get_dataset, prepare_dataset
 from .utils import get_block_name_with_pattern, get_device, get_layers, get_preceding_modules, get_seqlen
-from ..version import __version__ as optimum_version
 
 
 if is_accelerate_available():
@@ -43,11 +43,11 @@ if is_accelerate_available():
     from accelerate.hooks import remove_hook_from_module
 
 if is_auto_gptq_available():
+    from auto_gptq import __version__ as autogptq_version
     from auto_gptq import exllama_set_max_input_length
     from auto_gptq.modeling._utils import autogptq_post_init as gptq_post_init
     from auto_gptq.quantization import GPTQ
     from auto_gptq.utils.import_utils import dynamically_import_QuantLinear as hf_select_quant_linear
-    from auto_gptq import __version__ as autogptq_version
 
 if is_gptqmodel_available():
     from gptqmodel import exllama_set_max_input_length
@@ -128,8 +128,7 @@ class GPTQQuantizer(object):
                 Properties, such as tooling:version, that do not directly contributes to quantization or quant inference are stored in meta.
                 i.e. `meta.quantizer`: ["optimum:_version_", "gptqmodel:_version_"]
             backend (`str`, *optional*):
-                Controls which gptq kernel to be used. Valid values for gptqmodel are `auto`, `auto_trainable` and more. For auto-gptq, only 
-                valid value is None and `auto_trainable`. Ref gptqmodel backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
+                Controls which gptq kernel to be used. Valid values for gptqmodel are `auto`, `auto_trainable` and more. For auto-gptq, only valid value is None and `auto_trainable`. Ref gptqmodel backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
             use_cuda_fp16 (`bool`, defaults to `False`):
                 Whether or not to use optimized cuda kernel for fp16 model. Need to have model in fp16.
             model_seqlen (`Optional[int]`, defaults to `None`):
@@ -246,7 +245,7 @@ class GPTQQuantizer(object):
 
         if gptq_dict.get("meta") is None:
             gptq_dict["meta"] = {}
-            
+
         meta = gptq_dict["meta"]
         # store both optimum:version and gptq_lib:version into quantize_config.meta.quantizer
         if meta.get("quantizer") is None:
@@ -719,7 +718,9 @@ class GPTQQuantizer(object):
             pass
 
         if is_gptqmodel_available():
-            model, _ = hf_convert_gptq_v1_to_v2_format(model, self.bits, self.quant_linear, self.checkpoint_format, self.meta)
+            model, _ = hf_convert_gptq_v1_to_v2_format(
+                model, self.bits, self.quant_linear, self.checkpoint_format, self.meta
+            )
 
         model.quantize_config = StoreAttr()
         model.quantize_config.desc_act = self.desc_act
@@ -790,9 +791,12 @@ class GPTQQuantizer(object):
         """
 
         # convert gptqmodel internal gptq_v2 format to v1 for max compatibility
-        model, converted = hf_convert_gptq_v2_to_v1_format(model, self.sym, self.bits, self.quant_linear, self.checkpoint_format, self.meta)
-        if converted:
-            self.checkpoint_format = "gptq"
+        if is_gptqmodel_available():
+            model, converted = hf_convert_gptq_v2_to_v1_format(
+                model, self.sym, self.bits, self.quant_linear, self.checkpoint_format, self.meta
+            )
+            if converted:
+                self.checkpoint_format = "gptq"
 
         os.makedirs(save_dir, exist_ok=True)
         model.save_pretrained(save_dir, max_shard_size=max_shard_size, safe_serialization=safe_serialization)

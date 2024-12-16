@@ -193,7 +193,6 @@ class GPTQTestCUDA(GPTQTest):
     expected_fp16_perplexity = 38
     expected_quantized_perplexity = 45
 
-
     def test_perplexity(self):
         """
         A simple test to check if the model conversion has been done correctly by checking on the
@@ -309,7 +308,9 @@ class GPTQTestExllamav2(GPTQTestCUDA):
                 save_folder=tmpdirname,
                 device_map={"": self.device_for_inference},
             )
-            self.check_quantized_layers_type(quantized_model_from_saved, "exllama" if is_gptqmodel_available else "exllamav2")
+            self.check_quantized_layers_type(
+                quantized_model_from_saved, "exllama" if is_gptqmodel_available else "exllamav2"
+            )
 
             # transformers and auto-gptq compatibility
             # quantized models are more compatible with device map than
