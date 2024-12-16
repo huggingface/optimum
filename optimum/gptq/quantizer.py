@@ -53,7 +53,7 @@ if is_gptqmodel_available():
     from gptqmodel import exllama_set_max_input_length
     from gptqmodel.quantization import GPTQ
     from gptqmodel.utils.importer import hf_select_quant_linear
-    from gptqmodel.utils.model import hf_convert_gptq_v1_to_v2_format, hf_convert_gptq_v2_to_v1_format
+    from gptqmodel.utils.model import hf_convert_gptq_v1_to_v2_format, hf_convert_gptq_v2_to_v1_format, nested_move_to
     from gptqmodel.utils.model import hf_gptqmodel_post_init as gptq_post_init
     from gptqmodel.version import __version__ as gptqmodel_version
 
@@ -511,9 +511,11 @@ class GPTQQuantizer(object):
 
         blocks = recurse_getattr(model, self.block_name_to_quantize)
 
+        cur_layer_device = get_device(blocks[0])
+
         if not has_device_map:
             # put modules from module_name_preceding_first_block on cuda or xpu or cpu
-            to_device = 0 if has_device_more_than_cpu() else "cpu"
+            to_device = cur_layer_device
             for module_name in self.module_name_preceding_first_block:
                 module = recurse_getattr(model, module_name)
                 if module is None:
@@ -525,14 +527,14 @@ class GPTQQuantizer(object):
             kwargs = args[0]
             if input is None:
                 if "hidden_states" in kwargs:
-                    input = (kwargs["hidden_states"],)
+                    input = (nested_move_to(kwargs["hidden_states"], cur_layer_device),)
                 else:
                     raise ValueError("No input value found in the foward pass")
             layer_inputs.append(input)
             other_kwargs = {}
             for k, v in kwargs.items():  # make sure other arguments also be captured
                 if k not in ["hidden_states"]:
-                    other_kwargs[k] = v
+                    other_kwargs[k] = nested_move_to(v, cur_layer_device)
             layer_input_kwargs.append(other_kwargs)
             raise ValueError
 
@@ -540,11 +542,7 @@ class GPTQQuantizer(object):
             handle = blocks[0].register_forward_pre_hook(store_input_hook, with_kwargs=True)
             for data in dataset:
                 for k, v in data.items():
-                    # put the data on gpu, we won't put them back to cpu
-                    if (not has_device_map or device.type == "cpu") and has_device_more_than_cpu():
-                        data[k] = v.to(0)
-                    else:
-                        data[k] = v.to(device)
+                    data[k] = nested_move_to(v, cur_layer_device)
                 try:
                     model(**data)
                 except ValueError:
@@ -571,11 +569,7 @@ class GPTQQuantizer(object):
                 handle = block.register_forward_pre_hook(store_input_hook, with_kwargs=True)
                 for data in dataset:
                     for k, v in data.items():
-                        # put the data on gpu, we won't put them back to cpu
-                        if (not has_device_map or device.type == "cpu") and has_device_more_than_cpu():
-                            data[k] = v.to(0)
-                        else:
-                            data[k] = v.to(device)
+                        data[k] = nested_move_to(v, cur_layer_device)
                     try:
                         model(**data)
                     except ValueError:
@@ -587,6 +581,7 @@ class GPTQQuantizer(object):
             if (not has_device_map or get_device(block) == torch.device("cpu")) and has_device_more_than_cpu():
                 block = block.to(0)
             layers = get_layers(block)
+            block_device = get_device(block)
             if isinstance(self.modules_in_block_to_quantize, list) and len(self.modules_in_block_to_quantize) > 0:
                 if self.true_sequential:
                     layers_name_list = self.modules_in_block_to_quantize
@@ -620,6 +615,10 @@ class GPTQQuantizer(object):
                 for j in range(len(dataset)):
                     # the args are already on the gpu
                     # don't need to store the output
+                    layer_inputs[j] = nested_move_to(layer_inputs[j], block_device)
+                    for k, v in layer_input_kwargs[j].items():
+                        layer_input_kwargs[j][k] = nested_move_to(v, block_device)
+
                     block(*layer_inputs[j], **layer_input_kwargs[j])
                 # remove hook
                 for h in handles:

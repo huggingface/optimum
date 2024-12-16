@@ -316,7 +316,10 @@ class GPTQTestExllamav2(GPTQTestCUDA):
             # quantized models are more compatible with device map than
             # device context managers (they're never used in transformers testing suite)
             _ = AutoModelForCausalLM.from_pretrained(tmpdirname, device_map={"": self.device_for_inference})
-            _ = AutoGPTQForCausalLM.from_quantized(tmpdirname, device_map={"": self.device_for_inference})
+            if is_gptqmodel_available():
+                _ = GPTQModel.load(tmpdirname, device_map={"": self.device_for_inference})
+            else:
+                _ = AutoGPTQForCausalLM.from_quantized(tmpdirname, device_map={"": self.device_for_inference})
 
 
 class GPTQTestNoBlockCaching(GPTQTestCUDA):
