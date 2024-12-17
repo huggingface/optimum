@@ -289,7 +289,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "resnet": "microsoft/resnet-50",
     "roberta": "roberta-base",
     "roformer": "junnyu/roformer_chinese_base",
-    "rtdetr": "PekingU/rtdetr_r18vd",
+    "rtdetr": "PekingU/rtdetr_r101vd",
     "sam": "facebook/sam-vit-base",
     "segformer": "nvidia/segformer-b0-finetuned-ade-512-512",
     "siglip": "google/siglip-base-patch16-224",
