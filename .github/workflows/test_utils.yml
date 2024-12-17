@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, macos-13]
-        python-version: [3.8, 3.9]
+        python-version: ['3.9']
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -37,4 +37,13 @@ jobs:
       - name: Test with pytest
         working-directory: tests
         run: |
-          python -m pytest -s -vvvv utils
+          pytest utils -s -n auto -m "not datasets_test" --durations=0
+
+      - name: Install datasets
+        run: |
+          pip install datasets
+
+      - name: Tests needing datasets
+        working-directory: tests
+        run: |
+          pytest utils -s -n auto -m "datasets_test" --durations=0

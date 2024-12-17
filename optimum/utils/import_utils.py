@@ -69,6 +69,7 @@ _diffusers_available = _is_package_available("diffusers")
 _auto_gptq_available = _is_package_available("auto_gptq")
 _timm_available = _is_package_available("timm")
 _sentence_transformers_available = _is_package_available("sentence_transformers")
+_datasets_available = _is_package_available("datasets")
 
 torch_version = None
 if is_torch_available():
@@ -129,6 +130,10 @@ def is_timm_available():
 
 def is_sentence_transformers_available():
     return _sentence_transformers_available
+
+
+def is_datasets_available():
+    return _datasets_available
 
 
 def is_auto_gptq_available():
@@ -193,6 +198,22 @@ def check_if_diffusers_greater(target_version: str) -> bool:
     return version.parse(_diffusers_version) >= version.parse(target_version)
 
 
+def check_if_torch_greater(target_version: str) -> bool:
+    """
+    Checks whether the current install of torch is greater than or equal to the target version.
+
+    Args:
+        target_version (str): version used as the reference for comparison.
+
+    Returns:
+        bool: whether the check is True or not.
+    """
+    if not is_torch_available():
+        return False
+
+    return torch_version >= version.parse(target_version)
+
+
 @contextmanager
 def require_numpy_strictly_lower(package_version: str, message: str):
     if not version.parse(np.__version__) < version.parse(package_version):
@@ -214,6 +235,12 @@ TRANSFORMERS_IMPORT_ERROR = """requires the transformers>={0} library but it was
 -U transformers`. Please note that you may need to restart your runtime after installation.
 """
 
+DATASETS_IMPORT_ERROR = """
+{0} requires the datasets library but it was not found in your environment. You can install it with pip:
+`pip install datasets`. Please note that you may need to restart your runtime after installation.
+"""
+
+
 BACKENDS_MAPPING = OrderedDict(
     [
         ("diffusers", (is_diffusers_available, DIFFUSERS_IMPORT_ERROR)),
@@ -229,6 +256,7 @@ BACKENDS_MAPPING = OrderedDict(
             "transformers_434",
             (lambda: check_if_transformers_greater("4.34"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.34")),
         ),
+        ("datasets", (is_datasets_available, DATASETS_IMPORT_ERROR)),
     ]
 )
 

@@ -28,6 +28,7 @@ import torch
 from . import (
     is_accelerate_available,
     is_auto_gptq_available,
+    is_datasets_available,
     is_diffusers_available,
     is_sentence_transformers_available,
     is_timm_available,
@@ -144,6 +145,10 @@ def require_timm(test_case):
 
 def require_sentence_transformers(test_case):
     return unittest.skipUnless(is_sentence_transformers_available(), "test requires sentence-transformers")(test_case)
+
+
+def require_datasets(test_case):
+    return unittest.skipUnless(is_datasets_available(), "test requires datasets")(test_case)
 
 
 def grid_parameters(

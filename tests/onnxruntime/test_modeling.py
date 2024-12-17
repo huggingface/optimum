@@ -28,6 +28,7 @@ import pytest
 import requests
 import timm
 import torch
+from huggingface_hub import HfApi
 from huggingface_hub.constants import default_cache_path
 from parameterized import parameterized
 from PIL import Image
@@ -53,6 +54,7 @@ from transformers import (
     AutoModelForTokenClassification,
     AutoModelForVision2Seq,
     AutoTokenizer,
+    GenerationConfig,
     MBartForConditionalGeneration,
     Pix2StructForConditionalGeneration,  # Pix2Struct does not work with AutoModel
     PretrainedConfig,
@@ -105,7 +107,7 @@ from optimum.utils import (
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
     logging,
 )
-from optimum.utils.import_utils import is_diffusers_available
+from optimum.utils.import_utils import check_if_transformers_greater, is_diffusers_available
 from optimum.utils.testing_utils import (
     grid_parameters,
     remove_directory,
@@ -141,14 +143,14 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.TEST_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
-        self.LOCAL_MODEL_PATH = "assets/onnx"
+        self.LOCAL_MODEL_PATH = "tests/assets/onnx"
         self.ONNX_MODEL_ID = "philschmid/distilbert-onnx"
         self.TINY_ONNX_MODEL_ID = "fxmarty/resnet-tiny-beans"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
         self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
         self.LARGE_ONNX_SEQ2SEQ_MODEL_ID = "facebook/mbart-large-en-ro"
         self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
-        self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID = "hf-internal-testing/tiny-random-OnnxStableDiffusionPipeline"
+        self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID = "optimum-internal-testing/tiny-stable-diffusion-onnx"
 
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
@@ -222,16 +224,16 @@ class ORTModelIntegrationTest(unittest.TestCase):
     @require_diffusers
     def test_load_stable_diffusion_model_from_cache(self):
         _ = ORTStableDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID)  # caching
-
         model = ORTStableDiffusionPipeline.from_pretrained(
             self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID, local_files_only=True
         )
-
         self.assertIsInstance(model.text_encoder, ORTModelTextEncoder)
         self.assertIsInstance(model.vae_decoder, ORTModelVaeDecoder)
         self.assertIsInstance(model.vae_encoder, ORTModelVaeEncoder)
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
+
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
 
     @require_diffusers
     def test_load_stable_diffusion_model_from_empty_cache(self):
@@ -325,6 +327,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.unet, ORTModelUnet)
         self.assertIsInstance(model.config, Dict)
 
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
+
     @require_diffusers
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
@@ -338,6 +342,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_decoder.session.get_providers(), model.providers)
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cuda:0"))
+
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
 
     @require_diffusers
     @require_torch_gpu
@@ -354,6 +360,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cuda:0"))
 
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
+
     @require_diffusers
     def test_load_stable_diffusion_model_cpu_provider(self):
         model = ORTStableDiffusionPipeline.from_pretrained(
@@ -365,6 +373,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertListEqual(model.vae_decoder.session.get_providers(), model.providers)
         self.assertListEqual(model.vae_encoder.session.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cpu"))
+
+        model(prompt="This is a sanity test prompt", num_inference_steps=2)
 
     @require_diffusers
     def test_load_stable_diffusion_model_unknown_provider(self):
@@ -965,9 +975,13 @@ class ORTModelIntegrationTest(unittest.TestCase):
         token = os.environ.get("HF_HUB_READ_TOKEN", None)
 
         if token is None:
-            self.skipTest("Test requires a token for fxmartyclone in the environment variable `HF_HUB_READ_TOKEN`.")
+            self.skipTest(
+                "Test requires a read access token for optimum-internal-testing in the environment variable `HF_HUB_READ_TOKEN`."
+            )
 
-        model = ORTModelForCustomTasks.from_pretrained("optimum-internal-testing/tiny-random-phi-private", token=token)
+        model = ORTModelForCustomTasks.from_pretrained(
+            "optimum-internal-testing/tiny-random-phi-private", revision="onnx", token=token
+        )
 
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
@@ -1255,6 +1269,20 @@ class ORTModelIntegrationTest(unittest.TestCase):
             torch.allclose(pt_logits, ort_logits, atol=1e-4), f" Maxdiff: {torch.abs(pt_logits - ort_logits).max()}"
         )
 
+    @parameterized.expand(("", "onnx"))
+    def test_loading_with_config_not_from_subfolder(self, subfolder):
+        # config.json file in the root directory and not in the subfolder
+        model_id = "sentence-transformers-testing/stsb-bert-tiny-onnx"
+        # hub model
+        ORTModelForFeatureExtraction.from_pretrained(model_id, subfolder=subfolder, export=subfolder == "")
+        # local model
+        api = HfApi()
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            local_dir = Path(tmpdirname) / "model"
+            api.snapshot_download(repo_id=model_id, local_dir=local_dir)
+            ORTModelForFeatureExtraction.from_pretrained(local_dir, subfolder=subfolder, export=subfolder == "")
+            remove_directory(tmpdirname)
+
 
 class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
@@ -1284,6 +1312,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         "squeezebert",
         "xlm_qa",
         "xlm_roberta",
+        "rembert",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
@@ -1474,6 +1503,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         "squeezebert",
         "xlm",
         "xlm_roberta",
+        "rembert",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
@@ -1654,6 +1684,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "squeezebert",
         "xlm",
         "xlm_roberta",
+        "rembert",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
@@ -1854,6 +1885,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         "squeezebert",
         "xlm",
         "xlm_roberta",
+        "rembert",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
@@ -2165,6 +2197,18 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
+    def test_default_token_type_ids(self):
+        model_id = MODEL_NAMES["bert"]
+        model = ORTModelForFeatureExtraction.from_pretrained(model_id, export=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokens = tokenizer("this is a simple input", return_tensors="np")
+        self.assertTrue("token_type_ids" in model.input_names)
+        token_type_ids = tokens.pop("token_type_ids")
+        outs = model(token_type_ids=token_type_ids, **tokens)
+        outs_without_token_type_ids = model(**tokens)
+        self.assertTrue(np.allclose(outs.last_hidden_state, outs_without_token_type_ids.last_hidden_state))
+        gc.collect()
+
 
 class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
     # Multiple Choice tests are conducted on different models due to mismatch size in model's classifier
@@ -2187,6 +2231,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
         "squeezebert",
         "xlm",
         "xlm_roberta",
+        "rembert",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
@@ -2278,7 +2323,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "bloom",
         "codegen",
         "falcon",
-        "gemma",
         "gpt2",
         "gpt_bigcode",
         "gpt_neo",
@@ -2286,10 +2330,21 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "gptj",
         "llama",
         "mistral",
-        "mpt",
-        "phi3",
-        "qwen2",
+        "opt",
     ]
+
+    if check_if_transformers_greater("4.37"):
+        SUPPORTED_ARCHITECTURES.append("qwen2")
+
+    if check_if_transformers_greater("4.38"):
+        SUPPORTED_ARCHITECTURES.append("gemma")
+
+    # TODO: fix "mpt" for which inference fails for transformers < v4.41
+    if check_if_transformers_greater("4.41"):
+        SUPPORTED_ARCHITECTURES.extend(["phi3", "mpt"])
+
+    if check_if_transformers_greater("4.45"):
+        SUPPORTED_ARCHITECTURES.append("granite")
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
@@ -2299,7 +2354,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     ORTMODEL_CLASS = ORTModelForCausalLM
     TASK = "text-generation"
 
-    GENERATION_LENGTH = 100
+    GENERATION_LENGTH = 90
     SPEEDUP_CACHE = 1.1
 
     @parameterized.expand([(False,), (True,)])
@@ -2372,7 +2427,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertNotIn(ONNX_DECODER_WITH_PAST_NAME, folder_contents)
             self.assertNotIn(ONNX_WEIGHTS_NAME, folder_contents)
 
-    @parameterized.expand(grid_parameters({**FULL_GRID, "num_beams": [1, 3]}))
+    @parameterized.expand(grid_parameters({**FULL_GRID, "num_beams": [1, 4]}))
     def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, num_beams: int):
         use_io_binding = None
         if use_cache is False:
@@ -2402,7 +2457,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         transformers_model = AutoModelForCausalLM.from_pretrained(model_id)
         transformers_model = transformers_model.eval()
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer("This is a sample input", return_tensors="pt")
         position_ids = None
         if model_arch.replace("_", "-") in MODEL_TYPES_REQUIRING_POSITION_IDS:
             input_shape = tokens["input_ids"].shape
@@ -2424,7 +2479,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         # Compare batched generation.
         tokenizer.pad_token_id = tokenizer.eos_token_id
         tokenizer.padding_side = "left"
-        tokens = tokenizer(["Today is a nice day and I am longer", "This is me"], return_tensors="pt", padding=True)
+        tokens = tokenizer(["This is", "This is a sample input"], return_tensors="pt", padding=True)
         onnx_model.generation_config.eos_token_id = None
         transformers_model.generation_config.eos_token_id = None
         onnx_model.config.eos_token_id = None
@@ -2435,25 +2490,39 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             # TODO: remove once https://github.com/huggingface/transformers/pull/26873 is released, falcon is broken in transformers
             new_tokens = 5
 
-        onnx_outputs = onnx_model.generate(
-            **tokens,
-            num_beams=num_beams,
-            do_sample=False,
-            min_new_tokens=new_tokens,
-            max_new_tokens=new_tokens,
-            eos_token_id=None,
-        )
+        gen_kwargs = {
+            "max_new_tokens": new_tokens,
+            "min_new_tokens": new_tokens,
+            "eos_token_id": None,
+            "num_beams": num_beams,
+        }
 
-        transformers_outputs = transformers_model.generate(
-            **tokens,
-            num_beams=num_beams,
-            do_sample=False,
-            min_new_tokens=new_tokens,
-            max_new_tokens=new_tokens,
-            eos_token_id=None,
-        )
+        beam_search_gen_config = GenerationConfig(do_sample=False, **gen_kwargs)
 
-        self.assertTrue(torch.allclose(onnx_outputs, transformers_outputs))
+        if use_cache and num_beams == 4:
+            beam_sample_gen_config = GenerationConfig(do_sample=True, **gen_kwargs)
+            group_beam_search_gen_config = GenerationConfig(
+                do_sample=False, num_beam_groups=2, diversity_penalty=0.0000001, **gen_kwargs
+            )
+            gen_configs = (
+                beam_search_gen_config,
+                beam_sample_gen_config,
+                group_beam_search_gen_config,
+            )
+        else:
+            gen_configs = (beam_search_gen_config,)
+
+        for gen_config in gen_configs:
+            set_seed(SEED)
+            with torch.no_grad():
+                transformers_outputs = transformers_model.generate(**tokens, generation_config=gen_config)
+            set_seed(SEED)
+            onnx_outputs = onnx_model.generate(**tokens, generation_config=gen_config)
+
+            self.assertTrue(
+                torch.equal(onnx_outputs, transformers_outputs),
+                f"Failed with generation config : {gen_config}, transformers outputs {transformers_outputs}, ONNX model outputs {onnx_outputs}",
+            )
 
         gc.collect()
 
@@ -4541,14 +4610,14 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
-        self.assertEqual(
-            outputs_model_with_pkv.shape[1],
-            self.GENERATION_LENGTH + 2 if model_arch == "whisper" else self.GENERATION_LENGTH + 1,
-        )
-        self.assertEqual(
-            outputs_model_without_pkv.shape[1],
-            self.GENERATION_LENGTH + 2 if model_arch == "whisper" else self.GENERATION_LENGTH + 1,
-        )
+
+        if model_arch == "whisper" and check_if_transformers_greater("4.43"):
+            gen_length = self.GENERATION_LENGTH + 2
+        else:
+            gen_length = self.GENERATION_LENGTH + 1
+
+        self.assertEqual(outputs_model_with_pkv.shape[1], gen_length)
+        self.assertEqual(outputs_model_without_pkv.shape[1], gen_length)
 
         self.GENERATION_LENGTH = generation_length
         if os.environ.get("TEST_LEVEL", 0) == "1":

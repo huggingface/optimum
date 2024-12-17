@@ -18,9 +18,8 @@ import warnings
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-from datasets import Dataset
 from packaging.version import Version, parse
 
 from onnxruntime import __version__ as ort_version
@@ -31,6 +30,10 @@ from onnxruntime.transformers.fusion_options import FusionOptions
 
 from ..configuration_utils import BaseConfig
 from ..utils import logging
+
+
+if TYPE_CHECKING:
+    from datasets import Dataset
 
 
 logger = logging.get_logger(__name__)
@@ -117,7 +120,9 @@ class CalibrationConfig:
 
 class AutoCalibrationConfig:
     @staticmethod
-    def minmax(dataset: Dataset, moving_average: bool = False, averaging_constant: float = 0.01) -> CalibrationConfig:
+    def minmax(
+        dataset: "Dataset", moving_average: bool = False, averaging_constant: float = 0.01
+    ) -> CalibrationConfig:
         """
         Args:
             dataset (`Dataset`):
@@ -151,7 +156,7 @@ class AutoCalibrationConfig:
 
     @staticmethod
     def entropy(
-        dataset: Dataset,
+        dataset: "Dataset",
         num_bins: int = 128,
         num_quantized_bins: int = 128,
     ) -> CalibrationConfig:
@@ -188,7 +193,7 @@ class AutoCalibrationConfig:
         )
 
     @staticmethod
-    def percentiles(dataset: Dataset, num_bins: int = 2048, percentile: float = 99.999) -> CalibrationConfig:
+    def percentiles(dataset: "Dataset", num_bins: int = 2048, percentile: float = 99.999) -> CalibrationConfig:
         """
         Args:
             dataset (`Dataset`):
