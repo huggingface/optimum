@@ -1941,8 +1941,7 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
     # so we won't support for now.
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         hidden_size="hidden_size",
-        num_attention_heads="encoder_attention_heads",
-        # TODO: bugged in case encoder and decoder have different number of heads
+        num_attention_heads="encoder_attention_heads",  # TODO: bugged in case encoder and decoder have different number of heads
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
         allow_new=True,
