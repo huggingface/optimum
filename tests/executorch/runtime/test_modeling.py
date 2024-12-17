@@ -73,9 +73,8 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
-    @require_read_token
     def test_llama3_2_1b_text_generation_with_xnnpack(self):
-        model_id = "meta-llama/Llama-3.2-1B"
+        model_id = "NousResearch/Llama-3.2-1B"
         model = ExecuTorchModelForCausalLM.from_pretrained(
             model_name_or_path=model_id,
             export=True,
@@ -96,9 +95,8 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
-    @require_read_token
     def test_llama3_2_3b_text_generation_with_xnnpack(self):
-        model_id = "meta-llama/Llama-3.2-3B"
+        model_id = "NousResearch/Hermes-3-Llama-3.2-3B"
         model = ExecuTorchModelForCausalLM.from_pretrained(
             model_name_or_path=model_id,
             export=True,
@@ -123,7 +121,6 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
-    @require_read_token
     def test_qwen2_5_text_generation_with_xnnpack(self):
         model_id = "Qwen/Qwen2.5-0.5B"
         model = ExecuTorchModelForCausalLM.from_pretrained(
@@ -146,9 +143,9 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
-    @require_read_token
     def test_gemma2_text_generation_with_xnnpack(self):
-        model_id = "google/gemma-2-2b"
+        # model_id = "google/gemma-2-2b"
+        model_id = "unsloth/gemma-2-2b-it"
         model = ExecuTorchModelForCausalLM.from_pretrained(
             model_name_or_path=model_id,
             export=True,
@@ -169,9 +166,9 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
-    @require_read_token
     def test_gemma_text_generation_with_xnnpack(self):
-        model_id = "google/gemma-2b"
+        # model_id = "google/gemma-2b"
+        model_id = "weqweasdas/RM-Gemma-2B"
         model = ExecuTorchModelForCausalLM.from_pretrained(
             model_name_or_path=model_id,
             export=True,
@@ -192,7 +189,6 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
-    @require_read_token
     def test_olmo_text_generation_with_xnnpack(self):
         model_id = "allenai/OLMo-1B-hf"
         model = ExecuTorchModelForCausalLM.from_pretrained(
