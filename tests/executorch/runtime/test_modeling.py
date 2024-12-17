@@ -21,7 +21,6 @@ import pytest
 from executorch.extension.pybindings.portable_lib import ExecuTorchModule
 from transformers import AutoTokenizer
 from transformers.testing_utils import (
-    require_read_token,
     slow,
 )
 
@@ -107,9 +106,9 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.model, ExecuTorchModule)
 
         EXPECTED_GENERATED_TEXT = (
-            "Simply put, the theory of relativity states that the speed of light is constant. This "
-            "means that no matter how fast you are traveling, the speed of light will always be "
-            "186,000 miles per second."
+            "Simply put, the theory of relativity states that time is relative and can be affected "
+            "by an object's speed. This theory was developed by Albert Einstein in the early 20th "
+            "century. The theory has two parts"
         )
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         generated_text = model.text_generation(
@@ -155,7 +154,9 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model, ExecuTorchModelForCausalLM)
         self.assertIsInstance(model.model, ExecuTorchModule)
 
-        EXPECTED_GENERATED_TEXT = "Hello I am doing a project for my school. I need help with my science homework"
+        EXPECTED_GENERATED_TEXT = (
+            "Hello I am doing a project for my school and I need to make sure it is a great to be creative and I can!"
+        )
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         generated_text = model.text_generation(
             tokenizer=tokenizer,
@@ -178,7 +179,7 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model, ExecuTorchModelForCausalLM)
         self.assertIsInstance(model.model, ExecuTorchModule)
 
-        EXPECTED_GENERATED_TEXT = "Hello I am doing a project for my school and I need to make a 3D model of a car."
+        EXPECTED_GENERATED_TEXT = "Hello I am doing a project for my school and I need to write a report on the history of the United States."
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         generated_text = model.text_generation(
             tokenizer=tokenizer,
