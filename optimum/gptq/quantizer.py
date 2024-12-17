@@ -90,9 +90,6 @@ class GPTQQuantizer(object):
         desc_act: bool = False,
         sym: bool = True,
         true_sequential: bool = True,
-        checkpoint_format: str = "gptq",
-        meta: Optional[Dict[str, any]] = None,
-        backend: Optional[str] = None,
         use_cuda_fp16: bool = False,
         model_seqlen: Optional[int] = None,
         block_name_to_quantize: Optional[str] = None,
@@ -104,6 +101,9 @@ class GPTQQuantizer(object):
         max_input_length: Optional[int] = None,
         cache_block_outputs: Optional[bool] = True,
         modules_in_block_to_quantize: Optional[List[List[str]]] = None,
+        checkpoint_format: str = "gptq",
+        meta: Optional[Dict[str, any]] = None,
+        backend: Optional[str] = None,
         *args,
         **kwargs,
     ):
@@ -129,13 +129,6 @@ class GPTQQuantizer(object):
                 Whether to perform sequential quantization even within a single Transformer block.
                 Instead of quantizing the entire block at once, we perform layer-wise quantization.
                 As a result, each layer undergoes quantization using inputs that have passed through the previously quantized layers.
-            checkpoint_format (`str`, *optional*, defaults to `gptq`):
-                GPTQ weight format. `gptq`(v1) is supported by both gptqmodel and auto-gptq. `gptq_v2` is gptqmodel only.
-            meta (`Dict[str, any]`, *optional*):
-                Properties, such as tooling:version, that do not directly contributes to quantization or quant inference are stored in meta.
-                i.e. `meta.quantizer`: ["optimum:_version_", "gptqmodel:_version_"]
-            backend (`str`, *optional*):
-                Controls which gptq kernel to be used. Valid values for gptqmodel are `auto`, `auto_trainable` and more. For auto-gptq, only valid value is None and `auto_trainable`. Ref gptqmodel backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
             use_cuda_fp16 (`bool`, defaults to `False`):
                 Whether or not to use optimized cuda kernel for fp16 model. Need to have model in fp16.
             model_seqlen (`Optional[int]`, defaults to `None`):
@@ -162,6 +155,13 @@ class GPTQQuantizer(object):
                 List list of module names to quantize in the block specified. This argument is useful to exclude certain linear modules from being quantized.
                 The block to quantize can be specified by setting `block_name_to_quantize`. We will quantize each list sequentially.
                 If not set, we will quantize all linear layers. Example: `inside_layer_modules=[["self_attention.query_key_value"], ["mlp.dense_h_to_4h"]]`
+            checkpoint_format (`str`, *optional*, defaults to `gptq`):
+                GPTQ weight format. `gptq`(v1) is supported by both gptqmodel and auto-gptq. `gptq_v2` is gptqmodel only.
+            meta (`Dict[str, any]`, *optional*):
+                Properties, such as tooling:version, that do not directly contributes to quantization or quant inference are stored in meta.
+                i.e. `meta.quantizer`: ["optimum:_version_", "gptqmodel:_version_"]
+            backend (`str`, *optional*):
+                Controls which gptq kernel to be used. Valid values for gptqmodel are `auto`, `auto_trainable` and more. For auto-gptq, only valid value is None and `auto_trainable`. Ref gptqmodel backends: https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
         """
 
         self.bits = bits
@@ -564,7 +564,7 @@ class GPTQQuantizer(object):
                     raise ValueError(f"Module {module_name} was not found in model")
 
         torch.cuda.empty_cache()
-        if hasattr(torch, "xpu"):
+        if hasattr(torch, "xpu") and torch.xpu.is_available():
             torch.xpu.empty_cache()
 
         # Step 3: Quantize the blocks
