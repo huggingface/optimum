@@ -32,7 +32,14 @@ from ..utils.modeling_utils import recurse_getattr
 from ..version import __version__ as optimum_version
 from .constants import GPTQ_CONFIG
 from .data import get_dataset, prepare_dataset
-from .utils import get_block_name_with_pattern, get_device, get_layers, get_preceding_modules, get_seqlen
+from .utils import (
+    get_block_name_with_pattern,
+    get_device,
+    get_layers,
+    get_preceding_modules,
+    get_seqlen,
+    nested_move_to,
+)
 
 
 if is_accelerate_available():
@@ -53,7 +60,7 @@ if is_gptqmodel_available():
     from gptqmodel import exllama_set_max_input_length
     from gptqmodel.quantization import GPTQ
     from gptqmodel.utils.importer import hf_select_quant_linear
-    from gptqmodel.utils.model import hf_convert_gptq_v1_to_v2_format, hf_convert_gptq_v2_to_v1_format, nested_move_to
+    from gptqmodel.utils.model import hf_convert_gptq_v1_to_v2_format, hf_convert_gptq_v2_to_v1_format
     from gptqmodel.utils.model import hf_gptqmodel_post_init as gptq_post_init
     from gptqmodel.version import __version__ as gptqmodel_version
 

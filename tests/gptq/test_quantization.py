@@ -152,6 +152,9 @@ class GPTQTest(unittest.TestCase):
         """
         Test the serialization of the model and the loading of the quantized weights
         """
+        # AutoGPTQ does not support CPU
+        if self.device_map_for_quantization == "cpu" and not is_gptqmodel_available():
+            return
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             self.quantizer.save(self.quantized_model, tmpdirname)
@@ -309,7 +312,7 @@ class GPTQTestExllamav2(GPTQTestCUDA):
                 device_map={"": self.device_for_inference},
             )
             self.check_quantized_layers_type(
-                quantized_model_from_saved, "exllama" if is_gptqmodel_available else "exllamav2"
+                quantized_model_from_saved, "exllama" if is_gptqmodel_available() else "exllamav2"
             )
 
             # transformers and auto-gptq compatibility

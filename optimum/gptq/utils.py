@@ -115,7 +115,7 @@ def get_seqlen(model: nn.Module):
     return 2048
 
 
-def move_to(obj: torch.Tensor | nn.Module, device: torch.device):
+def move_to(obj: torch.Tensor, device: torch.device):
     if get_device(obj) != device:
         obj = obj.to(device)
     return obj
