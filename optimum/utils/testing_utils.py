@@ -30,7 +30,6 @@ from . import (
     is_auto_gptq_available,
     is_datasets_available,
     is_diffusers_available,
-    is_gptqmodel_available,
     is_sentence_transformers_available,
     is_timm_available,
 )
@@ -61,13 +60,11 @@ def require_accelerate(test_case):
     return unittest.skipUnless(is_accelerate_available(), "test requires accelerate")(test_case)
 
 
-def require_gptq(test_case):
+def require_auto_gptq(test_case):
     """
-    Decorator marking a test that requires gptqmodel or auto-gptq. These tests are skipped when gptqmodel and auto-gptq are not installed.
+    Decorator marking a test that requires auto-gptq. These tests are skipped when auto-gptq isn't installed.
     """
-    return unittest.skipUnless(
-        is_auto_gptq_available() or is_gptqmodel_available(), "test requires gptqmodel or auto-gptq"
-    )(test_case)
+    return unittest.skipUnless(is_auto_gptq_available(), "test requires auto-gptq")(test_case)
 
 
 def require_torch_gpu(test_case):
