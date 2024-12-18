@@ -1205,7 +1205,6 @@ class TasksManager:
         ),
         "vit-mae": supported_tasks_mapping(
             "feature-extraction",
-            "masked-im",
             onnx="VitMAEOnnxConfig",
         ),
         "vit-msn": supported_tasks_mapping(
