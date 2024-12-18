@@ -58,7 +58,6 @@ class GPTQTest(unittest.TestCase):
     modules_in_block_to_quantize = None
     device_map_for_quantization = "cuda"
     device_for_inference = 0
-    torch_dtype = torch.float16
     dataset = [
         "auto-gptq is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
     ]
@@ -72,13 +71,13 @@ class GPTQTest(unittest.TestCase):
 
         cls.tokenizer = AutoTokenizer.from_pretrained(cls.model_name)
 
-        cls.model = AutoModelForCausalLM.from_pretrained(
-            cls.model_name, torch_dtype=cls.torch_dtype, device_map=cls.device_map_for_quantization
+        cls.model_fp16 = AutoModelForCausalLM.from_pretrained(
+            cls.model_name, torch_dtype=torch.float16, device_map=cls.device_map_for_quantization
         )
-        cls.fp16_mem = cls.model.get_memory_footprint()
+        cls.fp16_mem = cls.model_fp16.get_memory_footprint()
 
         if cls.device_map_for_quantization != "cpu":
-            cls.fp16_ppl = evaluate_perplexity(cls.model, cls.tokenizer)
+            cls.fp16_ppl = evaluate_perplexity(cls.model_fp16, cls.tokenizer)
 
         cls.quantizer = GPTQQuantizer(
             bits=cls.bits,
@@ -90,7 +89,7 @@ class GPTQTest(unittest.TestCase):
             cache_block_outputs=cls.cache_block_outputs,
             modules_in_block_to_quantize=cls.modules_in_block_to_quantize,
         )
-        cls.quantized_model = cls.quantizer.quantize_model(cls.model, cls.tokenizer).to(cls.device_for_inference)
+        cls.quantized_model = cls.quantizer.quantize_model(cls.model_fp16, cls.tokenizer).to(cls.device_for_inference)
         cls.quantized_mem = cls.quantized_model.get_memory_footprint()
 
         if cls.device_map_for_quantization != "cpu":
@@ -143,7 +142,7 @@ class GPTQTest(unittest.TestCase):
             self.quantized_model.config.save_pretrained(tmpdirname)
             with init_empty_weights():
                 empty_model = AutoModelForCausalLM.from_config(
-                    AutoConfig.from_pretrained(self.model_name), torch_dtype=self.torch_dtype
+                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
@@ -166,9 +165,7 @@ class GPTQTest(unittest.TestCase):
 
 
 class GPTQTestCPUInit(GPTQTest):
-    expected_compression_ratio = 1.878
     device_map_for_quantization = "cpu"
-    torch_dtype = torch.float32
 
     def test_perplexity(self):
         pass
@@ -197,7 +194,7 @@ class GPTQTestActOrder(GPTQTest):
             self.quantized_model.config.save_pretrained(tmpdirname)
             with init_empty_weights():
                 empty_model = AutoModelForCausalLM.from_config(
-                    AutoConfig.from_pretrained(self.model_name), torch_dtype=self.torch_dtype
+                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
@@ -224,7 +221,7 @@ class GPTQTestActOrder(GPTQTest):
             self.quantized_model.config.save_pretrained(tmpdirname)
             with init_empty_weights():
                 empty_model = AutoModelForCausalLM.from_config(
-                    AutoConfig.from_pretrained(self.model_name), torch_dtype=self.torch_dtype
+                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
@@ -268,7 +265,7 @@ class GPTQTestExllamav2(GPTQTest):
             self.quantized_model.config.save_pretrained(tmpdirname)
             with init_empty_weights():
                 empty_model = AutoModelForCausalLM.from_config(
-                    AutoConfig.from_pretrained(self.model_name), torch_dtype=self.torch_dtype
+                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
