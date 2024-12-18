@@ -72,13 +72,13 @@ class GPTQTest(unittest.TestCase):
 
         cls.tokenizer = AutoTokenizer.from_pretrained(cls.model_name)
 
-        cls.model_fp16 = AutoModelForCausalLM.from_pretrained(
+        cls.model = AutoModelForCausalLM.from_pretrained(
             cls.model_name, torch_dtype=cls.torch_dtype, device_map=cls.device_map_for_quantization
         )
-        cls.fp16_mem = cls.model_fp16.get_memory_footprint()
+        cls.fp16_mem = cls.model.get_memory_footprint()
 
         if cls.device_map_for_quantization != "cpu":
-            cls.fp16_ppl = evaluate_perplexity(cls.model_fp16, cls.tokenizer)
+            cls.fp16_ppl = evaluate_perplexity(cls.model, cls.tokenizer)
 
         cls.quantizer = GPTQQuantizer(
             bits=cls.bits,
@@ -90,7 +90,7 @@ class GPTQTest(unittest.TestCase):
             cache_block_outputs=cls.cache_block_outputs,
             modules_in_block_to_quantize=cls.modules_in_block_to_quantize,
         )
-        cls.quantized_model = cls.quantizer.quantize_model(cls.model_fp16, cls.tokenizer).to(cls.device_for_inference)
+        cls.quantized_model = cls.quantizer.quantize_model(cls.model, cls.tokenizer).to(cls.device_for_inference)
         cls.quantized_mem = cls.quantized_model.get_memory_footprint()
 
         if cls.device_map_for_quantization != "cpu":
