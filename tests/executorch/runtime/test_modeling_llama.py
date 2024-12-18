@@ -32,7 +32,7 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
     @slow
     @pytest.mark.run_slow
     def test_llama3_2_1b_text_generation_with_xnnpack(self):
-        # TODO: Swithc to use meta-llama/Llama-3.2-1B once https://github.com/huggingface/optimum/issues/2127 is fixed
+        # TODO: Switch to use meta-llama/Llama-3.2-1B once https://github.com/huggingface/optimum/issues/2127 is fixed
         # model_id = "lama/Llama-3.2-1B"
         model_id = "NousResearch/Llama-3.2-1B"
         model = ExecuTorchModelForCausalLM.from_pretrained(
@@ -55,8 +55,9 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
+    @pytest.mark.skip(reason="OOMs with macos-15 CI instances on GH.")
     def test_llama3_2_3b_text_generation_with_xnnpack(self):
-        # TODO: Swithc to use meta-llama/Llama-3.2-3B once https://github.com/huggingface/optimum/issues/2127 is fixed
+        # TODO: Switch to use meta-llama/Llama-3.2-3B once https://github.com/huggingface/optimum/issues/2127 is fixed
         # model_id = "lama/Llama-3.2-3B"
         model_id = "NousResearch/Hermes-3-Llama-3.2-3B"
         model = ExecuTorchModelForCausalLM.from_pretrained(
