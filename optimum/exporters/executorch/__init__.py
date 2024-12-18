@@ -27,8 +27,11 @@ _import_structure = {
         "discover_tasks",
         "register_task",
     ],
-    "xnnpack": [
-        "export_to_executorch_with_xnnpack",
+    "tasks": [
+        "causal_lm",
+    ],
+    "recipes": [
+        "xnnpack",
     ],
     "__main__": ["main_export"],
 }
