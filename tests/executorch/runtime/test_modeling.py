@@ -19,7 +19,6 @@ import unittest
 
 import pytest
 from executorch.extension.pybindings.portable_lib import ExecuTorchModule
-from transformers import AutoTokenizer
 from transformers.testing_utils import (
     slow,
 )
