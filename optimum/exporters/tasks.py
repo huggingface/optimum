@@ -1210,7 +1210,6 @@ class TasksManager:
         "vit-msn": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
-            "masked-im",
             onnx="VitMSNOnnxConfig",
         ),
         "vits": supported_tasks_mapping(
