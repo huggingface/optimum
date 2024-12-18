@@ -833,7 +833,7 @@ class TasksManager:
         "maskformer": supported_tasks_mapping(
             "feature-extraction",
             "image-segmentation",
-            onnx="MaskformerOnnxConfig",
+            onnx="MaskFormerOnnxConfig",
         ),
         "mbart": supported_tasks_mapping(
             "feature-extraction",

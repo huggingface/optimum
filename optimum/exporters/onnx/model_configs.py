@@ -986,7 +986,7 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
     pass
 
 
-class MaskformerOnnxConfig(ViTOnnxConfig):
+class MaskFormerOnnxConfig(ViTOnnxConfig):
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::einsum' to ONNX opset version 11 is not supported.
     # Support for this operator was added in version 12, try exporting with this version.
     DEFAULT_ONNX_OPSET = 12
