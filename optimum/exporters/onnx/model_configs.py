@@ -1001,6 +1001,12 @@ class MaskFormerOnnxConfig(ViTOnnxConfig):
         else:
             return super().outputs
 
+    @property
+    def torch_to_onnx_output_map(self) -> Dict[str, str]:
+        return {
+            "transformer_decoder_last_hidden_state": "last_hidden_state",
+        }
+
 
 class DonutSwinOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
