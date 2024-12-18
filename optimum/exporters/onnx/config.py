@@ -19,8 +19,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from transformers.utils import is_tf_available
-
-from ...onnx import merge_decoders
 from ...utils import (
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
@@ -129,6 +127,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
         # Attempt to merge only if the decoder-only was exported separately without/with past
         if self.use_past is True and len(models_and_onnx_configs) == 2:
+            from ...onnx import merge_decoders
             decoder_path = Path(path, onnx_files_subpaths[0])
             decoder_with_past_path = Path(path, onnx_files_subpaths[1])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
