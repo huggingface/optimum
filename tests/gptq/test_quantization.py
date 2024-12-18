@@ -58,6 +58,7 @@ class GPTQTest(unittest.TestCase):
     modules_in_block_to_quantize = None
     device_map_for_quantization = "cuda"
     device_for_inference = 0
+    torch_dtype = torch.float16
     dataset = [
         "auto-gptq is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
     ]
@@ -72,7 +73,7 @@ class GPTQTest(unittest.TestCase):
         cls.tokenizer = AutoTokenizer.from_pretrained(cls.model_name)
 
         cls.model_fp16 = AutoModelForCausalLM.from_pretrained(
-            cls.model_name, torch_dtype=torch.float16, device_map=cls.device_map_for_quantization
+            cls.model_name, torch_dtype=cls.torch_dtype, device_map=cls.device_map_for_quantization
         )
         cls.fp16_mem = cls.model_fp16.get_memory_footprint()
 
@@ -142,7 +143,7 @@ class GPTQTest(unittest.TestCase):
             self.quantized_model.config.save_pretrained(tmpdirname)
             with init_empty_weights():
                 empty_model = AutoModelForCausalLM.from_config(
-                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
+                    AutoConfig.from_pretrained(self.model_name), torch_dtype=self.torch_dtype
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
@@ -165,7 +166,9 @@ class GPTQTest(unittest.TestCase):
 
 
 class GPTQTestCPUInit(GPTQTest):
+    expected_compression_ratio = 1.878
     device_map_for_quantization = "cpu"
+    torch_dtype = torch.float32
 
     def test_perplexity(self):
         pass
@@ -194,7 +197,7 @@ class GPTQTestActOrder(GPTQTest):
             self.quantized_model.config.save_pretrained(tmpdirname)
             with init_empty_weights():
                 empty_model = AutoModelForCausalLM.from_config(
-                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
+                    AutoConfig.from_pretrained(self.model_name), torch_dtype=self.torch_dtype
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
@@ -221,7 +224,7 @@ class GPTQTestActOrder(GPTQTest):
             self.quantized_model.config.save_pretrained(tmpdirname)
             with init_empty_weights():
                 empty_model = AutoModelForCausalLM.from_config(
-                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
+                    AutoConfig.from_pretrained(self.model_name), torch_dtype=self.torch_dtype
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
@@ -265,7 +268,7 @@ class GPTQTestExllamav2(GPTQTest):
             self.quantized_model.config.save_pretrained(tmpdirname)
             with init_empty_weights():
                 empty_model = AutoModelForCausalLM.from_config(
-                    AutoConfig.from_pretrained(self.model_name), torch_dtype=torch.float16
+                    AutoConfig.from_pretrained(self.model_name), torch_dtype=self.torch_dtype
                 )
             empty_model.tie_weights()
             quantized_model_from_saved = load_quantized_model(
