@@ -216,12 +216,13 @@ class TasksManager:
                 "AutoModelForUniversalSegmentation",
             ),
             "image-to-image": "AutoModelForImageToImage",
-            "image-to-text": "AutoModelForVision2Seq",
+            "image-to-text": ("AutoModelForVision2Seq", "AutoModel"),
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
             "multiple-choice": "AutoModelForMultipleChoice",
             "object-detection": "AutoModelForObjectDetection",
             "question-answering": "AutoModelForQuestionAnswering",
+            "reinforcement-learning": "AutoModel",
             "semantic-segmentation": "AutoModelForSemanticSegmentation",
             "text-to-audio": ("AutoModelForTextToSpectrogram", "AutoModelForTextToWaveform"),
             "text-generation": "AutoModelForCausalLM",
@@ -342,7 +343,11 @@ class TasksManager:
     }
 
     _DIFFUSERS_SUPPORTED_MODEL_TYPE = {
-        "clip-text-model": supported_tasks_mapping(
+        "t5-encoder": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="T5EncoderOnnxConfig",
+        ),
+        "clip-text": supported_tasks_mapping(
             "feature-extraction",
             onnx="CLIPTextOnnxConfig",
         ),
@@ -350,7 +355,15 @@ class TasksManager:
             "feature-extraction",
             onnx="CLIPTextWithProjectionOnnxConfig",
         ),
-        "unet": supported_tasks_mapping(
+        "flux-transformer-2d": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="FluxTransformerOnnxConfig",
+        ),
+        "sd3-transformer-2d": supported_tasks_mapping(
+            "semantic-segmentation",
+            onnx="SD3TransformerOnnxConfig",
+        ),
+        "unet-2d-condition": supported_tasks_mapping(
             "semantic-segmentation",
             onnx="UNetOnnxConfig",
         ),
@@ -424,6 +437,15 @@ class TasksManager:
             "question-answering",
             onnx="BertOnnxConfig",
             tflite="BertTFLiteConfig",
+        ),
+        "rembert": supported_tasks_mapping(
+            "fill-mask",
+            "feature-extraction",
+            "text-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="RemBertOnnxConfig",
         ),
         # For big-bird and bigbird-pegasus being unsupported, refer to model_configs.py
         # "big-bird": supported_tasks_mapping(
@@ -568,6 +590,11 @@ class TasksManager:
             "question-answering",
             onnx="DebertaV2OnnxConfig",
             tflite="DebertaV2TFLiteConfig",
+        ),
+        "decision-transformer": supported_tasks_mapping(
+            "feature-extraction",
+            "reinforcement-learning",
+            onnx="DecisionTransformerOnnxConfig",
         ),
         "deit": supported_tasks_mapping(
             "feature-extraction",
@@ -819,6 +846,11 @@ class TasksManager:
             "question-answering",
             onnx="MBartOnnxConfig",
         ),
+        "mgp-str": supported_tasks_mapping(
+            "feature-extraction",
+            "image-to-text",
+            onnx="MgpstrOnnxConfig",
+        ),
         "mistral": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -943,6 +975,20 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             onnx="GraniteOnnxConfig",
+        ),
+        "olmo": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            onnx="OlmoOnnxConfig",
+        ),
+        "olmo2": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            onnx="Olmo2OnnxConfig",
         ),
         "pegasus": supported_tasks_mapping(
             "feature-extraction",
@@ -1241,14 +1287,21 @@ class TasksManager:
         "transformers": _SUPPORTED_MODEL_TYPE,
     }
     _UNSUPPORTED_CLI_MODEL_TYPE = {
-        "unet",
+        # diffusers model types
+        "clip-text",
+        "clip-text-with-projection",
+        "flux-transformer-2d",
+        "sd3-transformer-2d",
+        "t5-encoder",
+        "unet-2d-condition",
         "vae-encoder",
         "vae-decoder",
         "clip-text-model",
         "clip-text-with-projection",
         "siglip-text-model",
         "siglip-text-with-projection",
-        "trocr",  # supported through the vision-encoder-decoder model type
+        # redundant model types
+        "trocr",  # same as vision-encoder-decoder
     }
     _SUPPORTED_CLI_MODEL_TYPE = (
         set(_SUPPORTED_MODEL_TYPE.keys())
@@ -2134,6 +2187,9 @@ class TasksManager:
             if original_task == "automatic-speech-recognition" or task == "automatic-speech-recognition":
                 if original_task == "auto" and config.architectures is not None:
                     model_class_name = config.architectures[0]
+            elif original_task == "reinforcement-learning" or task == "reinforcement-learning":
+                if config.architectures is not None:
+                    model_class_name = config.architectures[0]
 
         if library_name == "diffusers":
             config = DiffusionPipeline.load_config(model_name_or_path, **kwargs)
@@ -2153,6 +2209,7 @@ class TasksManager:
             use_auth_token = model_kwargs.pop("use_auth_token", None)
             token = model_kwargs.pop("token", None)
             trust_remote_code = model_kwargs.pop("trust_remote_code", False)
+            model_kwargs["torch_dtype"] = torch_dtype
 
             if use_auth_token is not None:
                 warnings.warn(
@@ -2168,7 +2225,9 @@ class TasksManager:
                 device=device,
                 cache_folder=cache_folder,
                 token=token,
+                revision=revision,
                 trust_remote_code=trust_remote_code,
+                model_kwargs=model_kwargs,
             )
         else:
             try:

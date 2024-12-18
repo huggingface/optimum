@@ -67,6 +67,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "data2vec-audio": "hf-internal-testing/tiny-random-Data2VecAudioModel",
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
+    "decision-transformer": "edbeeching/decision-transformer-gym-hopper-medium",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
     "dinov2": "hf-internal-testing/tiny-random-Dinov2Model",
     "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
@@ -118,6 +119,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "maskformer": "hf-internal-testing/tiny-random-MaskFormerForInstanceSegmentation",
     "mbart": "hf-internal-testing/tiny-random-mbart",
+    "mgp-str": "hf-internal-testing/tiny-random-MgpstrForSceneTextRecognition",
     "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
     "mobilenet-v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
@@ -128,6 +130,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mt5": "lewtun/tiny-random-mt5",
     "musicgen": "hf-internal-testing/tiny-random-MusicgenForConditionalGeneration",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
+    "olmo": "hf-internal-testing/tiny-random-OlmoForCausalLM",
+    "olmo2": "hf-internal-testing/tiny-random-Olmo2ForCausalLM",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "owlv2": "hf-internal-testing/tiny-random-Owlv2Model",
     "owlvit": "hf-tiny-model-private/tiny-random-OwlViTModel",
@@ -140,6 +144,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "phi3": "Xenova/tiny-random-Phi3ForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     # "rembert": "google/rembert",
+    "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "pvt": "hf-internal-testing/tiny-random-PvtForImageClassification",
     "qwen2": "fxmarty/tiny-dummy-qwen2",
@@ -256,6 +261,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "maskformer": "facebook/maskformer-swin-tiny-coco",
     "mbart": "sshleifer/tiny-mbart",
+    "mgp-str": "alibaba-damo/mgp-str-base",
     "mobilebert": "google/mobilebert-uncased",
     # "mobilenet_v1": "google/mobilenet_v1_0.75_192",
     # "mobilenet_v2": "google/mobilenet_v2_0.35_96",
@@ -267,7 +273,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "owlv2": "google/owlv2-base-patch16",
     "owlvit": "google/owlvit-base-patch32",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
-    # "rembert": "google/rembert",
+    "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "pvt": "hf-internal-testing/tiny-random-PvtForImageClassification",
     "regnet": "facebook/regnet-y-040",
@@ -313,9 +319,11 @@ TENSORFLOW_EXPORT_MODELS = {
 }
 
 PYTORCH_DIFFUSION_MODEL = {
-    "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
-    "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
+    "flux": "optimum-internal-testing/tiny-random-flux",
     "latent-consistency": "echarlaix/tiny-random-latent-consistency",
+    "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
+    "stable-diffusion-3": "yujiepan/stable-diffusion-3-tiny-random",
+    "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
 }
 
 PYTORCH_TIMM_MODEL = {
