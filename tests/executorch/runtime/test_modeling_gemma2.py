@@ -33,9 +33,12 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
 
     @slow
     @pytest.mark.run_slow
-    def test_load_model_from_hub(self):
+    def test_gemma2_text_generation_with_xnnpack(self):
+        # TODO: Swithc to use google/gemma-2-2b once https://github.com/huggingface/optimum/issues/2127 is fixed
+        # model_id = "google/gemma-2-2b"
+        model_id = "unsloth/gemma-2-2b-it"
         model = ExecuTorchModelForCausalLM.from_pretrained(
-            model_name_or_path="NousResearch/Llama-3.2-1B",
+            model_name_or_path=model_id,
             export=True,
             task="text-generation",
             recipe="xnnpack",
@@ -43,29 +46,13 @@ class ExecuTorchModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model, ExecuTorchModelForCausalLM)
         self.assertIsInstance(model.model, ExecuTorchModule)
 
-    @slow
-    @pytest.mark.run_slow
-    def test_load_model_from_local_path(self):
-        from optimum.exporters.executorch import main_export
-
-        model_id = "NousResearch/Llama-3.2-1B"
-        task = "text-generation"
-        recipe = "xnnpack"
-
-        with tempfile.TemporaryDirectory() as tempdir:
-            # Export to a local dir
-            main_export(
-                model_name_or_path=model_id,
-                task=task,
-                recipe=recipe,
-                output_dir=tempdir,
-            )
-            self.assertTrue(os.path.exists(f"{tempdir}/model.pte"))
-
-            # Load the exported model from a local dir
-            model = ExecuTorchModelForCausalLM.from_pretrained(
-                model_name_or_path=tempdir,
-                export=False,
-            )
-            self.assertIsInstance(model, ExecuTorchModelForCausalLM)
-            self.assertIsInstance(model.model, ExecuTorchModule)
+        EXPECTED_GENERATED_TEXT = (
+            "Hello I am doing a project for my school and I need to make sure it is a great to be creative and I can!"
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        generated_text = model.text_generation(
+            tokenizer=tokenizer,
+            prompt="Hello I am doing a project for my school",
+            max_seq_len=len(tokenizer.encode(EXPECTED_GENERATED_TEXT)),
+        )
+        self.assertEqual(generated_text, EXPECTED_GENERATED_TEXT)

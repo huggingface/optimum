@@ -17,6 +17,13 @@ jobs:
       matrix:
         python-version: ['3.10', '3.11', '3.12']
         os: [macos-15]
+        test-modeling:
+          - test_modeling_gemma2.py
+          - test_modeling_gemma.py
+          - test_modeling_llama.py
+          - test_modeling_olmo.py
+          - test_modeling.py
+          - test_modeling_qwen2.py
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -32,4 +39,4 @@ jobs:
       - name: Run tests
         working-directory: tests
         run: |
-          RUN_SLOW=1 pytest executorch/runtime/test_*.py -s -vvvv --durations=0
+          RUN_SLOW=1 pytest executorch/runtime/${{ matrix.test-modeling }} -s -vvvv --durations=0
