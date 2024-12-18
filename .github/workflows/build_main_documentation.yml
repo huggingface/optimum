@@ -180,6 +180,7 @@ jobs:
           mkdir -p optimum-doc-build/optimum && cd optimum-doc-build/optimum
           wget https://huggingface.co/datasets/hf-doc-build/doc-build/raw/main/optimum/_versions.yml
           cd ../..
+          pip install torch -U
           make doc BUILD_DIR=optimum-doc-build VERSION=${{ env.VERSION }} COMMIT_SHA_OPTIMUM=${{ env.VERSION }}
           cd ..
 
