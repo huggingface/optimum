@@ -174,7 +174,7 @@ class DummyInputGenerator(ABC):
                 "The `framework` argument is deprecated and will be removed soon. Please use the `dtype` argument instead to indicate the framework.",
                 FutureWarning,
             )
-        dtype = DummyInputGenerator._set_default_int_dtype() if dtype is None else dtype
+        dtype = DummyInputGenerator._get_default_int_dtype() if dtype is None else dtype
         framework = DummyInputGenerator.infer_framework_from_dtype(dtype)
         if framework == "pt":
             return torch.randint(low=min_value, high=max_value, size=shape, dtype=dtype)
@@ -213,7 +213,7 @@ class DummyInputGenerator(ABC):
             )
         shape = tuple(shape)
         mask_length = random.randint(1, shape[-1] - 1)
-        dtype = DummyInputGenerator._set_default_int_dtype() if dtype is None else dtype
+        dtype = DummyInputGenerator._get_default_int_dtype() if dtype is None else dtype
         framework = DummyInputGenerator.infer_framework_from_dtype(dtype)
         if framework == "pt":
             mask_tensor = torch.cat(
@@ -278,7 +278,7 @@ class DummyInputGenerator(ABC):
                 "The `framework` argument is deprecated and will be removed soon. Please use the `dtype` argument instead to indicate the framework.",
                 FutureWarning,
             )
-        dtype = DummyInputGenerator._set_default_float_dtype() if dtype is None else dtype
+        dtype = DummyInputGenerator._get_default_float_dtype() if dtype is None else dtype
         framework = DummyInputGenerator.infer_framework_from_dtype(dtype)
         if framework == "pt":
             tensor = torch.empty(shape, dtype=dtype).uniform_(min_value, max_value)
@@ -316,7 +316,7 @@ class DummyInputGenerator(ABC):
                 "The `framework` argument is deprecated and will be removed soon. Please use the `dtype` argument instead to indicate the framework.",
                 FutureWarning,
             )
-        dtype = DummyInputGenerator._set_default_int_dtype() if dtype is None else dtype
+        dtype = DummyInputGenerator._get_default_int_dtype() if dtype is None else dtype
         framework = DummyInputGenerator.infer_framework_from_dtype(dtype) or framework
         if framework == "pt":
             return torch.full(shape, value, dtype=dtype)
@@ -338,8 +338,7 @@ class DummyInputGenerator(ABC):
             raise RuntimeError(f"Could not infer the framework from {input_}")
         return framework
 
-    @staticmethod
-    def _set_default_int_dtype():
+    def _get_default_int_dtype(self):
         "Default to int64 of available framework."
         if is_torch_available():
             return torch.int64
@@ -348,15 +347,14 @@ class DummyInputGenerator(ABC):
         else:
             return np.int64
 
-    @staticmethod
-    def _set_default_float_dtype():
+    def _get_default_float_dtype(self):
         "Default to float32 of available framework."
         if is_torch_available():
-            return torch.int64
+            return torch.float32
         elif is_tf_available():
-            return tf.int64
+            return tf.float32
         else:
-            return np.int64
+            return np.float32
 
     @staticmethod
     def infer_framework_from_dtype(dtype):
