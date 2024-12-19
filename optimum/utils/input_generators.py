@@ -338,7 +338,8 @@ class DummyInputGenerator(ABC):
             raise RuntimeError(f"Could not infer the framework from {input_}")
         return framework
 
-    def _get_default_int_dtype(self):
+    @staticmethod
+    def _get_default_int_dtype():
         "Default to int64 of available framework."
         if is_torch_available():
             return torch.int64
@@ -347,7 +348,8 @@ class DummyInputGenerator(ABC):
         else:
             return np.int64
 
-    def _get_default_float_dtype(self):
+    @staticmethod
+    def _get_default_float_dtype():
         "Default to float32 of available framework."
         if is_torch_available():
             return torch.float32
