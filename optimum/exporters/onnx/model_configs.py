@@ -2619,5 +2619,18 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
-
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+
+
+class RTDetrOnnxConfig(ViTOnnxConfig):
+    # Export the operator 'aten::grid_sampler' to ONNX fails under opset 16.
+    # Support for this operator was added in version 16.
+    DEFAULT_ONNX_OPSET = 16
+    ATOL_FOR_VALIDATION = 1e-5
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "pixel_mask": {0: "batch_size"},
+        }
