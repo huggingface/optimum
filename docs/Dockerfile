@@ -8,4 +8,5 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip
 RUN python3 -m pip install --no-cache-dir git+https://github.com/huggingface/doc-builder.git
 
 RUN git clone $clone_url && cd optimum && git checkout $commit_sha
-RUN python3 -m pip install --no-cache-dir ./optimum[onnxruntime,benchmark,quality,exporters-tf,exporters-executorch,doc-build,diffusers] --index-url https://download.pytorch.org/whl/cpu
+RUN python3 -m pip install --no-cache-dir ./optimum[onnxruntime,benchmark,quality,exporters-tf,doc-build,diffusers] 
+RUN python3 -m pip install ./optimum[exporters-executorch] --index-url https://download.pytorch.org/whl/cpu
