@@ -692,6 +692,17 @@ class TasksManager:
             "text-classification",
             onnx="GemmaOnnxConfig",
         ),
+        "git": supported_tasks_mapping(
+            "feature-extraction",
+            "image-text-to-text",
+            "image-to-text",
+            onnx="GITOnnxConfig",
+        ),
+        "git-vision-model": supported_tasks_mapping(
+            "feature-extraction",
+            "image-to-text",
+            onnx="GITVisionModelOnnxConfig",
+        ),        
         "glpn": supported_tasks_mapping(
             "feature-extraction",
             "depth-estimation",
