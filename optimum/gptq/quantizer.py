@@ -702,7 +702,7 @@ class GPTQQuantizer(object):
         model = self.post_init_model(model)
 
         torch.cuda.empty_cache()
-        if hasattr(torch, "xpu"):
+        if hasattr(torch, "xpu") and torch.xpu.is_available():
             torch.xpu.empty_cache()
         return model
 
