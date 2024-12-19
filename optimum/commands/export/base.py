@@ -15,6 +15,7 @@
 """optimum.exporters command-line interface base classes."""
 
 from .. import BaseOptimumCLICommand, CommandInfo
+from .executorch import ExecuTorchExportCommand
 from .onnx import ONNXExportCommand
 from .tflite import TFLiteExportCommand
 
@@ -25,6 +26,11 @@ class ExportCommand(BaseOptimumCLICommand):
         help="Export PyTorch and TensorFlow models to several format.",
     )
     SUBCOMMANDS = (
+        CommandInfo(
+            name="executorch",
+            help="Export PyTorch model to ExecuTorch.",
+            subcommand_class=ExecuTorchExportCommand,
+        ),
         CommandInfo(
             name="onnx",
             help="Export PyTorch and TensorFlow to ONNX.",
