@@ -311,8 +311,6 @@ class OnnxConfig(ExportConfig, ABC):
 
         # We branch here to avoid doing an unnecessary forward pass.
         if to_fix:
-            import onnx
-
             if input_shapes is None:
                 input_shapes = {}
             dummy_inputs = self.generate_dummy_inputs(framework="np", **input_shapes)
