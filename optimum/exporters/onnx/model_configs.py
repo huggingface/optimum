@@ -847,6 +847,65 @@ class ConvNextV2OnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+class HieraOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 11
+
+
+class PvtOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 11
+
+
+class VitMAEOnnxConfig(ViTOnnxConfig):
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
+    # Support for this operator was added in version 14, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 14
+
+
+class VitMSNOnnxConfig(ViTOnnxConfig):
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
+    # Support for this operator was added in version 14, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 14
+
+
+class Dinov2DummyInputGenerator(DummyVisionInputGenerator):
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedVisionConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
+        width: int = DEFAULT_DUMMY_SHAPES["width"],
+        height: int = DEFAULT_DUMMY_SHAPES["height"],
+        **kwargs,
+    ):
+        super().__init__(
+            task=task,
+            normalized_config=normalized_config,
+            batch_size=batch_size,
+            num_channels=num_channels,
+            width=width,
+            height=height,
+            **kwargs,
+        )
+
+        from transformers.onnx.utils import get_preprocessor
+
+        preprocessor = get_preprocessor(normalized_config._name_or_path)
+        if preprocessor is not None and hasattr(preprocessor, "crop_size"):
+            self.height = preprocessor.crop_size.get("height", self.height)
+            self.width = preprocessor.crop_size.get("width", self.width)
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        input_ = super().generate(
+            input_name=input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
+        )
+        return input_
+
+
+class Dinov2OnnxConfig(ViTOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (Dinov2DummyInputGenerator,)
+
+
 class MobileViTOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
     DEFAULT_ONNX_OPSET = 11
@@ -888,6 +947,10 @@ class SwinOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+class SwinV2OnnxConfig(SwinOnnxConfig):
+    pass
+
+
 class Swin2srOnnxConfig(SwinOnnxConfig):
     pass
 
@@ -921,6 +984,28 @@ class MobileNetV1OnnxConfig(ViTOnnxConfig):
 
 class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
     pass
+
+
+class MaskFormerOnnxConfig(ViTOnnxConfig):
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::einsum' to ONNX opset version 11 is not supported.
+    # Support for this operator was added in version 12, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 12
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "image-segmentation":
+            return {
+                "class_queries_logits": {0: "batch_size", 1: "num_queries"},
+                "masks_queries_logits": {0: "batch_size", 1: "num_queries", 2: "height", 3: "width"},
+            }
+        else:
+            return super().outputs
+
+    @property
+    def torch_to_onnx_output_map(self) -> Dict[str, str]:
+        return {
+            "transformer_decoder_last_hidden_state": "last_hidden_state",
+        }
 
 
 class DonutSwinOnnxConfig(ViTOnnxConfig):
@@ -1113,6 +1198,39 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
         model_kwargs: Optional[Dict[str, Any]] = None,
     ) -> "ModelPatcher":
         return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
+
+
+class SiglipNormalizedConfig(CLIPNormalizedConfig):
+    pass
+
+
+class SiglipOnnxConfig(CLIPOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = SiglipNormalizedConfig
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 13 is not supported.
+    # Support for this operator was added in version 14, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 14
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+            "pixel_values": {0: "image_batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            # NOTE: No attention_mask
+        }
+
+
+class SiglipTextWithProjectionOnnxConfig(CLIPTextWithProjectionOnnxConfig):
+    pass
+
+
+class SiglipTextOnnxConfig(CLIPTextOnnxConfig):
+    pass
+
+
+class SiglipVisionModelOnnxConfig(CLIPVisionModelOnnxConfig):
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
+    # Support for this operator was added in version 14, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 14
 
 
 class UNetOnnxConfig(VisionOnnxConfig):
