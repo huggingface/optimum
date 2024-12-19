@@ -73,6 +73,8 @@ GENERATE_DUMMY_DOCSTRING = r"""
         Generates the dummy inputs necessary for tracing the model. If not explicitely specified, default input shapes are used.
 
         Args:
+            framework (`str`, defaults to `"pt"`):
+                The framework for which to create the dummy inputs.
             batch_size (`int`, defaults to {batch_size}):
                 The batch size to use in the dummy inputs.
             sequence_length (`int`, defaults to {sequence_length}):
