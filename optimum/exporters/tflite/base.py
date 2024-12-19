@@ -27,6 +27,7 @@ from transformers.utils import is_tf_available
 if is_tf_available():
     import tensorflow as tf
 
+from ...utils import DTYPE_MAPPER
 from ..base import ExportConfig
 
 
@@ -191,12 +192,16 @@ class TFLiteConfig(ExportConfig, ABC):
         audio_sequence_length: Optional[int] = None,
         point_batch_size: Optional[int] = None,
         nb_points_per_image: Optional[int] = None,
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
     ):
         self._config = config
         self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
         self.mandatory_axes = ()
         self.task = task
         self._axes: Dict[str, int] = {}
+        self.int_dtype = int_dtype
+        self.float_dtype = float_dtype
 
         # To avoid using **kwargs.
         axes_values = {
@@ -310,12 +315,16 @@ class TFLiteConfig(ExportConfig, ABC):
         """
         dummy_inputs_generators = self._create_dummy_input_generator_classes()
         dummy_inputs = {}
+        int_dtype = DTYPE_MAPPER.tf(self.int_dtype)
+        float_dtype = DTYPE_MAPPER.tf(self.float_dtype)
 
         for input_name in self.inputs:
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
-                    dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework="tf")
+                    dummy_inputs[input_name] = dummy_input_gen.generate(
+                        input_name, int_dtype=int_dtype, float_dtype=float_dtype
+                    )
                     input_was_inserted = True
                     break
             if not input_was_inserted:
