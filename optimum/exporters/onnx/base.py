@@ -27,16 +27,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
-import onnx
 from transformers.utils import is_accelerate_available, is_torch_available
-
-from ...onnx import remove_duplicate_weights_from_tied_info
 
 
 if is_torch_available():
     import torch.nn as nn
 
-from ...onnx import merge_decoders
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     DummyInputGenerator,
@@ -53,6 +49,8 @@ from ..base import ExportConfig
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import ModelPatcher, Seq2SeqModelPatcher
 
+
+# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
 
 if is_accelerate_available():
     from accelerate.utils import find_tied_parameters
@@ -542,6 +540,10 @@ class OnnxConfig(ExportConfig, ABC):
         first_key = next(iter(models_and_onnx_configs))
         if is_torch_available() and isinstance(models_and_onnx_configs[first_key][0], nn.Module):
             if is_accelerate_available():
+                import onnx
+
+                from ...onnx import remove_duplicate_weights_from_tied_info
+
                 logger.info("Deduplicating shared (tied) weights...")
                 for subpath, key in zip(onnx_files_subpaths, models_and_onnx_configs):
                     torch_model = models_and_onnx_configs[key][0]
@@ -934,6 +936,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             decoder_with_past_path = Path(path, onnx_files_subpaths[2])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
             try:
+                from ...onnx import merge_decoders
+
                 # The decoder with past does not output the cross attention past key values as they are constant,
                 # hence the need for strict=False
                 merge_decoders(

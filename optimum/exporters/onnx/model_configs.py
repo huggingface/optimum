@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Uni
 from packaging import version
 from transformers.utils import is_tf_available
 
-from ...onnx import merge_decoders
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     BloomDummyPastKeyValuesGenerator,
@@ -92,6 +91,9 @@ from .model_patcher import (
     VisionEncoderDecoderPatcher,
     WavLMModelPatcher,
 )
+
+
+# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
 
 
 if TYPE_CHECKING:
@@ -2018,6 +2020,8 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
             decoder_with_past_path = Path(path, onnx_files_subpaths[3])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
             try:
+                from ...onnx import merge_decoders
+
                 # The decoder with past does not output the cross attention past key values as they are constant,
                 # hence the need for strict=False
                 merge_decoders(
