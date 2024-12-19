@@ -70,45 +70,45 @@ jobs:
           pip install black
           cd ..
 
-      - name: Make Habana documentation
-        run: |
-          sudo docker system prune -a -f
-          cd optimum-habana
-          make doc BUILD_DIR=habana-doc-build VERSION=pr_$PR_NUMBER
-          sudo mv habana-doc-build ../optimum
-          cd ..
+          # - name: Make Habana documentation
+          #   run: |
+          #     sudo docker system prune -a -f
+          #     cd optimum-habana
+          #     make doc BUILD_DIR=habana-doc-build VERSION=pr_$PR_NUMBER
+          #     sudo mv habana-doc-build ../optimum
+          #     cd ..
 
-      - name: Make Intel documentation
-        run: |
-          sudo docker system prune -a -f
-          cd optimum-intel
-          make doc BUILD_DIR=intel-doc-build VERSION=pr_$PR_NUMBER
-          sudo mv intel-doc-build ../optimum
-          cd ..
+          # - name: Make Intel documentation
+          #   run: |
+          #     sudo docker system prune -a -f
+          #     cd optimum-intel
+          #     make doc BUILD_DIR=intel-doc-build VERSION=pr_$PR_NUMBER
+          #     sudo mv intel-doc-build ../optimum
+          #     cd ..
 
-      # TODO: enable Furiosa doc build in PRs once archive.furiosa.ai is public
-      - name: Make Furiosa documentation
-        run: |
-          echo "For PRs we don't build Furiosa doc"
+          # # TODO: enable Furiosa doc build in PRs once archive.furiosa.ai is public
+          # - name: Make Furiosa documentation
+          #   run: |
+          #     echo "For PRs we don't build Furiosa doc"
 
-      - name: Make AMD documentation
-        run: |
-          sudo docker system prune -a -f
-          cd optimum-amd
-          make doc BUILD_DIR=amd-doc-build VERSION=pr_$PR_NUMBER
-          sudo mv amd-doc-build ../optimum
-          cd ..
+          # - name: Make AMD documentation
+          #   run: |
+          #     sudo docker system prune -a -f
+          #     cd optimum-amd
+          #     make doc BUILD_DIR=amd-doc-build VERSION=pr_$PR_NUMBER
+          #     sudo mv amd-doc-build ../optimum
+          #     cd ..
 
-      - name: Make TPU documentation
-        run: |
-          sudo docker system prune -a -f
-          source venv-doc/bin/activate
-          cd optimum-tpu
-          pip install -U pip
-          pip install . -f https://storage.googleapis.com/libtpu-releases/index.html
-          doc-builder build optimum.tpu docs/source/ --build_dir tpu-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
-          mv tpu-doc-build ../optimum
-          cd ..
+          # - name: Make TPU documentation
+          #   run: |
+          #     sudo docker system prune -a -f
+          #     source venv-doc/bin/activate
+          #     cd optimum-tpu
+          #     pip install -U pip
+          #     pip install . -f https://storage.googleapis.com/libtpu-releases/index.html
+          #     doc-builder build optimum.tpu docs/source/ --build_dir tpu-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
+          #     mv tpu-doc-build ../optimum
+          #     cd ..
 
       - name: Make Optimum documentation
         run: |

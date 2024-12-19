@@ -1,0 +1,54 @@
+<!--Copyright 2024 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# Configuration for ExecuTorch Export
+
+ExecuTorch export provides a flexible configuration mechanism through dynamic registration, enabling users to have
+complete control over the export process. The configuration system is divided into task configurations and recipe
+configurations, each addressing specific aspects of the export pipeline.
+
+
+## Task Configurations
+
+Task configurations determine how a Hugging Face model should be loaded and prepared for export, tailored to specific tasks.
+
+For instance, when exporting a model for a text generation task, the provided configuration utilizes **static caching** and
+**SDPA (Scaled Dot-Product Attention)** for inference optimization.
+
+By leveraging task configurations, users can ensure that their models are appropriately prepared for efficient execution on
+the ExecuTorch backend.
+
+[[autodoc]] exporters.executorch.task_registry.discover_tasks
+
+[[autodoc]] exporters.executorch.task_registry.register_task
+
+[[autodoc]] exporters.executorch.tasks.causal_lm.load_causal_lm_model
+
+
+## Recipe Configurations
+
+Recipe configurations control the specifics of lowering an eager PyTorch module to the ExecuTorch backend. These
+configurations allow users to:
+
+- Specify whether and how to **quantize** the model.
+- Delegate computation to various accelerators, such as **CPU**, **GPU**, **NPU**, **DSP**, and others.
+- Define **custom transformation passes**.
+- Implement advanced techniques like memory planning algorithms to optimize resource utilization.
+
+[[autodoc]] exporters.executorch.recipe_registry.discover_recipes
+
+[[autodoc]] exporters.executorch.recipe_registry.register_recipe
+
+[[autodoc]] exporters.executorch.recipes.xnnpack.export_to_executorch_with_xnnpack
+
+The combination of task and recipe configurations ensures that users can customize both the high-level task setup
+and the low-level export details to suit their deployment requirements.
