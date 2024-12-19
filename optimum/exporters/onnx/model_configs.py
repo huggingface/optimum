@@ -92,6 +92,9 @@ from .model_patcher import (
 )
 
 
+# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
+
+
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
     from transformers.modeling_utils import PreTrainedModel

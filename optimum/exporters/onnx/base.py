@@ -50,6 +50,8 @@ from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER
 from .model_patcher import ModelPatcher, Seq2SeqModelPatcher
 
 
+# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
+
 if is_accelerate_available():
     from accelerate.utils import find_tied_parameters
 

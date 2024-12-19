@@ -57,6 +57,8 @@ from .utils import (
 )
 
 
+# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
+
 if is_torch_available():
     import torch
     import torch.nn as nn
