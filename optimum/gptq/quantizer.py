@@ -665,7 +665,7 @@ class GPTQQuantizer(object):
                 del layer_inputs
                 layer_inputs = []
             torch.cuda.empty_cache()
-            if hasattr(torch, "xpu"):
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
                 torch.xpu.empty_cache()
 
         if self.bits == 4:
