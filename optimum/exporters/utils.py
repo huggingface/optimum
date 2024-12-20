@@ -704,3 +704,15 @@ def check_dummy_inputs_are_allowed(
         raise ValueError(
             f"Config dummy inputs are not a subset of the model inputs: {dummy_input_names} vs {forward_inputs_set}"
         )
+
+
+class DisableCompileContextManager:
+    def __init__(self):
+        self._original_compile = torch.compile
+
+    def __enter__(self):
+        # Turn torch.compile into a no-op
+        torch.compile = lambda *args, **kwargs: lambda x: x
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        torch.compile = self._original_compile
