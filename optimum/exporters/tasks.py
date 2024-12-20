@@ -322,6 +322,10 @@ class TasksManager:
     }
 
     _CUSTOM_CLASSES = {
+        ("pt", "patchtsmixer", "feature-extraction"): ("transformers", "PatchTSMixerModel"),
+        ("pt", "patchtsmixer", "time-series-forecasting"): ("transformers", "PatchTSMixerForPrediction"),
+        ("pt", "patchtst", "feature-extraction"): ("transformers", "PatchTSTModel"),
+        ("pt", "patchtst", "time-series-forecasting"): ("transformers", "PatchTSTForPrediction"),
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
         ("pt", "pix2struct", "visual-question-answering"): ("transformers", "Pix2StructForConditionalGeneration"),
         ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
@@ -952,6 +956,16 @@ class TasksManager:
             "question-answering",
             "text-classification",
             onnx="OPTOnnxConfig",
+        ),
+        "patchtst": supported_tasks_mapping(
+            "feature-extraction",
+            "time-series-forecasting",
+            onnx="PatchTSTOnnxConfig",
+        ),
+        "patchtsmixer": supported_tasks_mapping(
+            "feature-extraction",
+            "time-series-forecasting",
+            onnx="PatchTSMixerOnnxConfig",
         ),
         "qwen2": supported_tasks_mapping(
             "feature-extraction",

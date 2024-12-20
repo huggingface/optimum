@@ -92,5 +92,6 @@ from .normalized_config import (
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedTextConfigWithGQA,
+    NormalizedTimeSeriesForecastingConfig,
     NormalizedVisionConfig,
 )
