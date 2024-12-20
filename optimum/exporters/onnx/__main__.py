@@ -15,7 +15,6 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 import argparse
-import contextlib
 import warnings
 from pathlib import Path
 
@@ -31,7 +30,7 @@ from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_load_preprocessors
 from ..tasks import TasksManager
 from ..utils import DisableCompileContextManager
-from .constants import COMPILE_ARCHS_ONNX_EXPORT_NOT_SUPPORTED, SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
+from .constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
 from .convert import onnx_export_from_model
 
 
@@ -267,8 +266,6 @@ def main_export(
                 f"The task could not be automatically inferred as this is available only for models hosted on the Hugging Face Hub. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
-    get_model_context_manager = contextlib.nullcontext()
-
     custom_architecture = False
     loading_kwargs = {}
     if library_name == "transformers":
@@ -303,10 +300,8 @@ def main_export(
         # TODO: Fix in Transformers so that SdpaAttention class can be exported to ONNX. `attn_implementation` is introduced in Transformers 4.36.
         if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and _transformers_version >= version.parse("4.35.99"):
             loading_kwargs["attn_implementation"] = "eager"
-        elif model_type in COMPILE_ARCHS_ONNX_EXPORT_NOT_SUPPORTED:
-            get_model_context_manager = DisableCompileContextManager()
 
-    with get_model_context_manager:
+    with DisableCompileContextManager():
         model = TasksManager.get_model_from_task(
             task,
             model_name_or_path,

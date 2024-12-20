@@ -39,7 +39,3 @@ SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED = [
     "musicgen",
     "whisper",
 ]
-
-COMPILE_ARCHS_ONNX_EXPORT_NOT_SUPPORTED = [
-    "modernbert",
-]
