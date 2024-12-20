@@ -101,6 +101,14 @@ MODEL_NAMES = {
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "flux": "optimum-internal-testing/tiny-random-flux",
     "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
+    "git": {
+        "hf-internal-testing/tiny-random-GitModel": [
+            "feature-extraction",
+        ],
+        "hf-internal-testing/tiny-random-GitForCausalLM": [
+            "image-text-to-text",
+        ],
+    },
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",

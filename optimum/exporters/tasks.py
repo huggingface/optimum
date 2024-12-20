@@ -215,6 +215,7 @@ class TasksManager:
                 "AutoModelForInstanceSegmentation",
                 "AutoModelForUniversalSegmentation",
             ),
+            "image-text-to-text": ("AutoModelForCausalLM", "AutoModel"),
             "image-to-image": "AutoModelForImageToImage",
             "image-to-text": ("AutoModelForVision2Seq", "AutoModel"),
             "mask-generation": "AutoModel",
@@ -691,6 +692,12 @@ class TasksManager:
             "text-generation-with-past",
             "text-classification",
             onnx="GemmaOnnxConfig",
+        ),
+        "git": supported_tasks_mapping(
+            "feature-extraction",
+            "image-text-to-text",
+            "image-to-text",
+            onnx="GITOnnxConfig",
         ),
         "glpn": supported_tasks_mapping(
             "feature-extraction",
