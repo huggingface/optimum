@@ -75,7 +75,7 @@ EXTRAS_REQUIRE = {
         "transformers>=4.36,<4.47.0",
     ],
     "exporters-tf": [
-        # "tensorflow>=2.4,<=2.12.1",
+        "tensorflow>=2.4,<=2.12.1",
         "tf2onnx",
         "onnx",
         "onnxruntime",
