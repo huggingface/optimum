@@ -150,6 +150,7 @@ class OnnxConfig(ExportConfig, ABC):
         "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "image-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
+        "image-text-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-to-image": OrderedDict(
             {"reconstruction": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}

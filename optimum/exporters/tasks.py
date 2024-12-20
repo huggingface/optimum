@@ -215,6 +215,7 @@ class TasksManager:
                 "AutoModelForInstanceSegmentation",
                 "AutoModelForUniversalSegmentation",
             ),
+            "image-text-to-text": ("AutoModelForCausalLM", "AutoModel"),
             "image-to-image": "AutoModelForImageToImage",
             "image-to-text": ("AutoModelForVision2Seq", "AutoModel"),
             "mask-generation": "AutoModel",
@@ -698,11 +699,6 @@ class TasksManager:
             "image-to-text",
             onnx="GITOnnxConfig",
         ),
-        "git-vision-model": supported_tasks_mapping(
-            "feature-extraction",
-            "image-to-text",
-            onnx="GITVisionModelOnnxConfig",
-        ),        
         "glpn": supported_tasks_mapping(
             "feature-extraction",
             "depth-estimation",
