@@ -672,7 +672,7 @@ class DummySeq2SeqDecoderTextInputGenerator(DummyDecoderTextInputGenerator):
                 None,
             )
 
-        return super().generate(input_name, framework=framework, int_dtype=int_dtype)
+        return super().generate(input_name, int_dtype=int_dtype, float_dtype=float_dtype, framework=framework)
 
 
 class DummyPastKeyValuesGenerator(DummyInputGenerator):
@@ -1670,7 +1670,7 @@ class DummyTransformerTimestepInputGenerator(DummyTimestepInputGenerator):
             shape = [self.batch_size]  # With transformer diffusers, timestep is a 1D tensor
             return self.random_float_tensor(shape, max_value=self.vocab_size, framework=framework, dtype=float_dtype)
 
-        return super().generate(input_name, framework, int_dtype, float_dtype)
+        return super().generate(input_name, int_dtype=int_dtype, float_dtype=float_dtype, framework=framework)
 
 
 class DummyTransformerVisionInputGenerator(DummyVisionInputGenerator):
@@ -1691,14 +1691,14 @@ class DummyTransformerTextInputGenerator(DummySeq2SeqDecoderTextInputGenerator):
         framework: Optional[str] = None,
     ):
         if input_name == "encoder_hidden_states":
-            return super().generate(input_name, framework, int_dtype, float_dtype)[0]
+            return super().generate(input_name, int_dtype=int_dtype, float_dtype=float_dtype, framework=framework)[0]
 
         elif input_name == "pooled_projections":
             return self.random_float_tensor(
                 [self.batch_size, self.normalized_config.projection_size], framework=framework, dtype=float_dtype
             )
 
-        return super().generate(input_name, framework, int_dtype, float_dtype)
+        return super().generate(input_name, int_dtype=int_dtype, float_dtype=float_dtype, framework=framework)
 
 
 class DummyFluxTransformerVisionInputGenerator(DummyTransformerVisionInputGenerator):
@@ -1725,7 +1725,7 @@ class DummyFluxTransformerVisionInputGenerator(DummyTransformerVisionInputGenera
             )
             return self.random_int_tensor(shape, max_value=1, framework=framework, dtype=int_dtype)
 
-        return super().generate(input_name, framework, int_dtype, float_dtype)
+        return super().generate(input_name, int_dtype=int_dtype, float_dtype=float_dtype, framework=framework)
 
 
 class DummyFluxTransformerTextInputGenerator(DummyTransformerTextInputGenerator):
@@ -1754,4 +1754,4 @@ class DummyFluxTransformerTextInputGenerator(DummyTransformerTextInputGenerator)
             shape = [self.batch_size]
             return self.random_float_tensor(shape, min_value=0, max_value=1, framework=framework, dtype=float_dtype)
 
-        return super().generate(input_name, framework, int_dtype, float_dtype)
+        return super().generate(input_name, int_dtype=int_dtype, float_dtype=float_dtype, framework=framework)
