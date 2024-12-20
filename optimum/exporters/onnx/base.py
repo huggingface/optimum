@@ -35,6 +35,7 @@ if is_torch_available():
 
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
+    DTYPE_MAPPER,
     DummyInputGenerator,
     DummyLabelsGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
@@ -465,8 +466,10 @@ class OnnxConfig(ExportConfig, ABC):
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
+                    int_dtype = getattr(DTYPE_MAPPER, framework)(self.int_dtype)
+                    float_dtype = getattr(DTYPE_MAPPER, framework)(self.float_dtype)
                     dummy_inputs[input_name] = dummy_input_gen.generate(
-                        input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+                        input_name, int_dtype=int_dtype, float_dtype=float_dtype
                     )
                     input_was_inserted = True
                     break
@@ -681,6 +684,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         # TODO: The check `self.task != "text-generation" and self.legacy` is added following the use of a single ONNX for both without/with KV cache, without subgraphs.
         # This overwrite may be moved to OnnxSeq2SeqConfigWithPast, but I am afraid it would break encoder-decoder models.
+        int_dtype = getattr(DTYPE_MAPPER, framework)(self.int_dtype)
+        float_dtype = getattr(DTYPE_MAPPER, framework)(self.float_dtype)
         if (
             self.use_past
             and self.use_past_in_inputs
@@ -691,14 +696,10 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             sequence_length = dummy_input_gen.sequence_length
             # Use a sequence length of 1 when the KV cache is already populated.
             dummy_input_gen.sequence_length = 1
-            dummy_input = dummy_input_gen.generate(
-                input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
-            )
+            dummy_input = dummy_input_gen.generate(input_name, int_dtype=int_dtype, float_dtype=float_dtype)
             dummy_input_gen.sequence_length = sequence_length
         else:
-            dummy_input = dummy_input_gen.generate(
-                input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
-            )
+            dummy_input = dummy_input_gen.generate(input_name, int_dtype=int_dtype, float_dtype=float_dtype)
 
         return dummy_input
 
@@ -742,8 +743,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return flattened_output
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
+        self,
+        reference_model_inputs: Dict[str, Any],
+        onnx_input_names: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
+        int_dtype = DTYPE_MAPPER.pt(self.int_dtype)
+        float_dtype = DTYPE_MAPPER.pt(self.float_dtype)
         if self.is_merged is True and self.use_cache_branch is True:
             reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
         elif self.is_merged is True and self.use_cache_branch is False:
@@ -756,7 +761,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 task=self.task, normalized_config=self._normalized_config, sequence_length=1, batch_size=batch_size
             )
             reference_model_inputs["past_key_values"] = pkv_generator.generate(
-                "past_key_values", framework="pt", int_dtype=self.int_dtype, float_dtype=self.float_dtype
+                "past_key_values", int_dtype=int_dtype, float_dtype=float_dtype
             )
 
         return reference_model_inputs
@@ -1085,12 +1090,14 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             for cls_ in self.DUMMY_EXTRA_INPUT_GENERATOR_CLASSES
         ]
 
+        int_dtype = getattr(DTYPE_MAPPER, framework)(self.int_dtype)
+        float_dtype = getattr(DTYPE_MAPPER, framework)(self.float_dtype)
         for input_name in self._tasks_to_extra_inputs[self.task]:
             input_was_inserted = False
             for dummy_input_gen in dummy_inputs_generators:
                 if dummy_input_gen.supports_input(input_name):
                     dummy_inputs[input_name] = dummy_input_gen.generate(
-                        input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+                        input_name, int_dtype=int_dtype, float_dtype=float_dtype
                     )
                     input_was_inserted = True
                     break
