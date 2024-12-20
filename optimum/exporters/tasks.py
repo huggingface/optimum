@@ -1790,7 +1790,7 @@ class TasksManager:
                 cache_dir=cache_dir,
                 token=token,
             )
-        elif type(model) == type:
+        elif isinstance(model, type):
             inferred_task_name = cls._infer_task_from_model_or_model_class(model_class=model)
         else:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model=model)
@@ -1944,7 +1944,7 @@ class TasksManager:
                 cache_dir=cache_dir,
                 token=token,
             )
-        elif type(model) == type:
+        elif isinstance(model, type):
             library_name = cls._infer_library_from_model_or_model_class(model_class=model)
         else:
             library_name = cls._infer_library_from_model_or_model_class(model=model)
