@@ -83,7 +83,7 @@ EXTRAS_REQUIRE = {
         "h5py",
         "numpy<1.24.0",
         "datasets<=2.16",
-        "transformers>=4.36",
+        "transformers>=4.36,<4.38",
     ],
     "exporters-executorch": [
         "executorch>=0.4.0",
