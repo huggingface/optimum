@@ -519,8 +519,6 @@ class GPTQQuantizer(object):
         blocks = recurse_getattr(model, self.block_name_to_quantize)
 
         cur_layer_device = get_device(blocks[0])
-        if not is_gptqmodel_available():
-            cur_layer_device = 0
 
         if not has_device_map:
             # put modules from module_name_preceding_first_block on cuda or xpu or cpu
@@ -591,8 +589,6 @@ class GPTQQuantizer(object):
                 block = block.to(0)
             layers = get_layers(block)
             block_device = get_device(block)
-            if not is_gptqmodel_available():
-                block_device = 0
             if isinstance(self.modules_in_block_to_quantize, list) and len(self.modules_in_block_to_quantize) > 0:
                 if self.true_sequential:
                     layers_name_list = self.modules_in_block_to_quantize
