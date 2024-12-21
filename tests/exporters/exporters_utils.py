@@ -129,6 +129,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "owlv2": "hf-internal-testing/tiny-random-Owlv2Model",
     "owlvit": "hf-tiny-model-private/tiny-random-OwlViTModel",
+    "paligemma": {"hf-internal-testing/tiny-random-PaliGemmaForConditionalGeneration": ["image-to-text", "feature-extraction"]},
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
         "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],

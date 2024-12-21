@@ -2490,7 +2490,7 @@ class PaliGemmaOnnxConfig(GemmaOnnxConfig):
                 "attention_mask": dynamic_axis,
                 "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
             }
-        elif self.task == "text-generation":
+        elif self.task == "image-to-text":
             return {
                 "input_ids": dynamic_axis,
                 "attention_mask": dynamic_axis,
@@ -2501,13 +2501,13 @@ class PaliGemmaOnnxConfig(GemmaOnnxConfig):
             if self.task == "feature-extraction":
                 generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config)
                 prefix_tensor = generator.constant_tensor(
-                    shape=[dummy_inputs["input_ids"].shape[0], 1024],
+                    shape=[dummy_inputs["input_ids"].shape[0], self._normalized_config.vision_config.num_image_tokens],
                     value=self._normalized_config.image_token_index,
                     framework=framework,
                 )
                 dummy_inputs["input_ids"] = generator.concat_inputs([prefix_tensor, dummy_inputs["input_ids"]], dim=1)
                 dummy_inputs["attention_mask"] = generator.random_mask_tensor(
-                    shape=[generator.batch_size, generator.sequence_length + 1024],
+                    shape=[generator.batch_size, generator.sequence_length + self._normalized_config.vision_config.num_image_tokens],
                     padding_side=generator.padding_side,
                     framework=framework,
                     dtype="int64",

@@ -1173,17 +1173,3 @@ class CLIPModelPatcher(ModelPatcher):
 
             CLIPSdpaAttention.forward = self.original_sdpa_forward
 
-class ColPaliModelPatcher(ModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-        def patched_forward(input_ids=None, pixel_values=None, attention_mask=None, **kwargs):
-            outputs = self.orig_forward(
-                input_ids=input_ids, pixel_values=pixel_values, attention_mask=attention_mask, **kwargs
-            )
-            return outputs
-        self.patched_forward = patched_forward

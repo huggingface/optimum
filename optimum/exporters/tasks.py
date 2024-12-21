@@ -951,6 +951,7 @@ class TasksManager:
         ),
         "paligemma": supported_tasks_mapping(
             "feature-extraction",
+            "image-to-text",
             onnx="PaliGemmaOnnxConfig",
         ),
         "pegasus": supported_tasks_mapping(
