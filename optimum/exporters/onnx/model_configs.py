@@ -59,6 +59,7 @@ from ...utils import (
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedTextConfigWithGQA,
+    NormalizedTimeSeriesForecastingConfig,
     NormalizedVisionConfig,
     check_if_diffusers_greater,
     check_if_transformers_greater,
@@ -2499,3 +2500,46 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
 
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+
+
+
+
+class TimesFMDummyInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("inputs",)
+    
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        **kwargs,
+    ):
+        self.task = task
+        self.normalized_config = normalized_config
+
+        self.batch_size = batch_size
+        self.context_len = normalized_config.context_len
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        return self.random_float_tensor(
+            shape=[self.batch_size, self.context_len],
+            min_value=-1,
+            max_value=1,
+            framework=framework,
+            dtype=float_dtype,
+        )
+
+
+class TimesFMOnnxConfig(OnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
+    MIN_TRANSFORMERS_VERSION = version.parse("4.47.0")
+    DUMMY_INPUT_GENERATOR_CLASSES = (TimesFMDummyInputGenerator,)
+
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"inputs": {0: "batch_size", 1: "sequence_length"}}
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return super().outputs
