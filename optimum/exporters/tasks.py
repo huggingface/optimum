@@ -602,6 +602,11 @@ class TasksManager:
             "masked-im",
             onnx="DeiTOnnxConfig",
         ),
+        "deta": supported_tasks_mapping(
+            "feature-extraction",
+            "object-detection",
+            onnx="DetaOnnxConfig"
+        ),
         "detr": supported_tasks_mapping(
             "feature-extraction",
             "object-detection",
