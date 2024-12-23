@@ -14,12 +14,15 @@
 # limitations under the License.
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-from torch.fx import GraphModule
+
+
+if TYPE_CHECKING:
+    from .backend import Backend
 
 
 class HashableSlice:
@@ -72,14 +75,12 @@ class ParameterMeta:
     Parameter meta information.
 
     Attributes:
-        - is_tied (`bool`, defaults to `False`):
-            Whether the parameter is shared accross multiple modules.
+        - tied_to (`Optional[str]`, defaults to `None`):
+            The name of host parameter the current parameter is tied to, i.e., `lm_head.weight` is tied
+            to `embedding_tokens.weight`. If None then it's unique and not shared across modules.
 
         - is_parallel (`bool`, defaults to `False`):
             Whether the parameter needs to be parallelized.
-
-        - is_modified_meta (`bool`, defaults to `False`):
-            Whether the meta has already been modified since initialization.
 
         - need_initialize (`bool`, defaults to `False`):
             Whether need to manually initialize weights if not provided in weight map.
@@ -94,9 +95,8 @@ class ParameterMeta:
             Mapping between the current parameter and weight tensor stored in weight map.
     """
 
-    is_tied: bool = False
+    tied_to: Optional[str] = None
     is_parallel: bool = False
-    is_modified_meta: bool = False
     need_initialize: bool = False
     init_fn: Optional[Callable] = None
     dim: int = 0
@@ -114,6 +114,9 @@ class ParallelExecutionCtx:
 
         - current_device (`torch.device`):
             Device correpsonding to the current process.
+
+        - backend (`Optional[Backend]`, defaults to `None`):
+            Backend instance which converts layers into their parallelized counterparts.
 
         - example_inputs (`List[Any]`):
             A list of tensors which are used as example inputs for graphs captured by dynamo.
@@ -134,8 +137,8 @@ class ParallelExecutionCtx:
             Mapping between parameter names and their locations on disk, useful when loading weights
             from disk.
 
-        - last_optimized_graph_module (`Optional[GraphModule]`, defaults to `None`):
-            Optimized graph module corresponding to the latest compilation.
+        - last_optimized_module (`Optional[nn.Module]`, defaults to `None`):
+            Optimized module corresponding to the latest compilation.
 
         - compile_times (`int`, defaults to `0`):
             Number of compilation times happened during the whole process.
@@ -143,12 +146,19 @@ class ParallelExecutionCtx:
 
     tp_group: dist.ProcessGroup
     current_device: torch.device
+    backend: Optional["Backend"] = None
     example_inputs: List[Any] = field(default_factory=list)
     parallel_layer_cache: Dict[str, nn.Module] = field(default_factory=dict)
     param_cache: Dict[str, nn.Parameter] = field(default_factory=dict)
     weight_map: Dict[str, str] = field(default_factory=dict)
-    last_optimized_graph_module: Optional[GraphModule] = None
+    last_optimized_module: Optional[nn.Module] = None
     compile_times: int = 0
+
+    def __post_init__(self):
+        if self.backend is None:
+            from .backend import DefaultBackend
+
+            self.backend = DefaultBackend()
 
 
 @dataclass
