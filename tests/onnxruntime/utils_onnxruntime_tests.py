@@ -91,6 +91,7 @@ MODEL_NAMES = {
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "dpt": "hf-internal-testing/tiny-random-DPTModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
+    "ernie": "hf-internal-testing/tiny-random-ErnieModel",
     "encoder-decoder": {
         "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": [
             "text2text-generation",
