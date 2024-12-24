@@ -43,6 +43,7 @@ from ..exporters_utils import (
     NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
     PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_REMOTE_CODE_MODELS,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_TIMM_MODEL,
     PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
@@ -739,3 +740,32 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             model.save_pretrained(tmpdir_in)
 
             main_export(model_name_or_path=tmpdir_in, output=tmpdir_out, task="text-classification")
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_REMOTE_CODE_MODELS, library_name="transformers"))
+    @require_torch
+    @slow
+    @pytest.mark.run_slow
+    def test_custom_model(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        with TemporaryDirectory() as tmpdirname:
+            out = subprocess.run(
+                f"python3 -m optimum.exporters.onnx --trust-remote-code --model {model_name} --task {task} {tmpdirname}",
+                shell=True,
+                capture_output=True,
+            )
+            self.assertFalse(out.returncode)
+
+        with TemporaryDirectory() as tmpdirname:
+            out = subprocess.run(
+                f"python3 -m optimum.exporters.onnx --trust-remote-code --model {model_name} --task {task} {tmpdirname}",
+                shell=True,
+                check=True,
+            )
