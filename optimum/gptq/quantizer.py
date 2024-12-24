@@ -519,7 +519,7 @@ class GPTQQuantizer(object):
         blocks = recurse_getattr(model, self.block_name_to_quantize)
 
         cur_layer_device = get_device(blocks[0])
-        if not is_gptqmodel_available():
+        if not is_gptqmodel_available() and cur_layer_device.type == "cpu":
             cur_layer_device = 0
 
         if not has_device_map:
@@ -591,7 +591,7 @@ class GPTQQuantizer(object):
                 block = block.to(0)
             layers = get_layers(block)
             block_device = get_device(block)
-            if not is_gptqmodel_available():
+            if not is_gptqmodel_available() and block_device.type == "cpu":
                 block_device = 0
             if isinstance(self.modules_in_block_to_quantize, list) and len(self.modules_in_block_to_quantize) > 0:
                 if self.true_sequential:
