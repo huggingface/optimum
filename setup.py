@@ -33,6 +33,7 @@ TESTS_REQUIRE = [
     "torchvision",
     "diffusers>=0.17.0",
     "torchaudio",
+    "timm",
     "einops",
     "timm",
     "scikit-learn",
