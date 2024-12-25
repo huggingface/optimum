@@ -602,6 +602,11 @@ class TasksManager:
             "masked-im",
             onnx="DeiTOnnxConfig",
         ),
+        "depth-anything": supported_tasks_mapping(
+            "feature-extraction",
+            "depth-estimation",
+            onnx="DepthAnythingOnnxConfig",
+        ),
         "detr": supported_tasks_mapping(
             "feature-extraction",
             "object-detection",
@@ -1032,6 +1037,11 @@ class TasksManager:
             "feature-extraction",
             "image-classification",
             onnx="PoolFormerOnnxConfig",
+        ),
+        "prompt-depth-anything": supported_tasks_mapping(
+            "feature-extraction",
+            "depth-estimation",
+            onnx="PromptDepthAnythingOnnxConfig",
         ),
         "pvt": supported_tasks_mapping(
             "feature-extraction",
