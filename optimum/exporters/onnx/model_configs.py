@@ -824,6 +824,64 @@ class ViTOnnxConfig(VisionOnnxConfig):
         return common_outputs
 
 
+class DepthAnythingOnnxConfig(ViTOnnxConfig):
+    pass
+
+
+class DummyPromptDepthInputGenerator(DummyVisionInputGenerator):
+    SUPPORTED_INPUT_NAMES = (
+        "pixel_values",
+        "prompt_depth",
+    )
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedVisionConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
+        width: int = DEFAULT_DUMMY_SHAPES["width"],
+        height: int = DEFAULT_DUMMY_SHAPES["height"],
+        prompt_height: int = DEFAULT_DUMMY_SHAPES["prompt_height"],
+        prompt_width: int = DEFAULT_DUMMY_SHAPES["prompt_width"],
+        **kwargs,
+    ):
+        super().__init__(
+            task=task,
+            normalized_config=normalized_config,
+            batch_size=batch_size,
+            num_channels=num_channels,
+            width=width,
+            height=height,
+            **kwargs,
+        )
+        self.prompt_height = prompt_height
+        self.prompt_width = prompt_width
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "prompt_depth":
+            return self.random_float_tensor(
+                (self.batch_size, 1, self.prompt_height, self.prompt_width),
+                framework=framework,
+                dtype=float_dtype,
+            )
+        else:
+            return super().generate(
+                input_name=input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
+            )
+
+
+class PromptDepthAnythingOnnxConfig(DepthAnythingOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyPromptDepthInputGenerator,)
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            "prompt_depth": {0: "batch_size", 2: "prompt_height", 3: "prompt_width"},
+        }
+
+
 class CvTOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 13
     ATOL_FOR_VALIDATION = 1e-2

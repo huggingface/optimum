@@ -63,6 +63,8 @@ DEFAULT_DUMMY_SHAPES = {
     "num_channels": 3,
     "point_batch_size": 3,
     "nb_points_per_image": 2,
+    "prompt_width": 32,
+    "prompt_height": 32,
     # audio
     "feature_size": 80,
     "nb_max_frames": 3000,
