@@ -22,7 +22,9 @@ from transformers.testing_utils import require_torch
 
 if is_torch_available():
     import torch
-    from transformers.models.deberta import modeling_deberta
+    from transformers.models.sew_d import modeling_sew_d
+
+    from optimum.utils import check_if_torch_greater
 
 
 class StableDropoutTestCase(TestCase):
@@ -34,7 +36,7 @@ class StableDropoutTestCase(TestCase):
         """Tests export of StableDropout in training mode."""
         devnull = open(os.devnull, "wb")
         # drop_prob must be > 0 for the test to be meaningful
-        sd = modeling_deberta.StableDropout(0.1)
+        sd = modeling_sew_d.StableDropout(0.1)
         # Avoid warnings in training mode
         do_constant_folding = False
         # Dropout is a no-op in inference mode
@@ -50,8 +52,8 @@ class StableDropoutTestCase(TestCase):
             training=training,
         )
 
-        # Expected to fail with opset_version < 12
-        with self.assertRaises(Exception):
+        if check_if_torch_greater("2.5"):
+            # Expected to pass with opset_version < 12 on torch >= 2.5
             torch.onnx.export(
                 sd,
                 input,
@@ -60,3 +62,14 @@ class StableDropoutTestCase(TestCase):
                 do_constant_folding=do_constant_folding,
                 training=training,
             )
+        else:
+            # Expected to fail with opset_version < 12 on torch < 2.5
+            with self.assertRaises(Exception):
+                torch.onnx.export(
+                    sd,
+                    input,
+                    devnull,
+                    opset_version=11,
+                    do_constant_folding=do_constant_folding,
+                    training=training,
+                )

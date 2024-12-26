@@ -23,15 +23,21 @@ import torch.nn as nn
 from torch.fx import Graph, GraphModule, Node
 
 from .core import Config, ParallelExecutionCtx, ParameterMeta
+from .decomp import decompose_and_functionalize
 from .distributed import scatter
-from .parallel_layers import ColumnParallelLinear, RowParallelLinear, VocabParallelEmbedding
+from .op_registry import REGISTRY, FallbackParallelAxisPropagateHandler
+from .parallel_layers import (
+    ColumnParallelLinear,
+    RowParallelLinear,
+    VocabParallelCrossEntropyLoss,
+    VocabParallelEmbedding,
+    sharded_cross_entropy_wrapper_fn,
+)
 from .utils import (
+    is_cross_entropy,
     is_embedding,
     is_linear,
-    is_permute,
     is_shape_consumer,
-    is_shape_generator,
-    is_transpose,
     stable_topological_sort,
 )
 
@@ -135,238 +141,156 @@ class AnalyzeBase(PassBase):
             self.clear_marker_per_node(node)
 
 
-class ParallelLayerAnnotatePass(AnalyzeBase):
+class ParallelAxisSolverPass(AnalyzeBase):
     """
-    A pass which tries to automatically identify parallel layers in the graph. Note that for simplicity
-    we only consider classical ways of parallelizing layers in transformers architecture for now, we are not
-    solving an optimization problem which tries to give a best solution of parallelizing any model under
-    memory/hardware constraints.
+    A pass which tries to automatically identify parallel layers in the graph. There are three steps
+    involved to find a possible parallel solution given the traced graph module and process group.
 
-    For `nn.Embedding` layers, we parallelize them on the vocabulary dim by default, because they are often tied
-    to the `lm_head` of the model, which is usually a `ColumnLinear`(parallelized on vocab dim).
+        - Decompostion & Functionalization
+            The vanilla graph traced by dynamo frontend is a high-level graph which contains high-level
+            pytorch ops, and there could be thousands of them, which makes graph analysis hard in order
+            to cover all cases. So we decompose the high-level graph into low-level graph which only
+            conrtains core aten ops, which is a much smaller set. And functionalization is also needed
+            to remove inplace ops in the graph so that we get `aten.Add` instead of `aten.Add_` in the
+            graph, which furthur reduces the op set we need to consider.
 
-    For `nn.Linear` layers, we parallelize them by grouping them as `upstream` nodes and `downstream` nodes, and
-    `upstream` nodes are marked as `ColumnLinear`, `downstream` nodes are marked as `RowLinear`.
+        - Parallel Axis Propagation
+            We need to write parallel axis propagation rules for aten ops in the decomposed and functionalized
+            graph, note that we don't need to cover every possible parallelization strategy because in general
+            only certain ops(usually involves computation) can be parallelized in transformer models. And we just
+            need to write rules for a subset of core aten op set in order to support most of the transformer models.
 
-    Typical examples in transformer models:
+        - Backtracking Search
+            After we have defined parallel axis propagation rules for each op in the graph, we do a brute force
+            backtracking search to try to find a possible solution which respects the propagation rule of every
+            op in the graph.
 
-          Attention                   Bert-style MLP          Llama-style MLP
-        __________________________________________________________________________
-        Linear  Linear                     Linear           Linear
-          \\     /                            |               \\                       --> upstream
-            Matmul   Linear               Activation         Activation  Linear
-        __________________________________________________________________________
-               \\    /                        |                    \\     /
-                \\  /                     ___________               \\   /
-                Matmul                   /  Linear   \                Mul
-                   |                    /             \                |
-        _______________________________/               \___________________________
-                 Linear                                              Linear            --> downstream
 
-    Note that there are some patterns that can not be clearly marked, like this one:
+        Note that there are several practical concerns
 
-    Linear
-      |    \\
-      |    Linear  <-- which label should we mark for the intermediate linear, `upstream` or `downstream`
-      |     /
-        Add
-         |
-       Linear
+            - Time Complexity. Although brute force backtracking introduces an exponential time complexity, we reduces
+                the search space by injecting human heuristics. First, we only consider parallelization on the head dimension
+                (for tensor parallel) or the sequence dimension(to support sequence parallel), then at any time the tensor is
+                parallelized on at most one dimension. Second, we only allow axis switch around certain layers(like `nn.Linear`
+                or `nn.Embedding), and all other ops fall into their places by the parallel axis of their input and rules we write.
 
-    For patterns like this we will be conservative and raise errors directly because we don't know how to parallelize
-    it. Another concern is about the correctness, it's possible that we might end up with a wrong parallelization solution
-    even if the pattern itself is clear, but for now we are mainly targeting on transformer models and the current solution
-    should work fairly well.
+            - Optimal Solution. Note that since we return the first solution we find, then it might not be optimal in terms of
+                memory consumption and communication overhead. But again we can adjust the order of search and try parallelize
+                as much as we can first before fall back to non-parallelized search paths. And we don't pay too much attention
+                on calculating communication overhead because in practice they are bounded under the constraint that only certain
+                layers are allowed to communicate.
+
+    Our goal is not to solve an optimization problem which tries to give a best solution of parallelizing any model under memory/hardware
+    constraints, but rather a cheap solution which relieves you from writing boilerplate code for parallelizing layers of different models.
     """
 
-    def try_form_parallel_linear_groups(self, linear: Node) -> None:
-        """
-        We try to form linears by forming closures in a greedy way, we start with an unmarked linear node, and traverses down
-        recusively to find all the potential `downstream` linears, note that once we have reached a linear, the recursion stops.
-        And the newly found `downstream` linears are used as new seeds to traverse upwards to find all the potential `upstream`
-        linears, the process goes on until number of linears on both sides converges.
-        Args:
-            linear (Node): the first linear node used as `upstream` node seed to form closure.
+    def trace_back(self, graph_module: GraphModule, decomp_graph: Graph) -> None:
+        node_map = {node.name: node for node in graph_module.graph.nodes}
 
-        Raises:
-            RuntimeError:
-                raises runtime error when the pattern itself is not clear, there are no clear boundaries that can be drawn.
-        """
-        upstream_nodes, downstream_nodes = {linear}, set()
-
-        seeds, next_seeds = [(linear, "down")], []
-
-        def traverse(start: Node, cur: Node, direction: str = "down"):
-            if is_linear(cur) and cur is not start:
-                if direction == "up" and cur not in upstream_nodes:
-                    upstream_nodes.add(cur)
-                    next_seeds.append((cur, "down"))
-                elif direction == "down" and cur not in downstream_nodes:
-                    downstream_nodes.add(cur)
-                    next_seeds.append((cur, "up"))
-                return
-
-            next_nodes = cur.all_input_nodes if direction == "up" else cur.users
-            for node in next_nodes:
-                # we should ignore shape-related dependencies
-                if is_shape_generator(node):
-                    continue
-                traverse(start, node, direction)
-
-        while seeds:
-            next_seeds = []
-            for node, direction in seeds:
-                traverse(start=node, cur=node, direction=direction)
-            seeds = next_seeds
-
-        if any(self.already_executed_per_node(node) for node in (upstream_nodes | downstream_nodes)) or (
-            upstream_nodes & downstream_nodes
-        ):
-            raise RuntimeError(
-                "Failed to automatically group and parallelize ops in graph in greedy way: "
-                "no clear boudaries between `upstream` and `downstream` ops."
-            )
-
-        for node in upstream_nodes:
-            self.place_marker_per_node(node, {"axis": "column", "gather_output": False if downstream_nodes else True})
-
-        for node in downstream_nodes:
-            self.place_marker_per_node(node, {"axis": "row", "input_is_parallel": True})
+        for node in decomp_graph.nodes:
+            if "traced_from" in node.meta:
+                node_name, _ = node.meta["traced_from"][0]
+                assert node_name in node_map, f"un-recognized node origin {node_name} not in graph being traced"
+                orig_node = node_map[node_name]
+                self.clear_marker_per_node(orig_node)
+                self.place_marker_per_node(
+                    orig_node, {"parallel_axis": self.get_stored_field_info(node, field="parallel_axis")}
+                )
 
     def run(self, graph_module: GraphModule, ctx: ParallelExecutionCtx, config: Config) -> GraphModule:
-        graph: Graph = graph_module.graph
+        graph: Graph = decompose_and_functionalize(graph_module)(*ctx.example_inputs)
         stable_topological_sort(graph)
-        for node in graph.nodes:
-            if is_linear(node) and not self.already_executed_per_node(node):
-                self.try_form_parallel_linear_groups(node)
-            elif is_embedding(node):
-                # directly mark `nn.Embedding` layers
-                self.place_marker_per_node(node, {"axis": "vocab"})
 
+        nodes = list(graph.nodes)
+
+        def search(idx: int):
+            if idx == len(nodes):
+                return True
+
+            node = nodes[idx]
+            if node.op == "call_function" and REGISTRY.is_supported(node.target):
+                prop_cls = REGISTRY.mapping[node.target]
+            else:
+                prop_cls = FallbackParallelAxisPropagateHandler
+
+            prop = prop_cls(node, self.meta_key(), config)
+            axis_candidates = prop.propagate()
+            for axis in axis_candidates:
+                self.place_marker_per_node(node, {"parallel_axis": axis})
+                if search(idx + 1):
+                    return True
+                self.clear_marker_per_node(node)
+
+            return False
+
+        if not search(0):
+            raise RuntimeError("Failed to find a solution to automatically parallelize ops in graph in greedy way.")
+
+        self.trace_back(graph_module, graph)
         return graph_module
 
 
-class ParallelAxisPropagationPass(AnalyzeBase):
+class ParallelLayerAnnotatePass(AnalyzeBase):
     """
-    A pass which tries to track which axis is being parallelized in the dataflow. For transformer models, the
-    axis being paralled for tensor parallism is almost always 2, i.e., the attention head axis, except for
-    Q and K matrices which need to swap the sequence length axis and head axis to do the attention computation,
-    so we focus on operations like `transpose` or `permute` which swaps axis, and try inducting the parallel
-    axis after these operations.
+    This pass annotates layers which have different parallel axis(requires communication inside the layer) in their
+    input and output tensors. Since heuristics applied during the searching process respect traditional classical ways of
+    parallelizing layers(like Megatron-style `ColumnLinear` or `RowLinear`), we are guaranteed to match a valid replacement
+    annotation according to parallelization strategy of input and output tensors.
     """
-
-    def propagate_transpose(self, node: Node, parallel_axis: int) -> bool:
-        dims = node.meta["example_value"].dim()
-        if "dim0" in node.kwargs and "dim1" in node.kwargs:
-            dim0, dim1 = node.kwargs["dim0"], node.kwargs["dim1"]
-        elif len(node.args) == 3:
-            dim0, dim1 = node.args[1:]
-
-        dim0 = (dim0 + dims) % dims
-        dim1 = (dim1 + dims) % dims
-
-        if dim0 == parallel_axis:
-            self.place_marker_per_node(node, {"parallel_axis": dim1})
-            return True
-        elif dim1 == parallel_axis:
-            self.place_marker_per_node(node, {"parallel_axis": dim0})
-            return True
-        return False
-
-    def propagate_permute(self, node: Node, parallel_axis: int) -> bool:
-        if "dims" in node.kwargs:
-            dims = node.kwargs["dims"]
-        else:
-            dims = (
-                list(node.args[1])
-                if isinstance(node.args[1], tuple)
-                else [arg for arg in node.args if isinstance(arg, int)]
-            )
-
-        dim_len = node.meta["example_value"].dim()
-        dims = [dim + dim_len if dim < 0 else dim for dim in dims]
-
-        for i, dim in enumerate(dims):
-            if dim == parallel_axis:
-                self.place_marker_per_node(node, {"parallel_axis": i})
-                return True
-        return False
-
-    def propagate_getitem(self, node: Node, parallel_axis: int) -> bool:
-        slices = node.args[1]
-        dims = node.meta["example_value"].dim()
-        assert parallel_axis < dims
-        inc, i, j = 0, 0, 0
-
-        while i < parallel_axis and j < len(slices):
-            if isinstance(slices[j], int):
-                inc -= 1
-                i += 1
-            elif slices[j] is None:
-                inc += 1
-            elif slices[j] is Ellipsis:
-                i = dims
-                k = j
-                while k < len(slices):
-                    if slices[k] is not Ellipsis:
-                        i -= 1
-                    k += 1
-            else:
-                i += 1
-            j += 1
-
-        if inc != 0:
-            assert parallel_axis + inc < dims and parallel_axis + inc >= 0
-            self.place_marker_per_node(node, {"parallel_axis": parallel_axis + inc})
-            return True
-        return False
 
     def run(self, graph_module: GraphModule, ctx: ParallelExecutionCtx, config: Config) -> GraphModule:
-        g: Graph = graph_module.graph
-        stable_topological_sort(g)
-
-        for node in g.nodes:
-            if ParallelLayerAnnotatePass.already_executed_per_node(node):
-                # start propagating at ColumnLinear, marking the beginning of parallelized region
-                axis = ParallelLayerAnnotatePass.get_stored_field_info(node, field="axis", must_have=True)
-                gather_output = ParallelLayerAnnotatePass.get_stored_field_info(node, field="gather_output")
-                if axis == "column" and not gather_output:
-                    self.place_marker_per_node(node, {"parallel_axis": 2})
-                # stop propagating at RowLinear, concluding the ending of parallelized region
-                else:
-                    continue
-            else:
-                already_marked_args, parallel_axis = [], None
-                for arg in node.all_input_nodes:
-                    if not self.already_executed_per_node(arg):
-                        continue
-                    if parallel_axis is None:
-                        parallel_axis = self.get_stored_field_info(arg, field="parallel_axis", must_have=True)
+        for node in graph_module.graph.nodes:
+            if is_linear(node):
+                axis_before = ParallelAxisSolverPass.get_stored_field_info(node.args[0], "parallel_axis")
+                axis_after = ParallelAxisSolverPass.get_stored_field_info(node, "parallel_axis")
+                info = {}
+                if axis_before is None:
+                    info["axis"] = "column"
+                    info["gather_output"] = True if axis_after is None else False
+                elif axis_before == 1:
+                    assert (
+                        config.enable_sequence_parallel
+                    ), "illegal parallel axis for sequence parallelism deactivated setting"
+                    info["axis"] = "column"
+                    info["sequence_parallel"] = True
+                    info["gather_output"] = True if axis_after is None else False
+                elif axis_before == 2:
+                    info["axis"] = "row"
+                    info["input_is_parallel"] = True
+                    if axis_after == 1:
+                        assert (
+                            config.enable_sequence_parallel
+                        ), "illegal parallel axis for sequence parallelism deactivated setting"
+                        info["sequence_parallel"] = True
                     else:
-                        assert parallel_axis == self.get_stored_field_info(
-                            arg, field="parallel_axis", must_have=True
-                        ), "`parallel_axis` should be equal for all arguments in any related ops"
-                    already_marked_args.append(arg)
+                        info["sequence_parallel"] = False
+                self.place_marker_per_node(node, info)
 
-                if not already_marked_args:
-                    continue
+            elif is_embedding(node):
+                axis_before = ParallelAxisSolverPass.get_stored_field_info(node.args[0], "parallel_axis")
+                axis_after = ParallelAxisSolverPass.get_stored_field_info(node, "parallel_axis")
+                assert axis_before is None and axis_after in [1, None]
+                info = {"axis": "vocab"}
+                if axis_after == 1:
+                    assert (
+                        config.enable_sequence_parallel
+                    ), "illegal parallel axis for sequence parallelism deactivated setting"
+                    info["sequence_parallel"] = True
+                else:
+                    info["sequence_parallel"] = False
+                self.place_marker_per_node(node, info)
 
-                marked = False
-                if is_transpose(node):
-                    marked = self.propagate_transpose(node, parallel_axis)
-                elif is_permute(node):
-                    marked = self.propagate_permute(node, parallel_axis)
+            elif is_cross_entropy(node):
+                axis_before = ParallelAxisSolverPass.get_stored_field_info(node.args[0], "parallel_axis")
+                if axis_before is not None:
+                    self.place_marker_per_node(node, {"axis": "vocab"})
 
-                # fall back
-                if not marked:
-                    self.place_marker_per_node(node, {"parallel_axis": parallel_axis})
         return graph_module
 
 
 class ParallelLayerReplacePass(PassBase):
     """
-    A pass which modifies graph according to information provided by previous analytical passes,
-    in general it does two things for now:
+    A pass which modifies graph according to information provided by previous analytical passes, in general it does two things for now:
         1. replaces linears and embedding layers with their parallel counterparts.
         2. modifies hard-coded arguments like the number of attention heads in the graph by dividing it by parallelism level.
     """
@@ -432,6 +356,35 @@ class ParallelLayerReplacePass(PassBase):
         setattr(parent_mod, field, new_mod)
 
     @staticmethod
+    def handle_cross_entropy(node: Node, ctx: ParallelExecutionCtx) -> None:
+        axis = ParallelLayerAnnotatePass.get_stored_field_info(node, field="axis")
+        if axis is None:
+            return
+
+        assert axis in {"vocab"}, "Only support parallelization on vocab dim for now."
+        if node.op == "call_module":
+            graph_module = node.graph.owning_module
+            prefix_and_field = node.target.rsplit(".", maxsplit=1)
+            if len(prefix_and_field) == 2:
+                parent_mod = graph_module.get_submodule(prefix_and_field[0])
+                field = prefix_and_field[1]
+            else:
+                parent_mod = graph_module
+                field = node.target
+
+            mod: nn.CrossEntropyLoss = graph_module.get_submodule(node.target)
+            key, layer_cache = node.target, ctx.parallel_layer_cache
+            if key in layer_cache:
+                new_mod = layer_cache[key]
+            else:
+                assert ctx.compile_times == 0, "illegal path for recompilation"
+                new_mod = VocabParallelCrossEntropyLoss(ctx, reduction=mod.reduction)
+                layer_cache[key] = new_mod
+            setattr(parent_mod, field, new_mod)
+        else:
+            node.target = sharded_cross_entropy_wrapper_fn(process_group=ctx.tp_group)
+
+    @staticmethod
     def handle_hard_coded_axis_param(node: Node, ctx: ParallelExecutionCtx) -> None:
         def extract_shape_from_node(node: Node) -> List[Any]:
             if "size" in node.kwargs:
@@ -453,7 +406,7 @@ class ParallelLayerReplacePass(PassBase):
             else:
                 node.update_arg(parallel_axis + 1, shape[parallel_axis])
 
-        parallel_axis = ParallelAxisPropagationPass.get_stored_field_info(node, field="parallel_axis")
+        parallel_axis = ParallelAxisSolverPass.get_stored_field_info(node, field="parallel_axis")
         if parallel_axis is None:
             return
 
@@ -472,6 +425,8 @@ class ParallelLayerReplacePass(PassBase):
                 self.handle_linear(node, ctx)
             elif is_embedding(node):
                 self.handle_embedding(node, ctx)
+            elif is_cross_entropy(node):
+                self.handle_cross_entropy(node, ctx)
             # correct the attention head num in parallel setting
             elif is_shape_consumer(node):
                 self.handle_hard_coded_axis_param(node, ctx)
@@ -480,18 +435,21 @@ class ParallelLayerReplacePass(PassBase):
 
 class InitializeOrLoadWeightsPass(PassBase):
     """
-    Make weights loading/initialization a seperate pass for cleaner logic and easier extensibility. This
-    pass will only run once in the very first compilation step.
+    Weights loading and intialization pass, will initialize parameters on current rank and load weights from disk
+    if necessary.
     """
-
-    need_rerun_when_recompile = False
 
     def run(self, graph_module: GraphModule, ctx: ParallelExecutionCtx, config: Config) -> GraphModule:
         world_size = dist.get_world_size(ctx.tp_group)
         tp_rank = dist.get_rank(ctx.tp_group)
 
-        new_parameters, tied_parameters = [], {}
+        new_parameters, tied_parameters, param_cache = [], {}, ctx.param_cache
         for name, param in sorted(graph_module.named_parameters(remove_duplicate=False)):
+            # skip initializing new params when recompilation happens
+            if name in param_cache:
+                new_parameters.append((name, param_cache[name]))
+                continue
+
             param_meta: ParameterMeta = getattr(param, "meta")
             # skip already initialized/loaded tied parameters
             if param_meta.is_tied and id(param) in tied_parameters:
@@ -569,6 +527,8 @@ class InitializeOrLoadWeightsPass(PassBase):
             else:
                 parent_mod = graph_module
                 field = name
+            if name not in param_cache:
+                param_cache[name] = new_param
             setattr(parent_mod, field, new_param)
 
         return graph_module
@@ -577,18 +537,18 @@ class InitializeOrLoadWeightsPass(PassBase):
 def build_parallel_pass_pipeline() -> PassPipeline:
     """
     Ensemble a pass pipeline which contains the following passes:
-        1. `ParallelLayerAnnotatePass` to annoate which linears are `ColumnLinear`, which are `RowLinear`
-        2. `ParallelAxisPropagationPass` to propate parallel axis along the data flow
-        3. `ParallelLinearReplacePass` to do the actual replacement and modification of hard-coded attributes
-        4. `InitializeOrLoadWeightsPass` to load or initialize weights for parameters
+        1. `ParallelAxisSolverPass` to find a parallelization solution of tensors in the graph.
+        2. `ParallelLayerAnnotatePass` to annotate parallelized layers according to the solution found in the first step.
+        3. `ParallelLinearReplacePass` to do the actual replacement and modification of hard-coded attributes.
+        4. `InitializeOrLoadWeightsPass` to load or initialize weights for parameters.
 
     Returns:
         PassPipeline: the pipeline used for automatic parallelism.
     """
     return PassPipeline(
         [
+            ParallelAxisSolverPass(),
             ParallelLayerAnnotatePass(),
-            ParallelAxisPropagationPass(),
             ParallelLayerReplacePass(),
             InitializeOrLoadWeightsPass(),
         ]

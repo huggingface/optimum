@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 import onnx
 from onnx import load_model
+from transformers import GenerationConfig
 from transformers.models.auto.configuration_auto import AutoConfig
 
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
@@ -152,10 +153,6 @@ class ORTOptimizer:
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         ORTConfigManager.check_optimization_supported_model(self.model_type, optimization_config)
-
-        self.config.save_pretrained(save_dir)
-        maybe_save_preprocessors(self.onnx_model_path[0].parent, save_dir)
-
         model_type = ORTConfigManager.get_model_ort_type(self.config.model_type)
         optimization_options = optimization_config.create_fusion_options(model_type)
 
@@ -236,6 +233,13 @@ class ORTOptimizer:
         # Save the model configuration
         self.config.save_pretrained(save_dir)
         ort_config.save_pretrained(save_dir)
+        maybe_save_preprocessors(self.onnx_model_path[0].parent, save_dir)
+
+        try:
+            generation_config = GenerationConfig.from_pretrained(self.onnx_model_path[0].parent)
+            generation_config.save_pretrained(save_dir)
+        except Exception:
+            pass
 
         logger.info(
             f"Optimized model saved at: {save_dir} (external data format: "

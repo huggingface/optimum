@@ -204,8 +204,10 @@ class NormalizedConfigManager:
         'data2vec-text',
         'data2vec-vision',
         'detr',
+        'dinov2',
         'flaubert',
         'groupvit',
+        'hiera',
         'ibert',
         'layoutlm',
         'layoutlmv3',
@@ -216,6 +218,8 @@ class NormalizedConfigManager:
         'owlvit',
         'perceiver',
         'roformer',
+        'segformer',
+        'siglip',
         'squeezebert',
         'table-transformer',
     """
@@ -281,6 +285,7 @@ class NormalizedConfigManager:
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
         "qwen2": NormalizedTextConfig,
+        "granite": NormalizedTextConfigWithGQA,
     }
 
     @classmethod

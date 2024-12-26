@@ -30,6 +30,7 @@ from optimum.onnxruntime import (
     AutoQuantizationConfig,
     ORTConfig,
     ORTModelForCausalLM,
+    ORTModelForFeatureExtraction,
     ORTModelForSeq2SeqLM,
     ORTModelForSequenceClassification,
     ORTQuantizer,
@@ -41,15 +42,22 @@ from optimum.utils.testing_utils import grid_parameters
 class ORTQuantizerTest(unittest.TestCase):
     LOAD_CONFIGURATION = {
         "local_asset": {
-            "model_or_path": "assets/onnx",
+            "model_or_path": "tests/assets/onnx",
         },
         "local_asset_different_name": {
-            "model_or_path": "assets/onnx",
+            "model_or_path": "tests/assets/onnx",
             "file_name": "different_name.onnx",
         },
         "ort_model_class": {
             "model_or_path": ORTModelForSequenceClassification.from_pretrained(
                 "optimum/distilbert-base-uncased-finetuned-sst-2-english"
+            )
+        },
+        "ort_model_with_onnx_model_in_subfolder": {
+            "model_or_path": ORTModelForFeatureExtraction.from_pretrained(
+                "sentence-transformers/all-MiniLM-L6-v2",
+                subfolder="onnx",
+                file_name="model.onnx",
             )
         },
     }

@@ -34,11 +34,10 @@ from ...utils import logging
 
 
 if _transformers_version > version.parse("4.34.99"):
-    from transformers.modeling_attn_mask_utils import AttentionMaskConverter, _prepare_4d_causal_attention_mask
+    from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 if _transformers_version >= version.parse("4.36"):
     from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask_for_sdpa
 else:
-    _prepare_4d_causal_attention_mask = None
     _prepare_4d_causal_attention_mask_for_sdpa = None
     AttentionMaskConverter = None
 
@@ -169,7 +168,7 @@ class ModelPatcher:
                         filterd_outputs[name] = value
             elif isinstance(outputs, (list, tuple)):
                 outputs_list = list(config.outputs.keys())
-                dict(zip(outputs_list, outputs))
+                filterd_outputs = dict(zip(outputs_list, outputs))
             else:
                 if len(config.outputs) > 1:
                     num_outputs = len(config.outputs)
@@ -506,6 +505,32 @@ class WavLMModelPatcher(ModelPatcher):
                 ):
                     filterd_outputs[name] = value
             return filterd_outputs
+
+        self.patched_forward = patched_forward
+
+
+class MgpstrModelPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+
+        @functools.wraps(self.orig_forward)
+        def patched_forward(*args, **kwargs):
+            signature = inspect.signature(self.orig_forward)
+            args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
+
+            # logits is a tuple, so we unpack it and return them as separate outputs
+            char_logits, bpe_logits, wp_logits = self.orig_forward(*args, **kwargs).logits
+
+            return {
+                "char_logits": char_logits,
+                "bpe_logits": bpe_logits,
+                "wp_logits": wp_logits,
+            }
 
         self.patched_forward = patched_forward
 

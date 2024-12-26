@@ -10,19 +10,13 @@ on:
 
 jobs:
   build_documentation:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v2
         with:
           repository: 'huggingface/doc-builder'
           path: doc-builder
-
-      - uses: actions/checkout@v2
-        with:
-          repository: 'huggingface/doc-build'
-          path: doc-build
-          token: ${{ secrets.HUGGINGFACE_PUSH }}
 
       - uses: actions/checkout@v2
         with:
@@ -57,6 +51,7 @@ jobs:
       - name: Free disk space
         run: |
           df -h
+          sudo apt-get update
           sudo apt-get purge -y '^apache.*'
           sudo apt-get purge -y '^imagemagick.*'
           sudo apt-get purge -y '^dotnet.*'
@@ -66,7 +61,7 @@ jobs:
           sudo apt-get purge -y '^mysql.*'
           sudo apt-get purge -y '^java.*'
           sudo apt-get purge -y '^openjdk.*'
-          sudo apt-get purge -y microsoft-edge-stable google-cloud-cli azure-cli google-chrome-stable firefox powershell mono-devel
+          sudo apt-get purge -y microsoft-edge-stable azure-cli google-chrome-stable firefox mono-devel
           df -h
           sudo apt-get autoremove -y >/dev/null 2>&1
           sudo apt-get clean
@@ -110,6 +105,8 @@ jobs:
 
       - name: Setup environment
         run: |
+          python -m venv venv-doc
+          source venv-doc/bin/activate
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
@@ -135,6 +132,7 @@ jobs:
 
       - name: Make Furiosa documentation
         run: |
+          source venv-doc/bin/activate
           cd optimum-furiosa
           pip install .
           sudo apt install software-properties-common
@@ -159,6 +157,7 @@ jobs:
       - name: Make TPU documentation
         run: |
           sudo docker system prune -a -f
+          source venv-doc/bin/activate
           cd optimum-tpu
           pip install -U pip
           pip install . -f https://storage.googleapis.com/libtpu-releases/index.html
@@ -192,6 +191,7 @@ jobs:
 
       - name: Push to repositories
         run: |
+          source venv-doc/bin/activate
           cd optimum/optimum-doc-build
           sudo chmod -R ugo+rwx optimum
           doc-builder push optimum --doc_build_repo_id "hf-doc-build/doc-build" --token "${{ secrets.HF_DOC_BUILD_PUSH }}" --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5 --upload_version_yml

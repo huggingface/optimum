@@ -8,6 +8,7 @@ on:
       - "optimum/**.py"
       - "docs/**.mdx"
       - "docs/**.yml"
+      - ".github/workflows/build_pr_documentation.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -15,7 +16,7 @@ concurrency:
 
 jobs:
   build_documentation:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
@@ -60,6 +61,8 @@ jobs:
 
       - name: Setup environment
         run: |
+          python -m venv venv-doc
+          source venv-doc/bin/activate
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
@@ -99,6 +102,7 @@ jobs:
       - name: Make TPU documentation
         run: |
           sudo docker system prune -a -f
+          source venv-doc/bin/activate
           cd optimum-tpu
           pip install -U pip
           pip install . -f https://storage.googleapis.com/libtpu-releases/index.html
