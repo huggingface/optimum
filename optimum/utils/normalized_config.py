@@ -221,7 +221,6 @@ class NormalizedConfigManager:
         'segformer',
         'siglip',
         'squeezebert',
-        'table-transformer',
     """
 
     # Contribution note: Please add new models in alphabetical order
@@ -277,6 +276,7 @@ class NormalizedConfigManager:
         "segformer": NormalizedSegformerConfig,
         "speech-to-text": SpeechToTextLikeNormalizedTextConfig,
         "splinter": NormalizedTextConfig,
+        "table-transformer": NormalizedVisionConfig,
         "t5": T5LikeNormalizedTextConfig,
         "trocr": TrOCRLikeNormalizedTextConfig,
         "vision-encoder-decoder": NormalizedEncoderDecoderConfig,
