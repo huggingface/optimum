@@ -18,6 +18,10 @@ BLOCK_PATTERNS = [
     "model.decoder.layers",
     "gpt_neox.layers",
     "model.layers",
+    # Models loaded by AutoModel have different prefixes than models loaded by AutoModelForCausalLM, need to match it
+    "h",
+    "decoder.layers",
+    "layers",
 ]
 
 GPTQ_CONFIG = "quantize_config.json"
