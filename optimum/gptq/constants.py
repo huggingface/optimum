@@ -18,7 +18,7 @@ BLOCK_PATTERNS = [
     "model.decoder.layers",
     "gpt_neox.layers",
     "model.layers",
-    # Models loaded by AutoModel have different block prefixes than models loaded by AutoModelForCausalLM, need to match it
+    # modules loaded by AutoModel vs AutoModelForCausalLM have different prefixes
     "h",
     "decoder.layers",
     "layers",
