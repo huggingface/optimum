@@ -181,6 +181,10 @@ class DistilBertOnnxConfig(BertOnnxConfig):
         return {"input_ids": dynamic_axis, "attention_mask": dynamic_axis}
 
 
+class ModernBertOnnxConfig(DistilBertOnnxConfig):
+    pass
+
+
 class MPNetOnnxConfig(DistilBertOnnxConfig):
     DEFAULT_ONNX_OPSET = 12  # For lower opsets, results in: Type 'tensor(int64)' of input parameter (/0/auto_model/encoder/Add_1_output_0) of operator (Min) in node (/0/auto_model/encoder/Min) is invalid.
 
