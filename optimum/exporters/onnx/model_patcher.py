@@ -119,7 +119,7 @@ class PatchingSpec:
 def onnx_compatible_unfold(input_tensor, dimension, size, step):
     """
     Custom implementation of torch.unfold without using torch.unfold.
-    
+
     Args:
         input_tensor (torch.Tensor): The input tensor.
         dimension (int): The dimension to unfold.
