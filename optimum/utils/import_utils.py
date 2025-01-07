@@ -52,7 +52,7 @@ TORCH_MINIMUM_VERSION = version.parse("1.11.0")
 TRANSFORMERS_MINIMUM_VERSION = version.parse("4.25.0")
 DIFFUSERS_MINIMUM_VERSION = version.parse("0.22.0")
 AUTOGPTQ_MINIMUM_VERSION = version.parse("0.4.99")  # Allows 0.5.0.dev0
-GPTQMODEL_MINIMUM_VERSION = version.parse("1.5.1")
+GPTQMODEL_MINIMUM_VERSION = version.parse("1.6.0")
 
 
 # This is the minimal required version to support some ONNX Runtime features
