@@ -15,7 +15,7 @@
 # limitations under the License.
 
 # Use nvidia/cuda image
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
 CMD nvidia-smi
 
 # Ignore interactive questions during `docker build`
