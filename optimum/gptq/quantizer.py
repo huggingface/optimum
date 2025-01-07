@@ -220,7 +220,7 @@ class GPTQQuantizer(object):
                 )
         self.exllama_version = self.exllama_config["version"]
 
-    def select_quant_linear(self, device_map: Union[str, dict], pack=False):
+    def select_quant_linear(self, device_map: Union[str, dict], pack: bool = False):
         if is_gptqmodel_available():
             self.quant_linear = hf_select_quant_linear(
                 bits=self.bits,
