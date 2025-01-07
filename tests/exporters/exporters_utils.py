@@ -257,8 +257,6 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "owlv2": "google/owlv2-base-patch16",
     "owlvit": "google/owlvit-base-patch32",
-    "patchtst": "ibm/test-patchtst",
-    "patchtsmixer": "ibm/test-patchtsmixer",
     "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
     # "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
