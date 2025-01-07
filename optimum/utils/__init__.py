@@ -80,6 +80,7 @@ from .input_generators import (
     GPTBigCodeDummyPastKeyValuesGenerator,
     MistralDummyPastKeyValuesGenerator,
     MultiQueryPastKeyValuesGenerator,
+    DummyPatchTSTInputGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr
 from .normalized_config import (

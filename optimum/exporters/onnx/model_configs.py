@@ -52,6 +52,7 @@ from ...utils import (
     GemmaDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
     MistralDummyPastKeyValuesGenerator,
+    DummyPatchTSTInputGenerator,
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
     NormalizedSeq2SeqConfig,
@@ -2448,36 +2449,9 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
 
 
-class PatchTSTDummyInputGenerator(DummyInputGenerator):
-    SUPPORTED_INPUT_NAMES = ("past_values",)
-
-    def __init__(
-        self,
-        task: str,
-        normalized_config: NormalizedConfig,
-        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
-        **kwargs,
-    ):
-        self.task = task
-        self.normalized_config = normalized_config
-
-        self.batch_size = batch_size
-        self.context_length = normalized_config.context_length
-        self.num_input_channels = normalized_config.num_input_channels
-
-    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        return self.random_float_tensor(
-            shape=[self.batch_size, self.context_length, self.num_input_channels],
-            min_value=-1,
-            max_value=1,
-            framework=framework,
-            dtype=float_dtype,
-        )
-
-
 class PatchTSTOnnxConfig(OnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
-    DUMMY_INPUT_GENERATOR_CLASSES = (PatchTSTDummyInputGenerator,)
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyPatchTSTInputGenerator,)
     ATOL_FOR_VALIDATION = 1e-4
 
     @property

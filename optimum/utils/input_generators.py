@@ -1484,3 +1484,30 @@ class DummyFluxTransformerTextInputGenerator(DummyTransformerTextInputGenerator)
             return self.random_int_tensor(shape, max_value=1, framework=framework, dtype=int_dtype)
 
         return super().generate(input_name, framework, int_dtype, float_dtype)
+
+
+class DummyPatchTSTInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("past_values",)
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        **kwargs,
+    ):
+        self.task = task
+        self.normalized_config = normalized_config
+
+        self.batch_size = batch_size
+        self.context_length = normalized_config.context_length
+        self.num_input_channels = normalized_config.num_input_channels
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        return self.random_float_tensor(
+            shape=[self.batch_size, self.context_length, self.num_input_channels],
+            min_value=-1,
+            max_value=1,
+            framework=framework,
+            dtype=float_dtype,
+        )
