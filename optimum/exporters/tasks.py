@@ -314,9 +314,7 @@ class TasksManager:
     }
 
     _CUSTOM_CLASSES = {
-        ("pt", "patchtsmixer", "feature-extraction"): ("transformers", "PatchTSMixerModel"),
         ("pt", "patchtsmixer", "time-series-forecasting"): ("transformers", "PatchTSMixerForPrediction"),
-        ("pt", "patchtst", "feature-extraction"): ("transformers", "PatchTSTModel"),
         ("pt", "patchtst", "time-series-forecasting"): ("transformers", "PatchTSTForPrediction"),
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
         ("pt", "pix2struct", "visual-question-answering"): ("transformers", "Pix2StructForConditionalGeneration"),
