@@ -129,6 +129,15 @@ def onnx_compatible_unfold(input_tensor, dimension, size, step):
     Returns:
         torch.Tensor: The unfolded tensor.
     """
+    # Check if dimension is within the valid range
+    if not (-input_tensor.dim() <= dimension < input_tensor.dim()):
+        raise ValueError(
+            f"Dimension out of range (expected to be in range of [{-input_tensor.dim()}, {input_tensor.dim() - 1}], but got {dimension})"
+        )
+
+    # Normalize negative dimension
+    dimension = dimension % input_tensor.dim()
+
     # Compute the shape of the unfolded output
     input_size = input_tensor.size(dimension)
     num_slices = (input_size - size) // step + 1
