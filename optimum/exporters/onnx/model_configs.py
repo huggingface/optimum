@@ -59,9 +59,9 @@ from ...utils import (
     NormalizedTextConfig,
     NormalizedTextConfigWithGQA,
     NormalizedVisionConfig,
-    is_transformers_version,
-    is_diffusers_version,
     is_diffusers_available,
+    is_diffusers_version,
+    is_transformers_version,
     logging,
 )
 from ...utils.normalized_config import NormalizedConfigManager

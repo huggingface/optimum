@@ -35,9 +35,9 @@ from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
     TORCH_MINIMUM_VERSION,
-    is_transformers_version,
     is_diffusers_available,
     is_torch_onnx_support_available,
+    is_transformers_version,
     logging,
     require_numpy_strictly_lower,
 )

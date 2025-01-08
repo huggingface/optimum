@@ -46,7 +46,7 @@ from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TAS
 from transformers.pipelines import infer_framework_load_model
 
 from ..bettertransformer import BetterTransformer
-from ..utils import is_transformers_version, is_onnxruntime_available
+from ..utils import is_onnxruntime_available, is_transformers_version
 from ..utils.file_utils import find_files_matching_pattern
 
 

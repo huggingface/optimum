@@ -21,7 +21,12 @@ from packaging import version
 from transformers.utils import is_tf_available, is_torch_available
 
 from ...utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
-from ...utils.import_utils import _diffusers_version, is_transformers_version, is_diffusers_version, is_diffusers_available
+from ...utils.import_utils import (
+    _diffusers_version,
+    is_diffusers_available,
+    is_diffusers_version,
+    is_transformers_version,
+)
 from ..utils import (
     _get_submodels_and_export_configs,
 )

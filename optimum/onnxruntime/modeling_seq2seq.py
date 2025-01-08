@@ -70,7 +70,7 @@ else:
     from transformers.generation_utils import GenerationMixin  # type: ignore
 
 
-if is_transformers_version(">=","4.43.0"):
+if is_transformers_version(">=", "4.43.0"):
     from transformers.cache_utils import EncoderDecoderCache
 else:
     EncoderDecoderCache = dict
