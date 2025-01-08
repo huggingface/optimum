@@ -20,14 +20,8 @@ import torch
 from packaging import version
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...utils import (
-    DIFFUSERS_MINIMUM_VERSION,
-    ORT_QUANTIZE_MINIMUM_VERSION,
-    check_if_diffusers_greater,
-    is_diffusers_available,
-    logging,
-)
-from ...utils.import_utils import _diffusers_version, check_if_transformers_greater
+from ...utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
+from ...utils.import_utils import _diffusers_version, is_transformers_version, is_diffusers_version, is_diffusers_available
 from ..utils import (
     _get_submodels_and_export_configs,
 )
@@ -52,7 +46,7 @@ logger = logging.get_logger()
 
 
 if is_diffusers_available():
-    if not check_if_diffusers_greater(DIFFUSERS_MINIMUM_VERSION.base_version):
+    if not is_diffusers_version(">=", DIFFUSERS_MINIMUM_VERSION.base_version):
         raise ImportError(
             f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
             "Please update diffusers by running `pip install --upgrade diffusers`"
@@ -90,7 +84,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
 }
 
 
-if check_if_transformers_greater("4.45.99"):
+if is_transformers_version(">=", "4.45.99"):
     MODEL_TYPES_REQUIRING_POSITION_IDS.add("opt")
 
 

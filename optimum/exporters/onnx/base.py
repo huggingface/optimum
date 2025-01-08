@@ -44,7 +44,7 @@ from ...utils import (
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 from ...utils import TRANSFORMERS_MINIMUM_VERSION as GLOBAL_MIN_TRANSFORMERS_VERSION
 from ...utils.doc import add_dynamic_docstring
-from ...utils.import_utils import check_if_transformers_greater, is_onnx_available, is_onnxruntime_available
+from ...utils.import_utils import is_transformers_version, is_onnx_available, is_onnxruntime_available
 from ..base import ExportConfig
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import ModelPatcher, Seq2SeqModelPatcher
@@ -155,9 +155,7 @@ class OnnxConfig(ExportConfig, ABC):
             {"reconstruction": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
         ),
         "mask-generation": OrderedDict({"logits": {0: "batch_size"}}),
-        "masked-im": OrderedDict(
-            {"reconstruction" if check_if_transformers_greater("4.29.0") else "logits": {0: "batch_size"}}
-        ),
+        "masked-im": OrderedDict({"reconstruction" if is_transformers_version(">=", "4.29.0") else "logits": {0: "batch_size"}}),
         "multiple-choice": OrderedDict({"logits": {0: "batch_size", 1: "num_choices"}}),
         "object-detection": OrderedDict(
             {
@@ -375,7 +373,7 @@ class OnnxConfig(ExportConfig, ABC):
             `bool`: Whether the install version of Transformers is compatible with the model.
 
         """
-        return check_if_transformers_greater(self.MIN_TRANSFORMERS_VERSION)
+        return is_transformers_version(">=", self.MIN_TRANSFORMERS_VERSION)
 
     @property
     def is_torch_support_available(self) -> bool:

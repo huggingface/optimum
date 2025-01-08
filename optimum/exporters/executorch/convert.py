@@ -19,7 +19,7 @@ from typing import Union
 
 from transformers.utils import is_torch_available
 
-from optimum.utils.import_utils import check_if_transformers_greater
+from optimum.utils.import_utils import is_transformers_version
 
 from .recipe_registry import discover_recipes, recipe_registry
 
@@ -27,7 +27,7 @@ from .recipe_registry import discover_recipes, recipe_registry
 if is_torch_available():
     from transformers.modeling_utils import PreTrainedModel
 
-if check_if_transformers_greater("4.46"):
+if is_transformers_version(">=", "4.46"):
     from transformers.integrations.executorch import (
         TorchExportableModuleWithStaticCache,
     )

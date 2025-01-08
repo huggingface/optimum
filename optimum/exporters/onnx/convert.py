@@ -35,7 +35,7 @@ from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
     TORCH_MINIMUM_VERSION,
-    check_if_transformers_greater,
+    is_transformers_version,
     is_diffusers_available,
     is_torch_onnx_support_available,
     logging,
@@ -512,7 +512,7 @@ def export_pytorch(
 
     model_kwargs = model_kwargs or {}
     # num_logits_to_keep was added in transformers 4.45 and isn't added as inputs when exporting the model
-    if check_if_transformers_greater("4.44.99") and "num_logits_to_keep" in signature(model.forward).parameters.keys():
+    if is_transformers_version(">=", "4.44.99") and "num_logits_to_keep" in signature(model.forward).parameters.keys():
         model_kwargs["num_logits_to_keep"] = 0
 
     with torch.no_grad():
@@ -1105,7 +1105,7 @@ def onnx_export_from_model(
             if isinstance(atol, dict):
                 atol = atol[task.replace("-with-past", "")]
 
-        if check_if_transformers_greater("4.44.99"):
+        if is_transformers_version(">=", "4.44.99"):
             misplaced_generation_parameters = model.config._get_non_default_generation_parameters()
             if (
                 isinstance(model, GenerationMixin)

@@ -43,7 +43,7 @@ import onnxruntime as ort
 
 from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
-from ..utils import check_if_transformers_greater
+from ..utils import is_transformers_version
 from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .base import ORTDecoderForSeq2Seq, ORTEncoder
@@ -64,13 +64,13 @@ from .utils import (
 )
 
 
-if check_if_transformers_greater("4.25.0"):
+if is_transformers_version(">=", "4.25.0"):
     from transformers.generation import GenerationMixin
 else:
     from transformers.generation_utils import GenerationMixin  # type: ignore
 
 
-if check_if_transformers_greater("4.43.0"):
+if is_transformers_version(">=","4.43.0"):
     from transformers.cache_utils import EncoderDecoderCache
 else:
     EncoderDecoderCache = dict
@@ -705,7 +705,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             generation_config = GenerationConfig.from_model_config(config)
         self.generation_config = generation_config
 
-        if check_if_transformers_greater("4.44.99"):
+        if is_transformers_version(">=", "4.44.99"):
             misplaced_generation_parameters = self.config._get_non_default_generation_parameters()
             if len(misplaced_generation_parameters) > 0:
                 logger.warning(

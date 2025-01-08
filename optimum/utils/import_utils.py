@@ -126,7 +126,7 @@ def is_torch_version(operation: str, version: str):
     return compare_versions(parse(parse(torch.__version__).base_version), operation, version)
 
 
-_is_torch_onnx_support_available = is_torch_available() and is_torch_version(">=", "1.11.0")
+_is_torch_onnx_support_available = is_torch_available() and is_torch_version(">=", TORCH_MINIMUM_VERSION.base_version)
 
 
 def is_torch_onnx_support_available():
