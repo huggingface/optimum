@@ -2625,3 +2625,35 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
 
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+
+
+class GITOnnxConfig(TextAndVisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextAndVisionConfig.with_args(vision_config="vision_config")
+    DUMMY_INPUT_GENERATOR_CLASSES_MAP = {
+        "feature-extraction": (DummyVisionInputGenerator,),
+        "image-text-to-text": (DummyTextInputGenerator, DummyVisionInputGenerator,),
+        "image-to-text": (DummyVisionInputGenerator,),
+    }
+
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        dummy_inputs_generators = []
+        for dummy_input_generator in self.DUMMY_INPUT_GENERATOR_CLASSES_MAP[self.task]:
+            print(self.task, dummy_input_generator)
+            dummy_input_generator_instantiated = dummy_input_generator(
+                self.task, self._normalized_config, **kwargs
+            )
+            dummy_inputs_generators.append(dummy_input_generator_instantiated)
+
+        return dummy_inputs_generators
+    
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "image-text-to-text":
+            return {
+                "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+                "pixel_values": {0: "image_batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            }
+        else:
+            return {
+                "pixel_values": {0: "image_batch_size", 1: "num_channels", 2: "height", 3: "width"},
+        }
