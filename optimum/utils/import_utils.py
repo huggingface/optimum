@@ -54,6 +54,7 @@ def _is_package_available(pkg_name: str, return_version: bool = False) -> Union[
     else:
         return package_exists
 
+
 _onnx_available = _is_package_available("onnx")
 _pydantic_available = _is_package_available("pydantic")
 _accelerate_available = _is_package_available("accelerate")
