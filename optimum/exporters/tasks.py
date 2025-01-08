@@ -1770,6 +1770,7 @@ class TasksManager:
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: Optional[Union[bool, str]] = None,
+        library_name: Optional[str] = None,
     ) -> str:
         inferred_task_name = None
 
@@ -1791,13 +1792,14 @@ class TasksManager:
                 raise RuntimeError(
                     f"Hugging Face Hub is not reachable and we cannot infer the task from a cached model. Make sure you are not offline, or otherwise please specify the `task` (or `--task` in command-line) argument ({', '.join(TasksManager.get_all_tasks())})."
                 )
-            library_name = cls.infer_library_from_model(
-                model_name_or_path,
-                subfolder=subfolder,
-                revision=revision,
-                cache_dir=cache_dir,
-                token=token,
-            )
+            if library_name is None:
+                library_name = cls.infer_library_from_model(
+                    model_name_or_path,
+                    subfolder=subfolder,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    token=token,
+                )
 
             if library_name == "timm":
                 inferred_task_name = "image-classification"
@@ -1816,6 +1818,8 @@ class TasksManager:
                                     break
                             if inferred_task_name is not None:
                                 break
+            elif library_name == "sentence_transformers":
+                inferred_task_name = "feature-extraction"
             elif library_name == "transformers":
                 pipeline_tag = model_info.pipeline_tag
                 transformers_info = model_info.transformersInfo
