@@ -375,7 +375,7 @@ class OnnxConfig(ExportConfig, ABC):
             `bool`: Whether the install version of Transformers is compatible with the model.
 
         """
-        return is_transformers_version(">=", self.MIN_TRANSFORMERS_VERSION)
+        return is_transformers_version(">=", self.MIN_TRANSFORMERS_VERSION.base_version)
 
     @property
     def is_torch_support_available(self) -> bool:
