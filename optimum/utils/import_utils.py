@@ -23,7 +23,6 @@ from typing import Tuple, Union
 
 import numpy as np
 from packaging import version
-from packaging.version import parse
 from transformers.utils import is_torch_available
 
 
@@ -96,25 +95,25 @@ def compare_versions(library_or_version: Union[str, version.Version], operation:
     return operation(library_or_version, version.parse(requirement_version))
 
 
-def is_transformers_version(operation: str, version: str):
+def is_transformers_version(operation: str, reference_version: str):
     """
     Compare the current Transformers version to a given reference with an operation.
     """
     if not _transformers_available:
         return False
-    return compare_versions(version.parse(_transformers_version), operation, version)
+    return compare_versions(version.parse(_transformers_version), operation, reference_version)
 
 
-def is_diffusers_version(operation: str, version: str):
+def is_diffusers_version(operation: str, reference_version: str):
     """
     Compare the current diffusers version to a given reference with an operation.
     """
     if not _diffusers_available:
         return False
-    return compare_versions(version.parse(_diffusers_version), operation, version)
+    return compare_versions(version.parse(_diffusers_version), operation, reference_version)
 
 
-def is_torch_version(operation: str, version: str):
+def is_torch_version(operation: str, reference_version: str):
     """
     Compare the current torch version to a given reference with an operation.
     """
@@ -123,7 +122,7 @@ def is_torch_version(operation: str, version: str):
 
     import torch
 
-    return compare_versions(parse(parse(torch.__version__).base_version), operation, version)
+    return compare_versions(version.parse(version.parse(torch.__version__).base_version), operation, reference_version)
 
 
 _is_torch_onnx_support_available = is_torch_available() and is_torch_version(">=", TORCH_MINIMUM_VERSION.base_version)
