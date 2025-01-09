@@ -31,7 +31,7 @@ import onnxruntime
 
 from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from ..onnx.utils import check_model_uses_external_data
-from ..utils import NormalizedConfigManager, check_if_transformers_greater
+from ..utils import NormalizedConfigManager, is_transformers_version
 from ..utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ..utils.save_utils import maybe_save_preprocessors
 from .constants import DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN, DECODER_WITH_PAST_ONNX_FILE_PATTERN
@@ -43,7 +43,7 @@ from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_WEIGHTS_
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
-if check_if_transformers_greater("4.25.0"):
+if is_transformers_version(">=", "4.25.0"):
     from transformers.generation import GenerationMixin
 else:
     from transformers.generation_utils import GenerationMixin  # type: ignore # noqa: F401
@@ -149,7 +149,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         self.generation_config = generation_config
 
-        if check_if_transformers_greater("4.44.99"):
+        if is_transformers_version(">=", "4.44.99"):
             misplaced_generation_parameters = self.config._get_non_default_generation_parameters()
             if len(misplaced_generation_parameters) > 0:
                 logger.warning(
@@ -562,7 +562,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
 
         # Since transformers 4.44, the bloom model has been updated to use the standard cache format
-        use_old_bloom_modeling = not check_if_transformers_greater("4.44")
+        use_old_bloom_modeling = not is_transformers_version(">=", "4.44")
         for input_name in input_dims.keys():
             if input_dims[input_name][0] == "batch_size x num_heads":
                 use_old_bloom_modeling = True

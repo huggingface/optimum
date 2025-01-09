@@ -37,6 +37,7 @@ from .import_utils import (
     is_auto_gptq_available,
     is_datasets_available,
     is_diffusers_available,
+    is_diffusers_version,
     is_gptqmodel_available,
     is_onnx_available,
     is_onnxruntime_available,
@@ -44,6 +45,9 @@ from .import_utils import (
     is_sentence_transformers_available,
     is_timm_available,
     is_torch_onnx_support_available,
+    is_torch_version,
+    is_transformers_available,
+    is_transformers_version,
     require_numpy_strictly_lower,
     torch_version,
 )
