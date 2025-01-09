@@ -44,7 +44,12 @@ from ...utils import (
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 from ...utils import TRANSFORMERS_MINIMUM_VERSION as GLOBAL_MIN_TRANSFORMERS_VERSION
 from ...utils.doc import add_dynamic_docstring
-from ...utils.import_utils import is_onnx_available, is_onnxruntime_available, is_transformers_version
+from ...utils.import_utils import (
+    is_onnx_available,
+    is_onnxruntime_available,
+    is_torch_version,
+    is_transformers_version,
+)
 from ..base import ExportConfig
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import ModelPatcher, Seq2SeqModelPatcher
@@ -386,9 +391,8 @@ class OnnxConfig(ExportConfig, ABC):
             `bool`: Whether the installed version of PyTorch is compatible with the model.
         """
         if is_torch_available():
-            from ...utils import torch_version
+            return is_torch_version(">=", self.MIN_TORCH_VERSION.base_version)
 
-            return torch_version >= self.MIN_TORCH_VERSION
         return False
 
     @property
