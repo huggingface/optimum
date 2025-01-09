@@ -75,6 +75,7 @@ torch_version = version.parse(importlib.metadata.version("torch")) if _torch_ava
 # Note: _is_package_available("tensorflow") fails for tensorflow-cpu. Please test any changes to the line below
 # with tensorflow-cpu to make sure it still works!
 _tf_available = importlib.util.find_spec("tensorflow") is not None
+_tf_version = None
 if _tf_available:
     candidates = (
         "tensorflow",
@@ -90,7 +91,6 @@ if _tf_available:
         "tensorflow-macos",
         "tensorflow-aarch64",
     )
-    _tf_version = None
     # For the metadata, we have to look for both tensorflow and tensorflow-cpu
     for pkg in candidates:
         try:
