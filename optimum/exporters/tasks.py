@@ -985,6 +985,11 @@ class TasksManager:
             "text-generation-with-past",
             onnx="GraniteOnnxConfig",
         ),
+        "paligemma": supported_tasks_mapping(
+            "feature-extraction",
+            "image-to-text",
+            onnx="PaliGemmaOnnxConfig",
+        ),
         "olmo": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
