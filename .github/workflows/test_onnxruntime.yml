@@ -46,13 +46,11 @@ jobs:
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,onnxruntime,diffusers]
 
-      - name: Remove Diffusers if transformers 4.36
-        if: matrix.transformers-version == '4.36.*'
-        run: pip uninstall -y diffusers
-
       - name: Install transformers ${{ matrix.transformers-version }}
         if: ${{ matrix.transformers-version != 'latest' }}
-        run: pip install transformers==${{ matrix.transformers-version }}
+        run: |
+          pip install transformers==${{ matrix.transformers-version }}
+          pip uninstall -y diffusers
 
       - name: Test with pytest (in series)
         run: |
