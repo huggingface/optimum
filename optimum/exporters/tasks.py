@@ -29,7 +29,12 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
 
-from ..utils.import_utils import is_diffusers_available, is_onnx_available
+from ..utils.import_utils import (
+    is_diffusers_available,
+    is_diffusers_version,
+    is_onnx_available,
+    is_transformers_version,
+)
 
 
 if TYPE_CHECKING:
@@ -51,6 +56,12 @@ if is_tf_available():
     from transformers import TFPreTrainedModel
 
 if is_diffusers_available():
+    if is_diffusers_version(">=", "0.32.0") and is_transformers_version("<", "4.41.2"):
+        raise ImportError(
+            "The current version of `diffusers` requires `transformers>=4.41.2`."
+            " Please upgrade to the latest version of Transformers."
+        )
+
     from diffusers import DiffusionPipeline
     from diffusers.pipelines.auto_pipeline import (
         AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
