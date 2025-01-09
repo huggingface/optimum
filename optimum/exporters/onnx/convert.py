@@ -851,17 +851,16 @@ def export(
         )
 
     if is_torch_available() and isinstance(model, nn.Module):
-        from ...utils import torch_version
+        from ...utils.import_utils import _torch_version
 
         if not is_torch_onnx_support_available():
             raise MinimumVersionError(
-                f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {torch_version}"
+                f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {_torch_version}"
             )
 
         if not config.is_torch_support_available:
             raise MinimumVersionError(
-                f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION},"
-                f" got: {torch.__version__}"
+                f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION}, got: {_torch_version}"
             )
 
         export_output = export_pytorch(

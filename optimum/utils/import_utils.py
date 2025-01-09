@@ -13,7 +13,7 @@
 # limitations under the License.
 """Import utilities."""
 
-import importlib.metadata as importlib_metadata
+import importlib.metadata
 import importlib.util
 import inspect
 import operator as op
@@ -23,7 +23,6 @@ from typing import Tuple, Union
 
 import numpy as np
 from packaging import version
-from transformers.utils import is_torch_available
 
 
 TORCH_MINIMUM_VERSION = version.parse("1.11.0")
@@ -64,14 +63,13 @@ _sentence_transformers_available = _is_package_available("sentence_transformers"
 _datasets_available = _is_package_available("datasets")
 _diffusers_available, _diffusers_version = _is_package_available("diffusers", return_version=True)
 _transformers_available, _transformers_version = _is_package_available("transformers", return_version=True)
+_torch_available, _torch_version = _is_package_available("torch", return_version=True)
+
 # importlib.metadata.version seem to not be robust with the ONNX Runtime extensions (`onnxruntime-gpu`, etc.)
 _onnxruntime_available = _is_package_available("onnxruntime", return_version=False)
 
-
 # TODO : Remove
-torch_version = None
-if is_torch_available():
-    torch_version = version.parse(importlib_metadata.version("torch"))
+torch_version = version.parse(importlib.metadata.version("torch")) if _torch_available else None
 
 
 # This function was copied from: https://github.com/huggingface/accelerate/blob/874c4967d94badd24f893064cc3bef45f57cadf7/src/accelerate/utils/versions.py#L319
@@ -91,7 +89,7 @@ def compare_versions(library_or_version: Union[str, version.Version], operation:
         raise ValueError(f"`operation` must be one of {list(STR_OPERATION_TO_FUNC.keys())}, received {operation}")
     operation = STR_OPERATION_TO_FUNC[operation]
     if isinstance(library_or_version, str):
-        library_or_version = version.parse(importlib_metadata.version(library_or_version))
+        library_or_version = version.parse(importlib.metadata.version(library_or_version))
     return operation(library_or_version, version.parse(requirement_version))
 
 
@@ -117,7 +115,7 @@ def is_torch_version(operation: str, reference_version: str):
     """
     Compare the current torch version to a given reference with an operation.
     """
-    if not is_torch_available():
+    if not _torch_available:
         return False
 
     import torch
@@ -125,7 +123,7 @@ def is_torch_version(operation: str, reference_version: str):
     return compare_versions(version.parse(version.parse(torch.__version__).base_version), operation, reference_version)
 
 
-_is_torch_onnx_support_available = is_torch_available() and is_torch_version(">=", TORCH_MINIMUM_VERSION.base_version)
+_is_torch_onnx_support_available = _torch_available and is_torch_version(">=", TORCH_MINIMUM_VERSION.base_version)
 
 
 def is_torch_onnx_support_available():
@@ -178,7 +176,7 @@ def is_transformers_available():
 
 def is_auto_gptq_available():
     if _auto_gptq_available:
-        v = version.parse(importlib_metadata.version("auto_gptq"))
+        v = version.parse(importlib.metadata.version("auto_gptq"))
         if v >= AUTOGPTQ_MINIMUM_VERSION:
             return True
         else:
@@ -189,7 +187,7 @@ def is_auto_gptq_available():
 
 def is_gptqmodel_available():
     if _gptqmodel_available:
-        v = version.parse(importlib_metadata.version("gptqmodel"))
+        v = version.parse(importlib.metadata.version("gptqmodel"))
         if v >= GPTQMODEL_MINIMUM_VERSION:
             return True
         else:
@@ -260,10 +258,10 @@ def check_if_torch_greater(target_version: str) -> bool:
     Returns:
         bool: whether the check is True or not.
     """
-    if not is_torch_available():
+    if not _torch_available:
         return False
 
-    return torch_version >= version.parse(target_version)
+    return version.parse(_torch_version) >= version.parse(target_version)
 
 
 @contextmanager
