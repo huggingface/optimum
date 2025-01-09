@@ -44,13 +44,13 @@ from transformers.utils import (
 )
 from transformers.utils.generic import strtobool
 
-from ..utils.import_utils import check_if_transformers_greater
+from ..utils.import_utils import is_transformers_version
 
 
 if is_torch_available():
     import torch
 
-if is_accelerate_available() and check_if_transformers_greater("4.38.0"):
+if is_accelerate_available() and is_transformers_version(">=", "4.38.0"):
     from transformers.trainer_pt_utils import AcceleratorConfig
 
 
@@ -481,7 +481,7 @@ class ORTTrainingArguments(TrainingArguments):
             os.environ[f"{prefix}SYNC_MODULE_STATES"] = self.fsdp_config.get("sync_module_states", "true")
             os.environ[f"{prefix}USE_ORIG_PARAMS"] = self.fsdp_config.get("use_orig_params", "false")
 
-        if is_accelerate_available() and check_if_transformers_greater("4.38.0"):
+        if is_accelerate_available() and is_transformers_version(">=", "4.38.0"):
             if not isinstance(self.accelerator_config, (AcceleratorConfig)):
                 if self.accelerator_config is None:
                     self.accelerator_config = AcceleratorConfig()

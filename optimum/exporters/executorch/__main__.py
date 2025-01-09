@@ -20,7 +20,7 @@ from pathlib import Path
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers.utils import is_torch_available
 
-from optimum.utils.import_utils import check_if_transformers_greater
+from optimum.utils.import_utils import is_transformers_version
 
 from ...commands.export.executorch import parse_args_executorch
 from .convert import export_to_executorch
@@ -95,7 +95,7 @@ def main_export(
     ```
     """
 
-    if not check_if_transformers_greater("4.46"):
+    if is_transformers_version("<", "4.46"):
         raise ValueError(
             "The minimum Transformers version compatible with ExecuTorch is 4.46.0. Please upgrade to Transformers 4.46.0 or later."
         )
