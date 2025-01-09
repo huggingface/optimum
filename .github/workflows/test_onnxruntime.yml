@@ -49,8 +49,7 @@ jobs:
       - name: Install transformers ${{ matrix.transformers-version }}
         if: ${{ matrix.transformers-version != 'latest' }}
         run: |
-          pip install transformers==${{ matrix.transformers-version }}
-          pip uninstall -y diffusers
+          pip install transformers==${{ matrix.transformers-version }} diffusers<=0.32.0
 
       - name: Test with pytest (in series)
         run: |
