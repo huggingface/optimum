@@ -136,6 +136,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "opt": "hf-internal-testing/tiny-random-OPTModel",
     "owlv2": "hf-internal-testing/tiny-random-Owlv2Model",
     "owlvit": "hf-tiny-model-private/tiny-random-OwlViTModel",
+    "patchtst": "ibm/test-patchtst",
+    "patchtsmixer": "ibm/test-patchtsmixer",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver": {
         "hf-internal-testing/tiny-random-language_perceiver": ["fill-mask", "text-classification"],

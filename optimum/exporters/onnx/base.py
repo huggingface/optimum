@@ -180,6 +180,7 @@ class OnnxConfig(ExportConfig, ABC):
         "text2text-generation": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
         "text-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "text-generation": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "time-series-forecasting": OrderedDict({"prediction_outputs": {0: "batch_size"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "visual-question-answering": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "zero-shot-image-classification": OrderedDict(

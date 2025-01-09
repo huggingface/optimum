@@ -34,6 +34,7 @@ from ...utils import (
     DummyInputGenerator,
     DummyIntGenerator,
     DummyPastKeyValuesGenerator,
+    DummyPatchTSTInputGenerator,
     DummyPix2StructInputGenerator,
     DummyPointsGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
@@ -58,6 +59,7 @@ from ...utils import (
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedTextConfigWithGQA,
+    NormalizedTimeSeriesForecastingConfig,
     NormalizedVisionConfig,
     is_diffusers_available,
     is_diffusers_version,
@@ -2619,3 +2621,24 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
 
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+
+
+class PatchTSTOnnxConfig(OnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyPatchTSTInputGenerator,)
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"past_values": {0: "batch_size", 1: "sequence_length"}}
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "feature-extraction":
+            return {"last_hidden_state": {0: "batch_size"}}
+        else:
+            return super().outputs
+
+
+class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
+    pass

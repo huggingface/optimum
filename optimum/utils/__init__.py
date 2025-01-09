@@ -69,6 +69,7 @@ from .input_generators import (
     DummyIntGenerator,
     DummyLabelsGenerator,
     DummyPastKeyValuesGenerator,
+    DummyPatchTSTInputGenerator,
     DummyPix2StructInputGenerator,
     DummyPointsGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
@@ -98,5 +99,6 @@ from .normalized_config import (
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedTextConfigWithGQA,
+    NormalizedTimeSeriesForecastingConfig,
     NormalizedVisionConfig,
 )
