@@ -20,9 +20,8 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
-from transformers.utils import is_tf_available, is_torch_available
 
-from ..utils import is_diffusers_version, is_transformers_version
+from ..utils import is_diffusers_version, is_tf_available, is_torch_available, is_transformers_version
 from .normalized_config import (
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,

@@ -72,6 +72,39 @@ _onnxruntime_available = _is_package_available("onnxruntime", return_version=Fal
 torch_version = version.parse(importlib.metadata.version("torch")) if _torch_available else None
 
 
+# Note: _is_package_available("tensorflow") fails for tensorflow-cpu. Please test any changes to the line below
+# with tensorflow-cpu to make sure it still works!
+_tf_available = importlib.util.find_spec("tensorflow") is not None
+if _tf_available:
+    candidates = (
+        "tensorflow",
+        "tensorflow-cpu",
+        "tensorflow-gpu",
+        "tf-nightly",
+        "tf-nightly-cpu",
+        "tf-nightly-gpu",
+        "tf-nightly-rocm",
+        "intel-tensorflow",
+        "intel-tensorflow-avx512",
+        "tensorflow-rocm",
+        "tensorflow-macos",
+        "tensorflow-aarch64",
+    )
+    _tf_version = None
+    # For the metadata, we have to look for both tensorflow and tensorflow-cpu
+    for pkg in candidates:
+        try:
+            _tf_version = importlib.metadata.version(pkg)
+            break
+        except importlib.metadata.PackageNotFoundError:
+            pass
+    _tf_available = _tf_version is not None
+if _tf_available:
+    if version.parse(_tf_version) < version.parse("2"):
+        _tf_available = False
+_tf_version = _tf_version or "N/A"
+
+
 # This function was copied from: https://github.com/huggingface/accelerate/blob/874c4967d94badd24f893064cc3bef45f57cadf7/src/accelerate/utils/versions.py#L319
 def compare_versions(library_or_version: Union[str, version.Version], operation: str, requirement_version: str):
     """
@@ -172,6 +205,14 @@ def is_datasets_available():
 
 def is_transformers_available():
     return _transformers_available
+
+
+def is_torch_available():
+    return _torch_available
+
+
+def is_tf_available():
+    return _tf_available
 
 
 def is_auto_gptq_available():
