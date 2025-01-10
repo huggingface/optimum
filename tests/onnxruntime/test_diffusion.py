@@ -494,7 +494,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             ort_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
             diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
-            np.testing.assert_allclose(ort_images, diffusers_images, atol=3e-4, rtol=1e-2)
+            np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
