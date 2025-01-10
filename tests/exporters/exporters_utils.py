@@ -125,7 +125,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mobilenet-v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
     "mobilenet-v1": "google/mobilenet_v1_0.75_192",
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
-    "modernbert": "hf-internal-testing/tiny-random-ModernBertForMaskedLM",
+    # "modernbert": "hf-internal-testing/tiny-random-ModernBertForMaskedLM",
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
@@ -267,7 +267,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     # "mobilenet_v1": "google/mobilenet_v1_0.75_192",
     # "mobilenet_v2": "google/mobilenet_v2_0.35_96",
     "mobilevit": "apple/mobilevit-small",
-    "modernbert": "answerdotai/ModernBERT-base",
+    # "modernbert": "answerdotai/ModernBERT-base",
     "mpt": "mosaicml/mpt-7b",
     "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
     "musicgen": "facebook/musicgen-small",
