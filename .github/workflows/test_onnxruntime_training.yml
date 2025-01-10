@@ -51,7 +51,7 @@ jobs:
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
           pip install --no-cache-dir torch-ort onnxruntime-training && python -m torch_ort.configure
           pip install --no-cache-dir evaluate absl-py rouge_score seqeval sacrebleu nltk scikit-learn
-          pip install .[tests,onnxruntime-gpu]
+          pip install .[tests,onnxruntime-training]
 
       - name: Test with pytest
         run: |

@@ -89,6 +89,10 @@ EXTRAS_REQUIRE = {
         "executorch>=0.4.0",
         "transformers>=4.46",
     ],
+    "onnxruntime-training": [
+        "torch-ort",
+        "onnxruntime-training",
+    ],
     "diffusers": ["diffusers<0.32.0"],
     "intel": "optimum-intel>=1.18.0",
     "openvino": "optimum-intel[openvino]>=1.18.0",
