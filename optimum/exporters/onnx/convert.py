@@ -22,7 +22,7 @@ import traceback
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
@@ -35,9 +35,9 @@ from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
     TORCH_MINIMUM_VERSION,
-    check_if_transformers_greater,
     is_diffusers_available,
     is_torch_onnx_support_available,
+    is_transformers_version,
     logging,
     require_numpy_strictly_lower,
 )
@@ -45,6 +45,7 @@ from ...utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
+from ..utils import check_dummy_inputs_are_allowed
 from .base import OnnxConfig
 from .constants import UNPICKABLE_ARCHS
 from .model_configs import SpeechT5OnnxConfig
@@ -55,6 +56,8 @@ from .utils import (
     recursive_to_device,
 )
 
+
+# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
 
 if is_torch_available():
     import torch
@@ -73,30 +76,6 @@ logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 class DynamicAxisNameError(ValueError):
     pass
-
-
-def check_dummy_inputs_are_allowed(
-    model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], dummy_input_names: Iterable[str]
-):
-    """
-    Checks that the dummy inputs from the ONNX config is a subset of the allowed inputs for `model`.
-    Args:
-        model (`Union[transformers.PreTrainedModel, transformers.TFPreTrainedModel`]):
-            The model instance.
-        model_inputs (`Iterable[str]`):
-            The model input names.
-    """
-
-    forward = model.forward if is_torch_available() and isinstance(model, nn.Module) else model.call
-    forward_parameters = signature(forward).parameters
-    forward_inputs_set = set(forward_parameters.keys())
-    dummy_input_names = set(dummy_input_names)
-
-    # We are fine if config_inputs has more keys than model_inputs
-    if not dummy_input_names.issubset(forward_inputs_set):
-        raise ValueError(
-            f"Config dummy inputs are not a subset of the model inputs: {dummy_input_names} vs {forward_inputs_set}"
-        )
 
 
 def validate_models_outputs(
@@ -533,7 +512,7 @@ def export_pytorch(
 
     model_kwargs = model_kwargs or {}
     # num_logits_to_keep was added in transformers 4.45 and isn't added as inputs when exporting the model
-    if check_if_transformers_greater("4.44.99") and "num_logits_to_keep" in signature(model.forward).parameters.keys():
+    if is_transformers_version(">=", "4.44.99") and "num_logits_to_keep" in signature(model.forward).parameters.keys():
         model_kwargs["num_logits_to_keep"] = 0
 
     with torch.no_grad():
@@ -872,17 +851,16 @@ def export(
         )
 
     if is_torch_available() and isinstance(model, nn.Module):
-        from ...utils import torch_version
+        from ...utils.import_utils import _torch_version
 
         if not is_torch_onnx_support_available():
             raise MinimumVersionError(
-                f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {torch_version}"
+                f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {_torch_version}"
             )
 
         if not config.is_torch_support_available:
             raise MinimumVersionError(
-                f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION},"
-                f" got: {torch.__version__}"
+                f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION}, got: {_torch_version}"
             )
 
         export_output = export_pytorch(
@@ -1126,7 +1104,7 @@ def onnx_export_from_model(
             if isinstance(atol, dict):
                 atol = atol[task.replace("-with-past", "")]
 
-        if check_if_transformers_greater("4.44.99"):
+        if is_transformers_version(">=", "4.44.99"):
             misplaced_generation_parameters = model.config._get_non_default_generation_parameters()
             if (
                 isinstance(model, GenerationMixin)

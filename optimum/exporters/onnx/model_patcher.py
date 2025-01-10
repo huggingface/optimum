@@ -113,6 +113,53 @@ class PatchingSpec:
     op_wrapper: Optional[Callable] = None
 
 
+# An ONNX-export-compatible version of `tensor.unfold`. Without this, we get:
+# torch.onnx.errors.SymbolicValueError: Unsupported: ONNX export of operator Unfold, input size not accessible.
+# See https://github.com/pytorch/pytorch/issues/81871 for more information
+def onnx_compatible_unfold(input_tensor, dimension, size, step):
+    """
+    Custom implementation of torch.unfold without using torch.unfold.
+
+    Args:
+        input_tensor (torch.Tensor): The input tensor.
+        dimension (int): The dimension to unfold.
+        size (int): The size of each slice.
+        step (int): The step size between slices.
+
+    Returns:
+        torch.Tensor: The unfolded tensor.
+    """
+    # Check if dimension is within the valid range
+    if not (-input_tensor.dim() <= dimension < input_tensor.dim()):
+        raise ValueError(
+            f"Dimension out of range (expected to be in range of [{-input_tensor.dim()}, {input_tensor.dim() - 1}], but got {dimension})"
+        )
+
+    # Normalize negative dimension
+    dimension = dimension % input_tensor.dim()
+
+    # Compute the shape of the unfolded output
+    input_size = input_tensor.size(dimension)
+    num_slices = (input_size - size) // step + 1
+
+    # Permute dimension to the end for easier indexing
+    input_tensor = input_tensor.transpose(dimension, -1)
+
+    # Extract slices
+    slices = []
+    for i in range(num_slices):
+        start = i * step
+        end = start + size
+        slices.append(input_tensor[..., start:end])
+
+    # Stack slices and permute dimensions back
+    result = torch.stack(slices, dim=-2).transpose(dimension, -2)
+    return result
+
+
+UNSUPPORTED_OPS_PATCHING_SPEC = [PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold)]
+
+
 class ModelPatcher:
     def __init__(
         self,
@@ -122,9 +169,11 @@ class ModelPatcher:
     ):
         self._model = model
 
-        patching_specs = config.PATCHING_SPECS
+        patching_specs = config.PATCHING_SPECS or []
+        patching_specs.extend(UNSUPPORTED_OPS_PATCHING_SPEC)
+
         self._patching_specs = []
-        for spec in patching_specs if patching_specs is not None else []:
+        for spec in patching_specs:
             final_spec = spec
             if spec.orig_op is None:
                 final_spec = dataclasses.replace(spec, orig_op=getattr(spec.o, spec.name))
@@ -505,6 +554,32 @@ class WavLMModelPatcher(ModelPatcher):
                 ):
                     filterd_outputs[name] = value
             return filterd_outputs
+
+        self.patched_forward = patched_forward
+
+
+class MgpstrModelPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+
+        @functools.wraps(self.orig_forward)
+        def patched_forward(*args, **kwargs):
+            signature = inspect.signature(self.orig_forward)
+            args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
+
+            # logits is a tuple, so we unpack it and return them as separate outputs
+            char_logits, bpe_logits, wp_logits = self.orig_forward(*args, **kwargs).logits
+
+            return {
+                "char_logits": char_logits,
+                "bpe_logits": bpe_logits,
+                "wp_logits": wp_logits,
+            }
 
         self.patched_forward = patched_forward
 

@@ -34,7 +34,7 @@ from optimum.onnxruntime import (
     ORTPipelineForInpainting,
     ORTPipelineForText2Image,
 )
-from optimum.utils import check_if_transformers_greater
+from optimum.utils import is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
 
@@ -77,7 +77,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-    if check_if_transformers_greater("4.45"):
+    if is_transformers_version(">=", "4.45"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "flux"]
 
     NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES = [
@@ -85,7 +85,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-    if check_if_transformers_greater("4.45"):
+
+    if is_transformers_version(">=", "4.45"):
         NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
 
     CALLBACK_SUPPORTED_ARCHITECTURES = [
@@ -93,7 +94,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-    if check_if_transformers_greater("4.45"):
+    if is_transformers_version(">=", "4.45"):
         CALLBACK_SUPPORTED_ARCHITECTURES += ["flux"]
 
     ORTMODEL_CLASS = ORTPipelineForText2Image
@@ -341,7 +342,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-    if check_if_transformers_greater("4.45"):
+    if is_transformers_version(">=", "4.45"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
 
     CALLBACK_SUPPORTED_ARCHITECTURES = [
@@ -578,7 +579,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         "stable-diffusion",
         "stable-diffusion-xl",
     ]
-    if check_if_transformers_greater("4.45"):
+    if is_transformers_version(">=", "4.45"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
 
     CALLBACK_SUPPORTED_ARCHITECTURES = [
