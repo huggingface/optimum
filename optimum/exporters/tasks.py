@@ -1856,6 +1856,7 @@ class TasksManager:
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: Optional[Union[bool, str]] = None,
+        library_name: Optional[str] = None,
     ) -> str:
         """
         Infers the task from the model repo, model instance, or model class.
@@ -1874,7 +1875,9 @@ class TasksManager:
             token (`Optional[Union[bool,str]]`, defaults to `None`):
                 The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
                 when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
-
+            library_name (`Optional[str]`, defaults to `None`):
+                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers". See `TasksManager.infer_library_from_model` for the priority should
+                none be provided.
         Returns:
             `str`: The task name automatically detected from the HF hub repo, model instance, or model class.
         """
@@ -1887,6 +1890,7 @@ class TasksManager:
                 revision=revision,
                 cache_dir=cache_dir,
                 token=token,
+                library_name=library_name,
             )
         elif type(model) == type:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model_class=model)
@@ -2162,6 +2166,9 @@ class TasksManager:
                 none be provided.
             model_kwargs (`Dict[str, Any]`, *optional*):
                 Keyword arguments to pass to the model `.from_pretrained()` method.
+            library_name (`Optional[str]`, defaults to `None`):
+                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers". See `TasksManager.infer_library_from_model` for the priority should
+                none be provided.
 
         Returns:
             The instance of the model.
@@ -2181,7 +2188,12 @@ class TasksManager:
         original_task = task
         if task == "auto":
             task = TasksManager.infer_task_from_model(
-                model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+                model_name_or_path,
+                subfolder=subfolder,
+                revision=revision,
+                cache_dir=cache_dir,
+                token=token,
+                library_name=library_name,
             )
 
         model_type = None
