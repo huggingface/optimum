@@ -23,8 +23,8 @@ from diffusers import (
     DiffusionPipeline,
 )
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
+from diffusers.utils import load_image
 from parameterized import parameterized
-from PIL import Image
 from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
@@ -60,7 +60,10 @@ def _generate_prompts(batch_size=1):
 
 def _generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
-        image = Image.new("RGB", (width, height))
+        image = load_image(
+            "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
+            "/in_paint/overture-creations-5sI6fQgYIuo.png"
+        ).resize((width, height))
     elif input_type == "np":
         image = np.random.rand(height, width, channel)
     elif input_type == "pt":
