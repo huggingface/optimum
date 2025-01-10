@@ -34,7 +34,7 @@ from optimum.onnxruntime import (
     ORTPipelineForInpainting,
     ORTPipelineForText2Image,
 )
-from optimum.utils import is_diffusers_version, is_transformers_version
+from optimum.utils import is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
 
@@ -222,8 +222,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
                 self.assertEqual(outputs.shape, (batch_size, 3, height, width))
             else:
                 if model_arch == "flux":
-                    expected_height = height // 2**pipeline.vae_scale_factor
-                    expected_width = width // 2**pipeline.vae_scale_factor
+                    expected_height = height // (pipeline.vae_scale_factor * 2)
+                    expected_width = width // (pipeline.vae_scale_factor * 2)
                     channels = pipeline.transformer.config.in_channels
                     expected_shape = (batch_size, expected_height * expected_width, channels)
                 else:
