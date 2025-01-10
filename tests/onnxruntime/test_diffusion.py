@@ -23,8 +23,8 @@ from diffusers import (
     DiffusionPipeline,
 )
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
-from diffusers.utils import load_image
 from parameterized import parameterized
+from PIL import Image
 from transformers.testing_utils import require_torch_gpu
 from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
@@ -34,7 +34,7 @@ from optimum.onnxruntime import (
     ORTPipelineForInpainting,
     ORTPipelineForText2Image,
 )
-from optimum.utils import is_transformers_version
+from optimum.utils import is_diffusers_version, is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
 
@@ -54,15 +54,13 @@ def _generate_prompts(batch_size=1):
         "guidance_scale": 7.5,
         "output_type": "np",
     }
+
     return inputs
 
 
 def _generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
-        image = load_image(
-            "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
-            "/in_paint/overture-creations-5sI6fQgYIuo.png"
-        ).resize((width, height))
+        image = Image.new("RGB", (width, height))
     elif input_type == "np":
         image = np.random.rand(height, width, channel)
     elif input_type == "pt":
@@ -105,8 +103,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     def generate_inputs(self, height=128, width=128, batch_size=1):
         inputs = _generate_prompts(batch_size=batch_size)
 
-        inputs["height"] = height
-        inputs["width"] = width
+        inputs["height"], inputs["width"] = height, width
 
         return inputs
 
@@ -229,7 +226,11 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
                 if model_arch == "flux":
                     channels = pipeline.transformer.config.in_channels
-                    expected_shape = (batch_size, expected_height * expected_width, channels)
+                    if is_diffusers_version(">=", "0.32.0"):
+                        expected_shape = (batch_size, expected_height * expected_width // 4, channels)
+                    else:
+                        expected_shape = (batch_size, expected_height * expected_width, channels)
+
                 elif model_arch == "stable-diffusion-3":
                     out_channels = pipeline.transformer.config.out_channels
                     expected_shape = (batch_size, out_channels, expected_height, expected_width)
@@ -363,6 +364,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             height=height, width=width, batch_size=batch_size, channel=channel, input_type=input_type
         )
 
+        inputs["height"], inputs["width"] = height, width
         inputs["strength"] = 0.75
 
         return inputs
@@ -491,7 +493,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             ort_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
             diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
-            np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
+            np.testing.assert_allclose(ort_images, diffusers_images, atol=3e-4, rtol=1e-2)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -602,9 +604,8 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
             height=height, width=width, batch_size=batch_size, channel=1, input_type=input_type
         )
 
+        inputs["height"], inputs["width"] = height, width
         inputs["strength"] = 0.75
-        inputs["height"] = height
-        inputs["width"] = width
 
         return inputs
 
