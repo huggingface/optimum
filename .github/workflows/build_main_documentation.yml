@@ -10,19 +10,13 @@ on:
 
 jobs:
   build_documentation:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v2
         with:
           repository: 'huggingface/doc-builder'
           path: doc-builder
-
-      - uses: actions/checkout@v2
-        with:
-          repository: 'huggingface/doc-build'
-          path: doc-build
-          token: ${{ secrets.HUGGINGFACE_PUSH }}
 
       - uses: actions/checkout@v2
         with:
@@ -49,6 +43,11 @@ jobs:
           repository: 'huggingface/optimum-amd'
           path: optimum-amd
 
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-tpu'
+          path: optimum-tpu
+
       - name: Free disk space
         run: |
           df -h
@@ -62,7 +61,7 @@ jobs:
           sudo apt-get purge -y '^mysql.*'
           sudo apt-get purge -y '^java.*'
           sudo apt-get purge -y '^openjdk.*'
-          sudo apt-get purge -y microsoft-edge-stable google-cloud-cli azure-cli google-chrome-stable firefox powershell mono-devel
+          sudo apt-get purge -y microsoft-edge-stable azure-cli google-chrome-stable firefox mono-devel
           df -h
           sudo apt-get autoremove -y >/dev/null 2>&1
           sudo apt-get clean
@@ -106,6 +105,8 @@ jobs:
 
       - name: Setup environment
         run: |
+          python -m venv venv-doc
+          source venv-doc/bin/activate
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
@@ -131,8 +132,11 @@ jobs:
 
       - name: Make Furiosa documentation
         run: |
+          source venv-doc/bin/activate
           cd optimum-furiosa
           pip install .
+          sudo apt install software-properties-common
+          sudo add-apt-repository --remove https://packages.microsoft.com/ubuntu/22.04/prod
           sudo apt update
           sudo apt install -y ca-certificates apt-transport-https gnupg
           sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key 5F03AFA423A751913F249259814F888B20B09A7E
@@ -148,6 +152,17 @@ jobs:
           sudo apt update && sudo apt install -y furiosa-libnux
           doc-builder build optimum.furiosa docs/source/ --build_dir furiosa-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
           mv furiosa-doc-build ../optimum
+          cd ..
+
+      - name: Make TPU documentation
+        run: |
+          sudo docker system prune -a -f
+          source venv-doc/bin/activate
+          cd optimum-tpu
+          pip install -U pip
+          pip install . -f https://storage.googleapis.com/libtpu-releases/index.html
+          doc-builder build optimum.tpu docs/source/ --build_dir tpu-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
+          mv tpu-doc-build ../optimum
           cd ..
 
       - name: Make AMD documentation
@@ -171,11 +186,12 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron habana furiosa --version ${{ env.VERSION }}
+          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron tpu habana furiosa --version ${{ env.VERSION }}
           cd ..
 
       - name: Push to repositories
         run: |
+          source venv-doc/bin/activate
           cd optimum/optimum-doc-build
           sudo chmod -R ugo+rwx optimum
           doc-builder push optimum --doc_build_repo_id "hf-doc-build/doc-build" --token "${{ secrets.HF_DOC_BUILD_PUSH }}" --commit_msg "Updated with commit ${{ github.sha }} See: https://github.com/huggingface/optimum/commit/${{ github.sha }}" --n_retries 5 --upload_version_yml

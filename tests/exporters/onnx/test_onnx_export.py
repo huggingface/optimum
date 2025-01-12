@@ -32,8 +32,8 @@ from optimum.exporters.onnx import (
     OnnxConfigWithPast,
     export_models,
     get_decoder_models_for_export,
+    get_diffusion_models_for_export,
     get_encoder_decoder_models_for_export,
-    get_stable_diffusion_models_for_export,
     main_export,
     onnx_export_from_model,
     validate_models_outputs,
@@ -43,14 +43,14 @@ from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
 from optimum.exporters.onnx.utils import get_speecht5_models_for_export
-from optimum.utils import ONNX_WEIGHTS_NAME, DummyPastKeyValuesGenerator, NormalizedTextConfig
+from optimum.utils import DummyPastKeyValuesGenerator, NormalizedTextConfig
 from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
 from ..exporters_utils import (
+    PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
-    PYTORCH_STABLE_DIFFUSION_MODEL,
     PYTORCH_TIMM_MODEL,
     TENSORFLOW_EXPORT_MODELS,
     VALIDATE_EXPORT_ON_SHAPES_SLOW,
@@ -207,20 +207,18 @@ class OnnxExportTestCase(TestCase):
             model.config.pad_token_id = 0
 
         if is_torch_available():
-            from optimum.utils import torch_version
+            from optimum.utils.import_utils import _torch_version, _transformers_version
 
             if not onnx_config.is_transformers_support_available:
-                import transformers
-
                 pytest.skip(
                     "Skipping due to incompatible Transformers version. Minimum required is"
-                    f" {onnx_config.MIN_TRANSFORMERS_VERSION}, got: {transformers.__version__}"
+                    f" {onnx_config.MIN_TRANSFORMERS_VERSION}, got: {_transformers_version}"
                 )
 
             if not onnx_config.is_torch_support_available:
                 pytest.skip(
                     "Skipping due to incompatible PyTorch version. Minimum required is"
-                    f" {onnx_config.MIN_TORCH_VERSION}, got: {torch_version}"
+                    f" {onnx_config.MIN_TORCH_VERSION}, got: {_torch_version}"
                 )
 
         atol = onnx_config.ATOL_FOR_VALIDATION
@@ -292,27 +290,20 @@ class OnnxExportTestCase(TestCase):
 
                 gc.collect()
 
-    def _onnx_export_sd(self, model_type: str, model_name: str, device="cpu"):
+    def _onnx_export_diffusion_models(self, model_type: str, model_name: str, device="cpu"):
         pipeline = TasksManager.get_model_from_task(model_type, model_name, device=device)
-        models_and_onnx_configs = get_stable_diffusion_models_for_export(pipeline)
-        output_names = [os.path.join(name_dir, ONNX_WEIGHTS_NAME) for name_dir in models_and_onnx_configs]
-        model, _ = models_and_onnx_configs["vae_encoder"]
-        model.forward = lambda sample: {"latent_sample": model.encode(x=sample)["latent_dist"].parameters}
+        models_and_onnx_configs = get_diffusion_models_for_export(pipeline)
 
         with TemporaryDirectory() as tmpdirname:
             _, onnx_outputs = export_models(
                 models_and_onnx_configs=models_and_onnx_configs,
-                opset=14,
                 output_dir=Path(tmpdirname),
-                output_names=output_names,
                 device=device,
             )
             validate_models_outputs(
                 models_and_onnx_configs=models_and_onnx_configs,
                 onnx_named_outputs=onnx_outputs,
                 output_dir=Path(tmpdirname),
-                atol=1e-3,
-                onnx_files_subpaths=output_names,
                 use_subprocess=False,
             )
 
@@ -398,14 +389,14 @@ class OnnxExportTestCase(TestCase):
 
         self._onnx_export(test_name, model_type, model_name, task, onnx_config_class_constructor, monolith=monolith)
 
-    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
     @require_torch
     @require_vision
     @require_diffusers
-    def test_pytorch_export_for_stable_diffusion_models(self, model_type, model_name):
-        self._onnx_export_sd(model_type, model_name)
+    def test_pytorch_export_for_diffusion_models(self, model_type, model_name):
+        self._onnx_export_diffusion_models(model_type, model_name)
 
-    @parameterized.expand(PYTORCH_STABLE_DIFFUSION_MODEL.items())
+    @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
     @require_torch
     @require_vision
     @require_diffusers
@@ -413,8 +404,8 @@ class OnnxExportTestCase(TestCase):
     @slow
     @pytest.mark.run_slow
     @pytest.mark.gpu_test
-    def test_pytorch_export_for_stable_diffusion_models_cuda(self, model_type, model_name):
-        self._onnx_export_sd(model_type, model_name, device="cuda")
+    def test_pytorch_export_for_diffusion_models_cuda(self, model_type, model_name):
+        self._onnx_export_diffusion_models(model_type, model_name, device="cuda")
 
 
 class CustomWhisperOnnxConfig(WhisperOnnxConfig):
@@ -541,7 +532,7 @@ class OnnxCustomExport(TestCase):
 
     @parameterized.expand([(None,), (fn_get_submodels_custom,)])
     def test_custom_export_trust_remote(self, fn_get_submodels):
-        model_id = "fxmarty/tiny-mpt-random-remote-code"
+        model_id = "echarlaix/tiny-mpt-random-remote-code"
         config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
         onnx_config = CustomMPTOnnxConfig(
             config=config,

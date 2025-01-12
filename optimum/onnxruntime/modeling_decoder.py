@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import onnx
 import torch
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from onnx.tools import update_model_dims
 from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
@@ -30,7 +31,7 @@ import onnxruntime
 
 from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from ..onnx.utils import check_model_uses_external_data
-from ..utils import NormalizedConfigManager, check_if_transformers_greater
+from ..utils import NormalizedConfigManager, is_transformers_version
 from ..utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ..utils.save_utils import maybe_save_preprocessors
 from .constants import DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN, DECODER_WITH_PAST_ONNX_FILE_PATTERN
@@ -42,10 +43,10 @@ from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_WEIGHTS_
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
-if check_if_transformers_greater("4.25.0"):
+if is_transformers_version(">=", "4.25.0"):
     from transformers.generation import GenerationMixin
 else:
-    from transformers.generation_utils import GenerationMixin
+    from transformers.generation_utils import GenerationMixin  # type: ignore # noqa: F401
 
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     auto_model_class = AutoModelForCausalLM
     main_input_name = "input_ids"
+    _supports_cache_class = False
 
     def __init__(
         self,
@@ -138,15 +140,29 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         self.num_pkv = 2
         self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
-        self.key_value_input_names = [key for key in self.inputs_names if (".key" in key) or (".value" in key)]
+        self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
         self.use_cache = len(self.key_value_input_names) > 0
 
         if generation_config is None:
             generation_config = GenerationConfig.from_model_config(config)
+
         self.generation_config = generation_config
+
+        if is_transformers_version(">=", "4.44.99"):
+            misplaced_generation_parameters = self.config._get_non_default_generation_parameters()
+            if len(misplaced_generation_parameters) > 0:
+                logger.warning(
+                    "Moving the following attributes in the config to the generation config: "
+                    f"{misplaced_generation_parameters}. You are seeing this warning because you've set "
+                    "generation parameters in the model config, as opposed to in the generation config.",
+                )
+                for param_name, param_value in misplaced_generation_parameters.items():
+                    setattr(self.generation_config, param_name, param_value)
+                    setattr(self.config, param_name, None)
+
         self.onnx_paths = [self.model_path]
-        self.use_merged = "use_cache_branch" in self.inputs_names
+        self.use_merged = "use_cache_branch" in self.input_names
         self.model_type = self.config.model_type
 
         self.use_fp16 = False
@@ -159,7 +175,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         # Reference: https://github.com/huggingface/optimum/pull/1381
         model_type = config.model_type.replace("_", "-")
-        if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.inputs_names:
+        if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.input_names:
             logger.warning(
                 f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although this input is required for batched generation for the architecture {model_type}. "
                 "We strongly encourage to re-export the model with optimum>=1.14 for position_ids and batched inference support."
@@ -201,7 +217,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        inputs = {}
         known_output_shapes = {}
         use_cache_branch = None
         loss = None
@@ -225,10 +240,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             # I suspect the reason is the contiguous python list that messes something up?
             model_inputs = [input_ids.contiguous()]
 
-            if "attention_mask" in self.inputs_names:
+            if "attention_mask" in self.input_names:
                 model_inputs.append(attention_mask)
 
-            if "position_ids" in self.inputs_names:
+            if "position_ids" in self.input_names:
                 if position_ids is None:
                     raise ValueError("position_ids was not passed but is a required input for this ONNX model.")
                 model_inputs.append(position_ids.contiguous())
@@ -239,12 +254,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if use_cache_branch is not None:
                 model_inputs.append(use_cache_branch)
 
-            if "labels" in self.inputs_names:
+            if "labels" in self.input_names:
                 model_inputs.append(labels)
                 known_output_shapes.update({"loss": []})
 
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(
-                self.model,
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
                 *model_inputs,
                 known_output_shapes=known_output_shapes,
                 ordered_input_names=self._ordered_input_names,
@@ -258,53 +272,41 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 io_binding.synchronize_outputs()
 
             if self.use_cache:
-                # Tuple of length equal to : number of layer * number of past_key_value per decoder layer(2)
-                past_key_values = ()
-                for name in self.key_value_output_names:
-                    past_key_values += (output_buffers[name].view(output_shapes[name]),)
+                # Tuple of length equal to : number of layer * number of past_key_value per decoder layer(2 for the self-attention)
+                past_key_values = tuple(
+                    output_buffers[name].view(output_shapes[name]) for name in self.key_value_output_names
+                )
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
 
             if "loss" in self.output_names:
                 loss = output_buffers["loss"].view(output_shapes["loss"])
         else:
-            inputs["input_ids"] = input_ids.cpu().detach().numpy() if use_torch else input_ids
-
-            if "attention_mask" in self.inputs_names:
-                inputs["attention_mask"] = attention_mask.cpu().detach().numpy() if use_torch else attention_mask
-
-            if "labels" in self.inputs_names:
-                inputs["labels"] = labels.cpu().detach().numpy() if use_torch else labels
-
-            if "position_ids" in self.inputs_names:
-                if position_ids is None:
-                    raise ValueError("position_ids was not passed but is a required input for this ONNX model.")
-                inputs["position_ids"] = position_ids.cpu().detach().numpy() if use_torch else position_ids
-
-            # Add the past_key_values to the decoder inputs
+            model_inputs = {
+                "input_ids": input_ids,
+                "position_ids": position_ids,
+                "attention_mask": attention_mask,
+                "use_cache_branch": use_cache_branch,
+                "labels": labels,
+            }
             if past_key_values is not None:
-                for input_name, past_key_value in zip(self.key_value_input_names, past_key_values):
-                    inputs[input_name] = past_key_value.cpu().detach().numpy() if use_torch else past_key_value
+                model_inputs.update(
+                    zip(self.key_value_input_names, past_key_values),
+                )
 
-            if use_cache_branch is not None:
-                inputs["use_cache_branch"] = use_cache_branch.cpu().detach().numpy() if use_torch else use_cache_branch
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_outputs = self.model.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
 
-            outputs = self.model.run(None, inputs)
+            loss = model_outputs.get("loss", None)
+            logits = model_outputs["logits"]
 
             if self.use_cache:
                 # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 for the self-attention)
-                past_key_values = tuple(
-                    torch.from_numpy(outputs[self.output_names[key]]).to(self.device)
-                    for key in self.key_value_output_names
-                )
-
-            logits = torch.from_numpy(outputs[self.output_names["logits"]]).to(self.device)
-            if "loss" in self.output_names:
-                loss = torch.from_numpy(outputs[self.output_names["loss"]]).to(self.device)
+                past_key_values = tuple(model_outputs[output_name] for output_name in self.key_value_output_names)
 
         if self.use_cache and self.model_type != "gpt_bigcode":
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and
-            # per decoder layer
+            # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and per decoder layer
             past_key_values = tuple(
                 past_key_values[i : i + self.num_pkv] for i in range(0, len(past_key_values), self.num_pkv)
             )
@@ -338,7 +340,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if self.model_type == "gemma":
                 num_attention_heads = self.normalized_config.num_key_value_heads
                 embed_size_per_head = self.normalized_config.head_dim
-            elif self.model_type in {"gemma", "mistral", "llama"}:
+            elif self.model_type in {"mistral", "llama", "qwen2", "granite"}:
                 num_attention_heads = self.normalized_config.num_key_value_heads
             else:
                 num_attention_heads = self.normalized_config.num_attention_heads
@@ -346,8 +348,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             dtype = constructor.float16 if self.use_fp16 else constructor.float32
 
             # TODO: find a way to better handle this controlflow, this is EXTREMELY UGLY.
-            # "1" is the dummy sequence length
-            if self.model_type == "bloom":
+            if self.__class__.__name__ == "ORTBloomForCausalLM":
                 shape_value = (batch_size * num_attention_heads, 0, embed_size_per_head)
                 shape_key = (batch_size * num_attention_heads, embed_size_per_head, 0)
                 key = constructor.zeros(shape_key, dtype=dtype)
@@ -364,9 +365,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 for name, value in zip(self.key_value_output_names, past_key_values):
                     shape = [*value.shape]
                     index = 1 if "value" in name else 2
-
                     shape[index] += sequence_length
                     pkv_output_shape[name] = shape
+
             elif self.model_type == "gpt_bigcode":
                 # GPT BigCode uses muti-query attention, and has the specificity of putting both key and value in the same cache tensor.
                 shape_key_and_value = (batch_size, 0, embed_size_per_head * 2)
@@ -381,9 +382,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     shape = [*value.shape]
                     shape[1] += sequence_length
                     pkv_output_shape[name] = shape
+
             else:
                 num_key_value_heads = self.num_key_value_heads if self.model_type == "falcon" else num_attention_heads
-
                 shape = (batch_size, num_key_value_heads, 0, embed_size_per_head)
                 key_or_value = constructor.zeros(shape, dtype=dtype)
 
@@ -404,10 +405,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         file_name: Optional[str] = None,
         subfolder: str = "",
         use_cache: bool = True,
@@ -420,6 +421,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModelForCausalLM":
+        generation_config = kwargs.pop("generation_config", None)
         model_path = Path(model_id)
 
         # We do not implement the logic for use_cache=False, use_merged=True
@@ -449,7 +451,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                         [DECODER_MERGED_ONNX_FILE_PATTERN],
                         argument_name=None,
                         subfolder=subfolder,
-                        use_auth_token=use_auth_token,
+                        token=token,
                         revision=revision,
                     )
                     use_merged = True
@@ -471,7 +473,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     [r"^((?!decoder).)*.onnx", pattern],
                     argument_name=None,
                     subfolder=subfolder,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     revision=revision,
                 )
                 file_name = decoder_path.name
@@ -493,7 +495,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         model_cache_path, preprocessors = cls._cached_file(
             model_path=model_path,
-            use_auth_token=use_auth_token,
+            token=token,
             revision=revision,
             force_download=force_download,
             cache_dir=cache_dir,
@@ -508,8 +510,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
 
-        # Since v1.7.0 decoder with past models have fixed sequence length of 1
-        # To keep these models compatible we set this dimension to dynamic
         onnx_model = onnx.load(str(model_cache_path), load_external_data=False)
         model_uses_external_data = check_model_uses_external_data(onnx_model)
 
@@ -520,24 +520,53 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             node.name: [dim.dim_value or dim.dim_param for dim in node.type.tensor_type.shape.dim]
             for node in onnx_model.graph.input
         }
+        output_dims = {
+            node.name: [dim.dim_value or dim.dim_param for dim in node.type.tensor_type.shape.dim]
+            for node in onnx_model.graph.output
+        }
+
+        override_dims = False
+
+        # Since v1.7.0 decoder with past models have fixed sequence length of 1
+        # To keep these models compatible we set this dimension to dynamic
         if input_dims["input_ids"][1] == 1:
             input_dims["input_ids"][1] = "sequence_length"
-            output_dims = {
-                node.name: [dim.dim_value or dim.dim_param for dim in node.type.tensor_type.shape.dim]
-                for node in onnx_model.graph.output
-            }
             output_dims["logits"][1] = "sequence_length"
-            onnx_model = update_model_dims.update_inputs_outputs_dims(onnx_model, input_dims, output_dims)
+            override_dims = True
 
+        # Since https://github.com/huggingface/optimum/pull/871/
+        # changed axis notation/naming during export, we need to update the dims
+        for input_name in input_dims.keys():
+            if "past" in input_name and input_dims[input_name][2] == "past_sequence_length + sequence_length":
+                input_dims[input_name][2] = "past_sequence_length"
+                override_dims = True
+
+        if override_dims:
+            # this is kinda dangerous, warning the user is the least we can do
+            logger.warning(
+                "The ONNX model was probably exported with an older version of optimum. "
+                "We are updating the input/output dimensions and overwriting the model file "
+                "with new dimensions. This is necessary for the model to work correctly with "
+                "the current version of optimum. If you encounter any issues, please re-export "
+                "the model with the latest version of optimum for optimal performance."
+            )
+            onnx_model = update_model_dims.update_inputs_outputs_dims(onnx_model, input_dims, output_dims)
             onnx.save(
                 onnx_model,
                 str(model_cache_path),
                 save_as_external_data=model_uses_external_data,
-                all_tensors_to_one_file=True,
                 location=model_cache_path.name + "_data",
-                size_threshold=0,
+                all_tensors_to_one_file=True,
                 convert_attribute=True,
+                size_threshold=0,
             )
+
+        # Since transformers 4.44, the bloom model has been updated to use the standard cache format
+        use_old_bloom_modeling = not is_transformers_version(">=", "4.44")
+        for input_name in input_dims.keys():
+            if input_dims[input_name][0] == "batch_size x num_heads":
+                use_old_bloom_modeling = True
+
         del onnx_model
 
         model = ORTModel.load_model(
@@ -547,18 +576,35 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             provider_options=provider_options,
         )
 
-        if config.model_type == "bloom":
+        if config.model_type == "bloom" and use_old_bloom_modeling:
             init_cls = ORTBloomForCausalLM
         elif config.model_type == "falcon":
             init_cls = ORTFalconForCausalLM
         elif config.model_type == "mpt":
             init_cls = ORTMPTForCausalLM
-        elif config.model_type == "opt":
+        # if model was exported with position_ids it means the model was exported with transformers >= v4.46
+        elif config.model_type == "opt" and "position_ids" not in input_dims:
             init_cls = ORTOPTForCausalLM
         elif config.model_type == "gpt_bigcode":
             init_cls = ORTGPTBigCodeForCausalLM
         else:
             init_cls = ORTModelForCausalLM
+
+        if generation_config is None:
+            try:
+                generation_config = GenerationConfig.from_pretrained(
+                    model_id,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
+                    token=token,
+                    revision=revision,
+                    subfolder=subfolder,
+                )
+            except OSError:
+                logger.info(
+                    "Generation config file not found, using a generation config created from the model config."
+                )
 
         return init_cls(
             model=model,
@@ -567,6 +613,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
             use_cache=use_cache,
+            generation_config=generation_config,
         )
 
     @classmethod
@@ -574,10 +621,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         cls,
         model_id: str,
         config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
+        token: Optional[Union[bool, str]] = None,
         revision: str = "main",
         force_download: bool = True,
-        cache_dir: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
@@ -614,13 +661,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,
-            use_auth_token=use_auth_token,
+            token=token,
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,
         )
-
-        config.save_pretrained(save_dir_path)
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
         return cls._from_pretrained(
@@ -676,9 +721,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             for layer_past in past
         )
 
-    def can_generate(self):
-        """Returns True to validate the check that the model using `GenerationMixin.generate()` can indeed generate."""
-        return True
+    def _save_pretrained(self, save_directory: Union[str, Path]):
+        super()._save_pretrained(save_directory)
+        self.generation_config.save_pretrained(save_directory)
 
 
 class ORTGPTBigCodeForCausalLM(ORTModelForCausalLM):
@@ -795,7 +840,6 @@ class ORTOPTForCausalLM(ORTModelForCausalLM):
 
         attention_mask = kwargs.get("attention_mask", None)
         use_cache = kwargs.get("use_cache", None)
-
         return {
             "input_ids": input_ids,
             "past_key_values": past_key_values,

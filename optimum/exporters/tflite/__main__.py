@@ -28,7 +28,6 @@ from .convert import export, validate_model_outputs
 
 
 logger = logging.get_logger()
-logger.setLevel(logging.INFO)
 
 
 def main():
@@ -47,7 +46,7 @@ def main():
     task = args.task
     if task == "auto":
         try:
-            task = TasksManager.infer_task_from_model(args.model)
+            task = TasksManager.infer_task_from_model(args.model, library_name="transformers")
         except KeyError as e:
             raise KeyError(
                 "The task could not be automatically inferred. Please provide the argument --task with the task "
@@ -59,7 +58,12 @@ def main():
             )
 
     model = TasksManager.get_model_from_task(
-        task, args.model, framework="tf", cache_dir=args.cache_dir, trust_remote_code=args.trust_remote_code
+        task,
+        args.model,
+        framework="tf",
+        cache_dir=args.cache_dir,
+        trust_remote_code=args.trust_remote_code,
+        library_name="transformers",
     )
 
     tflite_config_constructor = TasksManager.get_exporter_config_constructor(

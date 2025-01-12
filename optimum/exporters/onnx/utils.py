@@ -20,19 +20,21 @@ import torch
 from packaging import version
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...utils import (
-    DIFFUSERS_MINIMUM_VERSION,
-    ORT_QUANTIZE_MINIMUM_VERSION,
-    check_if_diffusers_greater,
+from ...utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
+from ...utils.import_utils import (
+    _diffusers_version,
     is_diffusers_available,
-    logging,
+    is_diffusers_version,
+    is_transformers_version,
 )
-from ...utils.import_utils import _diffusers_version
 from ..utils import (
     _get_submodels_and_export_configs,
 )
 from ..utils import (
     get_decoder_models_for_export as _get_decoder_models_for_export,
+)
+from ..utils import (
+    get_diffusion_models_for_export as _get_diffusion_models_for_export,
 )
 from ..utils import (
     get_encoder_decoder_models_for_export as _get_encoder_decoder_models_for_export,
@@ -43,16 +45,13 @@ from ..utils import (
 from ..utils import (
     get_speecht5_models_for_export as _get_speecht5_models_for_export,
 )
-from ..utils import (
-    get_stable_diffusion_models_for_export as _get_stable_diffusion_models_for_export,
-)
 
 
 logger = logging.get_logger()
 
 
 if is_diffusers_available():
-    if not check_if_diffusers_greater(DIFFUSERS_MINIMUM_VERSION.base_version):
+    if not is_diffusers_version(">=", DIFFUSERS_MINIMUM_VERSION.base_version):
         raise ImportError(
             f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
             "Please update diffusers by running `pip install --upgrade diffusers`"
@@ -68,7 +67,7 @@ if TYPE_CHECKING:
         from transformers.modeling_tf_utils import TFPreTrainedModel
 
     if is_diffusers_available():
-        from diffusers import ModelMixin, StableDiffusionPipeline
+        from diffusers import DiffusionPipeline, ModelMixin
 
 
 MODEL_TYPES_REQUIRING_POSITION_IDS = {
@@ -82,9 +81,16 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "gptj",
     "imagegpt",
     "llama",
-    "phi",
     "mistral",
+    "phi",
+    "phi3",
+    "qwen2",
+    "granite",
 }
+
+
+if is_transformers_version(">=", "4.45.99"):
+    MODEL_TYPES_REQUIRING_POSITION_IDS.add("opt")
 
 
 def check_onnxruntime_requirements(minimum_version: version.Version):
@@ -217,13 +223,13 @@ def _get_submodels_and_onnx_configs(
 DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT = "The usage of `optimum.exporters.onnx.utils.get_{model_type}_models_for_export` is deprecated and will be removed in a future release, please use `optimum.exporters.utils.get_{model_type}_models_for_export` instead."
 
 
-def get_stable_diffusion_models_for_export(
-    pipeline: "StableDiffusionPipeline",
+def get_diffusion_models_for_export(
+    pipeline: "DiffusionPipeline",
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "ExportConfig"]]:
-    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="stable_diffusion"))
-    return _get_stable_diffusion_models_for_export(pipeline, int_dtype, float_dtype, exporter="onnx")
+    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="diffusion"))
+    return _get_diffusion_models_for_export(pipeline, int_dtype, float_dtype, exporter="onnx")
 
 
 def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"):

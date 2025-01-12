@@ -2,9 +2,9 @@ name: BetterTransformer / Python - Test
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -15,31 +15,36 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8, 3.9]
-        os: [ubuntu-20.04, macos-latest]
+        python-version: [3.9]
+        os: [ubuntu-20.04]
 
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v2
-    - name: Setup Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        pip install .[tests]
-        pip install --no-cache-dir --upgrade torch torchvision torchaudio
-        pip install accelerate
-    - name: Test on pytorch stable
-      working-directory: tests
-      run: |
-        pytest bettertransformer/test_*.py -s -vvvvv
-    - name: Install dependencies 2
-      run: |
-        pip uninstall -y torch torchvision torchaudio
-        pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
-    - name: Test on pytorch nightly
-      working-directory: tests
-      run: |
-        pytest bettertransformer/test_*.py -s -vvvvv
+      - name: Checkout code
+        uses: actions/checkout@v4
 
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install .[tests]
+          pip install --no-cache-dir --upgrade torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install accelerate
+
+      - name: Test with stable pytorch
+        working-directory: tests
+        run: |
+          pytest bettertransformer -s -vvvvv
+
+      - name: Install dependencies 2
+        run: |
+          pip uninstall -y torch torchvision torchaudio
+          pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
+
+      - name: Test with nightly pytorch
+        working-directory: tests
+        run: |
+          pytest bettertransformer -s -vvvvv

@@ -23,20 +23,22 @@ import traceback
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
+from transformers.generation import GenerationMixin
 from transformers.modeling_utils import get_parameter_dtype
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...onnx.utils import _get_onnx_external_data_tensors, check_model_uses_external_data
+from ...onnx.utils import _get_onnx_external_constants, _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
     TORCH_MINIMUM_VERSION,
     is_diffusers_available,
     is_torch_onnx_support_available,
+    is_transformers_version,
     logging,
     require_numpy_strictly_lower,
 )
@@ -44,6 +46,7 @@ from ...utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
+from ..utils import check_dummy_inputs_are_allowed
 from .base import OnnxConfig
 from .constants import UNPICKABLE_ARCHS
 from .model_configs import SpeechT5OnnxConfig
@@ -55,13 +58,15 @@ from .utils import (
 )
 
 
+# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
+
 if is_torch_available():
     import torch
     import torch.nn as nn
     from transformers.modeling_utils import PreTrainedModel
 
 if is_diffusers_available():
-    from diffusers import ModelMixin
+    from diffusers import DiffusionPipeline, ModelMixin
 
 if is_tf_available():
     from transformers.modeling_tf_utils import TFPreTrainedModel
@@ -72,30 +77,6 @@ logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 class DynamicAxisNameError(ValueError):
     pass
-
-
-def check_dummy_inputs_are_allowed(
-    model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], dummy_input_names: Iterable[str]
-):
-    """
-    Checks that the dummy inputs from the ONNX config is a subset of the allowed inputs for `model`.
-    Args:
-        model (`Union[transformers.PreTrainedModel, transformers.TFPreTrainedModel`]):
-            The model instance.
-        model_inputs (`Iterable[str]`):
-            The model input names.
-    """
-
-    forward = model.forward if is_torch_available() and isinstance(model, nn.Module) else model.call
-    forward_parameters = signature(forward).parameters
-    forward_inputs_set = set(forward_parameters.keys())
-    dummy_input_names = set(dummy_input_names)
-
-    # We are fine if config_inputs has more keys than model_inputs
-    if not dummy_input_names.issubset(forward_inputs_set):
-        raise ValueError(
-            f"Config dummy inputs are not a subset of the model inputs: {dummy_input_names} vs {forward_inputs_set}"
-        )
 
 
 def validate_models_outputs(
@@ -259,13 +240,13 @@ def _run_validation(
 
     model_kwargs = model_kwargs if model_kwargs is not None else {}
 
-    logger.info(f"Validating ONNX model {onnx_model.as_posix()}...")
+    logger.info(f"\nValidating ONNX model {onnx_model.as_posix()}...")
 
     if atol is None:
         atol = config.ATOL_FOR_VALIDATION
 
     if "diffusers" in str(reference_model.__class__) and not is_diffusers_available():
-        raise ImportError("The pip package `diffusers` is required to validate stable diffusion ONNX models.")
+        raise ImportError("The pip package `diffusers` is required to validate diffusion ONNX models.")
 
     framework = "pt" if is_torch_available() and isinstance(reference_model, nn.Module) else "tf"
 
@@ -389,7 +370,7 @@ def _run_validation(
         logger.info(f"\t-[✓] ONNX model output names match reference model ({onnx_output_names})")
 
     if "diffusers" in str(reference_model.__class__) and not is_diffusers_available():
-        raise ImportError("The pip package `diffusers` is required to validate stable diffusion ONNX models.")
+        raise ImportError("The pip package `diffusers` is required to validate diffusion ONNX models.")
 
     # Check the shape and values match
     shape_failures = []
@@ -530,6 +511,11 @@ def export_pytorch(
     logger.info(f"Using framework PyTorch: {torch.__version__}")
     FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"
 
+    model_kwargs = model_kwargs or {}
+    # num_logits_to_keep was added in transformers 4.45 and isn't added as inputs when exporting the model
+    if is_transformers_version(">=", "4.44.99") and "num_logits_to_keep" in signature(model.forward).parameters.keys():
+        model_kwargs["num_logits_to_keep"] = 0
+
     with torch.no_grad():
         model.config.return_dict = True
         model = model.eval()
@@ -597,6 +583,7 @@ def export_pytorch(
 
         if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
             tensors_paths = _get_onnx_external_data_tensors(onnx_model)
+            constant_paths = _get_onnx_external_constants(onnx_model)
             logger.info("Saving external data to one file...")
 
             # try free model memory
@@ -622,6 +609,10 @@ def export_pytorch(
             # delete previous external data
             for tensor in tensors_paths:
                 os.remove(output.parent / tensor)
+
+            for tensor in constant_paths:
+                if os.path.isfile(output.parent / tensor):
+                    os.remove(output.parent / tensor)
 
     return input_names, output_names
 
@@ -769,6 +760,9 @@ def export_models(
         output_path = output_dir / output_name
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
+        logger.info(
+            f"\n***** Exporting submodel {i + 1}/{len(models_and_onnx_configs)}: {submodel.__class__.__name__} *****"
+        )
         outputs.append(
             export(
                 model=submodel,
@@ -851,7 +845,7 @@ def export(
         opset = config.DEFAULT_ONNX_OPSET
 
     if "diffusers" in str(model.__class__) and not is_diffusers_available():
-        raise ImportError("The pip package `diffusers` is required to export stable diffusion models to ONNX.")
+        raise ImportError("The pip package `diffusers` is required to export diffusion models to ONNX.")
 
     if not config.is_transformers_support_available:
         import transformers
@@ -862,17 +856,16 @@ def export(
         )
 
     if is_torch_available() and isinstance(model, nn.Module):
-        from ...utils import torch_version
+        from ...utils.import_utils import _torch_version
 
         if not is_torch_onnx_support_available():
             raise MinimumVersionError(
-                f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {torch_version}"
+                f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {_torch_version}"
             )
 
         if not config.is_torch_support_available:
             raise MinimumVersionError(
-                f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION},"
-                f" got: {torch.__version__}"
+                f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION}, got: {_torch_version}"
             )
 
         export_output = export_pytorch(
@@ -909,7 +902,7 @@ def export(
 
 
 def onnx_export_from_model(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"],
+    model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
     output: Union[str, Path],
     opset: Optional[int] = None,
     optimize: Optional[str] = None,
@@ -996,14 +989,14 @@ def onnx_export_from_model(
     >>> onnx_export_from_model(model, output="gpt2_onnx/")
     ```
     """
-    library_name = TasksManager._infer_library_from_model(model)
-
-    TasksManager.standardize_model_attributes(model, library_name)
+    TasksManager.standardize_model_attributes(model)
 
     if hasattr(model.config, "export_model_type"):
         model_type = model.config.export_model_type.replace("_", "-")
     else:
         model_type = model.config.model_type.replace("_", "-")
+
+    library_name = TasksManager.infer_library_from_model(model)
 
     custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE
 
@@ -1116,11 +1109,32 @@ def onnx_export_from_model(
             if isinstance(atol, dict):
                 atol = atol[task.replace("-with-past", "")]
 
+        if is_transformers_version(">=", "4.44.99"):
+            misplaced_generation_parameters = model.config._get_non_default_generation_parameters()
+            if (
+                isinstance(model, GenerationMixin)
+                and model.can_generate()
+                and len(misplaced_generation_parameters) > 0
+            ):
+                logger.warning(
+                    "Moving the following attributes in the config to the generation config: "
+                    f"{misplaced_generation_parameters}. You are seeing this warning because you've set "
+                    "generation parameters in the model config, as opposed to in the generation config.",
+                )
+                for param_name, param_value in misplaced_generation_parameters.items():
+                    setattr(model.generation_config, param_name, param_value)
+                    setattr(model.config, param_name, None)
+
         # Saving the model config and preprocessor as this is needed sometimes.
         model.config.save_pretrained(output)
         generation_config = getattr(model, "generation_config", None)
         if generation_config is not None:
-            generation_config.save_pretrained(output)
+            # since v4.41.0 an exceptions will be raised when saving a generation config considered invalid
+            # https://github.com/huggingface/transformers/blob/v4.41.0/src/transformers/generation/configuration_utils.py#L697
+            try:
+                generation_config.save_pretrained(output)
+            except Exception as exception:
+                logger.warning(f"The generation config is invalid and will not be saved : {exception}")
 
         model_name_or_path = model.config._name_or_path
         maybe_save_preprocessors(model_name_or_path, output)
@@ -1151,6 +1165,10 @@ def onnx_export_from_model(
         tokenizer_2 = getattr(model, "tokenizer_2", None)
         if tokenizer_2 is not None:
             tokenizer_2.save_pretrained(output.joinpath("tokenizer_2"))
+
+        tokenizer_3 = getattr(model, "tokenizer_3", None)
+        if tokenizer_3 is not None:
+            tokenizer_3.save_pretrained(output.joinpath("tokenizer_3"))
 
         model.save_config(output)
 
@@ -1183,7 +1201,7 @@ def onnx_export_from_model(
         optimizer.optimize(save_dir=output, optimization_config=optimization_config, file_suffix="")
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
-    # TODO: treating stable diffusion separately is quite ugly
+    # TODO: treating diffusion separately is quite ugly
     if not no_post_process and library_name != "diffusers":
         try:
             logger.info("Post-processing the exported models...")

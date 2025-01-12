@@ -8,6 +8,7 @@ on:
       - "optimum/**.py"
       - "docs/**.mdx"
       - "docs/**.yml"
+      - ".github/workflows/build_pr_documentation.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -15,7 +16,7 @@ concurrency:
 
 jobs:
   build_documentation:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.number }}
@@ -53,8 +54,15 @@ jobs:
           repository: 'huggingface/optimum-amd'
           path: optimum-amd
 
+      - uses: actions/checkout@v2
+        with:
+          repository: 'huggingface/optimum-tpu'
+          path: optimum-tpu
+
       - name: Setup environment
         run: |
+          python -m venv venv-doc
+          source venv-doc/bin/activate
           pip uninstall -y doc-builder
           cd doc-builder
           git pull origin main
@@ -91,6 +99,17 @@ jobs:
           sudo mv amd-doc-build ../optimum
           cd ..
 
+      - name: Make TPU documentation
+        run: |
+          sudo docker system prune -a -f
+          source venv-doc/bin/activate
+          cd optimum-tpu
+          pip install -U pip
+          pip install . -f https://storage.googleapis.com/libtpu-releases/index.html
+          doc-builder build optimum.tpu docs/source/ --build_dir tpu-doc-build --version pr_$PR_NUMBER --version_tag_suffix "" --html --clean
+          mv tpu-doc-build ../optimum
+          cd ..
+
       - name: Make Optimum documentation
         run: |
           sudo docker system prune -a -f
@@ -101,7 +120,7 @@ jobs:
       - name: Combine subpackage documentation
         run: |
           cd optimum
-          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron habana furiosa --version pr_$PR_NUMBER
+          sudo python docs/combine_docs.py --subpackages nvidia amd intel neuron tpu habana furiosa --version pr_$PR_NUMBER
           sudo mv optimum-doc-build ../
           cd ..
 

@@ -77,6 +77,11 @@ class NormalizedConfig:
         return True
 
 
+class NormalizedTimeSeriesForecastingConfig(NormalizedConfig):
+    NUM_INPUT_CHANNELS = "num_input_channels"
+    CONTEXT_LENGTH = "context_length"
+
+
 class NormalizedTextConfig(NormalizedConfig):
     VOCAB_SIZE = "vocab_size"
     HIDDEN_SIZE = "hidden_size"
@@ -100,6 +105,19 @@ class NormalizedVisionConfig(NormalizedConfig):
     IMAGE_SIZE = "image_size"
     NUM_CHANNELS = "num_channels"
     INPUT_SIZE = "input_size"
+
+
+class NormalizedSegformerConfig(NormalizedVisionConfig):
+    NUM_ATTENTION_HEADS = "num_attention_heads"
+    HIDDEN_SIZE = "hidden_sizes"
+
+    # If the attribute is a list, return 0
+    # 0 means let the optimizer infer the correct value based on the model graph
+    def __getattr__(self, attr_name):
+        attr_value = super().__getattr__(attr_name)
+        if isinstance(attr_value, list):
+            attr_value = 0
+        return attr_value
 
 
 class NormalizedTextAndVisionConfig(NormalizedTextConfig, NormalizedVisionConfig):
@@ -191,8 +209,10 @@ class NormalizedConfigManager:
         'data2vec-text',
         'data2vec-vision',
         'detr',
+        'dinov2',
         'flaubert',
         'groupvit',
+        'hiera',
         'ibert',
         'layoutlm',
         'layoutlmv3',
@@ -204,6 +224,7 @@ class NormalizedConfigManager:
         'perceiver',
         'roformer',
         'segformer',
+        'siglip',
         'squeezebert',
         'table-transformer',
     """
@@ -239,6 +260,7 @@ class NormalizedConfigManager:
         "llama": NormalizedTextConfigWithGQA,
         "longt5": T5LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,
+        "markuplm": NormalizedTextConfig,
         "mbart": BartLikeNormalizedTextConfig,
         "mistral": NormalizedTextConfigWithGQA,
         "mixtral": NormalizedTextConfigWithGQA,
@@ -251,10 +273,13 @@ class NormalizedConfigManager:
         "pegasus": BartLikeNormalizedTextConfig,
         "pix2struct": Pix2StructNormalizedTextConfig,
         "phi": NormalizedTextConfig,
+        "phi3": NormalizedTextConfigWithGQA,
+        "phi3small": NormalizedTextConfigWithGQA,
         "poolformer": NormalizedVisionConfig,
         "regnet": NormalizedVisionConfig,
         "resnet": NormalizedVisionConfig,
         "roberta": NormalizedTextConfig,
+        "segformer": NormalizedSegformerConfig,
         "speech-to-text": SpeechToTextLikeNormalizedTextConfig,
         "splinter": NormalizedTextConfig,
         "t5": T5LikeNormalizedTextConfig,
@@ -264,6 +289,8 @@ class NormalizedConfigManager:
         "whisper": WhisperLikeNormalizedTextConfig,
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
+        "qwen2": NormalizedTextConfig,
+        "granite": NormalizedTextConfigWithGQA,
     }
 
     @classmethod

@@ -15,8 +15,10 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 import argparse
+import warnings
 from pathlib import Path
 
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, AutoTokenizer
@@ -27,6 +29,7 @@ from ...configuration_utils import _transformers_version
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_load_preprocessors
 from ..tasks import TasksManager
+from ..utils import DisableCompileContextManager
 from .constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
 from .convert import onnx_export_from_model
 
@@ -41,7 +44,6 @@ if TYPE_CHECKING:
     from .base import OnnxConfig
 
 logger = logging.get_logger()
-logger.setLevel(logging.INFO)
 
 
 def main_export(
@@ -57,7 +59,7 @@ def main_export(
     no_post_process: bool = False,
     framework: Optional[str] = None,
     atol: Optional[float] = None,
-    cache_dir: Optional[str] = None,
+    cache_dir: str = HUGGINGFACE_HUB_CACHE,
     trust_remote_code: bool = False,
     pad_token_id: Optional[int] = None,
     subfolder: str = "",
@@ -65,6 +67,7 @@ def main_export(
     force_download: bool = False,
     local_files_only: bool = False,
     use_auth_token: Optional[Union[bool, str]] = None,
+    token: Optional[Union[bool, str]] = None,
     for_ort: bool = False,
     do_validation: bool = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
@@ -134,9 +137,11 @@ def main_export(
             cached versions if they exist.
         local_files_only (`Optional[bool]`, defaults to `False`):
             Whether or not to only look at local files (i.e., do not try to download the model).
-        use_auth_token (`Optional[str]`, defaults to `None`):
+        use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
+            Deprecated. Please use the `token` argument instead.
+        token (`Optional[Union[bool,str]]`, defaults to `None`):
             The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
-            when running `transformers-cli login` (stored in `~/.huggingface`).
+            when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_configs` argument
@@ -173,6 +178,15 @@ def main_export(
     ```
     """
 
+    if use_auth_token is not None:
+        warnings.warn(
+            "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+            FutureWarning,
+        )
+        if token is not None:
+            raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+        token = use_auth_token
+
     if fp16:
         if dtype is not None:
             raise ValueError(
@@ -207,13 +221,24 @@ def main_export(
             " and passing it is not required anymore."
         )
 
+    if task in ["stable-diffusion", "stable-diffusion-xl"]:
+        logger.warning(
+            f"The task `{task}` is deprecated and will be removed in a future release of Optimum. "
+            "Please use one of the following tasks instead: `text-to-image`, `image-to-image`, `inpainting`."
+        )
+
     original_task = task
     task = TasksManager.map_from_synonym(task)
 
-    framework = TasksManager.determine_framework(model_name_or_path, subfolder=subfolder, framework=framework)
-    library_name = TasksManager.infer_library_from_model(
-        model_name_or_path, subfolder=subfolder, library_name=library_name
-    )
+    if framework is None:
+        framework = TasksManager.determine_framework(
+            model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+        )
+
+    if library_name is None:
+        library_name = TasksManager.infer_library_from_model(
+            model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+        )
 
     torch_dtype = None
     if framework == "pt":
@@ -231,7 +256,7 @@ def main_export(
 
     if task == "auto":
         try:
-            task = TasksManager.infer_task_from_model(model_name_or_path)
+            task = TasksManager.infer_task_from_model(model_name_or_path, library_name=library_name)
         except KeyError as e:
             raise KeyError(
                 f"The task could not be automatically inferred. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
@@ -249,7 +274,7 @@ def main_export(
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,
-            use_auth_token=use_auth_token,
+            token=token,
             local_files_only=local_files_only,
             force_download=force_download,
             trust_remote_code=trust_remote_code,
@@ -276,22 +301,23 @@ def main_export(
         if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and _transformers_version >= version.parse("4.35.99"):
             loading_kwargs["attn_implementation"] = "eager"
 
-    model = TasksManager.get_model_from_task(
-        task,
-        model_name_or_path,
-        subfolder=subfolder,
-        revision=revision,
-        cache_dir=cache_dir,
-        use_auth_token=use_auth_token,
-        local_files_only=local_files_only,
-        force_download=force_download,
-        trust_remote_code=trust_remote_code,
-        framework=framework,
-        torch_dtype=torch_dtype,
-        device=device,
-        library_name=library_name,
-        **loading_kwargs,
-    )
+    with DisableCompileContextManager():
+        model = TasksManager.get_model_from_task(
+            task,
+            model_name_or_path,
+            subfolder=subfolder,
+            revision=revision,
+            cache_dir=cache_dir,
+            token=token,
+            local_files_only=local_files_only,
+            force_download=force_download,
+            trust_remote_code=trust_remote_code,
+            framework=framework,
+            torch_dtype=torch_dtype,
+            device=device,
+            library_name=library_name,
+            **loading_kwargs,
+        )
 
     needs_pad_token_id = task == "text-classification" and getattr(model.config, "pad_token_id", None) is None
 
@@ -307,9 +333,7 @@ def main_export(
                 )
             model.config.pad_token_id = pad_token_id
 
-    if "stable-diffusion" in task:
-        model_type = "stable-diffusion"
-    elif hasattr(model.config, "export_model_type"):
+    if hasattr(model.config, "export_model_type"):
         model_type = model.config.export_model_type.replace("_", "-")
     else:
         model_type = model.config.model_type.replace("_", "-")

@@ -13,21 +13,31 @@
 #  limitations under the License.
 """Utility functions, classes and constants for ONNX Runtime."""
 
+import importlib
 import os
 import re
 from enum import Enum
 from inspect import signature
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from packaging import version
+from tqdm import tqdm
+from transformers import EvalPrediction
+from transformers.trainer_pt_utils import nested_concat
+from transformers.trainer_utils import EvalLoopOutput
 from transformers.utils import logging
 
 import onnxruntime as ort
 
 from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
-from ..utils.import_utils import _is_package_available
+
+
+if TYPE_CHECKING:
+    from datasets import Dataset
+
+    from .modeling_ort import ORTModel
 
 
 logger = logging.get_logger(__name__)
@@ -81,9 +91,11 @@ def is_onnxruntime_training_available():
 
 def is_cupy_available():
     """
-    Checks if onnxruntime-training is available.
+    Checks if CuPy is available.
     """
-    return _is_package_available("cupy")
+    # Don't use _is_package_available as it doesn't work with CuPy installed
+    # with `cupy-cuda*` and `cupy-rocm-*` package name (prebuilt wheels).
+    return importlib.util.find_spec("cupy") is not None
 
 
 class ORTConfigManager:
@@ -116,6 +128,7 @@ class ORTConfigManager:
         "gpt-neo": "gpt2",
         "gpt-neox": "gpt2",
         "gptj": "gpt2",
+        "granite": "gpt2",
         # longt5 with O4 results in segmentation fault
         "longt5": "bert",
         "llama": "gpt2",
@@ -128,10 +141,12 @@ class ORTConfigManager:
         "nystromformer": "bert",
         "pegasus": "bert",
         "roberta": "bert",
+        "segformer": "vit",
         "t5": "bert",
         "vit": "vit",
         "whisper": "bart",
         "xlm-roberta": "bert",
+        "pix2struct": "vit",
     }
 
     @classmethod
@@ -163,6 +178,7 @@ class ORTConfigManager:
             "clip",
             "vit",
             "swin",
+            "swinv2",
         ]
         model_type = model_type.replace("_", "-")
         if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):
@@ -339,3 +355,68 @@ class ORTQuantizableOperator(Enum):
     Resize = "Resize"
     AveragePool = "AveragePool"
     Concat = "Concat"
+
+
+def evaluation_loop(
+    model: "ORTModel",
+    dataset: "Dataset",
+    label_names: Optional[List[str]] = None,
+    compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
+):
+    """
+    Run evaluation and returns metrics and predictions.
+
+    Args:
+        model (`ORTModel`):
+            The ONNXRuntime model to use for the evaluation step.
+        dataset (`datasets.Dataset`):
+            Dataset to use for the evaluation step.
+        label_names (`List[str]`, `optional`):
+            The list of keys in your dictionary of inputs that correspond to the labels.
+        compute_metrics (`Callable[[EvalPrediction], Dict]`, `optional`):
+            The function that will be used to compute metrics at evaluation. Must take an `EvalPrediction` and
+            return a dictionary string to metric values.
+    """
+
+    all_preds = None
+    all_labels = None
+
+    for inputs in tqdm(dataset, desc="Evaluation"):
+        has_labels = all(inputs.get(k) is not None for k in label_names)
+        if has_labels:
+            labels = tuple(np.array([inputs.get(name)]) for name in label_names)
+            if len(labels) == 1:
+                labels = labels[0]
+        else:
+            labels = None
+
+        inputs = {key: np.array([inputs[key]]) for key in model.input_names if key in inputs}
+        preds = model(**inputs)
+
+        if len(preds) == 1:
+            preds = preds[0]
+
+        all_preds = preds if all_preds is None else nested_concat(all_preds, preds, padding_index=-100)
+        all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
+
+    if compute_metrics is not None and all_preds is not None and all_labels is not None:
+        metrics = compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
+    else:
+        metrics = {}
+
+    return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=len(dataset))
+
+
+def np_to_pt_generators(np_object, device):
+    if isinstance(np_object, np.random.RandomState):
+        return torch.Generator(device=device).manual_seed(int(np_object.get_state()[1][0]))
+    elif isinstance(np_object, np.random.Generator):
+        return torch.Generator(device=device).manual_seed(int(np_object.bit_generator.state[1][0]))
+    elif isinstance(np_object, list) and isinstance(np_object[0], (np.random.RandomState, np.random.Generator)):
+        return [np_to_pt_generators(a, device) for a in np_object]
+    elif isinstance(np_object, dict) and isinstance(
+        next(iter(np_object.values())), (np.random.RandomState, np.random.Generator)
+    ):
+        return {k: np_to_pt_generators(v, device) for k, v in np_object.items()}
+    else:
+        return np_object

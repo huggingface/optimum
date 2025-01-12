@@ -18,7 +18,12 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
-from datasets import load_dataset
+
+from optimum.utils.import_utils import DATASETS_IMPORT_ERROR, is_datasets_available
+
+
+if is_datasets_available():
+    from datasets import load_dataset
 
 
 """
@@ -113,6 +118,9 @@ def collate_data(
 
 
 def get_wikitext2(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
+    if not is_datasets_available():
+        raise ImportError(DATASETS_IMPORT_ERROR.format("get_wikitext2"))
+
     if split == "train":
         data = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
     elif split == "validation":
@@ -132,6 +140,9 @@ def get_wikitext2(tokenizer: Any, seqlen: int, nsamples: int, split: str = "trai
 
 
 def get_c4(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
+    if not is_datasets_available():
+        raise ImportError(DATASETS_IMPORT_ERROR.format("get_c4"))
+
     if split == "train":
         data = load_dataset("allenai/c4", split="train", data_files={"train": "en/c4-train.00000-of-01024.json.gz"})
     elif split == "validation":
@@ -157,6 +168,9 @@ def get_c4(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
 
 
 def get_c4_new(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
+    if not is_datasets_available():
+        raise ImportError(DATASETS_IMPORT_ERROR.format("get_c4_new"))
+
     if split == "train":
         data = load_dataset("allenai/c4", split="train", data_files={"train": "en/c4-train.00000-of-01024.json.gz"})
     elif split == "validation":
@@ -182,40 +196,11 @@ def get_c4_new(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train")
 
 
 def get_ptb(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
-    if split == "train":
-        data = load_dataset("ptb_text_only", "penn_treebank", split="train")
-    elif split == "validation":
-        data = load_dataset("ptb_text_only", "penn_treebank", split="validation")
-
-    enc = tokenizer(" ".join(data["sentence"]), return_tensors="pt")
-
-    dataset = []
-    for _ in range(nsamples):
-        i = random.randint(0, enc.input_ids.shape[1] - seqlen - 1)
-        j = i + seqlen
-        inp = enc.input_ids[:, i:j]
-        attention_mask = torch.ones_like(inp)
-        dataset.append({"input_ids": inp, "attention_mask": attention_mask})
-
-    return dataset
+    raise RuntimeError("Loading the `ptb` dataset was deprecated")
 
 
 def get_ptb_new(tokenizer: Any, seqlen: int, nsamples: int, split: str = "train"):
-    if split == "train":
-        data = load_dataset("ptb_text_only", "penn_treebank", split="train")
-    elif split == "validation":
-        data = load_dataset("ptb_text_only", "penn_treebank", split="test")
-
-    enc = tokenizer(" ".join(data["sentence"]), return_tensors="pt")
-
-    dataset = []
-    for _ in range(nsamples):
-        i = random.randint(0, enc.input_ids.shape[1] - seqlen - 1)
-        j = i + seqlen
-        inp = enc.input_ids[:, i:j]
-        attention_mask = torch.ones_like(inp)
-        dataset.append({"input_ids": inp, "attention_mask": attention_mask})
-    return dataset
+    raise RuntimeError("Loading the `ptb` dataset was deprecated")
 
 
 def get_dataset(
@@ -226,7 +211,7 @@ def get_dataset(
 
     Args:
         dataset_name (`str`):
-            Dataset name. Available options are `['wikitext2', 'c4', 'ptb', 'c4-new', 'ptb_new']`.
+            Dataset name. Available options are `['wikitext2', 'c4', 'c4-new']`.
         tokenizer (`Any`):
             Tokenizer of the model
         nsamples (`int`, defaults to `128`):
@@ -247,11 +232,13 @@ def get_dataset(
         "wikitext2": get_wikitext2,
         "c4": get_c4,
         "c4-new": get_c4_new,
-        "ptb": get_ptb,
-        "ptb-new": get_ptb_new,
     }
     if split not in ["train", "validation"]:
         raise ValueError(f"The split need to be 'train' or 'validation' but found {split}")
+    if dataset_name in {"ptb", "ptb-new"}:
+        raise ValueError(
+            f"{dataset_name} dataset was deprecated, only the following dataset are supported : {list(get_dataset_map)}"
+        )
     if dataset_name not in get_dataset_map:
         raise ValueError(f"Expected a value in {list(get_dataset_map.keys())} but found {dataset_name}")
     get_dataset_fn = get_dataset_map[dataset_name]

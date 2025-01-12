@@ -39,7 +39,7 @@ torchrun --nproc_per_node=NUM_GPUS_YOU_HAVE run_image_classification.py \
     --per_device_eval_batch_size 32 \
     --logging_strategy steps \
     --logging_steps 10 \
-    --evaluation_strategy epoch \
+    --eval_strategy epoch \
     --seed 1337
 ```
 

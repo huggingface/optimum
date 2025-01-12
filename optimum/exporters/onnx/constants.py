@@ -36,5 +36,6 @@ UNPICKABLE_ARCHS = [
 
 SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED = [
     "bart",
+    "musicgen",
     "whisper",
 ]

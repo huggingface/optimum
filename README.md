@@ -14,16 +14,18 @@ python -m pip install optimum
 
 If you'd like to use the accelerator-specific features of 🤗 Optimum, you can install the required dependencies according to the table below:
 
-| Accelerator                                                                                                            | Installation                                      |
-|:-----------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------|
-| [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/overview)                                                                           | `pip install --upgrade-strategy eager optimum[onnxruntime]`       |
-| [Intel Neural Compressor](https://huggingface.co/docs/optimum/intel/index)       | `pip install --upgrade-strategy eager optimum[neural-compressor]`|
-| [OpenVINO](https://huggingface.co/docs/optimum/intel/index)                                                                 | `pip install --upgrade-strategy eager optimum[openvino,nncf]`    |
-| [AMD Instinct GPUs and Ryzen AI NPU](https://huggingface.co/docs/optimum/amd/index)                     | `pip install --upgrade-strategy eager optimum[amd]`              |
-| [Habana Gaudi Processor (HPU)](https://huggingface.co/docs/optimum/habana/index)                                                            | `pip install --upgrade-strategy eager optimum[habana]`           |
-| [FuriosaAI](https://huggingface.co/docs/optimum/furiosa/index)                                                                                   | `pip install --upgrade-strategy eager optimum[furiosa]`          |
+| Accelerator                                                                                                            | Installation                                                      |
+|:-----------------------------------------------------------------------------------------------------------------------|:------------------------------------------------------------------|
+| [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/overview)                                               | `pip install --upgrade --upgrade-strategy eager optimum[onnxruntime]`      |
+| [Intel Neural Compressor](https://huggingface.co/docs/optimum/intel/index)                                             | `pip install --upgrade --upgrade-strategy eager optimum[neural-compressor]`|
+| [OpenVINO](https://huggingface.co/docs/optimum/intel/index)                                                            | `pip install --upgrade --upgrade-strategy eager optimum[openvino]`         |
+| [NVIDIA TensorRT-LLM](https://huggingface.co/docs/optimum/main/en/nvidia_overview)                                     | `docker run -it --gpus all --ipc host huggingface/optimum-nvidia`          |
+| [AMD Instinct GPUs and Ryzen AI NPU](https://huggingface.co/docs/optimum/amd/index)                                    | `pip install --upgrade --upgrade-strategy eager optimum[amd]`              |
+| [AWS Trainum & Inferentia](https://huggingface.co/docs/optimum-neuron/index)                                           | `pip install --upgrade --upgrade-strategy eager optimum[neuronx]`          |
+| [Habana Gaudi Processor (HPU)](https://huggingface.co/docs/optimum/habana/index)                                       | `pip install --upgrade --upgrade-strategy eager optimum[habana]`           |
+| [FuriosaAI](https://huggingface.co/docs/optimum/furiosa/index)                                                         | `pip install --upgrade --upgrade-strategy eager optimum[furiosa]`          |
 
-The `--upgrade-strategy eager` option is needed to ensure the different packages are upgraded to the latest possible version.
+The `--upgrade --upgrade-strategy eager` option is needed to ensure the different packages are upgraded to the latest possible version.
 
 To install from source:
 
@@ -45,6 +47,8 @@ python -m pip install optimum[onnxruntime]@git+https://github.com/huggingface/op
 - TensorFlow Lite
 - [OpenVINO](https://huggingface.co/docs/optimum/intel/inference)
 - Habana first-gen Gaudi / Gaudi2, more details [here](https://huggingface.co/docs/optimum/main/en/habana/usage_guides/accelerate_inference)
+- AWS Inferentia 2 / Inferentia 1, more details [here](https://huggingface.co/docs/optimum-neuron/en/guides/models)
+- NVIDIA TensorRT-LLM , more details [here](https://huggingface.co/blog/optimum-nvidia)
 
 The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimizations can be done both programmatically and with a command line.
 
@@ -66,7 +70,7 @@ The [export](https://huggingface.co/docs/optimum/exporters/overview) and optimiz
 Before you begin, make sure you have all the necessary libraries installed :
 
 ```bash
-pip install --upgrade-strategy eager optimum[openvino,nncf]
+pip install --upgrade --upgrade-strategy eager optimum[openvino]
 ```
 
 It is possible to export 🤗 Transformers and Diffusers models to the OpenVINO format easily:
@@ -75,7 +79,7 @@ It is possible to export 🤗 Transformers and Diffusers models to the OpenVINO 
 optimum-cli export openvino --model distilbert-base-uncased-finetuned-sst-2-english distilbert_sst2_ov
 ```
 
-If you add `--int8`, the weights will be quantized to INT8. Static quantization can also be applied on the activations using [NNCF](https://github.com/openvinotoolkit/nncf), more information can be found in the [documentation](https://huggingface.co/docs/optimum/main/en/intel/optimization_ov).
+If you add `--weight-format int8`, the weights will be quantized to `int8`, check out our [documentation](https://huggingface.co/docs/optimum/main/intel/openvino/export) for more detail. To apply quantization on both weights and activations, you can find more information [here](https://huggingface.co/docs/optimum/main/intel/openvino/optimization#static-quantization).
 
 To load a model and run inference with OpenVINO Runtime, you can just replace your `AutoModelForXxx` class with the corresponding `OVModelForXxx` class. To load a PyTorch checkpoint and convert it to the OpenVINO format on-the-fly, you can set `export=True` when loading your model.
 
@@ -87,20 +91,20 @@ To load a model and run inference with OpenVINO Runtime, you can just replace yo
   model_id = "distilbert-base-uncased-finetuned-sst-2-english"
   tokenizer = AutoTokenizer.from_pretrained(model_id)
 - model = AutoModelForSequenceClassification.from_pretrained(model_id)
-+ model = OVModelForSequenceClassification.from_pretrained("distilbert_sst2_ov")
++ model = OVModelForSequenceClassification.from_pretrained(model_id, export=True)
 
   classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
   results = classifier("He's a dreadful magician.")
 ```
 
-You can find more examples in the [documentation](https://huggingface.co/docs/optimum/intel/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
+You can find more examples in the [documentation](https://huggingface.co/docs/optimum/main/intel/openvino/inference) and in the [examples](https://github.com/huggingface/optimum-intel/tree/main/examples/openvino).
 
 ### Neural Compressor
 
 Before you begin, make sure you have all the necessary libraries installed :
 
 ```bash
-pip install --upgrade-strategy eager optimum[neural-compressor]
+pip install --upgrade --upgrade-strategy eager optimum[neural-compressor]
 ```
 
 Dynamic quantization can be applied on your model:
@@ -190,6 +194,7 @@ optimum-cli export tflite \
 We support many providers:
 
 - Habana's Gaudi processors
+- AWS Trainium instances, check [here](https://huggingface.co/docs/optimum-neuron/en/guides/distributed_training)
 - ONNX Runtime (optimized for GPUs)
 
 ### Habana
@@ -197,7 +202,7 @@ We support many providers:
 Before you begin, make sure you have all the necessary libraries installed :
 
 ```bash
-pip install --upgrade-strategy eager optimum[habana]
+pip install --upgrade --upgrade-strategy eager optimum[habana]
 ```
 
 ```diff
@@ -263,3 +268,34 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 ```
 
 You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).
+
+
+### Quanto
+
+[Quanto](https://github.com/huggingface/optimum-quanto) is a pytorch quantization backend.
+
+You can quantize a model either using the python API or the `optimum-cli`.
+
+```python
+from transformers import AutoModelForCausalLM
+from optimum.quanto import QuantizedModelForCausalLM, qint4
+
+model = AutoModelForCausalLM.from_pretrained('meta-llama/Meta-Llama-3.1-8B')
+qmodel = QuantizedModelForCausalLM.quantize(model, weights=qint4, exclude='lm_head')
+```
+
+The quantized model can be saved using `save_pretrained`:
+
+```python
+qmodel.save_pretrained('./Llama-3.1-8B-quantized')
+```
+
+It can later be reloaded using `from_pretrained`:
+
+```python
+from optimum.quanto import QuantizedModelForCausalLM
+
+qmodel = QuantizedModelForCausalLM.from_pretrained('Llama-3.1-8B-quantized')
+```
+
+You can see more details and [examples](https://github.com/huggingface/optimum-quanto/tree/main/examples) in the [Quanto](https://github.com/huggingface/optimum-quanto) repository.

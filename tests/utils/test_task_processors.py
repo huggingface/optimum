@@ -19,15 +19,20 @@ import string
 from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
 from unittest import TestCase
 
-from datasets import DatasetDict
+import pytest
 from transformers import AutoConfig, AutoFeatureExtractor, AutoTokenizer
 
+from optimum.utils.import_utils import is_datasets_available
 from optimum.utils.preprocessing import TaskProcessorsManager
+from optimum.utils.testing_utils import require_datasets
 
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedTokenizerBase
     from transformers.image_processing_utils import BaseImageProcessor
+
+if is_datasets_available():
+    from datasets import DatasetDict
 
 
 TEXT_MODEL_NAME = "bert-base-uncased"
@@ -50,10 +55,13 @@ TASK_TO_NON_DEFAULT_DATASET = {
         "dataset_data_keys": {"question": "question", "context": "answer"},
     },
     "image-classification": {
-        "dataset_args": "mnist",
+        "dataset_args": "sasha/dog-food",
         "dataset_data_keys": {"image": "image"},
     },
 }
+
+LOAD_SMALLEST_SPLIT = True
+NUM_SAMPLES = 10
 
 
 # Taken from https://pynative.com/python-generate-random-string/
@@ -119,6 +127,8 @@ class TaskProcessorTestBase:
         )
         self.assertDictEqual(preprocessor_kwargs, clone)
 
+    @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset_unallowed_data_keys(self):
         task_processor = TaskProcessorsManager.get_task_processor_class_for_task(self.TASK_NAME)(
             self.CONFIG, self.PREPROCESSOR
@@ -148,7 +158,11 @@ class TaskProcessorTestBase:
         )
         dataset_with_all_columns = None
         if default_dataset:
-            dataset = task_processor.load_default_dataset(only_keep_necessary_columns=only_keep_necessary_columns)
+            dataset = task_processor.load_default_dataset(
+                only_keep_necessary_columns=only_keep_necessary_columns,
+                load_smallest_split=LOAD_SMALLEST_SPLIT,
+                num_samples=NUM_SAMPLES,
+            )
             if only_keep_necessary_columns:
                 dataset_with_all_columns = task_processor.load_default_dataset()
         else:
@@ -157,11 +171,17 @@ class TaskProcessorTestBase:
                 path,
                 data_keys=data_keys,
                 only_keep_necessary_columns=only_keep_necessary_columns,
+                load_smallest_split=LOAD_SMALLEST_SPLIT,
+                num_samples=NUM_SAMPLES,
                 **load_dataset_kwargs,
             )
             if only_keep_necessary_columns:
                 dataset_with_all_columns = task_processor.load_dataset(
-                    path, data_keys=data_keys, **load_dataset_kwargs
+                    path,
+                    data_keys=data_keys,
+                    load_smallest_split=LOAD_SMALLEST_SPLIT,
+                    num_samples=NUM_SAMPLES,
+                    **load_dataset_kwargs,
                 )
 
         # We only check if the column names of the dataset with the not necessary columns removed are a strict subset
@@ -175,15 +195,23 @@ class TaskProcessorTestBase:
 
         return dataset
 
+    @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset(self):
         return self._test_load_dataset(False, False, False)
 
+    @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset_by_guessing_data_keys(self):
         return self._test_load_dataset(False, True, False)
 
+    @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset_and_only_keep_necessary_columns(self):
         return self._test_load_dataset(False, False, True)
 
+    @require_datasets
+    @pytest.mark.datasets_test
     def test_load_default_dataset(self):
         return self._test_load_dataset(True, False, False)
 
@@ -194,6 +222,8 @@ class TextClassificationProcessorTest(TestCase, TaskProcessorTestBase):
     PREPROCESSOR = TOKENIZER
     WRONG_PREPROCESSOR = IMAGE_PROCESSOR
 
+    @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset_with_max_length(self):
         max_length = random.randint(4, 16)
         dataset = self._test_load_dataset(False, False, True, max_length=max_length)
@@ -210,6 +240,8 @@ class TokenClassificationProcessorTest(TestCase, TaskProcessorTestBase):
     PREPROCESSOR = TOKENIZER
     WRONG_PREPROCESSOR = IMAGE_PROCESSOR
 
+    @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset_with_max_length(self):
         max_length = random.randint(4, 16)
         dataset = self._test_load_dataset(False, False, True, max_length=max_length)
@@ -219,6 +251,13 @@ class TokenClassificationProcessorTest(TestCase, TaskProcessorTestBase):
         input_ids = dataset[0]["input_ids"]
         self.assertEqual(len(input_ids), max_length)
 
+    @require_datasets
+    @pytest.mark.datasets_test
+    def test_load_default_dataset(self):
+        self.skipTest(
+            "Skipping so as not to execute conll2003 remote code (test would require trust_remote_code=True)"
+        )
+
 
 class QuestionAnsweringProcessorTest(TestCase, TaskProcessorTestBase):
     TASK_NAME = "question-answering"
@@ -226,6 +265,8 @@ class QuestionAnsweringProcessorTest(TestCase, TaskProcessorTestBase):
     PREPROCESSOR = TOKENIZER
     WRONG_PREPROCESSOR = IMAGE_PROCESSOR
 
+    @require_datasets
+    @pytest.mark.datasets_test
     def test_load_dataset_with_max_length(self):
         max_length = 384
         dataset = self._test_load_dataset(False, False, True, max_length=max_length)

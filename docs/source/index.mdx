@@ -25,7 +25,7 @@ As such, Optimum enables developers to efficiently use any of these platforms wi
 The packages below enable you to get the best of the 🤗 Hugging Face ecosystem on various types of devices.
 
 <div class="mt-10">
-  <div class="w-full flex flex-col space-y-4 md:space-y-0 md:grid md:grid-cols-3 md:gap-y-4 md:gap-x-5">
+  <div class="w-full flex flex-col space-y-4 md:space-y-0 md:grid md:grid-cols-4 md:gap-y-4 md:gap-x-5">
     <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="https://github.com/huggingface/optimum-nvidia"
       ><div class="w-full text-center bg-gradient-to-br from-green-600 to-green-600 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">NVIDIA</div>
       <p class="text-gray-700">Accelerate inference with NVIDIA TensorRT-LLM on the <span class="underline" onclick="event.preventDefault(); window.open('https://developer.nvidia.com/blog/nvidia-tensorrt-llm-supercharges-large-language-model-inference-on-nvidia-h100-gpus/', '_blank');">NVIDIA platform</span></p>
@@ -36,11 +36,15 @@ The packages below enable you to get the best of the 🤗 Hugging Face ecosystem
     </a>
     <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./intel/index"
       ><div class="w-full text-center bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Intel</div>
-      <p class="text-gray-700">Optimize your model to speedup inference with <span class="underline" onclick="event.preventDefault(); window.open('https://docs.openvino.ai/latest/index.html', '_blank');">OpenVINO</span> and <span class="underline" onclick="event.preventDefault(); window.open('https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html', '_blank');">Neural Compressor</span></p>
+      <p class="text-gray-700">Optimize your model to speedup inference with <span class="underline" onclick="event.preventDefault(); window.open('https://docs.openvino.ai/latest/index.html', '_blank');">OpenVINO</span> , <span class="underline" onclick="event.preventDefault(); window.open('https://www.intel.com/content/www/us/en/developer/tools/oneapi/neural-compressor.html', '_blank');">Neural Compressor</span> and <span class="underline" onclick="event.preventDefault(); window.open('https://intel.github.io/intel-extension-for-pytorch/index.html', '_blank');">IPEX</span></p>
     </a>
     <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="https://huggingface.co/docs/optimum-neuron/index"
       ><div class="w-full text-center bg-gradient-to-br from-orange-400 to-orange-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">AWS Trainium/Inferentia</div>
       <p class="text-gray-700">Accelerate your training and inference workflows with <span class="underline" onclick="event.preventDefault(); window.open('https://aws.amazon.com/machine-learning/trainium/', '_blank');">AWS Trainium</span> and <span class="underline" onclick="event.preventDefault(); window.open('https://aws.amazon.com/machine-learning/inferentia/', '_blank');">AWS Inferentia</span></p>
+    </a>
+    <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="https://huggingface.co/docs/optimum-tpu/index"
+      ><div class="w-full text-center bg-gradient-to-tr from-blue-500 to-blue-600 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Google TPUs</div>
+      <p class="text-gray-700">Accelerate your training and inference workflows with <span class="underline" onclick="event.preventDefault(); window.open('https://cloud.google.com/tpu', '_blank');">Google TPUs</span></p>
     </a>
     <a class="!no-underline border dark:border-gray-700 p-5 rounded-lg shadow hover:shadow-lg" href="./habana/index"
       ><div class="w-full text-center bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-lg py-1.5 font-semibold mb-5 text-white text-lg leading-relaxed">Habana</div>
@@ -52,10 +56,6 @@ The packages below enable you to get the best of the 🤗 Hugging Face ecosystem
     </a>
   </div>
 </div>
-
-> [!TIP]
-> Some packages provide hardware-agnostic features (e.g. INC interface in Optimum Intel).
-
 
 ## Open-source integrations
 
