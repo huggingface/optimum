@@ -15,11 +15,10 @@
 
 import importlib.metadata
 import importlib.util
-import inspect
 import operator as op
 from collections import OrderedDict
 from contextlib import contextmanager
-from typing import Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 from packaging import version
@@ -37,16 +36,37 @@ ORT_QUANTIZE_MINIMUM_VERSION = version.parse("1.4.0")
 STR_OPERATION_TO_FUNC = {">": op.gt, ">=": op.ge, "==": op.eq, "!=": op.ne, "<=": op.le, "<": op.lt}
 
 
-def _is_package_available(pkg_name: str, return_version: bool = False) -> Union[Tuple[bool, str], bool]:
-    # Check we're not importing a "pkg_name" directory somewhere but the actual library by trying to grab the version
+def _is_package_available(
+    pkg_name: str,
+    return_version: bool = False,
+    alternative_pkg_names: Optional[List[str]] = None,
+) -> Union[Tuple[bool, str], bool]:
+    """
+    Check if a package is available in the current environment and not just an importable module by checking its version.
+    Optionally return the version of the package.
+
+    Args:
+        pkg_name (str): The name of the package to check.
+        return_version (bool): Whether to return the version of the package.
+        alternative_pkg_names (Optional[List[str]]): A list of alternative package names to check if the main package
+            name is not found.
+
+    Returns:
+        Union[Tuple[bool, str], bool]: A tuple of the package availability and the version of the package if `return_version` is `True`.
+    """
+
     package_exists = importlib.util.find_spec(pkg_name) is not None
     package_version = "N/A"
     if package_exists:
-        try:
-            package_version = importlib.metadata.version(pkg_name)
-            package_exists = True
-        except importlib.metadata.PackageNotFoundError:
-            package_exists = False
+        for candidate_pkg in [pkg_name] + (alternative_pkg_names or []):
+            try:
+                package_version = importlib.metadata.version(pkg)
+                package_exists = True
+                break
+            except importlib.metadata.PackageNotFoundError:
+                package_exists = False
+                pass
+
     if return_version:
         return package_exists, package_version
     else:
@@ -64,12 +84,9 @@ _datasets_available = _is_package_available("datasets")
 _diffusers_available, _diffusers_version = _is_package_available("diffusers", return_version=True)
 _transformers_available, _transformers_version = _is_package_available("transformers", return_version=True)
 _torch_available, _torch_version = _is_package_available("torch", return_version=True)
-
-# importlib.metadata.version seem to not be robust with the ONNX Runtime extensions (`onnxruntime-gpu`, etc.)
-_onnxruntime_available = _is_package_available("onnxruntime", return_version=False)
-
-# TODO : Remove
-torch_version = version.parse(importlib.metadata.version("torch")) if _torch_available else None
+_onnxruntime_available, _onnxruntime_version = _is_package_available(
+    "onnxruntime", return_version=True, alternative_pkg_names=["onnxruntime-gpu", "onnxruntime-training"]
+)
 
 
 # Note: _is_package_available("tensorflow") fails for tensorflow-cpu. Please test any changes to the line below
@@ -168,14 +185,6 @@ def is_onnx_available():
 
 
 def is_onnxruntime_available():
-    try:
-        # Try to import the source file of onnxruntime - if you run the tests from `tests` the function gets
-        # confused since there a folder named `onnxruntime` in `tests`. Therefore, `_onnxruntime_available`
-        # will be set to `True` even if not installed.
-        mod = importlib.import_module("onnxruntime")
-        inspect.getsourcefile(mod)
-    except Exception:
-        return False
     return _onnxruntime_available
 
 
