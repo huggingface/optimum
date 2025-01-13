@@ -31,7 +31,7 @@ jobs:
       group: aws-g6-4xlarge-plus
 
     container:
-      image: nvcr.io/nvidia/tensorrt:23.12-py3
+      image: nvcr.io/nvidia/tensorrt:24.12-py3
       options: --gpus all
 
     steps:
