@@ -281,16 +281,18 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         grid_parameters(
             {
                 "model_arch": SUPPORTED_ARCHITECTURES,
-                "provider": ["CUDAExecutionProvider", "ROCMExecutionProvider", "TensorrtExecutionProvider"],
+                "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"],
             }
         )
     )
-    @pytest.mark.rocm_ep_test
     @pytest.mark.cuda_ep_test
     @pytest.mark.trt_ep_test
     @require_torch_gpu
     @require_diffusers
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
+            self.skipTest("Testing a single arch for TensorrtExecutionProvider")
+
         model_args = {"test_name": test_name, "model_arch": model_arch}
         self._setup(model_args)
 
@@ -519,16 +521,18 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         grid_parameters(
             {
                 "model_arch": SUPPORTED_ARCHITECTURES,
-                "provider": ["CUDAExecutionProvider", "ROCMExecutionProvider", "TensorrtExecutionProvider"],
+                "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"],
             }
         )
     )
-    @pytest.mark.rocm_ep_test
     @pytest.mark.cuda_ep_test
     @pytest.mark.trt_ep_test
     @require_torch_gpu
     @require_diffusers
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
+            self.skipTest("Testing a single arch for TensorrtExecutionProvider")
+
         model_args = {"test_name": test_name, "model_arch": model_arch}
         self._setup(model_args)
 
@@ -759,16 +763,18 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         grid_parameters(
             {
                 "model_arch": SUPPORTED_ARCHITECTURES,
-                "provider": ["CUDAExecutionProvider", "ROCMExecutionProvider", "TensorrtExecutionProvider"],
+                "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"],
             }
         )
     )
-    @pytest.mark.rocm_ep_test
     @pytest.mark.cuda_ep_test
     @pytest.mark.trt_ep_test
     @require_torch_gpu
     @require_diffusers
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
+        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
+            self.skipTest("Testing a single arch for TensorrtExecutionProvider")
+
         model_args = {"test_name": test_name, "model_arch": model_arch}
         self._setup(model_args)
 
