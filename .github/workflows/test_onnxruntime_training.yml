@@ -53,7 +53,14 @@ jobs:
           pip install --no-cache-dir evaluate absl-py rouge_score seqeval sacrebleu nltk scikit-learn
           pip install .[tests,onnxruntime-training]
 
-      - name: Test with pytest
+      - name: Test with pytest (trainer)
         run: |
-          RUN_SLOW=1 pytest tests/onnxruntime/training/nightly_test_trainer.py --durations=0 -s -vvvv
-          RUN_SLOW=1 pytest tests/onnxruntime/training/nightly_test_examples.py --durations=0 -s -vvvv
+          RUN_SLOW=1 pytest tests/onnxruntime/training/test_trainer.py --durations=0 -s -vvvv
+        env:
+          HF_DATASETS_TRUST_REMOTE_CODE: 1
+
+      - name: Test with pytest (examples)
+        run: |
+          RUN_SLOW=1 pytest tests/onnxruntime/training/test_examples.py --durations=0 -s -vvvv
+        env:
+          HF_DATASETS_TRUST_REMOTE_CODE: 1
