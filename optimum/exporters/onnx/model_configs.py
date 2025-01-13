@@ -183,8 +183,9 @@ class DistilBertOnnxConfig(BertOnnxConfig):
         return {"input_ids": dynamic_axis, "attention_mask": dynamic_axis}
 
 
-class ModernBertOnnxConfig(DistilBertOnnxConfig):
-    pass
+# TODO: uncomment when transformers>=4.48.0
+# class ModernBertOnnxConfig(DistilBertOnnxConfig):
+#     pass
 
 
 class MPNetOnnxConfig(DistilBertOnnxConfig):

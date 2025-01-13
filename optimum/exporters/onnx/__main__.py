@@ -256,7 +256,7 @@ def main_export(
 
     if task == "auto":
         try:
-            task = TasksManager.infer_task_from_model(model_name_or_path)
+            task = TasksManager.infer_task_from_model(model_name_or_path, library_name=library_name)
         except KeyError as e:
             raise KeyError(
                 f"The task could not be automatically inferred. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
