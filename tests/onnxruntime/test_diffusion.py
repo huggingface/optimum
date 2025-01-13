@@ -54,6 +54,7 @@ def _generate_prompts(batch_size=1):
         "guidance_scale": 7.5,
         "output_type": "np",
     }
+
     return inputs
 
 
@@ -105,8 +106,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     def generate_inputs(self, height=128, width=128, batch_size=1):
         inputs = _generate_prompts(batch_size=batch_size)
 
-        inputs["height"] = height
-        inputs["width"] = width
+        inputs["height"], inputs["width"] = height, width
 
         return inputs
 
@@ -224,17 +224,19 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             elif output_type == "pt":
                 self.assertEqual(outputs.shape, (batch_size, 3, height, width))
             else:
-                expected_height = height // pipeline.vae_scale_factor
-                expected_width = width // pipeline.vae_scale_factor
-
                 if model_arch == "flux":
+                    expected_height = height // (pipeline.vae_scale_factor * 2)
+                    expected_width = width // (pipeline.vae_scale_factor * 2)
                     channels = pipeline.transformer.config.in_channels
                     expected_shape = (batch_size, expected_height * expected_width, channels)
-                elif model_arch == "stable-diffusion-3":
-                    out_channels = pipeline.transformer.config.out_channels
-                    expected_shape = (batch_size, out_channels, expected_height, expected_width)
                 else:
-                    out_channels = pipeline.unet.config.out_channels
+                    expected_height = height // pipeline.vae_scale_factor
+                    expected_width = width // pipeline.vae_scale_factor
+                    out_channels = (
+                        pipeline.unet.config.out_channels
+                        if getattr(pipeline, "unet", None) is not None
+                        else pipeline.transformer.config.out_channels
+                    )
                     expected_shape = (batch_size, out_channels, expected_height, expected_width)
 
                 self.assertEqual(outputs.shape, expected_shape)
@@ -363,6 +365,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             height=height, width=width, batch_size=batch_size, channel=channel, input_type=input_type
         )
 
+        inputs["height"], inputs["width"] = height, width
         inputs["strength"] = 0.75
 
         return inputs
@@ -602,9 +605,8 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
             height=height, width=width, batch_size=batch_size, channel=1, input_type=input_type
         )
 
+        inputs["height"], inputs["width"] = height, width
         inputs["strength"] = 0.75
-        inputs["height"] = height
-        inputs["width"] = width
 
         return inputs
 
