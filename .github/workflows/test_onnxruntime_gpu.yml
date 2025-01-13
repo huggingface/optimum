@@ -31,7 +31,7 @@ jobs:
       group: aws-g6-4xlarge-plus
 
     container:
-      image: nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+      image: nvcr.io/nvidia/tensorrt:23.12-py3
       options: --gpus all
 
     steps:
@@ -47,7 +47,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-          pip install .[tests,onnxruntime-gpu]
+          pip install .[tests,onnxruntime-gpu,diffusers]
 
       - name: Replace opencv-python with opencv-python-headless
         run: |
@@ -55,4 +55,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/onnxruntime -m "cuda_ep_test" --durations=0 -vvvv -s -n auto
+          pytest tests/onnxruntime -m "cuda_ep_test or trt_ep_test" --durations=0 -vvvv -s -n auto
