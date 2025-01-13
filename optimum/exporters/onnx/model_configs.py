@@ -185,7 +185,6 @@ class DistilBertOnnxConfig(BertOnnxConfig):
 
 class ModernBertOnnxConfig(DistilBertOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.48.0")
-    pass
 
 
 class MPNetOnnxConfig(DistilBertOnnxConfig):
