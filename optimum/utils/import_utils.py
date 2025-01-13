@@ -39,7 +39,7 @@ STR_OPERATION_TO_FUNC = {">": op.gt, ">=": op.ge, "==": op.eq, "!=": op.ne, "<="
 def _is_package_available(
     pkg_name: str,
     return_version: bool = False,
-    alternative_pkg_names: Optional[List[str]] = None,
+    alt_pkg_names: Optional[List[str]] = None,
 ) -> Union[Tuple[bool, str], bool]:
     """
     Check if a package is available in the current environment and not just an importable module by checking its version.
@@ -48,7 +48,7 @@ def _is_package_available(
     Args:
         pkg_name (str): The name of the package to check.
         return_version (bool): Whether to return the version of the package.
-        alternative_pkg_names (Optional[List[str]]): A list of alternative package names to check if the main package
+        alt_pkg_names (Optional[List[str]]): A list of alternative package names to check if the main package
             name is not found.
 
     Returns:
@@ -58,7 +58,7 @@ def _is_package_available(
     package_exists = importlib.util.find_spec(pkg_name) is not None
     package_version = "N/A"
     if package_exists:
-        for candidate_pkg in [pkg_name] + (alternative_pkg_names or []):
+        for pkg in [pkg_name] + (alt_pkg_names or []):
             try:
                 package_version = importlib.metadata.version(pkg)
                 package_exists = True
