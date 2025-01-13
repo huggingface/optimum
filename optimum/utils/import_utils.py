@@ -85,7 +85,7 @@ _diffusers_available, _diffusers_version = _is_package_available("diffusers", re
 _transformers_available, _transformers_version = _is_package_available("transformers", return_version=True)
 _torch_available, _torch_version = _is_package_available("torch", return_version=True)
 _onnxruntime_available, _onnxruntime_version = _is_package_available(
-    "onnxruntime", return_version=True, alternative_pkg_names=["onnxruntime-gpu", "onnxruntime-training"]
+    "onnxruntime", return_version=True, alt_pkg_names=["onnxruntime-gpu", "onnxruntime-training"]
 )
 
 
