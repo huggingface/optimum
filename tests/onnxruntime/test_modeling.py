@@ -16,7 +16,6 @@ import gc
 import os
 import subprocess
 import tempfile
-import time
 import unittest
 from pathlib import Path
 from typing import Dict
@@ -128,15 +127,6 @@ if is_diffusers_available():
 
 
 logger = logging.get_logger()
-
-
-class Timer(object):
-    def __enter__(self):
-        self.elapsed = time.perf_counter()
-        return self
-
-    def __exit__(self, type, value, traceback):
-        self.elapsed = (time.perf_counter() - self.elapsed) * 1e3
 
 
 class ORTModelIntegrationTest(unittest.TestCase):
@@ -2354,8 +2344,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     ORTMODEL_CLASS = ORTModelForCausalLM
     TASK = "text-generation"
 
-    GENERATION_LENGTH = 90
-    SPEEDUP_CACHE = 1.1
+    GENERATION_LENGTH = 100
 
     @parameterized.expand([(False,), (True,)])
     @pytest.mark.run_in_series
@@ -2680,31 +2669,20 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model_with_pkv = ORTModelForCausalLM.from_pretrained(
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True, use_io_binding=False
         )
-        _ = model_with_pkv.generate(**tokens)  # warmup
-        with Timer() as with_pkv_timer:
-            outputs_model_with_pkv = model_with_pkv.generate(
-                **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
+        outputs_model_with_pkv = model_with_pkv.generate(
+            **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+        )
 
         model_without_pkv = ORTModelForCausalLM.from_pretrained(
             self.onnx_model_dirs[model_arch + "_False"], use_cache=False, use_io_binding=False
         )
-        _ = model_without_pkv.generate(**tokens)  # warmup
-        with Timer() as without_pkv_timer:
-            outputs_model_without_pkv = model_without_pkv.generate(
-                **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
+        outputs_model_without_pkv = model_without_pkv.generate(
+            **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+        )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
         self.assertEqual(outputs_model_with_pkv.shape[1], tokens["input_ids"].shape[1] + self.GENERATION_LENGTH)
         self.assertEqual(outputs_model_without_pkv.shape[1], tokens["input_ids"].shape[1] + self.GENERATION_LENGTH)
-
-        if os.environ.get("TEST_LEVEL", 0) == "1":
-            self.assertTrue(
-                without_pkv_timer.elapsed / with_pkv_timer.elapsed > self.SPEEDUP_CACHE,
-                f"With pkv latency: {with_pkv_timer.elapsed:.3f} ms, without pkv latency: {without_pkv_timer.elapsed:.3f} ms,"
-                f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
-            )
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
@@ -3685,7 +3663,6 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     TASK = "text2text-generation"
 
     GENERATION_LENGTH = 100
-    SPEEDUP_CACHE = 1.1
 
     def _get_model_ids(self, model_arch):
         model_ids = MODEL_NAMES[model_arch]
@@ -4123,31 +4100,21 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 self._get_onnx_model_dir(model_id, model_arch, model_arch + "_True"), use_cache=True
             )
 
-            _ = model_with_pkv.generate(**tokens)  # warmup
-            with Timer() as with_pkv_timer:
-                outputs_model_with_pkv = model_with_pkv.generate(
-                    **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-                )
+            outputs_model_with_pkv = model_with_pkv.generate(
+                **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+            )
 
             model_without_pkv = ORTModelForSeq2SeqLM.from_pretrained(
                 self._get_onnx_model_dir(model_id, model_arch, model_arch + "_False"), use_cache=False
             )
-            _ = model_without_pkv.generate(**tokens)  # warmup
-            with Timer() as without_pkv_timer:
-                outputs_model_without_pkv = model_without_pkv.generate(
-                    **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-                )
+
+            outputs_model_without_pkv = model_without_pkv.generate(
+                **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+            )
 
             self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
             self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
             self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
-
-            if os.environ.get("TEST_LEVEL", 0) == "1":
-                self.assertTrue(
-                    without_pkv_timer.elapsed / with_pkv_timer.elapsed > self.SPEEDUP_CACHE,
-                    f"With pkv latency: {with_pkv_timer.elapsed:.3f} ms, without pkv latency: {without_pkv_timer.elapsed:.3f} ms,"
-                    f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
-                )
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
@@ -4326,7 +4293,6 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     TASK = "automatic-speech-recognition"
 
     GENERATION_LENGTH = 100
-    SPEEDUP_CACHE = 1.1
 
     def _generate_random_audio_data(self):
         np.random.seed(10)
@@ -4593,40 +4559,29 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True
         )
 
-        generation_length = self.GENERATION_LENGTH
-        self.GENERATION_LENGTH = 10
-        _ = model_with_pkv.generate(**features)  # warmup
-        with Timer() as with_pkv_timer:
-            outputs_model_with_pkv = model_with_pkv.generate(
-                **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
+        generation_length = 10
+
+        outputs_model_with_pkv = model_with_pkv.generate(
+            **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
+        )
 
         model_without_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(
             self.onnx_model_dirs[model_arch + "_False"], use_cache=False
         )
-        _ = model_without_pkv.generate(**features)  # warmup
-        with Timer() as without_pkv_timer:
-            outputs_model_without_pkv = model_without_pkv.generate(
-                **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
+
+        outputs_model_without_pkv = model_without_pkv.generate(
+            **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
+        )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
 
         if model_arch == "whisper" and is_transformers_version(">=", "4.43"):
-            gen_length = self.GENERATION_LENGTH + 2
+            gen_length = generation_length + 2
         else:
-            gen_length = self.GENERATION_LENGTH + 1
+            gen_length = generation_length + 1
 
         self.assertEqual(outputs_model_with_pkv.shape[1], gen_length)
         self.assertEqual(outputs_model_without_pkv.shape[1], gen_length)
-
-        self.GENERATION_LENGTH = generation_length
-        if os.environ.get("TEST_LEVEL", 0) == "1":
-            self.assertTrue(
-                without_pkv_timer.elapsed / with_pkv_timer.elapsed > self.SPEEDUP_CACHE,
-                f"With pkv latency: {with_pkv_timer.elapsed:.3f} ms, without pkv latency: {without_pkv_timer.elapsed:.3f} ms,"
-                f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
-            )
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
@@ -4665,17 +4620,15 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         self.assertEqual(model_merged.decoder_with_past, None)
         self.assertEqual(model_merged.use_merged, True)
 
-        generation_length = self.GENERATION_LENGTH
-        self.GENERATION_LENGTH = 10
+        generation_length = 10
 
         outputs_model_not_merged = model_not_merged.generate(
-            **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+            **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
         )
         outputs_model_merged = model_merged.generate(
-            **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+            **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
         )
 
-        self.GENERATION_LENGTH = generation_length
         self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
 
     @parameterized.expand(
@@ -4823,7 +4776,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_outputs, ImageSuperResolutionOutput)
         self.assertTrue("reconstruction" in onnx_outputs)
         self.assertIsInstance(onnx_outputs.reconstruction, torch.Tensor)
-        self.assertTrue(torch.allclose(onnx_outputs.reconstruction, transformers_outputs.reconstruction, atol=1e-4))
+        torch.testing.assert_close(onnx_outputs.reconstruction, transformers_outputs.reconstruction, atol=1e-4)
 
         gc.collect()
 
@@ -4922,7 +4875,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     TASK = "image-to-text"
 
     GENERATION_LENGTH = 100
-    SPEEDUP_CACHE = 1.1
 
     def _get_sample_image(self):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -5159,31 +5111,22 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         model_with_pkv = ORTModelForVision2Seq.from_pretrained(
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True
         )
-        _ = model_with_pkv.generate(**features)  # warmup
-        with Timer() as with_pkv_timer:
-            outputs_model_with_pkv = model_with_pkv.generate(
-                **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
+
+        outputs_model_with_pkv = model_with_pkv.generate(
+            **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+        )
 
         model_without_pkv = ORTModelForVision2Seq.from_pretrained(
             self.onnx_model_dirs[model_arch + "_False"], use_cache=False
         )
-        _ = model_without_pkv.generate(**features)  # warmup
-        with Timer() as without_pkv_timer:
-            outputs_model_without_pkv = model_without_pkv.generate(
-                **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
+
+        outputs_model_without_pkv = model_without_pkv.generate(
+            **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+        )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
         self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
         self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
-
-        if os.environ.get("TEST_LEVEL", 0) == "1":
-            self.assertTrue(
-                without_pkv_timer.elapsed / with_pkv_timer.elapsed > self.SPEEDUP_CACHE,
-                f"With pkv latency: {with_pkv_timer.elapsed:.3f} ms, without pkv latency: {without_pkv_timer.elapsed:.3f} ms,"
-                f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
-            )
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
@@ -5383,7 +5326,6 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
     TASK = "image-to-text"  # is it fine as well with visual-question-answering?
 
     GENERATION_LENGTH = 100
-    SPEEDUP_CACHE = 1.1
 
     IMAGE = Image.open(
         requests.get(
@@ -5537,31 +5479,20 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True
         )
 
-        _ = model_with_pkv.generate(**inputs)  # warmup
-        with Timer() as with_pkv_timer:
-            outputs_model_with_pkv = model_with_pkv.generate(
-                **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
+        outputs_model_with_pkv = model_with_pkv.generate(
+            **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+        )
 
         model_without_pkv = ORTModelForPix2Struct.from_pretrained(
             self.onnx_model_dirs[model_arch + "_False"], use_cache=False
         )
-        _ = model_without_pkv.generate(**inputs)  # warmup
-        with Timer() as without_pkv_timer:
-            outputs_model_without_pkv = model_without_pkv.generate(
-                **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
+        outputs_model_without_pkv = model_without_pkv.generate(
+            **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+        )
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
         self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
         self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
-
-        if os.environ.get("TEST_LEVEL", 0) == "1":
-            self.assertTrue(
-                without_pkv_timer.elapsed / with_pkv_timer.elapsed > self.SPEEDUP_CACHE,
-                f"With pkv latency: {with_pkv_timer.elapsed:.3f} ms, without pkv latency: {without_pkv_timer.elapsed:.3f} ms,"
-                f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
-            )
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):

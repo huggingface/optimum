@@ -49,10 +49,6 @@ jobs:
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
           pip install .[tests,onnxruntime-gpu,diffusers]
 
-      - name: Replace opencv-python with opencv-python-headless
-        run: |
-          pip uninstall -y opencv-python && pip install opencv-python-headless
-
       - name: Test with pytest
         run: |
           pytest tests/onnxruntime -m "cuda_ep_test or trt_ep_test" --durations=0 -vvvv -s -n auto
