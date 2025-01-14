@@ -1097,7 +1097,6 @@ class ORTTrainer(Trainer):
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Saving model checkpoint to {output_dir}")
 
-        from torch_ort import ORTModule
 
         supported_classes = (PreTrainedModel,)
         # Save a trained model and configuration using `save_pretrained()`.
