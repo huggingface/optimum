@@ -182,6 +182,9 @@ class ORTModelTestMixin(unittest.TestCase):
         "np": np.ndarray,
     }
 
+    ATOL = 1e-4
+    RTOL = 1e-4
+
     TASK = None
 
     ORTMODEL_CLASS = None
