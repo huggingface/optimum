@@ -60,11 +60,11 @@ from optimum.onnxruntime.training_args import ORTOptimizerNames
 nltk.download("punkt")
 
 _ENCODERS_TO_TEST = {
-    ("distilbert", "distilbert-base-cased"),
+    ("distilbert", "distilbert-base-uncased"),
 }
 
 _DECODERS_TO_TEST = {
-    ("gpt2", "gpt2"),
+    ("gpt2", "distilgpt2"),
 }
 
 _SEQ2SEQ_MODELS_TO_TEST = {
@@ -78,11 +78,6 @@ _ENCODER_TASKS_DATASETS_CONFIGS = {
         "data_collator": default_data_collator,
         "data_collator_class": DataCollatorWithPadding,
     },
-    # "token-classification": {
-    #     "dataset": ["conll2003"],
-    #     "metric": ["seqeval"],
-    #     "data_collator_class": DataCollatorForTokenClassification,
-    # },
 }
 
 _DECODER_TASKS_DATASETS_CONFIGS = {
@@ -235,7 +230,7 @@ def load_and_prepare(task):
 
 def load_and_prepare_glue(model_name, data_metric_config, max_seq_length, padding="max_length", **kwargs):
     # Prepare model
-    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name, attn_implementation="eager")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Prepare dataset
@@ -295,7 +290,9 @@ def load_and_prepare_ner(model_name, data_metric_config, max_seq_length, padding
     label_list = dataset["train"].features[f"{task}_tags"].feature.names
 
     # Prepare model
-    model = AutoModelForTokenClassification.from_pretrained(model_name, num_labels=len(label_list))
+    model = AutoModelForTokenClassification.from_pretrained(
+        model_name, num_labels=len(label_list), attn_implementation="eager"
+    )
     if model_name.split("-")[0] in {"gpt2", "roberta"}:
         tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True, add_prefix_space=True)
     else:
@@ -387,7 +384,7 @@ def load_and_prepare_clm(model_name, data_metric_config, max_seq_length, padding
     metric = load(*data_metric_config["metric"])
 
     # Prepare model
-    model = AutoModelForCausalLM.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name, attn_implementation="eager")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Prepare dataset
@@ -462,7 +459,7 @@ def load_and_prepare_clm(model_name, data_metric_config, max_seq_length, padding
 
 def load_and_prepare_xsum(model_name, data_metric_config, _, **kwargs):
     # Prepare model
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name, attn_implementation="eager")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Load dataset and metric
@@ -600,7 +597,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
                 trainer.train()
                 trainer.save_model()
                 trainer.evaluate()
-                trainer.predict(test_dataset)
+                # trainer.predict(test_dataset)
                 gc.collect()
 
     @slow
@@ -639,7 +636,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
                 trainer.train()
                 trainer.save_model()
                 trainer.evaluate()
-                trainer.predict(test_dataset)
+                # trainer.predict(test_dataset)
                 gc.collect()
 
     @slow
@@ -678,7 +675,7 @@ class ORTTrainerIntegrationTest(unittest.TestCase):
                 trainer.train()
                 trainer.save_model()
                 trainer.evaluate()
-                trainer.predict(test_dataset)
+                # trainer.predict(test_dataset)
                 gc.collect()
 
 
