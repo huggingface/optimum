@@ -233,6 +233,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 input_ids, past_key_values, use_torch
             )
 
+        # Create position_ids on the fly for batch generation
+        if attention_mask is not None and position_ids is None and "position_ids" in self.input_names:
+            position_ids = attention_mask.long().cumsum(-1) - 1
+            position_ids.masked_fill_(attention_mask == 0, 1)
+            if past_key_values:
+                position_ids = position_ids[:, -1].unsqueeze(-1)
+
         if self.use_io_binding:
             # TODO: fix transformers generate to have contiguous input_ids here already
             # For an unknown reason, calling `contiguous()` here is necessary to not have errors
@@ -244,8 +251,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 model_inputs.append(attention_mask)
 
             if "position_ids" in self.input_names:
-                if position_ids is None:
-                    raise ValueError("position_ids was not passed but is a required input for this ONNX model.")
                 model_inputs.append(position_ids.contiguous())
 
             if past_key_values is not None:
