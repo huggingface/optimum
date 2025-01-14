@@ -1667,6 +1667,17 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
                 "pixel_values": dynamic_axis,
             }
 
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        outputs = super().outputs
+
+        if "logits" in outputs:
+            # default is {0: "batch_size", 1: "sequence_length"} where sequence_length is dynamic axis
+            # but perceiver always return the same max sequence length in the second dimension
+            outputs["logits"] = {0: "batch_size"}
+
+        return outputs
+
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         self.is_generating_dummy_inputs = True
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
@@ -2308,9 +2319,9 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
             # for Speech2text, we need to name the second axis as
             # encoder_sequence_length / 2 * self._config.num_conv_layers as the axis name is
             # used for dummy input generation
-            common_outputs["last_hidden_state"][
-                1
-            ] = f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
+            common_outputs["last_hidden_state"][1] = (
+                f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
+            )
         return common_outputs
 
 
