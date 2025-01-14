@@ -935,6 +935,9 @@ class ORTModel(OptimizedModel):
         for input_name in self.input_names.keys():
             onnx_inputs[input_name] = inputs.pop(input_name)
 
+            if onnx_inputs[input_name] is None:
+                raise ValueError(f"Input {input_name} is required by model but not provided.")
+
             if use_torch:
                 onnx_inputs[input_name] = onnx_inputs[input_name].numpy(force=True)
 
