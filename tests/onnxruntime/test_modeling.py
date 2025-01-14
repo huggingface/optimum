@@ -128,13 +128,16 @@ if is_diffusers_available():
 
 logger = logging.get_logger()
 
+ATOL = 1e-4
+RTOL = 1e-4
+
 
 class ORTModelIntegrationTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.TEST_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
         self.LOCAL_MODEL_PATH = "tests/assets/onnx"
         self.ONNX_MODEL_ID = "philschmid/distilbert-onnx"
+
         self.TINY_ONNX_MODEL_ID = "fxmarty/resnet-tiny-beans"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
         self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
@@ -764,7 +767,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1"
         )
 
-    # test string device input for to()
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_seq2seq_model_on_gpu_str(self):
@@ -1255,9 +1257,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         ort_logits = ort_model(**inputs).logits
 
-        self.assertTrue(
-            torch.allclose(pt_logits, ort_logits, atol=1e-4), f" Maxdiff: {torch.abs(pt_logits - ort_logits).max()}"
-        )
+        torch.testing.assert_close(pt_logits, ort_logits, atol=ATOL, rtol=RTOL)
 
     @parameterized.expand(("", "onnx"))
     def test_loading_with_config_not_from_subfolder(self, subfolder):
@@ -1344,11 +1344,11 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.end_logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # Compare tensor outputs
-            self.assertTrue(
-                torch.allclose(torch.Tensor(onnx_outputs.start_logits), transformers_outputs.start_logits, atol=1e-4)
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.start_logits), transformers_outputs.start_logits, atol=ATOL, rtol=RTOL
             )
-            self.assertTrue(
-                torch.allclose(torch.Tensor(onnx_outputs.end_logits), transformers_outputs.end_logits, atol=1e-4)
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.end_logits), transformers_outputs.end_logits, atol=ATOL, rtol=RTOL
             )
 
         gc.collect()
@@ -1465,8 +1465,10 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.end_logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.start_logits, io_outputs.start_logits))
-        self.assertTrue(torch.equal(onnx_outputs.end_logits, io_outputs.end_logits))
+        torch.testing.assert_close(
+            torch.Tensor(io_outputs.start_logits), onnx_outputs.start_logits, atol=ATOL, rtol=RTOL
+        )
+        torch.testing.assert_close(torch.Tensor(io_outputs.end_logits), onnx_outputs.end_logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -1534,7 +1536,9 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=ATOL, rtol=RTOL
+            )
 
         gc.collect()
 
@@ -1637,7 +1641,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(torch.Tensor(io_outputs.logits), onnx_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -1715,7 +1719,9 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=ATOL, rtol=RTOL
+            )
 
         gc.collect()
 
@@ -1845,7 +1851,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -1916,7 +1922,9 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=ATOL, rtol=RTOL
+            )
 
         gc.collect()
 
@@ -2025,7 +2033,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -2073,10 +2081,11 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.last_hidden_state, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(
-                torch.allclose(
-                    torch.Tensor(onnx_outputs.last_hidden_state), transformers_outputs.last_hidden_state, atol=1e-4
-                )
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.last_hidden_state),
+                transformers_outputs.last_hidden_state,
+                atol=ATOL,
+                rtol=RTOL,
             )
 
         gc.collect()
@@ -2183,7 +2192,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.last_hidden_state, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.last_hidden_state, io_outputs.last_hidden_state))
+        torch.testing.assert_close(onnx_outputs.last_hidden_state, io_outputs.last_hidden_state, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -2196,7 +2205,9 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         token_type_ids = tokens.pop("token_type_ids")
         outs = model(token_type_ids=token_type_ids, **tokens)
         outs_without_token_type_ids = model(**tokens)
-        self.assertTrue(np.allclose(outs.last_hidden_state, outs_without_token_type_ids.last_hidden_state))
+        torch.testing.assert_close(
+            outs.last_hidden_state, outs_without_token_type_ids.last_hidden_state, atol=ATOL, rtol=RTOL
+        )
         gc.collect()
 
 
@@ -2264,7 +2275,9 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # Compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=ATOL, rtol=RTOL
+            )
 
         gc.collect()
 
@@ -2303,7 +2316,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(io_outputs.logits, onnx_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -2460,10 +2473,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(
-            torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4),
-            f"Maxdiff: {(onnx_outputs.logits - transformers_outputs.logits).abs()}",
-        )
+        torch.testing.assert_close(onnx_outputs.logits, transformers_outputs.logits, atol=ATOL, rtol=RTOL)
 
         # Compare batched generation.
         tokenizer.pad_token_id = tokenizer.eos_token_id
@@ -2505,13 +2515,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             set_seed(SEED)
             with torch.no_grad():
                 transformers_outputs = transformers_model.generate(**tokens, generation_config=gen_config)
+
             set_seed(SEED)
             onnx_outputs = onnx_model.generate(**tokens, generation_config=gen_config)
 
-            self.assertTrue(
-                torch.equal(onnx_outputs, transformers_outputs),
-                f"Failed with generation config : {gen_config}, transformers outputs {transformers_outputs}, ONNX model outputs {onnx_outputs}",
-            )
+            torch.testing.assert_close(onnx_outputs, transformers_outputs, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -2680,7 +2688,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
         )
 
-        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, atol=ATOL, rtol=RTOL)
         self.assertEqual(outputs_model_with_pkv.shape[1], tokens["input_ids"].shape[1] + self.GENERATION_LENGTH)
         self.assertEqual(outputs_model_without_pkv.shape[1], tokens["input_ids"].shape[1] + self.GENERATION_LENGTH)
 
@@ -2725,7 +2733,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         outputs_model_not_merged = model_not_merged.generate(**tokens)
         outputs_model_merged = model_merged.generate(**tokens)
 
-        self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
+        torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, atol=ATOL, rtol=RTOL)
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
@@ -2766,7 +2774,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(io_outputs.logits, onnx_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -2793,7 +2801,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         io_outputs = io_model.generate(**tokens)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+        torch.testing.assert_close(io_outputs, onnx_outputs, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -2890,7 +2898,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
                 self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
                 # compare tensor outputs
-                self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), timm_outputs, atol=1e-4))
+                torch.testing.assert_close(torch.Tensor(onnx_outputs.logits), timm_outputs, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -2924,7 +2932,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -3041,10 +3049,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(
-            torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4),
-            f" Maxdiff: {torch.abs(onnx_outputs.logits - io_outputs.logits).max()}",
-        )
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -3091,7 +3096,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -3206,10 +3211,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(
-            torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4),
-            f" Maxdiff: {torch.abs(onnx_outputs.logits - io_outputs.logits).max()}",
-        )
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -3274,7 +3276,9 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=ATOL, rtol=RTOL
+            )
 
         gc.collect()
 
@@ -3390,7 +3394,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -3453,7 +3457,9 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=ATOL, rtol=RTOL
+            )
 
         gc.collect()
 
@@ -3483,7 +3489,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), io_outputs.logits, atol=1e-1))
+        torch.testing.assert_close(torch.Tensor(onnx_outputs.logits), io_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -3541,9 +3547,11 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.embeddings, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
-            self.assertTrue(
-                torch.allclose(torch.Tensor(onnx_outputs.embeddings), transformers_outputs.embeddings, atol=1e-4)
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=ATOL, rtol=RTOL
+            )
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.embeddings), transformers_outputs.embeddings, atol=ATOL, rtol=RTOL
             )
 
         gc.collect()
@@ -3575,8 +3583,8 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.embeddings, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
-        self.assertTrue(torch.allclose(onnx_outputs.embeddings, io_outputs.embeddings, atol=1e-4))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=ATOL, rtol=RTOL)
+        torch.testing.assert_close(onnx_outputs.embeddings, io_outputs.embeddings, atol=ATOL, rtol=RTOL)
         gc.collect()
 
 
@@ -3624,6 +3632,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
 
         with torch.no_grad():
             transformers_outputs = transformers_model(**input_values)
+
         for input_type in ["pt", "np"]:
             input_values = processor(self._generate_random_audio_data(), return_tensors=input_type)
             onnx_outputs = onnx_model(**input_values)
@@ -3632,7 +3641,9 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=ATOL, rtol=RTOL
+            )
 
         gc.collect()
 
@@ -3866,8 +3877,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
                 # Compare tensor outputs
-                self.assertTrue(
-                    torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4)
+                torch.testing.assert_close(
+                    torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=ATOL, rtol=RTOL
                 )
 
         gc.collect()
@@ -4112,7 +4123,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
             )
 
-            self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+            torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=RTOL, atol=ATOL)
             self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
             self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
 
@@ -4163,7 +4174,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             outputs_model_not_merged = model_not_merged.generate(**tokens)
             outputs_model_merged = model_merged.generate(**tokens)
 
-            self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
+            torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, rtol=RTOL, atol=ATOL)
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
@@ -4217,7 +4228,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
             # compare tensor outputs
-            self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+            torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -4274,7 +4285,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             io_outputs = io_model.generate(**tokens, num_beams=num_beams)
 
             # compare tensor outputs
-            self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+            torch.testing.assert_close(onnx_outputs, io_outputs, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -4430,7 +4441,9 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # Compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=ATOL, rtol=RTOL
+            )
 
         new_tokens = 20  # because tiny random speech to text model has a max_position_embeddings of 20
 
@@ -4451,7 +4464,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             num_beams=1,
         )
 
-        self.assertTrue(torch.equal(onnx_outputs, transformers_outputs))
+        torch.testing.assert_close(torch.Tensor(onnx_outputs), transformers_outputs, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -4573,7 +4586,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
         )
 
-        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=RTOL, atol=ATOL)
 
         if model_arch == "whisper" and is_transformers_version(">=", "4.43"):
             gen_length = generation_length + 2
@@ -4629,7 +4642,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
         )
 
-        self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
+        torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, rtol=RTOL, atol=ATOL)
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
@@ -4674,7 +4687,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -4726,7 +4739,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         io_outputs = io_model.generate(**features, num_beams=num_beams)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+        torch.testing.assert_close(onnx_outputs, io_outputs, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -4776,7 +4789,9 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_outputs, ImageSuperResolutionOutput)
         self.assertTrue("reconstruction" in onnx_outputs)
         self.assertIsInstance(onnx_outputs.reconstruction, torch.Tensor)
-        torch.testing.assert_close(onnx_outputs.reconstruction, transformers_outputs.reconstruction, atol=1e-4)
+        torch.testing.assert_close(
+            onnx_outputs.reconstruction, transformers_outputs.reconstruction, atol=ATOL, rtol=RTOL
+        )
 
         gc.collect()
 
@@ -4975,8 +4990,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
                 self.assertTrue("logits" in onnx_outputs)
                 self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
-                self.assertTrue(
-                    torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-3)
+                torch.testing.assert_close(
+                    torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=ATOL, rtol=RTOL
                 )
 
                 if use_cache:
@@ -4990,11 +5005,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
                         for ort_pkv, trfs_pkv in zip(
                             onnx_outputs["past_key_values"][i], transformers_outputs["past_key_values"][i]
                         ):
-                            ort_pkv = torch.Tensor(ort_pkv)
-                            self.assertTrue(
-                                torch.allclose(ort_pkv, trfs_pkv, atol=1e-3),
-                                f" Maxdiff: {torch.abs(ort_pkv - trfs_pkv).max()}",
-                            )
+                            torch.testing.assert_close(torch.Tensor(ort_pkv), trfs_pkv, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -5095,7 +5106,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self.assertTrue(isinstance(outputs[0]["generated_text"], str))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES[:1])
-    @pytest.mark.cuda_ep_test  # mark as GPU test as well to run the without/with cache timing test on the slow tests
     def test_compare_with_and_without_past_key_values(self, model_arch: str):
         model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
         self._setup(model_args)
@@ -5124,7 +5134,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
             **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
         )
 
-        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=RTOL, atol=ATOL)
         self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
         self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
 
@@ -5171,7 +5181,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -5218,7 +5228,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         io_outputs = io_model.generate(**features, num_beams=num_beams)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+        torch.testing.assert_close(onnx_outputs, io_outputs, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -5308,7 +5318,7 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.pooler_output, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.pooler_output, io_outputs.pooler_output))
+        torch.testing.assert_close(onnx_outputs.pooler_output, io_outputs.pooler_output, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -5453,7 +5463,9 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
             self.assertTrue("logits" in onnx_outputs)
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=ATOL, rtol=RTOL
+            )
 
         gc.collect()
 
@@ -5490,7 +5502,7 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
             **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
         )
 
-        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=RTOL, atol=ATOL)
         self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
         self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
 
@@ -5536,7 +5548,7 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         outputs_model_not_merged = model_not_merged.generate(**inputs)
         outputs_model_merged = model_merged.generate(**inputs)
 
-        self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
+        torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, rtol=RTOL, atol=ATOL)
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
@@ -5582,7 +5594,7 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         self.assertTrue("logits" in io_outputs)
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
-        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
@@ -5629,7 +5641,7 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         io_outputs = io_model.generate(**inputs, num_beams=num_beams)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+        torch.testing.assert_close(onnx_outputs, io_outputs, atol=ATOL, rtol=RTOL)
 
         gc.collect()
 
