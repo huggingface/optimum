@@ -825,8 +825,10 @@ class ViTOnnxConfig(VisionOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = super().outputs
+
         if self.task == "feature-extraction":
             common_outputs["last_hidden_state"] = {0: "batch_size"}
+
         return common_outputs
 
 
@@ -978,7 +980,14 @@ class PoolFormerOnnxConfig(ViTOnnxConfig):
 
 
 class SegformerOnnxConfig(YolosOnnxConfig):
-    pass
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        outputs = super().outputs
+
+        if self.task == "image-segmentation":
+            outputs["logits"] = {0: "batch_size"}
+
+        return outputs
 
 
 class MobileNetV1OnnxConfig(ViTOnnxConfig):
