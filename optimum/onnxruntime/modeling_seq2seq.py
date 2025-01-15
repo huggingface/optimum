@@ -367,11 +367,7 @@ class ORTEncoderForSpeech(ORTEncoder):
             model_inputs = (
                 [input_features, attention_mask] if "attention_mask" in self.input_names else [input_features]
             )
-            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session,
-                *model_inputs,
-                ordered_input_names=self._ordered_input_names,
-            )
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.session, *model_inputs)
 
             io_binding.synchronize_inputs()
             self.session.run_with_iobinding(io_binding)
@@ -422,12 +418,12 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
 
+        model_inputs = {
+            "pixel_values": pixel_values,
+        }
+
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session,
-                pixel_values,
-                ordered_input_names=self._ordered_input_names,
-            )
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.session, model_inputs)
 
             io_binding.synchronize_inputs()
             self.session.run_with_iobinding(io_binding)
@@ -435,16 +431,11 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            if use_torch:
-                onnx_inputs = {"pixel_values": pixel_values.cpu().detach().numpy()}
-            else:
-                onnx_inputs = {"pixel_values": pixel_values}
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self._prepare_model_outputs(use_torch, onnx_outputs)
 
-            outputs = self.session.run(None, onnx_inputs)
-
-            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
-            if use_torch:
-                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
+            last_hidden_state = model_outputs["last_hidden_state"]
 
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
@@ -468,15 +459,13 @@ class ORTEncoderForPix2Struct(ORTEncoder):
         use_torch = isinstance(flattened_patches, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
 
+        model_inputs = {
+            "flattened_patches": flattened_patches,
+            "attention_mask": attention_mask,
+        }
+
         if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
-            model_inputs = (
-                [flattened_patches, attention_mask] if "attention_mask" in self.input_names else [flattened_patches]
-            )
-            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session,
-                *model_inputs,
-                ordered_input_names=self._ordered_input_names,
-            )
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.session, model_inputs)
 
             io_binding.synchronize_inputs()
             self.session.run_with_iobinding(io_binding)
@@ -484,25 +473,11 @@ class ORTEncoderForPix2Struct(ORTEncoder):
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            if use_torch:
-                onnx_inputs = {"flattened_patches": flattened_patches.cpu().detach().numpy()}
-                if "attention_mask" in self.input_names:
-                    onnx_inputs["attention_mask"] = attention_mask.cpu().detach().numpy()
-            else:
-                onnx_inputs = {"flattened_patches": flattened_patches}
-                if "attention_mask" in self.input_names:
-                    onnx_inputs["attention_mask"] = attention_mask
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self._prepare_model_outputs(use_torch, onnx_outputs)
 
-            if "attention_mask" in self.input_names:
-                if self.session.get_inputs()[1].type == "tensor(int64)":
-                    onnx_inputs["attention_mask"] = onnx_inputs["attention_mask"].astype(np.int64)
-
-            outputs = self.session.run(None, onnx_inputs)
-
-            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
-
-            if use_torch:
-                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
+            last_hidden_state = model_outputs["last_hidden_state"]
 
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 

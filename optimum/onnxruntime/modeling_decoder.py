@@ -240,33 +240,21 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if past_key_values:
                 position_ids = position_ids[:, -1].unsqueeze(-1)
 
+        model_inputs = {
+            "input_ids": input_ids,
+            "position_ids": position_ids,
+            "attention_mask": attention_mask,
+            "use_cache_branch": use_cache_branch,
+            "labels": labels,
+        }
+        if past_key_values is not None:
+            model_inputs.update(
+                zip(self.key_value_input_names, past_key_values),
+            )
+
         if self.use_io_binding:
-            # TODO: fix transformers generate to have contiguous input_ids here already
-            # For an unknown reason, calling `contiguous()` here is necessary to not have errors
-            # on CPU EP with batch size > 1, despite it being also called in _prepare_io_binding.
-            # I suspect the reason is the contiguous python list that messes something up?
-            model_inputs = [input_ids.contiguous()]
-
-            if "attention_mask" in self.input_names:
-                model_inputs.append(attention_mask)
-
-            if "position_ids" in self.input_names:
-                model_inputs.append(position_ids.contiguous())
-
-            if past_key_values is not None:
-                model_inputs += past_key_values
-
-            if use_cache_branch is not None:
-                model_inputs.append(use_cache_branch)
-
-            if "labels" in self.input_names:
-                model_inputs.append(labels)
-                known_output_shapes.update({"loss": []})
-
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                *model_inputs,
-                known_output_shapes=known_output_shapes,
-                ordered_input_names=self._ordered_input_names,
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(
+                self.model, model_inputs, known_output_shapes=known_output_shapes
             )
 
             if self.device.type == "cpu":
@@ -287,18 +275,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if "loss" in self.output_names:
                 loss = output_buffers["loss"].view(output_shapes["loss"])
         else:
-            model_inputs = {
-                "input_ids": input_ids,
-                "position_ids": position_ids,
-                "attention_mask": attention_mask,
-                "use_cache_branch": use_cache_branch,
-                "labels": labels,
-            }
-            if past_key_values is not None:
-                model_inputs.update(
-                    zip(self.key_value_input_names, past_key_values),
-                )
-
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)

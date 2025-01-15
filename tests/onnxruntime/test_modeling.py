@@ -1448,14 +1448,18 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForQuestionAnswering.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -1626,16 +1630,19 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=False).to(
-            "cuda"
+        onnx_model = ORTModelForMaskedLM.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
         )
-        io_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to(
-            "cuda"
+        io_model = ORTModelForMaskedLM.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
         )
 
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
         tokenizer = get_preprocessor(model_id)
-        MASK_TOKEN = tokenizer.mask_token
-        tokens = tokenizer([f"The capital of France is {MASK_TOKEN}."] * 2, return_tensors="pt")
+        tokens = tokenizer([f"The capital of France is {tokenizer.mask_token}."] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -1643,9 +1650,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        torch.testing.assert_close(
-            torch.Tensor(io_outputs.logits), onnx_outputs.logits, atol=self.ATOL, rtol=self.RTOL
-        )
+        torch.testing.assert_close(io_outputs.logits, onnx_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -1840,14 +1845,18 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForSequenceClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -2022,14 +2031,18 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForTokenClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForTokenClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -2181,14 +2194,18 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForFeatureExtraction.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -2296,24 +2313,25 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMultipleChoice.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
-        io_model = ORTModelForMultipleChoice.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to(
-            "cuda"
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForMultipleChoice.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
         )
 
-        tokenizer = get_preprocessor(model_id)
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
         num_choices = 4
-        first_sentence = ["The sky is blue due to the shorter wavelength of blue light."] * num_choices
         start = "The color of the sky is"
+        tokenizer = get_preprocessor(model_id)
+        first_sentence = ["The sky is blue due to the shorter wavelength of blue light."] * num_choices
         second_sentence = [start + "blue", start + "green", start + "red", start + "yellow"]
         inputs = tokenizer(first_sentence, second_sentence, truncation=True, padding=True)
-
         # Unflatten the tokenized inputs values expanding it to the shape [batch_size, num_choices, seq_length]
         for k, v in inputs.items():
             inputs[k] = [v[i : i + num_choices] for i in range(0, len(v), num_choices)]
-
-        inputs = dict(inputs.convert_to_tensors(tensor_type="pt"))
+        inputs = dict(inputs.convert_to_tensors(tensor_type="pt").to("cuda"))
 
         onnx_outputs = onnx_model(**inputs)
         io_outputs = io_model(**inputs)
@@ -2668,7 +2686,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    @pytest.mark.cuda_ep_test  # mark as GPU test as well to run the without/with cache timing test on the slow tests
     def test_compare_with_and_without_past_key_values(self, model_arch):
         model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
         self._setup(model_args)
@@ -2759,11 +2776,17 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForCausalLM.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[test_name],
+            use_cache=use_cache,
+            use_io_binding=False,
+            provider="CUDAExecutionProvider",
+        )
         io_model = ORTModelForCausalLM.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[test_name],
+            use_cache=use_cache,
+            use_io_binding=True,
+            provider="CUDAExecutionProvider",
+        )
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
@@ -2794,10 +2817,15 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to(
-            "cuda"
+        onnx_model = ORTModelForCausalLM.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
         )
-        io_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to("cuda")
+        io_model = ORTModelForCausalLM.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(
@@ -2805,6 +2833,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             return_tensors="pt",
             return_token_type_ids=False if model_arch == "llama" else None,
         ).to("cuda")
+
         onnx_outputs = onnx_model.generate(**tokens)
         io_outputs = io_model.generate(**tokens)
 
@@ -3044,16 +3073,20 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForImageClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         preprocessor = get_preprocessor(model_id)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
-        inputs = preprocessor(images=[image] * 2, return_tensors="pt")
+        inputs = preprocessor(images=[image] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**inputs)
         io_outputs = io_model(**inputs)
 
@@ -3208,16 +3241,20 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSemanticSegmentation.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForSemanticSegmentation.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         preprocessor = get_preprocessor(model_id)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
-        inputs = preprocessor(images=[image] * 2, return_tensors="pt")
+        inputs = preprocessor(images=[image] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**inputs)
         io_outputs = io_model(**inputs)
 
@@ -3391,16 +3428,19 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForAudioClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
 
-        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
         data = self._generate_random_audio_data()
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        input_values = processor(data, return_tensors="pt").to("cuda")
 
-        input_values = processor(data, return_tensors="pt")
         onnx_outputs = onnx_model(**input_values)
         io_outputs = io_model(**input_values)
 
@@ -3485,17 +3525,20 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-
         onnx_model = ORTModelForCTC.from_pretrained(
-            self.onnx_model_dirs[model_arch],
-            use_io_binding=False,
-        ).to("cuda")
-        onnx_model.use_io_binding = False
-        io_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForCTC.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
 
-        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
         data = self._generate_random_audio_data()
-        input_values = processor(data, return_tensors="pt")
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        input_values = processor(data, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**input_values)
         io_outputs = io_model(**input_values)
 
@@ -3581,16 +3624,19 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioXVector.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
-        io_model = ORTModelForAudioXVector.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to(
-            "cuda"
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForAudioXVector.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
         )
 
-        processor = AutoFeatureExtractor.from_pretrained(model_id)
-        data = self._generate_random_audio_data()
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
-        input_values = processor(data, return_tensors="pt")
+        data = self._generate_random_audio_data()
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        input_values = processor(data, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**input_values)
         io_outputs = io_model(**input_values)
 
@@ -4222,11 +4268,17 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 continue
 
             onnx_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, test_name), use_io_binding=False, use_cache=use_cache
-            ).to("cuda")
+                self._get_onnx_model_dir(model_id, model_arch, test_name),
+                use_io_binding=False,
+                use_cache=use_cache,
+                provider="CUDAExecutionProvider",
+            )
             io_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, test_name), use_io_binding=True, use_cache=use_cache
-            ).to("cuda")
+                self._get_onnx_model_dir(model_id, model_arch, test_name),
+                use_io_binding=True,
+                use_cache=use_cache,
+                provider="CUDAExecutionProvider",
+            )
 
             self.assertFalse(onnx_model.use_io_binding)
             self.assertTrue(io_model.use_io_binding)
@@ -4236,8 +4288,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             decoder_start_token_id = onnx_model.config.decoder_start_token_id if model_arch != "mbart" else 2
             if model_arch == "encoder-decoder":
                 decoder_start_token_id = tokenizer.cls_token_id
-
-            decoder_inputs = {"decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id}
+            decoder_inputs = {
+                "decoder_input_ids": torch.ones((2, 1), dtype=torch.long).to("cuda") * decoder_start_token_id
+            }
 
             onnx_outputs = onnx_model(**tokens, **decoder_inputs)
             io_outputs = io_model(**tokens, **decoder_inputs)
@@ -4291,14 +4344,24 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 continue
 
             onnx_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, test_name), use_io_binding=False, use_cache=use_cache
-            ).to("cuda")
+                self._get_onnx_model_dir(model_id, model_arch, test_name),
+                use_io_binding=False,
+                use_cache=use_cache,
+                provider="CUDAExecutionProvider",
+            )
             io_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, test_name), use_io_binding=True, use_cache=use_cache
-            ).to("cuda")
+                self._get_onnx_model_dir(model_id, model_arch, test_name),
+                use_io_binding=True,
+                use_cache=use_cache,
+                provider="CUDAExecutionProvider",
+            )
+
+            self.assertFalse(onnx_model.use_io_binding)
+            self.assertTrue(io_model.use_io_binding)
 
             tokenizer = get_preprocessor(model_id)
             tokens = tokenizer("This is a sample output", return_tensors="pt").to("cuda")
+
             onnx_outputs = onnx_model.generate(**tokens, num_beams=num_beams)
             io_outputs = io_model.generate(**tokens, num_beams=num_beams)
 
@@ -4681,17 +4744,16 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False
-        ).to("cuda")
-        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
-            "cuda"
+            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
         )
 
         self.assertFalse(onnx_model.use_io_binding)
         self.assertTrue(io_model.use_io_binding)
 
         processor = get_preprocessor(model_id)
-
         data = self._generate_random_audio_data()
         features = processor.feature_extractor([data] * 2, return_tensors="pt").to("cuda")
 
@@ -4742,14 +4804,16 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False
-        ).to("cuda")
-        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
-            "cuda"
+            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
         )
 
-        processor = get_preprocessor(model_id)
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
+        processor = get_preprocessor(model_id)
         data = self._generate_random_audio_data()
         features = processor.feature_extractor(data, return_tensors="pt").to("cuda")
 
@@ -5177,21 +5241,19 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to(
-            "cuda"
+        onnx_model = ORTModelForVision2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
         )
-        io_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
-            "cuda"
+        io_model = ORTModelForVision2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
         )
 
         self.assertFalse(onnx_model.use_io_binding)
         self.assertTrue(io_model.use_io_binding)
 
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
-
         data = self._get_sample_image()
+        feature_extractor, tokenizer = self._get_preprocessors(model_id)
         pixel_values = feature_extractor([data] * 2, return_tensors="pt").pixel_values.to("cuda")
-
         decoder_start_token_id = onnx_model.config.decoder.bos_token_id
         decoder_input_ids = torch.full((2, 1), decoder_start_token_id, dtype=torch.long).to("cuda")
 
@@ -5233,16 +5295,18 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to(
-            "cuda"
+        onnx_model = ORTModelForVision2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
         )
-        io_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
-            "cuda"
+        io_model = ORTModelForVision2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
         )
 
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         data = self._get_sample_image()
+        feature_extractor, tokenizer = self._get_preprocessors(model_id)
         features = feature_extractor(data, return_tensors="pt").to("cuda")
 
         onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
@@ -5325,13 +5389,23 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_compare_to_io_binding(self, *args, **kwargs):
-        model_arch, model_id = args
+        _, model_id = args
+
         set_seed(SEED)
-        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=False).to("cuda")
+        onnx_model = ORTModelForCustomTasks.from_pretrained(
+            model_id, use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         set_seed(SEED)
-        io_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=True).to("cuda")
+        io_model = ORTModelForCustomTasks.from_pretrained(
+            model_id, use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer("This is a sample output", return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -5590,25 +5664,30 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False)
-        io_model = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True)
+        onnx_model = ORTModelForPix2Struct.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForPix2Struct.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
 
         self.assertFalse(onnx_model.use_io_binding)
         self.assertTrue(io_model.use_io_binding)
 
         preprocessor = get_preprocessor(model_id)
-
         question = [
             "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud and this is even longer and longer and longer and longer and hey",
             "Who are you?",
         ]
-        inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt")
+        inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt").to(
+            "cuda"
+        )
         del inputs["decoder_attention_mask"]
         del inputs["decoder_input_ids"]
         decoder_start_token_id = onnx_model.config.decoder_start_token_id
         decoder_inputs = {
-            "decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id,
-            "decoder_attention_mask": torch.ones((2, 1), dtype=torch.int64),
+            "decoder_input_ids": torch.ones((2, 1), dtype=torch.long).to("cuda") * decoder_start_token_id,
+            "decoder_attention_mask": torch.ones((2, 1), dtype=torch.int64).to("cuda"),
         }
 
         onnx_outputs = onnx_model(**inputs, **decoder_inputs)
@@ -5651,15 +5730,24 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False)
-        io_model = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True)
+        onnx_model = ORTModelForPix2Struct.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForPix2Struct.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         preprocessor = get_preprocessor(model_id)
-
         question = ["What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud", "Who are you?"]
-        inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt")
+        inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt").to(
+            "cuda"
+        )
         del inputs["decoder_attention_mask"]
         del inputs["decoder_input_ids"]
+
         onnx_outputs = onnx_model.generate(**inputs, num_beams=num_beams)
         io_outputs = io_model.generate(**inputs, num_beams=num_beams)
 

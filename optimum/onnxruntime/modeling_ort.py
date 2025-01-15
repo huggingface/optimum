@@ -72,7 +72,6 @@ from .utils import (
     ONNX_WEIGHTS_NAME,
     check_io_binding,
     get_device_for_provider,
-    get_ordered_input_names,
     get_provider_for_device,
     parse_device,
     validate_provider_availability,
@@ -275,8 +274,6 @@ class ORTModel(OptimizedModel):
 
         self.output_names = {output_key.name: idx for idx, output_key in enumerate(model.get_outputs())}
         self.output_dtypes = {output_key.name: output_key.type for output_key in model.get_outputs()}
-
-        self._ordered_input_names = get_ordered_input_names(self.input_names.keys(), func=self.forward)
 
     @property
     def dtype(self) -> torch.dtype:
@@ -773,43 +770,23 @@ class ORTModel(OptimizedModel):
         """
         if isinstance(axis_name, int):
             return axis_name
-        # It is actually covered below, but this is to make things faster.
+
         elif axis_name in dimensions:
             return dimensions[axis_name]
 
-        # Tokens is going to be populated by iterating over every match for the self.output_shape_inference_pattern.
-        # This pattern matches 4 things: axis names, integer values, operators (+, -, *, /) and parenthesis.
-        tokens = []
-        for idx, match_ in enumerate(re.finditer(self.output_shape_inference_pattern, axis_name)):
-            groups = match_.groups()
-            matched_group = None
-            for idx, group in enumerate(groups):
-                if group is not None:
-                    matched_group = idx
-                    break
+        # faster way to do the same thing, assuming the axis names are well defined (by us in the exporter config)
+        tokens = axis_name.split(" ")
+        for idx, token in enumerate(tokens):
+            if token in dimensions:
+                tokens[idx] = str(dimensions[token])
 
-            # For every match except an axis name, we simply append the content of the match to the tokens list.
-            # For an axis name, we check if it is specified in the `dimensions` dictionary. If for some reason it is
-            # not there, or its value not an integer, the shape inference process stops and we return the axis name as
-            # is.
-            if matched_group == 0:
-                dim = dimensions.get(groups[0], None)
-                if dim is None or not isinstance(dim, int):
-                    return axis_name
-                tokens.append(str(dim))
-            else:
-                tokens.append(groups[matched_group])
-
-        # Here it should not be problematic to use eval since anything not matching the pattern would trigger an
-        # exception.
-        return int(eval(" ".join(tokens)))
+        return eval(" ".join(tokens))
 
     # TODO: this method is bloated with state arguments (that are accesible using self) why ?
     def _prepare_io_binding(
         self,
         model: ort.InferenceSession,
-        *model_inputs: torch.Tensor,
-        ordered_input_names: List[str],
+        model_inputs: Dict[str, torch.Tensor],
         known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
         outputs_to_not_bind: Optional[Union[Set[str], str]] = None,
     ) -> Tuple[ort.IOBinding, Dict[str, Tuple[int]], Dict[str, torch.Tensor]]:
@@ -819,10 +796,8 @@ class ORTModel(OptimizedModel):
         Args:
             model (`ort.InferenceSession`):
                 The model for which we want to bind the inputs and outputs.
-            *model_inputs:
-                The inputs of the model.
-            ordered_input_names (`List[str]`):
-                Names of the inputs, that must match with the order of model_inputs.
+            model_inputs (`Dict[str, torch.Tensor]`):
+                The inputs to bind to the model.
             known_output_shapes (`Optional[Dict[str, Tuple[int]]]`, defaults to `None`):
                 It can be hard to infer all the output shapes from the inputs only. For instance for the past key /
                 values. It is possible to explicitely pass the shape via this argument.
@@ -838,24 +813,21 @@ class ORTModel(OptimizedModel):
         name_to_np_type = TypeHelper.get_io_numpy_type_map(model)
 
         input_name_to_shape = {}
-        for idx, tensor in enumerate(model_inputs):
-            if tensor is None:
-                continue
-            name = ordered_input_names[idx]
-            tensor = tensor.contiguous()
-            input_name_to_shape[name] = tensor.shape
+        for input_name in self.input_names.keys():
+            tensor = model_inputs[input_name].contiguous()
+            input_name_to_shape[input_name] = tensor.shape
 
             data_ptr = tensor.data_ptr()
-            if "past" in name and data_ptr == 0:
+            if "past" in input_name and data_ptr == 0:
                 # During first generation, sequence_length can be 0 when use_cache=True, which results in data_ptr to also be 0.
                 # To keep compatibility with IO binding, we pass the data pointer of input_ids instead. This will have no impact because past_key_values will not be used during the first generation.
-                data_ptr = model_inputs[0].data_ptr()
+                data_ptr = next(iter(model_inputs.values())).data_ptr()
 
             io_binding.bind_input(
-                name,
+                input_name,
                 tensor.device.type,
                 IOBindingHelper.get_device_index(self.device),
-                name_to_np_type[name],
+                name_to_np_type[input_name],
                 tuple(tensor.shape),
                 data_ptr,
             )
@@ -901,17 +873,6 @@ class ORTModel(OptimizedModel):
             output_buffers[output_name] = output_buffer
 
         return io_binding, output_shapes, output_buffers
-
-    def prepare_io_binding(
-        self, *model_inputs, ordered_input_names, outputs_to_not_bind=None, known_output_shapes=None
-    ):
-        return self._prepare_io_binding(
-            self.model,
-            *model_inputs,
-            ordered_input_names=ordered_input_names,
-            known_output_shapes=known_output_shapes,
-            outputs_to_not_bind=outputs_to_not_bind,
-        )
 
     def raise_on_numpy_input_io_binding(self, use_torch: bool):
         """
@@ -1091,13 +1052,14 @@ class ORTModelForFeatureExtraction(ORTModel):
         if token_type_ids is None and "token_type_ids" in self.input_names:
             token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids,
-                attention_mask,
-                token_type_ids,
-                ordered_input_names=self._ordered_input_names,
-            )
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
+
+        if self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -1106,8 +1068,6 @@ class ORTModelForFeatureExtraction(ORTModel):
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            model_inputs = {"input_ids": input_ids, "attention_mask": attention_mask, "token_type_ids": token_type_ids}
-
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
@@ -1246,16 +1206,17 @@ class ORTModelForMaskedLM(ORTModel):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if token_type_ids is None and "token_type_ids" in self.input_names:
+        if "token_type_ids" in self.input_names and token_type_ids is None:
             token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids,
-                attention_mask,
-                token_type_ids,
-                ordered_input_names=self._ordered_input_names,
-            )
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
+
+        if self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -1264,8 +1225,6 @@ class ORTModelForMaskedLM(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            model_inputs = {"input_ids": input_ids, "attention_mask": attention_mask, "token_type_ids": token_type_ids}
-
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
@@ -1341,13 +1300,10 @@ class ORTModelForQuestionAnswering(ORTModel):
         if token_type_ids is None and "token_type_ids" in self.input_names:
             token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids,
-                attention_mask,
-                token_type_ids,
-                ordered_input_names=self._ordered_input_names,
-            )
+        model_inputs = {"input_ids": input_ids, "attention_mask": attention_mask, "token_type_ids": token_type_ids}
+
+        if self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -1358,8 +1314,6 @@ class ORTModelForQuestionAnswering(ORTModel):
             start_logits = output_buffers["start_logits"].view(output_shapes["start_logits"])
             end_logits = output_buffers["end_logits"].view(output_shapes["end_logits"])
         else:
-            model_inputs = {"input_ids": input_ids, "attention_mask": attention_mask, "token_type_ids": token_type_ids}
-
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
@@ -1451,13 +1405,14 @@ class ORTModelForSequenceClassification(ORTModel):
         if token_type_ids is None and "token_type_ids" in self.input_names:
             token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids,
-                attention_mask,
-                token_type_ids,
-                ordered_input_names=self._ordered_input_names,
-            )
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
+
+        if self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -1466,8 +1421,6 @@ class ORTModelForSequenceClassification(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            model_inputs = {"input_ids": input_ids, "attention_mask": attention_mask, "token_type_ids": token_type_ids}
-
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
@@ -1544,13 +1497,14 @@ class ORTModelForTokenClassification(ORTModel):
         if token_type_ids is None and "token_type_ids" in self.input_names:
             token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids,
-                attention_mask,
-                token_type_ids,
-                ordered_input_names=self._ordered_input_names,
-            )
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
+
+        if self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -1559,8 +1513,6 @@ class ORTModelForTokenClassification(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            model_inputs = {"input_ids": input_ids, "attention_mask": attention_mask, "token_type_ids": token_type_ids}
-
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
@@ -1630,13 +1582,14 @@ class ORTModelForMultipleChoice(ORTModel):
         if token_type_ids is None and "token_type_ids" in self.input_names:
             token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_ids,
-                attention_mask,
-                token_type_ids,
-                ordered_input_names=self._ordered_input_names,
-            )
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
+
+        if self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -1645,8 +1598,6 @@ class ORTModelForMultipleChoice(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            model_inputs = {"input_ids": input_ids, "attention_mask": attention_mask, "token_type_ids": token_type_ids}
-
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
@@ -1720,11 +1671,12 @@ class ORTModelForImageClassification(ORTModel):
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                pixel_values,
-                ordered_input_names=self._ordered_input_names,
-            )
+        model_inputs = {
+            "pixel_values": pixel_values,
+        }
+
+        if self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -1733,8 +1685,6 @@ class ORTModelForImageClassification(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            model_inputs = {"pixel_values": pixel_values}
-
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
@@ -1808,11 +1758,12 @@ class ORTModelForSemanticSegmentation(ORTModel):
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                pixel_values,
-                ordered_input_names=self._ordered_input_names,
-            )
+        model_inputs = {
+            "pixel_values": pixel_values,
+        }
+
+        if self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -1821,8 +1772,6 @@ class ORTModelForSemanticSegmentation(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            model_inputs = {"pixel_values": pixel_values}
-
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
@@ -1935,12 +1884,13 @@ class ORTModelForAudioClassification(ORTModel):
         use_torch = isinstance(model_input, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                model_input,
-                attention_mask,
-                ordered_input_names=self._ordered_input_names,
-            )
+        model_inputs = {
+            self.input_name: model_input,
+            "attention_mask": attention_mask,
+        }
+
+        if self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -1949,8 +1899,6 @@ class ORTModelForAudioClassification(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            model_inputs = {self.input_name: model_input, "attention_mask": attention_mask}
-
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
@@ -2012,21 +1960,21 @@ class ORTModelForCTC(ORTModel):
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            input_size = input_values.shape[1]
-            output_sizes = []
+        model_inputs = {
+            "input_values": input_values,
+        }
 
-            def _conv_output_size(input_size, kernel_size, stride):
-                return (input_size - kernel_size) // stride + 1
+        if self.use_io_binding:
+            batch_size = input_values.shape[0]
+            final_input_size = input_values.shape[-1]
 
             for kernel_size, stride in zip(self.config.conv_kernel, self.config.conv_stride):
-                input_size = _conv_output_size(input_size, kernel_size, stride)
-                output_sizes.append(input_size)
+                final_input_size = (final_input_size - kernel_size) // stride + 1
 
-            known_output_shapes = {"logits": [input_values.shape[0], output_sizes[-1], self.config.vocab_size]}
+            known_output_shapes = {"logits": [batch_size, final_input_size, self.config.vocab_size]}
 
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_values, ordered_input_names=self._ordered_input_names, known_output_shapes=known_output_shapes
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(
+                self.model, model_inputs, known_output_shapes=known_output_shapes
             )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
@@ -2036,8 +1984,6 @@ class ORTModelForCTC(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            model_inputs = {"input_values": input_values}
-
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
@@ -2107,10 +2053,12 @@ class ORTModelForAudioXVector(ORTModel):
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                input_values, ordered_input_names=self._ordered_input_names
-            )
+        model_inputs = {
+            "input_values": input_values,
+        }
+
+        if self.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             io_binding.synchronize_inputs()
@@ -2121,8 +2069,6 @@ class ORTModelForAudioXVector(ORTModel):
             embeddings = output_buffers["embeddings"].view(output_shapes["embeddings"])
 
         else:
-            model_inputs = {"input_values": input_values}
-
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
@@ -2185,7 +2131,7 @@ class ORTModelForAudioFrameClassification(ORTModel):
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
+        if self.use_io_binding:
             raise NotImplementedError()
         else:
             model_inputs = {"input_values": input_values}
@@ -2244,26 +2190,27 @@ class ORTModelForImageToImage(ORTModel):
     ):
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
-        if self.device.type == "cuda" and self.use_io_binding:
-            input_shapes = pixel_values.shape
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(
-                pixel_values,
-                ordered_input_names=self._ordered_input_names,
-                known_output_shapes={
-                    "reconstruction": [
-                        input_shapes[0],
-                        input_shapes[1],
-                        input_shapes[2] * self.config.upscale,
-                        input_shapes[3] * self.config.upscale,
-                    ]
-                },
+
+        model_inputs = {
+            "pixel_values": pixel_values,
+        }
+
+        if self.use_io_binding:
+            batch_size, num_channels, height, width = pixel_values.shape
+            known_output_shapes = {
+                "reconstruction": [batch_size, num_channels, height * self.config.upscale, width * self.config.upscale]
+            }
+
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(
+                self.model, model_inputs, known_output_shapes=known_output_shapes
             )
+
             io_binding.synchronize_inputs()
             self.model.run_with_iobinding(io_binding)
             io_binding.synchronize_outputs()
+
             reconstruction = output_buffers["reconstruction"].view(output_shapes["reconstruction"])
         else:
-            model_inputs = {"pixel_values": pixel_values}
             onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
@@ -2321,7 +2268,7 @@ class ORTModelForCustomTasks(ORTModel):
         use_torch = isinstance(next(iter(model_inputs.values())), torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.device.type == "cuda" and self.use_io_binding:
+        if self.use_io_binding:
             # TODO: should this be used in favor of `model.prepare_io_binding`?
             io_binding = IOBindingHelper.prepare_io_binding(self, **model_inputs)
 
