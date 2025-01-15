@@ -183,9 +183,8 @@ class DistilBertOnnxConfig(BertOnnxConfig):
         return {"input_ids": dynamic_axis, "attention_mask": dynamic_axis}
 
 
-# TODO: uncomment when transformers>=4.48.0
-# class ModernBertOnnxConfig(DistilBertOnnxConfig):
-#     pass
+class ModernBertOnnxConfig(DistilBertOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.48.0")
 
 
 class MPNetOnnxConfig(DistilBertOnnxConfig):
