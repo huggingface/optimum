@@ -27,7 +27,7 @@ from transformers.utils import is_tf_available
 if is_tf_available():
     import tensorflow as tf
 
-from ..base import ExportConfig
+from ..base import ExportersConfig
 
 
 if TYPE_CHECKING:
@@ -115,7 +115,7 @@ class TFLiteQuantizationConfig:
                 self.approach = QuantizationApproach(self.approach)
 
 
-class TFLiteConfig(ExportConfig, ABC):
+class TFLiteConfig(ExportersConfig, ABC):
     """
     Base class for TFLite exportable model describing metadata on how to export the model through the TFLite format.
 
@@ -192,11 +192,11 @@ class TFLiteConfig(ExportConfig, ABC):
         point_batch_size: Optional[int] = None,
         nb_points_per_image: Optional[int] = None,
     ):
-        self._config = config
-        self._normalized_config = self.NORMALIZED_CONFIG_CLASS(self._config)
-        self.mandatory_axes = ()
-        self.task = task
-        self._axes: Dict[str, int] = {}
+
+        super().__init__(config=config, task=task, int_dtype="int64", float_dtype="fp32")
+
+        # self.mandatory_axes = ()
+        # self._axes: Dict[str, int] = {}
 
         # To avoid using **kwargs.
         axes_values = {
@@ -266,65 +266,9 @@ class TFLiteConfig(ExportConfig, ABC):
         self._validate_mandatory_axes()
         return [cls_(self.task, self._normalized_config, **self._axes) for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES]
 
-    @property
-    def values_override(self) -> Optional[Dict[str, Any]]:
-        """
-        Dictionary of keys to override in the model's config before exporting.
-
-        Returns:
-            `Optional[Dict[str, Any]]`: A dictionary specifying the configuration items to override.
-        """
-        if hasattr(self._config, "use_cache"):
-            return {"use_cache": False}
-
-        return None
-
-    @property
-    @abstractmethod
-    def inputs(self) -> List[str]:
-        """
-        List containing the names of the inputs the exported model should take.
-
-        Returns:
-            `List[str]`: A list of input names.
-        """
-        raise NotImplementedError()
-
-    @property
-    def outputs(self) -> List[str]:
-        """
-        List containing the names of the outputs the exported model should have.
-
-        Returns:
-            `List[str]`: A list of output names.
-        """
-        return self._TASK_TO_COMMON_OUTPUTS[self.task]
-
     def generate_dummy_inputs(self) -> Dict[str, "tf.Tensor"]:
-        """
-        Generates dummy inputs that the exported model should be able to process.
-        This method is actually used to determine the input specs that are needed for the export.
+        return super().generate_dummy_inputs(framework="tf")
 
-        Returns:
-            `Dict[str, tf.Tensor]`: A dictionary mapping input names to dummy tensors.
-        """
-        dummy_inputs_generators = self._create_dummy_input_generator_classes()
-        dummy_inputs = {}
-
-        for input_name in self.inputs:
-            input_was_inserted = False
-            for dummy_input_gen in dummy_inputs_generators:
-                if dummy_input_gen.supports_input(input_name):
-                    dummy_inputs[input_name] = dummy_input_gen.generate(input_name, framework="tf")
-                    input_was_inserted = True
-                    break
-            if not input_was_inserted:
-                raise RuntimeError(
-                    f'Could not generate dummy inputs for "{input_name}". Try adding a proper dummy input generator '
-                    "to the model TFLite config."
-                )
-
-        return dummy_inputs
 
     @property
     def inputs_specs(self) -> List["TensorSpec"]:
