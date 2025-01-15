@@ -136,9 +136,9 @@ class ORTEncoder(ORTModelPart):
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.session.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             last_hidden_state = model_outputs["last_hidden_state"]
 
@@ -365,9 +365,9 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
                 else:
                     raise ValueError("Unsupported num_pkv")
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.session.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             # TODO: using a new variable out_past_key_values is memory inefficient,
             # past_key_values is not used anymore at this point

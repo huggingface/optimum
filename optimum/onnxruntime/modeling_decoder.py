@@ -275,9 +275,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if "loss" in self.output_names:
                 loss = output_buffers["loss"].view(output_shapes["loss"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             loss = model_outputs.get("loss", None)
             logits = model_outputs["logits"]

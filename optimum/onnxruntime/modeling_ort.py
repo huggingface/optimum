@@ -889,32 +889,57 @@ class ORTModel(OptimizedModel):
             )
 
     def _prepare_onnx_inputs(
-        self, use_torch: bool, **inputs: Union[torch.Tensor, np.ndarray]
+        self, use_torch: bool, model_inputs: Dict[str, Union[torch.Tensor, np.ndarray]]
     ) -> Dict[str, np.ndarray]:
-        onnx_inputs = {}
-        # converts pytorch inputs into numpy inputs for onnx
-        for input_name in self.input_names.keys():
-            onnx_inputs[input_name] = inputs.pop(input_name)
+        """
+        Prepares the inputs for ONNX Runtime by converting them to numpy arrays with the expected dtype.
 
-            if onnx_inputs[input_name] is None:
+        Args:
+            use_torch (`bool`):
+                Whether the inputs are torch.Tensor or not.
+            inputs (`Dict[str, Union[torch.Tensor, np.ndarray]]`):
+                The inputs to prepare for ONNX Runtime.
+
+        Returns:
+            `Dict[str, np.ndarray]`: The inputs prepared for ONNX Runtime.
+        """
+
+        onnx_inputs = {}
+
+        for input_name in self.input_names.keys():
+            if model_inputs.get(input_name, None) is None:
                 raise ValueError(f"Input {input_name} is required by model but not provided.")
 
             if use_torch:
-                onnx_inputs[input_name] = onnx_inputs[input_name].numpy(force=True)
+                onnx_inputs[input_name] = model_inputs[input_name].numpy(force=True)
+            else:
+                onnx_inputs[input_name] = model_inputs[input_name]
 
-            if onnx_inputs[input_name].dtype != self.input_dtypes[input_name]:
-                onnx_inputs[input_name] = onnx_inputs[input_name].astype(
-                    TypeHelper.ort_type_to_numpy_type(self.input_dtypes[input_name])
-                )
+            expected_dtype = TypeHelper.ort_type_to_numpy_type(self.input_dtypes[input_name])
+
+            if onnx_inputs[input_name].dtype != expected_dtype:
+                onnx_inputs[input_name] = onnx_inputs[input_name].astype(expected_dtype)
 
         return onnx_inputs
 
     def _prepare_onnx_outputs(
-        self, use_torch: bool, *onnx_outputs: np.ndarray
+        self, use_torch: bool, onnx_outputs: List[np.ndarray]
     ) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
+        """
+        Prepares the outputs from ONNX Runtime by converting them to torch.Tensor if requested.
+
+        Args:
+            use_torch (`bool`):
+                Whether the outputs should be torch.Tensor or not.
+            onnx_outputs (`List[np.ndarray]`):
+                The outputs from ONNX Runtime.
+
+        Returns:
+            `Dict[str, Union[torch.Tensor, np.ndarray]]`: The outputs prepared for the user.
+        """
+
         model_outputs = {}
 
-        # converts onnxruntime outputs into tensor for standard outputs
         for output_name, idx in self.output_names.items():
             model_outputs[output_name] = onnx_outputs[idx]
 
@@ -1068,9 +1093,9 @@ class ORTModelForFeatureExtraction(ORTModel):
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             if "last_hidden_state" in self.output_names:
                 last_hidden_state = model_outputs["last_hidden_state"]
@@ -1225,9 +1250,9 @@ class ORTModelForMaskedLM(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
 
@@ -1314,9 +1339,9 @@ class ORTModelForQuestionAnswering(ORTModel):
             start_logits = output_buffers["start_logits"].view(output_shapes["start_logits"])
             end_logits = output_buffers["end_logits"].view(output_shapes["end_logits"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             start_logits = model_outputs["start_logits"]
             end_logits = model_outputs["end_logits"]
@@ -1421,9 +1446,9 @@ class ORTModelForSequenceClassification(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
 
@@ -1513,9 +1538,9 @@ class ORTModelForTokenClassification(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
 
@@ -1598,9 +1623,9 @@ class ORTModelForMultipleChoice(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
 
@@ -1685,9 +1710,9 @@ class ORTModelForImageClassification(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
 
@@ -1772,9 +1797,9 @@ class ORTModelForSemanticSegmentation(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
 
@@ -1899,9 +1924,9 @@ class ORTModelForAudioClassification(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
 
@@ -1984,9 +2009,9 @@ class ORTModelForCTC(ORTModel):
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
 
@@ -2069,9 +2094,9 @@ class ORTModelForAudioXVector(ORTModel):
             embeddings = output_buffers["embeddings"].view(output_shapes["embeddings"])
 
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
             embeddings = model_outputs["embeddings"]
@@ -2136,9 +2161,9 @@ class ORTModelForAudioFrameClassification(ORTModel):
         else:
             model_inputs = {"input_values": input_values}
 
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
 
@@ -2211,9 +2236,9 @@ class ORTModelForImageToImage(ORTModel):
 
             reconstruction = output_buffers["reconstruction"].view(output_shapes["reconstruction"])
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
             reconstruction = model_outputs["reconstruction"]
         return ImageSuperResolutionOutput(reconstruction=reconstruction)
 
@@ -2282,9 +2307,9 @@ class ORTModelForCustomTasks(ORTModel):
                 model_outputs[name] = IOBindingHelper.to_pytorch(output)
 
         else:
-            onnx_inputs = self._prepare_onnx_inputs(use_torch, **model_inputs)
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
-            model_outputs = self._prepare_onnx_outputs(use_torch, *onnx_outputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
         # converts output to namedtuple for pipelines post-processing
         return ModelOutput(**model_outputs)
