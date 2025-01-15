@@ -780,7 +780,7 @@ class ORTModel(OptimizedModel):
             if token in dimensions:
                 tokens[idx] = str(dimensions[token])
 
-        return eval(" ".join(tokens))
+        return int(eval(" ".join(tokens)))
 
     # TODO: this method is bloated with state arguments (that are accesible using self) why ?
     def _prepare_io_binding(
@@ -859,6 +859,7 @@ class ORTModel(OptimizedModel):
                 output_shape = []
                 for axis_name in output_node.shape:
                     output_shape.append(self._output_shape_inference(axis_name, dimensions))
+
             output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
 
             io_binding.bind_output(
