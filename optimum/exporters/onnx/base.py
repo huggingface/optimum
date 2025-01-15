@@ -21,7 +21,7 @@ import inspect
 import itertools
 import os
 import re
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
@@ -41,16 +41,13 @@ from ...utils import (
     is_diffusers_available,
     logging,
 )
-from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
-from ...utils import TRANSFORMERS_MINIMUM_VERSION as GLOBAL_MIN_TRANSFORMERS_VERSION
 from ...utils.doc import add_dynamic_docstring
 from ...utils.import_utils import (
     is_onnx_available,
     is_onnxruntime_available,
-    is_torch_version,
     is_transformers_version,
 )
-from ..base import ExportConfig, ExportersConfig
+from ..base import ExportersConfig
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import ModelPatcher, Seq2SeqModelPatcher
 
@@ -66,7 +63,6 @@ if TYPE_CHECKING:
     if is_diffusers_available():
         from diffusers import ModelMixin
 
-    from .model_patcher import PatchingSpec
 
 logger = logging.get_logger(__name__)
 
@@ -103,7 +99,6 @@ GENERATE_DUMMY_DOCSTRING = r"""
 
 
 class OnnxConfig(ExportersConfig):
-
     DEFAULT_ONNX_OPSET = 11
     VARIANTS = {"default": "The default ONNX variant."}
     DEFAULT_VARIANT = "default"
@@ -281,7 +276,6 @@ class OnnxConfig(ExportersConfig):
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
     ) -> ModelPatcher:
         return ModelPatcher(self, model, model_kwargs=model_kwargs)
-    
 
     @property
     def torch_to_onnx_input_map(self) -> Dict[str, str]:
@@ -347,8 +341,6 @@ class OnnxConfig(ExportersConfig):
                 name = self.torch_to_onnx_input_map.get(name, name)
                 ordered_inputs[name] = dynamic_axes
         return ordered_inputs
-
-
 
     # TODO: use instead flatten_inputs and remove
     @classmethod

@@ -14,7 +14,7 @@
 # limitations under the License.
 """TensorFlow Lite configuration base classes."""
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from ctypes import ArgumentError
 from dataclasses import dataclass
 from enum import Enum
@@ -192,7 +192,6 @@ class TFLiteConfig(ExportersConfig, ABC):
         point_batch_size: Optional[int] = None,
         nb_points_per_image: Optional[int] = None,
     ):
-
         super().__init__(config=config, task=task, int_dtype="int64", float_dtype="fp32")
 
         # self.mandatory_axes = ()
@@ -268,7 +267,6 @@ class TFLiteConfig(ExportersConfig, ABC):
 
     def generate_dummy_inputs(self) -> Dict[str, "tf.Tensor"]:
         return super().generate_dummy_inputs(framework="tf")
-
 
     @property
     def inputs_specs(self) -> List["TensorSpec"]:

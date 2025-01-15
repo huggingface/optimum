@@ -14,28 +14,15 @@
 # limitations under the License.
 """Base exporters config."""
 
-from abc import ABC
-
-
-
 import copy
-import enum
-import gc
-import inspect
-import itertools
-import os
-import re
 from abc import ABC, abstractmethod
-from collections import OrderedDict
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-import numpy as np
-from transformers.utils import is_accelerate_available, is_torch_available
+from transformers.utils import is_torch_available
 
 
 if is_torch_available():
-    import torch.nn as nn
+    pass
 
 from .utils import (
     DEFAULT_DUMMY_SHAPES,
@@ -46,17 +33,16 @@ from .utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 from .utils import TRANSFORMERS_MINIMUM_VERSION as GLOBAL_MIN_TRANSFORMERS_VERSION
 from .utils.doc import add_dynamic_docstring
 from .utils.import_utils import is_torch_version, is_transformers_version
-from .error_utils import MissingMandatoryAxisDimension
+
 
 # from .model_patcher import ModelPatcher
 
 if TYPE_CHECKING:
-    from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
+    from transformers import PretrainedConfig
 
     from .model_patcher import PatchingSpec
 
 logger = logging.get_logger(__name__)
-
 
 
 GENERATE_DUMMY_DOCSTRING = r"""
@@ -90,11 +76,9 @@ GENERATE_DUMMY_DOCSTRING = r"""
 """
 
 
-
 # TODO: Remove
 class ExportConfig(ABC):
     pass
-
 
 
 class ExportersConfig(ABC):
@@ -141,19 +125,19 @@ class ExportersConfig(ABC):
         "audio-xvector": ["logits"],  # for onnx :  ["logits", "embeddings"]
         "depth-estimation": ["predicted_depth"],
         "document-question-answering": ["logits"],
-        "feature-extraction": ["last_hidden_state"], # for neuron : ["last_hidden_state", "pooler_output"]
+        "feature-extraction": ["last_hidden_state"],  # for neuron : ["last_hidden_state", "pooler_output"]
         "fill-mask": ["logits"],
         "image-classification": ["logits"],
         "image-segmentation": ["logits"],  # for tflite : ["logits", "pred_boxes", "pred_masks"]
         "image-to-text": ["logits"],
         "image-to-image": ["reconstruction"],
         "mask-generation": ["logits"],
-        "masked-im": ["logits"], # for onnx :  ["reconstruction"]
+        "masked-im": ["logits"],  # for onnx :  ["reconstruction"]
         "multiple-choice": ["logits"],
         "object-detection": ["logits", "pred_boxes"],
         "question-answering": ["start_logits", "end_logits"],
         "semantic-segmentation": ["logits"],
-        "text2text-generation": ["logits"], # for tflite : ["logits", "encoder_last_hidden_state"],
+        "text2text-generation": ["logits"],  # for tflite : ["logits", "encoder_last_hidden_state"],
         "text-classification": ["logits"],
         "text-generation": ["logits"],
         "time-series-forecasting": ["prediction_outputs"],
@@ -179,7 +163,6 @@ class ExportersConfig(ABC):
         self.mandatory_axes = ()
         self._axes: Dict[str, int] = {}
 
-
     def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
         """
         Instantiates the dummy input generators from `self.DUMMY_INPUT_GENERATOR_CLASSES`.
@@ -189,7 +172,6 @@ class ExportersConfig(ABC):
         """
         # self._validate_mandatory_axes()
         return [cls_(self.task, self._normalized_config, **kwargs) for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES]
-
 
     @property
     @abstractmethod
@@ -212,7 +194,6 @@ class ExportersConfig(ABC):
         """
         common_outputs = self._TASK_TO_COMMON_OUTPUTS[self.task]
         return copy.deepcopy(common_outputs)
-
 
     @property
     def values_override(self) -> Optional[Dict[str, Any]]:
@@ -251,10 +232,8 @@ class ExportersConfig(ABC):
 
         return False
 
-
     @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs) -> Dict:
-
         """
         Generates dummy inputs that the exported model should be able to process.
         This method is actually used to determine the input specs that are needed for the export.
@@ -262,7 +241,6 @@ class ExportersConfig(ABC):
         Returns:
             `Dict[str, [tf.Tensor, torch.Tensor]]`: A dictionary mapping input names to dummy tensors.
         """
-                
 
         dummy_inputs_generators = self._create_dummy_input_generator_classes(**kwargs)
         dummy_inputs = {}
@@ -302,6 +280,5 @@ class ExportersConfig(ABC):
     #     self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
     # ) -> ModelPatcher:
     #    return ModelPatcher(self, model, model_kwargs=model_kwargs)
-
 
     ############################################################################################################################################################

@@ -545,7 +545,7 @@ def get_speecht5_models_for_export(
         use_past=use_past,
         use_past_in_inputs=False,  # Irrelevant here.
         behavior=config._behavior,  # Irrelevant here.
-        preprocessors=config._preprocessors,
+        # preprocessors=config._preprocessors,
         is_postnet_and_vocoder=True,
         legacy=config.legacy,
     )
