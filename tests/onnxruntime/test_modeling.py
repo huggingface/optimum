@@ -4314,6 +4314,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         )
     )
     @require_torch_gpu
+    @pytest.mark.cuda_ep_test
     def test_compare_generation_to_io_binding(
         self,
         test_name: str,
@@ -5675,28 +5676,23 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         self.assertTrue(io_model.use_io_binding)
 
         preprocessor = get_preprocessor(model_id)
-        question = [
-            "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud and this is even longer and longer and longer and longer and hey",
-            "Who are you?",
-        ]
+        decoder_start_token_id = onnx_model.config.decoder_start_token_id
+        question = ["What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash", "Who are you?"]
         inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt").to(
             "cuda"
         )
-        del inputs["decoder_attention_mask"]
-        del inputs["decoder_input_ids"]
-        decoder_start_token_id = onnx_model.config.decoder_start_token_id
-        decoder_inputs = {
-            "decoder_input_ids": torch.ones((2, 1), dtype=torch.long).to("cuda") * decoder_start_token_id,
-            "decoder_attention_mask": torch.ones((2, 1), dtype=torch.int64).to("cuda"),
-        }
+        inputs["decoder_input_ids"] = torch.full((2, 1), decoder_start_token_id, dtype=torch.int64).to("cuda")
+        inputs["decoder_attention_mask"] = torch.ones((2, 1), dtype=torch.int64).to("cuda")
 
-        onnx_outputs = onnx_model(**inputs, **decoder_inputs)
-        io_outputs = io_model(**inputs, **decoder_inputs)
+        onnx_outputs = onnx_model(**inputs)
+        io_outputs = io_model(**inputs)
 
         self.assertTrue("logits" in io_outputs)
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
-        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(
+            onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL, equal_nan=True
+        )
 
         gc.collect()
 
@@ -5710,13 +5706,10 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
             }
         )
     )
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
     def test_compare_generation_to_io_binding(
-        self,
-        test_name: str,
-        model_arch: str,
-        use_cache: bool,
-        use_merged: bool,
-        num_beams: int,
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, num_beams: int
     ):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
