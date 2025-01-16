@@ -218,8 +218,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         self.raise_on_numpy_input_io_binding(use_torch)
 
         known_output_shapes = {}
-        use_cache_branch = None
-        loss = None
+
         if self.use_cache:
             if past_key_values is not None:
                 # Flatten the past_key_values (gpt_bigcode has fused key/value cache, so no need to flatten it)
@@ -241,12 +240,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 position_ids = position_ids[:, -1].unsqueeze(-1)
 
         model_inputs = {
-            "input_ids": input_ids,
+            "input_ids": input_ids.contiguous() if use_torch else input_ids,
             "position_ids": position_ids,
             "attention_mask": attention_mask,
             "use_cache_branch": use_cache_branch,
             "labels": labels,
         }
+
         if past_key_values is not None:
             model_inputs.update(
                 zip(self.key_value_input_names, past_key_values),
@@ -264,16 +264,15 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 self.model.run_with_iobinding(io_binding)
                 io_binding.synchronize_outputs()
 
+            loss = output_buffers.get("loss", None)
+            logits = output_buffers["logits"].view(output_shapes["logits"])
+
             if self.use_cache:
                 # Tuple of length equal to : number of layer * number of past_key_value per decoder layer(2 for the self-attention)
                 past_key_values = tuple(
                     output_buffers[name].view(output_shapes[name]) for name in self.key_value_output_names
                 )
 
-            logits = output_buffers["logits"].view(output_shapes["logits"])
-
-            if "loss" in self.output_names:
-                loss = output_buffers["loss"].view(output_shapes["loss"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
