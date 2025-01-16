@@ -1105,7 +1105,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         decoder_input_ids: Optional[torch.LongTensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
         # Encode if needed : first prediction pass
@@ -1122,7 +1121,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
             past_key_values=past_key_values,
             encoder_hidden_states=encoder_outputs.last_hidden_state,
             encoder_attention_mask=attention_mask,
-            labels=labels,
         )
 
         return Seq2SeqLMOutput(
@@ -1238,7 +1236,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         decoder_input_ids: Optional[torch.LongTensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        labels: Optional[torch.LongTensor] = None,
         cache_position: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
@@ -1257,7 +1254,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
             encoder_hidden_states=encoder_outputs.last_hidden_state,
             encoder_attention_mask=attention_mask,
             cache_position=cache_position,
-            labels=labels,
         )
 
         return Seq2SeqLMOutput(
@@ -1381,6 +1377,11 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         generation_config: Optional[GenerationConfig] = None,
         **kwargs,
     ):
+        # There are probably other archs that do not support cross attention KV cache, but only
+        # this one seem popular on the Hub.
+        if config.decoder.model_type == "gpt2":
+            self.no_cross_attention_cache = True
+
         super().__init__(
             encoder_session,
             decoder_session,
@@ -1413,7 +1414,6 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         decoder_input_ids: Optional[torch.LongTensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
         if encoder_outputs is None:
@@ -1429,7 +1429,6 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
             input_ids=decoder_input_ids,
             past_key_values=past_key_values,
             encoder_hidden_states=encoder_outputs.last_hidden_state,
-            labels=labels,
         )
 
         return Seq2SeqLMOutput(
@@ -1514,7 +1513,6 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         decoder_attention_mask: Optional[torch.BoolTensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
         if encoder_outputs is None:
@@ -1535,7 +1533,6 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
             past_key_values=past_key_values,
             encoder_hidden_states=encoder_outputs.last_hidden_state,
             encoder_attention_mask=attention_mask,
-            labels=labels,
         )
 
         return Seq2SeqLMOutput(

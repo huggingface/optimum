@@ -5042,51 +5042,46 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
+        image_processor, tokenizer = self._get_preprocessors(model_id)
         transformers_model = AutoModelForVision2Seq.from_pretrained(model_id)
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
 
         data = self._get_sample_image()
+        inputs = image_processor(data, return_tensors="pt")
+        inputs["decoder_input_ids"] = tokenizer("This is a sample output", return_tensors="pt").input_ids
 
-        start_token = "<s>"
-        decoder_start_token_id = tokenizer.encode(start_token)[0]
+        with torch.no_grad():
+            transformers_outputs = transformers_model(**inputs, use_cache=True)
 
-        extra_inputs = [{}, {}]
+        for input_type in ["pt", "np"]:
+            inputs = image_processor(data, return_tensors=input_type)
+            inputs["decoder_input_ids"] = tokenizer("This is a sample output", return_tensors=input_type).input_ids
 
-        for extra_inps in extra_inputs:
-            features = feature_extractor(data, return_tensors="pt")
-            decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+            onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
 
-            with torch.no_grad():
-                transformers_outputs = transformers_model(**features, **decoder_inputs, **extra_inps, use_cache=True)
-            for input_type in ["pt", "np"]:
-                features = feature_extractor(data, return_tensors=input_type)
+            self.assertTrue("logits" in onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
-                if input_type == "np":
-                    decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id}
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
-                    if "past_key_values" in extra_inps:
-                        del extra_inps["past_key_values"]  # test only with pytorch
-
-                onnx_outputs = onnx_model(**features, **decoder_inputs, **extra_inps)
-
-                self.assertTrue("logits" in onnx_outputs)
-                self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
-                torch.testing.assert_close(
-                    torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            if use_cache:
+                self.assertEqual(
+                    len(onnx_outputs["past_key_values"]),
+                    len(transformers_outputs["past_key_values"]),
                 )
-
-                if use_cache:
+                for i in range(len(onnx_outputs["past_key_values"])):
                     self.assertEqual(
-                        len(onnx_outputs["past_key_values"]), len(transformers_outputs["past_key_values"])
+                        len(onnx_outputs["past_key_values"][i]),
+                        len(transformers_outputs["past_key_values"][i]),
                     )
-                    self.assertEqual(
-                        len(onnx_outputs["past_key_values"][0]), len(transformers_outputs["past_key_values"][0])
-                    )
-                    for i in range(len(onnx_outputs["past_key_values"])):
-                        for ort_pkv, trfs_pkv in zip(
-                            onnx_outputs["past_key_values"][i], transformers_outputs["past_key_values"][i]
-                        ):
-                            torch.testing.assert_close(torch.Tensor(ort_pkv), trfs_pkv, atol=self.ATOL, rtol=self.RTOL)
+                    for j in range(len(onnx_outputs["past_key_values"][i])):
+                        torch.testing.assert_close(
+                            torch.Tensor(onnx_outputs["past_key_values"][i][j]),
+                            transformers_outputs["past_key_values"][i][j],
+                            atol=self.ATOL,
+                            rtol=self.RTOL,
+                        )
 
         gc.collect()
 

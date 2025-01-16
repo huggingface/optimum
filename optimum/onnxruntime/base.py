@@ -263,7 +263,6 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
         decoder_attention_mask: Optional[torch.LongTensor] = None,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        labels: Optional[torch.LongTensor] = None,
         cache_position: Optional[torch.Tensor] = None,
     ) -> Seq2SeqLMOutput:
         # Adding use_cache_branch in the signature here is just a hack for IO Binding
@@ -291,7 +290,6 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
             "encoder_attention_mask": encoder_attention_mask,
             "use_cache_branch": use_cache_branch_tensor,
             "cache_position": cache_position,
-            "labels": labels,
         }
         if past_key_values is not None:
             model_inputs.update(zip(self.key_value_input_names, past_key_values))
