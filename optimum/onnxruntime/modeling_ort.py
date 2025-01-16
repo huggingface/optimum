@@ -810,18 +810,21 @@ class ORTModel(OptimizedModel):
         """
         io_binding = model.io_binding()
 
-        name_to_np_type = TypeHelper.get_io_numpy_type_map(model)
-
-        input_name_to_shape = {}
+        input_shapes = {}
         for input_name in self.input_names.keys():
-            model_inputs[input_name] = model_inputs[input_name].contiguous()
-            input_name_to_shape[input_name] = model_inputs[input_name].shape
+            input_shapes[input_name] = model_inputs[input_name].shape
 
+            if not model_inputs[input_name].is_contiguous():
+                model_inputs[input_name] = model_inputs[input_name].contiguous()
+
+            tensor_dtype = model_inputs[input_name].dtype
             expected_dtype = TypeHelper.ort_type_to_torch_type(self.input_dtypes[input_name])
-            if model_inputs[input_name].dtype != expected_dtype:
+            if tensor_dtype != expected_dtype:
                 model_inputs[input_name] = model_inputs[input_name].to(expected_dtype)
 
             data_ptr = model_inputs[input_name].data_ptr()
+            if data_ptr == 0:
+                data_ptr = model_inputs["input_ids"].data_ptr()
 
             io_binding.bind_input(
                 input_name,
@@ -831,12 +834,13 @@ class ORTModel(OptimizedModel):
                 model_inputs[input_name].shape,
                 data_ptr,
             )
+
         dimensions = {}
         for input_ in model.get_inputs():
             shape = input_.shape
             for idx, axis in enumerate(shape):
                 if isinstance(axis, str):
-                    dimensions[axis] = input_name_to_shape[input_.name][idx]
+                    dimensions[axis] = input_shapes[input_.name][idx]
 
         output_shapes = {}
         output_buffers = {}
@@ -862,16 +866,19 @@ class ORTModel(OptimizedModel):
 
             output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
 
+            data_ptr = output_buffer.data_ptr()
+
             io_binding.bind_output(
                 output_name,
-                output_buffer.device.type,
+                self.device.type,
                 IOBindingHelper.get_device_index(self.device),
-                name_to_np_type[output_name],
+                TypeHelper.ort_type_to_numpy_type(output_node.type),
                 output_shape,
-                output_buffer.data_ptr(),
+                data_ptr,
             )
-            output_shapes[output_name] = output_shape
+
             output_buffers[output_name] = output_buffer
+            output_shapes[output_name] = output_shape
 
         return io_binding, output_shapes, output_buffers
 
@@ -1088,9 +1095,12 @@ class ORTModelForFeatureExtraction(ORTModel):
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
@@ -1245,9 +1255,12 @@ class ORTModelForMaskedLM(ORTModel):
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -1332,11 +1345,13 @@ class ORTModelForQuestionAnswering(ORTModel):
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
-            # TODO: this is the same routine in all io binding branches, should we refactor it into a prepare_io_binding_outputs method?
             start_logits = output_buffers["start_logits"].view(output_shapes["start_logits"])
             end_logits = output_buffers["end_logits"].view(output_shapes["end_logits"])
         else:
@@ -1441,9 +1456,12 @@ class ORTModelForSequenceClassification(ORTModel):
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -1533,9 +1551,12 @@ class ORTModelForTokenClassification(ORTModel):
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -1618,9 +1639,12 @@ class ORTModelForMultipleChoice(ORTModel):
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -1705,9 +1729,12 @@ class ORTModelForImageClassification(ORTModel):
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -1792,9 +1819,12 @@ class ORTModelForSemanticSegmentation(ORTModel):
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -1919,9 +1949,12 @@ class ORTModelForAudioClassification(ORTModel):
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -2004,9 +2037,12 @@ class ORTModelForCTC(ORTModel):
             )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -2087,9 +2123,12 @@ class ORTModelForAudioXVector(ORTModel):
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
             embeddings = output_buffers["embeddings"].view(output_shapes["embeddings"])
@@ -2231,9 +2270,12 @@ class ORTModelForImageToImage(ORTModel):
                 self.model, model_inputs, known_output_shapes=known_output_shapes
             )
 
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             reconstruction = output_buffers["reconstruction"].view(output_shapes["reconstruction"])
         else:
@@ -2299,9 +2341,12 @@ class ORTModelForCustomTasks(ORTModel):
             io_binding = IOBindingHelper.prepare_io_binding(self, **model_inputs)
 
             # run inference with binding
-            io_binding.synchronize_inputs()
-            self.model.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.model.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.model.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             model_outputs = {}
             for name, output in zip(self.output_names.keys(), io_binding._iobinding.get_outputs()):

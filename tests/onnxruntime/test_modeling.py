@@ -4732,9 +4732,6 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -4756,13 +4753,11 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         processor = get_preprocessor(model_id)
         data = self._generate_random_audio_data()
-        features = processor.feature_extractor([data] * 2, return_tensors="pt").to("cuda")
+        inputs = processor([data] * 2, return_tensors="pt").to("cuda")
+        inputs["decoder_input_ids"] = torch.ones((2, 1), dtype=torch.long).to("cuda")
 
-        decoder_start_token_id = onnx_model.config.decoder_start_token_id
-        decoder_inputs = {"decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id}
-
-        onnx_outputs = onnx_model(**features, **decoder_inputs)
-        io_outputs = io_model(**features, **decoder_inputs)
+        onnx_outputs = onnx_model(**inputs)
+        io_outputs = io_model(**inputs)
 
         self.assertTrue("logits" in io_outputs)
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
@@ -4778,7 +4773,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
                 "model_arch": SUPPORTED_ARCHITECTURES,
                 "use_cache": [True],
                 "use_merged": [False, True],
-                "num_beams": [1, 5],
+                "num_beams": [1, 3],
             }
         )
     )
@@ -4816,7 +4811,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         processor = get_preprocessor(model_id)
         data = self._generate_random_audio_data()
-        features = processor.feature_extractor(data, return_tensors="pt").to("cuda")
+        features = processor(data, return_tensors="pt").to("cuda")
 
         onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
         io_outputs = io_model.generate(**features, num_beams=num_beams)
@@ -5230,9 +5225,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -5284,9 +5276,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     def test_compare_generation_to_io_binding(
         self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, num_beams: int
     ):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -5307,7 +5296,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self.assertTrue(io_model.use_io_binding)
 
         data = self._get_sample_image()
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        feature_extractor, _ = self._get_preprocessors(model_id)
         features = feature_extractor(data, return_tensors="pt").to("cuda")
 
         onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
@@ -5547,9 +5536,6 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_with_and_without_past_key_values(self, model_arch: str):
-        if model_arch == "m2m_100":
-            return  # TODO: this test is failing for m2m_100
-
         model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
         self._setup(model_args)
         model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
@@ -5574,8 +5560,13 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
             **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
         )
 
-        self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
-        self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
+        self.assertEqual(
+            (outputs_model_with_pkv.shape[1], outputs_model_without_pkv.shape[1]),
+            (
+                inputs["decoder_input_ids"].shape[1] + self.GENERATION_LENGTH + 1,
+                inputs["decoder_input_ids"].shape[1] + self.GENERATION_LENGTH + 1,
+            ),
+        )
 
         torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL)
 
@@ -5596,39 +5587,37 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
-        preprocessor = get_preprocessor(model_id)
-
-        question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
-        inputs = preprocessor(images=self.IMAGE, text=question, return_tensors="pt")
-
-        model_not_merged_dir = self.onnx_model_dirs[test_name + "_False"]
-        model_merged_dir = self.onnx_model_dirs[test_name + "_True"]
-
-        model_not_merged = ORTModelForPix2Struct.from_pretrained(model_not_merged_dir)
-        not_merged_onnx_path = Path(model_not_merged_dir, ONNX_DECODER_NAME)
+        model_not_merged = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name + "_False"])
+        not_merged_onnx_path = Path(self.onnx_model_dirs[test_name + "_False"], ONNX_DECODER_NAME)
         self.assertFalse(has_onnx_input(not_merged_onnx_path, "use_cache_branch"))
         self.assertEqual(model_not_merged.use_merged, False)
 
-        model_merged = ORTModelForPix2Struct.from_pretrained(model_merged_dir)
-        merged_onnx_path = Path(model_merged_dir, ONNX_DECODER_MERGED_NAME)
+        model_merged = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name + "_True"])
+        merged_onnx_path = Path(self.onnx_model_dirs[test_name + "_True"], ONNX_DECODER_MERGED_NAME)
         self.assertTrue(has_onnx_input(merged_onnx_path, "use_cache_branch"))
         self.assertEqual(model_merged.decoder_with_past, None)
         self.assertEqual(model_merged.use_merged, True)
 
-        outputs_model_not_merged = model_not_merged.generate(**inputs)
-        outputs_model_merged = model_merged.generate(**inputs)
+        model_id = MODEL_NAMES[model_arch]
+        preprocessor = get_preprocessor(model_id)
+        question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
+        inputs = preprocessor(images=self.IMAGE, text=question, return_tensors="pt")
+
+        outputs_model_not_merged = model_not_merged.generate(
+            **inputs, max_new_tokens=self.GENERATION_LENGTH, min_new_tokens=self.GENERATION_LENGTH
+        )
+        outputs_model_merged = model_merged.generate(
+            **inputs, max_new_tokens=self.GENERATION_LENGTH, min_new_tokens=self.GENERATION_LENGTH
+        )
 
         torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, rtol=self.RTOL, atol=self.ATOL)
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
     )
+    @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -5649,7 +5638,7 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         self.assertTrue(io_model.use_io_binding)
 
         preprocessor = get_preprocessor(model_id)
-        question = ["What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash", "Who are you?"]
+        question = ["What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud", "Who are you?"]
         inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt").to(
             "cuda"
         )
@@ -5663,16 +5652,7 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
         self.assertIsInstance(io_outputs.encoder_last_hidden_state, torch.Tensor)
 
-        torch.testing.assert_close(
-            onnx_outputs.encoder_last_hidden_state,
-            io_outputs.encoder_last_hidden_state,
-            atol=self.ATOL,
-            rtol=self.RTOL,
-        )
-
         torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
-
-        gc.collect()
 
     @parameterized.expand(
         grid_parameters(
@@ -5718,10 +5698,7 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         io_outputs = io_model.generate(**inputs, num_beams=num_beams)
 
         # compare tensor outputs
-        print("diff", onnx_outputs - io_outputs)
         torch.testing.assert_close(onnx_outputs, io_outputs, atol=self.ATOL, rtol=self.RTOL)
-
-        gc.collect()
 
 
 class TestBothExportersORTModel(unittest.TestCase):

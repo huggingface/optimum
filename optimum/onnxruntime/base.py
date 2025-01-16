@@ -125,14 +125,20 @@ class ORTEncoder(ORTModelPart):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
 
-        model_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+        }
 
         if self.parent_model.use_io_binding:
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.session, model_inputs)
 
-            io_binding.synchronize_inputs()
-            self.session.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
@@ -297,7 +303,6 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
                 use_cache_branch=use_cache_branch_tensor.item() if use_cache_branch_tensor is not None else None,
                 past_key_values=past_key_values,
             )
-
             outputs_to_not_bind = self.get_outputs_not_to_bind(use_merged_cache)
 
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(
@@ -307,9 +312,12 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
                 outputs_to_not_bind=outputs_to_not_bind,
             )
 
-            io_binding.synchronize_inputs()
-            self.session.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             # Set -1 for sequence_length as it could be larger than the real sequence_length
             for name, shape in output_shapes.items():
