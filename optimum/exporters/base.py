@@ -24,15 +24,15 @@ from transformers.utils import is_torch_available
 if is_torch_available():
     pass
 
-from .utils import (
+from ..utils import (
     DEFAULT_DUMMY_SHAPES,
     DummyInputGenerator,
     logging,
 )
-from .utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
-from .utils import TRANSFORMERS_MINIMUM_VERSION as GLOBAL_MIN_TRANSFORMERS_VERSION
-from .utils.doc import add_dynamic_docstring
-from .utils.import_utils import is_torch_version, is_transformers_version
+from ..utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
+from ..utils import TRANSFORMERS_MINIMUM_VERSION as GLOBAL_MIN_TRANSFORMERS_VERSION
+from ..utils.doc import add_dynamic_docstring
+from ..utils.import_utils import is_torch_version, is_transformers_version
 
 
 # from .model_patcher import ModelPatcher
