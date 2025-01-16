@@ -5489,9 +5489,6 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
 
-        if use_cache is False:
-            self.skipTest("skip")
-
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -5507,56 +5504,37 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         if use_merged is False:
             model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_NAME)
             self.assertFalse(has_onnx_input(model_path, "use_cache_branch"))
-            self.assertEqual(onnx_model.use_merged, False)
+            self.assertFalse(onnx_model.use_merged)
         else:
             model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_MERGED_NAME)
             self.assertTrue(has_onnx_input(model_path, "use_cache_branch"))
-            self.assertEqual(onnx_model.use_merged, True)
+            self.assertTrue(onnx_model.use_merged)
 
         self.assertIsInstance(onnx_model.decoder, ORTDecoderForSeq2Seq)
-        if onnx_model.use_cache is True and onnx_model.use_merged is False:
+        if use_cache is True and use_merged is False:
             self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
-        if onnx_model.use_cache is True and onnx_model.use_merged is True:
+        if use_cache is True and use_merged is True:
             self.assertTrue(onnx_model.decoder_with_past is None)
 
-        self.assertIsInstance(onnx_model.config, PretrainedConfig)
-
         set_seed(SEED)
+        transformers_model = Pix2StructForConditionalGeneration.from_pretrained(model_id)
+
+        preprocessor = get_preprocessor(model_id)
         questions = [
             "Who am I?",
             "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud and this is long long very long and super long my dear",
         ]
-
-        transformers_model = Pix2StructForConditionalGeneration.from_pretrained(model_id)
-        preprocessor = get_preprocessor(model_id)
-
         inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=questions, padding=True, return_tensors="pt")
-        del inputs["decoder_attention_mask"]
-        del inputs["decoder_input_ids"]
-
-        decoder_start_token_id = transformers_model.config.decoder_start_token_id
-        decoder_inputs = {
-            "decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id,
-            "decoder_attention_mask": torch.ones((2, 1), dtype=torch.int64),
-        }
 
         with torch.no_grad():
-            transformers_outputs = transformers_model(**inputs, **decoder_inputs)
+            transformers_outputs = transformers_model(**inputs)
 
         for input_type in ["pt", "np"]:
             inputs = preprocessor(
                 images=[self.IMAGE, self.IMAGE], text=questions, padding=True, return_tensors=input_type
             )
-            del inputs["decoder_attention_mask"]
-            del inputs["decoder_input_ids"]
 
-            if input_type == "np":
-                decoder_inputs = {
-                    "decoder_input_ids": np.ones((2, 1), dtype=np.int64) * decoder_start_token_id,
-                    "decoder_attention_mask": np.ones((2, 1), dtype=np.int64),
-                }
-
-            onnx_outputs = onnx_model(**inputs, **decoder_inputs)
+            onnx_outputs = onnx_model(**inputs)
 
             self.assertTrue("logits" in onnx_outputs)
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
@@ -5568,41 +5546,38 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    @pytest.mark.cuda_ep_test  # mark as GPU test as well to run the without/with cache timing test on the slow tests
     def test_compare_with_and_without_past_key_values(self, model_arch: str):
         if model_arch == "m2m_100":
             return  # TODO: this test is failing for m2m_100
+
         model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
         self._setup(model_args)
         model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
-        preprocessor = get_preprocessor(model_id)
-
-        question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
-        inputs = preprocessor(images=self.IMAGE, text=question, return_tensors="pt")
-        del inputs["decoder_attention_mask"]
-        del inputs["decoder_input_ids"]
-
         model_with_pkv = ORTModelForPix2Struct.from_pretrained(
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True
         )
+        model_without_pkv = ORTModelForPix2Struct.from_pretrained(
+            self.onnx_model_dirs[model_arch + "_False"], use_cache=False
+        )
+
+        model_id = MODEL_NAMES[model_arch]
+        preprocessor = get_preprocessor(model_id)
+        question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
+        inputs = preprocessor(images=self.IMAGE, text=question, return_tensors="pt")
 
         outputs_model_with_pkv = model_with_pkv.generate(
             **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-        )
-
-        model_without_pkv = ORTModelForPix2Struct.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_False"], use_cache=False
         )
         outputs_model_without_pkv = model_without_pkv.generate(
             **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
         )
 
-        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL)
         self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
         self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
+
+        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL)
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
@@ -5626,8 +5601,6 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
 
         question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
         inputs = preprocessor(images=self.IMAGE, text=question, return_tensors="pt")
-        del inputs["decoder_attention_mask"]
-        del inputs["decoder_input_ids"]
 
         model_not_merged_dir = self.onnx_model_dirs[test_name + "_False"]
         model_merged_dir = self.onnx_model_dirs[test_name + "_True"]
@@ -5676,23 +5649,28 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         self.assertTrue(io_model.use_io_binding)
 
         preprocessor = get_preprocessor(model_id)
-        decoder_start_token_id = onnx_model.config.decoder_start_token_id
         question = ["What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash", "Who are you?"]
         inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt").to(
             "cuda"
         )
-        inputs["decoder_input_ids"] = torch.full((2, 1), decoder_start_token_id, dtype=torch.int64).to("cuda")
-        inputs["decoder_attention_mask"] = torch.ones((2, 1), dtype=torch.int64).to("cuda")
 
         onnx_outputs = onnx_model(**inputs)
         io_outputs = io_model(**inputs)
 
         self.assertTrue("logits" in io_outputs)
+        self.assertTrue("encoder_last_hidden_state" in io_outputs)
+
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
+        self.assertIsInstance(io_outputs.encoder_last_hidden_state, torch.Tensor)
 
         torch.testing.assert_close(
-            onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL, equal_nan=True
+            onnx_outputs.encoder_last_hidden_state,
+            io_outputs.encoder_last_hidden_state,
+            atol=self.ATOL,
+            rtol=self.RTOL,
         )
+
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -5711,9 +5689,6 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
     def test_compare_generation_to_io_binding(
         self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, num_beams: int
     ):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -5738,13 +5713,12 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt").to(
             "cuda"
         )
-        del inputs["decoder_attention_mask"]
-        del inputs["decoder_input_ids"]
 
         onnx_outputs = onnx_model.generate(**inputs, num_beams=num_beams)
         io_outputs = io_model.generate(**inputs, num_beams=num_beams)
 
         # compare tensor outputs
+        print("diff", onnx_outputs - io_outputs)
         torch.testing.assert_close(onnx_outputs, io_outputs, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()

@@ -23,7 +23,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -450,7 +449,7 @@ class ORTEncoderForPix2Struct(ORTEncoder):
             "attention_mask": attention_mask,
         }
 
-        if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
+        if self.parent_model.use_io_binding:
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.session, model_inputs)
 
             io_binding.synchronize_inputs()
@@ -1513,26 +1512,18 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
-        # Encode if needed : first prediction pass
-        # Encode if needed (training, first prediction pass)
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
                 flattened_patches=flattened_patches,
                 attention_mask=attention_mask,
             )
 
-        # TODO: for some reason the attention_mask for pix2struct is a float in transformers and not an int64. This messes up with the exporter
-        # hardcodes int64 input dtype for the attention mask. This workaround is quite ugly, it should be fixed rather in the ONNX exporter.
-        if isinstance(attention_mask, torch.Tensor):
-            attention_mask = attention_mask.to(torch.int64)
-        else:
-            attention_mask = attention_mask.astype(np.int64)
-
         model = (
             self.decoder
-            if past_key_values is None or not self.use_cache or self.use_merged
+            if self.use_merged or not self.use_cache or past_key_values is None
             else self.decoder_with_past
         )
+
         decoder_outputs = model(
             input_ids=decoder_input_ids,
             decoder_attention_mask=decoder_attention_mask,
@@ -1546,6 +1537,7 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
             loss=decoder_outputs.get("loss", None),
             logits=decoder_outputs.logits,
             past_key_values=decoder_outputs.past_key_values,
+            encoder_last_hidden_state=encoder_outputs.last_hidden_state,
         )
 
     def prepare_inputs_for_generation(

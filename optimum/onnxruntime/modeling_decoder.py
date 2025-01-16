@@ -209,7 +209,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         attention_mask: Optional[torch.FloatTensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        labels: Optional[torch.LongTensor] = None,
         use_cache_branch: bool = None,
         **kwargs,
     ) -> CausalLMOutputWithPast:
@@ -233,18 +232,17 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
 
         # Create position_ids on the fly for batch generation
-        if attention_mask is not None and position_ids is None and "position_ids" in self.input_names:
+        if "position_ids" in self.input_names and position_ids is None and attention_mask is not None:
             position_ids = attention_mask.long().cumsum(-1) - 1
             position_ids.masked_fill_(attention_mask == 0, 1)
             if past_key_values:
                 position_ids = position_ids[:, -1].unsqueeze(-1)
 
         model_inputs = {
-            "input_ids": input_ids.contiguous() if use_torch else input_ids,
+            "input_ids": input_ids,
             "position_ids": position_ids,
             "attention_mask": attention_mask,
             "use_cache_branch": use_cache_branch,
-            "labels": labels,
         }
 
         if past_key_values is not None:

@@ -814,21 +814,21 @@ class ORTModel(OptimizedModel):
 
         input_name_to_shape = {}
         for input_name in self.input_names.keys():
-            tensor = model_inputs[input_name].contiguous()
-            input_name_to_shape[input_name] = tensor.shape
+            model_inputs[input_name] = model_inputs[input_name].contiguous()
+            input_name_to_shape[input_name] = model_inputs[input_name].shape
 
-            data_ptr = tensor.data_ptr()
-            if "past" in input_name and data_ptr == 0:
-                # During first generation, sequence_length can be 0 when use_cache=True, which results in data_ptr to also be 0.
-                # To keep compatibility with IO binding, we pass the data pointer of input_ids instead. This will have no impact because past_key_values will not be used during the first generation.
-                data_ptr = next(iter(model_inputs.values())).data_ptr()
+            expected_dtype = TypeHelper.ort_type_to_torch_type(self.input_dtypes[input_name])
+            if model_inputs[input_name].dtype != expected_dtype:
+                model_inputs[input_name] = model_inputs[input_name].to(expected_dtype)
+
+            data_ptr = model_inputs[input_name].data_ptr()
 
             io_binding.bind_input(
                 input_name,
-                tensor.device.type,
+                self.device.type,
                 IOBindingHelper.get_device_index(self.device),
-                name_to_np_type[input_name],
-                tuple(tensor.shape),
+                TypeHelper.ort_type_to_numpy_type(self.input_dtypes[input_name]),
+                model_inputs[input_name].shape,
                 data_ptr,
             )
         dimensions = {}
