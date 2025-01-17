@@ -52,6 +52,7 @@ TORCH_MINIMUM_VERSION = version.parse("1.11.0")
 TRANSFORMERS_MINIMUM_VERSION = version.parse("4.25.0")
 DIFFUSERS_MINIMUM_VERSION = version.parse("0.22.0")
 AUTOGPTQ_MINIMUM_VERSION = version.parse("0.4.99")  # Allows 0.5.0.dev0
+GPTQMODEL_MINIMUM_VERSION = version.parse("1.4.2")
 
 
 # This is the minimal required version to support some ONNX Runtime features
@@ -67,6 +68,7 @@ _pydantic_available = _is_package_available("pydantic")
 _accelerate_available = _is_package_available("accelerate")
 _diffusers_available = _is_package_available("diffusers")
 _auto_gptq_available = _is_package_available("auto_gptq")
+_gptqmodel_available = _is_package_available("gptqmodel")
 _timm_available = _is_package_available("timm")
 _sentence_transformers_available = _is_package_available("sentence_transformers")
 _datasets_available = _is_package_available("datasets")
@@ -138,12 +140,23 @@ def is_datasets_available():
 
 def is_auto_gptq_available():
     if _auto_gptq_available:
-        version_autogptq = version.parse(importlib_metadata.version("auto_gptq"))
-        if AUTOGPTQ_MINIMUM_VERSION < version_autogptq:
+        v = version.parse(importlib_metadata.version("auto_gptq"))
+        if v >= AUTOGPTQ_MINIMUM_VERSION:
             return True
         else:
             raise ImportError(
-                f"Found an incompatible version of auto-gptq. Found version {version_autogptq}, but only version above {AUTOGPTQ_MINIMUM_VERSION} are supported"
+                f"Found an incompatible version of auto-gptq. Found version {v}, but only version >= {AUTOGPTQ_MINIMUM_VERSION} are supported"
+            )
+
+
+def is_gptqmodel_available():
+    if _gptqmodel_available:
+        v = version.parse(importlib_metadata.version("gptqmodel"))
+        if v >= GPTQMODEL_MINIMUM_VERSION:
+            return True
+        else:
+            raise ImportError(
+                f"Found an incompatible version of gptqmodel. Found version {v}, but only version >= {GPTQMODEL_MINIMUM_VERSION} are supported"
             )
 
 

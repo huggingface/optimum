@@ -974,7 +974,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_model_from_hub_private(self):
         token = os.environ.get("HF_HUB_READ_TOKEN", None)
 
-        if token is None:
+        if not token:
             self.skipTest(
                 "Test requires a read access token for optimum-internal-testing in the environment variable `HF_HUB_READ_TOKEN`."
             )
@@ -2827,6 +2827,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "convnextv2",
         "data2vec_vision",
         "deit",
+        "dinov2",
         "levit",
         "mobilenet_v1",
         "mobilenet_v2",

@@ -22,7 +22,7 @@ import traceback
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
@@ -45,6 +45,7 @@ from ...utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ...utils.save_utils import maybe_save_preprocessors
 from ..error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
 from ..tasks import TasksManager
+from ..utils import check_dummy_inputs_are_allowed
 from .base import OnnxConfig
 from .constants import UNPICKABLE_ARCHS
 from .model_configs import SpeechT5OnnxConfig
@@ -55,6 +56,8 @@ from .utils import (
     recursive_to_device,
 )
 
+
+# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
 
 if is_torch_available():
     import torch
@@ -73,30 +76,6 @@ logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 class DynamicAxisNameError(ValueError):
     pass
-
-
-def check_dummy_inputs_are_allowed(
-    model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], dummy_input_names: Iterable[str]
-):
-    """
-    Checks that the dummy inputs from the ONNX config is a subset of the allowed inputs for `model`.
-    Args:
-        model (`Union[transformers.PreTrainedModel, transformers.TFPreTrainedModel`]):
-            The model instance.
-        model_inputs (`Iterable[str]`):
-            The model input names.
-    """
-
-    forward = model.forward if is_torch_available() and isinstance(model, nn.Module) else model.call
-    forward_parameters = signature(forward).parameters
-    forward_inputs_set = set(forward_parameters.keys())
-    dummy_input_names = set(dummy_input_names)
-
-    # We are fine if config_inputs has more keys than model_inputs
-    if not dummy_input_names.issubset(forward_inputs_set):
-        raise ValueError(
-            f"Config dummy inputs are not a subset of the model inputs: {dummy_input_names} vs {forward_inputs_set}"
-        )
 
 
 def validate_models_outputs(

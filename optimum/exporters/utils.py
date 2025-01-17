@@ -16,7 +16,8 @@
 """Utilities for model preparation to export."""
 
 import copy
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from inspect import signature
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import torch
 from packaging import version
@@ -138,7 +139,11 @@ def _get_submodels_for_export_diffusion(
         # https://github.com/huggingface/diffusers/blob/v0.18.2/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl_img2img.py#L571
         unet.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
         unet.config.time_cond_proj_dim = getattr(pipeline.unet.config, "time_cond_proj_dim", None)
-        unet.config.text_encoder_projection_dim = pipeline.text_encoder.config.projection_dim
+        unet.config.text_encoder_projection_dim = (
+            pipeline.text_encoder.config.projection_dim
+            if not is_sdxl
+            else pipeline.text_encoder_2.config.projection_dim
+        )
         unet.config.export_model_type = _get_diffusers_submodel_type(unet)
         models_for_export["unet"] = unet
 
@@ -675,3 +680,27 @@ def _get_submodels_and_export_configs(
         export_config = next(iter(models_and_export_configs.values()))[1]
 
     return export_config, models_and_export_configs
+
+
+def check_dummy_inputs_are_allowed(
+    model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], dummy_input_names: Iterable[str]
+):
+    """
+    Checks that the dummy inputs from the ONNX config is a subset of the allowed inputs for `model`.
+    Args:
+        model (`Union[transformers.PreTrainedModel, transformers.TFPreTrainedModel`]):
+            The model instance.
+        model_inputs (`Iterable[str]`):
+            The model input names.
+    """
+
+    forward = model.forward if is_torch_available() and isinstance(model, torch.nn.Module) else model.call
+    forward_parameters = signature(forward).parameters
+    forward_inputs_set = set(forward_parameters.keys())
+    dummy_input_names = set(dummy_input_names)
+
+    # We are fine if config_inputs has more keys than model_inputs
+    if not dummy_input_names.issubset(forward_inputs_set):
+        raise ValueError(
+            f"Config dummy inputs are not a subset of the model inputs: {dummy_input_names} vs {forward_inputs_set}"
+        )
