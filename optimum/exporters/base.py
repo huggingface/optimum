@@ -150,7 +150,7 @@ class ExportersConfig(ABC):
     def __init__(
         self,
         config: "PretrainedConfig",
-        task: str = "feature-extraction",
+        task: str,
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
     ):
