@@ -128,7 +128,7 @@ class ExportersConfig(ABC):
         "feature-extraction": ["last_hidden_state"],  # for neuron : ["last_hidden_state", "pooler_output"]
         "fill-mask": ["logits"],
         "image-classification": ["logits"],
-        "image-segmentation": ["logits"],  # for tflite : ["logits", "pred_boxes", "pred_masks"]
+        "image-segmentation": ["logits"],
         "image-to-text": ["logits"],
         "image-to-image": ["reconstruction"],
         "mask-generation": ["logits"],
@@ -137,7 +137,7 @@ class ExportersConfig(ABC):
         "object-detection": ["logits", "pred_boxes"],
         "question-answering": ["start_logits", "end_logits"],
         "semantic-segmentation": ["logits"],
-        "text2text-generation": ["logits"],  # for tflite : ["logits", "encoder_last_hidden_state"],
+        "text2text-generation": ["logits"],
         "text-classification": ["logits"],
         "text-generation": ["logits"],
         "time-series-forecasting": ["prediction_outputs"],
