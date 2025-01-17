@@ -148,33 +148,10 @@ class TFLiteConfig(ExportersConfig, ABC):
         They are required or not depending on the model the `TFLiteConfig` is designed for.
     """
 
-    NORMALIZED_CONFIG_CLASS: Type = None
-    DUMMY_INPUT_GENERATOR_CLASSES: Tuple[Type, ...] = ()
-    ATOL_FOR_VALIDATION: Union[float, Dict[str, float]] = 1e-5
     MANDATORY_AXES = ()
     SUPPORTED_QUANTIZATION_APPROACHES: Union[
         Dict[str, Tuple[QuantizationApproach, ...]], Tuple[QuantizationApproach, ...]
     ] = tuple(approach for approach in QuantizationApproach)
-
-    _TASK_TO_COMMON_OUTPUTS = {
-        "text-generation": ["logits"],
-        "feature-extraction": ["last_hidden_state"],
-        "image-classification": ["logits"],
-        "image-segmentation": ["logits", "pred_boxes", "pred_masks"],
-        "masked-im": ["logits"],
-        "fill-mask": ["logits"],
-        "multiple-choice": ["logits"],
-        "object-detection": ["logits", "pred_boxes"],
-        "question-answering": ["start_logits", "end_logits"],
-        "semantic-segmentation": ["logits"],
-        "text2text-generation": ["logits", "encoder_last_hidden_state"],
-        "text-classification": ["logits"],
-        "token-classification": ["logits"],
-        "automatic-speech-recognition": ["logits"],
-        "audio-classification": ["logits"],
-        "audio-frame-classification": ["logits"],
-        "audio-xvector": ["logits"],
-    }
 
     def __init__(
         self,
@@ -194,6 +171,7 @@ class TFLiteConfig(ExportersConfig, ABC):
     ):
         super().__init__(config=config, task=task, int_dtype="int64", float_dtype="fp32")
         self.task = task
+
         # To avoid using **kwargs.
         axes_values = {
             "batch_size": batch_size,
