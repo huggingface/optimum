@@ -322,6 +322,8 @@ class TasksManager:
     }
 
     _CUSTOM_CLASSES = {
+        ("pt", "patchtsmixer", "time-series-forecasting"): ("transformers", "PatchTSMixerForPrediction"),
+        ("pt", "patchtst", "time-series-forecasting"): ("transformers", "PatchTSTForPrediction"),
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
         ("pt", "pix2struct", "visual-question-answering"): ("transformers", "Pix2StructForConditionalGeneration"),
         ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
@@ -891,6 +893,15 @@ class TasksManager:
             "image-classification",
             onnx="MobileNetV2OnnxConfig",
         ),
+        "modernbert": supported_tasks_mapping(
+            "feature-extraction",
+            "fill-mask",
+            "text-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="ModernBertOnnxConfig",
+        ),
         "moonshine": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -959,6 +970,16 @@ class TasksManager:
             "question-answering",
             "text-classification",
             onnx="OPTOnnxConfig",
+        ),
+        "patchtst": supported_tasks_mapping(
+            "feature-extraction",
+            "time-series-forecasting",
+            onnx="PatchTSTOnnxConfig",
+        ),
+        "patchtsmixer": supported_tasks_mapping(
+            "feature-extraction",
+            "time-series-forecasting",
+            onnx="PatchTSMixerOnnxConfig",
         ),
         "qwen2": supported_tasks_mapping(
             "feature-extraction",
@@ -1768,6 +1789,7 @@ class TasksManager:
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: Optional[Union[bool, str]] = None,
+        library_name: Optional[str] = None,
     ) -> str:
         inferred_task_name = None
 
@@ -1789,13 +1811,14 @@ class TasksManager:
                 raise RuntimeError(
                     f"Hugging Face Hub is not reachable and we cannot infer the task from a cached model. Make sure you are not offline, or otherwise please specify the `task` (or `--task` in command-line) argument ({', '.join(TasksManager.get_all_tasks())})."
                 )
-            library_name = cls.infer_library_from_model(
-                model_name_or_path,
-                subfolder=subfolder,
-                revision=revision,
-                cache_dir=cache_dir,
-                token=token,
-            )
+            if library_name is None:
+                library_name = cls.infer_library_from_model(
+                    model_name_or_path,
+                    subfolder=subfolder,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    token=token,
+                )
 
             if library_name == "timm":
                 inferred_task_name = "image-classification"
@@ -1814,6 +1837,8 @@ class TasksManager:
                                     break
                             if inferred_task_name is not None:
                                 break
+            elif library_name == "sentence_transformers":
+                inferred_task_name = "feature-extraction"
             elif library_name == "transformers":
                 pipeline_tag = model_info.pipeline_tag
                 transformers_info = model_info.transformersInfo
@@ -1850,6 +1875,7 @@ class TasksManager:
         revision: Optional[str] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: Optional[Union[bool, str]] = None,
+        library_name: Optional[str] = None,
     ) -> str:
         """
         Infers the task from the model repo, model instance, or model class.
@@ -1868,7 +1894,9 @@ class TasksManager:
             token (`Optional[Union[bool,str]]`, defaults to `None`):
                 The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
                 when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
-
+            library_name (`Optional[str]`, defaults to `None`):
+                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers". See `TasksManager.infer_library_from_model` for the priority should
+                none be provided.
         Returns:
             `str`: The task name automatically detected from the HF hub repo, model instance, or model class.
         """
@@ -1881,6 +1909,7 @@ class TasksManager:
                 revision=revision,
                 cache_dir=cache_dir,
                 token=token,
+                library_name=library_name,
             )
         elif type(model) == type:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model_class=model)
@@ -2156,6 +2185,9 @@ class TasksManager:
                 none be provided.
             model_kwargs (`Dict[str, Any]`, *optional*):
                 Keyword arguments to pass to the model `.from_pretrained()` method.
+            library_name (`Optional[str]`, defaults to `None`):
+                The library name of the model. Can be any of "transformers", "timm", "diffusers", "sentence_transformers". See `TasksManager.infer_library_from_model` for the priority should
+                none be provided.
 
         Returns:
             The instance of the model.
@@ -2175,7 +2207,12 @@ class TasksManager:
         original_task = task
         if task == "auto":
             task = TasksManager.infer_task_from_model(
-                model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+                model_name_or_path,
+                subfolder=subfolder,
+                revision=revision,
+                cache_dir=cache_dir,
+                token=token,
+                library_name=library_name,
             )
 
         model_type = None

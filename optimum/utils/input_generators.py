@@ -20,9 +20,8 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
-from transformers.utils import is_tf_available, is_torch_available
 
-from ..utils import check_if_diffusers_greater, check_if_transformers_greater
+from ..utils import is_diffusers_version, is_tf_available, is_torch_available, is_transformers_version
 from .normalized_config import (
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
@@ -1072,7 +1071,7 @@ class GPTBigCodeDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
 
 class BloomDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        if check_if_transformers_greater("4.44"):
+        if is_transformers_version(">=", "4.44"):
             return super().generate(input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype)
         else:
             past_key_shape = (
@@ -1504,7 +1503,7 @@ class DummyFluxTransformerVisionInputGenerator(DummyTransformerVisionInputGenera
         elif input_name == "img_ids":
             shape = (
                 [(self.height // 2) * (self.width // 2), 3]
-                if check_if_diffusers_greater("0.31.0")
+                if is_diffusers_version(">=", "0.31.0")
                 else [self.batch_size, (self.height // 2) * (self.width // 2), 3]
             )
             return self.random_int_tensor(shape, max_value=1, framework=framework, dtype=int_dtype)
@@ -1524,7 +1523,7 @@ class DummyFluxTransformerTextInputGenerator(DummyTransformerTextInputGenerator)
         if input_name == "txt_ids":
             shape = (
                 [self.sequence_length, 3]
-                if check_if_diffusers_greater("0.31.0")
+                if is_diffusers_version(">=", "0.31.0")
                 else [self.batch_size, self.sequence_length, 3]
             )
             return self.random_int_tensor(shape, max_value=1, framework=framework, dtype=int_dtype)
@@ -1533,3 +1532,30 @@ class DummyFluxTransformerTextInputGenerator(DummyTransformerTextInputGenerator)
             return self.random_float_tensor(shape, min_value=0, max_value=1, framework=framework, dtype=float_dtype)
 
         return super().generate(input_name, framework, int_dtype, float_dtype)
+
+
+class DummyPatchTSTInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("past_values",)
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        **kwargs,
+    ):
+        self.task = task
+        self.normalized_config = normalized_config
+
+        self.batch_size = batch_size
+        self.context_length = normalized_config.context_length
+        self.num_input_channels = normalized_config.num_input_channels
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        return self.random_float_tensor(
+            shape=[self.batch_size, self.context_length, self.num_input_channels],
+            min_value=-1,
+            max_value=1,
+            framework=framework,
+            dtype=float_dtype,
+        )

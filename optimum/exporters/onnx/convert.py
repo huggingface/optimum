@@ -35,9 +35,9 @@ from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
     TORCH_MINIMUM_VERSION,
-    check_if_transformers_greater,
     is_diffusers_available,
     is_torch_onnx_support_available,
+    is_transformers_version,
     logging,
     require_numpy_strictly_lower,
 )
@@ -512,7 +512,7 @@ def export_pytorch(
 
     model_kwargs = model_kwargs or {}
     # num_logits_to_keep was added in transformers 4.45 and isn't added as inputs when exporting the model
-    if check_if_transformers_greater("4.44.99") and "num_logits_to_keep" in signature(model.forward).parameters.keys():
+    if is_transformers_version(">=", "4.44.99") and "num_logits_to_keep" in signature(model.forward).parameters.keys():
         model_kwargs["num_logits_to_keep"] = 0
 
     with torch.no_grad():
@@ -851,17 +851,16 @@ def export(
         )
 
     if is_torch_available() and isinstance(model, nn.Module):
-        from ...utils import torch_version
+        from ...utils.import_utils import _torch_version
 
         if not is_torch_onnx_support_available():
             raise MinimumVersionError(
-                f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {torch_version}"
+                f"Unsupported PyTorch version, minimum required is {TORCH_MINIMUM_VERSION}, got: {_torch_version}"
             )
 
         if not config.is_torch_support_available:
             raise MinimumVersionError(
-                f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION},"
-                f" got: {torch.__version__}"
+                f"Unsupported PyTorch version for this model. Minimum required is {config.MIN_TORCH_VERSION}, got: {_torch_version}"
             )
 
         export_output = export_pytorch(
@@ -1105,7 +1104,7 @@ def onnx_export_from_model(
             if isinstance(atol, dict):
                 atol = atol[task.replace("-with-past", "")]
 
-        if check_if_transformers_greater("4.44.99"):
+        if is_transformers_version(">=", "4.44.99"):
             misplaced_generation_parameters = model.config._get_non_default_generation_parameters()
             if (
                 isinstance(model, GenerationMixin)

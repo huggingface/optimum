@@ -34,6 +34,7 @@ from ...utils import (
     DummyInputGenerator,
     DummyIntGenerator,
     DummyPastKeyValuesGenerator,
+    DummyPatchTSTInputGenerator,
     DummyPix2StructInputGenerator,
     DummyPointsGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
@@ -58,10 +59,11 @@ from ...utils import (
     NormalizedTextAndVisionConfig,
     NormalizedTextConfig,
     NormalizedTextConfigWithGQA,
+    NormalizedTimeSeriesForecastingConfig,
     NormalizedVisionConfig,
-    check_if_diffusers_greater,
-    check_if_transformers_greater,
     is_diffusers_available,
+    is_diffusers_version,
+    is_transformers_version,
     logging,
 )
 from ...utils.normalized_config import NormalizedConfigManager
@@ -179,6 +181,10 @@ class DistilBertOnnxConfig(BertOnnxConfig):
         else:
             dynamic_axis = {0: "batch_size", 1: "sequence_length"}
         return {"input_ids": dynamic_axis, "attention_mask": dynamic_axis}
+
+
+class ModernBertOnnxConfig(DistilBertOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.48.0")
 
 
 class MPNetOnnxConfig(DistilBertOnnxConfig):
@@ -306,7 +312,7 @@ class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 
 # OPT does not take position_ids as input for transfomers < v4.46, needs it for transformers >= v4.46
-if check_if_transformers_greater("4.45.99"):
+if is_transformers_version(">=", "4.45.99"):
 
     class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
         DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
@@ -366,8 +372,7 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
 
     def __init__(self, *args, **kwargs):
-        # TODO : replace check_if_transformers_greater with is_transformers_available
-        if check_if_transformers_greater("4.46.0") and not check_if_transformers_greater("4.46.1"):
+        if is_transformers_version("==", "4.46.0"):
             logger.error(
                 "Found transformers v4.46.0 while trying to exporting a Phi3 model, this specific version of transformers is not supported. "
                 "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
@@ -413,7 +418,7 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Bloom uses aten::triu that requires opset>=14, and F.scaled_dot_product_attention
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
-        if check_if_transformers_greater("4.44"):
+        if is_transformers_version(">=", "4.44"):
             super().add_past_key_values(inputs_or_outputs, direction)
         else:
             if direction not in ["inputs", "outputs"]:
@@ -1433,11 +1438,11 @@ class FluxTransformerOnnxConfig(SD3TransformerOnnxConfig):
         common_inputs = super().inputs
         common_inputs["hidden_states"] = {0: "batch_size", 1: "packed_height_width"}
         common_inputs["txt_ids"] = (
-            {0: "sequence_length"} if check_if_diffusers_greater("0.31.0") else {0: "batch_size", 1: "sequence_length"}
+            {0: "sequence_length"} if is_diffusers_version(">=", "0.31.0") else {0: "batch_size", 1: "sequence_length"}
         )
         common_inputs["img_ids"] = (
             {0: "packed_height_width"}
-            if check_if_diffusers_greater("0.31.0")
+            if is_diffusers_version(">=", "0.31.0")
             else {0: "batch_size", 1: "packed_height_width"}
         )
 
@@ -2479,12 +2484,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # TODO : replace check_if_transformers_greater with is_transformers_available
-        if (
-            check_if_transformers_greater("4.46.0")
-            and not check_if_transformers_greater("4.46.1")
-            and self._behavior is ConfigBehavior.DECODER
-        ):
+        if is_transformers_version("==", "4.46.0") and self._behavior is ConfigBehavior.DECODER:
             logger.error(
                 "Found transformers v4.46.0 while trying to exporting a Pix2Struct model, this specific version of transformers is not supported. "
                 "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
@@ -2643,3 +2643,24 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
 
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+
+
+class PatchTSTOnnxConfig(OnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyPatchTSTInputGenerator,)
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"past_values": {0: "batch_size", 1: "sequence_length"}}
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "feature-extraction":
+            return {"last_hidden_state": {0: "batch_size"}}
+        else:
+            return super().outputs
+
+
+class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
+    pass

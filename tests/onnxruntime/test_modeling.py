@@ -107,7 +107,7 @@ from optimum.utils import (
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
     logging,
 )
-from optimum.utils.import_utils import check_if_transformers_greater, is_diffusers_available
+from optimum.utils.import_utils import is_diffusers_available, is_transformers_version
 from optimum.utils.testing_utils import (
     grid_parameters,
     remove_directory,
@@ -2333,17 +2333,17 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "opt",
     ]
 
-    if check_if_transformers_greater("4.37"):
+    if is_transformers_version(">=", "4.37"):
         SUPPORTED_ARCHITECTURES.append("qwen2")
 
-    if check_if_transformers_greater("4.38"):
+    if is_transformers_version(">=", "4.38"):
         SUPPORTED_ARCHITECTURES.append("gemma")
 
     # TODO: fix "mpt" for which inference fails for transformers < v4.41
-    if check_if_transformers_greater("4.41"):
+    if is_transformers_version(">=", "4.41"):
         SUPPORTED_ARCHITECTURES.extend(["phi3", "mpt"])
 
-    if check_if_transformers_greater("4.45"):
+    if is_transformers_version(">=", "4.45"):
         SUPPORTED_ARCHITECTURES.append("granite")
 
     FULL_GRID = {
@@ -4612,7 +4612,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
 
-        if model_arch == "whisper" and check_if_transformers_greater("4.43"):
+        if model_arch == "whisper" and is_transformers_version(">=", "4.43"):
             gen_length = self.GENERATION_LENGTH + 2
         else:
             gen_length = self.GENERATION_LENGTH + 1

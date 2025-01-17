@@ -83,7 +83,7 @@ from transformers.utils import (
 )
 
 from ..utils import logging
-from ..utils.import_utils import check_if_transformers_greater
+from ..utils.import_utils import is_transformers_version
 from .training_args import ORTOptimizerNames, ORTTrainingArguments
 from .utils import (
     is_onnxruntime_training_available,
@@ -93,7 +93,7 @@ from .utils import (
 if is_apex_available():
     from apex import amp
 
-if check_if_transformers_greater("4.33"):
+if is_transformers_version(">=", "4.33"):
     from transformers.integrations.deepspeed import (
         deepspeed_init,
         deepspeed_load_checkpoint,
@@ -102,7 +102,7 @@ if check_if_transformers_greater("4.33"):
 else:
     from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
 
-if check_if_transformers_greater("4.39"):
+if is_transformers_version(">=", "4.39"):
     from transformers.utils import is_torch_xla_available as is_torch_tpu_xla_available
 
     if is_torch_tpu_xla_available():

@@ -207,20 +207,18 @@ class OnnxExportTestCase(TestCase):
             model.config.pad_token_id = 0
 
         if is_torch_available():
-            from optimum.utils import torch_version
+            from optimum.utils.import_utils import _torch_version, _transformers_version
 
             if not onnx_config.is_transformers_support_available:
-                import transformers
-
                 pytest.skip(
                     "Skipping due to incompatible Transformers version. Minimum required is"
-                    f" {onnx_config.MIN_TRANSFORMERS_VERSION}, got: {transformers.__version__}"
+                    f" {onnx_config.MIN_TRANSFORMERS_VERSION}, got: {_transformers_version}"
                 )
 
             if not onnx_config.is_torch_support_available:
                 pytest.skip(
                     "Skipping due to incompatible PyTorch version. Minimum required is"
-                    f" {onnx_config.MIN_TORCH_VERSION}, got: {torch_version}"
+                    f" {onnx_config.MIN_TORCH_VERSION}, got: {_torch_version}"
                 )
 
         atol = onnx_config.ATOL_FOR_VALIDATION

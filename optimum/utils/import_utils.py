@@ -13,16 +13,28 @@
 # limitations under the License.
 """Import utilities."""
 
+import importlib.metadata
 import importlib.util
 import inspect
-import sys
+import operator as op
 from collections import OrderedDict
 from contextlib import contextmanager
 from typing import Tuple, Union
 
 import numpy as np
 from packaging import version
-from transformers.utils import is_torch_available
+
+
+TORCH_MINIMUM_VERSION = version.parse("1.11.0")
+TRANSFORMERS_MINIMUM_VERSION = version.parse("4.25.0")
+DIFFUSERS_MINIMUM_VERSION = version.parse("0.22.0")
+AUTOGPTQ_MINIMUM_VERSION = version.parse("0.4.99")  # Allows 0.5.0.dev0
+GPTQMODEL_MINIMUM_VERSION = version.parse("1.6.0")
+
+# This is the minimal required version to support some ONNX Runtime features
+ORT_QUANTIZE_MINIMUM_VERSION = version.parse("1.4.0")
+
+STR_OPERATION_TO_FUNC = {">": op.gt, ">=": op.ge, "==": op.eq, "!=": op.ne, "<=": op.le, "<": op.lt}
 
 
 def _is_package_available(pkg_name: str, return_version: bool = False) -> Union[Tuple[bool, str], bool]:
@@ -41,57 +53,110 @@ def _is_package_available(pkg_name: str, return_version: bool = False) -> Union[
         return package_exists
 
 
-# The package importlib_metadata is in a different place, depending on the python version.
-if sys.version_info < (3, 8):
-    import importlib_metadata
-else:
-    import importlib.metadata as importlib_metadata
-
-
-TORCH_MINIMUM_VERSION = version.parse("1.11.0")
-TRANSFORMERS_MINIMUM_VERSION = version.parse("4.25.0")
-DIFFUSERS_MINIMUM_VERSION = version.parse("0.22.0")
-AUTOGPTQ_MINIMUM_VERSION = version.parse("0.4.99")  # Allows 0.5.0.dev0
-GPTQMODEL_MINIMUM_VERSION = version.parse("1.4.2")
-
-
-# This is the minimal required version to support some ONNX Runtime features
-ORT_QUANTIZE_MINIMUM_VERSION = version.parse("1.4.0")
-
-
 _onnx_available = _is_package_available("onnx")
-
-# importlib.metadata.version seem to not be robust with the ONNX Runtime extensions (`onnxruntime-gpu`, etc.)
-_onnxruntime_available = importlib.util.find_spec("onnxruntime") is not None
-
 _pydantic_available = _is_package_available("pydantic")
 _accelerate_available = _is_package_available("accelerate")
-_diffusers_available = _is_package_available("diffusers")
 _auto_gptq_available = _is_package_available("auto_gptq")
 _gptqmodel_available = _is_package_available("gptqmodel")
 _timm_available = _is_package_available("timm")
 _sentence_transformers_available = _is_package_available("sentence_transformers")
 _datasets_available = _is_package_available("datasets")
+_diffusers_available, _diffusers_version = _is_package_available("diffusers", return_version=True)
+_transformers_available, _transformers_version = _is_package_available("transformers", return_version=True)
+_torch_available, _torch_version = _is_package_available("torch", return_version=True)
 
-torch_version = None
-if is_torch_available():
-    torch_version = version.parse(importlib_metadata.version("torch"))
+# importlib.metadata.version seem to not be robust with the ONNX Runtime extensions (`onnxruntime-gpu`, etc.)
+_onnxruntime_available = _is_package_available("onnxruntime", return_version=False)
 
-_is_torch_onnx_support_available = is_torch_available() and (
-    TORCH_MINIMUM_VERSION.major,
-    TORCH_MINIMUM_VERSION.minor,
-) <= (
-    torch_version.major,
-    torch_version.minor,
-)
+# TODO : Remove
+torch_version = version.parse(importlib.metadata.version("torch")) if _torch_available else None
 
 
-_diffusers_version = None
-if _diffusers_available:
-    try:
-        _diffusers_version = importlib_metadata.version("diffusers")
-    except importlib_metadata.PackageNotFoundError:
-        _diffusers_available = False
+# Note: _is_package_available("tensorflow") fails for tensorflow-cpu. Please test any changes to the line below
+# with tensorflow-cpu to make sure it still works!
+_tf_available = importlib.util.find_spec("tensorflow") is not None
+_tf_version = None
+if _tf_available:
+    candidates = (
+        "tensorflow",
+        "tensorflow-cpu",
+        "tensorflow-gpu",
+        "tf-nightly",
+        "tf-nightly-cpu",
+        "tf-nightly-gpu",
+        "tf-nightly-rocm",
+        "intel-tensorflow",
+        "intel-tensorflow-avx512",
+        "tensorflow-rocm",
+        "tensorflow-macos",
+        "tensorflow-aarch64",
+    )
+    # For the metadata, we have to look for both tensorflow and tensorflow-cpu
+    for pkg in candidates:
+        try:
+            _tf_version = importlib.metadata.version(pkg)
+            break
+        except importlib.metadata.PackageNotFoundError:
+            pass
+    _tf_available = _tf_version is not None
+if _tf_available:
+    if version.parse(_tf_version) < version.parse("2"):
+        _tf_available = False
+_tf_version = _tf_version or "N/A"
+
+
+# This function was copied from: https://github.com/huggingface/accelerate/blob/874c4967d94badd24f893064cc3bef45f57cadf7/src/accelerate/utils/versions.py#L319
+def compare_versions(library_or_version: Union[str, version.Version], operation: str, requirement_version: str):
+    """
+    Compare a library version to some requirement using a given operation.
+
+    Arguments:
+        library_or_version (`str` or `packaging.version.Version`):
+            A library name or a version to check.
+        operation (`str`):
+            A string representation of an operator, such as `">"` or `"<="`.
+        requirement_version (`str`):
+            The version to compare the library version against
+    """
+    if operation not in STR_OPERATION_TO_FUNC.keys():
+        raise ValueError(f"`operation` must be one of {list(STR_OPERATION_TO_FUNC.keys())}, received {operation}")
+    operation = STR_OPERATION_TO_FUNC[operation]
+    if isinstance(library_or_version, str):
+        library_or_version = version.parse(importlib.metadata.version(library_or_version))
+    return operation(library_or_version, version.parse(requirement_version))
+
+
+def is_transformers_version(operation: str, reference_version: str):
+    """
+    Compare the current Transformers version to a given reference with an operation.
+    """
+    if not _transformers_available:
+        return False
+    return compare_versions(version.parse(_transformers_version), operation, reference_version)
+
+
+def is_diffusers_version(operation: str, reference_version: str):
+    """
+    Compare the current diffusers version to a given reference with an operation.
+    """
+    if not _diffusers_available:
+        return False
+    return compare_versions(version.parse(_diffusers_version), operation, reference_version)
+
+
+def is_torch_version(operation: str, reference_version: str):
+    """
+    Compare the current torch version to a given reference with an operation.
+    """
+    if not _torch_available:
+        return False
+
+    import torch
+
+    return compare_versions(version.parse(version.parse(torch.__version__).base_version), operation, reference_version)
+
+
+_is_torch_onnx_support_available = _torch_available and is_torch_version(">=", TORCH_MINIMUM_VERSION.base_version)
 
 
 def is_torch_onnx_support_available():
@@ -138,9 +203,21 @@ def is_datasets_available():
     return _datasets_available
 
 
+def is_transformers_available():
+    return _transformers_available
+
+
+def is_torch_available():
+    return _torch_available
+
+
+def is_tf_available():
+    return _tf_available
+
+
 def is_auto_gptq_available():
     if _auto_gptq_available:
-        v = version.parse(importlib_metadata.version("auto_gptq"))
+        v = version.parse(importlib.metadata.version("auto_gptq"))
         if v >= AUTOGPTQ_MINIMUM_VERSION:
             return True
         else:
@@ -151,7 +228,7 @@ def is_auto_gptq_available():
 
 def is_gptqmodel_available():
     if _gptqmodel_available:
-        v = version.parse(importlib_metadata.version("gptqmodel"))
+        v = version.parse(importlib.metadata.version("gptqmodel"))
         if v >= GPTQMODEL_MINIMUM_VERSION:
             return True
         else:
@@ -177,6 +254,7 @@ def check_if_pytorch_greater(target_version: str, message: str):
         pass
 
 
+# TODO : Remove check_if_transformers_greater, check_if_diffusers_greater, check_if_torch_greater
 def check_if_transformers_greater(target_version: Union[str, version.Version]) -> bool:
     """
     Checks whether the current install of transformers is greater than or equal to the target version.
@@ -221,10 +299,10 @@ def check_if_torch_greater(target_version: str) -> bool:
     Returns:
         bool: whether the check is True or not.
     """
-    if not is_torch_available():
+    if not _torch_available:
         return False
 
-    return torch_version >= version.parse(target_version)
+    return version.parse(_torch_version) >= version.parse(target_version)
 
 
 @contextmanager
@@ -259,15 +337,15 @@ BACKENDS_MAPPING = OrderedDict(
         ("diffusers", (is_diffusers_available, DIFFUSERS_IMPORT_ERROR)),
         (
             "transformers_431",
-            (lambda: check_if_transformers_greater("4.31"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.31")),
+            (lambda: is_transformers_version(">=", "4.31"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.31")),
         ),
         (
             "transformers_432",
-            (lambda: check_if_transformers_greater("4.32"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.32")),
+            (lambda: is_transformers_version(">=", "4.32"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.32")),
         ),
         (
             "transformers_434",
-            (lambda: check_if_transformers_greater("4.34"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.34")),
+            (lambda: is_transformers_version(">=", "4.34"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.34")),
         ),
         ("datasets", (is_datasets_available, DATASETS_IMPORT_ERROR)),
     ]
