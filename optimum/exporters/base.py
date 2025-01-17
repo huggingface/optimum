@@ -160,9 +160,6 @@ class ExportersConfig(ABC):
         self.int_dtype = int_dtype
         self.float_dtype = float_dtype
 
-        self.mandatory_axes = ()
-        self._axes: Dict[str, int] = {}
-
     def _create_dummy_input_generator_classes(self, **kwargs) -> List[DummyInputGenerator]:
         """
         Instantiates the dummy input generators from `self.DUMMY_INPUT_GENERATOR_CLASSES`.
