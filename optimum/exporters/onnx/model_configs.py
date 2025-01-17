@@ -1676,11 +1676,6 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
             if self._behavior is not ConfigBehavior.DECODER:
                 common_inputs["input_features"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
 
-            if self._behavior is not ConfigBehavior.ENCODER and self.use_past_in_inputs:
-                if check_if_transformers_greater("4.43.0"):
-                    # since https://github.com/huggingface/transformers/pull/31166
-                    common_inputs["cache_position"] = {0: "decoder_sequence_length"}
-
             if self._behavior is ConfigBehavior.DECODER and not self.use_past_in_inputs:
                 common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / 2"
         return common_inputs
