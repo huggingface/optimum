@@ -157,7 +157,49 @@ def onnx_compatible_unfold(input_tensor, dimension, size, step):
     return result
 
 
-UNSUPPORTED_OPS_PATCHING_SPEC = [PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold)]
+# An ONNX-export-compatible version of `tensor.repeat_interleave`.
+# Without this, we get the following error: https://github.com/pytorch/pytorch/issues/145100
+# NOTE: This implementation is only necessary for export with dynamo=False (dynamo=True works correctly).
+# and can be removed once Optimum switches to dynamo-based exports
+def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None):
+    """
+    Custom implementation of torch.repeat_interleave without using torch.repeat_interleave.
+
+    Args:
+        input_tensor (torch.Tensor): The input tensor.
+        repeats (int or torch.Tensor): The number of repetitions for each element.
+        dim (int, optional): The dimension along which to repeat. Defaults to None.
+    
+    Returns:
+        torch.Tensor: The repeated tensor.
+    """
+    if isinstance(repeats, int):
+        if dim is None:
+            return input_tensor.flatten().unsqueeze(1).expand(-1, repeats).flatten()
+        repeats = torch.full((input_tensor.shape[dim],), repeats, dtype=torch.long, device=input_tensor.device)
+
+    if dim is None:
+        return onnx_compatible_repeat_interleave(input_tensor.flatten(), repeats, 0)
+
+    if dim != 0:
+        input_tensor = input_tensor.transpose(0, dim)
+
+    # Create expand mask
+    max_repeats = repeats.max()
+    expanded = input_tensor.unsqueeze(1).expand(-1, max_repeats, *input_tensor.shape[1:])
+    mask = torch.arange(max_repeats, device=input_tensor.device) < repeats.unsqueeze(1)
+    result = expanded[mask]
+
+    if dim != 0:
+        result = result.transpose(0, dim)
+
+    return result
+
+
+UNSUPPORTED_OPS_PATCHING_SPEC = [
+    PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold),
+    PatchingSpec(torch.Tensor, "repeat_interleave", onnx_compatible_repeat_interleave, torch.Tensor.repeat_interleave),
+]
 
 
 class ModelPatcher:
