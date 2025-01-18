@@ -199,6 +199,38 @@ def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None):
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold),
     PatchingSpec(torch.Tensor, "repeat_interleave", onnx_compatible_repeat_interleave, torch.Tensor.repeat_interleave),
+    
+    # TracerWarning: Using len to get tensor shape might cause the trace to be incorrect. Recommended usage would be tensor.shape[0]. Passing a tensor of different shape might lead to errors or silently give incorrect results.
+    PatchingSpec(torch.Tensor, "__len__", lambda x: x.shape[0], torch.Tensor.__len__),
+]
+
+
+def patched_module_call(self, *args, **kwargs):
+    if kwargs.get('past_key_values') is not None:
+        num_items = len(kwargs['past_key_values'][0])
+        if num_items == 2:
+            cls = transformers.DynamicCache
+        elif num_items == 4:
+            cls = transformers.EncoderDecoderCache
+        else:
+            raise ValueError(f"Unexpected number of items in past_key_values: {num_items}")
+        kwargs['past_key_values'] = cls.from_legacy_cache(kwargs['past_key_values'])
+    
+    # NOTE: We cannot use .forward directly as this will
+    # lose optimization opportunities in the ONNX export.
+    output = self._wrapped_call_impl(*args, **kwargs)
+
+    # RuntimeError: Only tuples, lists and Variables are supported as JIT inputs/outputs.
+    # Dictionaries and strings are also accepted, but their usage is not recommended.
+    # Here, received an input of unsupported type: XXXCache
+    if getattr(output, 'past_key_values', None) is not None and \
+        hasattr(output.past_key_values, 'to_legacy_cache'):
+        output.past_key_values = output.past_key_values.to_legacy_cache()
+    return output
+
+
+MODULE_PATCHING_SPEC = [
+    PatchingSpec(torch.nn.Module, "__call__", patched_module_call, torch.nn.Module.__call__),
 ]
 
 
@@ -213,6 +245,7 @@ class ModelPatcher:
 
         patching_specs = config.PATCHING_SPECS or []
         patching_specs.extend(UNSUPPORTED_OPS_PATCHING_SPEC)
+        patching_specs.extend(MODULE_PATCHING_SPEC)
 
         self._patching_specs = []
         for spec in patching_specs:
