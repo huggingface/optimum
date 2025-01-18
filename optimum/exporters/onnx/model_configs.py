@@ -1753,12 +1753,13 @@ class ASTOnnxConfig(OnnxConfig):
 #     def inputs(self) -> Dict[str, Dict[int, str]]:
 #         return {"input_features": {0: "batch_size", 1: "sequence_classification"}}
 
+
 class MoonshineOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
 
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::triu' to ONNX opset version 11 is not supported.
     # Support for this operator was added in version 14, try exporting with this version.
-    DEFAULT_ONNX_OPSET = 14 
+    DEFAULT_ONNX_OPSET = 14
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1778,7 +1779,6 @@ class MoonshineOnnxConfig(AudioToTextOnnxConfig):
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
-
 
 
 class WhisperOnnxConfig(AudioToTextOnnxConfig):
@@ -2329,9 +2329,9 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
             # for Speech2text, we need to name the second axis as
             # encoder_sequence_length / 2 * self._config.num_conv_layers as the axis name is
             # used for dummy input generation
-            common_outputs["last_hidden_state"][
-                1
-            ] = f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
+            common_outputs["last_hidden_state"][1] = (
+                f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
+            )
         return common_outputs
 
 
