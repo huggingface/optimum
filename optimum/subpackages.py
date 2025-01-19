@@ -48,6 +48,8 @@ def load_namespace_modules(namespace: str, module: str):
         dist_name = dist.metadata["Name"]
         if not dist_name.startswith(f"{namespace}-"):
             continue
+        if dist_name == f"{namespace}-benchmark":
+            continue
         package_import_name = dist_name.replace("-", ".")
         module_import_name = f"{package_import_name}.{module}"
         if module_import_name in sys.modules:
