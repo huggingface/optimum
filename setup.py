@@ -83,6 +83,7 @@ EXTRAS_REQUIRE = {
         "transformers>=4.36,<4.48.0",
     ],
     "exporters-directml": [
+        "torch-directml",
         "onnx",
         "onnxruntime-directml",
         "timm",
