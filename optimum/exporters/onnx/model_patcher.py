@@ -208,7 +208,6 @@ class ModelPatcher:
                 if isinstance(kwargs.get("past_key_values"), (list, tuple)) and isinstance(
                     kwargs["past_key_values"][0], (list, tuple)
                 ):
-                    print("Transforming past_key_values")
                     if len(kwargs["past_key_values"][0]) == 2:
                         kwargs["past_key_values"] = DynamicCache.from_legacy_cache(kwargs["past_key_values"])
                     elif len(kwargs["past_key_values"][0]) == 4:
@@ -221,10 +220,9 @@ class ModelPatcher:
                 elif any(isinstance(arg, (list, tuple)) for arg in args):
                     for i in range(len(args)):
                         if isinstance(args[i], (list, tuple)) and isinstance(args[i][0], (list, tuple)):
-                            print("Transforming past_key_values")
-                            if len(args[i]) == 2:
+                            if len(args[i][0]) == 2:
                                 args[i] = DynamicCache.from_legacy_cache(args[i])
-                            elif len(args[i]) == 4:
+                            elif len(args[i][0]) == 4:
                                 args[i] = EncoderDecoderCache.from_legacy_cache(args[i])
                             else:
                                 raise ValueError(
