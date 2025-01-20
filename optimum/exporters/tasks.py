@@ -897,9 +897,9 @@ class TasksManager:
             "feature-extraction",
             "fill-mask",
             "text-classification",
-            "multiple-choice",
+            # "multiple-choice",
             "token-classification",
-            "question-answering",
+            # "question-answering",
             onnx="ModernBertOnnxConfig",
         ),
         "mpnet": supported_tasks_mapping(
