@@ -199,31 +199,33 @@ class ModelPatcher:
 
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
-            from transformers.cache_utils import DynamicCache, EncoderDecoderCache
-
             signature = inspect.signature(self.orig_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
-            if kwargs.get("past_key_values") is not None:
-                if len(kwargs["past_key_values"][0]) == 2:
-                    kwargs["past_key_values"] = DynamicCache.from_legacy_cache(kwargs["past_key_values"])
-                elif len(kwargs["past_key_values"][0]) == 4:
-                    kwargs["past_key_values"] = EncoderDecoderCache.from_legacy_cache(kwargs["past_key_values"])
+            if _transformers_version >= version.parse("4.48"):
+                from transformers.cache_utils import DynamicCache, EncoderDecoderCache
 
-            elif any(isinstance(arg, (list, tuple)) for arg in args):
-                for i, arg in enumerate(args):
-                    if isinstance(arg, (list, tuple)):
-                        if len(arg[0]) == 2:
-                            args[i] = DynamicCache.from_legacy_cache(arg)
-                        elif len(arg[0]) == 4:
-                            args[i] = EncoderDecoderCache.from_legacy_cache(arg)
+                if isinstance(kwargs.get("past_key_values"), (list, tuple)):
+                    if len(kwargs["past_key_values"][0]) == 2:
+                        kwargs["past_key_values"] = DynamicCache.from_legacy_cache(kwargs["past_key_values"])
+                    elif len(kwargs["past_key_values"][0]) == 4:
+                        kwargs["past_key_values"] = EncoderDecoderCache.from_legacy_cache(kwargs["past_key_values"])
+
+                elif any(isinstance(arg, (list, tuple)) for arg in args):
+                    for i, arg in enumerate(args):
+                        if isinstance(arg, (list, tuple)):
+                            if len(arg[0]) == 2:
+                                args[i] = DynamicCache.from_legacy_cache(arg)
+                            elif len(arg[0]) == 4:
+                                args[i] = EncoderDecoderCache.from_legacy_cache(arg)
 
             outputs = self.orig_forward(*args, **kwargs)
 
-            if "past_key_values" in outputs and isinstance(
-                outputs["past_key_values"], (DynamicCache, EncoderDecoderCache)
-            ):
-                outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
+            if _transformers_version >= version.parse("4.48"):
+                if "past_key_values" in outputs and isinstance(
+                    outputs["past_key_values"], (DynamicCache, EncoderDecoderCache)
+                ):
+                    outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
 
             # This code block handles different cases of the filterd_outputs input to align it with the expected
             # format of outputs. It is common for the output type of a model to vary, such as tensor, list,
