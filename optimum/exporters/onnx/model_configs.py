@@ -843,7 +843,7 @@ class DeiTOnnxConfig(ViTOnnxConfig):
 
 
 class BeitOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class ConvNextOnnxConfig(ViTOnnxConfig):
@@ -1573,13 +1573,12 @@ class Data2VecTextOnnxConfig(DistilBertOnnxConfig):
 
 
 class Data2VecVisionOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class Data2VecAudioOnnxConfig(AudioOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig
-    ATOL_FOR_VALIDATION = 1e-4
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig
 
 
 class PerceiverDummyInputGenerator(DummyVisionInputGenerator):
@@ -2307,9 +2306,9 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
             # for Speech2text, we need to name the second axis as
             # encoder_sequence_length / 2 * self._config.num_conv_layers as the axis name is
             # used for dummy input generation
-            common_outputs["last_hidden_state"][
-                1
-            ] = f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
+            common_outputs["last_hidden_state"][1] = (
+                f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
+            )
         return common_outputs
 
 

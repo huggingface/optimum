@@ -205,19 +205,32 @@ class ModelPatcher:
             if _transformers_version >= version.parse("4.48"):
                 from transformers.cache_utils import DynamicCache, EncoderDecoderCache
 
-                if isinstance(kwargs.get("past_key_values"), (list, tuple)):
+                if isinstance(kwargs.get("past_key_values"), (list, tuple)) and isinstance(
+                    kwargs["past_key_values"][0], (list, tuple)
+                ):
+                    print("Transforming past_key_values")
                     if len(kwargs["past_key_values"][0]) == 2:
                         kwargs["past_key_values"] = DynamicCache.from_legacy_cache(kwargs["past_key_values"])
                     elif len(kwargs["past_key_values"][0]) == 4:
                         kwargs["past_key_values"] = EncoderDecoderCache.from_legacy_cache(kwargs["past_key_values"])
+                    else:
+                        raise ValueError(
+                            f"past_key_values should have either 2 or 4 elements, but it has {len(kwargs['past_key_values'][0])} elements"
+                        )
 
                 elif any(isinstance(arg, (list, tuple)) for arg in args):
-                    for i, arg in enumerate(args):
-                        if isinstance(arg, (list, tuple)):
-                            if len(arg[0]) == 2:
-                                args[i] = DynamicCache.from_legacy_cache(arg)
-                            elif len(arg[0]) == 4:
-                                args[i] = EncoderDecoderCache.from_legacy_cache(arg)
+                    for i in range(len(args)):
+                        if isinstance(args[i], (list, tuple)) and isinstance(args[i][0], (list, tuple)):
+                            print("Transforming past_key_values")
+                            if len(args[i]) == 2:
+                                args[i] = DynamicCache.from_legacy_cache(args[i])
+                            elif len(args[i]) == 4:
+                                args[i] = EncoderDecoderCache.from_legacy_cache(args[i])
+                            else:
+                                raise ValueError(
+                                    f"past_key_values should have either 2 or 4 elements, but it has {len(args[i])} elements"
+                                )
+                            break
 
             outputs = self.orig_forward(*args, **kwargs)
 
