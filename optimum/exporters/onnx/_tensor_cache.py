@@ -1,7 +1,10 @@
 from typing import Any, Dict, Optional, Tuple
 
 import torch
-from transformers.cache_utils import logger
+from transformers import logging
+
+
+logger = logging.get_logger(__name__)
 
 
 # The same as transformers.cache_utils.Cache but iherits from torch.Tensor instead of torch.nn.Module
