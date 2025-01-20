@@ -20,15 +20,10 @@ import sys
 import types
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+import torch
 import transformers
-import transformers.cache_utils
 from packaging import version
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
-from transformers.utils import is_torch_available
-
-
-if is_torch_available():
-    import torch
 
 from ...configuration_utils import _transformers_version
 from ...utils import logging
