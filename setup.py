@@ -84,10 +84,7 @@ EXTRAS_REQUIRE = {
         "datasets<=2.16",
         "transformers>=4.36,<4.38",
     ],
-    "exporters-executorch": [
-        "executorch>=0.4.0",
-        "transformers>=4.46",
-    ],
+    # "executorch": "optimum-executorch",
     "diffusers": ["diffusers"],
     "intel": "optimum-intel>=1.18.0",
     "openvino": "optimum-intel[openvino]>=1.18.0",

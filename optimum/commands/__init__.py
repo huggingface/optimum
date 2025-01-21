@@ -14,5 +14,5 @@
 
 from .base import BaseOptimumCLICommand, CommandInfo, RootOptimumCLICommand
 from .env import EnvironmentCommand
-from .export import ExecuTorchExportCommand, ExportCommand, ONNXExportCommand, TFLiteExportCommand
+from .export import ExportCommand, ONNXExportCommand, TFLiteExportCommand
 from .optimum_cli import optimum_cli_subcommand
