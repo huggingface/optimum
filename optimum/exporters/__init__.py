@@ -13,5 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from . import onnx  # noqa
-from . import executorch  # noqa
 from .tasks import TasksManager  # noqa
