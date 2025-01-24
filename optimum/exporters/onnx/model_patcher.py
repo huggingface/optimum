@@ -1025,11 +1025,7 @@ class SentenceTransformersTransformerPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        if (
-            is_transformers_version(">=", "4.42")
-            and is_transformers_version("<", "4.48")
-            and self.real_config._config.model_type == "mistral"
-        ):
+        if is_transformers_version(">=", "4.42") and self.real_config._config.model_type == "mistral":
             self._update_causal_mask_original = self._model[0].auto_model._update_causal_mask
 
         def patched_forward(input_ids, attention_mask):
@@ -1322,15 +1318,9 @@ def _update_causal_mask_patched(
     return causal_mask
 
 
-class MistralModelPatcher(ModelPatcher):
+class MistralModelPatcher(DecoderModelPatcher):
     def __enter__(self):
         super().__enter__()
-
-        if is_transformers_version(">=", "4.36"):
-            AttentionMaskConverter._unmask_unattended = _unmask_unattended_patched_staticmethod
-            patch_everywhere(
-                "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
-            )
 
         if is_transformers_version(">=", "4.42") and is_transformers_version("<", "4.48"):
             if hasattr(self._model, "model"):
@@ -1342,12 +1332,6 @@ class MistralModelPatcher(ModelPatcher):
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-
-        if is_transformers_version(">=", "4.36"):
-            AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
-            patch_everywhere(
-                "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa
-            )
 
         if is_transformers_version(">=", "4.42") and is_transformers_version("<", "4.48"):
             if hasattr(self._model, "model"):
@@ -1365,11 +1349,7 @@ class MistralModelPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        if is_transformers_version(">=", "4.36"):
-            self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
-            self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
-
-        if is_transformers_version(">=", "4.42") and is_transformers_version("<", "4.48"):
+        if is_transformers_version(">=", "4.42"):
             if hasattr(self._model, "model"):
                 self._update_causal_mask_original = self._model.model._update_causal_mask
             else:
