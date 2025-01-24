@@ -39,6 +39,9 @@ else:
 
 if _transformers_version >= version.parse("4.42"):
     from transformers.cache_utils import SlidingWindowCache, StaticCache
+if _transformers_version >= version.parse("4.48"):
+    from transformers.cache_utils import DynamicCache, EncoderDecoderCache
+
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
@@ -154,8 +157,8 @@ def onnx_compatible_unfold(input_tensor, dimension, size, step):
     return result
 
 
-# The same as transformers.cache_utils.Cache but iherits from torch.Tensor instead of torch.nn.Module
-class TraceableCache(torch.Tensor):
+# removing the nn.Module, same as in https://github.com/huggingface/transformers/pull/35873
+class TraceableCache:
     """
     Base, abstract class for all caches. The actual data structure is specific to each subclass.
     """
@@ -284,11 +287,25 @@ class ModelPatcher:
             signature = inspect.signature(self.orig_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
-            if _transformers_version >= version.parse("4.48"):
-                from transformers.cache_utils import DynamicCache, EncoderDecoderCache
-
-                if isinstance(kwargs.get("past_key_values"), (list, tuple)) and isinstance(
-                    kwargs["past_key_values"][0], (list, tuple)
+            if "past_key_values" in signature.parameters:
+                pkv_index = list(signature.parameters.keys()).index("past_key_values")
+                if (
+                    pkv_index < len(args)  # pkv is in args
+                    and isinstance(args[pkv_index], (list, tuple))
+                    and isinstance(args[pkv_index][0], (list, tuple))
+                ):
+                    if len(args[pkv_index][0]) == 2:
+                        args[pkv_index] = DynamicCache.from_legacy_cache(args[pkv_index])
+                    elif len(args[pkv_index][0]) == 4:
+                        args[pkv_index] = EncoderDecoderCache.from_legacy_cache(args[pkv_index])
+                    else:
+                        raise ValueError(
+                            f"past_key_values should have either 2 or 4 elements, but it has {len(args[pkv_index][0])} elements"
+                        )
+                elif (
+                    "past_key_values" in kwargs  # pkv is in kwargs
+                    and isinstance(kwargs["past_key_values"], (list, tuple))
+                    and isinstance(kwargs["past_key_values"][0], (list, tuple))
                 ):
                     if len(kwargs["past_key_values"][0]) == 2:
                         kwargs["past_key_values"] = DynamicCache.from_legacy_cache(kwargs["past_key_values"])
@@ -299,26 +316,7 @@ class ModelPatcher:
                             f"past_key_values should have either 2 or 4 elements, but it has {len(kwargs['past_key_values'][0])} elements"
                         )
 
-                elif any(isinstance(arg, (list, tuple)) for arg in args):
-                    for i in range(len(args)):
-                        if isinstance(args[i], (list, tuple)) and isinstance(args[i][0], (list, tuple)):
-                            if len(args[i][0]) == 2:
-                                args[i] = DynamicCache.from_legacy_cache(args[i])
-                            elif len(args[i][0]) == 4:
-                                args[i] = EncoderDecoderCache.from_legacy_cache(args[i])
-                            else:
-                                raise ValueError(
-                                    f"past_key_values should have either 2 or 4 elements, but it has {len(args[i])} elements"
-                                )
-                            break
-
             outputs = self.orig_forward(*args, **kwargs)
-
-            if _transformers_version >= version.parse("4.48"):
-                if "past_key_values" in outputs and isinstance(
-                    outputs["past_key_values"], (DynamicCache, EncoderDecoderCache)
-                ):
-                    outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
 
             # This code block handles different cases of the filterd_outputs input to align it with the expected
             # format of outputs. It is common for the output type of a model to vary, such as tensor, list,
@@ -351,6 +349,10 @@ class ModelPatcher:
                     filterd_outputs[name] = outputs
                 name = list(config.outputs.keys())[0]
                 filterd_outputs[name] = outputs
+
+            if _transformers_version >= version.parse("4.48"):
+                if isinstance(filterd_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)):
+                    filterd_outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
 
             return filterd_outputs
 
