@@ -31,12 +31,15 @@ if is_transformers_version(">=", "4.35"):
     from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 if is_transformers_version(">=", "4.36"):
     from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask_for_sdpa
+if is_transformers_version(">=", "4.43"):
+    from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
 if is_transformers_version(">=", "4.42"):
     from transformers.cache_utils import SlidingWindowCache, StaticCache
 if is_transformers_version(">=", "4.48"):
+    import transformers.integrations.sdpa_attention
     from transformers.cache_utils import DynamicCache, EncoderDecoderCache
-if is_transformers_version(">=", "4.43"):
-    from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
+    from transformers.integrations.sdpa_attention import repeat_kv
+
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
@@ -532,26 +535,73 @@ def _prepare_4d_causal_attention_mask_for_sdpa_patched(
     return attention_mask
 
 
+def patched_sdpa_attention_forward(
+    module: torch.nn.Module,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attention_mask: Optional[torch.Tensor],
+    dropout: float = 0.0,
+    scaling: Optional[float] = None,
+    is_causal: Optional[bool] = None,
+    **kwargs,
+) -> Tuple[torch.Tensor, None]:
+    if hasattr(module, "num_key_value_groups"):
+        key = repeat_kv(key, module.num_key_value_groups)
+        value = repeat_kv(value, module.num_key_value_groups)
+    causal_mask = attention_mask
+    if attention_mask is not None:
+        causal_mask = causal_mask[:, :, :, : key.shape[-2]]
+    # SDPA with memory-efficient backend is bugged with non-contiguous inputs and custom attn_mask for some torch versions
+    # Reference: https://github.com/pytorch/pytorch/issues/112577.
+    query = query.contiguous()
+    key = key.contiguous()
+    value = value.contiguous()
+    # We dispatch to SDPA's Flash Attention or Efficient kernels via this `is_causal` if statement instead of an inline conditional assignment
+    # in SDPA to support both torch.compile's dynamic shapes and full graph options. An inline conditional prevents dynamic shapes from compiling.
+    if is_causal is None:
+        is_causal = causal_mask is None and query.shape[2] > 1
+
+    # Shapes (e.g. query.shape[2]) are tensors during jit tracing, resulting in `is_causal` being a tensor.
+    # We convert it to a bool for the SDPA kernel that only accepts bools.
+    if torch.jit.is_tracing() and isinstance(is_causal, torch.Tensor):
+        is_causal = is_causal.item()
+
+    attn_output = torch.nn.functional.scaled_dot_product_attention(
+        query,
+        key,
+        value,
+        attn_mask=causal_mask,
+        dropout_p=dropout,
+        scale=scaling,
+        is_causal=is_causal,
+    )
+    attn_output = attn_output.transpose(1, 2).contiguous()
+    return attn_output, None
+
+
 class DecoderModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
         if is_transformers_version(">=", "4.36"):
             AttentionMaskConverter._unmask_unattended = _unmask_unattended_patched_staticmethod
-
-        if is_transformers_version(">=", "4.36"):
             patch_everywhere(
                 "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
             )
+
+        if is_transformers_version(">=", "4.48"):
+            transformers.integrations.sdpa_attention.sdpa_attention_forward = patched_sdpa_attention_forward
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
         if is_transformers_version(">=", "4.36"):
             AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
-
-        if is_transformers_version(">=", "4.36"):
             patch_everywhere(
                 "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa
             )
+
+        if is_transformers_version(">=", "4.48"):
+            transformers.integrations.sdpa_attention.sdpa_attention_forward = self.original_sdpa_attention_forward
 
     def __init__(
         self,
@@ -564,6 +614,9 @@ class DecoderModelPatcher(ModelPatcher):
         if is_transformers_version(">=", "4.36"):
             self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
             self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
+
+        if is_transformers_version(">=", "4.48"):
+            self.original_sdpa_attention_forward = transformers.integrations.sdpa_attention.sdpa_attention_forward
 
 
 def falcon_build_alibi_tensor_patched(

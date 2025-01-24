@@ -50,8 +50,7 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        # "transformers>=4.36,<4.49.0",
-        "transformers@git+https://github.com/huggingface/transformers.git@fix-gpt2-is-causal",
+        "transformers>=4.36,<4.49.0",
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -60,22 +59,19 @@ EXTRAS_REQUIRE = {
         "evaluate",
         "protobuf>=3.20.1",
         "accelerate",  # ORTTrainer requires it.
-        # "transformers>=4.36,<4.49.0",
-        "transformers@git+https://github.com/huggingface/transformers.git@fix-gpt2-is-causal",
+        "transformers>=4.36,<4.49.0",
     ],
     "exporters": [
         "onnx",
         "onnxruntime",
         "timm",
-        # "transformers>=4.36,<4.49.0",
-        "transformers@git+https://github.com/huggingface/transformers.git@fix-gpt2-is-causal",
+        "transformers>=4.36,<4.49.0",
     ],
     "exporters-gpu": [
         "onnx",
         "onnxruntime-gpu",
         "timm",
-        # "transformers>=4.36,<4.49.0",
-        "transformers@git+https://github.com/huggingface/transformers.git@fix-gpt2-is-causal",
+        "transformers>=4.36,<4.49.0",
     ],
     "exporters-tf": [
         "tensorflow>=2.4,<=2.12.1",
