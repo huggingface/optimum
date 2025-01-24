@@ -36,9 +36,9 @@ if is_transformers_version(">=", "4.43"):
 if is_transformers_version(">=", "4.42"):
     from transformers.cache_utils import SlidingWindowCache, StaticCache
 if is_transformers_version(">=", "4.48"):
-    import transformers.integrations.sdpa_attention
     from transformers.cache_utils import DynamicCache, EncoderDecoderCache
-    from transformers.integrations.sdpa_attention import repeat_kv
+    from transformers.integrations.sdpa_attention import repeat_kv, sdpa_attention_forward
+    from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
 
 if TYPE_CHECKING:
@@ -436,105 +436,6 @@ class Seq2SeqModelPatcher(ModelPatcher):
         self.patched_forward = patched_forward
 
 
-class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
-    def __init__(
-        self,
-        config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-        use_cache = hasattr(self.real_config, "use_past")
-
-        if config._behavior == "decoder" and model.config.decoder.model_type == "trocr" and use_cache:
-            model.decoder.model.decoder.config.use_cache = True
-
-
-def _unmask_unattended_patched_legacy(
-    expanded_mask: torch.Tensor, attention_mask: torch.Tensor, unmasked_value: Union[bool, float]
-):
-    return expanded_mask
-
-
-def _unmask_unattended_patched(expanded_mask: torch.Tensor, min_dtype: float):
-    return expanded_mask
-
-
-def _make_causal_mask_patched(
-    input_ids_shape: torch.Size,
-    dtype: torch.dtype,
-    device: torch.device,
-    past_key_values_length: int = 0,
-    sliding_window: Optional[int] = None,
-):
-    """
-    Make causal mask used for bi-directional self-attention.
-    """
-    # We add self in the signature because `self._make_causal_mask` is used elsewhere in the class definition, despite the method being a staticmethod.
-    bsz, tgt_len = input_ids_shape
-    mask = torch.full((tgt_len, tgt_len), torch.finfo(dtype).min, device=device)
-    mask_cond = torch.arange(mask.size(-1), device=device)
-    mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
-
-    mask = mask.to(dtype)
-
-    if past_key_values_length > 0:
-        mask = torch.cat([torch.zeros(tgt_len, past_key_values_length, dtype=dtype, device=device), mask], dim=-1)
-
-    # add lower triangular sliding window mask if necessary
-    if sliding_window is not None:
-        diagonal = past_key_values_length - sliding_window + 1
-
-        # NOTE: adding dtype=torch.int64 here for triu to be supported by ORT: https://github.com/microsoft/onnxruntime/issues/16189
-        context_mask = 1 - torch.triu(torch.ones_like(mask, dtype=torch.int64), diagonal=diagonal)
-        mask.masked_fill_(context_mask.bool(), torch.finfo(dtype).min)
-
-    return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
-
-
-_make_causal_mask_patched_staticmethod = staticmethod(_make_causal_mask_patched)
-
-if is_transformers_version(">=", "4.39"):
-    _unmask_unattended_patched_staticmethod = staticmethod(_unmask_unattended_patched)
-else:
-    _unmask_unattended_patched_staticmethod = staticmethod(_unmask_unattended_patched_legacy)
-
-
-# Adapted from _prepare_4d_causal_attention_mask
-def _prepare_4d_causal_attention_mask_for_sdpa_patched(
-    attention_mask: Optional[torch.Tensor],
-    input_shape: Union[torch.Size, Tuple, List],
-    inputs_embeds: torch.Tensor,
-    past_key_values_length: int,
-    sliding_window: Optional[int] = None,
-):
-    """
-    Prepares the correct `attn_mask` argument to be used by `torch.nn.functional.scaled_dot_product_attention`.
-
-    In case no token is masked in the `attention_mask` argument, we simply set it to `None` for the cases `query_length == 1` and
-    `key_value_length == query_length`, and rely instead on SDPA `is_causal` argument to use causal/non-causal masks,
-    allowing to dispatch to the flash attention kernel (that can otherwise not be used if a custom `attn_mask` is passed).
-    """
-    attn_mask_converter = AttentionMaskConverter(is_causal=True, sliding_window=sliding_window)
-
-    key_value_length = input_shape[-1] + past_key_values_length
-
-    # 4d mask is passed through the layers
-    if attention_mask is not None:
-        attention_mask = attn_mask_converter.to_4d(
-            attention_mask, input_shape[-1], key_value_length=key_value_length, dtype=inputs_embeds.dtype
-        )
-    else:
-        attention_mask = attn_mask_converter.to_causal_4d(
-            input_shape[0], input_shape[-1], key_value_length, dtype=inputs_embeds.dtype, device=inputs_embeds.device
-        )
-
-    # NOTE: For the ONNX export we remove the setting of attention_mask to None in some specific cases, and we do NOT call _unmask_unattended
-    # that can not be exported to ONNX and is very specific to PyTorch memory-efficient attention backend anyway.
-
-    return attention_mask
-
-
 def patched_sdpa_attention_forward(
     module: torch.nn.Module,
     query: torch.Tensor,
@@ -580,28 +481,131 @@ def patched_sdpa_attention_forward(
     return attn_output, None
 
 
+class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+        if is_transformers_version(">=", "4.48"):
+            ALL_ATTENTION_FUNCTIONS["sdpa"] = patched_sdpa_attention_forward
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+        if is_transformers_version(">=", "4.48"):
+            ALL_ATTENTION_FUNCTIONS["sdpa"] = sdpa_attention_forward
+
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+        use_cache = hasattr(self.real_config, "use_past")
+
+        if config._behavior == "decoder" and model.config.decoder.model_type == "trocr" and use_cache:
+            model.decoder.model.decoder.config.use_cache = True
+
+
+if is_transformers_version(">=", "4.39"):
+
+    def _unmask_unattended_patched(expanded_mask: torch.Tensor, min_dtype: float):
+        return expanded_mask
+else:
+
+    def _unmask_unattended_patched(
+        expanded_mask: torch.Tensor, attention_mask: torch.Tensor, unmasked_value: Union[bool, float]
+    ):
+        return expanded_mask
+
+
+def _make_causal_mask_patched(
+    input_ids_shape: torch.Size,
+    dtype: torch.dtype,
+    device: torch.device,
+    past_key_values_length: int = 0,
+    sliding_window: Optional[int] = None,
+):
+    """
+    Make causal mask used for bi-directional self-attention.
+    """
+    # We add self in the signature because `self._make_causal_mask` is used elsewhere in the class definition, despite the method being a staticmethod.
+    bsz, tgt_len = input_ids_shape
+    mask = torch.full((tgt_len, tgt_len), torch.finfo(dtype).min, device=device)
+    mask_cond = torch.arange(mask.size(-1), device=device)
+    mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
+
+    mask = mask.to(dtype)
+
+    if past_key_values_length > 0:
+        mask = torch.cat([torch.zeros(tgt_len, past_key_values_length, dtype=dtype, device=device), mask], dim=-1)
+
+    # add lower triangular sliding window mask if necessary
+    if sliding_window is not None:
+        diagonal = past_key_values_length - sliding_window + 1
+
+        # NOTE: adding dtype=torch.int64 here for triu to be supported by ORT: https://github.com/microsoft/onnxruntime/issues/16189
+        context_mask = 1 - torch.triu(torch.ones_like(mask, dtype=torch.int64), diagonal=diagonal)
+        mask.masked_fill_(context_mask.bool(), torch.finfo(dtype).min)
+
+    return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
+
+
+# Adapted from _prepare_4d_causal_attention_mask
+def _prepare_4d_causal_attention_mask_for_sdpa_patched(
+    attention_mask: Optional[torch.Tensor],
+    input_shape: Union[torch.Size, Tuple, List],
+    inputs_embeds: torch.Tensor,
+    past_key_values_length: int,
+    sliding_window: Optional[int] = None,
+):
+    """
+    Prepares the correct `attn_mask` argument to be used by `torch.nn.functional.scaled_dot_product_attention`.
+
+    In case no token is masked in the `attention_mask` argument, we simply set it to `None` for the cases `query_length == 1` and
+    `key_value_length == query_length`, and rely instead on SDPA `is_causal` argument to use causal/non-causal masks,
+    allowing to dispatch to the flash attention kernel (that can otherwise not be used if a custom `attn_mask` is passed).
+    """
+    attn_mask_converter = AttentionMaskConverter(is_causal=True, sliding_window=sliding_window)
+
+    key_value_length = input_shape[-1] + past_key_values_length
+
+    # 4d mask is passed through the layers
+    if attention_mask is not None:
+        attention_mask = attn_mask_converter.to_4d(
+            attention_mask, input_shape[-1], key_value_length=key_value_length, dtype=inputs_embeds.dtype
+        )
+    else:
+        attention_mask = attn_mask_converter.to_causal_4d(
+            input_shape[0], input_shape[-1], key_value_length, dtype=inputs_embeds.dtype, device=inputs_embeds.device
+        )
+
+    # NOTE: For the ONNX export we remove the setting of attention_mask to None in some specific cases, and we do NOT call _unmask_unattended
+    # that can not be exported to ONNX and is very specific to PyTorch memory-efficient attention backend anyway.
+
+    return attention_mask
+
+
 class DecoderModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
+        if is_transformers_version(">=", "4.35"):
+            AttentionMaskConverter._make_causal_mask = staticmethod(_make_causal_mask_patched)
+
         if is_transformers_version(">=", "4.36"):
-            AttentionMaskConverter._unmask_unattended = _unmask_unattended_patched_staticmethod
+            AttentionMaskConverter._unmask_unattended = staticmethod(_unmask_unattended_patched)
             patch_everywhere(
                 "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
             )
 
-        if is_transformers_version(">=", "4.48"):
-            transformers.integrations.sdpa_attention.sdpa_attention_forward = patched_sdpa_attention_forward
-
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
+        if is_transformers_version(">=", "4.35"):
+            AttentionMaskConverter._make_causal_mask = staticmethod(self.original_make_causal_mask)
+
         if is_transformers_version(">=", "4.36"):
             AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
             patch_everywhere(
                 "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa
             )
-
-        if is_transformers_version(">=", "4.48"):
-            transformers.integrations.sdpa_attention.sdpa_attention_forward = self.original_sdpa_attention_forward
 
     def __init__(
         self,
@@ -611,12 +615,12 @@ class DecoderModelPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        if is_transformers_version(">=", "4.36"):
-            self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
-            self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
+        if is_transformers_version(">=", "4.35"):
+            self.original_make_causal_mask = AttentionMaskConverter._make_causal_mask
 
-        if is_transformers_version(">=", "4.48"):
-            self.original_sdpa_attention_forward = transformers.integrations.sdpa_attention.sdpa_attention_forward
+        if is_transformers_version(">=", "4.36"):
+            self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
+            self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
 
 
 def falcon_build_alibi_tensor_patched(
@@ -1025,7 +1029,11 @@ class SentenceTransformersTransformerPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        if is_transformers_version(">=", "4.42") and self.real_config._config.model_type == "mistral":
+        if (
+            is_transformers_version(">=", "4.42")
+            and is_transformers_version("<", "4.48")
+            and self.real_config._config.model_type == "mistral"
+        ):
             self._update_causal_mask_original = self._model[0].auto_model._update_causal_mask
 
         def patched_forward(input_ids, attention_mask):
@@ -1349,7 +1357,7 @@ class MistralModelPatcher(DecoderModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        if is_transformers_version(">=", "4.42"):
+        if is_transformers_version(">=", "4.42") and is_transformers_version("<", "4.48"):
             if hasattr(self._model, "model"):
                 self._update_causal_mask_original = self._model.model._update_causal_mask
             else:
@@ -1359,9 +1367,9 @@ class MistralModelPatcher(DecoderModelPatcher):
 class CLIPModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
-
         if is_transformers_version(">=", "4.43"):
-            self.original_sdpa_forward, CLIPSdpaAttention.forward = CLIPSdpaAttention.forward, CLIPAttention.forward
+            self.original_sdpa_forward = CLIPSdpaAttention.forward
+            CLIPSdpaAttention.forward = CLIPAttention.forward
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
