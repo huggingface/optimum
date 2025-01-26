@@ -374,15 +374,9 @@ class ModelPatcher:
         self.patch_ops()
         setattr(self._model, self.orig_forward_name, self.patched_forward)
 
-        if is_transformers_version(">=", "4.48"):
-            ALL_ATTENTION_FUNCTIONS["sdpa"] = patched_sdpa_attention_forward
-
     def __exit__(self, exc_type, exc_value, traceback):
         self.restore_ops()
         setattr(self._model, self.orig_forward_name, self.orig_forward)
-
-        if is_transformers_version(">=", "4.48"):
-            ALL_ATTENTION_FUNCTIONS["sdpa"] = sdpa_attention_forward
 
     def __call__(self, *args, **kwargs):
         if getattr(self._model, self.orig_forward_name) is self.orig_forward:
@@ -391,6 +385,18 @@ class ModelPatcher:
 
 
 class Seq2SeqModelPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+        if is_transformers_version(">=", "4.48"):
+            # this is required when gpt2 is used as decoder in any
+            # encoder-decoder model with cross attention blocks
+            ALL_ATTENTION_FUNCTIONS["sdpa"] = patched_sdpa_attention_forward
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+        if is_transformers_version(">=", "4.48"):
+            ALL_ATTENTION_FUNCTIONS["sdpa"] = sdpa_attention_forward
+
     def __init__(
         self,
         config: "OnnxConfig",
