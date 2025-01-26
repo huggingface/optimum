@@ -197,6 +197,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "hf-internal-testing/tiny-random-UniSpeechSatForXVector": ["audio-xvector"],
     },
     "audio-spectrogram-transformer": "Ericwang/tiny-random-ast",
+    "megatron-bert": "hf-internal-testing/tiny-random-MegatronBertModel",
     # Disabled for now because some operator seems to not be supported by ONNX.
     # "mctct": "hf-internal-testing/tiny-random-MCTCTModel",
     "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
@@ -311,7 +312,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     # "mctct": "speechbrain/m-ctc-t-large",
     "speech-to-text": "codenamewei/speech-to-text",
     "xlm": "xlm-clm-ende-1024",
-    "xlm-roberta": "Unbabel/xlm-roberta-comet-small",
+    "xlm-roberta": "Unbabel/xlm-roberta-comet-small"
 }
 
 TENSORFLOW_EXPORT_MODELS = {
