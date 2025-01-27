@@ -884,7 +884,7 @@ class TasksManager:
             "multiple-choice",
             "token-classification",
             "question-answering",
-            onnx="MegatronBertOnnxConfig"
+            onnx="MegatronBertOnnxConfig",
         ),
         "mobilevit": supported_tasks_mapping(
             "feature-extraction",
