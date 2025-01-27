@@ -173,7 +173,7 @@ class RemBertOnnxConfig(BertOnnxConfig):
 
 class MegatronBertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
-    
+
 
 class DistilBertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for transformers>=4.46.0
