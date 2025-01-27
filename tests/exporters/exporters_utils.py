@@ -312,7 +312,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     # "mctct": "speechbrain/m-ctc-t-large",
     "speech-to-text": "codenamewei/speech-to-text",
     "xlm": "xlm-clm-ende-1024",
-    "xlm-roberta": "Unbabel/xlm-roberta-comet-small"
+    "xlm-roberta": "Unbabel/xlm-roberta-comet-small",
 }
 
 TENSORFLOW_EXPORT_MODELS = {
