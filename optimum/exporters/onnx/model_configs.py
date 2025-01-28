@@ -772,7 +772,6 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
 class BartOnnxConfig(M2M100OnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Bart now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     MIN_TORCH_VERSION = version.parse("2.1.2")
-    pass
 
 
 class MBartOnnxConfig(BartOnnxConfig):
@@ -787,21 +786,19 @@ class BlenderbotSmallOnnxConfig(BartOnnxConfig):
     pass
 
 
-# big_bird and bigbird_pegasus are unsupported for now as block sparse attention is written in pure python and numpy in transformers.
-# Thus, the case attention_type == "block_sparse" is unusable.
-# Even with rewritting this part in pure PyTorch, torch.onnx.export is then prohibitively slow.
-# References: https://github.com/pytorch/pytorch/issues/63734 & https://github.com/pytorch/pytorch/issues/94821
-"""
 class BigBirdOnnxConfig(DistilBertOnnxConfig):
     pass
 
+
 class BigBirdPegasusOnnxConfig(BartOnnxConfig):
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
-        if self._behavior is ConfigBehavior.ENCODER:
-            # TODO: check why the attention mask is not present in the exported model
-            reference_model_inputs.pop("attention_mask")
-        return super().generate_dummy_inputs_for_validation(reference_model_inputs)
-"""
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        inputs = super().inputs
+        if self._config.attention_type == "block_sparse":
+            # BigBirdPegasusEncoder creates its own attention_mask internally
+            # https://github.com/huggingface/transformers/blob/v4.48.0/src/transformers/models/bigbird_pegasus/modeling_bigbird_pegasus.py#L1875
+            inputs.pop("attention_mask", None)
+        return inputs
 
 
 class PegasusOnnxConfig(BartOnnxConfig):
@@ -2366,6 +2363,7 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
 
             if self.use_past_in_inputs:
                 self.add_past_key_values(common_inputs, direction="inputs")
+
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 

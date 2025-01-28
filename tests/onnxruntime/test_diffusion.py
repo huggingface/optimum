@@ -25,8 +25,8 @@ from diffusers import (
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 from diffusers.utils import load_image
 from parameterized import parameterized
+from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers.testing_utils import require_torch_gpu
-from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
 from optimum.onnxruntime import (
     ORTDiffusionPipeline,

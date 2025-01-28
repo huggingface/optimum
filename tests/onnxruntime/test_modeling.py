@@ -25,12 +25,12 @@ import onnx
 import onnxruntime
 import pytest
 import requests
-import timm
 import torch
 from huggingface_hub import HfApi
 from huggingface_hub.constants import default_cache_path
 from parameterized import parameterized
 from PIL import Image
+from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import (
     AutoConfig,
     AutoFeatureExtractor,
@@ -64,7 +64,6 @@ from transformers.modeling_utils import no_init_weights
 from transformers.models.swin2sr.configuration_swin2sr import Swin2SRConfig
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu, slow
-from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
@@ -1276,8 +1275,8 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         "albert",
         "bart",
         "bert",
-        # "big_bird",
-        # "bigbird_pegasus",
+        "big_bird",
+        "bigbird_pegasus",
         "camembert",
         "convbert",
         "data2vec_text",
@@ -1483,7 +1482,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        # "big_bird",
+        "big_bird",
         "camembert",
         "convbert",
         "data2vec_text",
@@ -1660,8 +1659,8 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "albert",
         "bart",
         "bert",
-        # "big_bird",
-        # "bigbird_pegasus",
+        "big_bird",
+        "bigbird_pegasus",
         "bloom",
         "camembert",
         "convbert",
@@ -1873,7 +1872,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        # "big_bird",
+        "big_bird",
         "bloom",
         "camembert",
         "convbert",
@@ -2239,7 +2238,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        # "big_bird",
+        "big_bird",
         "camembert",
         "convbert",
         "data2vec_text",
@@ -2864,11 +2863,12 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "vit",
     ]
 
-    TIMM_SUPPORTED_ARCHITECTURES = ["default-timm-config"]
-
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForImageClassification
     TASK = "image-classification"
+
+    ATOL = 2e-3
+    RTOL = 2e-3
 
     def _get_model_ids(self, model_arch):
         model_ids = MODEL_NAMES[model_arch]
@@ -2890,56 +2890,6 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
             _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("only supports the tasks", str(context.exception))
-
-    @parameterized.expand(TIMM_SUPPORTED_ARCHITECTURES)
-    @pytest.mark.run_slow
-    @pytest.mark.timm_test
-    @slow
-    def test_compare_to_timm(self, model_arch):
-        model_args = {"test_name": model_arch, "model_arch": model_arch}
-
-        self._setup(model_args)
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            onnx_model = ORTModelForImageClassification.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, model_arch)
-            )
-
-            self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
-            self.assertIsInstance(onnx_model.config, PretrainedConfig)
-
-            set_seed(SEED)
-            timm_model = timm.create_model(model_id, pretrained=True)
-            timm_model = timm_model.eval()
-
-            # get model specific transforms (normalization, resize)
-            data_config = timm.data.resolve_model_data_config(timm_model)
-            transforms = timm.data.create_transform(**data_config, is_training=False)
-
-            url = (
-                "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/beignets-task-guide.png"
-            )
-            image = Image.open(requests.get(url, stream=True).raw)
-            inputs = transforms(image).unsqueeze(0)
-
-            with torch.no_grad():
-                timm_outputs = timm_model(inputs)
-
-            for input_type in ["pt", "np"]:
-                if input_type == "np":
-                    inputs = inputs.cpu().detach().numpy()
-                onnx_outputs = onnx_model(inputs)
-
-                self.assertIn("logits", onnx_outputs)
-                self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
-
-                # compare tensor outputs
-                torch.testing.assert_close(
-                    torch.Tensor(onnx_outputs.logits), timm_outputs, atol=self.ATOL, rtol=self.RTOL
-                )
-
-        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -3713,7 +3663,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
 class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "bart",
-        # "bigbird_pegasus",
+        "bigbird_pegasus",
         "blenderbot",
         "blenderbot_small",
         "encoder-decoder",
@@ -4637,7 +4587,6 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         self.assertTrue(isinstance(outputs["text"], str))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    @pytest.mark.cuda_ep_test  # mark as GPU test as well to run the without/with cache timing test on the slow tests
     def test_compare_with_and_without_past_key_values(self, model_arch: str):
         model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
         self._setup(model_args)

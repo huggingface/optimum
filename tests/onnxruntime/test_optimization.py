@@ -25,10 +25,10 @@ import onnx
 import pytest
 import torch
 from parameterized import parameterized
+from testing_utils import MODEL_NAMES
 from transformers import AutoTokenizer
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import require_torch_gpu
-from utils_onnxruntime_tests import MODEL_NAMES
 
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS
