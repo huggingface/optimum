@@ -132,7 +132,7 @@ class ExportersConfig(ABC):
         "image-to-text": ["logits"],
         "image-to-image": ["reconstruction"],
         "mask-generation": ["logits"],
-        "masked-im": ["logits"],  # for onnx :  ["reconstruction"]
+        "masked-im": ["reconstruction"],
         "multiple-choice": ["logits"],
         "object-detection": ["logits", "pred_boxes"],
         "question-answering": ["start_logits", "end_logits"],
