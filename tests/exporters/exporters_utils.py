@@ -222,8 +222,8 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "beit": "microsoft/beit-base-patch16-224",
     "bert": "bert-base-cased",
     "bart": "facebook/bart-base",
-    # "big-bird": "google/bigbird-roberta-base",
-    # "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
+    "big-bird": "google/bigbird-roberta-base",
+    "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "blenderbot-small": "facebook/blenderbot_small-90M",
     "blenderbot": "facebook/blenderbot-90M",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",  # Not using bigscience/bloom-560m because it goes OOM.
