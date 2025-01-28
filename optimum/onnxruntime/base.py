@@ -339,7 +339,7 @@ class ORTDecoderForSeq2Seq(ORTModelPart):
 
             if not self.use_past_in_outputs:
                 out_past_key_values = None
-            elif not self.use_past_in_inputs or use_merged_no_cache:
+            elif not self.use_past_in_inputs or use_merged_no_cache or self.no_cross_attention_cache:
                 out_past_key_values = tuple(
                     out_past_key_values[i : i + self.num_pkv] for i in range(0, len(out_past_key_values), self.num_pkv)
                 )
