@@ -824,6 +824,8 @@ class ORTModel(OptimizedModel):
 
             data_ptr = model_inputs[input_name].data_ptr()
             if data_ptr == 0:
+                # During first generation, sequence_length can be 0 when use_cache=True, which results in data_ptr to also be 0.
+                # To keep compatibility with IO binding, we pass the data pointer of input_ids instead. This will have no impact because past_key_values will not be used during the first generation.
                 data_ptr = model_inputs["input_ids"].data_ptr()
 
             io_binding.bind_input(
