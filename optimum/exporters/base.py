@@ -20,10 +20,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from transformers.utils import is_torch_available
 
-
-if is_torch_available():
-    pass
-
 from ..utils import (
     DEFAULT_DUMMY_SHAPES,
     DummyInputGenerator,
@@ -167,7 +163,6 @@ class ExportersConfig(ABC):
         forces the other generators to use the same batch size, meaning they will all produce inputs of the same batch
         size. Override this method for custom behavior.
         """
-        # self._validate_mandatory_axes()
         return [cls_(self.task, self._normalized_config, **kwargs) for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES]
 
     @property
