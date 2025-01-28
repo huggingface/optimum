@@ -84,10 +84,6 @@ EXTRAS_REQUIRE = {
         "datasets<=2.16",
         "transformers>=4.36,<4.38",
     ],
-    "exporters-executorch": [
-        "executorch>=0.4.0",
-        "transformers>=4.46",
-    ],
     "onnxruntime-training": [
         "torch-ort",
         "onnxruntime-training",
