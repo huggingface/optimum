@@ -31,8 +31,6 @@ from ..utils.doc import add_dynamic_docstring
 from ..utils.import_utils import is_torch_version, is_transformers_version
 
 
-# from .model_patcher import ModelPatcher
-
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
@@ -265,12 +263,3 @@ class ExportersConfig(ABC):
             else:
                 flatten[name] = value
         return flatten
-
-    ############################################################################################################################################################
-
-    # def patch_model_for_export(
-    #     self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    # ) -> ModelPatcher:
-    #    return ModelPatcher(self, model, model_kwargs=model_kwargs)
-
-    ############################################################################################################################################################
