@@ -1042,7 +1042,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model = ORTModelForCausalLM.from_pretrained(
-                "gpt2-large", use_cache=use_cache, export=True, use_merged=False, use_io_binding=False
+                "gpt2-large", export=True, use_cache=use_cache, use_merged=False, use_io_binding=False
             )
             model.save_pretrained(tmpdirname)
 

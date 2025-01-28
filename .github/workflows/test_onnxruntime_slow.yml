@@ -27,7 +27,8 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'onnxruntime-slow')
       }}
 
-    runs-on: ubuntu-20.04
+    runs-on:
+      group: aws-general-8-plus
 
     steps:
       - name: Checkout
