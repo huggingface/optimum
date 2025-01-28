@@ -51,4 +51,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/onnxruntime -m "cuda_ep_test or trt_ep_test" --durations=0 -vvvv -s -n auto
+          pytest tests/onnxruntime -m "cuda_ep_test or trt_ep_test" --durations=0 -vvvv -n auto

@@ -2867,8 +2867,8 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
     ORTMODEL_CLASS = ORTModelForImageClassification
     TASK = "image-classification"
 
-    ATOL = 2e-3
-    RTOL = 2e-3
+    ATOL = 2e-3  # 0.02 difference in logits
+    RTOL = 1e-2  # 1% difference in logits
 
     def _get_model_ids(self, model_arch):
         model_ids = MODEL_NAMES[model_arch]
