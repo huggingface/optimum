@@ -92,7 +92,7 @@ class ORTOptimizerTest(unittest.TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
-        # (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
         (ORTModelForCausalLM, "hf-internal-testing/tiny-random-gpt2"),
@@ -251,7 +251,7 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
         "bart",
         "blenderbot",
         "blenderbot_small",
-        # "longt5",
+        "longt5",
         "m2m_100",
         "marian",
         "mbart",
@@ -346,10 +346,6 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
     @pytest.mark.cuda_ep_test
     def test_optimization_levels_gpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
         for use_io_binding in [False, True]:
-            # TODO: investigate why marian with IO Binding fails
-            if model_arch == "marian" and use_io_binding is True:
-                continue
-
             self._test_optimization_levels(
                 test_name=test_name,
                 model_arch=model_arch,

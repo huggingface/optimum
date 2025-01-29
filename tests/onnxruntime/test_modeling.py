@@ -4098,14 +4098,16 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    @pytest.mark.cuda_ep_test  # mark as GPU test as well to run the without/with cache timing test on the slow tests
     def test_compare_with_and_without_past_key_values(self, model_arch: str):
-        if model_arch == "m2m_100":
-            self.skipTest("m2m_100 comparison with/without pkv fail or is not supported")
         model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
         self._setup(model_args)
         model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
         self._setup(model_args)
+
+        if model_arch == "m2m_100":
+            generation_length = 20  # model's predefined maximum length
+        else:
+            generation_length = self.GENERATION_LENGTH
 
         model_ids = self._get_model_ids(model_arch)
         for model_id in model_ids:
@@ -4124,7 +4126,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             )
 
             outputs_model_with_pkv = model_with_pkv.generate(
-                **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+                **tokens, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
             )
 
             model_without_pkv = ORTModelForSeq2SeqLM.from_pretrained(
@@ -4132,14 +4134,14 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             )
 
             outputs_model_without_pkv = model_without_pkv.generate(
-                **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+                **tokens, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
             )
 
             torch.testing.assert_close(
                 outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL
             )
-            self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
-            self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
+            self.assertEqual(outputs_model_with_pkv.shape[1], generation_length + 1)
+            self.assertEqual(outputs_model_without_pkv.shape[1], generation_length + 1)
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
