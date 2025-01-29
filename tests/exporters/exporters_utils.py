@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 VALIDATE_EXPORT_ON_SHAPES_SLOW = {
     "batch_size": [1, 3, 5],
     "sequence_length": [8, 33, 96, 154],
@@ -197,6 +198,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "hf-internal-testing/tiny-random-UniSpeechSatForXVector": ["audio-xvector"],
     },
     "audio-spectrogram-transformer": "Ericwang/tiny-random-ast",
+    "megatron-bert": "hf-internal-testing/tiny-random-MegatronBertModel",
     # Disabled for now because some operator seems to not be supported by ONNX.
     # "mctct": "hf-internal-testing/tiny-random-MCTCTModel",
     "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",

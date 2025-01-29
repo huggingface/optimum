@@ -171,6 +171,10 @@ class RemBertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+class MegatronBertOnnxConfig(BertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 11
+
+
 class DistilBertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for transformers>=4.46.0
 
@@ -843,7 +847,7 @@ class DeiTOnnxConfig(ViTOnnxConfig):
 
 
 class BeitOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class ConvNextOnnxConfig(ViTOnnxConfig):
@@ -1573,13 +1577,12 @@ class Data2VecTextOnnxConfig(DistilBertOnnxConfig):
 
 
 class Data2VecVisionOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class Data2VecAudioOnnxConfig(AudioOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig
-    ATOL_FOR_VALIDATION = 1e-4
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig
 
 
 class PerceiverDummyInputGenerator(DummyVisionInputGenerator):

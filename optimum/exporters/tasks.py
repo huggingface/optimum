@@ -877,6 +877,15 @@ class TasksManager:
             onnx="MobileBertOnnxConfig",
             tflite="MobileBertTFLiteConfig",
         ),
+        "megatron-bert": supported_tasks_mapping(
+            "feature-extraction",
+            "fill-mask",
+            "text-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="MegatronBertOnnxConfig",
+        ),
         "mobilevit": supported_tasks_mapping(
             "feature-extraction",
             "image-classification",
@@ -897,9 +906,7 @@ class TasksManager:
             "feature-extraction",
             "fill-mask",
             "text-classification",
-            "multiple-choice",
             "token-classification",
-            "question-answering",
             onnx="ModernBertOnnxConfig",
         ),
         "mpnet": supported_tasks_mapping(
