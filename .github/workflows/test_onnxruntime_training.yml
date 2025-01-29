@@ -48,7 +48,7 @@ jobs:
           TORCH_CUDA_ARCH_LIST: "5.0 6.0 7.0 7.5 8.0 8.6 9.0+PTX"
         run: |
           pip install --upgrade pip
-          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+          pip install --no-cache-dir "torch<2.6" torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
           pip install --no-cache-dir torch-ort onnxruntime-training && python -m torch_ort.configure
           pip install --no-cache-dir evaluate absl-py rouge_score seqeval sacrebleu nltk scikit-learn
           pip install .[tests,onnxruntime-training]
