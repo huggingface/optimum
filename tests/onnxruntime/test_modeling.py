@@ -3489,10 +3489,16 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForCTC.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+            self.onnx_model_dirs[model_arch],
+            use_io_binding=False,
+            provider="CUDAExecutionProvider",
+            provider_options={"cudnn_conv_algo_search": "DEFAULT"},
         )
         io_model = ORTModelForCTC.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+            self.onnx_model_dirs[model_arch],
+            use_io_binding=True,
+            provider="CUDAExecutionProvider",
+            provider_options={"cudnn_conv_algo_search": "DEFAULT"},
         )
 
         self.assertFalse(onnx_model.use_io_binding)
@@ -4713,10 +4719,20 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
+            self.onnx_model_dirs[test_name],
+            use_io_binding=False,
+            provider="CUDAExecutionProvider",
+            provider_options={
+                "cudnn_conv_algo_search": "DEFAULT",
+            },
         )
         io_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
+            self.onnx_model_dirs[test_name],
+            use_io_binding=True,
+            provider="CUDAExecutionProvider",
+            provider_options={
+                "cudnn_conv_algo_search": "DEFAULT",
+            },
         )
 
         self.assertFalse(onnx_model.use_io_binding)
