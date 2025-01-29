@@ -66,7 +66,7 @@ GENERATE_DUMMY_DOCSTRING = r"""
                 The number of frames to use in the dummpy inputs for audio tasks in case the input is raw audio.
 
         Returns:
-            `Dict`: A dictionary mapping the input names to dummy tensors in the proper framework format.
+            `Dict[str, [tf.Tensor, torch.Tensor]]`: A dictionary mapping the input names to dummy tensors in the proper framework format.
 """
 
 
@@ -224,14 +224,6 @@ class ExportersConfig(ABC):
 
     @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs) -> Dict:
-        """
-        Generates dummy inputs that the exported model should be able to process.
-        This method is actually used to determine the input specs that are needed for the export.
-
-        Returns:
-            `Dict[str, [tf.Tensor, torch.Tensor]]`: A dictionary mapping input names to dummy tensors.
-        """
-
         dummy_inputs_generators = self._create_dummy_input_generator_classes(**kwargs)
         dummy_inputs = {}
         for input_name in self.inputs:
