@@ -449,31 +449,26 @@ class TasksManager:
             "question-answering",
             onnx="RemBertOnnxConfig",
         ),
-        # For big-bird and bigbird-pegasus being unsupported, refer to model_configs.py
-        # "big-bird": supported_tasks_mapping(
-        #     "feature-extraction",
-        #     "fill-mask",
-        #     # the logic for text-generation is not supported for big-bird
-        #     # "text-generation",
-        #     "text-classification",
-        #     "multiple-choice",
-        #     "token-classification",
-        #     "question-answering",
-        #     onnx="BigBirdOnnxConfig",
-        #     # TODO: check model_config.py to know why it cannot be enabled yet.
-        #     # tflite="BigBirdTFLiteConfig",
-        # ),
-        # "bigbird-pegasus": supported_tasks_mapping(
-        #     "feature-extraction",
-        #     "feature-extraction-with-past",
-        #     "text-generation",
-        #     "text-generation-with-past",
-        #     "text2text-generation",
-        #     "text2text-generation-with-past",
-        #     "text-classification",
-        #     "question-answering",
-        #     onnx="BigBirdPegasusOnnxConfig",
-        # ),
+        "big-bird": supported_tasks_mapping(
+            "feature-extraction",
+            "fill-mask",
+            "text-classification",
+            "multiple-choice",
+            "token-classification",
+            "question-answering",
+            onnx="BigBirdOnnxConfig",
+        ),
+        "bigbird-pegasus": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text2text-generation",
+            "text2text-generation-with-past",
+            "text-classification",
+            "question-answering",
+            onnx="BigBirdPegasusOnnxConfig",
+        ),
         "blenderbot": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -807,15 +802,15 @@ class TasksManager:
             "text2text-generation-with-past",
             onnx="LongT5OnnxConfig",
         ),
-        # "longformer": supported_tasks_mapping(
-        #     "feature-extraction",
-        #     "fill-mask",
-        #     "multiple-choice",
-        #     "question-answering",
-        #     "text-classification",
-        #     "token-classification",
-        #     onnx_config_cls="models.longformer.LongformerOnnxConfig",
-        # ),
+        "longformer": supported_tasks_mapping(
+            "feature-extraction",
+            "fill-mask",
+            "multiple-choice",
+            "question-answering",
+            "text-classification",
+            "token-classification",
+            onnx="LongformerOnnxConfig",
+        ),
         "marian": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -861,12 +856,11 @@ class TasksManager:
             "text-classification",
             onnx="MistralOnnxConfig",
         ),
-        # TODO: enable once the missing operator is supported.
-        # "mctct": supported_tasks_mapping(
-        #     "feature-extraction",
-        #     "automatic-speech-recognition",
-        #     onnx="MCTCTOnnxConfig",
-        # ),
+        "mctct": supported_tasks_mapping(
+            "feature-extraction",
+            "automatic-speech-recognition",
+            onnx="MCTCTOnnxConfig",
+        ),
         "mobilebert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -1313,7 +1307,7 @@ class TasksManager:
         "transformers": _SUPPORTED_MODEL_TYPE,
     }
     _UNSUPPORTED_CLI_MODEL_TYPE = {
-        # diffusers model types
+        # diffusers model part
         "clip-text",
         "clip-text-with-projection",
         "flux-transformer-2d",
@@ -1326,8 +1320,8 @@ class TasksManager:
         "clip-text-with-projection",
         "siglip-text-model",
         "siglip-text-with-projection",
-        # redundant model types
-        "trocr",  # same as vision-encoder-decoder
+        # transformers model part
+        "trocr",  # the decoder of a trocr vision-encoder-decoder
     }
     _SUPPORTED_CLI_MODEL_TYPE = (
         set(_SUPPORTED_MODEL_TYPE.keys())

@@ -58,7 +58,15 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "accelerate",  # ORTTrainer requires it.
+        "transformers>=4.36,<4.49.0",
+    ],
+    "onnxruntime-training": [
+        "torch-ort",
+        "onnxruntime-training>=1.11.0",
+        "datasets>=1.2.1",
+        "accelerate",
+        "evaluate",
+        "protobuf>=3.20.1",
         "transformers>=4.36,<4.49.0",
     ],
     "exporters": [
@@ -84,7 +92,6 @@ EXTRAS_REQUIRE = {
         "datasets<=2.16",
         "transformers>=4.36,<4.38",
     ],
-    # "executorch": "optimum-executorch",
     "diffusers": ["diffusers"],
     "intel": "optimum-intel>=1.18.0",
     "openvino": "optimum-intel[openvino]>=1.18.0",
