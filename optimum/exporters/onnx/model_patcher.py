@@ -156,8 +156,6 @@ def onnx_compatible_unfold(input_tensor, dimension, size, step):
     return result
 
 
-
-
 UNSUPPORTED_OPS_PATCHING_SPEC = [PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold)]
 CACHE_PATCHING_SPEC = [PatchingSpec(transformers.cache_utils, "Cache", TraceableCache, transformers.cache_utils.Cache)]
 
