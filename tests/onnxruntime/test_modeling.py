@@ -4621,8 +4621,10 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL)
 
-        if model_arch == "whisper" and is_transformers_version(">=", "4.43"):
-            gen_length = generation_length + 2
+        if model_arch == "whisper" and is_transformers_version(">=", "4.48"):
+            gen_length = self.GENERATION_LENGTH
+        elif model_arch == "whisper" and is_transformers_version(">=", "4.43"):
+            gen_length = self.GENERATION_LENGTH + 2
         else:
             gen_length = generation_length + 1
 
