@@ -234,7 +234,7 @@ class NormalizedConfigManager:
         "albert": NormalizedTextConfig,
         "bart": BartLikeNormalizedTextConfig,
         "bert": NormalizedTextConfig,
-        "big_bird": NormalizedTextConfig,
+        "big-bird": NormalizedTextConfig,
         "bigbird-pegasus": BartLikeNormalizedTextConfig,
         "blenderbot": BartLikeNormalizedTextConfig,
         "blenderbot-small": BartLikeNormalizedTextConfig,
