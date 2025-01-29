@@ -86,6 +86,8 @@ from .input_generators import (
     FalconDummyPastKeyValuesGenerator,
     GemmaDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
+    LongformerDummyTextInputGenerator,
+    MCTCTDummyAudioInputGenerator,
     MistralDummyPastKeyValuesGenerator,
     MultiQueryPastKeyValuesGenerator,
 )
