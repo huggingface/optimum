@@ -169,10 +169,10 @@ class TFLiteConfig(ExportersConfig, ABC):
         point_batch_size: Optional[int] = None,
         nb_points_per_image: Optional[int] = None,
     ):
-        super().__init__(config=config, task=task, int_dtype="int64", float_dtype="fp32")
         self.mandatory_axes = ()
         self._axes: Dict[str, int] = {}
-        self.task = task
+
+        super().__init__(config=config, task=task, int_dtype="int64", float_dtype="fp32")
 
         # To avoid using **kwargs.
         axes_values = {
