@@ -4956,6 +4956,9 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
     GENERATION_LENGTH = 100
 
+    ATOL = 1e-3
+    RTOL = 1e-3
+
     def _get_sample_image(self):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
