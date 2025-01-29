@@ -1244,6 +1244,22 @@ class SiglipVisionModelOnnxConfig(CLIPVisionModelOnnxConfig):
     DEFAULT_ONNX_OPSET = 14
 
 
+class ChineseCLIPNormalizedConfig(CLIPNormalizedConfig):
+    pass
+
+
+class ChineseCLIPOnnxConfig(CLIPOnnxConfig):
+    pass
+
+
+class ChineseCLIPTextWithProjectionOnnxConfig(CLIPTextWithProjectionOnnxConfig):
+    pass
+
+
+class ChineseCLIPTextOnnxConfig(CLIPTextOnnxConfig):
+    pass
+
+
 class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
