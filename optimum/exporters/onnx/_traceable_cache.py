@@ -1,7 +1,10 @@
+import logging
 from typing import Any, Dict, Optional, Tuple
 
 import torch
-from transformers.cache_utils import logger
+
+
+logger = logging.getLogger(__name__)
 
 
 # Simply removing the nn.Module, same as in https://github.com/huggingface/transformers/pull/35873
