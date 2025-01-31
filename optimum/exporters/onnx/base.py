@@ -49,7 +49,7 @@ from ...utils.import_utils import (
 )
 from ..base import ExportersConfig
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
-from .model_patcher import DecoderModelPatcher, ModelPatcher, Seq2SeqModelPatcher
+from .model_patcher import DecoderModelPatcher, Seq2SeqModelPatcher
 
 
 # TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
@@ -272,11 +272,6 @@ class OnnxConfig(ExportersConfig):
             del onnx_model
             gc.collect()
 
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> ModelPatcher:
-        return ModelPatcher(self, model, model_kwargs=model_kwargs)
-
     @property
     def torch_to_onnx_input_map(self) -> Dict[str, str]:
         """
@@ -435,6 +430,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
     PAD_ATTENTION_MASK_TO_PAST: bool = False
     SUPPORTS_PAST: bool = True
+    _MODEL_PATCHER = DecoderModelPatcher
 
     def __init__(
         self,
@@ -627,12 +623,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         return reference_model_inputs
 
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        # Refer to DecoderModelPatcher.
-        return DecoderModelPatcher(self, model, model_kwargs=model_kwargs)
-
 
 class ConfigBehavior(str, enum.Enum):
     """
@@ -653,6 +643,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     """
 
     DUMMY_PKV_GENERATOR_CLASS = DummySeq2SeqPastKeyValuesGenerator
+    _MODEL_PATCHER = Seq2SeqModelPatcher
 
     def __init__(
         self,
@@ -784,11 +775,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         if len(t) == 4:
             flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
             flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
-
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> ModelPatcher:
-        return Seq2SeqModelPatcher(self, model, model_kwargs=model_kwargs)
 
     def post_process_exported_models(
         self,

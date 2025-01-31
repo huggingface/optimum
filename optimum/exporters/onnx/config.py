@@ -42,7 +42,6 @@ from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel
 
-
     if is_tf_available():
         from transformers import TFPreTrainedModel
 
