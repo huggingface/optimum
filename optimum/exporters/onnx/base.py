@@ -49,7 +49,7 @@ from ...utils.import_utils import (
 )
 from ..base import ExportersConfig
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
-from .model_patcher import ModelPatcher, Seq2SeqModelPatcher
+from .model_patcher import DecoderModelPatcher, ModelPatcher, Seq2SeqModelPatcher
 
 
 # TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
@@ -626,6 +626,12 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             )
 
         return reference_model_inputs
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        # Refer to DecoderModelPatcher.
+        return DecoderModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class ConfigBehavior(str, enum.Enum):
