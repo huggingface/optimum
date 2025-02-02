@@ -50,7 +50,7 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.48.0",
+        "transformers>=4.36,<4.49.0",
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -58,8 +58,16 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "accelerate",  # ORTTrainer requires it.
-        "transformers>=4.36,<4.48.0",
+        "transformers>=4.36,<4.49.0",
+    ],
+    "onnxruntime-training": [
+        "torch-ort",
+        "onnxruntime-training>=1.11.0",
+        "datasets>=1.2.1",
+        "accelerate",
+        "evaluate",
+        "protobuf>=3.20.1",
+        "transformers>=4.36,<4.49.0",
     ],
     "onnxruntime-directml": [
         "onnx",
@@ -74,13 +82,13 @@ EXTRAS_REQUIRE = {
         "onnx",
         "onnxruntime",
         "timm",
-        "transformers>=4.36,<4.48.0",
+        "transformers>=4.36,<4.49.0",
     ],
     "exporters-gpu": [
         "onnx",
         "onnxruntime-gpu",
         "timm",
-        "transformers>=4.36,<4.48.0",
+        "transformers>=4.36,<4.49.0",
     ],
     "exporters-directml": [
         "torch-directml",
@@ -99,10 +107,6 @@ EXTRAS_REQUIRE = {
         "numpy<1.24.0",
         "datasets<=2.16",
         "transformers>=4.36,<4.38",
-    ],
-    "exporters-executorch": [
-        "executorch>=0.4.0",
-        "transformers>=4.46",
     ],
     "diffusers": ["diffusers"],
     "intel": "optimum-intel>=1.18.0",

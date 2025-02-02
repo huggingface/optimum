@@ -15,15 +15,17 @@
 
 import importlib.metadata
 import importlib.util
-import inspect
 import operator as op
 from collections import OrderedDict
 from contextlib import contextmanager
-from typing import Tuple, Union
+from logging import getLogger
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 from packaging import version
 
+
+logger = getLogger(__name__)
 
 TORCH_MINIMUM_VERSION = version.parse("1.11.0")
 TRANSFORMERS_MINIMUM_VERSION = version.parse("4.25.0")
@@ -37,22 +39,42 @@ ORT_QUANTIZE_MINIMUM_VERSION = version.parse("1.4.0")
 STR_OPERATION_TO_FUNC = {">": op.gt, ">=": op.ge, "==": op.eq, "!=": op.ne, "<=": op.le, "<": op.lt}
 
 
-def _is_package_available(pkg_name: str, return_version: bool = False, dist_names: list[str] | None = None) -> Union[Tuple[bool, str], bool]:
-    # Check we're not importing a "pkg_name" directory somewhere but the actual library by trying to grab the version
+def _is_package_available(
+    pkg_name: str,
+    return_version: bool = False,
+    pkg_distributions: Optional[List[str]] = None,
+) -> Union[Tuple[bool, str], bool]:
+    """
+    Check if a package is available in the current environment and not just an importable module by checking its version.
+    Optionally return the version of the package.
+
+    Args:
+        pkg_name (str): The name of the package to check.
+        return_version (bool): Whether to return the version of the package.
+        pkg_distributions (Optional[List[str]]): A list of package distributions (e.g. "package-name", "package-name-gpu", etc.) to check for the package.
+
+    Returns:
+        Union[Tuple[bool, str], bool]: A tuple of the package availability and the version of the package if `return_version` is `True`.
+    """
+
     package_exists = importlib.util.find_spec(pkg_name) is not None
     package_version = "N/A"
+
+    if pkg_distributions is None:
+        pkg_distributions = [pkg_name]
+    else:
+        pkg_distributions.append(pkg_name)
+
     if package_exists:
-        if dist_names is None:
-            dist_names = [pkg_name]
-        for dist_name in dist_names:
+        for pkg in pkg_distributions:
             try:
-                package_version = importlib.metadata.version(dist_name)
+                package_version = importlib.metadata.version(pkg)
                 package_exists = True
                 break
             except importlib.metadata.PackageNotFoundError:
+                package_exists = False
                 pass
-        else:
-            package_exists = False
+
     if return_version:
         return package_exists, package_version
     else:
@@ -70,45 +92,55 @@ _datasets_available = _is_package_available("datasets")
 _diffusers_available, _diffusers_version = _is_package_available("diffusers", return_version=True)
 _transformers_available, _transformers_version = _is_package_available("transformers", return_version=True)
 _torch_available, _torch_version = _is_package_available("torch", return_version=True)
-
-# importlib.metadata.version seem to not be robust with the ONNX Runtime extensions (`onnxruntime-gpu`, etc.)
-_onnxruntime_available = _is_package_available("onnxruntime", return_version=False, dist_names=["onnxruntime, onnxruntime-gpu", "onnxruntime-directml"])
-
-# TODO : Remove
-torch_version = version.parse(importlib.metadata.version("torch")) if _torch_available else None
-
-
-# Note: _is_package_available("tensorflow") fails for tensorflow-cpu. Please test any changes to the line below
-# with tensorflow-cpu to make sure it still works!
-_tf_available = importlib.util.find_spec("tensorflow") is not None
-_tf_version = None
-if _tf_available:
-    candidates = (
+_onnxruntime_available, _onnxruntime_version = _is_package_available(
+    "onnxruntime",
+    return_version=True,
+    pkg_distributions=[
+        "onnxruntime-gpu",
+        "onnxruntime-rocm",
+        "onnxruntime-training",
+        # list in https://github.com/microsoft/onnxruntime/blob/main/setup.py#L56C1-L98C91
+        "onnxruntime-training-rocm",
+        "onnxruntime-training-cpu",
+        "onnxruntime-openvino",
+        "onnxruntime-vitisai",
+        "onnxruntime-armnn",
+        "onnxruntime-cann",
+        "onnxruntime-dnnl",
+        "onnxruntime-acl",
+        "onnxruntime-tvm",
+        "onnxruntime-qnn",
+        "onnxruntime-migraphx",
+        "ort-migraphx-nightly",
+        "ort-rocm-nightly",
+    ],
+)
+_tf_available, _tf_version = _is_package_available(
+    "tensorflow",
+    return_version=True,
+    pkg_distributions=[
         "tensorflow",
         "tensorflow-cpu",
         "tensorflow-gpu",
+        "tensorflow-rocm",
+        "tensorflow-macos",
+        "tensorflow-aarch64",
         "tf-nightly",
         "tf-nightly-cpu",
         "tf-nightly-gpu",
         "tf-nightly-rocm",
+        "tf-nightly-macos",
         "intel-tensorflow",
         "intel-tensorflow-avx512",
-        "tensorflow-rocm",
-        "tensorflow-macos",
-        "tensorflow-aarch64",
+    ],
+)
+
+if _tf_available and version.parse(_tf_version) < version.parse("2"):
+    logger.warning(
+        "TensorFlow 2.0 or higher is required to use the TensorFlow backend. "
+        "Please install the latest version of TensorFlow, or switch to another backend."
     )
-    # For the metadata, we have to look for both tensorflow and tensorflow-cpu
-    for pkg in candidates:
-        try:
-            _tf_version = importlib.metadata.version(pkg)
-            break
-        except importlib.metadata.PackageNotFoundError:
-            pass
-    _tf_available = _tf_version is not None
-if _tf_available:
-    if version.parse(_tf_version) < version.parse("2"):
-        _tf_available = False
-_tf_version = _tf_version or "N/A"
+    _tf_available = False
 
 
 # This function was copied from: https://github.com/huggingface/accelerate/blob/874c4967d94badd24f893064cc3bef45f57cadf7/src/accelerate/utils/versions.py#L319
@@ -174,14 +206,6 @@ def is_onnx_available():
 
 
 def is_onnxruntime_available():
-    try:
-        # Try to import the source file of onnxruntime - if you run the tests from `tests` the function gets
-        # confused since there a folder named `onnxruntime` in `tests`. Therefore, `_onnxruntime_available`
-        # will be set to `True` even if not installed.
-        mod = importlib.import_module("onnxruntime")
-        inspect.getsourcefile(mod)
-    except Exception:
-        return False
     return _onnxruntime_available
 
 

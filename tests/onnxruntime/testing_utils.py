@@ -25,14 +25,16 @@ from transformers import set_seed
 from optimum.exporters import TasksManager
 
 
+SEED = 42
+
 MODEL_NAMES = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
     "audio_spectrogram_transformer": "Ericwang/tiny-random-ast",
     "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
     "bert": "hf-internal-testing/tiny-random-BertModel",
     "bart": "hf-internal-testing/tiny-random-bart",
-    # "big_bird": "hf-internal-testing/tiny-random-BigBirdModel",
-    # "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
+    "big_bird": "hf-internal-testing/tiny-random-BigBirdModel",
+    "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "blenderbot_small": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
@@ -47,43 +49,6 @@ MODEL_NAMES = {
     "data2vec_audio": "hf-internal-testing/tiny-random-Data2VecAudioModel",
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta_v2": "hf-internal-testing/tiny-random-DebertaV2Model",
-    "default-timm-config": {
-        "timm/inception_v3.tf_adv_in1k": ["image-classification"],
-        "timm/tf_efficientnet_b0.in1k": ["image-classification"],
-        "timm/resnetv2_50x1_bit.goog_distilled_in1k": ["image-classification"],
-        "timm/cspdarknet53.ra_in1k": ["image-classification"],
-        "timm/cspresnet50.ra_in1k": ["image-classification"],
-        "timm/cspresnext50.ra_in1k": ["image-classification"],
-        "timm/densenet121.ra_in1k": ["image-classification"],
-        "timm/dla102.in1k": ["image-classification"],
-        "timm/dpn107.mx_in1k": ["image-classification"],
-        "timm/ecaresnet101d.miil_in1k": ["image-classification"],
-        "timm/efficientnet_b1_pruned.in1k": ["image-classification"],
-        "timm/inception_resnet_v2.tf_ens_adv_in1k": ["image-classification"],
-        "timm/fbnetc_100.rmsp_in1k": ["image-classification"],
-        "timm/xception41.tf_in1k": ["image-classification"],
-        "timm/senet154.gluon_in1k": ["image-classification"],
-        "timm/seresnext26d_32x4d.bt_in1k": ["image-classification"],
-        "timm/hrnet_w18.ms_aug_in1k": ["image-classification"],
-        "timm/inception_v3.gluon_in1k": ["image-classification"],
-        "timm/inception_v4.tf_in1k": ["image-classification"],
-        "timm/mixnet_s.ft_in1k": ["image-classification"],
-        "timm/mnasnet_100.rmsp_in1k": ["image-classification"],
-        "timm/mobilenetv2_100.ra_in1k": ["image-classification"],
-        "timm/mobilenetv3_small_050.lamb_in1k": ["image-classification"],
-        "timm/nasnetalarge.tf_in1k": ["image-classification"],
-        "timm/tf_efficientnet_b0.ns_jft_in1k": ["image-classification"],
-        "timm/pnasnet5large.tf_in1k": ["image-classification"],
-        "timm/regnetx_002.pycls_in1k": ["image-classification"],
-        "timm/regnety_002.pycls_in1k": ["image-classification"],
-        "timm/res2net101_26w_4s.in1k": ["image-classification"],
-        "timm/res2next50.in1k": ["image-classification"],
-        "timm/resnest101e.in1k": ["image-classification"],
-        "timm/spnasnet_100.rmsp_in1k": ["image-classification"],
-        "timm/resnet18.fb_swsl_ig1b_ft_in1k": ["image-classification"],
-        "timm/wide_resnet101_2.tv_in1k": ["image-classification"],
-        "timm/tresnet_l.miil_in1k": ["image-classification"],
-    },
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
     "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "detr": "hf-internal-testing/tiny-random-detr",
@@ -92,9 +57,7 @@ MODEL_NAMES = {
     "dpt": "hf-internal-testing/tiny-random-DPTModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "encoder-decoder": {
-        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": [
-            "text2text-generation",
-        ],
+        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": ["text2text-generation"],
         "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
     },
     "falcon": "fxmarty/really-tiny-falcon-testing",
@@ -168,12 +131,10 @@ MODEL_NAMES = {
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
     "wavlm": "hf-internal-testing/tiny-random-WavlmModel",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
-    "xlm_qa": "hf-internal-testing/tiny-random-XLMForQuestionAnsweringSimple",  # issue with default hf-internal-testing in transformers QA pipeline post-processing
+    "xlm_qa": "hf-internal-testing/tiny-random-XLMForQuestionAnsweringSimple",
     "xlm_roberta": "hf-internal-testing/tiny-xlm-roberta",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
 }
-
-SEED = 42
 
 
 class ORTModelTestMixin(unittest.TestCase):
@@ -181,6 +142,9 @@ class ORTModelTestMixin(unittest.TestCase):
         "pt": torch.Tensor,
         "np": np.ndarray,
     }
+
+    ATOL = 1e-4
+    RTOL = 1e-4
 
     TASK = None
 
