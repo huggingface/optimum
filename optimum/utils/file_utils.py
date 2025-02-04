@@ -109,7 +109,7 @@ def _find_files_matching_pattern(
     model_name_or_path: Union[str, Path],
     pattern: str,
     subfolder: str = "",
-    use_auth_token: Optional[Union[bool, str]] = None,
+    token: Optional[Union[bool, str]] = None,
     revision: Optional[str] = None,
 ) -> List[Path]:
     """
@@ -123,7 +123,7 @@ def _find_files_matching_pattern(
         subfolder (`str`, defaults to `""`):
             In case the model files are located inside a subfolder of the model directory / repo on the Hugging
             Face Hub, you can specify the subfolder name here.
-        use_auth_token (`Optional[bool, str]`, *optional*):
+        token (`Optional[bool, str]`, *optional*):
             The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
             when running `transformers-cli login` (stored in `~/.huggingface`).
         revision (`Optional[str]`, defaults to `None`):
@@ -134,10 +134,8 @@ def _find_files_matching_pattern(
     """
     model_path = Path(model_name_or_path) if not isinstance(model_name_or_path, Path) else model_name_or_path
 
-    if isinstance(use_auth_token, bool):
+    if isinstance(token, bool):
         token = HfFolder().get_token()
-    else:
-        token = use_auth_token
 
     library_name = TasksManager.infer_library_from_model(
         str(model_name_or_path), subfolder=subfolder, revision=revision, token=token
