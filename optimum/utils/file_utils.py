@@ -14,18 +14,16 @@
 # limitations under the License.
 """Utility functions related to both local files and files on the Hugging Face Hub."""
 
+import os
 import re
 import warnings
 from pathlib import Path
 from typing import List, Optional, Union
 
 import huggingface_hub
-from huggingface_hub import get_hf_file_metadata, hf_hub_url
+from huggingface_hub import HfApi, HfFolder, get_hf_file_metadata, hf_hub_url
 
-from ..utils import logging
-
-
-logger = logging.get_logger(__name__)
+from optimum.exporters import TasksManager
 
 
 def validate_file_exists(
@@ -103,5 +101,61 @@ def find_files_matching_pattern(
         if subfolder != "":
             path = f"{path}/{subfolder}"
         files = [Path(p) for p in repo_files if re.match(pattern, str(p))]
+
+    return files
+
+
+def _find_files_matching_pattern(
+    model_name_or_path: Union[str, Path],
+    pattern: str,
+    subfolder: str = "",
+    use_auth_token: Optional[Union[bool, str]] = None,
+    revision: Optional[str] = None,
+) -> List[Path]:
+    """
+    Scans either a model repo or a local directory to find filenames matching the pattern.
+
+    Args:
+        model_name_or_path (`Union[str, Path]`):
+            The name of the model repo on the Hugging Face Hub or the path to a local directory.
+        pattern (`str`):
+            The pattern to use to look for files.
+        subfolder (`str`, defaults to `""`):
+            In case the model files are located inside a subfolder of the model directory / repo on the Hugging
+            Face Hub, you can specify the subfolder name here.
+        use_auth_token (`Optional[bool, str]`, *optional*):
+            The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
+            when running `transformers-cli login` (stored in `~/.huggingface`).
+        revision (`Optional[str]`, defaults to `None`):
+            Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
+
+    Returns:
+        `List[Path]`
+    """
+    model_path = Path(model_name_or_path) if not isinstance(model_name_or_path, Path) else model_name_or_path
+
+    if isinstance(use_auth_token, bool):
+        token = HfFolder().get_token()
+    else:
+        token = use_auth_token
+
+    library_name = TasksManager.infer_library_from_model(
+        str(model_name_or_path), subfolder=subfolder, revision=revision, token=token
+    )
+    if library_name == "diffusers":
+        subfolders = [os.path.join(subfolder, "unet"), os.path.join(subfolder, "transformer")]
+    else:
+        subfolders = [subfolder or "."]
+
+    if model_path.is_dir():
+        files = []
+        for subfolder in subfolders:
+            glob_pattern = subfolder + "/*"
+            files_ = model_path.glob(glob_pattern)
+            files_ = [p for p in files_ if re.search(pattern, str(p))]
+            files.extend(files_)
+    else:
+        repo_files = map(Path, HfApi().list_repo_files(model_name_or_path, revision=revision, token=token))
+        files = [Path(p) for p in repo_files if re.match(pattern, str(p)) and str(p.parent) in subfolders]
 
     return files
