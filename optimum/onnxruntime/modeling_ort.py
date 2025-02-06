@@ -14,6 +14,7 @@
 """ORTModelForXXX classes, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers."""
 
 import logging
+import os
 import re
 import shutil
 import warnings
@@ -65,7 +66,7 @@ from ..exporters import TasksManager
 from ..exporters.onnx import main_export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from ..onnx.utils import _get_external_data_paths
-from ..utils.file_utils import find_files_matching_pattern
+from ..utils.file_utils import _find_files_matching_pattern, find_files_matching_pattern
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import IOBindingHelper, TypeHelper
 from .utils import (
@@ -88,6 +89,7 @@ logger = logging.getLogger(__name__)
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
 _FEATURE_EXTRACTOR_FOR_DOC = "AutoFeatureExtractor"
 _PROCESSOR_FOR_DOC = "AutoProcessor"
+_FILE_PATTERN = r"^.*\.onnx$"
 
 ONNX_MODEL_END_DOCSTRING = r"""
     This model inherits from [`~onnxruntime.modeling_ort.ORTModel`], check its documentation for the generic methods the
@@ -684,6 +686,7 @@ class ORTModel(OptimizedModel):
         subfolder: str = "",
         config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
+        revision: Optional[str] = None,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
@@ -731,15 +734,53 @@ class ORTModel(OptimizedModel):
                 raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
             token = use_auth_token
 
+        _export = export
+        try:
+            if local_files_only:
+                object_id = model_id.replace("/", "--")
+                cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
+                refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
+                with open(refs_file) as f:
+                    revision = f.read()
+                model_dir = os.path.join(cached_model_dir, "snapshots", revision)
+            else:
+                model_dir = model_id
+
+            onnx_files = _find_files_matching_pattern(
+                model_dir,
+                pattern=_FILE_PATTERN,
+                subfolder=subfolder,
+                token=token,
+                revision=revision,
+            )
+            _export = len(onnx_files) == 0
+            if _export ^ export:
+                if export:
+                    logger.warning(
+                        f"The model {model_id} was already converted to ONNX but got `export=True`, the model will be converted to ONNX once again. "
+                        "Don't forget to save the resulting model with `.save_pretrained()`"
+                    )
+                    _export = True
+                else:
+                    logger.warning(
+                        f"No ONNX files were found for {model_id}, setting `export=True` to convert the model to ONNX. "
+                        "Don't forget to save the resulting model with `.save_pretrained()`"
+                    )
+        except Exception as exception:
+            logger.warning(
+                f"Could not infer whether the model was already converted or not to ONNX, keeping `export={export}`.\n{exception}"
+            )
+
         return super().from_pretrained(
             model_id,
-            export=export,
+            export=_export,
             force_download=force_download,
             token=token,
             cache_dir=cache_dir,
             subfolder=subfolder,
             config=config,
             local_files_only=local_files_only,
+            revision=revision,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
