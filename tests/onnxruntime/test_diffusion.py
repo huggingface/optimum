@@ -631,7 +631,6 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
-
         pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
         for batch_size in [1, 3]:

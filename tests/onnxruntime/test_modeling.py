@@ -154,7 +154,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_model_from_hub_subfolder(self):
         # does not pass with ORTModel as it does not have export_feature attribute
         model = ORTModelForSequenceClassification.from_pretrained(
-            "fxmarty/tiny-bert-sst2-distilled-subfolder", subfolder="my_subfolder",
+            "fxmarty/tiny-bert-sst2-distilled-subfolder",
+            subfolder="my_subfolder",
         )
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
