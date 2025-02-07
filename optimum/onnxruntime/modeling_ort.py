@@ -59,6 +59,7 @@ from transformers.modeling_outputs import (
     TokenClassifierOutput,
     XVectorOutput,
 )
+from transformers.utils import is_offline_mode
 
 import onnxruntime as ort
 
@@ -68,8 +69,8 @@ from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from ..onnx.utils import _get_external_data_paths
 from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
-from .io_binding import IOBindingHelper, TypeHelper
 from .constants import ONNX_FILE_PATTERN
+from .io_binding import IOBindingHelper, TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
     check_io_binding,
@@ -78,7 +79,7 @@ from .utils import (
     parse_device,
     validate_provider_availability,
 )
-from transformers.utils import is_offline_mode
+
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
@@ -533,7 +534,7 @@ class ORTModel(OptimizedModel):
                 f"The ONNX file {file_name} is not a regular name used in optimum.onnxruntime, the ORTModel might "
                 "not behave as expected."
             )
-            
+
         model_cache_path, preprocessors = cls._cached_file(
             model_path=model_path,
             token=token,
@@ -737,7 +738,7 @@ class ORTModel(OptimizedModel):
         if is_offline_mode() and not local_files_only:
             logger.info("Offline mode: forcing local_files_only=True")
             local_files_only = True
-            
+
         _export = export
         try:
             if local_files_only:

@@ -14,6 +14,7 @@
 """Classes handling causal-lm related architectures in ONNX Runtime."""
 
 import logging
+import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
@@ -26,20 +27,23 @@ from onnx.tools import update_model_dims
 from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from ..utils.file_utils import find_files_matching_pattern
-import re
 
 import onnxruntime
 
 from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from ..onnx.utils import check_model_uses_external_data
 from ..utils import NormalizedConfigManager, is_transformers_version
-from ..utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
+from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_save_preprocessors
-from .constants import DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN, DECODER_WITH_PAST_ONNX_FILE_PATTERN, ONNX_FILE_PATTERN
+from .constants import (
+    DECODER_MERGED_ONNX_FILE_PATTERN,
+    DECODER_ONNX_FILE_PATTERN,
+    DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+    ONNX_FILE_PATTERN,
+)
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .models.bloom import bloom_convert_to_bloom_cache, bloom_convert_to_standard_cache
-from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_WEIGHTS_NAME
+from .utils import ONNX_WEIGHTS_NAME
 
 
 if TYPE_CHECKING:
@@ -424,7 +428,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
 
             if len(onnx_files) == 0:
-                raise RuntimeError("No ONNX model found, please re-export your model with export=True or using the CLI")
+                raise RuntimeError(
+                    "No ONNX model found, please re-export your model with export=True or using the CLI"
+                )
 
             if len(onnx_files) == 1:
                 subfolder = onnx_files.parent
@@ -436,7 +442,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 if use_merged is not False:
                     model_files = [p for p in onnx_files if re.search(DECODER_MERGED_ONNX_FILE_PATTERN, str(p))]
                     use_merged = len(model_files) != 0
- 
+
                 if use_merged is False:
                     pattern = DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN
                     model_files = [p for p in onnx_files if re.search(pattern, str(p))]

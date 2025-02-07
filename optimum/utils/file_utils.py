@@ -14,16 +14,13 @@
 # limitations under the License.
 """Utility functions related to both local files and files on the Hugging Face Hub."""
 
-import os
 import re
 import warnings
 from pathlib import Path
 from typing import List, Optional, Union
 
 import huggingface_hub
-from huggingface_hub import HfApi, HfFolder, get_hf_file_metadata, hf_hub_url
-
-from optimum.exporters import TasksManager
+from huggingface_hub import get_hf_file_metadata, hf_hub_url
 
 
 def validate_file_exists(
@@ -104,5 +101,3 @@ def find_files_matching_pattern(
         files = [Path(p) for p in repo_files if re.match(pattern, str(p))]
 
     return files
-
-
