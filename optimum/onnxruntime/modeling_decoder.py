@@ -428,16 +428,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
 
             if len(onnx_files) == 0:
-                raise RuntimeError(
-                    "No ONNX model found, please re-export your model with export=True or using the CLI"
-                )
+                raise FileNotFoundError(f"Could not find any ONNX model file in {model_path}")
 
             if len(onnx_files) == 1:
                 subfolder = onnx_files.parent
                 file_name = onnx_files.name
             else:
                 model_files = []
-
                 # Check first for merged models and then for decoder / decoder_with_past models
                 if use_merged is not False:
                     model_files = [p for p in onnx_files if re.search(DECODER_MERGED_ONNX_FILE_PATTERN, str(p))]
@@ -465,8 +462,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
                 if len(model_files) > 1:
                     logger.warning(
-                        f"Too many ONNX model files were found in {model_files}, specify which one to load by using the file_name argument"
-                        f"Loading {file_name} in subfolder {subfolder} specify which one to load by using the file_name argument"
+                        f"Too many ONNX model files were found in {' ,'.join(map(str, model_files))}. "
+                        "specify which one to load by using the `file_name` and/or the `subfolder` arguments. "
+                        f"Loading the file {file_name} in the subfolder {subfolder}."
                     )
 
         model_cache_path, preprocessors = cls._cached_file(
