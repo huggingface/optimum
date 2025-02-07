@@ -241,7 +241,7 @@ def load_ort_pipeline(
 
     if model is None:
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
-        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id)
+        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, export=True)
     elif isinstance(model, str):
         model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(
             model, revision=revision, subfolder=subfolder, token=token, **model_kwargs
