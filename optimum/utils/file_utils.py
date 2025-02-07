@@ -91,6 +91,7 @@ def find_files_matching_pattern(
 
     model_path = Path(model_name_or_path) if isinstance(model_name_or_path, str) else model_name_or_path
     pattern = re.compile(f"{subfolder}/{pattern}" if subfolder != "" else pattern)
+
     if model_path.is_dir():
         path = model_path
         files = model_path.glob(glob_pattern)
@@ -105,55 +106,3 @@ def find_files_matching_pattern(
     return files
 
 
-def _find_files_matching_pattern(
-    model_name_or_path: Union[str, Path],
-    pattern: str,
-    subfolder: str = "",
-    token: Optional[Union[bool, str]] = None,
-    revision: Optional[str] = None,
-) -> List[Path]:
-    """
-    Scans either a model repo or a local directory to find filenames matching the pattern.
-
-    Args:
-        model_name_or_path (`Union[str, Path]`):
-            The name of the model repo on the Hugging Face Hub or the path to a local directory.
-        pattern (`str`):
-            The pattern to use to look for files.
-        subfolder (`str`, defaults to `""`):
-            In case the model files are located inside a subfolder of the model directory / repo on the Hugging
-            Face Hub, you can specify the subfolder name here.
-        token (`Optional[bool, str]`, *optional*):
-            The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
-            when running `transformers-cli login` (stored in `~/.huggingface`).
-        revision (`Optional[str]`, defaults to `None`):
-            Revision is the specific model version to use. It can be a branch name, a tag name, or a commit id.
-
-    Returns:
-        `List[Path]`
-    """
-    model_path = Path(model_name_or_path) if not isinstance(model_name_or_path, Path) else model_name_or_path
-
-    if isinstance(token, bool):
-        token = HfFolder().get_token()
-
-    library_name = TasksManager.infer_library_from_model(
-        str(model_name_or_path), subfolder=subfolder, revision=revision, token=token
-    )
-    if library_name == "diffusers":
-        subfolders = [os.path.join(subfolder, "unet"), os.path.join(subfolder, "transformer")]
-    else:
-        subfolders = [subfolder or "."]
-
-    if model_path.is_dir():
-        files = []
-        for subfolder in subfolders:
-            glob_pattern = subfolder + "/*"
-            files_ = model_path.glob(glob_pattern)
-            files_ = [p for p in files_ if re.search(pattern, str(p))]
-            files.extend(files_)
-    else:
-        repo_files = map(Path, HfApi().list_repo_files(model_name_or_path, revision=revision, token=token))
-        files = [Path(p) for p in repo_files if re.match(pattern, str(p)) and str(p.parent) in subfolders]
-
-    return files

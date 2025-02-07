@@ -26,6 +26,8 @@ from onnx.tools import update_model_dims
 from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithPast
+from ..utils.file_utils import find_files_matching_pattern
+import re
 
 import onnxruntime
 
@@ -34,7 +36,7 @@ from ..onnx.utils import check_model_uses_external_data
 from ..utils import NormalizedConfigManager, is_transformers_version
 from ..utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ..utils.save_utils import maybe_save_preprocessors
-from .constants import DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN, DECODER_WITH_PAST_ONNX_FILE_PATTERN
+from .constants import DECODER_MERGED_ONNX_FILE_PATTERN, DECODER_ONNX_FILE_PATTERN, DECODER_WITH_PAST_ONNX_FILE_PATTERN, ONNX_FILE_PATTERN
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .models.bloom import bloom_convert_to_bloom_cache, bloom_convert_to_standard_cache
 from .utils import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_WEIGHTS_NAME
@@ -411,65 +413,55 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 )
             use_merged = False
 
-        decoder_name = "decoder_file_name" if use_cache else "decoder_with_past_file_name"
-        decoder_file_name = kwargs.pop(decoder_name, None)
-
-        if decoder_file_name is not None:
-            logger.warning(f"The `{decoder_name}` argument is deprecated, please use `file_name` instead.")
-            file_name = file_name or decoder_file_name
-
         if file_name is None:
-            decoder_path = None
-            # We use `is not False` here to include two cases: use_merged = None (in which case we auto-detect it),
-            # and use_merged = True (explicitely specified by the user)
-            if use_merged is not False:
-                try:
-                    decoder_path = ORTModelForCausalLM.infer_onnx_filename(
-                        model_id,
-                        [DECODER_MERGED_ONNX_FILE_PATTERN],
-                        argument_name=None,
-                        subfolder=subfolder,
-                        token=token,
-                        revision=revision,
+            onnx_files = find_files_matching_pattern(
+                model_id,
+                ONNX_FILE_PATTERN,
+                glob_pattern="**/*.onnx",
+                subfolder=subfolder,
+                token=token,
+                revision=revision,
+            )
+
+            if len(onnx_files) == 0:
+                raise RuntimeError("No ONNX model found, please re-export your model with export=True or using the CLI")
+
+            if len(onnx_files) == 1:
+                subfolder = onnx_files.parent
+                file_name = onnx_files.name
+            else:
+                model_files = []
+
+                # Check first for merged models and then for decoder / decoder_with_past models
+                if use_merged is not False:
+                    model_files = [p for p in onnx_files if re.search(DECODER_MERGED_ONNX_FILE_PATTERN, str(p))]
+                    use_merged = len(model_files) != 0
+ 
+                if use_merged is False:
+                    pattern = DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN
+                    model_files = [p for p in onnx_files if re.search(pattern, str(p))]
+
+                if not model_files:
+                    model_files = onnx_files
+                else:
+                    logger.warning(
+                        f"Legacy models found in {model_files} will be loaded. "
+                        "Legacy models will be deprecated in the next version of optimum, please re-export your model"
                     )
-                    use_merged = True
-                    file_name = decoder_path.name
-                except FileNotFoundError as e:
-                    if use_merged is True:
-                        raise FileNotFoundError(
-                            "The parameter `use_merged=True` was passed to ORTModelForCausalLM.from_pretrained()"
-                            " but no ONNX file for a merged decoder could be found in"
-                            f" {str(Path(model_id, subfolder))}, with the error: {e}"
-                        )
-                    use_merged = False
+                file_name = model_files[0].name
+                subfolder = model_files[0].parent
 
-            if use_merged is False:
-                pattern = DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN
-                # exclude decoder file for first iteration
-                decoder_path = ORTModelForCausalLM.infer_onnx_filename(
-                    model_id,
-                    [r"^((?!decoder).)*.onnx", pattern],
-                    argument_name=None,
-                    subfolder=subfolder,
-                    token=token,
-                    revision=revision,
-                )
-                file_name = decoder_path.name
+                for file in model_files:
+                    if file.name == "model.onnx":
+                        file_name = file.name
+                        subfolder = file.parent
+                        break
 
-            if file_name == ONNX_DECODER_WITH_PAST_NAME and config.model_type in MODEL_TO_PATCH_FOR_PAST:
-                raise ValueError(
-                    f"ONNX Runtime inference using {ONNX_DECODER_WITH_PAST_NAME} has been deprecated for {config.model_type} architecture. Please re-export your model with optimum>=1.14.0 or set use_cache=False. For details about the deprecation, please refer to https://github.com/huggingface/optimum/releases/tag/v1.14.0."
-                )
-
-            regular_file_names = []
-            for name in [ONNX_WEIGHTS_NAME, ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME]:
-                regular_file_names += ORTModelForCausalLM._generate_regular_names_for_filename(name)
-
-            if file_name not in regular_file_names:
-                logger.warning(
-                    f"The ONNX file {file_name} is not a regular name used in optimum.onnxruntime that are {regular_file_names}, the "
-                    f"{cls.__name__} might not behave as expected."
-                )
+                if len(model_files) > 1:
+                    logger.warning(
+                        f"Too many ONNX model files were found in {model_files}, specify which one to load by using the file_name argument"
+                        f"Loading {file_name} in subfolder {subfolder} specify which one to load by using the file_name argument"
+                    )
 
         model_cache_path, preprocessors = cls._cached_file(
             model_path=model_path,

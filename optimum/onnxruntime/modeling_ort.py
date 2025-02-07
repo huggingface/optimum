@@ -66,9 +66,10 @@ from ..exporters import TasksManager
 from ..exporters.onnx import main_export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from ..onnx.utils import _get_external_data_paths
-from ..utils.file_utils import _find_files_matching_pattern, find_files_matching_pattern
+from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .io_binding import IOBindingHelper, TypeHelper
+from .constants import ONNX_FILE_PATTERN
 from .utils import (
     ONNX_WEIGHTS_NAME,
     check_io_binding,
@@ -77,7 +78,7 @@ from .utils import (
     parse_device,
     validate_provider_availability,
 )
-
+from transformers.utils import is_offline_mode
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
@@ -89,7 +90,6 @@ logger = logging.getLogger(__name__)
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
 _FEATURE_EXTRACTOR_FOR_DOC = "AutoFeatureExtractor"
 _PROCESSOR_FOR_DOC = "AutoProcessor"
-_FILE_PATTERN = r"^.*\.onnx$"
 
 ONNX_MODEL_END_DOCSTRING = r"""
     This model inherits from [`~onnxruntime.modeling_ort.ORTModel`], check its documentation for the generic methods the
@@ -533,7 +533,7 @@ class ORTModel(OptimizedModel):
                 f"The ONNX file {file_name} is not a regular name used in optimum.onnxruntime, the ORTModel might "
                 "not behave as expected."
             )
-
+            
         model_cache_path, preprocessors = cls._cached_file(
             model_path=model_path,
             token=token,
@@ -734,6 +734,10 @@ class ORTModel(OptimizedModel):
                 raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
             token = use_auth_token
 
+        if is_offline_mode() and not local_files_only:
+            logger.info("Offline mode: forcing local_files_only=True")
+            local_files_only = True
+            
         _export = export
         try:
             if local_files_only:
@@ -746,13 +750,14 @@ class ORTModel(OptimizedModel):
             else:
                 model_dir = model_id
 
-            onnx_files = _find_files_matching_pattern(
+            onnx_files = find_files_matching_pattern(
                 model_dir,
-                pattern=_FILE_PATTERN,
+                pattern=ONNX_FILE_PATTERN,
                 subfolder=subfolder,
                 token=token,
                 revision=revision,
             )
+
             _export = len(onnx_files) == 0
             if _export ^ export:
                 if export:
