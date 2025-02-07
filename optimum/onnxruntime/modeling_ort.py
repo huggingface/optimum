@@ -499,13 +499,10 @@ class ORTModel(OptimizedModel):
             if len(onnx_files) == 0:
                 raise FileNotFoundError(f"Could not find any ONNX model file in {model_path}")
 
-            if len(onnx_files) == 1:
-                subfolder = onnx_files.parent
-                file_name = onnx_files.name
-            else:
-                file_name = onnx_files[0].name
-                subfolder = onnx_files[0].parent
+            file_name = onnx_files[0].name
+            subfolder = onnx_files[0].parent
 
+            if len(onnx_files) > 1:
                 for file in onnx_files:
                     if file.name == "model.onnx":
                         file_name = file.name

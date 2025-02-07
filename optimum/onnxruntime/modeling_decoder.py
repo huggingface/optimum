@@ -431,8 +431,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 raise FileNotFoundError(f"Could not find any ONNX model file in {model_path}")
 
             if len(onnx_files) == 1:
-                subfolder = onnx_files.parent
-                file_name = onnx_files.name
+                subfolder = onnx_files[0].parent
+                file_name = onnx_files[0].name
             else:
                 model_files = []
                 # Check first for merged models and then for decoder / decoder_with_past models
