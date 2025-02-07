@@ -154,7 +154,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_model_from_hub_subfolder(self):
         # does not pass with ORTModel as it does not have export_feature attribute
         model = ORTModelForSequenceClassification.from_pretrained(
-            "fxmarty/tiny-bert-sst2-distilled-subfolder", subfolder="my_subfolder", export=True
+            "fxmarty/tiny-bert-sst2-distilled-subfolder", subfolder="my_subfolder",
         )
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
@@ -164,9 +164,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_from_hub_subfolder(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            "fxmarty/tiny-mbart-subfolder", subfolder="my_folder", export=True
-        )
+        model = ORTModelForSeq2SeqLM.from_pretrained("fxmarty/tiny-mbart-subfolder", subfolder="my_folder")
         self.assertIsInstance(model.encoder, ORTEncoder)
         self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
         self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
@@ -1316,7 +1314,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForQuestionAnswering.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForQuestionAnswering.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -1518,7 +1516,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForMaskedLM.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForMaskedLM.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -1704,7 +1702,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -1911,7 +1909,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForTokenClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForTokenClassification.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -2431,7 +2429,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"], export=True)
+            _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -2893,7 +2891,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -3070,7 +3068,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForSemanticSegmentation.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForSemanticSegmentation.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -3257,7 +3255,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForAudioClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForAudioClassification.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -3441,7 +3439,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForCTC.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForCTC.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -3543,7 +3541,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForAudioXVector.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForAudioXVector.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -3640,7 +3638,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForAudioFrameClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForAudioFrameClassification.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -3739,7 +3737,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["bert"], export=True)
+            _ = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["bert"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -4410,7 +4408,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForSpeechSeq2Seq.from_pretrained(MODEL_NAMES["bert"], export=True)
+            _ = ORTModelForSpeechSeq2Seq.from_pretrained(MODEL_NAMES["bert"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -4827,7 +4825,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForImageToImage.from_pretrained(MODEL_NAMES["bert"], export=True)
+            _ = ORTModelForImageToImage.from_pretrained(MODEL_NAMES["bert"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -4971,7 +4969,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForVision2Seq.from_pretrained(MODEL_NAMES["bert"], export=True)
+            _ = ORTModelForVision2Seq.from_pretrained(MODEL_NAMES["bert"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -5420,7 +5418,7 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForPix2Struct.from_pretrained(MODEL_NAMES["bert"], export=True)
+            _ = ORTModelForPix2Struct.from_pretrained(MODEL_NAMES["bert"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
