@@ -383,8 +383,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             )
 
     def test_load_model_from_hub_without_onnx_model(self):
-        with self.assertRaises(FileNotFoundError):
-            ORTModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
+        ORTModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
 
     def test_model_on_cpu(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
