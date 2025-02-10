@@ -446,7 +446,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             subfolder = onnx_files[0].parent
             _file_name = onnx_files[0].name
             if file_name and file_name != _file_name:
-                raise FileNotFoundError(f"Trying to load {file_name} but only found {file_name}")
+                raise FileNotFoundError(f"Trying to load {file_name} but only found {_file_name}")
             file_name = _file_name
 
         else:
