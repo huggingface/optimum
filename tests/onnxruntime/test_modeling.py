@@ -141,6 +141,34 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
         self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID = "optimum-internal-testing/tiny-stable-diffusion-onnx"
 
+
+    def test_ella(self):
+        model_id =  "optimum-internal-testing/tiny-random-llama"
+        file_name="model_optimized.onnx"
+
+        model = ORTModelForCausalLM.from_pretrained(model_id, revision="onnx")
+        self.assertEqual(model.model_path.name, "model.onnx")
+        
+        model = ORTModelForCausalLM.from_pretrained(model_id, revision="onnx", file_name=file_name)
+        self.assertEqual(model.model_path.name, file_name)
+
+        model = ORTModelForCausalLM.from_pretrained(model_id, revision="merged-onnx", file_name=file_name)
+        self.assertEqual(model.model_path.name, file_name)
+
+        model = ORTModelForCausalLM.from_pretrained(model_id, revision="merged-onnx")
+        self.assertEqual(model.model_path.name, "decoder_model_merged.onnx")
+
+        model = ORTModelForCausalLM.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
+        self.assertEqual(model.model_path.name, "model.onnx")
+
+        model = ORTModelForCausalLM.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder", file_name=file_name)
+        self.assertEqual(model.model_path.name, file_name)
+    
+        model = ORTModelForCausalLM.from_pretrained(model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx")
+        self.assertEqual(model.model_path.name, "decoder_with_past_model.onnx")
+    
+
+
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
@@ -4967,7 +4995,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForVision2Seq.from_pretrained(MODEL_NAMES["bert"])
+            _ = ORTModelForVision2Seq.from_pretrained(MODEL_NAMES["bert"], export=True)
 
         self.assertIn("only supports the tasks", str(context.exception))
 
