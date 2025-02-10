@@ -757,7 +757,9 @@ class ORTModel(OptimizedModel):
         if _export:
             file_name = kwargs.pop("file_name", None)
             if file_name is not None:
-                logger.warning(f"`file_name` was set to `{file_name}` but will be ignored as the model will be converted to ONNX")
+                logger.warning(
+                    f"`file_name` was set to `{file_name}` but will be ignored as the model will be converted to ONNX"
+                )
 
         return super().from_pretrained(
             model_id,
