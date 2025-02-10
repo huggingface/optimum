@@ -141,62 +141,38 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
         self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID = "optimum-internal-testing/tiny-stable-diffusion-onnx"
 
-    def test_load_onnx_model_from_hub(self):
+    @parameterized.expand((ORTModelForCausalLM, ORTModel))
+    def test_load_onnx_model_from_hub(self, model_cls):
         model_id = "optimum-internal-testing/tiny-random-llama"
         file_name = "model_optimized.onnx"
 
-        model = ORTModel.from_pretrained(model_id)
+        model = model_cls.from_pretrained(model_id)
         self.assertEqual(model.model_path.name, "model.onnx")
 
-        model = ORTModel.from_pretrained(model_id, revision="onnx")
+        model = model_cls.from_pretrained(model_id, revision="onnx")
         self.assertEqual(model.model_path.name, "model.onnx")
 
-        model = ORTModel.from_pretrained(model_id, revision="onnx", file_name=file_name)
+        model = model_cls.from_pretrained(model_id, revision="onnx", file_name=file_name)
         self.assertEqual(model.model_path.name, file_name)
 
-        model = ORTModel.from_pretrained(model_id, revision="merged-onnx", file_name=file_name)
+        model = model_cls.from_pretrained(model_id, revision="merged-onnx", file_name=file_name)
         self.assertEqual(model.model_path.name, file_name)
 
-        model = ORTModel.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
+        if model_cls is ORTModelForCausalLM:
+            model = model_cls.from_pretrained(model_id, revision="merged-onnx")
+            self.assertEqual(model.model_path.name, "decoder_model_merged.onnx")
+
+        model = model_cls.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
         self.assertEqual(model.model_path.name, "model.onnx")
 
-        model = ORTModel.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder", file_name=file_name)
+        model = model_cls.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder", file_name=file_name)
         self.assertEqual(model.model_path.name, file_name)
 
-        model = ORTModel.from_pretrained(model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx")
+        model = model_cls.from_pretrained(model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx")
         self.assertEqual(model.model_path.name, "decoder_with_past_model.onnx")
 
-    def test_load_decoder_onnx_model_from_hub(self):
-        model_id = "optimum-internal-testing/tiny-random-llama"
-        file_name = "model_optimized.onnx"
-
-        model = ORTModelForCausalLM.from_pretrained(model_id)
-        self.assertEqual(model.model_path.name, "model.onnx")
-
-        model = ORTModelForCausalLM.from_pretrained(model_id, revision="onnx")
-        self.assertEqual(model.model_path.name, "model.onnx")
-
-        model = ORTModelForCausalLM.from_pretrained(model_id, revision="onnx", file_name=file_name)
-        self.assertEqual(model.model_path.name, file_name)
-
-        model = ORTModelForCausalLM.from_pretrained(model_id, revision="merged-onnx", file_name=file_name)
-        self.assertEqual(model.model_path.name, file_name)
-
-        model = ORTModelForCausalLM.from_pretrained(model_id, revision="merged-onnx")
-        self.assertEqual(model.model_path.name, "decoder_model_merged.onnx")
-
-        model = ORTModelForCausalLM.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
-        self.assertEqual(model.model_path.name, "model.onnx")
-
-        model = ORTModelForCausalLM.from_pretrained(
-            model_id, revision="merged-onnx", subfolder="subfolder", file_name=file_name
-        )
-        self.assertEqual(model.model_path.name, file_name)
-
-        model = ORTModelForCausalLM.from_pretrained(
-            model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx"
-        )
-        self.assertEqual(model.model_path.name, "decoder_with_past_model.onnx")
+        with self.assertRaises(FileNotFoundError):
+            model_cls.from_pretrained("hf-internal-testing/tiny-random-LlamaForCausalLM", file_name="test.onnx")
 
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
