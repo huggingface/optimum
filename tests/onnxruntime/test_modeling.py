@@ -141,9 +141,12 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
         self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID = "optimum-internal-testing/tiny-stable-diffusion-onnx"
 
-    def test_ella(self):
+    def test_load_onnx_model_from_hub(self):
         model_id = "optimum-internal-testing/tiny-random-llama"
         file_name = "model_optimized.onnx"
+
+        model = ORTModelForCausalLM.from_pretrained(model_id)
+        self.assertEqual(model.model_path.name, "model.onnx")
 
         model = ORTModelForCausalLM.from_pretrained(model_id, revision="onnx")
         self.assertEqual(model.model_path.name, "model.onnx")
