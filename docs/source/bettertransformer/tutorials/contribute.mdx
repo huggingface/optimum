@@ -112,7 +112,7 @@ Now, make sure to fill all the necessary attributes, the list of attributes are:
 
 Note that these attributes correspond to all the components that are necessary to run a Transformer Encoder module, check the figure 1 on the ["Attention Is All You Need"](https://arxiv.org/pdf/1706.03762.pdf) paper.
 
-Once you filled all these attributes (sometimes the `query`, `key` and `value` layers needs to be "contigufied", check the [`modeling_encoder.py`](https://github.com/huggingface/optimum/blob/main/optimum/bettertransformer/models/encoder_models.py) file to understand more.)
+Once you filled all these attributes (sometimes the `query`, `key` and `value` layers needs to be "contiguified", check the [`modeling_encoder.py`](https://github.com/huggingface/optimum/blob/main/optimum/bettertransformer/models/encoder_models.py) file to understand more.)
 
 Make sure also to add the lines:
 ```python
@@ -125,7 +125,7 @@ self.validate_bettertransformer()
 
 First of all, start with the line `super().forward_checker()`, this is needed so that the parent class can run all the safety checkers before.
 
-After the first forward pass, the hidden states needs to be *nested* using the attention mask. Once they are nested, the attention mask is not needed anymore, therefore can be set to `None`. This is how the forward pass is built for `Bert`, these lines should remain pretty much similar accross models, but sometimes the shapes of the attention masks are different across models. 
+After the first forward pass, the hidden states needs to be *nested* using the attention mask. Once they are nested, the attention mask is not needed anymore, therefore can be set to `None`. This is how the forward pass is built for `Bert`, these lines should remain pretty much similar across models, but sometimes the shapes of the attention masks are different across models. 
 ```python
 super().forward_checker()
 
