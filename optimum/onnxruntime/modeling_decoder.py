@@ -418,71 +418,78 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 )
             use_merged = False
 
-        if file_name is None:
-            if local_files_only:
-                object_id = str(model_id).replace("/", "--")
-                cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
-                refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
-                with open(refs_file) as f:
-                    revision = f.read()
-                model_dir = os.path.join(cached_model_dir, "snapshots", revision)
+        if local_files_only:
+            object_id = str(model_id).replace("/", "--")
+            cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
+            refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
+            with open(refs_file) as f:
+                revision = f.read()
+            model_dir = os.path.join(cached_model_dir, "snapshots", revision)
+        else:
+            model_dir = str(model_id)
+
+        onnx_files = find_files_matching_pattern(
+            model_dir,
+            ONNX_FILE_PATTERN,
+            glob_pattern="**/*.onnx",
+            subfolder=subfolder,
+            token=token,
+            revision=revision,
+        )
+
+        model_path = Path(model_dir)
+
+        if len(onnx_files) == 0:
+            raise FileNotFoundError(f"Could not find any ONNX model file in {model_path}")
+
+        if len(onnx_files) == 1:
+            subfolder = onnx_files[0].parent
+            _file_name = onnx_files[0].name
+            if file_name and file_name != _file_name:
+                raise FileNotFoundError(f"Trying to load {file_name} but only found {file_name}")
+            file_name = _file_name
+
+        else:
+            model_files = []
+            # Check first for merged models and then for decoder / decoder_with_past models
+            if use_merged is not False:
+                model_files = [p for p in onnx_files if re.search(DECODER_MERGED_ONNX_FILE_PATTERN, str(p))]
+                use_merged = len(model_files) != 0
+
+            if use_merged is False:
+                pattern = DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN
+                model_files = [p for p in onnx_files if re.search(pattern, str(p))]
+
+            # if file_name is specified we don't filter legacy models
+            if not model_files or file_name:
+                model_files = onnx_files
             else:
-                model_dir = str(model_id)
+                logger.warning(
+                    f"Legacy models found in {model_files} will be loaded. "
+                    "Legacy models will be deprecated in the next version of optimum, please re-export your model"
+                )
+            _file_name = model_files[0].name
+            subfolder = model_files[0].parent
 
-            onnx_files = find_files_matching_pattern(
-                model_dir,
-                ONNX_FILE_PATTERN,
-                glob_pattern="**/*.onnx",
-                subfolder=subfolder,
-                token=token,
-                revision=revision,
-            )
+            defaut_file_name = file_name or "model.onnx"
+            for file in model_files:
+                if file.name == defaut_file_name:
+                    _file_name = file.name
+                    subfolder = file.parent
+                    break
 
-            model_path = Path(model_dir)
+            file_name = _file_name
 
-            if len(onnx_files) == 0:
-                raise FileNotFoundError(f"Could not find any ONNX model file in {model_path}")
+            if len(model_files) > 1:
+                logger.warning(
+                    f"Too many ONNX model files were found in {' ,'.join(map(str, model_files))}. "
+                    "specify which one to load by using the `file_name` and/or the `subfolder` arguments. "
+                    f"Loading the file {file_name} in the subfolder {subfolder}."
+                )
 
-            if len(onnx_files) == 1:
-                subfolder = onnx_files[0].parent
-                file_name = onnx_files[0].name
-            else:
-                model_files = []
-                # Check first for merged models and then for decoder / decoder_with_past models
-                if use_merged is not False:
-                    model_files = [p for p in onnx_files if re.search(DECODER_MERGED_ONNX_FILE_PATTERN, str(p))]
-                    use_merged = len(model_files) != 0
-
-                if use_merged is False:
-                    pattern = DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN
-                    model_files = [p for p in onnx_files if re.search(pattern, str(p))]
-
-                if not model_files:
-                    model_files = onnx_files
-                else:
-                    logger.warning(
-                        f"Legacy models found in {model_files} will be loaded. "
-                        "Legacy models will be deprecated in the next version of optimum, please re-export your model"
-                    )
-                file_name = model_files[0].name
-                subfolder = model_files[0].parent
-
-                for file in model_files:
-                    if file.name == "model.onnx":
-                        file_name = file.name
-                        subfolder = file.parent
-                        break
-
-                if len(model_files) > 1:
-                    logger.warning(
-                        f"Too many ONNX model files were found in {' ,'.join(map(str, model_files))}. "
-                        "specify which one to load by using the `file_name` and/or the `subfolder` arguments. "
-                        f"Loading the file {file_name} in the subfolder {subfolder}."
-                    )
-
-            if model_path.is_dir():
-                model_path = subfolder
-                subfolder = ""
+        if model_path.is_dir():
+            model_path = subfolder
+            subfolder = ""
 
         model_cache_path, preprocessors = cls._cached_file(
             model_path=model_path,
