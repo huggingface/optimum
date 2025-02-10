@@ -16,7 +16,7 @@ specific language governing permissions and limitations under the License.
 
 ## Quickstart
 
-Since its 1.13 version, [PyTorch released](https://pytorch.org/blog/PyTorch-1.13-release/) the stable version of a fast path for its standard Transformer APIs that provides out of the box performance improvements for transformer-based models. You can benefit from interesting speedup on most consumer-type devices, including CPUs, older and newer versions of NIVIDIA GPUs.
+Since its 1.13 version, [PyTorch released](https://pytorch.org/blog/PyTorch-1.13-release/) the stable version of a fast path for its standard Transformer APIs that provides out of the box performance improvements for transformer-based models. You can benefit from interesting speedup on most consumer-type devices, including CPUs, older and newer versions of NVIDIA GPUs.
 You can now use this feature in 🤗 Optimum together with Transformers and use it for major models in the Hugging Face ecosystem.
 
 In the 2.0 version, PyTorch includes a native scaled dot-product attention operator (SDPA) as part of `torch.nn.functional`. This function encompasses several implementations that can be applied depending on the inputs and the hardware in use. See the [official documentation](https://pytorch.org/docs/master/generated/torch.nn.functional.scaled_dot_product_attention) for more information, and [this blog post](https://pytorch.org/blog/out-of-the-box-acceleration/) for benchmarks.
