@@ -485,50 +485,52 @@ class ORTModel(OptimizedModel):
         **kwargs,
     ) -> "ORTModel":
         model_path = Path(model_id)
+        defaut_file_name = file_name or "model.onnx"
 
-        if file_name is None:
-            if local_files_only:
-                object_id = str(model_id).replace("/", "--")
-                cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
-                refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
-                with open(refs_file) as f:
-                    _revision = f.read()
-                model_dir = os.path.join(cached_model_dir, "snapshots", _revision)
-            else:
-                model_dir = str(model_id)
+        if local_files_only:
+            object_id = str(model_id).replace("/", "--")
+            cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
+            refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
+            with open(refs_file) as f:
+                _revision = f.read()
+            model_dir = os.path.join(cached_model_dir, "snapshots", _revision)
+        else:
+            model_dir = str(model_id)
 
-            onnx_files = find_files_matching_pattern(
-                model_dir,
-                ONNX_FILE_PATTERN,
-                glob_pattern="**/*.onnx",
-                subfolder=subfolder,
-                token=token,
-                revision=revision,
+        onnx_files = find_files_matching_pattern(
+            model_dir,
+            ONNX_FILE_PATTERN,
+            glob_pattern="**/*.onnx",
+            subfolder=subfolder,
+            token=token,
+            revision=revision,
+        )
+
+        model_path = Path(model_dir)
+        if len(onnx_files) == 0:
+            raise FileNotFoundError(f"Could not find any ONNX model file in {model_dir}")
+        if len(onnx_files) == 1 and file_name and file_name != onnx_files[0].name:
+            raise FileNotFoundError(f"Trying to load {file_name} but only found {onnx_files[0].name}")
+
+        file_name = onnx_files[0].name
+        subfolder = onnx_files[0].parent
+
+        if len(onnx_files) > 1:
+            for file in onnx_files:
+                if file.name == defaut_file_name:
+                    file_name = file.name
+                    subfolder = file.parent
+                    break
+
+            logger.warning(
+                f"Too many ONNX model files were found in {' ,'.join(map(str, onnx_files))}. "
+                "specify which one to load by using the `file_name` and/or the `subfolder` arguments. "
+                f"Loading the file {file_name} in the subfolder {subfolder}."
             )
 
-            model_path = Path(model_dir)
-            if len(onnx_files) == 0:
-                raise FileNotFoundError(f"Could not find any ONNX model file in {model_dir}")
-
-            file_name = onnx_files[0].name
-            subfolder = onnx_files[0].parent
-
-            if len(onnx_files) > 1:
-                for file in onnx_files:
-                    if file.name == "model.onnx":
-                        file_name = file.name
-                        subfolder = file.parent
-                        break
-
-                logger.warning(
-                    f"Too many ONNX model files were found in {' ,'.join(map(str, onnx_files))}. "
-                    "specify which one to load by using the `file_name` and/or the `subfolder` arguments. "
-                    f"Loading the file {file_name} in the subfolder {subfolder}."
-                )
-
-            if model_path.is_dir():
-                model_path = subfolder
-                subfolder = ""
+        if model_path.is_dir():
+            model_path = subfolder
+            subfolder = ""
 
         model_cache_path, preprocessors = cls._cached_file(
             model_path=model_path,
