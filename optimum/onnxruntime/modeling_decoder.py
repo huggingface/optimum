@@ -480,6 +480,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                         f"Loading the file {file_name} in the subfolder {subfolder}."
                     )
 
+            if model_path.is_dir():
+                model_path = subfolder
+                subfolder = ""
+
         model_cache_path, preprocessors = cls._cached_file(
             model_path=model_path,
             token=token,
