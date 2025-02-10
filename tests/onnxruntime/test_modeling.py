@@ -2430,8 +2430,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"])
-
+            _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"], export=True)
         self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
@@ -2893,7 +2892,6 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"])
-
         self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
@@ -4826,8 +4824,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForImageToImage.from_pretrained(MODEL_NAMES["bert"])
-
+            _ = ORTModelForImageToImage.from_pretrained(MODEL_NAMES["bert"], export=True)
         self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
