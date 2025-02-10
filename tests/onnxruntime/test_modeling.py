@@ -141,14 +141,13 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
         self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID = "optimum-internal-testing/tiny-stable-diffusion-onnx"
 
-
     def test_ella(self):
-        model_id =  "optimum-internal-testing/tiny-random-llama"
-        file_name="model_optimized.onnx"
+        model_id = "optimum-internal-testing/tiny-random-llama"
+        file_name = "model_optimized.onnx"
 
         model = ORTModelForCausalLM.from_pretrained(model_id, revision="onnx")
         self.assertEqual(model.model_path.name, "model.onnx")
-        
+
         model = ORTModelForCausalLM.from_pretrained(model_id, revision="onnx", file_name=file_name)
         self.assertEqual(model.model_path.name, file_name)
 
@@ -161,13 +160,15 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModelForCausalLM.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
         self.assertEqual(model.model_path.name, "model.onnx")
 
-        model = ORTModelForCausalLM.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder", file_name=file_name)
+        model = ORTModelForCausalLM.from_pretrained(
+            model_id, revision="merged-onnx", subfolder="subfolder", file_name=file_name
+        )
         self.assertEqual(model.model_path.name, file_name)
-    
-        model = ORTModelForCausalLM.from_pretrained(model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx")
-        self.assertEqual(model.model_path.name, "decoder_with_past_model.onnx")
-    
 
+        model = ORTModelForCausalLM.from_pretrained(
+            model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx"
+        )
+        self.assertEqual(model.model_path.name, "decoder_with_past_model.onnx")
 
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
