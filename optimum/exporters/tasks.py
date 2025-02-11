@@ -217,7 +217,6 @@ class TasksManager:
             ),
             "image-to-image": "AutoModelForImageToImage",
             "image-to-text": ("AutoModelForVision2Seq", "AutoModel"),
-            "keypoint-detection": "VitPoseForPoseEstimation", # TODO support AutoModelForXXX
             "mask-generation": "AutoModel",
             "masked-im": "AutoModelForMaskedImageModeling",
             "multiple-choice": "AutoModelForMultipleChoice",
@@ -330,6 +329,7 @@ class TasksManager:
         ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
         # VisionEncoderDecoderModel is not registered in AutoModelForDocumentQuestionAnswering
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
+        ("pt", "vitpose", "keypoint-detection"): ("transformers", "VitPoseForPoseEstimation"),
     }
 
     _ENCODER_DECODER_TASKS = (
