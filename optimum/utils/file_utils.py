@@ -93,7 +93,7 @@ def find_files_matching_pattern(
         files = model_path.glob(glob_pattern)
         files = [p for p in files if re.search(pattern, str(p))]
     else:
-        repo_files = map(Path, huggingface_hub.list_repo_files(model_name_or_path, revision=revision, token=token))
-        files = [Path(p) for p in repo_files if re.match(pattern, str(p))]
+        repo_files = huggingface_hub.list_repo_files(model_name_or_path, revision=revision, token=token)
+        files = [Path(p) for p in repo_files if re.match(pattern, p)]
 
     return files
