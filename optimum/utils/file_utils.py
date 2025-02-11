@@ -14,6 +14,7 @@
 # limitations under the License.
 """Utility functions related to both local files and files on the Hugging Face Hub."""
 
+import os
 import re
 import warnings
 from pathlib import Path
@@ -87,8 +88,7 @@ def find_files_matching_pattern(
         token = use_auth_token
 
     model_path = Path(model_name_or_path) if isinstance(model_name_or_path, str) else model_name_or_path
-    pattern = re.compile(f"{subfolder}/{pattern}" if subfolder != "" else pattern)
-
+    pattern = re.compile(os.path.join(subfolder, pattern))
     if model_path.is_dir():
         path = model_path
         files = model_path.glob(glob_pattern)
