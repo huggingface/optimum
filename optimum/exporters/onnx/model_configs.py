@@ -864,6 +864,10 @@ class BeitOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
+class DiTOnnxConfig(BeitOnnxConfig):
+    pass
+
+
 class ConvNextOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
