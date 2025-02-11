@@ -14,7 +14,6 @@
 # limitations under the License.
 """Utility functions related to both local files and files on the Hugging Face Hub."""
 
-import os
 import re
 import warnings
 from pathlib import Path
