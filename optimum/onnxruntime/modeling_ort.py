@@ -712,8 +712,11 @@ class ORTModel(OptimizedModel):
                 raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
             token = use_auth_token
 
+        if isinstance(model_id, Path):
+            model_id = model_id.as_posix()
+
         if is_offline_mode() and not local_files_only:
-            logger.info("Offline mode: forcing local_files_only=True")
+            logger.info("Offline mode: setting `local_files_only=True`")
             local_files_only = True
 
         _export = export
