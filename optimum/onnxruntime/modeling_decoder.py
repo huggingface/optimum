@@ -419,7 +419,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             use_merged = False
 
         if local_files_only:
-            object_id = str(model_id).replace("/", "--")
+            object_id = str(model_id).replace(os.sep, "--")
             cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
             refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
             with open(refs_file) as f:

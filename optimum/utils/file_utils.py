@@ -90,14 +90,10 @@ def find_files_matching_pattern(
     model_path = Path(model_name_or_path) if isinstance(model_name_or_path, str) else model_name_or_path
     pattern = re.compile(os.path.join(subfolder, pattern))
     if model_path.is_dir():
-        path = model_path
         files = model_path.glob(glob_pattern)
         files = [p for p in files if re.search(pattern, str(p))]
     else:
-        path = model_name_or_path
         repo_files = map(Path, huggingface_hub.list_repo_files(model_name_or_path, revision=revision, token=token))
-        if subfolder != "":
-            path = f"{path}/{subfolder}"
         files = [Path(p) for p in repo_files if re.match(pattern, str(p))]
 
     return files

@@ -488,7 +488,7 @@ class ORTModel(OptimizedModel):
         defaut_file_name = file_name or "model.onnx"
 
         if local_files_only:
-            object_id = str(model_id).replace("/", "--")
+            object_id = str(model_id).replace(os.sep, "--")
             cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
             refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
             with open(refs_file) as f:
@@ -719,7 +719,7 @@ class ORTModel(OptimizedModel):
         _export = export
         try:
             if local_files_only:
-                object_id = model_id.replace("/", "--")
+                object_id = model_id.replace(os.sep, "--")
                 cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
                 refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
                 with open(refs_file) as f:
