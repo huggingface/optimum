@@ -283,7 +283,7 @@ class ModelPatcher:
             # contains the output names of the model. In the case of Timm classification models, the output
             # is of type tensor. By default, it is assumed that the output names mentioned in the ONNX config
             # match the outputs in order.
-            filterd_outputs = {}
+            filtered_outputs = {}
             if isinstance(outputs, dict):
                 for name, value in outputs.items():
                     onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
@@ -292,10 +292,10 @@ class ModelPatcher:
                         or (allow_past_in_outputs and name.startswith("past_key_values"))
                         or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
                     ):
-                        filterd_outputs[name] = value
+                        filtered_outputs[name] = value
             elif isinstance(outputs, (list, tuple)):
                 outputs_list = list(config.outputs.keys())
-                filterd_outputs = dict(zip(outputs_list, outputs))
+                filtered_outputs = dict(zip(outputs_list, outputs))
             else:
                 if len(config.outputs) > 1:
                     num_outputs = len(config.outputs)
@@ -305,15 +305,15 @@ class ModelPatcher:
                     )
                 else:
                     name = list(config.outputs.keys())[0]
-                    filterd_outputs[name] = outputs
+                    filtered_outputs[name] = outputs
                 name = list(config.outputs.keys())[0]
-                filterd_outputs[name] = outputs
+                filtered_outputs[name] = outputs
 
             if is_transformers_version(">=", "4.48"):
-                if isinstance(filterd_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)):
-                    filterd_outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
+                if isinstance(filtered_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)):
+                    filtered_outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
 
-            return filterd_outputs
+            return filtered_outputs
 
         self.patched_forward = patched_forward
 
@@ -369,15 +369,17 @@ class Seq2SeqModelPatcher(ModelPatcher):
         if model.config.model_type == "pix2struct" and allow_past_in_outputs:
             model.config.text_config.use_cache = True
 
-        @functools.wraps(self.orig_forward)
+        # Re-use the patched forward method from the parent class
+        self.super_patched_forward = self.patched_forward
+        @functools.wraps(self.super_patched_forward)
         def patched_forward(*args, **kwargs):
-            signature = inspect.signature(self.orig_forward)
+            signature = inspect.signature(self.super_patched_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
-            outputs = self.orig_forward(*args, **kwargs)
+            outputs = self.super_patched_forward(*args, **kwargs)
 
             # Filter out cross attention past key values output from the decoder using KV cache, as they are constants.
-            filterd_outputs = {}
+            filtered_outputs = {}
             for name, value in outputs.items():
                 onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
                 if (
@@ -390,17 +392,17 @@ class Seq2SeqModelPatcher(ModelPatcher):
                             # Who cares about the encoder outputs in the decoder?
                             continue
                         else:
-                            filterd_outputs[name] = value
+                            filtered_outputs[name] = value
                     else:
                         if self.real_config._behavior == "monolith" or (
                             self.real_config._behavior == "decoder"
                             and (self.real_config.is_merged or not self.real_config.use_past_in_inputs)
                         ):
-                            filterd_outputs[name] = value
+                            filtered_outputs[name] = value
                         elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
                             # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
-                            filterd_outputs[name] = tuple([v[:2] for v in value])
-            return filterd_outputs
+                            filtered_outputs[name] = tuple([v[:2] for v in value])
+            return filtered_outputs
 
         self.patched_forward = patched_forward
 
