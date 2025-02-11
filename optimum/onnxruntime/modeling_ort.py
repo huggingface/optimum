@@ -731,6 +731,7 @@ class ORTModel(OptimizedModel):
             onnx_files = find_files_matching_pattern(
                 model_dir,
                 pattern=ONNX_FILE_PATTERN,
+                glob_pattern="**/*.onnx",
                 subfolder=subfolder,
                 token=token,
                 revision=revision,
