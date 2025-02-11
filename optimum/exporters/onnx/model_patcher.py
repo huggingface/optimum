@@ -371,6 +371,7 @@ class Seq2SeqModelPatcher(ModelPatcher):
 
         # Re-use the patched forward method from the parent class
         self.super_patched_forward = self.patched_forward
+
         @functools.wraps(self.super_patched_forward)
         def patched_forward(*args, **kwargs):
             signature = inspect.signature(self.super_patched_forward)
