@@ -418,26 +418,22 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 )
             use_merged = False
 
-        if local_files_only:
-            object_id = str(model_id).replace(os.sep, "--")
+        if local_files_only and not model_path.is_dir():
+            object_id = str(model_id).replace("/", "--")
             cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
             refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
             with open(refs_file) as f:
                 revision = f.read()
-            model_dir = os.path.join(cached_model_dir, "snapshots", revision)
-        else:
-            model_dir = str(model_id)
+            model_path = Path(os.path.join(cached_model_dir, "snapshots", revision))
 
         onnx_files = find_files_matching_pattern(
-            model_dir,
+            model_path,
             ONNX_FILE_PATTERN,
             glob_pattern="**/*.onnx",
             subfolder=subfolder,
             token=token,
             revision=revision,
         )
-
-        model_path = Path(model_dir)
 
         if len(onnx_files) == 0:
             raise FileNotFoundError(f"Could not find any ONNX model file in {model_path}")
