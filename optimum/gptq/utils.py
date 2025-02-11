@@ -72,7 +72,7 @@ def get_block_name_with_pattern(model: nn.Module):
     modules_names = [n for n, _ in model.named_modules()]
     for pattern_candidate in BLOCK_PATTERNS:
         pattern_candidate = pattern_candidate
-        if any(pattern_candidate in name for name in modules_names):
+        if any(name.startswith(pattern_candidate) for name in modules_names):
             return pattern_candidate
     raise ValueError("Block pattern could not be match. Pass `block_name_to_quantize` argument in `quantize_model`")
 
@@ -113,3 +113,18 @@ def get_seqlen(model: nn.Module):
         "We couldn't get the model sequence length. Setting it to 2048. You can overwrite this value by passing `model_seqlen` in` GPTQQuantizer`"
     )
     return 2048
+
+
+def move_to(obj: torch.Tensor, device: torch.device):
+    if get_device(obj) != device:
+        obj = obj.to(device)
+    return obj
+
+
+def nested_move_to(v, device):
+    if isinstance(v, torch.Tensor):
+        return move_to(v, device)
+    elif isinstance(v, (list, tuple)):
+        return type(v)([nested_move_to(e, device) for e in v])
+    else:
+        return v

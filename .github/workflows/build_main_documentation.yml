@@ -20,12 +20,6 @@ jobs:
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/doc-build'
-          path: doc-build
-          token: ${{ secrets.HUGGINGFACE_PUSH }}
-
-      - uses: actions/checkout@v2
-        with:
           repository: 'huggingface/optimum'
           path: optimum
 

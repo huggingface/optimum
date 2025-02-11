@@ -23,7 +23,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -43,7 +42,7 @@ import onnxruntime as ort
 
 from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
-from ..utils import check_if_transformers_greater
+from ..utils import is_transformers_version
 from ..utils.file_utils import validate_file_exists
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .base import ORTDecoderForSeq2Seq, ORTEncoder
@@ -64,13 +63,13 @@ from .utils import (
 )
 
 
-if check_if_transformers_greater("4.25.0"):
+if is_transformers_version(">=", "4.25.0"):
     from transformers.generation import GenerationMixin
 else:
     from transformers.generation_utils import GenerationMixin  # type: ignore
 
 
-if check_if_transformers_greater("4.43.0"):
+if is_transformers_version(">=", "4.43.0"):
     from transformers.cache_utils import EncoderDecoderCache
 else:
     EncoderDecoderCache = dict
@@ -363,43 +362,28 @@ class ORTEncoderForSpeech(ORTEncoder):
         use_torch = isinstance(input_features, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
-            model_inputs = (
-                [input_features, attention_mask] if "attention_mask" in self.input_names else [input_features]
-            )
-            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session,
-                *model_inputs,
-                ordered_input_names=self._ordered_input_names,
-            )
+        model_inputs = {
+            "input_features": input_features,
+            "attention_mask": attention_mask,
+        }
 
-            io_binding.synchronize_inputs()
-            self.session.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+        if self.parent_model.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.session, model_inputs)
+
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            if use_torch:
-                onnx_inputs = {"input_features": input_features.cpu().detach().numpy()}
-                if "attention_mask" in self.input_names:
-                    onnx_inputs["attention_mask"] = attention_mask.cpu().detach().numpy()
-            else:
-                onnx_inputs = {"input_features": input_features}
-                if "attention_mask" in self.input_names:
-                    onnx_inputs["attention_mask"] = attention_mask
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            # TODO: Replace with a better solution
-            # attention_mask is exported with int64 datatype and tokenizer produces int32 input
-            # for speech2text model. Hence, the input is type casted for inference.
-            if "attention_mask" in self.input_names:
-                if self.session.get_inputs()[1].type == "tensor(int64)":
-                    onnx_inputs["attention_mask"] = onnx_inputs["attention_mask"].astype(np.int64)
-
-            outputs = self.session.run(None, onnx_inputs)
-
-            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
-            if use_torch:
-                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
+            last_hidden_state = model_outputs["last_hidden_state"]
 
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
@@ -422,59 +406,29 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
-            known_output_shapes = self.compute_encoder_known_output_shapes(pixel_values)
+        model_inputs = {
+            "pixel_values": pixel_values,
+        }
 
-            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session,
-                pixel_values,
-                known_output_shapes=known_output_shapes,
-                ordered_input_names=self._ordered_input_names,
-            )
+        if self.parent_model.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.session, model_inputs)
 
-            io_binding.synchronize_inputs()
-            self.session.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            if use_torch:
-                onnx_inputs = {"pixel_values": pixel_values.cpu().detach().numpy()}
-            else:
-                onnx_inputs = {"pixel_values": pixel_values}
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            outputs = self.session.run(None, onnx_inputs)
-
-            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
-            if use_torch:
-                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
+            last_hidden_state = model_outputs["last_hidden_state"]
 
         return BaseModelOutput(last_hidden_state=last_hidden_state)
-
-    def compute_encoder_known_output_shapes(self, pixel_values: torch.FloatTensor) -> Dict[str, List[int]]:
-        if self.normalized_config.config.model_type == "donut-swin":
-            # TODO: kind of weird to export to ONNX with dynamic output shape if it is in fact static...
-            encoder_sequence_length = (
-                self.normalized_config.config.image_size[0]
-                * self.normalized_config.config.image_size[1]
-                // self.normalized_config.config.hidden_size
-            )
-        elif self.normalized_config.config.model_type in ["vit", "deit"]:
-            return None
-        else:
-            raise ValueError(
-                f"Unsupported encoder model type {self.normalized_config.config.model_type} for ORTForVisionSeq2Seq with IOBinding."
-                "Currently supported models are vit, donut-swin and deit."
-                "Please submit a PR to add support for this model type."
-            )
-
-        return {
-            "last_hidden_state": [
-                pixel_values.shape[0],  # batch size
-                encoder_sequence_length,
-                self.normalized_config.config.hidden_size,
-            ]
-        }
 
 
 class ORTEncoderForPix2Struct(ORTEncoder):
@@ -496,41 +450,28 @@ class ORTEncoderForPix2Struct(ORTEncoder):
         use_torch = isinstance(flattened_patches, torch.Tensor)
         self.parent_model.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.parent_model.device.type == "cuda" and self.parent_model.use_io_binding:
-            model_inputs = (
-                [flattened_patches, attention_mask] if "attention_mask" in self.input_names else [flattened_patches]
-            )
-            io_binding, output_shapes, output_buffers = self.parent_model._prepare_io_binding(
-                self.session,
-                *model_inputs,
-                ordered_input_names=self._ordered_input_names,
-            )
+        model_inputs = {
+            "flattened_patches": flattened_patches,
+            "attention_mask": attention_mask,
+        }
 
-            io_binding.synchronize_inputs()
-            self.session.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
+        if self.parent_model.use_io_binding:
+            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.session, model_inputs)
+
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(io_binding)
+            else:
+                io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
-            if use_torch:
-                onnx_inputs = {"flattened_patches": flattened_patches.cpu().detach().numpy()}
-                if "attention_mask" in self.input_names:
-                    onnx_inputs["attention_mask"] = attention_mask.cpu().detach().numpy()
-            else:
-                onnx_inputs = {"flattened_patches": flattened_patches}
-                if "attention_mask" in self.input_names:
-                    onnx_inputs["attention_mask"] = attention_mask
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            if "attention_mask" in self.input_names:
-                if self.session.get_inputs()[1].type == "tensor(int64)":
-                    onnx_inputs["attention_mask"] = onnx_inputs["attention_mask"].astype(np.int64)
-
-            outputs = self.session.run(None, onnx_inputs)
-
-            last_hidden_state = outputs[self.output_names["last_hidden_state"]]
-
-            if use_torch:
-                last_hidden_state = torch.from_numpy(last_hidden_state).to(self.device)
+            last_hidden_state = model_outputs["last_hidden_state"]
 
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
@@ -705,7 +646,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             generation_config = GenerationConfig.from_model_config(config)
         self.generation_config = generation_config
 
-        if check_if_transformers_greater("4.44.99"):
+        if is_transformers_version(">=", "4.44.99"):
             misplaced_generation_parameters = self.config._get_non_default_generation_parameters()
             if len(misplaced_generation_parameters) > 0:
                 logger.warning(
@@ -1164,7 +1105,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         decoder_input_ids: Optional[torch.LongTensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
         # Encode if needed : first prediction pass
@@ -1181,7 +1121,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
             past_key_values=past_key_values,
             encoder_hidden_states=encoder_outputs.last_hidden_state,
             encoder_attention_mask=attention_mask,
-            labels=labels,
         )
 
         return Seq2SeqLMOutput(
@@ -1297,7 +1236,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         decoder_input_ids: Optional[torch.LongTensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        labels: Optional[torch.LongTensor] = None,
         cache_position: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
@@ -1316,7 +1254,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
             encoder_hidden_states=encoder_outputs.last_hidden_state,
             encoder_attention_mask=attention_mask,
             cache_position=cache_position,
-            labels=labels,
         )
 
         return Seq2SeqLMOutput(
@@ -1477,10 +1414,8 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         decoder_input_ids: Optional[torch.LongTensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
-        # Encode if needed : first prediction pass
         if encoder_outputs is None:
             encoder_outputs = self.encoder(pixel_values=pixel_values)
 
@@ -1489,17 +1424,18 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
             if past_key_values is None or not self.use_cache or self.use_merged
             else self.decoder_with_past
         )
+
         decoder_outputs = model(
             input_ids=decoder_input_ids,
             past_key_values=past_key_values,
             encoder_hidden_states=encoder_outputs.last_hidden_state,
-            labels=labels,
         )
 
         return Seq2SeqLMOutput(
-            loss=decoder_outputs.get("loss", None),
+            loss=decoder_outputs.loss,
             logits=decoder_outputs.logits,
             past_key_values=decoder_outputs.past_key_values,
+            encoder_last_hidden_state=encoder_outputs.last_hidden_state,
         )
 
     def prepare_inputs_for_generation(
@@ -1577,42 +1513,33 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         decoder_attention_mask: Optional[torch.BoolTensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        labels: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
-        # Encode if needed : first prediction pass
-        # Encode if needed (training, first prediction pass)
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
                 flattened_patches=flattened_patches,
                 attention_mask=attention_mask,
             )
 
-        # TODO: for some reason the attention_mask for pix2struct is a float in transformers and not an int64. This messes up with the exporter
-        # hardcodes int64 input dtype for the attention mask. This workaround is quite ugly, it should be fixed rather in the ONNX exporter.
-        if isinstance(attention_mask, torch.Tensor):
-            attention_mask = attention_mask.to(torch.int64)
-        else:
-            attention_mask = attention_mask.astype(np.int64)
-
         model = (
             self.decoder
-            if past_key_values is None or not self.use_cache or self.use_merged
+            if self.use_merged or not self.use_cache or past_key_values is None
             else self.decoder_with_past
         )
+
         decoder_outputs = model(
             input_ids=decoder_input_ids,
             decoder_attention_mask=decoder_attention_mask,
             past_key_values=past_key_values,
             encoder_hidden_states=encoder_outputs.last_hidden_state,
             encoder_attention_mask=attention_mask,
-            labels=labels,
         )
 
         return Seq2SeqLMOutput(
-            loss=decoder_outputs.get("loss", None),
+            loss=decoder_outputs.loss,
             logits=decoder_outputs.logits,
             past_key_values=decoder_outputs.past_key_values,
+            encoder_last_hidden_state=encoder_outputs.last_hidden_state,
         )
 
     def prepare_inputs_for_generation(

@@ -22,7 +22,7 @@ from torch.utils.data import Dataset
 from transformers.trainer_utils import PredictionOutput
 from transformers.utils import is_accelerate_available, logging
 
-from ..utils.import_utils import check_if_transformers_greater
+from ..utils.import_utils import is_transformers_version
 from .trainer import ORTTrainer
 
 
@@ -33,7 +33,7 @@ else:
         "The package `accelerate` is required to use the ORTTrainer. Please install it following https://huggingface.co/docs/accelerate/basic_tutorials/install."
     )
 
-if check_if_transformers_greater("4.33"):
+if is_transformers_version(">=", "4.33"):
     from transformers.integrations.deepspeed import is_deepspeed_zero3_enabled
 else:
     from transformers.deepspeed import is_deepspeed_zero3_enabled

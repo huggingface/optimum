@@ -1,9 +1,18 @@
-name: ONNX Runtime slow / Python - Test
+name: ONNX Runtime Slow / Python - Test
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: 0 7 * * * # every day at 7am
+    - cron: 0 7 * * * # every day at 7am UTC
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - labeled
+      - reopened
+      - unlabeled
+      - synchronize
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -11,23 +20,31 @@ concurrency:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.9']
-        os: [ubuntu-20.04]
+    if: ${{
+      (github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch') ||
+      contains(github.event.pull_request.labels.*.name, 'slow') ||
+      contains(github.event.pull_request.labels.*.name, 'onnxruntime-slow')
+      }}
 
-    runs-on: ${{ matrix.os }}
+    runs-on:
+      group: aws-general-8-plus
+
     steps:
-    - uses: actions/checkout@v2
-    - name: Setup Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies for export
-      run: |
-        pip install .[tests,onnxruntime]
-    - name: Test with unittest
-      working-directory: tests
-      run: |
-        RUN_SLOW=1 pytest onnxruntime -s -m "run_slow" --durations=0
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install .[tests,onnxruntime,diffusers]
+
+      - name: Test with pytest
+        run: |
+          RUN_SLOW=1 pytest tests/onnxruntime -m "run_slow" --durations=0 -vvvv

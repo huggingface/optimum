@@ -27,16 +27,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
-import onnx
 from transformers.utils import is_accelerate_available, is_torch_available
-
-from ...onnx import remove_duplicate_weights_from_tied_info
 
 
 if is_torch_available():
     import torch.nn as nn
 
-from ...onnx import merge_decoders
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     DummyInputGenerator,
@@ -48,11 +44,18 @@ from ...utils import (
 from ...utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 from ...utils import TRANSFORMERS_MINIMUM_VERSION as GLOBAL_MIN_TRANSFORMERS_VERSION
 from ...utils.doc import add_dynamic_docstring
-from ...utils.import_utils import check_if_transformers_greater, is_onnx_available, is_onnxruntime_available
+from ...utils.import_utils import (
+    is_onnx_available,
+    is_onnxruntime_available,
+    is_torch_version,
+    is_transformers_version,
+)
 from ..base import ExportConfig
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import ModelPatcher, Seq2SeqModelPatcher
 
+
+# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
 
 if is_accelerate_available():
     from accelerate.utils import find_tied_parameters
@@ -151,7 +154,7 @@ class OnnxConfig(ExportConfig, ABC):
         "feature-extraction": OrderedDict({"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}),
         "fill-mask": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-classification": OrderedDict({"logits": {0: "batch_size"}}),
-        "image-segmentation": OrderedDict({"logits": {0: "batch_size", 1: "num_labels", 2: "height", 3: "width"}}),
+        "image-segmentation": OrderedDict({"logits": {0: "batch_size", 2: "height", 3: "width"}}),
         "image-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "image-to-image": OrderedDict(
             {"reconstruction": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
@@ -161,7 +164,7 @@ class OnnxConfig(ExportConfig, ABC):
         ),
         "mask-generation": OrderedDict({"logits": {0: "batch_size"}}),
         "masked-im": OrderedDict(
-            {"reconstruction" if check_if_transformers_greater("4.29.0") else "logits": {0: "batch_size"}}
+            {"reconstruction" if is_transformers_version(">=", "4.29.0") else "logits": {0: "batch_size"}}
         ),
         "multiple-choice": OrderedDict({"logits": {0: "batch_size", 1: "num_choices"}}),
         "object-detection": OrderedDict(
@@ -180,6 +183,7 @@ class OnnxConfig(ExportConfig, ABC):
         "text2text-generation": OrderedDict({"logits": {0: "batch_size", 1: "decoder_sequence_length"}}),
         "text-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "text-generation": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "time-series-forecasting": OrderedDict({"prediction_outputs": {0: "batch_size"}}),
         "token-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "visual-question-answering": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "zero-shot-image-classification": OrderedDict(
@@ -322,6 +326,7 @@ class OnnxConfig(ExportConfig, ABC):
                 input_shapes = {}
             dummy_inputs = self.generate_dummy_inputs(framework="np", **input_shapes)
             dummy_inputs = self.generate_dummy_inputs_for_validation(dummy_inputs, onnx_input_names=onnx_input_names)
+            dummy_inputs = self.rename_ambiguous_inputs(dummy_inputs)
 
             onnx_inputs = {}
             for name, value in dummy_inputs.items():
@@ -379,7 +384,7 @@ class OnnxConfig(ExportConfig, ABC):
             `bool`: Whether the install version of Transformers is compatible with the model.
 
         """
-        return check_if_transformers_greater(self.MIN_TRANSFORMERS_VERSION)
+        return is_transformers_version(">=", self.MIN_TRANSFORMERS_VERSION.base_version)
 
     @property
     def is_torch_support_available(self) -> bool:
@@ -390,9 +395,8 @@ class OnnxConfig(ExportConfig, ABC):
             `bool`: Whether the installed version of PyTorch is compatible with the model.
         """
         if is_torch_available():
-            from ...utils import torch_version
+            return is_torch_version(">=", self.MIN_TORCH_VERSION.base_version)
 
-            return torch_version >= self.MIN_TORCH_VERSION
         return False
 
     @property
@@ -544,6 +548,10 @@ class OnnxConfig(ExportConfig, ABC):
         first_key = next(iter(models_and_onnx_configs))
         if is_torch_available() and isinstance(models_and_onnx_configs[first_key][0], nn.Module):
             if is_accelerate_available():
+                import onnx
+
+                from ...onnx import remove_duplicate_weights_from_tied_info
+
                 logger.info("Deduplicating shared (tied) weights...")
                 for subpath, key in zip(onnx_files_subpaths, models_and_onnx_configs):
                     torch_model = models_and_onnx_configs[key][0]
@@ -936,6 +944,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             decoder_with_past_path = Path(path, onnx_files_subpaths[2])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
             try:
+                from ...onnx import merge_decoders
+
                 # The decoder with past does not output the cross attention past key values as they are constant,
                 # hence the need for strict=False
                 merge_decoders(

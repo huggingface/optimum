@@ -14,6 +14,7 @@
 """
 The ORTTrainer class, to easily train a 🤗 Transformers from scratch or finetune it on a new task with ONNX Runtime.
 """
+
 import functools
 import math
 import os
@@ -27,8 +28,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Un
 
 # Integrations must be imported before ML frameworks:
 # isort: off
+import safetensors
 from transformers.integrations import hp_params
-
 from transformers.utils import is_accelerate_available
 from packaging import version
 
@@ -58,7 +59,7 @@ from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 from transformers.modeling_utils import PreTrainedModel, unwrap_model
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import Trainer
-from transformers.trainer_callback import TrainerCallback, TrainerState
+from transformers.trainer_callback import ExportableState, TrainerCallback, TrainerState
 from transformers.trainer_pt_utils import (
     get_model_param_count,
     get_module_class_from_name,
@@ -77,13 +78,15 @@ from transformers.trainer_utils import (
 )
 from transformers.training_args import ParallelMode
 from transformers.utils import (
+    SAFE_WEIGHTS_NAME,
+    WEIGHTS_NAME,
     is_apex_available,
     is_sagemaker_dp_enabled,
     is_sagemaker_mp_enabled,
 )
 
 from ..utils import logging
-from ..utils.import_utils import check_if_transformers_greater
+from ..utils.import_utils import is_transformers_version
 from .training_args import ORTOptimizerNames, ORTTrainingArguments
 from .utils import (
     is_onnxruntime_training_available,
@@ -93,7 +96,7 @@ from .utils import (
 if is_apex_available():
     from apex import amp
 
-if check_if_transformers_greater("4.33"):
+if is_transformers_version(">=", "4.33"):
     from transformers.integrations.deepspeed import (
         deepspeed_init,
         deepspeed_load_checkpoint,
@@ -102,7 +105,7 @@ if check_if_transformers_greater("4.33"):
 else:
     from transformers.deepspeed import deepspeed_init, deepspeed_load_checkpoint, is_deepspeed_zero3_enabled
 
-if check_if_transformers_greater("4.39"):
+if is_transformers_version(">=", "4.39"):
     from transformers.utils import is_torch_xla_available as is_torch_tpu_xla_available
 
     if is_torch_tpu_xla_available():
@@ -119,11 +122,12 @@ if TYPE_CHECKING:
 
 # Name of the files used for checkpointing
 TRAINER_STATE_NAME = "trainer_state.json"
+TRAINING_ARGS_NAME = "training_args.bin"
 
 logger = logging.get_logger(__name__)
 
 
-class ModuleWithLoss(nn.Module):
+class ModuleWithLoss(PreTrainedModel):
     def __init__(self, model, args, label_smoother):
         super().__init__()
         self._original_model = model
@@ -131,11 +135,11 @@ class ModuleWithLoss(nn.Module):
         # Label smoothing
         self.label_smoother = label_smoother
 
-    def forward(self, inputs: Dict[str, Union[torch.Tensor, Any]], return_outputs):
+    def forward(self, inputs: Dict[str, Union[torch.Tensor, Any]], return_outputs, num_items_in_batch):
         # The compute_model_plus_loss_internal is assigned once the class is instantiated.
         # It should have same signature as Trainer.compute_loss().
         # We do this to avoid potential un-synced states if we duplicated compute loss codes .
-        return self.compute_model_plus_loss_internal(self._original_model, inputs, return_outputs)
+        return self.compute_model_plus_loss_internal(self._original_model, inputs, return_outputs, num_items_in_batch)
 
     @property
     def module(self):
@@ -291,14 +295,14 @@ class ORTTrainer(Trainer):
             # Labels may be named label or label_ids, the default data collator handles that.
             self._signature_columns += list(set(["label", "label_ids"] + self.label_names))
 
-    def compute_loss(self, model_with_loss, inputs, return_outputs=False):
+    def compute_loss(self, model_with_loss, inputs, return_outputs=False, num_items_in_batch=None):
         # Run model forward + loss compute.
         if isinstance(self.model, ModuleWithLoss):
             # ORTModule Does not support the BatchEncoding Type so we have to convert to a dict.
             dict_inputs = dict(inputs.items())
-            return model_with_loss(dict_inputs, return_outputs)
+            return model_with_loss(dict_inputs, return_outputs, num_items_in_batch)
         else:
-            return super().compute_loss(model_with_loss, inputs, return_outputs)
+            return super().compute_loss(model_with_loss, inputs, return_outputs, num_items_in_batch)
 
     def train(
         self,
@@ -508,8 +512,13 @@ class ORTTrainer(Trainer):
         if not delay_optimizer_creation:
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
-        self.state = TrainerState()
+        self.state = TrainerState(
+            stateful_callbacks=[
+                cb for cb in self.callback_handler.callbacks + [self.control] if isinstance(cb, ExportableState)
+            ]
+        )
         self.state.is_hyper_param_search = trial is not None
+        self.state.train_batch_size = self._train_batch_size
 
         # Compute absolute values for logging, eval, and save if given as ratio
         if args.logging_steps is not None:
@@ -798,12 +807,16 @@ class ORTTrainer(Trainer):
                             self.lr_scheduler.step()
 
                     model.zero_grad()
-                    grad_norm: Optional[float] = None
                     self.state.global_step += 1
                     self.state.epoch = epoch + (step + 1 + steps_skipped) / steps_in_epoch
                     self.control = self.callback_handler.on_step_end(args, self.state, self.control)
 
-                    self._maybe_log_save_evaluate(tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval)
+                    if is_transformers_version(">=", "4.47.0"):
+                        self._maybe_log_save_evaluate(
+                            tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval, start_time
+                        )
+                    else:
+                        self._maybe_log_save_evaluate(tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval)
                 else:
                     self.control = self.callback_handler.on_substep_end(args, self.state, self.control)
 
@@ -818,8 +831,13 @@ class ORTTrainer(Trainer):
                 self.control.should_training_stop = True
 
             self.control = self.callback_handler.on_epoch_end(args, self.state, self.control)
-            self._maybe_log_save_evaluate(tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval)
 
+            if is_transformers_version(">=", "4.47.0"):
+                self._maybe_log_save_evaluate(
+                    tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval, start_time
+                )
+            else:
+                self._maybe_log_save_evaluate(tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval)
             if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
                 logger.warning(
                     "You enabled PyTorch/XLA debug metrics which is not supported by ONNX "
@@ -1072,3 +1090,39 @@ class ORTTrainer(Trainer):
         else:
             raise ValueError(f"ORTTrainer cannot instantiate unsupported optimizer: {args.optim}")
         return optimizer_cls, optimizer_kwargs
+
+    def _save(self, output_dir: Optional[str] = None, state_dict=None):
+        # If we are executing this function, we are the process zero, so we don't check for that.
+        output_dir = output_dir if output_dir is not None else self.args.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+        logger.info(f"Saving model checkpoint to {output_dir}")
+
+        supported_classes = (PreTrainedModel,)
+        # Save a trained model and configuration using `save_pretrained()`.
+        # They can then be reloaded using `from_pretrained()`
+        if not isinstance(self.model, supported_classes):
+            if state_dict is None:
+                state_dict = self.model.state_dict()
+
+            if isinstance(self.accelerator.unwrap_model(self.model), supported_classes):
+                self.accelerator.unwrap_model(self.model).save_pretrained(
+                    output_dir, state_dict=state_dict, safe_serialization=self.args.save_safetensors
+                )
+            else:
+                logger.info("Trainer.model is not a `PreTrainedModel`, only saving its state dict.")
+                if self.args.save_safetensors:
+                    safetensors.torch.save_model(
+                        self.model, os.path.join(output_dir, SAFE_WEIGHTS_NAME), metadata={"format": "pt"}
+                    )
+                else:
+                    torch.save(state_dict, os.path.join(output_dir, WEIGHTS_NAME))
+        else:
+            self.model.save_pretrained(
+                output_dir, state_dict=state_dict, safe_serialization=self.args.save_safetensors
+            )
+
+        if self.processing_class is not None:
+            self.processing_class.save_pretrained(output_dir)
+
+        # Good practice: save your training arguments together with the trained model
+        torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))

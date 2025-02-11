@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install wheel
-          pip install .[tests,onnxruntime,benchmark]
+          pip install .[tests,onnxruntime,benchmark] datasets
       - name: Test with unittest
         run: |
           python -m unittest discover --start-directory tests/benchmark --pattern 'test_*.py'

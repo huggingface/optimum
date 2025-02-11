@@ -239,6 +239,13 @@ You can find more examples in the [documentation](https://huggingface.co/docs/op
 
 ### ONNX Runtime
 
+
+Before you begin, make sure you have all the necessary libraries installed :
+
+```bash
+pip install optimum[onnxruntime-training]
+```
+
 ```diff
 - from transformers import Trainer, TrainingArguments
 + from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
