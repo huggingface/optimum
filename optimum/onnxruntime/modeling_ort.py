@@ -484,19 +484,18 @@ class ORTModel(OptimizedModel):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModel":
-        model_path = Path(model_id)
         defaut_file_name = file_name or "model.onnx"
 
-        if local_files_only and not model_path.is_dir():
+        if local_files_only and not Path(model_id).is_dir():
             object_id = str(model_id).replace("/", "--")
             cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
             refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
             with open(refs_file) as f:
                 _revision = f.read()
-            model_path = Path(os.path.join(cached_model_dir, "snapshots", _revision))
+            model_id = os.path.join(cached_model_dir, "snapshots", _revision)
 
         onnx_files = find_files_matching_pattern(
-            model_path,
+            model_id,
             ONNX_FILE_PATTERN,
             glob_pattern="**/*.onnx",
             subfolder=subfolder,
@@ -505,7 +504,7 @@ class ORTModel(OptimizedModel):
         )
 
         if len(onnx_files) == 0:
-            raise FileNotFoundError(f"Could not find any ONNX model file in {model_path}")
+            raise FileNotFoundError(f"Could not find any ONNX model file in {model_id}")
         if len(onnx_files) == 1 and file_name and file_name != onnx_files[0].name:
             raise FileNotFoundError(f"Trying to load {file_name} but only found {onnx_files[0].name}")
 
@@ -525,12 +524,12 @@ class ORTModel(OptimizedModel):
                 f"Loading the file {file_name} in the subfolder {subfolder}."
             )
 
-        if model_path.is_dir():
-            model_path = subfolder
+        if Path(model_id).is_dir():
+            model_id = subfolder
             subfolder = ""
 
         model_cache_path, preprocessors = cls._cached_file(
-            model_path=model_path,
+            model_path=model_id,
             token=token,
             revision=revision,
             force_download=force_download,

@@ -407,7 +407,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         **kwargs,
     ) -> "ORTModelForCausalLM":
         generation_config = kwargs.pop("generation_config", None)
-        model_path = Path(model_id)
 
         # We do not implement the logic for use_cache=False, use_merged=True
         if use_cache is False:
@@ -418,16 +417,16 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 )
             use_merged = False
 
-        if local_files_only and not model_path.is_dir():
+        if local_files_only and not Path(model_id).is_dir():
             object_id = str(model_id).replace("/", "--")
             cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
             refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
             with open(refs_file) as f:
                 revision = f.read()
-            model_path = Path(os.path.join(cached_model_dir, "snapshots", revision))
+            model_id = os.path.join(cached_model_dir, "snapshots", revision)
 
         onnx_files = find_files_matching_pattern(
-            model_path,
+            model_id,
             ONNX_FILE_PATTERN,
             glob_pattern="**/*.onnx",
             subfolder=subfolder,
@@ -436,7 +435,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         )
 
         if len(onnx_files) == 0:
-            raise FileNotFoundError(f"Could not find any ONNX model file in {model_path}")
+            raise FileNotFoundError(f"Could not find any ONNX model file in {model_id}")
 
         if len(onnx_files) == 1:
             subfolder = onnx_files[0].parent
@@ -483,12 +482,12 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     f"Loading the file {file_name} in the subfolder {subfolder}."
                 )
 
-        if model_path.is_dir():
-            model_path = subfolder
+        if Path(model_id).is_dir():
+            model_id = subfolder
             subfolder = ""
 
         model_cache_path, preprocessors = cls._cached_file(
-            model_path=model_path,
+            model_path=model_id,
             token=token,
             revision=revision,
             force_download=force_download,
