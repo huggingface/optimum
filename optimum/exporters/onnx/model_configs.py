@@ -852,7 +852,7 @@ class ViTOnnxConfig(VisionOnnxConfig):
 
 
 class VitPoseOnnxConfig(ViTOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (VitPoseDummyInputGenerator, )
+    DUMMY_INPUT_GENERATOR_CLASSES = (VitPoseDummyInputGenerator,)
     ATOL_FOR_VALIDATION = 1e-4
 
     @property
