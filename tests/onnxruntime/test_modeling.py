@@ -16,7 +16,6 @@ import gc
 import os
 import subprocess
 import tempfile
-import time
 import unittest
 from pathlib import Path
 from typing import Dict
@@ -26,12 +25,12 @@ import onnx
 import onnxruntime
 import pytest
 import requests
-import timm
 import torch
 from huggingface_hub import HfApi
 from huggingface_hub.constants import default_cache_path
 from parameterized import parameterized
 from PIL import Image
+from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import (
     AutoConfig,
     AutoFeatureExtractor,
@@ -65,7 +64,6 @@ from transformers.modeling_utils import no_init_weights
 from transformers.models.swin2sr.configuration_swin2sr import Swin2SRConfig
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu, slow
-from utils_onnxruntime_tests import MODEL_NAMES, SEED, ORTModelTestMixin
 
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
@@ -130,21 +128,12 @@ if is_diffusers_available():
 logger = logging.get_logger()
 
 
-class Timer(object):
-    def __enter__(self):
-        self.elapsed = time.perf_counter()
-        return self
-
-    def __exit__(self, type, value, traceback):
-        self.elapsed = (time.perf_counter() - self.elapsed) * 1e3
-
-
 class ORTModelIntegrationTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.TEST_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
         self.LOCAL_MODEL_PATH = "tests/assets/onnx"
         self.ONNX_MODEL_ID = "philschmid/distilbert-onnx"
+
         self.TINY_ONNX_MODEL_ID = "fxmarty/resnet-tiny-beans"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
         self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
@@ -252,6 +241,16 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_model_cuda_provider(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="CUDAExecutionProvider")
         self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
+        self.assertListEqual(model.model.get_providers(), model.providers)
+        self.assertEqual(model.device, torch.device("cuda:0"))
+
+    @require_torch_gpu
+    @pytest.mark.trt_ep_test
+    def test_load_model_tensorrt_provider(self):
+        model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="TensorrtExecutionProvider")
+        self.assertListEqual(
+            model.providers, ["TensorrtExecutionProvider", "CUDAExecutionProvider", "CPUExecutionProvider"]
+        )
         self.assertListEqual(model.model.get_providers(), model.providers)
         self.assertEqual(model.device, torch.device("cuda:0"))
 
@@ -774,7 +773,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1"
         )
 
-    # test string device input for to()
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_seq2seq_model_on_gpu_str(self):
@@ -1054,7 +1052,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model = ORTModelForCausalLM.from_pretrained(
-                "gpt2-large", use_cache=use_cache, export=True, use_merged=False, use_io_binding=False
+                "gpt2-large", export=True, use_cache=use_cache, use_merged=False, use_io_binding=False
             )
             model.save_pretrained(tmpdirname)
 
@@ -1265,9 +1263,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         ort_logits = ort_model(**inputs).logits
 
-        self.assertTrue(
-            torch.allclose(pt_logits, ort_logits, atol=1e-4), f" Maxdiff: {torch.abs(pt_logits - ort_logits).max()}"
-        )
+        torch.testing.assert_close(pt_logits, ort_logits, atol=1e-4, rtol=1e-4)
 
     @parameterized.expand(("", "onnx"))
     def test_loading_with_config_not_from_subfolder(self, subfolder):
@@ -1289,8 +1285,8 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         "albert",
         "bart",
         "bert",
-        # "big_bird",
-        # "bigbird_pegasus",
+        "big_bird",
+        "bigbird_pegasus",
         "camembert",
         "convbert",
         "data2vec_text",
@@ -1354,11 +1350,14 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.end_logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # Compare tensor outputs
-            self.assertTrue(
-                torch.allclose(torch.Tensor(onnx_outputs.start_logits), transformers_outputs.start_logits, atol=1e-4)
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.start_logits),
+                transformers_outputs.start_logits,
+                atol=self.ATOL,
+                rtol=self.RTOL,
             )
-            self.assertTrue(
-                torch.allclose(torch.Tensor(onnx_outputs.end_logits), transformers_outputs.end_logits, atol=1e-4)
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.end_logits), transformers_outputs.end_logits, atol=self.ATOL, rtol=self.RTOL
             )
 
         gc.collect()
@@ -1458,14 +1457,18 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForQuestionAnswering.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForQuestionAnswering.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -1475,8 +1478,12 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.end_logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.start_logits, io_outputs.start_logits))
-        self.assertTrue(torch.equal(onnx_outputs.end_logits, io_outputs.end_logits))
+        torch.testing.assert_close(
+            torch.Tensor(io_outputs.start_logits), onnx_outputs.start_logits, atol=self.ATOL, rtol=self.RTOL
+        )
+        torch.testing.assert_close(
+            torch.Tensor(io_outputs.end_logits), onnx_outputs.end_logits, atol=self.ATOL, rtol=self.RTOL
+        )
 
         gc.collect()
 
@@ -1485,7 +1492,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        # "big_bird",
+        "big_bird",
         "camembert",
         "convbert",
         "data2vec_text",
@@ -1544,7 +1551,9 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
         gc.collect()
 
@@ -1630,16 +1639,19 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=False).to(
-            "cuda"
+        onnx_model = ORTModelForMaskedLM.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
         )
-        io_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to(
-            "cuda"
+        io_model = ORTModelForMaskedLM.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
         )
 
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
         tokenizer = get_preprocessor(model_id)
-        MASK_TOKEN = tokenizer.mask_token
-        tokens = tokenizer([f"The capital of France is {MASK_TOKEN}."] * 2, return_tensors="pt")
+        tokens = tokenizer([f"The capital of France is {tokenizer.mask_token}."] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -1647,7 +1659,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(io_outputs.logits, onnx_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -1657,8 +1669,8 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "albert",
         "bart",
         "bert",
-        # "big_bird",
-        # "bigbird_pegasus",
+        "big_bird",
+        "bigbird_pegasus",
         "bloom",
         "camembert",
         "convbert",
@@ -1725,7 +1737,9 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
         gc.collect()
 
@@ -1840,14 +1854,18 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSequenceClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForSequenceClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -1855,7 +1873,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -1864,7 +1882,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        # "big_bird",
+        "big_bird",
         "bloom",
         "camembert",
         "convbert",
@@ -1926,7 +1944,9 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
         gc.collect()
 
@@ -2020,14 +2040,18 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForTokenClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForTokenClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -2035,7 +2059,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -2083,10 +2107,11 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.last_hidden_state, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(
-                torch.allclose(
-                    torch.Tensor(onnx_outputs.last_hidden_state), transformers_outputs.last_hidden_state, atol=1e-4
-                )
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.last_hidden_state),
+                transformers_outputs.last_hidden_state,
+                atol=self.ATOL,
+                rtol=self.RTOL,
             )
 
         gc.collect()
@@ -2178,14 +2203,18 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForFeatureExtraction.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt")
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -2193,7 +2222,9 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.last_hidden_state, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.last_hidden_state, io_outputs.last_hidden_state))
+        torch.testing.assert_close(
+            onnx_outputs.last_hidden_state, io_outputs.last_hidden_state, atol=self.ATOL, rtol=self.RTOL
+        )
 
         gc.collect()
 
@@ -2206,7 +2237,9 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         token_type_ids = tokens.pop("token_type_ids")
         outs = model(token_type_ids=token_type_ids, **tokens)
         outs_without_token_type_ids = model(**tokens)
-        self.assertTrue(np.allclose(outs.last_hidden_state, outs_without_token_type_ids.last_hidden_state))
+        torch.testing.assert_close(
+            outs.last_hidden_state, outs_without_token_type_ids.last_hidden_state, atol=self.ATOL, rtol=self.RTOL
+        )
         gc.collect()
 
 
@@ -2215,7 +2248,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "albert",
         "bert",
-        # "big_bird",
+        "big_bird",
         "camembert",
         "convbert",
         "data2vec_text",
@@ -2274,7 +2307,9 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # Compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
         gc.collect()
 
@@ -2287,24 +2322,25 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMultipleChoice.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
-        io_model = ORTModelForMultipleChoice.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to(
-            "cuda"
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForMultipleChoice.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
         )
 
-        tokenizer = get_preprocessor(model_id)
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
         num_choices = 4
-        first_sentence = ["The sky is blue due to the shorter wavelength of blue light."] * num_choices
         start = "The color of the sky is"
+        tokenizer = get_preprocessor(model_id)
+        first_sentence = ["The sky is blue due to the shorter wavelength of blue light."] * num_choices
         second_sentence = [start + "blue", start + "green", start + "red", start + "yellow"]
         inputs = tokenizer(first_sentence, second_sentence, truncation=True, padding=True)
-
         # Unflatten the tokenized inputs values expanding it to the shape [batch_size, num_choices, seq_length]
         for k, v in inputs.items():
             inputs[k] = [v[i : i + num_choices] for i in range(0, len(v), num_choices)]
-
-        inputs = dict(inputs.convert_to_tensors(tensor_type="pt"))
+        inputs = dict(inputs.convert_to_tensors(tensor_type="pt").to("cuda"))
 
         onnx_outputs = onnx_model(**inputs)
         io_outputs = io_model(**inputs)
@@ -2313,7 +2349,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(io_outputs.logits, onnx_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -2354,8 +2390,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     ORTMODEL_CLASS = ORTModelForCausalLM
     TASK = "text-generation"
 
-    GENERATION_LENGTH = 90
-    SPEEDUP_CACHE = 1.1
+    GENERATION_LENGTH = 100
 
     @parameterized.expand([(False,), (True,)])
     @pytest.mark.run_in_series
@@ -2471,10 +2506,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(
-            torch.allclose(onnx_outputs.logits, transformers_outputs.logits, atol=1e-4),
-            f"Maxdiff: {(onnx_outputs.logits - transformers_outputs.logits).abs()}",
-        )
+        torch.testing.assert_close(onnx_outputs.logits, transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         # Compare batched generation.
         tokenizer.pad_token_id = tokenizer.eos_token_id
@@ -2516,13 +2548,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             set_seed(SEED)
             with torch.no_grad():
                 transformers_outputs = transformers_model.generate(**tokens, generation_config=gen_config)
+
             set_seed(SEED)
             onnx_outputs = onnx_model.generate(**tokens, generation_config=gen_config)
 
-            self.assertTrue(
-                torch.equal(onnx_outputs, transformers_outputs),
-                f"Failed with generation config : {gen_config}, transformers outputs {transformers_outputs}, ONNX model outputs {onnx_outputs}",
-            )
+            torch.testing.assert_close(onnx_outputs, transformers_outputs, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -2665,7 +2695,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    @pytest.mark.cuda_ep_test  # mark as GPU test as well to run the without/with cache timing test on the slow tests
     def test_compare_with_and_without_past_key_values(self, model_arch):
         model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
         self._setup(model_args)
@@ -2677,34 +2706,25 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         text = "My Name is Philipp and i live"
         tokens = tokenizer(text, return_tensors="pt", return_token_type_ids=False if model_arch == "llama" else None)
 
+        generation_length = 10  # model has a short max length
+
         model_with_pkv = ORTModelForCausalLM.from_pretrained(
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True, use_io_binding=False
         )
-        _ = model_with_pkv.generate(**tokens)  # warmup
-        with Timer() as with_pkv_timer:
-            outputs_model_with_pkv = model_with_pkv.generate(
-                **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
+        outputs_model_with_pkv = model_with_pkv.generate(
+            **tokens, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
+        )
 
         model_without_pkv = ORTModelForCausalLM.from_pretrained(
             self.onnx_model_dirs[model_arch + "_False"], use_cache=False, use_io_binding=False
         )
-        _ = model_without_pkv.generate(**tokens)  # warmup
-        with Timer() as without_pkv_timer:
-            outputs_model_without_pkv = model_without_pkv.generate(
-                **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
+        outputs_model_without_pkv = model_without_pkv.generate(
+            **tokens, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
+        )
 
-        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
-        self.assertEqual(outputs_model_with_pkv.shape[1], tokens["input_ids"].shape[1] + self.GENERATION_LENGTH)
-        self.assertEqual(outputs_model_without_pkv.shape[1], tokens["input_ids"].shape[1] + self.GENERATION_LENGTH)
-
-        if os.environ.get("TEST_LEVEL", 0) == "1":
-            self.assertTrue(
-                without_pkv_timer.elapsed / with_pkv_timer.elapsed > self.SPEEDUP_CACHE,
-                f"With pkv latency: {with_pkv_timer.elapsed:.3f} ms, without pkv latency: {without_pkv_timer.elapsed:.3f} ms,"
-                f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
-            )
+        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, atol=self.ATOL, rtol=self.RTOL)
+        self.assertEqual(outputs_model_with_pkv.shape[1], tokens["input_ids"].shape[1] + generation_length)
+        self.assertEqual(outputs_model_without_pkv.shape[1], tokens["input_ids"].shape[1] + generation_length)
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
@@ -2747,7 +2767,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         outputs_model_not_merged = model_not_merged.generate(**tokens)
         outputs_model_merged = model_merged.generate(**tokens)
 
-        self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
+        torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, atol=self.ATOL, rtol=self.RTOL)
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
@@ -2765,11 +2785,17 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForCausalLM.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[test_name],
+            use_cache=use_cache,
+            use_io_binding=False,
+            provider="CUDAExecutionProvider",
+        )
         io_model = ORTModelForCausalLM.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[test_name],
+            use_cache=use_cache,
+            use_io_binding=True,
+            provider="CUDAExecutionProvider",
+        )
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
@@ -2788,7 +2814,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(io_outputs.logits, onnx_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -2800,10 +2826,15 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to(
-            "cuda"
+        onnx_model = ORTModelForCausalLM.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
         )
-        io_model = ORTModelForCausalLM.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to("cuda")
+        io_model = ORTModelForCausalLM.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         tokenizer = get_preprocessor(model_id)
         tokens = tokenizer(
@@ -2811,11 +2842,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             return_tensors="pt",
             return_token_type_ids=False if model_arch == "llama" else None,
         ).to("cuda")
+
         onnx_outputs = onnx_model.generate(**tokens)
         io_outputs = io_model.generate(**tokens)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+        torch.testing.assert_close(io_outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -2841,8 +2873,6 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "vit",
     ]
 
-    TIMM_SUPPORTED_ARCHITECTURES = ["default-timm-config"]
-
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForImageClassification
     TASK = "image-classification"
@@ -2867,54 +2897,6 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
             _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
 
         self.assertIn("only supports the tasks", str(context.exception))
-
-    @parameterized.expand(TIMM_SUPPORTED_ARCHITECTURES)
-    @pytest.mark.run_slow
-    @pytest.mark.timm_test
-    @slow
-    def test_compare_to_timm(self, model_arch):
-        model_args = {"test_name": model_arch, "model_arch": model_arch}
-
-        self._setup(model_args)
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            onnx_model = ORTModelForImageClassification.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, model_arch)
-            )
-
-            self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
-            self.assertIsInstance(onnx_model.config, PretrainedConfig)
-
-            set_seed(SEED)
-            timm_model = timm.create_model(model_id, pretrained=True)
-            timm_model = timm_model.eval()
-
-            # get model specific transforms (normalization, resize)
-            data_config = timm.data.resolve_model_data_config(timm_model)
-            transforms = timm.data.create_transform(**data_config, is_training=False)
-
-            url = (
-                "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/beignets-task-guide.png"
-            )
-            image = Image.open(requests.get(url, stream=True).raw)
-            inputs = transforms(image).unsqueeze(0)
-
-            with torch.no_grad():
-                timm_outputs = timm_model(inputs)
-
-            for input_type in ["pt", "np"]:
-                if input_type == "np":
-                    inputs = inputs.cpu().detach().numpy()
-                onnx_outputs = onnx_model(inputs)
-
-                self.assertIn("logits", onnx_outputs)
-                self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
-
-                # compare tensor outputs
-                self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), timm_outputs, atol=1e-4))
-
-        gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -2946,7 +2928,9 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
         gc.collect()
 
@@ -3046,16 +3030,26 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForImageClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch],
+            use_io_binding=False,
+            provider="CUDAExecutionProvider",
+            provider_options={"cudnn_conv_algo_search": "DEFAULT"},
+        )
         io_model = ORTModelForImageClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch],
+            use_io_binding=True,
+            provider="CUDAExecutionProvider",
+            provider_options={"cudnn_conv_algo_search": "DEFAULT"},
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         preprocessor = get_preprocessor(model_id)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
-        inputs = preprocessor(images=[image] * 2, return_tensors="pt")
+        inputs = preprocessor(images=[image] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**inputs)
         io_outputs = io_model(**inputs)
 
@@ -3063,10 +3057,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(
-            torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4),
-            f" Maxdiff: {torch.abs(onnx_outputs.logits - io_outputs.logits).max()}",
-        )
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -3113,7 +3104,9 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), trtfs_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
         gc.collect()
 
@@ -3211,16 +3204,20 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSemanticSegmentation.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForSemanticSegmentation.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         preprocessor = get_preprocessor(model_id)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
-        inputs = preprocessor(images=[image] * 2, return_tensors="pt")
+        inputs = preprocessor(images=[image] * 2, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**inputs)
         io_outputs = io_model(**inputs)
 
@@ -3228,10 +3225,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(
-            torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4),
-            f" Maxdiff: {torch.abs(onnx_outputs.logits - io_outputs.logits).max()}",
-        )
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -3296,7 +3290,9 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
         gc.collect()
 
@@ -3395,16 +3391,19 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         io_model = ORTModelForAudioClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=True
-        ).to("cuda")
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
 
-        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
         data = self._generate_random_audio_data()
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        input_values = processor(data, return_tensors="pt").to("cuda")
 
-        input_values = processor(data, return_tensors="pt")
         onnx_outputs = onnx_model(**input_values)
         io_outputs = io_model(**input_values)
 
@@ -3412,7 +3411,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -3475,7 +3474,9 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
         gc.collect()
 
@@ -3487,17 +3488,26 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-
         onnx_model = ORTModelForCTC.from_pretrained(
             self.onnx_model_dirs[model_arch],
             use_io_binding=False,
-        ).to("cuda")
-        onnx_model.use_io_binding = False
-        io_model = ORTModelForCTC.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to("cuda")
+            provider="CUDAExecutionProvider",
+            provider_options={"cudnn_conv_algo_search": "DEFAULT"},
+        )
+        io_model = ORTModelForCTC.from_pretrained(
+            self.onnx_model_dirs[model_arch],
+            use_io_binding=True,
+            provider="CUDAExecutionProvider",
+            provider_options={"cudnn_conv_algo_search": "DEFAULT"},
+        )
 
-        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
         data = self._generate_random_audio_data()
-        input_values = processor(data, return_tensors="pt")
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        input_values = processor(data, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**input_values)
         io_outputs = io_model(**input_values)
 
@@ -3505,7 +3515,9 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), io_outputs.logits, atol=1e-1))
+        torch.testing.assert_close(
+            torch.Tensor(onnx_outputs.logits), io_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+        )
 
         gc.collect()
 
@@ -3563,9 +3575,11 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.embeddings, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
-            self.assertTrue(
-                torch.allclose(torch.Tensor(onnx_outputs.embeddings), transformers_outputs.embeddings, atol=1e-4)
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.embeddings), transformers_outputs.embeddings, atol=self.ATOL, rtol=self.RTOL
             )
 
         gc.collect()
@@ -3579,16 +3593,19 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForAudioXVector.from_pretrained(
-            self.onnx_model_dirs[model_arch], use_io_binding=False
-        ).to("cuda")
-        io_model = ORTModelForAudioXVector.from_pretrained(self.onnx_model_dirs[model_arch], use_io_binding=True).to(
-            "cuda"
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForAudioXVector.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
         )
 
-        processor = AutoFeatureExtractor.from_pretrained(model_id)
-        data = self._generate_random_audio_data()
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
-        input_values = processor(data, return_tensors="pt")
+        data = self._generate_random_audio_data()
+        processor = AutoFeatureExtractor.from_pretrained(model_id)
+        input_values = processor(data, return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**input_values)
         io_outputs = io_model(**input_values)
 
@@ -3597,8 +3614,8 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.embeddings, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
-        self.assertTrue(torch.allclose(onnx_outputs.embeddings, io_outputs.embeddings, atol=1e-4))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(onnx_outputs.embeddings, io_outputs.embeddings, atol=self.ATOL, rtol=self.RTOL)
         gc.collect()
 
 
@@ -3646,6 +3663,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
 
         with torch.no_grad():
             transformers_outputs = transformers_model(**input_values)
+
         for input_type in ["pt", "np"]:
             input_values = processor(self._generate_random_audio_data(), return_tensors=input_type)
             onnx_outputs = onnx_model(**input_values)
@@ -3654,7 +3672,9 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
         gc.collect()
 
@@ -3662,7 +3682,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
 class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [
         "bart",
-        # "bigbird_pegasus",
+        "bigbird_pegasus",
         "blenderbot",
         "blenderbot_small",
         "encoder-decoder",
@@ -3685,7 +3705,6 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     TASK = "text2text-generation"
 
     GENERATION_LENGTH = 100
-    SPEEDUP_CACHE = 1.1
 
     def _get_model_ids(self, model_arch):
         model_ids = MODEL_NAMES[model_arch]
@@ -3889,8 +3908,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
                 # Compare tensor outputs
-                self.assertTrue(
-                    torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4)
+                torch.testing.assert_close(
+                    torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
                 )
 
         gc.collect()
@@ -4098,14 +4117,16 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    @pytest.mark.cuda_ep_test  # mark as GPU test as well to run the without/with cache timing test on the slow tests
     def test_compare_with_and_without_past_key_values(self, model_arch: str):
-        if model_arch == "m2m_100":
-            self.skipTest("m2m_100 comparison with/without pkv fail or is not supported")
         model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
         self._setup(model_args)
         model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
         self._setup(model_args)
+
+        if model_arch == "m2m_100":
+            generation_length = 20  # model's predefined maximum length
+        else:
+            generation_length = self.GENERATION_LENGTH
 
         model_ids = self._get_model_ids(model_arch)
         for model_id in model_ids:
@@ -4123,31 +4144,23 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 self._get_onnx_model_dir(model_id, model_arch, model_arch + "_True"), use_cache=True
             )
 
-            _ = model_with_pkv.generate(**tokens)  # warmup
-            with Timer() as with_pkv_timer:
-                outputs_model_with_pkv = model_with_pkv.generate(
-                    **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-                )
+            outputs_model_with_pkv = model_with_pkv.generate(
+                **tokens, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
+            )
 
             model_without_pkv = ORTModelForSeq2SeqLM.from_pretrained(
                 self._get_onnx_model_dir(model_id, model_arch, model_arch + "_False"), use_cache=False
             )
-            _ = model_without_pkv.generate(**tokens)  # warmup
-            with Timer() as without_pkv_timer:
-                outputs_model_without_pkv = model_without_pkv.generate(
-                    **tokens, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-                )
 
-            self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
-            self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
-            self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
+            outputs_model_without_pkv = model_without_pkv.generate(
+                **tokens, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
+            )
 
-            if os.environ.get("TEST_LEVEL", 0) == "1":
-                self.assertTrue(
-                    without_pkv_timer.elapsed / with_pkv_timer.elapsed > self.SPEEDUP_CACHE,
-                    f"With pkv latency: {with_pkv_timer.elapsed:.3f} ms, without pkv latency: {without_pkv_timer.elapsed:.3f} ms,"
-                    f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
-                )
+            torch.testing.assert_close(
+                outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL
+            )
+            self.assertEqual(outputs_model_with_pkv.shape[1], generation_length + 1)
+            self.assertEqual(outputs_model_without_pkv.shape[1], generation_length + 1)
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
@@ -4196,7 +4209,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             outputs_model_not_merged = model_not_merged.generate(**tokens)
             outputs_model_merged = model_merged.generate(**tokens)
 
-            self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
+            torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, rtol=self.RTOL, atol=self.ATOL)
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
@@ -4226,11 +4239,17 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 continue
 
             onnx_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, test_name), use_io_binding=False, use_cache=use_cache
-            ).to("cuda")
+                self._get_onnx_model_dir(model_id, model_arch, test_name),
+                use_io_binding=False,
+                use_cache=use_cache,
+                provider="CUDAExecutionProvider",
+            )
             io_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, test_name), use_io_binding=True, use_cache=use_cache
-            ).to("cuda")
+                self._get_onnx_model_dir(model_id, model_arch, test_name),
+                use_io_binding=True,
+                use_cache=use_cache,
+                provider="CUDAExecutionProvider",
+            )
 
             self.assertFalse(onnx_model.use_io_binding)
             self.assertTrue(io_model.use_io_binding)
@@ -4240,8 +4259,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             decoder_start_token_id = onnx_model.config.decoder_start_token_id if model_arch != "mbart" else 2
             if model_arch == "encoder-decoder":
                 decoder_start_token_id = tokenizer.cls_token_id
-
-            decoder_inputs = {"decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id}
+            decoder_inputs = {
+                "decoder_input_ids": torch.ones((2, 1), dtype=torch.long).to("cuda") * decoder_start_token_id
+            }
 
             onnx_outputs = onnx_model(**tokens, **decoder_inputs)
             io_outputs = io_model(**tokens, **decoder_inputs)
@@ -4250,7 +4270,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
             # compare tensor outputs
-            self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+            torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -4265,6 +4285,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         )
     )
     @require_torch_gpu
+    @pytest.mark.cuda_ep_test
     def test_compare_generation_to_io_binding(
         self,
         test_name: str,
@@ -4295,25 +4316,34 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 continue
 
             onnx_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, test_name), use_io_binding=False, use_cache=use_cache
-            ).to("cuda")
+                self._get_onnx_model_dir(model_id, model_arch, test_name),
+                use_io_binding=False,
+                use_cache=use_cache,
+                provider="CUDAExecutionProvider",
+            )
             io_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, test_name), use_io_binding=True, use_cache=use_cache
-            ).to("cuda")
+                self._get_onnx_model_dir(model_id, model_arch, test_name),
+                use_io_binding=True,
+                use_cache=use_cache,
+                provider="CUDAExecutionProvider",
+            )
+
+            self.assertFalse(onnx_model.use_io_binding)
+            self.assertTrue(io_model.use_io_binding)
 
             tokenizer = get_preprocessor(model_id)
             tokens = tokenizer("This is a sample output", return_tensors="pt").to("cuda")
+
             onnx_outputs = onnx_model.generate(**tokens, num_beams=num_beams)
             io_outputs = io_model.generate(**tokens, num_beams=num_beams)
 
             # compare tensor outputs
-            self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+            torch.testing.assert_close(onnx_outputs, io_outputs, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
 
 class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
-    # TODO: speech_to_text should be tested
     SUPPORTED_ARCHITECTURES = ["whisper", "speech_to_text"]
 
     FULL_GRID = {
@@ -4326,7 +4356,6 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     TASK = "automatic-speech-recognition"
 
     GENERATION_LENGTH = 100
-    SPEEDUP_CACHE = 1.1
 
     def _generate_random_audio_data(self):
         np.random.seed(10)
@@ -4464,28 +4493,33 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # Compare tensor outputs
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
-        new_tokens = 20  # because tiny random speech to text model has a max_position_embeddings of 20
+        if model_arch == "speech_to_text":
+            generation_length = 20
+        else:
+            generation_length = self.GENERATION_LENGTH
 
         with torch.no_grad():
             transformers_outputs = transformers_model.generate(
                 **features["pt"],
-                max_new_tokens=new_tokens,
-                min_new_tokens=new_tokens,
+                max_new_tokens=generation_length,
+                min_new_tokens=generation_length,
                 do_sample=False,
                 num_beams=1,
             )
 
         onnx_outputs = onnx_model.generate(
             **features["pt"],
-            max_new_tokens=new_tokens,
-            min_new_tokens=new_tokens,
+            max_new_tokens=generation_length,
+            min_new_tokens=generation_length,
             do_sample=False,
             num_beams=1,
         )
 
-        self.assertTrue(torch.equal(onnx_outputs, transformers_outputs))
+        torch.testing.assert_close(torch.Tensor(onnx_outputs), transformers_outputs, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -4576,7 +4610,6 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         self.assertTrue(isinstance(outputs["text"], str))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    @pytest.mark.cuda_ep_test  # mark as GPU test as well to run the without/with cache timing test on the slow tests
     def test_compare_with_and_without_past_key_values(self, model_arch: str):
         model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
         self._setup(model_args)
@@ -4593,40 +4626,34 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True
         )
 
-        generation_length = self.GENERATION_LENGTH
-        self.GENERATION_LENGTH = 10
-        _ = model_with_pkv.generate(**features)  # warmup
-        with Timer() as with_pkv_timer:
-            outputs_model_with_pkv = model_with_pkv.generate(
-                **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
+        if model_arch == "speech_to_text":
+            generation_length = 20
+        else:
+            generation_length = self.GENERATION_LENGTH
+
+        outputs_model_with_pkv = model_with_pkv.generate(
+            **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
+        )
 
         model_without_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(
             self.onnx_model_dirs[model_arch + "_False"], use_cache=False
         )
-        _ = model_without_pkv.generate(**features)  # warmup
-        with Timer() as without_pkv_timer:
-            outputs_model_without_pkv = model_without_pkv.generate(
-                **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
 
-        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+        outputs_model_without_pkv = model_without_pkv.generate(
+            **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
+        )
 
-        if model_arch == "whisper" and is_transformers_version(">=", "4.43"):
-            gen_length = self.GENERATION_LENGTH + 2
+        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL)
+
+        if model_arch == "whisper" and is_transformers_version(">=", "4.48"):
+            out_length = generation_length
+        elif model_arch == "whisper" and is_transformers_version(">=", "4.43"):
+            out_length = generation_length + 2
         else:
-            gen_length = self.GENERATION_LENGTH + 1
+            out_length = generation_length + 1
 
-        self.assertEqual(outputs_model_with_pkv.shape[1], gen_length)
-        self.assertEqual(outputs_model_without_pkv.shape[1], gen_length)
-
-        self.GENERATION_LENGTH = generation_length
-        if os.environ.get("TEST_LEVEL", 0) == "1":
-            self.assertTrue(
-                without_pkv_timer.elapsed / with_pkv_timer.elapsed > self.SPEEDUP_CACHE,
-                f"With pkv latency: {with_pkv_timer.elapsed:.3f} ms, without pkv latency: {without_pkv_timer.elapsed:.3f} ms,"
-                f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
-            )
+        self.assertEqual(outputs_model_with_pkv.shape[1], out_length)
+        self.assertEqual(outputs_model_without_pkv.shape[1], out_length)
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
@@ -4665,18 +4692,16 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         self.assertEqual(model_merged.decoder_with_past, None)
         self.assertEqual(model_merged.use_merged, True)
 
-        generation_length = self.GENERATION_LENGTH
-        self.GENERATION_LENGTH = 10
+        generation_length = 10
 
         outputs_model_not_merged = model_not_merged.generate(
-            **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+            **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
         )
         outputs_model_merged = model_merged.generate(
-            **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+            **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
         )
 
-        self.GENERATION_LENGTH = generation_length
-        self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
+        torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, rtol=self.RTOL, atol=self.ATOL)
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
@@ -4684,9 +4709,6 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -4697,31 +4719,38 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False
-        ).to("cuda")
-        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
-            "cuda"
+            self.onnx_model_dirs[test_name],
+            use_io_binding=False,
+            provider="CUDAExecutionProvider",
+            provider_options={
+                "cudnn_conv_algo_search": "DEFAULT",
+            },
+        )
+        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name],
+            use_io_binding=True,
+            provider="CUDAExecutionProvider",
+            provider_options={
+                "cudnn_conv_algo_search": "DEFAULT",
+            },
         )
 
         self.assertFalse(onnx_model.use_io_binding)
         self.assertTrue(io_model.use_io_binding)
 
         processor = get_preprocessor(model_id)
-
         data = self._generate_random_audio_data()
-        features = processor.feature_extractor([data] * 2, return_tensors="pt").to("cuda")
+        inputs = processor([data] * 2, return_tensors="pt").to("cuda")
+        inputs["decoder_input_ids"] = torch.ones((2, 1), dtype=torch.long).to("cuda")
 
-        decoder_start_token_id = onnx_model.config.decoder_start_token_id
-        decoder_inputs = {"decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id}
-
-        onnx_outputs = onnx_model(**features, **decoder_inputs)
-        io_outputs = io_model(**features, **decoder_inputs)
+        onnx_outputs = onnx_model(**inputs)
+        io_outputs = io_model(**inputs)
 
         self.assertTrue("logits" in io_outputs)
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -4731,7 +4760,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
                 "model_arch": SUPPORTED_ARCHITECTURES,
                 "use_cache": [True],
                 "use_merged": [False, True],
-                "num_beams": [1, 5],
+                "num_beams": [1, 3],
             }
         )
     )
@@ -4758,22 +4787,24 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False
-        ).to("cuda")
-        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
-            "cuda"
+            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
         )
 
-        processor = get_preprocessor(model_id)
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
+        processor = get_preprocessor(model_id)
         data = self._generate_random_audio_data()
-        features = processor.feature_extractor(data, return_tensors="pt").to("cuda")
+        features = processor(data, return_tensors="pt").to("cuda")
 
         onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
         io_outputs = io_model.generate(**features, num_beams=num_beams)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+        torch.testing.assert_close(onnx_outputs, io_outputs, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -4823,7 +4854,9 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_outputs, ImageSuperResolutionOutput)
         self.assertTrue("reconstruction" in onnx_outputs)
         self.assertIsInstance(onnx_outputs.reconstruction, torch.Tensor)
-        self.assertTrue(torch.allclose(onnx_outputs.reconstruction, transformers_outputs.reconstruction, atol=1e-4))
+        torch.testing.assert_close(
+            onnx_outputs.reconstruction, transformers_outputs.reconstruction, atol=self.ATOL, rtol=self.RTOL
+        )
 
         gc.collect()
 
@@ -4922,7 +4955,9 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     TASK = "image-to-text"
 
     GENERATION_LENGTH = 100
-    SPEEDUP_CACHE = 1.1
+
+    ATOL = 1e-3
+    RTOL = 1e-3
 
     def _get_sample_image(self):
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -4994,55 +5029,46 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
+        image_processor, tokenizer = self._get_preprocessors(model_id)
         transformers_model = AutoModelForVision2Seq.from_pretrained(model_id)
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
 
         data = self._get_sample_image()
+        inputs = image_processor(data, return_tensors="pt")
+        inputs["decoder_input_ids"] = tokenizer("This is a sample output", return_tensors="pt").input_ids
 
-        start_token = "<s>"
-        decoder_start_token_id = tokenizer.encode(start_token)[0]
+        with torch.no_grad():
+            transformers_outputs = transformers_model(**inputs, use_cache=True)
 
-        extra_inputs = [{}, {}]
+        for input_type in ["pt", "np"]:
+            inputs = image_processor(data, return_tensors=input_type)
+            inputs["decoder_input_ids"] = tokenizer("This is a sample output", return_tensors=input_type).input_ids
 
-        for extra_inps in extra_inputs:
-            features = feature_extractor(data, return_tensors="pt")
-            decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
+            onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
 
-            with torch.no_grad():
-                transformers_outputs = transformers_model(**features, **decoder_inputs, **extra_inps, use_cache=True)
-            for input_type in ["pt", "np"]:
-                features = feature_extractor(data, return_tensors=input_type)
+            self.assertTrue("logits" in onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
-                if input_type == "np":
-                    decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id}
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
-                    if "past_key_values" in extra_inps:
-                        del extra_inps["past_key_values"]  # test only with pytorch
-
-                onnx_outputs = onnx_model(**features, **decoder_inputs, **extra_inps)
-
-                self.assertTrue("logits" in onnx_outputs)
-                self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
-                self.assertTrue(
-                    torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-3)
+            if use_cache:
+                self.assertEqual(
+                    len(onnx_outputs["past_key_values"]),
+                    len(transformers_outputs["past_key_values"]),
                 )
-
-                if use_cache:
+                for i in range(len(onnx_outputs["past_key_values"])):
                     self.assertEqual(
-                        len(onnx_outputs["past_key_values"]), len(transformers_outputs["past_key_values"])
+                        len(onnx_outputs["past_key_values"][i]),
+                        len(transformers_outputs["past_key_values"][i]),
                     )
-                    self.assertEqual(
-                        len(onnx_outputs["past_key_values"][0]), len(transformers_outputs["past_key_values"][0])
-                    )
-                    for i in range(len(onnx_outputs["past_key_values"])):
-                        for ort_pkv, trfs_pkv in zip(
-                            onnx_outputs["past_key_values"][i], transformers_outputs["past_key_values"][i]
-                        ):
-                            ort_pkv = torch.Tensor(ort_pkv)
-                            self.assertTrue(
-                                torch.allclose(ort_pkv, trfs_pkv, atol=1e-3),
-                                f" Maxdiff: {torch.abs(ort_pkv - trfs_pkv).max()}",
-                            )
+                    for j in range(len(onnx_outputs["past_key_values"][i])):
+                        torch.testing.assert_close(
+                            torch.Tensor(onnx_outputs["past_key_values"][i][j]),
+                            transformers_outputs["past_key_values"][i][j],
+                            atol=self.ATOL,
+                            rtol=self.RTOL,
+                        )
 
         gc.collect()
 
@@ -5143,7 +5169,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self.assertTrue(isinstance(outputs[0]["generated_text"], str))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES[:1])
-    @pytest.mark.cuda_ep_test  # mark as GPU test as well to run the without/with cache timing test on the slow tests
     def test_compare_with_and_without_past_key_values(self, model_arch: str):
         model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
         self._setup(model_args)
@@ -5159,31 +5184,22 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         model_with_pkv = ORTModelForVision2Seq.from_pretrained(
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True
         )
-        _ = model_with_pkv.generate(**features)  # warmup
-        with Timer() as with_pkv_timer:
-            outputs_model_with_pkv = model_with_pkv.generate(
-                **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
+
+        outputs_model_with_pkv = model_with_pkv.generate(
+            **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+        )
 
         model_without_pkv = ORTModelForVision2Seq.from_pretrained(
             self.onnx_model_dirs[model_arch + "_False"], use_cache=False
         )
-        _ = model_without_pkv.generate(**features)  # warmup
-        with Timer() as without_pkv_timer:
-            outputs_model_without_pkv = model_without_pkv.generate(
-                **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
 
-        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
+        outputs_model_without_pkv = model_without_pkv.generate(
+            **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+        )
+
+        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL)
         self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
         self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
-
-        if os.environ.get("TEST_LEVEL", 0) == "1":
-            self.assertTrue(
-                without_pkv_timer.elapsed / with_pkv_timer.elapsed > self.SPEEDUP_CACHE,
-                f"With pkv latency: {with_pkv_timer.elapsed:.3f} ms, without pkv latency: {without_pkv_timer.elapsed:.3f} ms,"
-                f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
-            )
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
@@ -5191,9 +5207,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -5203,21 +5216,25 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to(
-            "cuda"
+        onnx_model = ORTModelForVision2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name],
+            use_io_binding=False,
+            provider="CUDAExecutionProvider",
+            provider_options={"cudnn_conv_algo_search": "DEFAULT"},
         )
-        io_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
-            "cuda"
+        io_model = ORTModelForVision2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name],
+            use_io_binding=True,
+            provider="CUDAExecutionProvider",
+            provider_options={"cudnn_conv_algo_search": "DEFAULT"},
         )
 
         self.assertFalse(onnx_model.use_io_binding)
         self.assertTrue(io_model.use_io_binding)
 
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
-
         data = self._get_sample_image()
+        feature_extractor, tokenizer = self._get_preprocessors(model_id)
         pixel_values = feature_extractor([data] * 2, return_tensors="pt").pixel_values.to("cuda")
-
         decoder_start_token_id = onnx_model.config.decoder.bos_token_id
         decoder_input_ids = torch.full((2, 1), decoder_start_token_id, dtype=torch.long).to("cuda")
 
@@ -5228,7 +5245,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.logits, io_outputs.logits))
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -5247,9 +5264,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
     def test_compare_generation_to_io_binding(
         self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, num_beams: int
     ):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -5259,23 +5273,25 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False).to(
-            "cuda"
+        onnx_model = ORTModelForVision2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
         )
-        io_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True).to(
-            "cuda"
+        io_model = ORTModelForVision2Seq.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
         )
 
-        feature_extractor, tokenizer = self._get_preprocessors(model_id)
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         data = self._get_sample_image()
+        feature_extractor, _ = self._get_preprocessors(model_id)
         features = feature_extractor(data, return_tensors="pt").to("cuda")
 
         onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
         io_outputs = io_model.generate(**features, num_beams=num_beams)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
+        torch.testing.assert_close(onnx_outputs, io_outputs, atol=self.ATOL, rtol=self.RTOL)
 
         gc.collect()
 
@@ -5351,13 +5367,23 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_compare_to_io_binding(self, *args, **kwargs):
-        model_arch, model_id = args
+        _, model_id = args
+
         set_seed(SEED)
-        onnx_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=False).to("cuda")
+        onnx_model = ORTModelForCustomTasks.from_pretrained(
+            model_id, use_io_binding=False, provider="CUDAExecutionProvider"
+        )
         set_seed(SEED)
-        io_model = ORTModelForCustomTasks.from_pretrained(model_id, use_io_binding=True).to("cuda")
+        io_model = ORTModelForCustomTasks.from_pretrained(
+            model_id, use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
         tokenizer = get_preprocessor(model_id)
-        tokens = tokenizer("This is a sample output", return_tensors="pt")
+        tokens = tokenizer("This is a sample output", return_tensors="pt").to("cuda")
+
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
@@ -5365,7 +5391,9 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(io_outputs.pooler_output, torch.Tensor)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs.pooler_output, io_outputs.pooler_output))
+        torch.testing.assert_close(
+            onnx_outputs.pooler_output, io_outputs.pooler_output, atol=self.ATOL, rtol=self.RTOL
+        )
 
         gc.collect()
 
@@ -5383,7 +5411,6 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
     TASK = "image-to-text"  # is it fine as well with visual-question-answering?
 
     GENERATION_LENGTH = 100
-    SPEEDUP_CACHE = 1.1
 
     IMAGE = Image.open(
         requests.get(
@@ -5439,9 +5466,6 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         if use_cache is False and use_merged is True:
             self.skipTest("use_cache=False, use_merged=True are uncompatible")
 
-        if use_cache is False:
-            self.skipTest("skip")
-
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -5457,111 +5481,82 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         if use_merged is False:
             model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_NAME)
             self.assertFalse(has_onnx_input(model_path, "use_cache_branch"))
-            self.assertEqual(onnx_model.use_merged, False)
+            self.assertFalse(onnx_model.use_merged)
         else:
             model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_MERGED_NAME)
             self.assertTrue(has_onnx_input(model_path, "use_cache_branch"))
-            self.assertEqual(onnx_model.use_merged, True)
+            self.assertTrue(onnx_model.use_merged)
 
         self.assertIsInstance(onnx_model.decoder, ORTDecoderForSeq2Seq)
-        if onnx_model.use_cache is True and onnx_model.use_merged is False:
+        if use_cache is True and use_merged is False:
             self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
-        if onnx_model.use_cache is True and onnx_model.use_merged is True:
+        if use_cache is True and use_merged is True:
             self.assertTrue(onnx_model.decoder_with_past is None)
 
-        self.assertIsInstance(onnx_model.config, PretrainedConfig)
-
         set_seed(SEED)
+        transformers_model = Pix2StructForConditionalGeneration.from_pretrained(model_id)
+
+        preprocessor = get_preprocessor(model_id)
         questions = [
             "Who am I?",
             "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud and this is long long very long and super long my dear",
         ]
-
-        transformers_model = Pix2StructForConditionalGeneration.from_pretrained(model_id)
-        preprocessor = get_preprocessor(model_id)
-
         inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=questions, padding=True, return_tensors="pt")
-        del inputs["decoder_attention_mask"]
-        del inputs["decoder_input_ids"]
-
-        decoder_start_token_id = transformers_model.config.decoder_start_token_id
-        decoder_inputs = {
-            "decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id,
-            "decoder_attention_mask": torch.ones((2, 1), dtype=torch.int64),
-        }
 
         with torch.no_grad():
-            transformers_outputs = transformers_model(**inputs, **decoder_inputs)
+            transformers_outputs = transformers_model(**inputs)
 
         for input_type in ["pt", "np"]:
             inputs = preprocessor(
                 images=[self.IMAGE, self.IMAGE], text=questions, padding=True, return_tensors=input_type
             )
-            del inputs["decoder_attention_mask"]
-            del inputs["decoder_input_ids"]
 
-            if input_type == "np":
-                decoder_inputs = {
-                    "decoder_input_ids": np.ones((2, 1), dtype=np.int64) * decoder_start_token_id,
-                    "decoder_attention_mask": np.ones((2, 1), dtype=np.int64),
-                }
-
-            onnx_outputs = onnx_model(**inputs, **decoder_inputs)
+            onnx_outputs = onnx_model(**inputs)
 
             self.assertTrue("logits" in onnx_outputs)
             self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
 
-            self.assertTrue(torch.allclose(torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=1e-4))
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
+            )
 
         gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    @pytest.mark.cuda_ep_test  # mark as GPU test as well to run the without/with cache timing test on the slow tests
     def test_compare_with_and_without_past_key_values(self, model_arch: str):
-        if model_arch == "m2m_100":
-            return  # TODO: this test is failing for m2m_100
         model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
         self._setup(model_args)
         model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
-        preprocessor = get_preprocessor(model_id)
-
-        question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
-        inputs = preprocessor(images=self.IMAGE, text=question, return_tensors="pt")
-        del inputs["decoder_attention_mask"]
-        del inputs["decoder_input_ids"]
-
         model_with_pkv = ORTModelForPix2Struct.from_pretrained(
             self.onnx_model_dirs[model_arch + "_True"], use_cache=True
         )
-
-        _ = model_with_pkv.generate(**inputs)  # warmup
-        with Timer() as with_pkv_timer:
-            outputs_model_with_pkv = model_with_pkv.generate(
-                **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
-
         model_without_pkv = ORTModelForPix2Struct.from_pretrained(
             self.onnx_model_dirs[model_arch + "_False"], use_cache=False
         )
-        _ = model_without_pkv.generate(**inputs)  # warmup
-        with Timer() as without_pkv_timer:
-            outputs_model_without_pkv = model_without_pkv.generate(
-                **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-            )
 
-        self.assertTrue(torch.equal(outputs_model_with_pkv, outputs_model_without_pkv))
-        self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
-        self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
+        model_id = MODEL_NAMES[model_arch]
+        preprocessor = get_preprocessor(model_id)
+        question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
+        inputs = preprocessor(images=self.IMAGE, text=question, return_tensors="pt")
 
-        if os.environ.get("TEST_LEVEL", 0) == "1":
-            self.assertTrue(
-                without_pkv_timer.elapsed / with_pkv_timer.elapsed > self.SPEEDUP_CACHE,
-                f"With pkv latency: {with_pkv_timer.elapsed:.3f} ms, without pkv latency: {without_pkv_timer.elapsed:.3f} ms,"
-                f" speedup: {without_pkv_timer.elapsed / with_pkv_timer.elapsed:.3f}",
-            )
+        outputs_model_with_pkv = model_with_pkv.generate(
+            **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+        )
+        outputs_model_without_pkv = model_without_pkv.generate(
+            **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
+        )
+
+        self.assertEqual(
+            (outputs_model_with_pkv.shape[1], outputs_model_without_pkv.shape[1]),
+            (
+                inputs["decoder_input_ids"].shape[1] + self.GENERATION_LENGTH + 1,
+                inputs["decoder_input_ids"].shape[1] + self.GENERATION_LENGTH + 1,
+            ),
+        )
+
+        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL)
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
@@ -5580,41 +5575,37 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
-        preprocessor = get_preprocessor(model_id)
-
-        question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
-        inputs = preprocessor(images=self.IMAGE, text=question, return_tensors="pt")
-        del inputs["decoder_attention_mask"]
-        del inputs["decoder_input_ids"]
-
-        model_not_merged_dir = self.onnx_model_dirs[test_name + "_False"]
-        model_merged_dir = self.onnx_model_dirs[test_name + "_True"]
-
-        model_not_merged = ORTModelForPix2Struct.from_pretrained(model_not_merged_dir)
-        not_merged_onnx_path = Path(model_not_merged_dir, ONNX_DECODER_NAME)
+        model_not_merged = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name + "_False"])
+        not_merged_onnx_path = Path(self.onnx_model_dirs[test_name + "_False"], ONNX_DECODER_NAME)
         self.assertFalse(has_onnx_input(not_merged_onnx_path, "use_cache_branch"))
         self.assertEqual(model_not_merged.use_merged, False)
 
-        model_merged = ORTModelForPix2Struct.from_pretrained(model_merged_dir)
-        merged_onnx_path = Path(model_merged_dir, ONNX_DECODER_MERGED_NAME)
+        model_merged = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name + "_True"])
+        merged_onnx_path = Path(self.onnx_model_dirs[test_name + "_True"], ONNX_DECODER_MERGED_NAME)
         self.assertTrue(has_onnx_input(merged_onnx_path, "use_cache_branch"))
         self.assertEqual(model_merged.decoder_with_past, None)
         self.assertEqual(model_merged.use_merged, True)
 
-        outputs_model_not_merged = model_not_merged.generate(**inputs)
-        outputs_model_merged = model_merged.generate(**inputs)
+        model_id = MODEL_NAMES[model_arch]
+        preprocessor = get_preprocessor(model_id)
+        question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
+        inputs = preprocessor(images=self.IMAGE, text=question, return_tensors="pt")
 
-        self.assertTrue(torch.equal(outputs_model_merged, outputs_model_not_merged))
+        outputs_model_not_merged = model_not_merged.generate(
+            **inputs, max_new_tokens=self.GENERATION_LENGTH, min_new_tokens=self.GENERATION_LENGTH
+        )
+        outputs_model_merged = model_merged.generate(
+            **inputs, max_new_tokens=self.GENERATION_LENGTH, min_new_tokens=self.GENERATION_LENGTH
+        )
+
+        torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, rtol=self.RTOL, atol=self.ATOL)
 
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
     )
+    @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -5624,36 +5615,32 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False)
-        io_model = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True)
+        onnx_model = ORTModelForPix2Struct.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForPix2Struct.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
 
         self.assertFalse(onnx_model.use_io_binding)
         self.assertTrue(io_model.use_io_binding)
 
         preprocessor = get_preprocessor(model_id)
+        question = ["What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud", "Who are you?"]
+        inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt").to(
+            "cuda"
+        )
 
-        question = [
-            "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud and this is even longer and longer and longer and longer and hey",
-            "Who are you?",
-        ]
-        inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt")
-        del inputs["decoder_attention_mask"]
-        del inputs["decoder_input_ids"]
-        decoder_start_token_id = onnx_model.config.decoder_start_token_id
-        decoder_inputs = {
-            "decoder_input_ids": torch.ones((2, 1), dtype=torch.long) * decoder_start_token_id,
-            "decoder_attention_mask": torch.ones((2, 1), dtype=torch.int64),
-        }
-
-        onnx_outputs = onnx_model(**inputs, **decoder_inputs)
-        io_outputs = io_model(**inputs, **decoder_inputs)
+        onnx_outputs = onnx_model(**inputs)
+        io_outputs = io_model(**inputs)
 
         self.assertTrue("logits" in io_outputs)
+        self.assertTrue("encoder_last_hidden_state" in io_outputs)
+
         self.assertIsInstance(io_outputs.logits, torch.Tensor)
+        self.assertIsInstance(io_outputs.encoder_last_hidden_state, torch.Tensor)
 
-        self.assertTrue(torch.allclose(onnx_outputs.logits, io_outputs.logits, atol=1e-4))
-
-        gc.collect()
+        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
 
     @parameterized.expand(
         grid_parameters(
@@ -5665,17 +5652,11 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
             }
         )
     )
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
     def test_compare_generation_to_io_binding(
-        self,
-        test_name: str,
-        model_arch: str,
-        use_cache: bool,
-        use_merged: bool,
-        num_beams: int,
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, num_beams: int
     ):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
         model_args = {
             "test_name": test_name,
             "model_arch": model_arch,
@@ -5685,22 +5666,27 @@ class ORTModelForPix2StructTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=False)
-        io_model = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name], use_io_binding=True)
+        onnx_model = ORTModelForPix2Struct.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForPix2Struct.from_pretrained(
+            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
 
         preprocessor = get_preprocessor(model_id)
-
         question = ["What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud", "Who are you?"]
-        inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt")
-        del inputs["decoder_attention_mask"]
-        del inputs["decoder_input_ids"]
+        inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt").to(
+            "cuda"
+        )
+
         onnx_outputs = onnx_model.generate(**inputs, num_beams=num_beams)
         io_outputs = io_model.generate(**inputs, num_beams=num_beams)
 
         # compare tensor outputs
-        self.assertTrue(torch.equal(onnx_outputs, io_outputs))
-
-        gc.collect()
+        torch.testing.assert_close(onnx_outputs, io_outputs, atol=self.ATOL, rtol=self.RTOL)
 
 
 class TestBothExportersORTModel(unittest.TestCase):

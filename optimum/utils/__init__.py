@@ -51,7 +51,6 @@ from .import_utils import (
     is_transformers_available,
     is_transformers_version,
     require_numpy_strictly_lower,
-    torch_version,
 )
 from .input_generators import (
     DEFAULT_DUMMY_SHAPES,
@@ -87,6 +86,8 @@ from .input_generators import (
     FalconDummyPastKeyValuesGenerator,
     GemmaDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
+    LongformerDummyTextInputGenerator,
+    MCTCTDummyAudioInputGenerator,
     MistralDummyPastKeyValuesGenerator,
     MultiQueryPastKeyValuesGenerator,
 )

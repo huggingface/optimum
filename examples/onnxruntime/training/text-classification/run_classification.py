@@ -527,6 +527,7 @@ def main():
         token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
         ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
+        attn_implementation="eager",
     )
     model.config.pad_token_id = model.config.eos_token_id
 

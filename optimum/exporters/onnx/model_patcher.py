@@ -20,34 +20,33 @@ import sys
 import types
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+import torch
 import transformers
-from packaging import version
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
-from transformers.utils import is_torch_available
+
+from ...utils import is_transformers_version, logging
+from ._traceable_cache import TraceableCache
 
 
-if is_torch_available():
-    import torch
-
-from ...configuration_utils import _transformers_version
-from ...utils import logging
-
-
-if _transformers_version > version.parse("4.34.99"):
+if is_transformers_version(">=", "4.35"):
     from transformers.modeling_attn_mask_utils import AttentionMaskConverter
-if _transformers_version >= version.parse("4.36"):
+if is_transformers_version(">=", "4.36"):
     from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask_for_sdpa
-else:
-    _prepare_4d_causal_attention_mask_for_sdpa = None
-    AttentionMaskConverter = None
-
-if _transformers_version >= version.parse("4.42"):
+if is_transformers_version(">=", "4.43"):
+    from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
+if is_transformers_version(">=", "4.42"):
     from transformers.cache_utils import SlidingWindowCache, StaticCache
+if is_transformers_version(">=", "4.48"):
+    from transformers.cache_utils import DynamicCache, EncoderDecoderCache
+    from transformers.integrations.sdpa_attention import repeat_kv, sdpa_attention_forward
+    from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
+
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
 
     from .base import OnnxConfig
+
 
 logger = logging.get_logger(__name__)
 
@@ -202,34 +201,7 @@ UNSUPPORTED_OPS_PATCHING_SPEC = [
     # TracerWarning: Using len to get tensor shape might cause the trace to be incorrect. Recommended usage would be tensor.shape[0]. Passing a tensor of different shape might lead to errors or silently give incorrect results.
     PatchingSpec(torch.Tensor, "__len__", lambda x: x.shape[0], torch.Tensor.__len__),
 ]
-
-
-def patched_module_call(self, *args, **kwargs):
-    if kwargs.get("past_key_values") is not None:
-        num_items = len(kwargs["past_key_values"][0])
-        if num_items == 2:
-            cls = transformers.DynamicCache
-        elif num_items == 4:
-            cls = transformers.EncoderDecoderCache
-        else:
-            raise ValueError(f"Unexpected number of items in past_key_values: {num_items}")
-        kwargs["past_key_values"] = cls.from_legacy_cache(kwargs["past_key_values"])
-
-    # NOTE: We cannot use .forward directly as this will
-    # lose optimization opportunities in the ONNX export.
-    output = self._wrapped_call_impl(*args, **kwargs)
-
-    # RuntimeError: Only tuples, lists and Variables are supported as JIT inputs/outputs.
-    # Dictionaries and strings are also accepted, but their usage is not recommended.
-    # Here, received an input of unsupported type: XXXCache
-    if getattr(output, "past_key_values", None) is not None and hasattr(output.past_key_values, "to_legacy_cache"):
-        output.past_key_values = output.past_key_values.to_legacy_cache()
-    return output
-
-
-MODULE_PATCHING_SPEC = [
-    PatchingSpec(torch.nn.Module, "__call__", patched_module_call, torch.nn.Module.__call__),
-]
+CACHE_PATCHING_SPEC = [PatchingSpec(transformers.cache_utils, "Cache", TraceableCache, transformers.cache_utils.Cache)]
 
 
 class ModelPatcher:
@@ -243,7 +215,7 @@ class ModelPatcher:
 
         patching_specs = config.PATCHING_SPECS or []
         patching_specs.extend(UNSUPPORTED_OPS_PATCHING_SPEC)
-        patching_specs.extend(MODULE_PATCHING_SPEC)
+        patching_specs.extend(CACHE_PATCHING_SPEC)
 
         self._patching_specs = []
         for spec in patching_specs:
@@ -269,6 +241,39 @@ class ModelPatcher:
         def patched_forward(*args, **kwargs):
             signature = inspect.signature(self.orig_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
+
+            if is_transformers_version(">=", "4.48"):
+                if "past_key_values" in signature.parameters:
+                    pkv_index = list(signature.parameters.keys()).index("past_key_values")
+
+                    if (
+                        pkv_index < len(args)  # pkv is in args
+                        and isinstance(args[pkv_index], (list, tuple))
+                        and isinstance(args[pkv_index][0], (list, tuple))
+                    ):
+                        if len(args[pkv_index][0]) == 2:
+                            args[pkv_index] = DynamicCache.from_legacy_cache(args[pkv_index])
+                        elif len(args[pkv_index][0]) == 4:
+                            args[pkv_index] = EncoderDecoderCache.from_legacy_cache(args[pkv_index])
+                        else:
+                            raise ValueError(
+                                f"past_key_values should have either 2 or 4 elements, but it has {len(args[pkv_index][0])} elements"
+                            )
+                    elif (
+                        "past_key_values" in kwargs  # pkv is in kwargs
+                        and isinstance(kwargs["past_key_values"], (list, tuple))
+                        and isinstance(kwargs["past_key_values"][0], (list, tuple))
+                    ):
+                        if len(kwargs["past_key_values"][0]) == 2:
+                            kwargs["past_key_values"] = DynamicCache.from_legacy_cache(kwargs["past_key_values"])
+                        elif len(kwargs["past_key_values"][0]) == 4:
+                            kwargs["past_key_values"] = EncoderDecoderCache.from_legacy_cache(
+                                kwargs["past_key_values"]
+                            )
+                        else:
+                            raise ValueError(
+                                f"past_key_values should have either 2 or 4 elements, but it has {len(kwargs['past_key_values'][0])} elements"
+                            )
 
             outputs = self.orig_forward(*args, **kwargs)
 
@@ -303,6 +308,11 @@ class ModelPatcher:
                     filterd_outputs[name] = outputs
                 name = list(config.outputs.keys())[0]
                 filterd_outputs[name] = outputs
+
+            if is_transformers_version(">=", "4.48"):
+                if isinstance(filterd_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)):
+                    filterd_outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
+
             return filterd_outputs
 
         self.patched_forward = patched_forward
@@ -332,6 +342,18 @@ class ModelPatcher:
 
 
 class Seq2SeqModelPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+        if is_transformers_version(">=", "4.48"):
+            # this is required when gpt2 is used as decoder in any
+            # encoder-decoder model with cross attention blocks
+            ALL_ATTENTION_FUNCTIONS["sdpa"] = patched_sdpa_attention_forward
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+        if is_transformers_version(">=", "4.48"):
+            ALL_ATTENTION_FUNCTIONS["sdpa"] = sdpa_attention_forward
+
     def __init__(
         self,
         config: "OnnxConfig",
@@ -383,6 +405,51 @@ class Seq2SeqModelPatcher(ModelPatcher):
         self.patched_forward = patched_forward
 
 
+def patched_sdpa_attention_forward(
+    module: torch.nn.Module,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attention_mask: Optional[torch.Tensor],
+    dropout: float = 0.0,
+    scaling: Optional[float] = None,
+    is_causal: Optional[bool] = None,
+    **kwargs,
+) -> Tuple[torch.Tensor, None]:
+    if hasattr(module, "num_key_value_groups"):
+        key = repeat_kv(key, module.num_key_value_groups)
+        value = repeat_kv(value, module.num_key_value_groups)
+    causal_mask = attention_mask
+    if attention_mask is not None:
+        causal_mask = causal_mask[:, :, :, : key.shape[-2]]
+    # SDPA with memory-efficient backend is bugged with non-contiguous inputs and custom attn_mask for some torch versions
+    # Reference: https://github.com/pytorch/pytorch/issues/112577.
+    query = query.contiguous()
+    key = key.contiguous()
+    value = value.contiguous()
+    # We dispatch to SDPA's Flash Attention or Efficient kernels via this `is_causal` if statement instead of an inline conditional assignment
+    # in SDPA to support both torch.compile's dynamic shapes and full graph options. An inline conditional prevents dynamic shapes from compiling.
+    if is_causal is None:
+        is_causal = causal_mask is None and query.shape[2] > 1
+
+    # Shapes (e.g. query.shape[2]) are tensors during jit tracing, resulting in `is_causal` being a tensor.
+    # We convert it to a bool for the SDPA kernel that only accepts bools.
+    if torch.jit.is_tracing() and isinstance(is_causal, torch.Tensor):
+        is_causal = is_causal.item()
+
+    attn_output = torch.nn.functional.scaled_dot_product_attention(
+        query,
+        key,
+        value,
+        attn_mask=causal_mask,
+        dropout_p=dropout,
+        scale=scaling,
+        is_causal=is_causal,
+    )
+    attn_output = attn_output.transpose(1, 2).contiguous()
+    return attn_output, None
+
+
 class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
     def __init__(
         self,
@@ -397,14 +464,17 @@ class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
             model.decoder.model.decoder.config.use_cache = True
 
 
-def _unmask_unattended_patched_legacy(
-    expanded_mask: torch.Tensor, attention_mask: torch.Tensor, unmasked_value: Union[bool, float]
-):
-    return expanded_mask
+if is_transformers_version(">=", "4.39"):
 
+    def _unmask_unattended_patched(expanded_mask: torch.Tensor, min_dtype: float):
+        return expanded_mask
 
-def _unmask_unattended_patched(expanded_mask: torch.Tensor, min_dtype: float):
-    return expanded_mask
+else:
+
+    def _unmask_unattended_patched(
+        expanded_mask: torch.Tensor, attention_mask: torch.Tensor, unmasked_value: Union[bool, float]
+    ):
+        return expanded_mask
 
 
 def _make_causal_mask_patched(
@@ -437,14 +507,6 @@ def _make_causal_mask_patched(
         mask.masked_fill_(context_mask.bool(), torch.finfo(dtype).min)
 
     return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
-
-
-_make_causal_mask_patched_staticmethod = staticmethod(_make_causal_mask_patched)
-
-if _transformers_version >= version.parse("4.39.0"):
-    _unmask_unattended_patched_staticmethod = staticmethod(_unmask_unattended_patched)
-else:
-    _unmask_unattended_patched_staticmethod = staticmethod(_unmask_unattended_patched_legacy)
 
 
 # Adapted from _prepare_4d_causal_attention_mask
@@ -485,28 +547,22 @@ def _prepare_4d_causal_attention_mask_for_sdpa_patched(
 class DecoderModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
-        if AttentionMaskConverter is not None:
-            # TODO: Remove this _make_causal_mask patch if once transformers if much above 4.35
-            AttentionMaskConverter._make_causal_mask = _make_causal_mask_patched_staticmethod
+        if is_transformers_version(">=", "4.35"):
+            AttentionMaskConverter._make_causal_mask = staticmethod(_make_causal_mask_patched)
 
-            if _transformers_version >= version.parse("4.36"):
-                AttentionMaskConverter._unmask_unattended = _unmask_unattended_patched_staticmethod
-
-        if _transformers_version >= version.parse("4.36"):
+        if is_transformers_version(">=", "4.36"):
+            AttentionMaskConverter._unmask_unattended = staticmethod(_unmask_unattended_patched)
             patch_everywhere(
                 "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
             )
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        if AttentionMaskConverter is not None:
-            # TODO: Remove this _make_causal_mask patch if once transformers if much above 4.35
-            AttentionMaskConverter._make_causal_mask = staticmethod(self.original_make_causal)
+        if is_transformers_version(">=", "4.35"):
+            AttentionMaskConverter._make_causal_mask = staticmethod(self.original_make_causal_mask)
 
-            if _transformers_version >= version.parse("4.36"):
-                AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
-
-        if _transformers_version >= version.parse("4.36"):
+        if is_transformers_version(">=", "4.36"):
+            AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
             patch_everywhere(
                 "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa
             )
@@ -519,13 +575,12 @@ class DecoderModelPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        if _transformers_version >= version.parse("4.36"):
-            self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
-            self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
+        if is_transformers_version(">=", "4.35"):
+            self.original_make_causal_mask = AttentionMaskConverter._make_causal_mask
 
-        # TODO: Remove this if once transformers if much above 4.35
-        if AttentionMaskConverter is not None:
-            self.original_make_causal = AttentionMaskConverter._make_causal_mask
+        if is_transformers_version(">=", "4.36"):
+            self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
+            self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
 
 
 def falcon_build_alibi_tensor_patched(
@@ -906,14 +961,22 @@ class SpeechT5ModelPatcher(ModelPatcher):
 class SentenceTransformersTransformerPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
-        if _transformers_version >= version.parse("4.42") and self.real_config._config.model_type == "mistral":
+        if (
+            is_transformers_version(">=", "4.42")
+            and is_transformers_version("<", "4.48")
+            and self.real_config._config.model_type == "mistral"
+        ):
             self._model[0].auto_model._update_causal_mask = types.MethodType(
                 _update_causal_mask_patched, self._model[0].auto_model
             )
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        if _transformers_version >= version.parse("4.42") and self.real_config._config.model_type == "mistral":
+        if (
+            is_transformers_version(">=", "4.42")
+            and is_transformers_version("<", "4.48")
+            and self.real_config._config.model_type == "mistral"
+        ):
             self._model[0].auto_model._update_causal_mask = types.MethodType(
                 self._update_causal_mask_original, self._model[0].auto_model
             )
@@ -926,7 +989,11 @@ class SentenceTransformersTransformerPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        if _transformers_version >= version.parse("4.42") and self.real_config._config.model_type == "mistral":
+        if (
+            is_transformers_version(">=", "4.42")
+            and is_transformers_version("<", "4.48")
+            and self.real_config._config.model_type == "mistral"
+        ):
             self._update_causal_mask_original = self._model[0].auto_model._update_causal_mask
 
         def patched_forward(input_ids, attention_mask):
@@ -1205,36 +1272,25 @@ def _update_causal_mask_patched(
                     padding_mask, min_dtype
                 )
 
-    # if (
-    #     self.config._attn_implementation == "sdpa"
-    #     and attention_mask is not None
-    #     and attention_mask.device.type == "cuda"
-    #     and not output_attentions
-    # ):
-    #     # Attend to all tokens in fully masked rows in the causal_mask, for example the relevant first rows when
-    #     # using left padding. This is required by F.scaled_dot_product_attention memory-efficient attention path.
-    #     # Details: https://github.com/pytorch/pytorch/issues/110213
-    #     causal_mask = AttentionMaskConverter._unmask_unattended(causal_mask, min_dtype)
+    if (
+        self.config._attn_implementation == "sdpa"
+        and attention_mask is not None
+        and attention_mask.device.type == "cuda"
+        and not output_attentions
+    ):
+        # Attend to all tokens in fully masked rows in the causal_mask, for example the relevant first rows when
+        # using left padding. This is required by F.scaled_dot_product_attention memory-efficient attention path.
+        # Details: https://github.com/pytorch/pytorch/issues/110213
+        causal_mask = AttentionMaskConverter._unmask_unattended(causal_mask, min_dtype)
 
     return causal_mask
 
 
-class MistralModelPatcher(ModelPatcher):
+class MistralModelPatcher(DecoderModelPatcher):
     def __enter__(self):
         super().__enter__()
-        if AttentionMaskConverter is not None:
-            # TODO: Remove this _make_causal_mask patch if once transformers if much above 4.35
-            AttentionMaskConverter._make_causal_mask = _make_causal_mask_patched_staticmethod
 
-            if _transformers_version >= version.parse("4.36"):
-                AttentionMaskConverter._unmask_unattended = _unmask_unattended_patched_staticmethod
-
-        if _transformers_version >= version.parse("4.36"):
-            patch_everywhere(
-                "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
-            )
-
-        if _transformers_version >= version.parse("4.42"):
+        if is_transformers_version(">=", "4.42") and is_transformers_version("<", "4.48"):
             if hasattr(self._model, "model"):
                 self._model.model._update_causal_mask = types.MethodType(
                     _update_causal_mask_patched, self._model.model
@@ -1244,19 +1300,8 @@ class MistralModelPatcher(ModelPatcher):
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        if AttentionMaskConverter is not None:
-            # TODO: Remove this _make_causal_mask patch if once transformers if much above 4.35
-            AttentionMaskConverter._make_causal_mask = staticmethod(self.original_make_causal)
 
-            if _transformers_version >= version.parse("4.36"):
-                AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
-
-        if _transformers_version >= version.parse("4.36"):
-            patch_everywhere(
-                "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa
-            )
-
-        if _transformers_version >= version.parse("4.42"):
+        if is_transformers_version(">=", "4.42") and is_transformers_version("<", "4.48"):
             if hasattr(self._model, "model"):
                 self._model.model._update_causal_mask = types.MethodType(
                     self._update_causal_mask_original, self._model.model
@@ -1272,15 +1317,7 @@ class MistralModelPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        if _transformers_version >= version.parse("4.36"):
-            self.original_prepare_4d_causal_attention_mask_for_sdpa = _prepare_4d_causal_attention_mask_for_sdpa
-            self.original_unmask_unattended = AttentionMaskConverter._unmask_unattended
-
-        # TODO: Remove this if once transformers if much above 4.35
-        if AttentionMaskConverter is not None:
-            self.original_make_causal = AttentionMaskConverter._make_causal_mask
-
-        if _transformers_version >= version.parse("4.42"):
+        if is_transformers_version(">=", "4.42") and is_transformers_version("<", "4.48"):
             if hasattr(self._model, "model"):
                 self._update_causal_mask_original = self._model.model._update_causal_mask
             else:
@@ -1290,15 +1327,11 @@ class MistralModelPatcher(ModelPatcher):
 class CLIPModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
-
-        if _transformers_version >= version.parse("4.43"):
-            from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
-
-            self.original_sdpa_forward, CLIPSdpaAttention.forward = CLIPSdpaAttention.forward, CLIPAttention.forward
+        if is_transformers_version(">=", "4.43"):
+            self.original_sdpa_forward = CLIPSdpaAttention.forward
+            CLIPSdpaAttention.forward = CLIPAttention.forward
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        if _transformers_version >= version.parse("4.43"):
-            from transformers.models.clip.modeling_clip import CLIPSdpaAttention
-
+        if is_transformers_version(">=", "4.43"):
             CLIPSdpaAttention.forward = self.original_sdpa_forward

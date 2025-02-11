@@ -383,6 +383,7 @@ class DummyTextInputGenerator(DummyInputGenerator):
         "input_ids",
         "attention_mask",
         "encoder_attention_mask",
+        "global_attention_mask",
         "token_type_ids",
         "position_ids",
     )
@@ -425,22 +426,45 @@ class DummyTextInputGenerator(DummyInputGenerator):
         self.padding_side = padding_side
         self.normalized_config = normalized_config
 
-    def generate(
-        self,
-        input_name: str,
-        framework: str = "pt",
-        int_dtype: str = "int64",
-        float_dtype: str = "fp32",
-    ):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         min_value = 0
         max_value = 2 if input_name != "input_ids" else self.vocab_size
-        shape = [self.batch_size, self.sequence_length]
+
         if self.task == "multiple-choice":
             shape = [self.batch_size, self.num_choices, self.sequence_length]
-        if "mask" in input_name:
+        else:
+            shape = [self.batch_size, self.sequence_length]
+
+        if input_name in ["attention_mask", "encoder_attention_mask"]:
             return self.random_mask_tensor(shape, padding_side=self.padding_side, framework=framework, dtype=int_dtype)
         else:
             return self.random_int_tensor(shape, max_value, min_value=min_value, framework=framework, dtype=int_dtype)
+
+
+class LongformerDummyTextInputGenerator(DummyTextInputGenerator):
+    SUPPORTED_INPUT_NAMES = (
+        "input_ids",
+        "attention_mask",
+        "token_type_ids",
+        "global_attention_mask",
+    )
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "global_attention_mask":
+            attention_mask = super().generate(
+                "attention_mask", framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
+            )
+
+            if framework == "pt":
+                global_attention_mask = torch.zeros_like(attention_mask)
+            elif framework == "tf":
+                global_attention_mask = tf.zeros_like(attention_mask)
+            else:
+                global_attention_mask = np.zeros_like(attention_mask)
+
+            return global_attention_mask
+
+        return super().generate(input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype)
 
 
 class DummyXPathSeqInputGenerator(DummyTextInputGenerator):
@@ -1559,3 +1583,12 @@ class DummyPatchTSTInputGenerator(DummyInputGenerator):
             framework=framework,
             dtype=float_dtype,
         )
+
+
+class MCTCTDummyAudioInputGenerator(DummyAudioInputGenerator):
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "input_features":
+            shape = [self.batch_size, self.sequence_length, self.normalized_config.input_features_per_channel]
+            return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework, dtype=float_dtype)
+
+        return super().generate(input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype)

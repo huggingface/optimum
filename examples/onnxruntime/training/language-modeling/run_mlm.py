@@ -430,10 +430,13 @@ def main():
             token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
             low_cpu_mem_usage=model_args.low_cpu_mem_usage,
+            attn_implementation="eager",
         )
     else:
         logger.info("Training new model from scratch")
-        model = AutoModelForMaskedLM.from_config(config, trust_remote_code=model_args.trust_remote_code)
+        model = AutoModelForMaskedLM.from_config(
+            config, trust_remote_code=model_args.trust_remote_code, attn_implementation="eager"
+        )
 
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.

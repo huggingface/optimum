@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 VALIDATE_EXPORT_ON_SHAPES_SLOW = {
     "batch_size": [1, 3, 5],
     "sequence_length": [8, 33, 96, 154],
@@ -36,6 +37,7 @@ NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS = {
 
 PYTORCH_EXPORT_MODELS_TINY = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
+    "audio-spectrogram-transformer": "hf-internal-testing/tiny-random-ASTModel",
     "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
     "bert": {
         "hf-internal-testing/tiny-random-BertModel": [
@@ -49,8 +51,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "nreimers/BERT-Tiny_L-2_H-128_A-2": ["feature-extraction"],
     },
     "bart": "hf-internal-testing/tiny-random-bart",
-    # "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
-    # "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
+    "big-bird": "hf-internal-testing/tiny-random-BigBirdModel",
+    "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "blenderbot-small": "hf-internal-testing/tiny-random-BlenderbotModel",
     "blenderbot": "hf-internal-testing/tiny-random-BlenderbotModel",
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
@@ -72,7 +74,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "dinov2": "hf-internal-testing/tiny-random-Dinov2Model",
     "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel",
-    "detr": "hf-internal-testing/tiny-random-DetrModel",  # hf-internal-testing/tiny-random-detr is larger
+    "detr": "hf-internal-testing/tiny-random-DetrModel",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "dpt": "hf-internal-testing/tiny-random-DPTModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
@@ -113,17 +115,19 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "lilt": "hf-internal-testing/tiny-random-LiltModel",
     "llama": "fxmarty/tiny-llama-fast-tokenizer",
     "longt5": "fxmarty/tiny-random-working-LongT5Model",
-    # "longformer": "allenai/longformer-base-4096",
+    "longformer": "hf-internal-testing/tiny-random-LongformerModel",
     "m2m-100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "maskformer": "hf-internal-testing/tiny-random-MaskFormerForInstanceSegmentation",
     "mbart": "hf-internal-testing/tiny-random-mbart",
+    "mctct": "hf-internal-testing/tiny-random-MCTCTModel",
+    "megatron-bert": "hf-internal-testing/tiny-random-MegatronBertModel",
     "mgp-str": "hf-internal-testing/tiny-random-MgpstrForSceneTextRecognition",
     "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
     "mobilenet-v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
-    "mobilenet-v1": "google/mobilenet_v1_0.75_192",
+    "mobilenet-v1": "hf-internal-testing/tiny-random-MobileNetV1Model",
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
     "modernbert": "hf-internal-testing/tiny-random-ModernBertForMaskedLM",
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
@@ -146,7 +150,6 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "phi": "echarlaix/tiny-random-PhiForCausalLM",
     "phi3": "Xenova/tiny-random-Phi3ForCausalLM",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
-    # "rembert": "google/rembert",
     "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "pvt": "hf-internal-testing/tiny-random-PvtForImageClassification",
@@ -171,7 +174,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "vit-msn": "hf-internal-testing/tiny-random-ViTMSNForImageClassification",
     "vits": "echarlaix/tiny-random-vits",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
-    "whisper": "openai/whisper-tiny.en",  # hf-internal-testing ones are broken
+    "whisper": "optimum-internal-testing/tiny-random-whisper",
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
     "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",
     "wav2vec2-conformer": "hf-internal-testing/tiny-random-wav2vec2-conformer",
@@ -196,9 +199,6 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "hf-internal-testing/tiny-random-UniSpeechSatForPreTraining": ["audio-frame-classification"],
         "hf-internal-testing/tiny-random-UniSpeechSatForXVector": ["audio-xvector"],
     },
-    "audio-spectrogram-transformer": "Ericwang/tiny-random-ast",
-    # Disabled for now because some operator seems to not be supported by ONNX.
-    # "mctct": "hf-internal-testing/tiny-random-MCTCTModel",
     "speech-to-text": "hf-internal-testing/tiny-random-Speech2TextModel",
     "speecht5": "hf-internal-testing/tiny-random-SpeechT5ForTextToSpeech",
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
@@ -216,38 +216,39 @@ PYTORCH_EXPORT_MODELS_TINY = {
     },
 }
 
-
+# TODO: enable export slow tests
 PYTORCH_EXPORT_MODELS_LARGE = {
     "albert": "albert-base-v2",
+    "audio-spectrogram-transformer": "nielsr/audio-spectogram-transformer-finetuned-audioset-10-10-0.4593",
     "beit": "microsoft/beit-base-patch16-224",
     "bert": "bert-base-cased",
     "bart": "facebook/bart-base",
-    # "big-bird": "google/bigbird-roberta-base",
-    # "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
+    "big-bird": "google/bigbird-roberta-base",
+    "bigbird-pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "blenderbot-small": "facebook/blenderbot_small-90M",
     "blenderbot": "facebook/blenderbot-90M",
-    "bloom": "hf-internal-testing/tiny-random-BloomModel",  # Not using bigscience/bloom-560m because it goes OOM.
+    "bloom": "bigscience/bloom-560m",
     "camembert": "camembert-base",
     "clip": "openai/clip-vit-base-patch32",
     "convbert": "YituTech/conv-bert-base",
     "convnext": "facebook/convnext-tiny-224",
-    "codegen": "hf-internal-testing/tiny-random-CodeGenModel",  # Not using Salesforce/codegen-350M-multi because it takes too much time for testing.
+    "codegen": "Salesforce/codegen-350M-multi",
     "data2vec-text": "facebook/data2vec-text-base",
     "data2vec-vision": "facebook/data2vec-vision-base",
     "data2vec-audio": "facebook/data2vec-audio-base",
-    "deberta": "hf-internal-testing/tiny-random-DebertaModel",  # Not using microsoft/deberta-base because it takes too much time for testing.
-    "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",  # Not using microsoft/deberta-v2-xlarge because it takes too much time for testing.
+    "deberta": "microsoft/deberta-base",
+    "deberta-v2": "microsoft/deberta-v2-xlarge",
     "deit": "facebook/deit-small-patch16-224",
-    "detr": "hf-internal-testing/tiny-random-detr",  # Not using facebook/detr-resnet-50 because it takes too much time for testing.
+    "detr": "facebook/detr-resnet-50",
     "distilbert": "distilbert-base-cased",
     "electra": "google/electra-base-generator",
     "encoder-decoder": "patrickvonplaten/bert2bert_cnn_daily_mail",
-    "flaubert": "hf-internal-testing/tiny-random-flaubert",  # TODO
+    "flaubert": "flaubert/flaubert_small_cased",
     "gemma": "google/gemma-2b",
     "gpt2": "gpt2",
     "gpt-neo": "EleutherAI/gpt-neo-125M",
     "gpt-neox": "EleutherAI/gpt-neox-20b",
-    "gptj": "anton-l/gpt-j-tiny-random",  # TODO
+    "gptj": "architext/gptj-162M",
     "groupvit": "nvidia/groupvit-gcc-yfcc",
     "hiera": "facebook/hiera-tiny-224-in1k-hf",
     "ibert": "kssteven/ibert-roberta-base",
@@ -257,26 +258,26 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "layoutlmv3": "microsoft/layoutlmv3-base",
     "lilt": "SCUT-DLVCLab/lilt-roberta-en-base",
     "llama": "decapoda-research/llama-65b-hf",
-    "longt5": "fxmarty/tiny-random-working-LongT5Model",  # Not using google/long-t5-local-base because it takes too much time for testing.
-    # "longformer": "allenai/longformer-base-4096",
-    "m2m-100": "hf-internal-testing/tiny-random-m2m_100",  # Not using facebook/m2m100_418M because it takes too much time for testing.
+    "longt5": "google/long-t5-local-base",
+    "longformer": "allenai/longformer-base-4096",
+    "m2m-100": "facebook/m2m100_418M",
     "marian": "Helsinki-NLP/opus-mt-en-de",
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "maskformer": "facebook/maskformer-swin-tiny-coco",
     "mbart": "sshleifer/tiny-mbart",
     "mgp-str": "alibaba-damo/mgp-str-base",
     "mobilebert": "google/mobilebert-uncased",
-    # "mobilenet_v1": "google/mobilenet_v1_0.75_192",
-    # "mobilenet_v2": "google/mobilenet_v2_0.35_96",
+    "mobilenet_v1": "google/mobilenet_v1_0.75_192",
+    "mobilenet_v2": "google/mobilenet_v2_0.35_96",
     "mobilevit": "apple/mobilevit-small",
     "modernbert": "answerdotai/ModernBERT-base",
     "mpt": "mosaicml/mpt-7b",
-    "mt5": "lewtun/tiny-random-mt5",  # Not using google/mt5-small because it takes too much time for testing.
+    "mt5": "google/mt5-small",
     "musicgen": "facebook/musicgen-small",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "owlv2": "google/owlv2-base-patch16",
     "owlvit": "google/owlvit-base-patch32",
-    "perceiver": "hf-internal-testing/tiny-random-PerceiverModel",  # Not using deepmind/language-perceiver because it takes too much time for testing.
+    "perceiver": "deepmind/language-perceiver",
     "rembert": "google/rembert",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "pvt": "hf-internal-testing/tiny-random-PvtForImageClassification",
@@ -306,9 +307,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "sew-d": "asapp/sew-d-tiny-100k-ft-ls100h",
     "unispeech": "microsoft/unispeech-1350-en-353-fr-ft-1h",
     "unispeech-sat": "microsoft/unispeech-sat-base",
-    "audio-spectrogram-transformer": "nielsr/audio-spectogram-transformer-finetuned-audioset-10-10-0.4593",
-    # Disabled for now because some operator seems to not be supported by ONNX.
-    # "mctct": "speechbrain/m-ctc-t-large",
+    "mctct": "speechbrain/m-ctc-t-large",
     "speech-to-text": "codenamewei/speech-to-text",
     "xlm": "xlm-clm-ende-1024",
     "xlm-roberta": "Unbabel/xlm-roberta-comet-small",
