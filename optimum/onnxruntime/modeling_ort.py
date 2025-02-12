@@ -998,6 +998,8 @@ class ORTModel(OptimizedModel):
             model_cache_path = os.path.join(model_path, subfolder, file_name)
             preprocessors = maybe_load_preprocessors(model_path)
         else:
+            model_path = model_path.replace(os.sep, "/")
+            subfolder = subfolder.replace(os.sep, "/")
             model_cache_path = hf_hub_download(
                 repo_id=model_path,
                 filename=file_name,
