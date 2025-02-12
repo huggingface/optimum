@@ -104,7 +104,6 @@ if TYPE_CHECKING:
     from transformers import PretrainedConfig
     from transformers.modeling_utils import PreTrainedModel
 
-
     if is_tf_available():
         from transformers.modeling_tf_utils import TFPreTrainedModel
 

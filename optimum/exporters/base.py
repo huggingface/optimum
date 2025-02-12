@@ -35,8 +35,6 @@ from .model_patcher import ModelPatcher
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
 
-    from .model_patcher import PatchingSpec
-
 logger = logging.get_logger(__name__)
 
 
@@ -112,7 +110,6 @@ class ExportersConfig(ABC):
     ATOL_FOR_VALIDATION: Union[float, Dict[str, float]] = 1e-5
     MIN_TORCH_VERSION = GLOBAL_MIN_TORCH_VERSION
     MIN_TRANSFORMERS_VERSION = GLOBAL_MIN_TRANSFORMERS_VERSION
-    PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": ["logits"],
         "audio-frame-classification": ["logits"],

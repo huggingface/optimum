@@ -60,6 +60,8 @@ if is_accelerate_available():
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
 
+    from .model_patcher import PatchingSpec
+
     if is_diffusers_available():
         from diffusers import ModelMixin
 
@@ -102,7 +104,8 @@ class OnnxConfig(ExportersConfig):
     DEFAULT_ONNX_OPSET = 11
     VARIANTS = {"default": "The default ONNX variant."}
     DEFAULT_VARIANT = "default"
-
+    # TODO: move PATCHING_SPECS to ExportersConfig
+    PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
