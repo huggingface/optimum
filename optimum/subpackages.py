@@ -46,9 +46,11 @@ def load_namespace_modules(namespace: str, module: str):
     """
     for dist in importlib_metadata.distributions():
         dist_name = dist.metadata["Name"]
-        if not dist_name.startswith(f"{namespace}-"):
+        if dist_name is None:
             continue
         if dist_name == f"{namespace}-benchmark":
+            continue
+        if not dist_name.startswith(f"{namespace}-"):
             continue
         package_import_name = dist_name.replace("-", ".")
         module_import_name = f"{package_import_name}.{module}"
