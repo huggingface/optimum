@@ -58,7 +58,10 @@ jobs:
 
       - name: Test with pytest (in series)
         run: |
-          pytest tests/onnxruntime -k test_load_model_from_hub_infer_onnx_model
-          pytest tests/onnxruntime -k test_loading_with_config_not_from_subfolder
+          pytest tests/onnxruntime -m "run_in_series" --durations=0 -vvvv
 
-          
+      - name: Test with pytest (in parallel)
+        run: |
+          pytest tests/onnxruntime -m "not run_in_series" --durations=0 -vvvv -n auto
+        env:
+          HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
