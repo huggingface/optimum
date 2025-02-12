@@ -52,6 +52,8 @@ from ...utils import (
     FalconDummyPastKeyValuesGenerator,
     GemmaDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
+    LongformerDummyTextInputGenerator,
+    MCTCTDummyAudioInputGenerator,
     MistralDummyPastKeyValuesGenerator,
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
@@ -168,6 +170,19 @@ class SplinterOnnxConfig(BertOnnxConfig):
 
 class RemBertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
+
+
+class LongformerOnnxConfig(BertOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (LongformerDummyTextInputGenerator,)
+    DEFAULT_ONNX_OPSET = 14
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        inputs = super().inputs
+
+        inputs["global_attention_mask"] = inputs["attention_mask"]
+
+        return inputs
 
 
 class MegatronBertOnnxConfig(BertOnnxConfig):
@@ -768,7 +783,6 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
 class BartOnnxConfig(M2M100OnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Bart now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     MIN_TORCH_VERSION = version.parse("2.1.2")
-    pass
 
 
 class MBartOnnxConfig(BartOnnxConfig):
@@ -783,21 +797,19 @@ class BlenderbotSmallOnnxConfig(BartOnnxConfig):
     pass
 
 
-# big_bird and bigbird_pegasus are unsupported for now as block sparse attention is written in pure python and numpy in transformers.
-# Thus, the case attention_type == "block_sparse" is unusable.
-# Even with rewritting this part in pure PyTorch, torch.onnx.export is then prohibitively slow.
-# References: https://github.com/pytorch/pytorch/issues/63734 & https://github.com/pytorch/pytorch/issues/94821
-"""
 class BigBirdOnnxConfig(DistilBertOnnxConfig):
     pass
 
+
 class BigBirdPegasusOnnxConfig(BartOnnxConfig):
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
-        if self._behavior is ConfigBehavior.ENCODER:
-            # TODO: check why the attention mask is not present in the exported model
-            reference_model_inputs.pop("attention_mask")
-        return super().generate_dummy_inputs_for_validation(reference_model_inputs)
-"""
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        inputs = super().inputs
+        if self._config.attention_type == "block_sparse":
+            # BigBirdPegasusEncoder creates its own attention_mask internally
+            # https://github.com/huggingface/transformers/blob/v4.48.0/src/transformers/models/bigbird_pegasus/modeling_bigbird_pegasus.py#L1875
+            inputs.pop("attention_mask", None)
+        return inputs
 
 
 class PegasusOnnxConfig(BartOnnxConfig):
@@ -820,8 +832,10 @@ class ViTOnnxConfig(VisionOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = super().outputs
+
         if self.task == "feature-extraction":
             common_outputs["last_hidden_state"] = {0: "batch_size"}
+
         return common_outputs
 
 
@@ -973,7 +987,14 @@ class PoolFormerOnnxConfig(ViTOnnxConfig):
 
 
 class SegformerOnnxConfig(YolosOnnxConfig):
-    pass
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        outputs = super().outputs
+
+        if self.task == "image-segmentation":
+            outputs["logits"] = {0: "batch_size"}
+
+        return outputs
 
 
 class MobileNetV1OnnxConfig(ViTOnnxConfig):
@@ -1628,6 +1649,17 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
                 "pixel_values": dynamic_axis,
             }
 
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        outputs = super().outputs
+
+        if "logits" in outputs:
+            # default is {0: "batch_size", 1: "sequence_length"} where sequence_length is dynamic axis
+            # but perceiver always return the same max sequence length in the second dimension
+            outputs["logits"] = {0: "batch_size"}
+
+        return outputs
+
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         self.is_generating_dummy_inputs = True
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
@@ -1693,23 +1725,16 @@ class ASTOnnxConfig(OnnxConfig):
         return {"input_values": {0: "batch_size"}}
 
 
-# TODO: currently disabled because an operator seems not supported by ONNX.
-# class MCTCTDummyAudioInputGenerator(DummyAudioInputGenerator):
-#     def generate(self, input_name: str, framework: str = "pt"):
-#         shape = [self.batch_size, self.sequence_length, self.normalized_config.input_features_per_channel]
-#         if input_name == "input_features":
-#             return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
-#         return super().generate(input_name, framework=framework)
-#
-#
-# class MCTCTOnnxConfig(OnnxConfig):
-#     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(input_features_per_channel="input_feat_per_channel", allow_new=True)
-#     DUMMY_INPUT_GENERATOR_CLASSES = (MCTCTDummyAudioInputGenerator,)
-#     DEFAULT_ONNX_OPSET = 13
-#
-#     @property
-#     def inputs(self) -> Dict[str, Dict[int, str]]:
-#         return {"input_features": {0: "batch_size", 1: "sequence_classification"}}
+class MCTCTOnnxConfig(OnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        input_features_per_channel="input_feat_per_channel", allow_new=True
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (MCTCTDummyAudioInputGenerator,)
+    DEFAULT_ONNX_OPSET = 13
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"input_features": {0: "batch_size", 1: "sequence_classification"}}
 
 
 class WhisperOnnxConfig(AudioToTextOnnxConfig):
@@ -2297,6 +2322,7 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
 
             if self.use_past_in_inputs:
                 self.add_past_key_values(common_inputs, direction="inputs")
+
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
