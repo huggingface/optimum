@@ -69,12 +69,7 @@ GENERATE_DUMMY_DOCSTRING = r"""
 """
 
 
-# TODO: Remove
 class ExportConfig(ABC):
-    pass
-
-
-class ExportersConfig(ABC):
     """
     Base class describing metadata on how to export the model through the ONNX format.
 

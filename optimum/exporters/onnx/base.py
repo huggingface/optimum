@@ -47,7 +47,7 @@ from ...utils.import_utils import (
     is_onnxruntime_available,
     is_transformers_version,
 )
-from ..base import ExportersConfig
+from ..base import ExportConfig
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import DecoderModelPatcher, Seq2SeqModelPatcher
 
@@ -100,11 +100,11 @@ GENERATE_DUMMY_DOCSTRING = r"""
 """
 
 
-class OnnxConfig(ExportersConfig):
+class OnnxConfig(ExportConfig):
     DEFAULT_ONNX_OPSET = 11
     VARIANTS = {"default": "The default ONNX variant."}
     DEFAULT_VARIANT = "default"
-    # TODO: move PATCHING_SPECS to ExportersConfig
+    # TODO: move PATCHING_SPECS to ExportConfig
     PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
