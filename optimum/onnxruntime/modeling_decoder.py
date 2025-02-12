@@ -14,6 +14,7 @@
 """Classes handling causal-lm related architectures in ONNX Runtime."""
 
 import logging
+import os
 import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
