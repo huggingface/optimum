@@ -937,6 +937,7 @@ class TasksManager:
             "text2text-generation-with-past",
             onnx="M2M100OnnxConfig",
         ),
+        "nomic-bert": supported_tasks_mapping("feature-extraction", onnx="NomicBertOnnxConfig"),
         "nystromformer": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -1341,7 +1342,7 @@ class TasksManager:
             backend (`str`):
                 The name of the backend that the register function will handle.
             overwrite_existing (`bool`, defaults to `False`):
-                Whether or not the register function is allowed to overwrite an already existing config.
+                Whether the register function is allowed to overwrite an already existing config.
 
         Returns:
             `Callable[[str, Tuple[str, ...]], Callable[[Type], Type]]`: A decorator taking the model type and a the
