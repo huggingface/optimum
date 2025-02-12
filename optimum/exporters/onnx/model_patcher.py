@@ -172,7 +172,7 @@ def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None):
     Returns:
         torch.Tensor: The repeated tensor.
     """
-    if isinstance(repeats, int):
+    if isinstance(repeats, int) or (torch.is_tensor(repeats) and repeats.dim() == 0):
         if dim is None:
             return input_tensor.flatten().unsqueeze(1).expand(-1, repeats).flatten()
         repeats = torch.full((input_tensor.shape[dim],), repeats, dtype=torch.long, device=input_tensor.device)
