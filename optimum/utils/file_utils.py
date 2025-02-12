@@ -88,7 +88,7 @@ def find_files_matching_pattern(
         token = use_auth_token
 
     model_path = str(model_name_or_path) if isinstance(model_name_or_path, Path) else model_name_or_path
-    pattern = re.compile(f"{subfolder}/{pattern}" if subfolder != "" else pattern)
+    pattern = re.compile(subfolder + pattern)
     if os.path.isdir(model_path):
         files = Path(model_path).glob(glob_pattern)
         files = [p for p in files if re.search(pattern, str(p))]
