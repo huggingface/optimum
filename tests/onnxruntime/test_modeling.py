@@ -145,7 +145,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_onnx_model_from_hub(self, model_cls):
         model_id = "optimum-internal-testing/tiny-random-llama"
         file_name = "model_optimized.onnx"
-
         model = model_cls.from_pretrained(model_id)
         self.assertEqual(model.model_path.name, "model.onnx")
 
@@ -162,6 +161,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = model_cls.from_pretrained(model_id, revision="merged-onnx")
             self.assertEqual(model.model_path.name, "decoder_model_merged.onnx")
 
+        model = model_cls.from_pretrained(self.LOCAL_MODEL_PATH, use_cache=False, use_io_binding=False)
+        self.assertEqual(model.model_path.name, "model.onnx")
+
         model = model_cls.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
         self.assertEqual(model.model_path.name, "model.onnx")
 
@@ -170,6 +172,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         model = model_cls.from_pretrained(model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx")
         self.assertEqual(model.model_path.name, "decoder_with_past_model.onnx")
+
+        model = model_cls.from_pretrained("hf-internal-testing/tiny-random-LlamaForCausalLM")
+        self.assertEqual(model.model_path.name, "model.onnx")
 
         with self.assertRaises(FileNotFoundError):
             model_cls.from_pretrained("hf-internal-testing/tiny-random-LlamaForCausalLM", file_name="test.onnx")

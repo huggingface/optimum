@@ -14,7 +14,6 @@
 """Classes handling causal-lm related architectures in ONNX Runtime."""
 
 import logging
-import os
 import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -416,14 +415,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     " To use a merged decoder, past key values must be used."
                 )
             use_merged = False
-
-        if local_files_only and not Path(model_id).is_dir():
-            object_id = str(model_id).replace("/", "--")
-            cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
-            refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
-            with open(refs_file) as f:
-                revision = f.read()
-            model_id = os.path.join(cached_model_dir, "snapshots", revision)
 
         onnx_files = find_files_matching_pattern(
             model_id,
