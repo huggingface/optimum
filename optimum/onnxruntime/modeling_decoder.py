@@ -473,7 +473,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     f"Loading the file {file_name} in the subfolder {subfolder}."
                 )
 
-        if Path(model_id).is_dir():
+        if os.path.isdir(model_id):
             model_id = subfolder
             subfolder = ""
 
@@ -487,7 +487,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             subfolder=subfolder,
             local_files_only=local_files_only,
         )
-        new_model_save_dir = model_cache_path.parent
+        new_model_save_dir = Path(model_cache_path).parent
 
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
         # instead of the path only.

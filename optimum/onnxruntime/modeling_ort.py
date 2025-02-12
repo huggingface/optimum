@@ -516,7 +516,7 @@ class ORTModel(OptimizedModel):
                 f"Loading the file {file_name} in the subfolder {subfolder}."
             )
 
-        if Path(model_id).is_dir():
+        if os.path.isdir(model_id):
             model_id = subfolder
             subfolder = ""
 
@@ -530,7 +530,7 @@ class ORTModel(OptimizedModel):
             subfolder=subfolder,
             local_files_only=local_files_only,
         )
-        new_model_save_dir = model_cache_path.parent
+        new_model_save_dir = Path(model_cache_path).parent
 
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
         # instead of the path only.
@@ -990,14 +990,16 @@ class ORTModel(OptimizedModel):
         subfolder: str = "",
         local_files_only: bool = False,
     ):
-        model_path = Path(model_path)
+        if isinstance(model_path, Path):
+            model_path = model_path.as_posix()
+
         # locates a file in a local folder and repo, downloads and cache it if necessary.
-        if model_path.is_dir():
-            model_cache_path = model_path / subfolder / file_name
-            preprocessors = maybe_load_preprocessors(model_path.as_posix())
+        if os.path.isdir(model_path):
+            model_cache_path = os.path.join(model_path, subfolder, file_name)
+            preprocessors = maybe_load_preprocessors(model_path)
         else:
             model_cache_path = hf_hub_download(
-                repo_id=model_path.as_posix(),
+                repo_id=model_path,
                 filename=file_name,
                 subfolder=subfolder,
                 token=token,
@@ -1009,7 +1011,7 @@ class ORTModel(OptimizedModel):
             # try download external data
             try:
                 hf_hub_download(
-                    repo_id=model_path.as_posix(),
+                    repo_id=model_path,
                     subfolder=subfolder,
                     filename=file_name + "_data",
                     token=token,
@@ -1022,10 +1024,9 @@ class ORTModel(OptimizedModel):
                 # model doesn't use external data
                 pass
 
-            model_cache_path = Path(model_cache_path)
-            preprocessors = maybe_load_preprocessors(model_path.as_posix(), subfolder=subfolder)
+            preprocessors = maybe_load_preprocessors(model_path, subfolder=subfolder)
 
-        return model_cache_path, preprocessors
+        return Path(model_cache_path), preprocessors
 
     def can_generate(self) -> bool:
         """
