@@ -29,11 +29,10 @@ from ..utils import TORCH_MINIMUM_VERSION as GLOBAL_MIN_TORCH_VERSION
 from ..utils import TRANSFORMERS_MINIMUM_VERSION as GLOBAL_MIN_TRANSFORMERS_VERSION
 from ..utils.doc import add_dynamic_docstring
 from ..utils.import_utils import is_torch_version, is_transformers_version
-from .model_patcher import ModelPatcher
 
 
 if TYPE_CHECKING:
-    from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
+    from transformers import PretrainedConfig
 
 logger = logging.get_logger(__name__)
 
@@ -133,7 +132,8 @@ class ExportConfig(ABC):
         "zero-shot-image-classification": ["logits_per_image", "logits_per_text", "text_embeds", "image_embeds"],
         "zero-shot-object-detection": ["logits", "pred_boxes", "text_embeds", "image_embeds"],
     }
-    _MODEL_PATCHER = ModelPatcher
+    # TODO : add _MODEL_PATCHER + patch_model_for_export
+    # _MODEL_PATCHER = ModelPatcher
 
     def __init__(
         self,
@@ -249,8 +249,3 @@ class ExportConfig(ABC):
             else:
                 flatten[name] = value
         return flatten
-
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return self._MODEL_PATCHER(self, model, model_kwargs=model_kwargs)
