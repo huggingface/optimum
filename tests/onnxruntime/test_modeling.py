@@ -141,6 +141,44 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
         self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID = "optimum-internal-testing/tiny-stable-diffusion-onnx"
 
+    @parameterized.expand((ORTModelForCausalLM, ORTModel))
+    def test_load_model_from_hub_infer_onnx_model(self, model_cls):
+        model_id = "optimum-internal-testing/tiny-random-llama"
+        file_name = "model_optimized.onnx"
+        model = model_cls.from_pretrained(model_id)
+        self.assertEqual(model.model_path.name, "model.onnx")
+
+        model = model_cls.from_pretrained(model_id, revision="onnx")
+        self.assertEqual(model.model_path.name, "model.onnx")
+
+        model = model_cls.from_pretrained(model_id, revision="onnx", file_name=file_name)
+        self.assertEqual(model.model_path.name, file_name)
+
+        model = model_cls.from_pretrained(model_id, revision="merged-onnx", file_name=file_name)
+        self.assertEqual(model.model_path.name, file_name)
+
+        if model_cls is ORTModelForCausalLM:
+            model = model_cls.from_pretrained(model_id, revision="merged-onnx")
+            self.assertEqual(model.model_path.name, "decoder_model_merged.onnx")
+
+        model = model_cls.from_pretrained(self.LOCAL_MODEL_PATH, use_cache=False, use_io_binding=False)
+        self.assertEqual(model.model_path.name, "model.onnx")
+
+        model = model_cls.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
+        self.assertEqual(model.model_path.name, "model.onnx")
+
+        model = model_cls.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder", file_name=file_name)
+        self.assertEqual(model.model_path.name, file_name)
+
+        model = model_cls.from_pretrained(model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx")
+        self.assertEqual(model.model_path.name, "decoder_with_past_model.onnx")
+
+        model = model_cls.from_pretrained("hf-internal-testing/tiny-random-LlamaForCausalLM")
+        self.assertEqual(model.model_path.name, "model.onnx")
+
+        with self.assertRaises(FileNotFoundError):
+            model_cls.from_pretrained("hf-internal-testing/tiny-random-LlamaForCausalLM", file_name="test.onnx")
+
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
@@ -154,7 +192,8 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_model_from_hub_subfolder(self):
         # does not pass with ORTModel as it does not have export_feature attribute
         model = ORTModelForSequenceClassification.from_pretrained(
-            "fxmarty/tiny-bert-sst2-distilled-subfolder", subfolder="my_subfolder", export=True
+            "fxmarty/tiny-bert-sst2-distilled-subfolder",
+            subfolder="my_subfolder",
         )
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
@@ -164,9 +203,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_seq2seq_model_from_hub_subfolder(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            "fxmarty/tiny-mbart-subfolder", subfolder="my_folder", export=True
-        )
+        model = ORTModelForSeq2SeqLM.from_pretrained("fxmarty/tiny-mbart-subfolder", subfolder="my_folder")
         self.assertIsInstance(model.encoder, ORTEncoder)
         self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
         self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
@@ -383,8 +420,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             )
 
     def test_load_model_from_hub_without_onnx_model(self):
-        with self.assertRaises(FileNotFoundError):
-            ORTModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
+        ORTModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
 
     def test_model_on_cpu(self):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID)
@@ -1317,7 +1353,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForQuestionAnswering.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForQuestionAnswering.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -1519,7 +1555,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForMaskedLM.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForMaskedLM.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -1705,7 +1741,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -1912,7 +1948,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForTokenClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForTokenClassification.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -2433,7 +2469,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForCausalLM.from_pretrained(MODEL_NAMES["vit"], export=True)
-
         self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
@@ -2894,8 +2929,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
-
+            _ = ORTModelForImageClassification.from_pretrained(MODEL_NAMES["t5"])
         self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
@@ -3071,7 +3105,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForSemanticSegmentation.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForSemanticSegmentation.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -3258,7 +3292,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForAudioClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForAudioClassification.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -3442,7 +3476,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForCTC.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForCTC.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -3544,7 +3578,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForAudioXVector.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForAudioXVector.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -3641,7 +3675,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = ORTModelForAudioFrameClassification.from_pretrained(MODEL_NAMES["t5"], export=True)
+            _ = ORTModelForAudioFrameClassification.from_pretrained(MODEL_NAMES["t5"])
 
         self.assertIn("only supports the tasks", str(context.exception))
 
@@ -4829,7 +4863,6 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
             _ = ORTModelForImageToImage.from_pretrained(MODEL_NAMES["bert"], export=True)
-
         self.assertIn("only supports the tasks", str(context.exception))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
