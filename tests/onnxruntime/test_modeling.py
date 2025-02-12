@@ -142,7 +142,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.TINY_ONNX_STABLE_DIFFUSION_MODEL_ID = "optimum-internal-testing/tiny-stable-diffusion-onnx"
 
     @parameterized.expand((ORTModelForCausalLM, ORTModel))
-    def test_load_onnx_model_from_hub(self, model_cls):
+    def test_load_model_from_hub_infer_onnx_model(self, model_cls):
         model_id = "optimum-internal-testing/tiny-random-llama"
         file_name = "model_optimized.onnx"
         model = model_cls.from_pretrained(model_id)
