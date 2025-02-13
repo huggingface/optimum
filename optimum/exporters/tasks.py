@@ -903,6 +903,13 @@ class TasksManager:
             "token-classification",
             onnx="ModernBertOnnxConfig",
         ),
+        "moonshine": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "automatic-speech-recognition",
+            "automatic-speech-recognition-with-past",
+            onnx="MoonshineOnnxConfig",
+        ),
         "mpnet": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
