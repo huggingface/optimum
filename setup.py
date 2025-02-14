@@ -99,7 +99,6 @@ EXTRAS_REQUIRE = {
     "neural-compressor": "optimum-intel[neural-compressor]>=1.18.0",
     "ipex": "optimum-intel[ipex]>=1.18.0",
     "habana": ["optimum-habana", "transformers>=4.45.0,<4.46.0"],
-    "neuron": ["optimum-neuron[neuron]>=0.0.20", "transformers>=4.36.2,<4.42.0"],
     "neuronx": ["optimum-neuron[neuronx]>=0.0.20", "transformers>=4.36.2,<4.42.0"],
     "graphcore": "optimum-graphcore",
     "furiosa": "optimum-furiosa",
