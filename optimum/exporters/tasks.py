@@ -1191,6 +1191,11 @@ class TasksManager:
             "object-detection",
             onnx="TableTransformerOnnxConfig",
         ),
+        "textnet": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="TextNetOnnxConfig",
+        ),
         "trocr": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
