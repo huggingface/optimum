@@ -47,7 +47,6 @@ from transformers.pipelines import infer_framework_load_model
 
 from ..bettertransformer import BetterTransformer
 from ..utils import is_onnxruntime_available, is_transformers_version
-from ..utils.file_utils import find_files_matching_pattern
 
 
 if is_onnxruntime_available():
@@ -244,26 +243,9 @@ def load_ort_pipeline(
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
         model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, export=True)
     elif isinstance(model, str):
-        from ..onnxruntime.modeling_seq2seq import ENCODER_ONNX_FILE_PATTERN, ORTModelForConditionalGeneration
-
-        model_id = model
-        ort_model_class = SUPPORTED_TASKS[targeted_task]["class"][0]
-
-        if issubclass(ort_model_class, ORTModelForConditionalGeneration):
-            pattern = ENCODER_ONNX_FILE_PATTERN
-        else:
-            pattern = ".+?.onnx"
-
-        onnx_files = find_files_matching_pattern(
-            model,
-            pattern,
-            glob_pattern="**/*.onnx",
-            subfolder=subfolder,
-            token=token,
-            revision=revision,
+        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(
+            model, revision=revision, subfolder=subfolder, token=token, **model_kwargs
         )
-        export = len(onnx_files) == 0
-        model = ort_model_class.from_pretrained(model, export=export, **model_kwargs)
     elif isinstance(model, ORTModel):
         if tokenizer is None and load_tokenizer:
             for preprocessor in model.preprocessors:
