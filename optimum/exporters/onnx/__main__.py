@@ -29,6 +29,7 @@ from ...configuration_utils import _transformers_version
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
 from ...utils.save_utils import maybe_load_preprocessors
 from ..tasks import TasksManager
+from ..utils import DisableCompileContextManager
 from .constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
 from .convert import onnx_export_from_model
 
@@ -255,7 +256,7 @@ def main_export(
 
     if task == "auto":
         try:
-            task = TasksManager.infer_task_from_model(model_name_or_path)
+            task = TasksManager.infer_task_from_model(model_name_or_path, library_name=library_name)
         except KeyError as e:
             raise KeyError(
                 f"The task could not be automatically inferred. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
@@ -300,22 +301,23 @@ def main_export(
         if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and _transformers_version >= version.parse("4.35.99"):
             loading_kwargs["attn_implementation"] = "eager"
 
-    model = TasksManager.get_model_from_task(
-        task,
-        model_name_or_path,
-        subfolder=subfolder,
-        revision=revision,
-        cache_dir=cache_dir,
-        token=token,
-        local_files_only=local_files_only,
-        force_download=force_download,
-        trust_remote_code=trust_remote_code,
-        framework=framework,
-        torch_dtype=torch_dtype,
-        device=device,
-        library_name=library_name,
-        **loading_kwargs,
-    )
+    with DisableCompileContextManager():
+        model = TasksManager.get_model_from_task(
+            task,
+            model_name_or_path,
+            subfolder=subfolder,
+            revision=revision,
+            cache_dir=cache_dir,
+            token=token,
+            local_files_only=local_files_only,
+            force_download=force_download,
+            trust_remote_code=trust_remote_code,
+            framework=framework,
+            torch_dtype=torch_dtype,
+            device=device,
+            library_name=library_name,
+            **loading_kwargs,
+        )
 
     needs_pad_token_id = task == "text-classification" and getattr(model.config, "pad_token_id", None) is None
 

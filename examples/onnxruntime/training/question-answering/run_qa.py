@@ -364,6 +364,7 @@ def main():
         revision=model_args.model_revision,
         token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
+        attn_implementation="eager",
     )
 
     # Tokenizer check: this script requires a fast tokenizer.

@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
 
 import onnx
-from datasets import Dataset, load_dataset
 from packaging.version import Version, parse
 from transformers import AutoConfig
 
@@ -29,6 +28,7 @@ from onnxruntime import __version__ as ort_version
 from onnxruntime.quantization import CalibrationDataReader, QuantFormat, QuantizationMode, QuantType
 from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
+from optimum.utils.import_utils import requires_backends
 
 from ..quantization_base import OptimumQuantizer
 from ..utils.save_utils import maybe_save_preprocessors
@@ -40,6 +40,7 @@ from .preprocessors import QuantizationPreprocessor
 
 
 if TYPE_CHECKING:
+    from datasets import Dataset
     from transformers import PretrainedConfig
 
 LOGGER = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ LOGGER = logging.getLogger(__name__)
 class ORTCalibrationDataReader(CalibrationDataReader):
     __slots__ = ["batch_size", "dataset", "_dataset_iter"]
 
-    def __init__(self, dataset: Dataset, batch_size: int = 1):
+    def __init__(self, dataset: "Dataset", batch_size: int = 1):
         if dataset is None:
             raise ValueError("Provided dataset is None.")
 
@@ -100,7 +101,7 @@ class ORTQuantizer(OptimumQuantizer):
         if self.config is None:
             try:
                 self.config = AutoConfig.from_pretrained(self.onnx_model_path.parent)
-            except OSError:
+            except (OSError, ValueError):
                 LOGGER.warning(
                     f"Could not load the config for {self.onnx_model_path} automatically, this might make "
                     "the quantized model harder to use because it will not be able to be loaded by an ORTModel without "
@@ -134,6 +135,7 @@ class ORTQuantizer(OptimumQuantizer):
             model_or_path = Path(model_or_path)
 
         path = None
+        config = None
         if isinstance(model_or_path, ORTModelForConditionalGeneration):
             raise NotImplementedError(ort_quantizer_error_message)
         elif isinstance(model_or_path, Path) and file_name is None:
@@ -147,17 +149,17 @@ class ORTQuantizer(OptimumQuantizer):
             file_name = onnx_files[0].name
 
         if isinstance(model_or_path, ORTModel):
-            if path is None:
-                path = Path(model_or_path.model._model_path)
+            path = Path(model_or_path.model._model_path)
+            config = model_or_path.config
         elif os.path.isdir(model_or_path):
             path = Path(model_or_path) / file_name
         else:
             raise ValueError(f"Unable to load model from {model_or_path}.")
-        return cls(path)
+        return cls(path, config=config)
 
     def fit(
         self,
-        dataset: Dataset,
+        dataset: "Dataset",
         calibration_config: CalibrationConfig,
         onnx_augmented_model_name: Union[str, Path] = "augmented_model.onnx",
         operators_to_quantize: Optional[List[str]] = None,
@@ -211,7 +213,7 @@ class ORTQuantizer(OptimumQuantizer):
 
     def partial_fit(
         self,
-        dataset: Dataset,
+        dataset: "Dataset",
         calibration_config: CalibrationConfig,
         onnx_augmented_model_name: Union[str, Path] = "augmented_model.onnx",
         operators_to_quantize: Optional[List[str]] = None,
@@ -427,7 +429,7 @@ class ORTQuantizer(OptimumQuantizer):
         seed: int = 2016,
         use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
-    ) -> Dataset:
+    ) -> "Dataset":
         """
         Creates the calibration `datasets.Dataset` to use for the post-training static quantization calibration step.
 
@@ -473,6 +475,10 @@ class ORTQuantizer(OptimumQuantizer):
                 "provided."
             )
 
+        requires_backends(self, ["datasets"])
+
+        from datasets import load_dataset
+
         calib_dataset = load_dataset(
             dataset_name,
             name=dataset_config_name,
@@ -491,7 +497,7 @@ class ORTQuantizer(OptimumQuantizer):
 
         return self.clean_calibration_dataset(processed_calib_dataset)
 
-    def clean_calibration_dataset(self, dataset: Dataset) -> Dataset:
+    def clean_calibration_dataset(self, dataset: "Dataset") -> "Dataset":
         model = onnx.load(self.onnx_model_path)
         model_inputs = {input.name for input in model.graph.input}
         ignored_columns = list(set(dataset.column_names) - model_inputs)

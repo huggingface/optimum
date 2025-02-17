@@ -114,7 +114,7 @@ class ORTConfigManager:
         "bart": "bart",
         "bert": "bert",
         "big-bird": "bert",
-        # "bigbird-pegasus": None,  # bug in `fusion_skiplayernorm.py`
+        "bigbird-pegasus": "bart",
         "blenderbot": "bert",
         "bloom": "gpt2",
         "camembert": "bert",
@@ -128,7 +128,7 @@ class ORTConfigManager:
         "gpt-neo": "gpt2",
         "gpt-neox": "gpt2",
         "gptj": "gpt2",
-        # longt5 with O4 results in segmentation fault
+        "granite": "gpt2",
         "longt5": "bert",
         "llama": "gpt2",
         "marian": "bart",
@@ -177,6 +177,7 @@ class ORTConfigManager:
             "clip",
             "vit",
             "swin",
+            "swinv2",
         ]
         model_type = model_type.replace("_", "-")
         if (model_type not in cls._conf) or (cls._conf[model_type] not in supported_model_types_for_optimization):

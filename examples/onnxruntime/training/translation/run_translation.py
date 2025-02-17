@@ -408,6 +408,7 @@ def main():
         revision=model_args.model_revision,
         token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
+        attn_implementation="eager",
     )
 
     # Set decoder_start_token_id

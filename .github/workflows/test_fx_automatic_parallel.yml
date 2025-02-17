@@ -35,7 +35,6 @@ jobs:
       options: --mount type=tmpfs,destination=/tmp --shm-size 64gb --gpus all --ipc host -v /mnt/hf_cache:/mnt/cache/
       env:
         NCCL_DEBUG: INFO
-        HF_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
     defaults:
       run:
         shell: bash
