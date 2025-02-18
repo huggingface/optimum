@@ -1325,16 +1325,3 @@ class MistralModelPatcher(DecoderModelPatcher):
                 self._update_causal_mask_original = self._model.model._update_causal_mask
             else:
                 self._update_causal_mask_original = self._model._update_causal_mask
-
-
-class CLIPModelPatcher(ModelPatcher):
-    def __enter__(self):
-        super().__enter__()
-        if is_transformers_version(">=", "4.43"):
-            self.original_sdpa_forward = CLIPSdpaAttention.forward
-            CLIPSdpaAttention.forward = CLIPAttention.forward
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        super().__exit__(exc_type, exc_value, traceback)
-        if is_transformers_version(">=", "4.43"):
-            CLIPSdpaAttention.forward = self.original_sdpa_forward
