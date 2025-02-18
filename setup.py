@@ -50,7 +50,7 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.49.0",
+        "transformers>=4.36,<4.50.0",
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -58,7 +58,7 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.49.0",
+        "transformers>=4.36,<4.50.0",
     ],
     "onnxruntime-training": [
         "torch-ort",
@@ -67,19 +67,19 @@ EXTRAS_REQUIRE = {
         "accelerate",
         "evaluate",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.49.0",
+        "transformers>=4.36,<4.50.0",
     ],
     "exporters": [
         "onnx",
         "onnxruntime",
         "timm",
-        "transformers>=4.36,<4.49.0",
+        "transformers>=4.36,<4.50.0",
     ],
     "exporters-gpu": [
         "onnx",
         "onnxruntime-gpu",
         "timm",
-        "transformers>=4.36,<4.49.0",
+        "transformers>=4.36,<4.50.0",
     ],
     "exporters-tf": [
         "tensorflow>=2.4,<=2.12.1",
