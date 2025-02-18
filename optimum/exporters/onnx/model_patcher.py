@@ -1338,3 +1338,18 @@ class CLIPModelPatcher(ModelPatcher):
         super().__exit__(exc_type, exc_value, traceback)
         if is_transformers_version(">=", "4.43"):
             CLIPSdpaAttention.forward = self.original_sdpa_forward
+
+
+class VitPoseModelPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        # Set dataset_index (defaulting to COCO=0), otherwise we will get an error like:
+        # ValueError: dataset_index must be provided when using multiple experts (num_experts=6). Please provide dataset_index to the forward pass.
+        if model.config.backbone_config.num_experts > 1:
+            model_kwargs["dataset_index"] = torch.tensor(0, device=model.device)
+
+        super().__init__(config, model, model_kwargs)

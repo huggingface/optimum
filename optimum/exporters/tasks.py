@@ -329,6 +329,7 @@ class TasksManager:
         ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
         # VisionEncoderDecoderModel is not registered in AutoModelForDocumentQuestionAnswering
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
+        ("pt", "vitpose", "keypoint-detection"): ("transformers", "VitPoseForPoseEstimation"),
     }
 
     _ENCODER_DECODER_TASKS = (
@@ -1241,6 +1242,7 @@ class TasksManager:
             "image-classification",
             onnx="VitMSNOnnxConfig",
         ),
+        "vitpose": supported_tasks_mapping("feature-extraction", "keypoint-detection", onnx="VitPoseOnnxConfig"),
         "vits": supported_tasks_mapping(
             "text-to-audio",
             onnx="VitsOnnxConfig",
