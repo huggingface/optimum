@@ -114,7 +114,7 @@ class ORTConfigManager:
         "bart": "bart",
         "bert": "bert",
         "big-bird": "bert",
-        # "bigbird-pegasus": None,  # bug in `fusion_skiplayernorm.py`
+        "bigbird-pegasus": "bart",
         "blenderbot": "bert",
         "bloom": "gpt2",
         "camembert": "bert",
@@ -129,7 +129,6 @@ class ORTConfigManager:
         "gpt-neox": "gpt2",
         "gptj": "gpt2",
         "granite": "gpt2",
-        # longt5 with O4 results in segmentation fault
         "longt5": "bert",
         "llama": "gpt2",
         "marian": "bart",
