@@ -1242,7 +1242,7 @@ class TasksManager:
             "image-classification",
             onnx="VitMSNOnnxConfig",
         ),
-        "vitpose": supported_tasks_mapping("feature-extraction", "keypoint-detection", onnx="VitPoseOnnxConfig"),
+        "vitpose": supported_tasks_mapping("keypoint-detection", onnx="VitPoseOnnxConfig"),
         "vits": supported_tasks_mapping(
             "text-to-audio",
             onnx="VitsOnnxConfig",

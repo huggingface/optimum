@@ -1622,12 +1622,6 @@ class Dinov2DummyInputGenerator(DummyVisionInputGenerator):
             self.height = preprocessor.crop_size.get("height", self.height)
             self.width = preprocessor.crop_size.get("width", self.width)
 
-    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        input_ = super().generate(
-            input_name=input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
-        )
-        return input_
-
 
 class DummyVisionStaticInputGenerator(DummyVisionInputGenerator):
     def __init__(
@@ -1656,12 +1650,6 @@ class DummyVisionStaticInputGenerator(DummyVisionInputGenerator):
         if preprocessor is not None and hasattr(preprocessor, "size"):
             self.height = preprocessor.size.get("height", self.height)
             self.width = preprocessor.size.get("width", self.width)
-
-    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        input_ = super().generate(
-            input_name=input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
-        )
-        return input_
 
 
 class PerceiverDummyInputGenerator(DummyVisionStaticInputGenerator):
