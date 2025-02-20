@@ -246,35 +246,7 @@ Before you begin, make sure you have all the necessary libraries installed :
 pip install optimum[onnxruntime-training]
 ```
 
-```diff
-- from transformers import Trainer, TrainingArguments
-+ from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
-
-  # Download a pretrained model from the Hub
-  model = AutoModelForSequenceClassification.from_pretrained("bert-base-uncased")
-
-  # Define the training arguments
-- training_args = TrainingArguments(
-+ training_args = ORTTrainingArguments(
-      output_dir="path/to/save/folder/",
-      optim="adamw_ort_fused",
-      ...
-  )
-
-  # Create a ONNX Runtime Trainer
-- trainer = Trainer(
-+ trainer = ORTTrainer(
-      model=model,
-      args=training_args,
-      train_dataset=train_dataset,
-      ...
-  )
-
-  # Use ONNX Runtime for training!
-  trainer.train()
-```
-
-You can find more examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).
+You can find examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).
 
 
 ### Quanto
