@@ -512,8 +512,10 @@ def export_pytorch(
 
     model_kwargs = model_kwargs or {}
     # num_logits_to_keep was added in transformers 4.45 and isn't added as inputs when exporting the model
-    if is_transformers_version(">=", "4.44.99") and "num_logits_to_keep" in signature(model.forward).parameters.keys():
-        model_kwargs["num_logits_to_keep"] = 0
+    if is_transformers_version(">=", "4.45"):
+        logits_to_keep_name = "logits_to_keep" if is_transformers_version(">=", "4.49") else "num_logits_to_keep"
+        if logits_to_keep_name in signature(model.forward).parameters.keys():
+            model_kwargs[logits_to_keep_name] = 0
 
     with torch.no_grad():
         model.config.return_dict = True
