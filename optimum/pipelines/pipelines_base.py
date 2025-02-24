@@ -45,7 +45,6 @@ from transformers.onnx.utils import get_preprocessor
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
 from transformers.pipelines import infer_framework_load_model
 
-from ..bettertransformer import BetterTransformer
 from ..utils import is_onnxruntime_available, is_transformers_version
 
 
@@ -185,6 +184,8 @@ def load_bettertransformer(
     hub_kwargs: Optional[Dict] = None,
     **kwargs,
 ):
+    from ..bettertransformer import BetterTransformer
+
     if model_kwargs is None:
         # the argument was first introduced in 4.36.0 but most models didn't have an sdpa implementation then
         # see https://github.com/huggingface/transformers/blob/v4.36.0/src/transformers/modeling_utils.py#L1258
