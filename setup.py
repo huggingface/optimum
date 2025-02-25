@@ -50,7 +50,7 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.49.0",
+        "transformers>=4.36,<4.50.0",
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -58,7 +58,7 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "evaluate",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.49.0",
+        "transformers>=4.36,<4.50.0",
     ],
     "onnxruntime-training": [
         "torch-ort",
@@ -67,7 +67,7 @@ EXTRAS_REQUIRE = {
         "accelerate",
         "evaluate",
         "protobuf>=3.20.1",
-        "transformers>=4.36,<4.49.0",
+        "transformers>=4.36,<4.50.0",
     ],
     "onnxruntime-directml": [
         "onnx",
@@ -82,13 +82,13 @@ EXTRAS_REQUIRE = {
         "onnx",
         "onnxruntime",
         "timm",
-        "transformers>=4.36,<4.49.0",
+        "transformers>=4.36,<4.50.0",
     ],
     "exporters-gpu": [
         "onnx",
         "onnxruntime-gpu",
         "timm",
-        "transformers>=4.36,<4.49.0",
+        "transformers>=4.36,<4.50.0",
     ],
     "exporters-directml": [
         "torch-directml",
@@ -115,8 +115,7 @@ EXTRAS_REQUIRE = {
     "neural-compressor": "optimum-intel[neural-compressor]>=1.18.0",
     "ipex": "optimum-intel[ipex]>=1.18.0",
     "habana": ["optimum-habana", "transformers>=4.45.0,<4.46.0"],
-    "neuron": ["optimum-neuron[neuron]>=0.0.20", "transformers>=4.36.2,<4.42.0"],
-    "neuronx": ["optimum-neuron[neuronx]>=0.0.20", "transformers>=4.36.2,<4.42.0"],
+    "neuronx": ["optimum-neuron[neuronx]>=0.0.28"],
     "graphcore": "optimum-graphcore",
     "furiosa": "optimum-furiosa",
     "amd": "optimum-amd",
