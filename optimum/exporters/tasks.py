@@ -1108,6 +1108,10 @@ class TasksManager:
             "object-detection",
             onnx="RTDetrOnnxConfig",
         ),
+        "rt-detr-v2": supported_tasks_mapping(
+            "object-detection",
+            onnx="RTDetrOnnxConfig",
+        ),
         "sam": supported_tasks_mapping(
             "feature-extraction",
             onnx="SamOnnxConfig",
