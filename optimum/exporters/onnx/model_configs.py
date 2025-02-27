@@ -15,6 +15,7 @@
 """Model specific ONNX configurations."""
 
 import random
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
 
@@ -2659,6 +2660,18 @@ class RTDetrOnnxConfig(ViTOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
-            "pixel_mask": {0: "batch_size"},
+            "pixel_values": {0: "batch_size", 2: "height", 3: "width"},
         }
+
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        if kwargs["height"] < 320:
+            warnings.warn(
+                f"Exporting model with image `height={kwargs['height']}` which is less than minimal 320, setting `height` to 320."
+            )
+            kwargs["height"] = 320
+        if kwargs["width"] < 320:
+            warnings.warn(
+                f"Exporting model with image `width={kwargs['width']}` which is less than minimal 320, setting `width` to 320."
+            )
+            kwargs["width"] = 320
+        return super()._create_dummy_input_generator_classes(**kwargs)
