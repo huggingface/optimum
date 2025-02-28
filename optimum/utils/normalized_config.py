@@ -101,10 +101,6 @@ class NormalizedSeq2SeqConfig(NormalizedTextConfig):
     DECODER_NUM_ATTENTION_HEADS = NormalizedTextConfig.NUM_ATTENTION_HEADS
 
 
-class NormalizedTimeSeriesForecastingConfig(NormalizedConfig):
-    CONTEXT_LEN = "context_len"
-
-
 class NormalizedVisionConfig(NormalizedConfig):
     IMAGE_SIZE = "image_size"
     NUM_CHANNELS = "num_channels"
