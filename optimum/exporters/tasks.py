@@ -329,7 +329,7 @@ class TasksManager:
         ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
         # VisionEncoderDecoderModel is not registered in AutoModelForDocumentQuestionAnswering
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
-        ("pt", "timesfm", "time-series-forecasting"): ("transformers", "TimesFMModelForPrediction"),
+        ("pt", "timesfm", "time-series-forecasting"): ("transformers", "TimesFmModelForPrediction"),
         ("pt", "vitpose", "keypoint-detection"): ("transformers", "VitPoseForPoseEstimation"),
     }
 

@@ -2659,6 +2659,7 @@ class TimesFMOnnxConfig(OnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
     MIN_TRANSFORMERS_VERSION = version.parse("4.47.0")
     DUMMY_INPUT_GENERATOR_CLASSES = (TimesFMDummyInputGenerator,)
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, needs opset>=14
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -2666,7 +2667,11 @@ class TimesFMOnnxConfig(OnnxConfig):
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        return super().outputs
+        return {
+            "last_hidden_state": {0: "batch_size"},
+            "mean_predictions": {0: "batch_size"},
+            "full_predictions": {0: "batch_size"},
+        }
 
 
 class PatchTSTOnnxConfig(OnnxConfig):
