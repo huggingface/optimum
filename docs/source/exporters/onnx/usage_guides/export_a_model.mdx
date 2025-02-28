@@ -396,14 +396,13 @@ class CustomMPTOnnxConfig(TextDecoderOnnxConfig):
             inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 2: decoder_sequence_name}
 
 
-model_id = "/home/fxmarty/hf_internship/optimum/tiny-mpt-random-remote-code"
+model_id = "fxmarty/tiny-mpt-random-remote-code"
 config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
 
 onnx_config = CustomMPTOnnxConfig(
     config=config,
     task="text-generation",
     use_past_in_inputs=False,
-    use_present_in_outputs=True,
 )
 onnx_config_with_past = CustomMPTOnnxConfig(config, task="text-generation", use_past=True)
 
@@ -419,6 +418,8 @@ main_export(
     trust_remote_code=True,
     custom_onnx_configs=custom_onnx_configs,
     no_post_process=True,
+    legacy=True,
+    opset=14
 )
 ```
 
