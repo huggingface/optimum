@@ -2641,9 +2641,8 @@ class TimesFMDummyInputGenerator(DummyInputGenerator):
     ):
         self.task = task
         self.normalized_config = normalized_config
-
         self.batch_size = batch_size
-        self.context_len = normalized_config.context_len
+        self.context_len = normalized_config.context_length
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         return self.random_float_tensor(
@@ -2656,7 +2655,7 @@ class TimesFMDummyInputGenerator(DummyInputGenerator):
 
 
 class TimesFMOnnxConfig(OnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
+    NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig.with_args(context_length="context_len")
     MIN_TRANSFORMERS_VERSION = version.parse("4.47.0")
     DUMMY_INPUT_GENERATOR_CLASSES = (TimesFMDummyInputGenerator,)
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, needs opset>=14
