@@ -2675,3 +2675,7 @@ class RTDetrOnnxConfig(ViTOnnxConfig):
             )
             kwargs["width"] = 320
         return super()._create_dummy_input_generator_classes(**kwargs)
+
+
+class RTDetrV2OnnxConfig(RTDetrOnnxConfig):
+    pass
