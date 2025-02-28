@@ -2631,7 +2631,7 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
 
 class TimesFMDummyInputGenerator(DummyInputGenerator):
     SUPPORTED_INPUT_NAMES = ("inputs",)
-    
+
     def __init__(
         self,
         task: str,
@@ -2659,7 +2659,6 @@ class TimesFMOnnxConfig(OnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
     MIN_TRANSFORMERS_VERSION = version.parse("4.47.0")
     DUMMY_INPUT_GENERATOR_CLASSES = (TimesFMDummyInputGenerator,)
-
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
