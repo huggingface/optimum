@@ -51,7 +51,7 @@ from transformers.file_utils import add_end_docstrings
 from transformers.modeling_outputs import ModelOutput
 
 import onnxruntime as ort
-from optimum.utils import check_if_diffusers_greater
+from optimum.utils import is_diffusers_version
 
 from ..exporters.onnx import main_export
 from ..onnx.utils import _get_model_external_data_paths
@@ -75,7 +75,7 @@ from .utils import (
 )
 
 
-if check_if_diffusers_greater("0.25.0"):
+if is_diffusers_version(">=", "0.25.0"):
     from diffusers.models.autoencoders.vae import DiagonalGaussianDistribution
 else:
     from diffusers.models.vae import DiagonalGaussianDistribution  # type: ignore
@@ -974,7 +974,7 @@ class ORTUnavailablePipeline:
         )
 
 
-if check_if_diffusers_greater("0.29.0"):
+if is_diffusers_version(">=", "0.29.0"):
     from diffusers import StableDiffusion3Img2ImgPipeline, StableDiffusion3Pipeline
 
     @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
@@ -1006,7 +1006,7 @@ else:
         MIN_VERSION = "0.29.0"
 
 
-if check_if_diffusers_greater("0.30.0"):
+if is_diffusers_version(">=", "0.30.0"):
     from diffusers import FluxPipeline, StableDiffusion3InpaintPipeline
 
     @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)

@@ -21,10 +21,10 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Uni
 from packaging import version
 from transformers.utils import is_tf_available
 
-from ...onnx import merge_decoders
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     BloomDummyPastKeyValuesGenerator,
+    Dinov2DummyInputGenerator,
     DummyAudioInputGenerator,
     DummyCodegenDecoderTextInputGenerator,
     DummyDecisionTransformerInputGenerator,
@@ -35,6 +35,7 @@ from ...utils import (
     DummyInputGenerator,
     DummyIntGenerator,
     DummyPastKeyValuesGenerator,
+    DummyPatchTSTInputGenerator,
     DummyPix2StructInputGenerator,
     DummyPointsGenerator,
     DummySeq2SeqDecoderTextInputGenerator,
@@ -52,6 +53,8 @@ from ...utils import (
     FalconDummyPastKeyValuesGenerator,
     GemmaDummyPastKeyValuesGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
+    LongformerDummyTextInputGenerator,
+    MCTCTDummyAudioInputGenerator,
     MistralDummyPastKeyValuesGenerator,
     NormalizedConfig,
     NormalizedEncoderDecoderConfig,
@@ -61,9 +64,11 @@ from ...utils import (
     NormalizedTextConfigWithGQA,
     NormalizedTimeSeriesForecastingConfig,
     NormalizedVisionConfig,
-    check_if_diffusers_greater,
-    check_if_transformers_greater,
+    PerceiverDummyInputGenerator,
+    VitPoseDummyInputGenerator,
     is_diffusers_available,
+    is_diffusers_version,
+    is_transformers_version,
     logging,
 )
 from ...utils.normalized_config import NormalizedConfigManager
@@ -91,8 +96,12 @@ from .model_patcher import (
     SentenceTransformersTransformerPatcher,
     SpeechT5ModelPatcher,
     VisionEncoderDecoderPatcher,
+    VitPoseModelPatcher,
     WavLMModelPatcher,
 )
+
+
+# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
 
 
 if TYPE_CHECKING:
@@ -168,6 +177,23 @@ class RemBertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+class LongformerOnnxConfig(BertOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (LongformerDummyTextInputGenerator,)
+    DEFAULT_ONNX_OPSET = 14
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        inputs = super().inputs
+
+        inputs["global_attention_mask"] = inputs["attention_mask"]
+
+        return inputs
+
+
+class MegatronBertOnnxConfig(BertOnnxConfig):
+    DEFAULT_ONNX_OPSET = 11
+
+
 class DistilBertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for transformers>=4.46.0
 
@@ -178,6 +204,10 @@ class DistilBertOnnxConfig(BertOnnxConfig):
         else:
             dynamic_axis = {0: "batch_size", 1: "sequence_length"}
         return {"input_ids": dynamic_axis, "attention_mask": dynamic_axis}
+
+
+class ModernBertOnnxConfig(DistilBertOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.48.0")
 
 
 class MPNetOnnxConfig(DistilBertOnnxConfig):
@@ -305,7 +335,7 @@ class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 
 # OPT does not take position_ids as input for transfomers < v4.46, needs it for transformers >= v4.46
-if check_if_transformers_greater("4.45.99"):
+if is_transformers_version(">=", "4.45.99"):
 
     class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
         DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
@@ -365,8 +395,7 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
 
     def __init__(self, *args, **kwargs):
-        # TODO : replace check_if_transformers_greater with is_transformers_available
-        if check_if_transformers_greater("4.46.0") and not check_if_transformers_greater("4.46.1"):
+        if is_transformers_version("==", "4.46.0"):
             logger.error(
                 "Found transformers v4.46.0 while trying to exporting a Phi3 model, this specific version of transformers is not supported. "
                 "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
@@ -412,7 +441,7 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Bloom uses aten::triu that requires opset>=14, and F.scaled_dot_product_attention
 
     def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
-        if check_if_transformers_greater("4.44"):
+        if is_transformers_version(">=", "4.44"):
             super().add_past_key_values(inputs_or_outputs, direction)
         else:
             if direction not in ["inputs", "outputs"]:
@@ -766,7 +795,6 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
 class BartOnnxConfig(M2M100OnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Bart now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     MIN_TORCH_VERSION = version.parse("2.1.2")
-    pass
 
 
 class MBartOnnxConfig(BartOnnxConfig):
@@ -781,21 +809,19 @@ class BlenderbotSmallOnnxConfig(BartOnnxConfig):
     pass
 
 
-# big_bird and bigbird_pegasus are unsupported for now as block sparse attention is written in pure python and numpy in transformers.
-# Thus, the case attention_type == "block_sparse" is unusable.
-# Even with rewritting this part in pure PyTorch, torch.onnx.export is then prohibitively slow.
-# References: https://github.com/pytorch/pytorch/issues/63734 & https://github.com/pytorch/pytorch/issues/94821
-"""
 class BigBirdOnnxConfig(DistilBertOnnxConfig):
     pass
 
+
 class BigBirdPegasusOnnxConfig(BartOnnxConfig):
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: Dict[str, Any]) -> Dict[str, Any]:
-        if self._behavior is ConfigBehavior.ENCODER:
-            # TODO: check why the attention mask is not present in the exported model
-            reference_model_inputs.pop("attention_mask")
-        return super().generate_dummy_inputs_for_validation(reference_model_inputs)
-"""
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        inputs = super().inputs
+        if self._config.attention_type == "block_sparse":
+            # BigBirdPegasusEncoder creates its own attention_mask internally
+            # https://github.com/huggingface/transformers/blob/v4.48.0/src/transformers/models/bigbird_pegasus/modeling_bigbird_pegasus.py#L1875
+            inputs.pop("attention_mask", None)
+        return inputs
 
 
 class PegasusOnnxConfig(BartOnnxConfig):
@@ -818,9 +844,27 @@ class ViTOnnxConfig(VisionOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = super().outputs
+
         if self.task == "feature-extraction":
             common_outputs["last_hidden_state"] = {0: "batch_size"}
+
         return common_outputs
+
+
+class VitPoseOnnxConfig(ViTOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (VitPoseDummyInputGenerator,)
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"pixel_values": {0: "batch_size"}}
+
+    # Some VitPose models use multiple experts, which requires dataset_index to be provided.
+    # So, we need to patch the model for export to provide the dataset_index.
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return VitPoseModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class CvTOnnxConfig(ViTOnnxConfig):
@@ -837,7 +881,7 @@ class DeiTOnnxConfig(ViTOnnxConfig):
 
 
 class BeitOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 class ConvNextOnnxConfig(ViTOnnxConfig):
@@ -846,6 +890,30 @@ class ConvNextOnnxConfig(ViTOnnxConfig):
 
 class ConvNextV2OnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
+
+
+class HieraOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 11
+
+
+class PvtOnnxConfig(ViTOnnxConfig):
+    DEFAULT_ONNX_OPSET = 11
+
+
+class VitMAEOnnxConfig(ViTOnnxConfig):
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
+    # Support for this operator was added in version 14, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 14
+
+
+class VitMSNOnnxConfig(ViTOnnxConfig):
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
+    # Support for this operator was added in version 14, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 14
+
+
+class Dinov2OnnxConfig(ViTOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (Dinov2DummyInputGenerator,)
 
 
 class MobileViTOnnxConfig(ViTOnnxConfig):
@@ -889,6 +957,10 @@ class SwinOnnxConfig(ViTOnnxConfig):
     DEFAULT_ONNX_OPSET = 11
 
 
+class SwinV2OnnxConfig(SwinOnnxConfig):
+    pass
+
+
 class Swin2srOnnxConfig(SwinOnnxConfig):
     pass
 
@@ -908,7 +980,14 @@ class PoolFormerOnnxConfig(ViTOnnxConfig):
 
 
 class SegformerOnnxConfig(YolosOnnxConfig):
-    pass
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        outputs = super().outputs
+
+        if self.task == "image-segmentation":
+            outputs["logits"] = {0: "batch_size"}
+
+        return outputs
 
 
 class MobileNetV1OnnxConfig(ViTOnnxConfig):
@@ -922,6 +1001,28 @@ class MobileNetV1OnnxConfig(ViTOnnxConfig):
 
 class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
     pass
+
+
+class MaskFormerOnnxConfig(ViTOnnxConfig):
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::einsum' to ONNX opset version 11 is not supported.
+    # Support for this operator was added in version 12, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 12
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "image-segmentation":
+            return {
+                "class_queries_logits": {0: "batch_size", 1: "num_queries"},
+                "masks_queries_logits": {0: "batch_size", 1: "num_queries", 2: "height", 3: "width"},
+            }
+        else:
+            return super().outputs
+
+    @property
+    def torch_to_onnx_output_map(self) -> Dict[str, str]:
+        return {
+            "transformer_decoder_last_hidden_state": "last_hidden_state",
+        }
 
 
 class DonutSwinOnnxConfig(ViTOnnxConfig):
@@ -1114,6 +1215,39 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
         model_kwargs: Optional[Dict[str, Any]] = None,
     ) -> "ModelPatcher":
         return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
+
+
+class SiglipNormalizedConfig(CLIPNormalizedConfig):
+    pass
+
+
+class SiglipOnnxConfig(CLIPOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = SiglipNormalizedConfig
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 13 is not supported.
+    # Support for this operator was added in version 14, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 14
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+            "pixel_values": {0: "image_batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            # NOTE: No attention_mask
+        }
+
+
+class SiglipTextWithProjectionOnnxConfig(CLIPTextWithProjectionOnnxConfig):
+    pass
+
+
+class SiglipTextOnnxConfig(CLIPTextOnnxConfig):
+    pass
+
+
+class SiglipVisionModelOnnxConfig(CLIPVisionModelOnnxConfig):
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
+    # Support for this operator was added in version 14, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 14
 
 
 class UNetOnnxConfig(VisionOnnxConfig):
@@ -1314,11 +1448,11 @@ class FluxTransformerOnnxConfig(SD3TransformerOnnxConfig):
         common_inputs = super().inputs
         common_inputs["hidden_states"] = {0: "batch_size", 1: "packed_height_width"}
         common_inputs["txt_ids"] = (
-            {0: "sequence_length"} if check_if_diffusers_greater("0.31.0") else {0: "batch_size", 1: "sequence_length"}
+            {0: "sequence_length"} if is_diffusers_version(">=", "0.31.0") else {0: "batch_size", 1: "sequence_length"}
         )
         common_inputs["img_ids"] = (
             {0: "packed_height_width"}
-            if check_if_diffusers_greater("0.31.0")
+            if is_diffusers_version(">=", "0.31.0")
             else {0: "batch_size", 1: "packed_height_width"}
         )
 
@@ -1449,48 +1583,12 @@ class Data2VecTextOnnxConfig(DistilBertOnnxConfig):
 
 
 class Data2VecVisionOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
-
-
-class Data2VecAudioOnnxConfig(AudioOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig
-    ATOL_FOR_VALIDATION = 1e-4
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
-class PerceiverDummyInputGenerator(DummyVisionInputGenerator):
-    def __init__(
-        self,
-        task: str,
-        normalized_config: NormalizedVisionConfig,
-        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
-        num_channels: int = DEFAULT_DUMMY_SHAPES["num_channels"],
-        width: int = DEFAULT_DUMMY_SHAPES["width"],
-        height: int = DEFAULT_DUMMY_SHAPES["height"],
-        **kwargs,
-    ):
-        super().__init__(
-            task=task,
-            normalized_config=normalized_config,
-            batch_size=batch_size,
-            num_channels=num_channels,
-            width=width,
-            height=height,
-            **kwargs,
-        )
-
-        from transformers.onnx.utils import get_preprocessor
-
-        preprocessor = get_preprocessor(normalized_config._name_or_path)
-        if preprocessor is not None and hasattr(preprocessor, "size"):
-            self.height = preprocessor.size.get("height", self.height)
-            self.width = preprocessor.size.get("width", self.width)
-
-    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        input_ = super().generate(
-            input_name=input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
-        )
-        return input_
+class Data2VecAudioOnnxConfig(AudioOnnxConfig):
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig
 
 
 class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
@@ -1541,6 +1639,17 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
             return {
                 "pixel_values": dynamic_axis,
             }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        outputs = super().outputs
+
+        if "logits" in outputs:
+            # default is {0: "batch_size", 1: "sequence_length"} where sequence_length is dynamic axis
+            # but perceiver always return the same max sequence length in the second dimension
+            outputs["logits"] = {0: "batch_size"}
+
+        return outputs
 
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         self.is_generating_dummy_inputs = True
@@ -1611,23 +1720,43 @@ class ASTOnnxConfig(OnnxConfig):
         return {"input_values": {0: "batch_size"}}
 
 
-# TODO: currently disabled because an operator seems not supported by ONNX.
-# class MCTCTDummyAudioInputGenerator(DummyAudioInputGenerator):
-#     def generate(self, input_name: str, framework: str = "pt"):
-#         shape = [self.batch_size, self.sequence_length, self.normalized_config.input_features_per_channel]
-#         if input_name == "input_features":
-#             return self.random_float_tensor(shape, min_value=-1, max_value=1, framework=framework)
-#         return super().generate(input_name, framework=framework)
-#
-#
-# class MCTCTOnnxConfig(OnnxConfig):
-#     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(input_features_per_channel="input_feat_per_channel", allow_new=True)
-#     DUMMY_INPUT_GENERATOR_CLASSES = (MCTCTDummyAudioInputGenerator,)
-#     DEFAULT_ONNX_OPSET = 13
-#
-#     @property
-#     def inputs(self) -> Dict[str, Dict[int, str]]:
-#         return {"input_features": {0: "batch_size", 1: "sequence_classification"}}
+class MCTCTOnnxConfig(OnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        input_features_per_channel="input_feat_per_channel", allow_new=True
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (MCTCTDummyAudioInputGenerator,)
+    DEFAULT_ONNX_OPSET = 13
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"input_features": {0: "batch_size", 1: "sequence_classification"}}
+
+
+class MoonshineOnnxConfig(AudioToTextOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
+
+    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::triu' to ONNX opset version 11 is not supported.
+    # Support for this operator was added in version 14, try exporting with this version.
+    DEFAULT_ONNX_OPSET = 14
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        common_inputs = {}
+
+        if self._behavior is not ConfigBehavior.DECODER:
+            common_inputs["input_values"] = {0: "batch_size", 1: "num_samples"}
+
+        if self._behavior is not ConfigBehavior.ENCODER:
+            if self.use_past_in_inputs:
+                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+                self.add_past_key_values(common_inputs, direction="inputs")
+            else:
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+
+        if self._behavior is ConfigBehavior.DECODER:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        return common_inputs
 
 
 class WhisperOnnxConfig(AudioToTextOnnxConfig):
@@ -1650,9 +1779,9 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
             if self._behavior is not ConfigBehavior.DECODER:
                 common_inputs["input_features"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
 
-            if self._behavior is not ConfigBehavior.ENCODER and self.use_past_in_inputs:
-                if check_if_transformers_greater("4.43.0"):
-                    # since https://github.com/huggingface/transformers/pull/31166
+            if is_transformers_version(">=", "4.43.0") and is_transformers_version("<", "4.46.0"):
+                # since https://github.com/huggingface/transformers/pull/31166
+                if self._behavior is not ConfigBehavior.ENCODER and self.use_past_in_inputs:
                     common_inputs["cache_position"] = {0: "decoder_sequence_length"}
 
             if self._behavior is ConfigBehavior.DECODER and not self.use_past_in_inputs:
@@ -1901,6 +2030,8 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
             decoder_with_past_path = Path(path, onnx_files_subpaths[3])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
             try:
+                from ...onnx import merge_decoders
+
                 # The decoder with past does not output the cross attention past key values as they are constant,
                 # hence the need for strict=False
                 merge_decoders(
@@ -2220,6 +2351,7 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
 
             if self.use_past_in_inputs:
                 self.add_past_key_values(common_inputs, direction="inputs")
+
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
@@ -2336,12 +2468,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # TODO : replace check_if_transformers_greater with is_transformers_available
-        if (
-            check_if_transformers_greater("4.46.0")
-            and not check_if_transformers_greater("4.46.1")
-            and self._behavior is ConfigBehavior.DECODER
-        ):
+        if is_transformers_version("==", "4.46.0") and self._behavior is ConfigBehavior.DECODER:
             logger.error(
                 "Found transformers v4.46.0 while trying to exporting a Pix2Struct model, this specific version of transformers is not supported. "
                 "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
@@ -2502,8 +2629,6 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
 
 
-
-
 class TimesFMDummyInputGenerator(DummyInputGenerator):
     SUPPORTED_INPUT_NAMES = ("inputs",)
     
@@ -2543,3 +2668,24 @@ class TimesFMOnnxConfig(OnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return super().outputs
+
+
+class PatchTSTOnnxConfig(OnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyPatchTSTInputGenerator,)
+    ATOL_FOR_VALIDATION = 1e-4
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"past_values": {0: "batch_size", 1: "sequence_length"}}
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "feature-extraction":
+            return {"last_hidden_state": {0: "batch_size"}}
+        else:
+            return super().outputs
+
+
+class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
+    pass

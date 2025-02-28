@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Un
 
 from transformers.utils import is_tf_available
 
-from ...onnx import merge_decoders
 from ...utils import (
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
@@ -36,6 +35,9 @@ from ...utils import (
 from .base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from .model_patcher import DecoderModelPatcher
+
+
+# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
 
 
 if TYPE_CHECKING:
@@ -129,6 +131,8 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
         # Attempt to merge only if the decoder-only was exported separately without/with past
         if self.use_past is True and len(models_and_onnx_configs) == 2:
+            from ...onnx import merge_decoders
+
             decoder_path = Path(path, onnx_files_subpaths[0])
             decoder_with_past_path = Path(path, onnx_files_subpaths[1])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")

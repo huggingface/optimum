@@ -14,6 +14,7 @@
 # limitations under the License.
 """Utility functions related to both local files and files on the Hugging Face Hub."""
 
+import os
 import re
 import warnings
 from pathlib import Path
@@ -21,11 +22,6 @@ from typing import List, Optional, Union
 
 import huggingface_hub
 from huggingface_hub import get_hf_file_metadata, hf_hub_url
-
-from ..utils import logging
-
-
-logger = logging.get_logger(__name__)
 
 
 def validate_file_exists(
@@ -91,17 +87,13 @@ def find_files_matching_pattern(
             raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
         token = use_auth_token
 
-    model_path = Path(model_name_or_path) if isinstance(model_name_or_path, str) else model_name_or_path
-    pattern = re.compile(f"{subfolder}/{pattern}" if subfolder != "" else pattern)
-    if model_path.is_dir():
-        path = model_path
-        files = model_path.glob(glob_pattern)
+    model_path = str(model_name_or_path) if isinstance(model_name_or_path, Path) else model_name_or_path
+    pattern = re.compile(subfolder + pattern)
+    if os.path.isdir(model_path):
+        files = Path(model_path).glob(glob_pattern)
         files = [p for p in files if re.search(pattern, str(p))]
     else:
-        path = model_name_or_path
-        repo_files = map(Path, huggingface_hub.list_repo_files(model_name_or_path, revision=revision, token=token))
-        if subfolder != "":
-            path = f"{path}/{subfolder}"
-        files = [Path(p) for p in repo_files if re.match(pattern, str(p))]
+        repo_files = huggingface_hub.list_repo_files(model_path, revision=revision, token=token)
+        files = [Path(p) for p in repo_files if re.match(pattern, p)]
 
     return files
