@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model specific ONNX configurations."""
-
+import math
 import random
 import warnings
 from pathlib import Path
@@ -2664,16 +2664,19 @@ class RTDetrOnnxConfig(ViTOnnxConfig):
         }
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
-        if kwargs["height"] < 320:
+        min_image_size = int(math.ceil(self._config.num_queries / 32) * 32)
+        if kwargs["height"] < min_image_size:
             warnings.warn(
-                f"Exporting model with image `height={kwargs['height']}` which is less than minimal 320, setting `height` to 320."
+                f"Exporting model with image `height={kwargs['height']}` which is less than "
+                f"minimal {min_image_size}, setting `height` to {min_image_size}."
             )
-            kwargs["height"] = 320
-        if kwargs["width"] < 320:
+            kwargs["height"] = min_image_size
+        if kwargs["width"] < min_image_size:
             warnings.warn(
-                f"Exporting model with image `width={kwargs['width']}` which is less than minimal 320, setting `width` to 320."
+                f"Exporting model with image `width={kwargs['width']}` which is less than "
+                f"minimal {min_image_size}, setting `width` to {min_image_size}."
             )
-            kwargs["width"] = 320
+            kwargs["width"] = min_image_size
         return super()._create_dummy_input_generator_classes(**kwargs)
 
 
