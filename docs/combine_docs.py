@@ -133,6 +133,31 @@ def add_tpu_doc(base_toc: List):
     )
 
 
+def add_executorch_doc(base_toc: List):
+    """
+    Extends the table of content with a section about Optimum ExecuTorch.
+
+    Args:
+        base_toc (List): table of content for the doc of Optimum.
+    """
+    # Update optimum table of contents
+    base_toc.insert(
+        SUBPACKAGE_TOC_INSERT_INDEX,
+        {
+            "sections": [
+                {
+                    # Ideally this should directly point at https://huggingface.co/docs/optimum-executorch/index
+                    # Current hacky solution is to have a redirection in _redirects.yml
+                    "local": "docs/optimum-executorch/index",
+                    "title": "🤗 Optimum ExecuTorch",
+                }
+            ],
+            "title": "ExecuTorch",
+            "isExpanded": False,
+        },
+    )
+
+
 def main():
     args = parser.parse_args()
     optimum_path = Path("optimum-doc-build")
@@ -153,6 +178,9 @@ def main():
             # At the moment, Optimum Nvidia's doc is the README of the GitHub repo
             # It is linked to in optimum/docs/source/nvidia_overview.mdx
             continue
+        elif subpackage == "executorch":
+            # Optimum ExecuTorch has its own doc so it is managed differently
+            add_executorch_doc(base_toc)
         else:
             subpackage_path = Path(f"{subpackage}-doc-build")
 
