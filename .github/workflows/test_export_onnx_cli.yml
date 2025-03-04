@@ -33,7 +33,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install .[tests,exporters,diffusers]
+          pip install .[tests,exporters] diffusers
 
       - name: Test with pytest
         run: |
