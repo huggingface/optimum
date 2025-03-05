@@ -218,6 +218,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
             "document-question-answering-with-past",
         ],
     },
+    "visual-bert": "hf-internal-testing/tiny-random-VisualBertModel",
 }
 
 # TODO: enable export slow tests
@@ -319,6 +320,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "speech-to-text": "codenamewei/speech-to-text",
     "xlm": "xlm-clm-ende-1024",
     "xlm-roberta": "Unbabel/xlm-roberta-comet-small",
+    "visual-bert": "uclanlp/visualbert-vqa-coco-pre",
 }
 
 TENSORFLOW_EXPORT_MODELS = {
