@@ -29,8 +29,8 @@ from .normalized_config import (
     NormalizedTextConfig,
     NormalizedVisionConfig,
 )
-
 from .save_utils import maybe_load_preprocessors
+
 
 if is_torch_available():
     import torch
