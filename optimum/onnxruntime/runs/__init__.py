@@ -4,9 +4,10 @@ from pathlib import Path
 
 from transformers import pipeline as _transformers_pipeline
 from transformers.onnx import FeaturesManager
-from transformers.onnx.utils import get_preprocessor
 
 from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+
+import pdb;pdb.set_trace()
 
 from ...pipelines import ORT_SUPPORTED_TASKS
 from ...pipelines import pipeline as _optimum_pipeline
@@ -15,6 +16,7 @@ from .. import ORTQuantizer
 from ..configuration import QuantizationConfig
 from ..modeling_ort import ORTModel
 from ..preprocessors import QuantizationPreprocessor
+from ...utils.save_utils import maybe_load_preprocessors
 from .calibrator import OnnxRuntimeCalibrator
 from .utils import task_ortmodel_map
 
@@ -43,9 +45,8 @@ class OnnxRuntimeRun(Run):
             onnx_model.export_feature, run_config["model_name_or_path"]
         )
         quantizer = ORTQuantizer.from_pretrained(onnx_model)
-
-        self.preprocessor = get_preprocessor(run_config["model_name_or_path"])
-
+        preprocessor = maybe_load_preprocessors(run_config["model_name_or_path"])
+        self.preprocessor = preprocessor[0] if preprocessor else None
         self.batch_sizes = run_config["batch_sizes"]
         self.input_lengths = run_config["input_lengths"]
 

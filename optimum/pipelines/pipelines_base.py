@@ -41,11 +41,11 @@ from transformers import (
 )
 from transformers import pipeline as transformers_pipeline
 from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
-from transformers.onnx.utils import get_preprocessor
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
 from transformers.pipelines import infer_framework_load_model
 
 from ..utils import is_onnxruntime_available, is_transformers_version
+from ..utils.save_utils import maybe_load_preprocessors
 
 
 if is_onnxruntime_available():
@@ -365,10 +365,12 @@ def pipeline(
         **kwargs,
     )
 
-    if tokenizer is None and load_tokenizer:
-        tokenizer = get_preprocessor(model_id)
-    if feature_extractor is None and load_feature_extractor:
-        feature_extractor = get_preprocessor(model_id)
+    if (tokenizer is None and load_tokenizer) or (feature_extractor is None and load_feature_extractor):
+        preprocessor = maybe_load_preprocessors(model_id)
+        if tokenizer is None and load_tokenizer:
+            tokenizer = preprocessor[0] if preprocessor else None
+        if feature_extractor is None and load_feature_extractor:
+            feature_extractor = preprocessor[-1] if preprocessor else None
 
     return transformers_pipeline(
         task,
