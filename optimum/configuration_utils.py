@@ -15,6 +15,12 @@
 """ Configuration base class. """
 
 
+from .utils.import_utils import TRANSFORMERS_VERSION_ERROR, _transformers_version, is_transformers_version
+
+
+if is_transformers_version("<", "4.36"):
+    raise RuntimeError(TRANSFORMERS_VERSION_ERROR.format("4.36"))
+
 import copy
 import json
 import os
@@ -23,29 +29,12 @@ import warnings
 from typing import Any, Dict, List, Tuple, Union
 
 from packaging import version
-
-from .utils import logging
-from .utils.import_utils import (
-    TRANSFORMERS_IMPORT_ERROR,
-    TRANSFORMERS_VERSION_ERROR,
-    _transformers_version,
-    is_transformers_available,
-    is_transformers_version,
-)
-from .version import __version__
-
-
-if not is_transformers_available():
-    raise RuntimeError(TRANSFORMERS_IMPORT_ERROR.format("optimum.configuration.BaseConfig"))
-
-
-if is_transformers_version("<", "4.36"):
-    raise RuntimeError(TRANSFORMERS_VERSION_ERROR.format("4.36"))
-
-
 from transformers import PretrainedConfig
 from transformers.dynamic_module_utils import custom_object_save
 from transformers.utils import cached_file, download_url, extract_commit_hash, is_remote_url
+
+from .utils import logging
+from .version import __version__
 
 
 logger = logging.get_logger(__name__)
