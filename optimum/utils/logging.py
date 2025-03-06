@@ -20,16 +20,6 @@ import os
 import sys
 import threading
 from functools import lru_cache
-from logging import (
-    CRITICAL,  # NOQA
-    DEBUG,  # NOQA
-    ERROR,  # NOQA
-    FATAL,  # NOQA
-    INFO,  # NOQA
-    NOTSET,  # NOQA
-    WARN,  # NOQA
-    WARNING,  # NOQA
-)
 from typing import TYPE_CHECKING, Optional
 
 
@@ -167,22 +157,22 @@ def set_verbosity(verbosity: int) -> None:
 
 def set_verbosity_info():
     """Set the verbosity to the :obj:`INFO` level."""
-    return set_verbosity(INFO)
+    return set_verbosity(logging.INFO)
 
 
 def set_verbosity_warning():
     """Set the verbosity to the :obj:`WARNING` level."""
-    return set_verbosity(WARNING)
+    return set_verbosity(logging.WARNING)
 
 
 def set_verbosity_debug():
     """Set the verbosity to the :obj:`DEBUG` level."""
-    return set_verbosity(DEBUG)
+    return set_verbosity(logging.DEBUG)
 
 
 def set_verbosity_error():
     """Set the verbosity to the :obj:`ERROR` level."""
-    return set_verbosity(ERROR)
+    return set_verbosity(logging.ERROR)
 
 
 def disable_default_handler() -> None:
