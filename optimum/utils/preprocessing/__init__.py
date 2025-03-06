@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ...utils.import_utils import is_transformers_available, TRANSFORMERS_IMPORT_ERROR
+from ...utils.import_utils import TRANSFORMERS_IMPORT_ERROR, is_transformers_available
+
 
 if not is_transformers_available():
     raise RuntimeError(TRANSFORMERS_IMPORT_ERROR.format("optimum.utils.preprocessing"))
