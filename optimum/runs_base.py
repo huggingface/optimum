@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING, Set
 import numpy as np
 import optuna
 import torch
-import transformers
 from tqdm import trange
 
 from . import version as optimum_version
+from .utils.import_utils import _transformers_version
 from .utils.preprocessing import (
     ImageClassificationProcessing,
     QuestionAnsweringProcessing,
@@ -98,7 +98,7 @@ class Run:
             "framework_args": run_config["framework_args"],
             "hardware": cpu_info,  # is this ok?
             "versions": {
-                "transformers": transformers.__version__,
+                "transformers": _transformers_version,
                 "optimum": optimum_version.__version__,
                 "optimum_hash": optimum_hash,
             },
