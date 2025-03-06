@@ -134,6 +134,7 @@ class ORTConfigManager:
         "marian": "bart",
         "mbart": "bart",
         "mistral": "gpt2",
+        "modernbert": "bert",
         "mpnet": "bert",
         "mt5": "bart",
         "m2m-100": "bart",
