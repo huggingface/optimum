@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import Preprocessor, TaskProcessor
+from .base import TaskProcessor
 from .image_classification import ImageClassificationProcessing
 from .question_answering import QuestionAnsweringProcessing
 from .task_processors_manager import TaskProcessorsManager
