@@ -18,7 +18,7 @@ import logging
 from pathlib import Path
 from typing import List, Union
 
-from transformers import AutoFeatureExtractor, AutoProcessor, AutoTokenizer
+from optimum.utils.import_utils import requires_backends
 
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,12 @@ logger = logging.getLogger(__name__)
 def maybe_load_preprocessors(
     src_name_or_path: Union[str, Path], subfolder: str = "", trust_remote_code: bool = False
 ) -> List:
+    requires_backends(maybe_load_preprocessors, ["transformers"])
+
+    from transformers import AutoFeatureExtractor, AutoProcessor, AutoTokenizer
+
     preprocessors = []
+
     try:
         preprocessors.append(
             AutoTokenizer.from_pretrained(src_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code)

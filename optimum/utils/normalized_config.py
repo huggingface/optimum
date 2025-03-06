@@ -15,9 +15,11 @@
 """Normalization configuration classes."""
 
 import functools
-from typing import Callable, Dict, Type, Union
+from typing import TYPE_CHECKING, Callable, Dict, Type, Union
 
-from transformers import PretrainedConfig
+
+if TYPE_CHECKING:
+    from transformers import PretrainedConfig
 
 
 class NormalizedConfig:
@@ -29,7 +31,7 @@ class NormalizedConfig:
             The config to normalize.
     """
 
-    def __init__(self, config: Union[PretrainedConfig, Dict], allow_new: bool = False, **kwargs):
+    def __init__(self, config: Union["PretrainedConfig", Dict], allow_new: bool = False, **kwargs):
         self.config = config
         for key, value in kwargs.items():
             if allow_new or hasattr(self, key.upper()):
@@ -40,7 +42,7 @@ class NormalizedConfig:
                 )
 
     @classmethod
-    def with_args(cls, allow_new: bool = False, **kwargs) -> Callable[[PretrainedConfig], "NormalizedConfig"]:
+    def with_args(cls, allow_new: bool = False, **kwargs) -> Callable[["PretrainedConfig"], "NormalizedConfig"]:
         return functools.partial(cls, allow_new=allow_new, **kwargs)
 
     def __getattr__(self, attr_name):

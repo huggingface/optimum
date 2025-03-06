@@ -30,6 +30,7 @@ from .normalized_config import (
     NormalizedVisionConfig,
 )
 
+from .save_utils import maybe_load_preprocessors
 
 if is_torch_available():
     import torch
@@ -1615,9 +1616,9 @@ class Dinov2DummyInputGenerator(DummyVisionInputGenerator):
             **kwargs,
         )
 
-        from transformers.onnx.utils import get_preprocessor
+        preprocessor = maybe_load_preprocessors(normalized_config._name_or_path)
+        preprocessor = preprocessor[0] if preprocessor else None
 
-        preprocessor = get_preprocessor(normalized_config._name_or_path)
         if preprocessor is not None and hasattr(preprocessor, "crop_size"):
             self.height = preprocessor.crop_size.get("height", self.height)
             self.width = preprocessor.crop_size.get("width", self.width)
@@ -1644,9 +1645,9 @@ class DummyVisionStaticInputGenerator(DummyVisionInputGenerator):
             **kwargs,
         )
 
-        from transformers.onnx.utils import get_preprocessor
+        preprocessor = maybe_load_preprocessors(normalized_config._name_or_path)
+        preprocessor = preprocessor[0] if preprocessor else None
 
-        preprocessor = get_preprocessor(normalized_config._name_or_path)
         if preprocessor is not None and hasattr(preprocessor, "size"):
             self.height = preprocessor.size.get("height", self.height)
             self.width = preprocessor.size.get("width", self.width)
