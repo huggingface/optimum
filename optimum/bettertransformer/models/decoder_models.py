@@ -29,10 +29,10 @@ from transformers.models.opt.modeling_opt import OPTAttention
 from transformers.models.pegasus.modeling_pegasus import PegasusAttention
 from transformers.models.t5.modeling_t5 import T5Attention
 
-from ...utils.import_utils import check_if_transformers_greater
+from ...utils.import_utils import is_transformers_version
 
 
-if check_if_transformers_greater("4.31"):
+if is_transformers_version(">=", "4.31"):
     from transformers.models.bark.modeling_bark import BarkSelfAttention
 else:
     from ...utils.dummy_bettertransformer_objects import BarkSelfAttention

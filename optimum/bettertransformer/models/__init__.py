@@ -13,7 +13,6 @@
 # limitations under the License.
 import warnings
 
-from ...utils.import_utils import check_if_transformers_greater
 from .decoder_models import (
     BarkAttentionLayerBetterTransformer,
     BartAttentionLayerBetterTransformer,
