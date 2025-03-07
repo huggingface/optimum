@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ...utils.import_utils import TRANSFORMERS_IMPORT_ERROR, is_transformers_available
+from ...utils.import_utils import TRANSFORMERS_VERSION_ERROR, is_transformers_version
 
 
-if not is_transformers_available():
-    raise RuntimeError(TRANSFORMERS_IMPORT_ERROR.format("optimum.utils.preprocessing"))
+if is_transformers_version("<", "4.36"):
+    raise RuntimeError(TRANSFORMERS_VERSION_ERROR.format("4.36"))
 
 
 from .base import TaskProcessor
