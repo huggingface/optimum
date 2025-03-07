@@ -13,7 +13,6 @@ except Exception as error:
 
 
 REQUIRED_PKGS = [
-    "transformers>=4.29",
     "torch>=1.11",
     "packaging",
     "numpy",

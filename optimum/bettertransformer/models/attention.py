@@ -17,7 +17,7 @@ from typing import Optional, Tuple
 import torch
 import torch.nn.functional as F
 
-from ...utils import check_if_transformers_greater
+from ...utils import is_transformers_version
 
 
 # TODO (CRITICAL): Layer-wise attention scaling is broken for several archs.
@@ -132,7 +132,7 @@ def gptj_wrapped_scaled_dot_product(
         # causal_mask is always [True, ..., True] otherwise, so executing this
         # is unnecessary
         if query_length > 1:
-            if not check_if_transformers_greater("4.44.99"):
+            if not is_transformers_version(">=", "4.44.99"):
                 causal_mask = self.bias[:, :, key_length - query_length : key_length, :key_length].to(torch.bool)
 
                 causal_mask = torch.where(causal_mask, 0, mask_value)
@@ -272,7 +272,7 @@ def codegen_wrapped_scaled_dot_product(
         # causal_mask is always [True, ..., True] otherwise, so executing this
         # is unnecessary
         if query_length > 1:
-            if not check_if_transformers_greater("4.44.99"):
+            if not is_transformers_version(">=", "4.44.99"):
                 causal_mask = self.causal_mask[:, :, key_length - query_length : key_length, :key_length].to(
                     torch.bool
                 )
@@ -387,7 +387,7 @@ def opt_forward(
 
 
 # Adapted from transformers.models.t5.modeling_t5.T5Attention.forward
-if check_if_transformers_greater("4.45.99"):
+if is_transformers_version(">=", "4.45.99"):
 
     def t5_forward(
         self,
@@ -713,7 +713,7 @@ def bart_forward(
     return attn_output, None, past_key_value
 
 
-if check_if_transformers_greater("4.44"):
+if is_transformers_version(">=", "4.44"):
     from transformers.cache_utils import Cache
     from transformers.models.bloom.modeling_bloom import dropout_add
 
