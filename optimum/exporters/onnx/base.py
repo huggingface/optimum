@@ -49,7 +49,7 @@ from ...utils.import_utils import (
 )
 from ..base import ExportConfig
 from .constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
-from .model_patcher import DecoderModelPatcher, Seq2SeqModelPatcher
+from .model_patcher import DecoderModelPatcher, ModelPatcher, Seq2SeqModelPatcher
 
 
 # TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
@@ -100,12 +100,14 @@ GENERATE_DUMMY_DOCSTRING = r"""
 """
 
 
-class OnnxConfig(ExportConfig):
+class OnnxConfig(ExportConfig, ABC):
     DEFAULT_ONNX_OPSET = 11
     VARIANTS = {"default": "The default ONNX variant."}
     DEFAULT_VARIANT = "default"
     # TODO: move PATCHING_SPECS to ExportConfig
     PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
+    _MODEL_PATCHER = ModelPatcher
+
     _TASK_TO_COMMON_OUTPUTS = {
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
@@ -424,6 +426,11 @@ class OnnxConfig(ExportConfig):
                 )
 
         return models_and_onnx_configs, onnx_files_subpaths
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> ModelPatcher:
+        return self._MODEL_PATCHER(self, model, model_kwargs=model_kwargs)
 
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
