@@ -18,18 +18,18 @@ jobs:
       fail-fast: false
       matrix:
         transformers-version: ["latest"]
-        os: [ubuntu-20.04, windows-2019] # TODO : add macos-15 after mps fix
+        os: [ubuntu-22.04, windows-2019] # TODO : add macos-15 after mps fix
         include:
           - transformers-version: "4.36.*"
-            os: ubuntu-20.04
+            os: ubuntu-22.04
           - transformers-version: "4.45.*"
-            os: ubuntu-20.04
+            os: ubuntu-22.04
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Free Disk Space (Ubuntu)
-        if: matrix.os == 'ubuntu-20.04'
+        if: matrix.os == 'ubuntu-22.04'
         uses: jlumbroso/free-disk-space@main
 
       - name: Checkout code

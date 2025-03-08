@@ -213,7 +213,7 @@ class BetterTransformer(object):
         """
 
         logger.warning(
-            "The class `optimum.bettertransformers.transformation.BetterTransformer` is deprecated and will be removed in a future release."
+            "The class `optimum.bettertransformers.transformation.BetterTransformer` is deprecated and will be removed in optimum v2.0."
         )
 
         hf_config = model.config

@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model specific ONNX configurations."""
-
+import math
 import random
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
 
@@ -2647,4 +2648,37 @@ class PatchTSTOnnxConfig(OnnxConfig):
 
 
 class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
+    pass
+
+
+class RTDetrOnnxConfig(ViTOnnxConfig):
+    # Export the operator 'aten::grid_sampler' to ONNX fails under opset 16.
+    # Support for this operator was added in version 16.
+    DEFAULT_ONNX_OPSET = 16
+    ATOL_FOR_VALIDATION = 1e-5
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "pixel_values": {0: "batch_size", 2: "height", 3: "width"},
+        }
+
+    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+        min_image_size = int(math.ceil(self._config.num_queries / 32) * 32)
+        if kwargs["height"] < min_image_size:
+            warnings.warn(
+                f"Exporting model with image `height={kwargs['height']}` which is less than "
+                f"minimal {min_image_size}, setting `height` to {min_image_size}."
+            )
+            kwargs["height"] = min_image_size
+        if kwargs["width"] < min_image_size:
+            warnings.warn(
+                f"Exporting model with image `width={kwargs['width']}` which is less than "
+                f"minimal {min_image_size}, setting `width` to {min_image_size}."
+            )
+            kwargs["width"] = min_image_size
+        return super()._create_dummy_input_generator_classes(**kwargs)
+
+
+class RTDetrV2OnnxConfig(RTDetrOnnxConfig):
     pass
