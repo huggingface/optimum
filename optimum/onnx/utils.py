@@ -84,7 +84,7 @@ def _get_model_external_data_paths(model_path: Path) -> List[Path]:
         for tensor in model_tensors
         if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
     ]
-    return [model_path.parent / tensor_name for tensor_name in model_tensors_ext]
+    return list(dict.fromkeys([model_path.parent / tensor_name for tensor_name in model_tensors_ext]))
 
 
 def check_model_uses_external_data(model: onnx.ModelProto) -> bool:
