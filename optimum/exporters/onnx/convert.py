@@ -472,6 +472,7 @@ def export_pytorch(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
+    dynamo: bool = True,
 ) -> Tuple[List[str], List[str]]:
     """
     Exports a PyTorch model to an ONNX Intermediate Representation.
@@ -499,6 +500,7 @@ def export_pytorch(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
+        dynamo (bool, default to `True`): use the dynamo based onnx exporter
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
@@ -548,9 +550,7 @@ def export_pytorch(
 
         dummy_inputs = config.rename_ambiguous_inputs(dummy_inputs)
 
-        with config.patch_model_for_export(model, model_kwargs=model_kwargs):
-            check_dummy_inputs_are_allowed(model, dummy_inputs)
-
+        if dynamo:
             inputs = config.ordered_inputs(model)
             input_names = list(inputs.keys())
             output_names = list(config.outputs.keys())
@@ -560,8 +560,6 @@ def export_pytorch(
             else:
                 dynamix_axes = dict(chain(inputs.items(), config.outputs.items()))
 
-            # Export can work with named args but the dict containing named args has to be the last element of the args
-            # tuple.
             onnx_export(
                 model,
                 (dummy_inputs,),
@@ -573,6 +571,32 @@ def export_pytorch(
                 opset_version=opset,
                 dynamo=True,
             )
+
+        else:
+            with config.patch_model_for_export(model, model_kwargs=model_kwargs):
+                check_dummy_inputs_are_allowed(model, dummy_inputs)
+
+                inputs = config.ordered_inputs(model)
+                input_names = list(inputs.keys())
+                output_names = list(config.outputs.keys())
+
+                if no_dynamic_axes:
+                    dynamix_axes = None
+                else:
+                    dynamix_axes = dict(chain(inputs.items(), config.outputs.items()))
+
+                # Export can work with named args but the dict containing named args has to be the last element of the args
+                # tuple.
+                onnx_export(
+                    model,
+                    (dummy_inputs,),
+                    f=output.as_posix(),
+                    input_names=input_names,
+                    output_names=output_names,
+                    dynamic_axes=dynamix_axes,
+                    do_constant_folding=do_constant_folding,
+                    opset_version=opset,
+                )
 
         # check if external data was exported
         # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
@@ -605,8 +629,12 @@ def export_pytorch(
             )
 
             # delete previous external data
+            # This step is not necessary with the dynamo based exporter
+            # as it saves all tensors in a single file.
             for tensor in tensors_paths:
-                os.remove(output.parent / tensor)
+                tensor_name = output.parent / tensor
+                if os.path.exists(tensor_name):
+                    os.remove(tensor_name)
 
             for tensor in constant_paths:
                 if os.path.isfile(output.parent / tensor):
