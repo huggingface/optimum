@@ -139,7 +139,11 @@ def _get_submodels_for_export_diffusion(
         # https://github.com/huggingface/diffusers/blob/v0.18.2/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl_img2img.py#L571
         unet.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
         unet.config.time_cond_proj_dim = getattr(pipeline.unet.config, "time_cond_proj_dim", None)
-        unet.config.text_encoder_projection_dim = pipeline.text_encoder.config.projection_dim
+        unet.config.text_encoder_projection_dim = (
+            pipeline.text_encoder.config.projection_dim
+            if not is_sdxl
+            else pipeline.text_encoder_2.config.projection_dim
+        )
         unet.config.export_model_type = _get_diffusers_submodel_type(unet)
         models_for_export["unet"] = unet
 
@@ -700,3 +704,15 @@ def check_dummy_inputs_are_allowed(
         raise ValueError(
             f"Config dummy inputs are not a subset of the model inputs: {dummy_input_names} vs {forward_inputs_set}"
         )
+
+
+class DisableCompileContextManager:
+    def __init__(self):
+        self._original_compile = torch.compile
+
+    def __enter__(self):
+        # Turn torch.compile into a no-op
+        torch.compile = lambda *args, **kwargs: lambda x: x
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        torch.compile = self._original_compile

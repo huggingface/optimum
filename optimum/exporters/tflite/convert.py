@@ -194,7 +194,7 @@ def prepare_converter_for_quantization(
         if task is None:
             from ...exporters import TasksManager
 
-            task = TasksManager.infer_task_from_model(model)
+            task = TasksManager.infer_task_from_model(model, library_name="transformers")
 
         preprocessor_kwargs = {}
         if isinstance(preprocessor, PreTrainedTokenizerBase):

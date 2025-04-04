@@ -77,6 +77,11 @@ class NormalizedConfig:
         return True
 
 
+class NormalizedTimeSeriesForecastingConfig(NormalizedConfig):
+    NUM_INPUT_CHANNELS = "num_input_channels"
+    CONTEXT_LENGTH = "context_length"
+
+
 class NormalizedTextConfig(NormalizedConfig):
     VOCAB_SIZE = "vocab_size"
     HIDDEN_SIZE = "hidden_size"
@@ -229,8 +234,8 @@ class NormalizedConfigManager:
         "albert": NormalizedTextConfig,
         "bart": BartLikeNormalizedTextConfig,
         "bert": NormalizedTextConfig,
-        # "big_bird": NormalizedTextConfig,
-        # "bigbird_pegasus": BartLikeNormalizedTextConfig,
+        "big-bird": NormalizedTextConfig,
+        "bigbird-pegasus": BartLikeNormalizedTextConfig,
         "blenderbot": BartLikeNormalizedTextConfig,
         "blenderbot-small": BartLikeNormalizedTextConfig,
         "bloom": NormalizedTextConfig.with_args(num_layers="n_layer"),
