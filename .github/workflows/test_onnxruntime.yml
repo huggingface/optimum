@@ -12,6 +12,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+env:
+  IS_TRANSFORMERS_CI: 1
+
 jobs:
   build:
     strategy:
