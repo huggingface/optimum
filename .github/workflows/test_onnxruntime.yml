@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IS_TRANSFORMERS_CI: 1
+  TRANSFORMERS_IS_CI: true
 
 jobs:
   build:
