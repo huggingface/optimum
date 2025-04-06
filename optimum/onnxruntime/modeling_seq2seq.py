@@ -74,8 +74,6 @@ if is_transformers_version(">=", "4.43.0"):
 else:
     EncoderDecoderCache = dict
 
-from huggingface_hub.utils import EntryNotFoundError
-
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
