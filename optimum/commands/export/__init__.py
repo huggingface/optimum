@@ -14,6 +14,5 @@
 
 
 from .base import ExportCommand
-from .executorch import ExecuTorchExportCommand
 from .onnx import ONNXExportCommand
 from .tflite import TFLiteExportCommand
