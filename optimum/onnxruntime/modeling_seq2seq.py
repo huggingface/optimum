@@ -906,8 +906,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                         force_download=force_download,
                         local_files_only=local_files_only,
                     )
-                except EntryNotFoundError:
-                    # model doesn't use external data
+                except EnvironmentError:
+                    # If the external data file is not found, we assume that the model is not using external data.
                     pass
 
                 paths[attr_name] = Path(model_cache_path).name
