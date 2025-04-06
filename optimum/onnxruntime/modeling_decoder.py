@@ -26,6 +26,7 @@ from onnx.tools import update_model_dims
 from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithPast
+from transformers.utils.hub import cached_file
 
 import onnxruntime
 
@@ -493,17 +494,35 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     f"{cls.__name__} might not behave as expected."
                 )
 
-        model_cache_path, preprocessors = cls._cached_file(
-            model_path=model_path,
+        model_cache_path = cached_file(
+            model_path,
+            filename=file_name,
+            # hub options
             token=token,
             revision=revision,
-            force_download=force_download,
-            cache_dir=cache_dir,
-            file_name=file_name,
             subfolder=subfolder,
+            cache_dir=cache_dir,
+            force_download=force_download,
             local_files_only=local_files_only,
         )
-        new_model_save_dir = model_cache_path.parent
+        new_model_save_dir = Path(model_cache_path).parent
+
+        try:
+            cached_file(
+                model_path,
+                filename=file_name + "_data",
+                # hub options
+                token=token,
+                revision=revision,
+                subfolder=subfolder,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                local_files_only=local_files_only,
+            )
+        except Exception as e:
+            # If the external data file is not found, we assume that the model is not using external data.
+            print(e)
+            pass
 
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
         # instead of the path only.
@@ -611,7 +630,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             config=config,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
-            preprocessors=preprocessors,
             use_cache=use_cache,
             generation_config=generation_config,
         )

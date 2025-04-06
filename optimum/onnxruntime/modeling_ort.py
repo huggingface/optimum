@@ -58,6 +58,7 @@ from transformers.modeling_outputs import (
     TokenClassifierOutput,
     XVectorOutput,
 )
+from transformers.utils.hub import cached_file
 
 import onnxruntime as ort
 
@@ -66,7 +67,7 @@ from ..exporters.onnx import main_export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from ..onnx.utils import _get_external_data_paths
 from ..utils.file_utils import find_files_matching_pattern
-from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
+from ..utils.save_utils import maybe_save_preprocessors
 from .io_binding import IOBindingHelper, TypeHelper
 from .utils import (
     ONNX_WEIGHTS_NAME,
@@ -535,17 +536,35 @@ class ORTModel(OptimizedModel):
                 "not behave as expected."
             )
 
-        model_cache_path, preprocessors = cls._cached_file(
-            model_path=model_path,
+        model_cache_path = cached_file(
+            model_path,
+            filename=file_name,
+            # hub options
             token=token,
             revision=revision,
-            force_download=force_download,
-            cache_dir=cache_dir,
-            file_name=file_name,
             subfolder=subfolder,
+            cache_dir=cache_dir,
+            force_download=force_download,
             local_files_only=local_files_only,
         )
-        new_model_save_dir = model_cache_path.parent
+        new_model_save_dir = Path(model_cache_path).parent
+
+        try:
+            cached_file(
+                model_path,
+                filename=file_name + "_data",
+                # hub options
+                token=token,
+                revision=revision,
+                subfolder=subfolder,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                local_files_only=local_files_only,
+            )
+        except Exception as e:
+            # If the external data file is not found, we assume that the model is not using external data.
+            print(e)
+            pass
 
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
         # instead of the path only.
@@ -564,7 +583,6 @@ class ORTModel(OptimizedModel):
             config=config,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
-            preprocessors=preprocessors,
         )
 
     @classmethod
@@ -958,64 +976,6 @@ class ORTModel(OptimizedModel):
                 model_outputs[output_name] = torch.from_numpy(model_outputs[output_name]).to(self.device)
 
         return model_outputs
-
-    @staticmethod
-    def _cached_file(
-        model_path: Union[Path, str],
-        use_auth_token: Optional[Union[bool, str]] = None,
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        file_name: Optional[str] = None,
-        subfolder: str = "",
-        local_files_only: bool = False,
-    ):
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
-        model_path = Path(model_path)
-        # locates a file in a local folder and repo, downloads and cache it if necessary.
-        if model_path.is_dir():
-            model_cache_path = model_path / subfolder / file_name
-            preprocessors = maybe_load_preprocessors(model_path.as_posix())
-        else:
-            model_cache_path = hf_hub_download(
-                repo_id=model_path.as_posix(),
-                filename=file_name,
-                subfolder=subfolder,
-                token=token,
-                revision=revision,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                local_files_only=local_files_only,
-            )
-            # try download external data
-            try:
-                hf_hub_download(
-                    repo_id=model_path.as_posix(),
-                    subfolder=subfolder,
-                    filename=file_name + "_data",
-                    token=token,
-                    revision=revision,
-                    cache_dir=cache_dir,
-                    force_download=force_download,
-                    local_files_only=local_files_only,
-                )
-            except EntryNotFoundError:
-                # model doesn't use external data
-                pass
-
-            model_cache_path = Path(model_cache_path)
-            preprocessors = maybe_load_preprocessors(model_path.as_posix(), subfolder=subfolder)
-
-        return model_cache_path, preprocessors
 
     def can_generate(self) -> bool:
         """
