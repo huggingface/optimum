@@ -509,9 +509,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 force_download=force_download,
                 local_files_only=local_files_only,
             )
-        except Exception as e:
+        except EnvironmentError:
             # If the external data file is not found, we assume that the model is not using external data.
-            print(e)
             pass
 
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
