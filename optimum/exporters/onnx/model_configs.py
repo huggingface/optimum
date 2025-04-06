@@ -1346,21 +1346,26 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        down_block_types="down_block_types",
         num_channels="in_channels",
-        image_size="sample_size",
         allow_new=True,
     )
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "sample": {0: "batch_size", 2: "height", 3: "width"},
+            "sample": {0: "batch_size", 2: "sample_height", 3: "sample_width"},
         }
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
+        down_sampling_factor = 2 ** (len(self._normalized_config.down_block_types) - 1)
         return {
-            "latent_parameters": {0: "batch_size", 2: "height_latent", 3: "width_latent"},
+            "latent_parameters": {
+                0: "batch_size",
+                2: f"sample_height / {down_sampling_factor}",
+                3: f"sample_width / {down_sampling_factor}",
+            },
         }
 
 
@@ -1371,6 +1376,7 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        up_block_types="up_block_types",
         num_channels="latent_channels",
         allow_new=True,
     )
@@ -1378,13 +1384,19 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "latent_sample": {0: "batch_size", 2: "height_latent", 3: "width_latent"},
+            "latent_sample": {0: "batch_size", 2: "latent_height", 3: "latent_width"},
         }
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
+        upsampling_factor = 2 ** (len(self._normalized_config.up_block_types) - 1)
+
         return {
-            "sample": {0: "batch_size", 2: "height", 3: "width"},
+            "sample": {
+                0: "batch_size",
+                2: f"latent_height * {upsampling_factor}",
+                3: f"latent_width * {upsampling_factor}",
+            },
         }
 
 
