@@ -32,7 +32,6 @@ TESTS_REQUIRE = [
     "sacremoses",
     "torchvision",
     "torchaudio",
-    "diffusers",
     "einops",
     "timm",
     "scikit-learn",
