@@ -47,7 +47,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-          pip install .[tests,onnxruntime-gpu,diffusers]
+          pip install .[tests,onnxruntime-gpu] diffusers
 
       - name: Test with pytest
         run: |
