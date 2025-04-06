@@ -522,18 +522,20 @@ class ORTModel(OptimizedModel):
         if isinstance(subfolder, Path):
             subfolder = subfolder.as_posix()
 
-        model_cache_path = cached_file(
-            model_id,
-            filename=file_name,
-            # hub options
-            token=token,
-            revision=revision,
-            subfolder=subfolder,
-            cache_dir=cache_dir,
-            force_download=force_download,
-            local_files_only=local_files_only,
+        model_cache_path = Path(
+            cached_file(
+                model_id,
+                filename=file_name,
+                # hub options
+                token=token,
+                revision=revision,
+                subfolder=subfolder,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                local_files_only=local_files_only,
+            )
         )
-        new_model_save_dir = Path(model_cache_path).parent
+        new_model_save_dir = model_cache_path.parent
 
         try:
             cached_file(
