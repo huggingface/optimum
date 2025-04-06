@@ -195,8 +195,36 @@ def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None):
     return result
 
 
+original_linal_norm = torch.linalg.norm
+
+
+# Custom implementation of torch.linalg.matrix_norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
+def onnx_compatible_linalg_norm(x, ord=2, dim=None, keepdim=False, *, dtype=None, out=None) -> torch.Tensor:
+    """
+    Custom implementation of torch.linalg.norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
+    It only handles the case of matrix norm with ord=2, otherwise it uses the original implementation.
+    """
+    if ord != 2:
+        return original_linal_norm(x, ord=ord, dim=dim, keepdim=keepdim, dtype=dtype, out=out)
+
+    if dim is None:
+        dim = tuple(range(x.dim()))
+
+    # Compute the Frobenius norm
+    norm = torch.sqrt(torch.sum(torch.square(x), dim=dim, keepdim=keepdim))
+
+    if dtype is not None:
+        norm = norm.to(dtype)
+
+    if out is not None:
+        out.copy_(norm)
+
+    return norm
+
+
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold),
+    PatchingSpec(torch.linalg, "norm", onnx_compatible_linalg_norm, original_linal_norm),
     PatchingSpec(torch.Tensor, "repeat_interleave", onnx_compatible_repeat_interleave, torch.Tensor.repeat_interleave),
     # TracerWarning: Using len to get tensor shape might cause the trace to be incorrect. Recommended usage would be tensor.shape[0]. Passing a tensor of different shape might lead to errors or silently give incorrect results.
     PatchingSpec(torch.Tensor, "__len__", lambda x: x.shape[0], torch.Tensor.__len__),
