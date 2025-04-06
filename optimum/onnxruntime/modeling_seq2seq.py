@@ -24,7 +24,6 @@ from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import torch
-from huggingface_hub import hf_hub_download
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import (
     AutoModelForSeq2SeqLM,
@@ -37,6 +36,7 @@ from transformers import (
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
+from transformers.utils.hub import cached_file
 
 import onnxruntime as ort
 
@@ -44,7 +44,7 @@ from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
 from ..utils import is_transformers_version
 from ..utils.file_utils import validate_file_exists
-from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
+from ..utils.save_utils import maybe_save_preprocessors
 from .base import ORTDecoderForSeq2Seq, ORTEncoder
 from .constants import (
     DECODER_MERGED_ONNX_FILE_PATTERN,
@@ -868,10 +868,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 "ORTModelForConditionalGeneration might not behave as expected."
             )
 
-        preprocessors = None
         if model_path.is_dir():
             new_model_save_dir = model_path
-            preprocessors = maybe_load_preprocessors(model_id)
         else:
             attribute_name_to_filename = {
                 "last_encoder_model_name": encoder_path.name,
@@ -885,20 +883,21 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             for attr_name, filename in attribute_name_to_filename.items():
                 if filename is None:
                     continue
-                model_cache_path = hf_hub_download(
-                    repo_id=model_id,
-                    subfolder=subfolder,
-                    filename=filename,
-                    token=token,
-                    revision=revision,
-                    cache_dir=cache_dir,
-                    force_download=force_download,
-                    local_files_only=local_files_only,
+                model_cache_path = Path(
+                    cached_file(
+                        model_id,
+                        filename=filename,
+                        subfolder=subfolder,
+                        revision=revision,
+                        cache_dir=cache_dir,
+                        force_download=force_download,
+                        local_files_only=local_files_only,
+                    )
                 )
                 # try download external data
                 try:
-                    hf_hub_download(
-                        repo_id=model_id,
+                    cached_file(
+                        model_id,
                         subfolder=subfolder,
                         filename=filename + "_data",
                         token=token,
@@ -913,7 +912,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
                 paths[attr_name] = Path(model_cache_path).name
             new_model_save_dir = Path(model_cache_path).parent
-            preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)
 
             if use_merged is True:
                 decoder_path = new_model_save_dir / paths["last_decoder_merged_name"]
@@ -971,7 +969,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             decoder_with_past_session=ort_inference_sessions[2],
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
-            preprocessors=preprocessors,
             generation_config=generation_config,
         )
 
