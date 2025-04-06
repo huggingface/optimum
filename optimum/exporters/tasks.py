@@ -329,6 +329,7 @@ class TasksManager:
         ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
         # VisionEncoderDecoderModel is not registered in AutoModelForDocumentQuestionAnswering
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
+        ("pt", "vitpose", "keypoint-detection"): ("transformers", "VitPoseForPoseEstimation"),
     }
 
     _ENCODER_DECODER_TASKS = (
@@ -903,6 +904,13 @@ class TasksManager:
             "token-classification",
             onnx="ModernBertOnnxConfig",
         ),
+        "moonshine": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "automatic-speech-recognition",
+            "automatic-speech-recognition-with-past",
+            onnx="MoonshineOnnxConfig",
+        ),
         "mpnet": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -1096,6 +1104,14 @@ class TasksManager:
             onnx="RoFormerOnnxConfig",
             tflite="RoFormerTFLiteConfig",
         ),
+        "rt-detr": supported_tasks_mapping(
+            "object-detection",
+            onnx="RTDetrOnnxConfig",
+        ),
+        "rt-detr-v2": supported_tasks_mapping(
+            "object-detection",
+            onnx="RTDetrV2OnnxConfig",
+        ),
         "sam": supported_tasks_mapping(
             "feature-extraction",
             onnx="SamOnnxConfig",
@@ -1234,6 +1250,7 @@ class TasksManager:
             "image-classification",
             onnx="VitMSNOnnxConfig",
         ),
+        "vitpose": supported_tasks_mapping("keypoint-detection", onnx="VitPoseOnnxConfig"),
         "vits": supported_tasks_mapping(
             "text-to-audio",
             onnx="VitsOnnxConfig",
@@ -2067,7 +2084,11 @@ class TasksManager:
         return library_name
 
     @classmethod
-    def standardize_model_attributes(cls, model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"]):
+    def standardize_model_attributes(
+        cls,
+        model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
+        library_name: Optional[str] = None,
+    ):
         """
         Updates the model for export. This function is suitable to make required changes to the models from different
         libraries to follow transformers style.
@@ -2078,7 +2099,8 @@ class TasksManager:
 
         """
 
-        library_name = TasksManager.infer_library_from_model(model)
+        if library_name is None:
+            library_name = TasksManager.infer_library_from_model(model)
 
         if library_name == "diffusers":
             inferred_model_type = None
@@ -2295,7 +2317,7 @@ class TasksManager:
                     kwargs["from_pt"] = True
                     model = model_class.from_pretrained(model_name_or_path, **kwargs)
 
-        TasksManager.standardize_model_attributes(model)
+        TasksManager.standardize_model_attributes(model, library_name=library_name)
 
         return model
 

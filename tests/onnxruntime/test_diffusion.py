@@ -113,7 +113,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     @require_diffusers
     def test_load_vanilla_model_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["bert"], export=True)
+            _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["bert"])
 
         self.assertIn(
             f"does not appear to have a file named {self.ORTMODEL_CLASS.config_name}", str(context.exception)
@@ -138,10 +138,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
-        model_args = {"test_name": model_arch, "model_arch": model_arch}
-        self._setup(model_args)
-
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
         for batch_size in [1, 3]:
             for height in [16, 32]:
@@ -402,7 +399,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
     @require_diffusers
     def test_load_vanilla_model_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["bert"], export=True)
+            _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["bert"])
 
         self.assertIn(
             f"does not appear to have a file named {self.ORTMODEL_CLASS.config_name}", str(context.exception)
@@ -422,10 +419,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
-        model_args = {"test_name": model_arch, "model_arch": model_arch}
-        self._setup(model_args)
-
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
         for batch_size in [1, 3]:
             for height in [16, 32]:
@@ -671,7 +665,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
     @require_diffusers
     def test_load_vanilla_model_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
-            _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["bert"], export=True)
+            _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["bert"])
 
         self.assertIn(
             f"does not appear to have a file named {self.ORTMODEL_CLASS.config_name}", str(context.exception)
@@ -691,10 +685,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
-        model_args = {"test_name": model_arch, "model_arch": model_arch}
-        self._setup(model_args)
-
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
         for batch_size in [1, 3]:
             for height in [16, 32]:

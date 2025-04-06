@@ -45,9 +45,7 @@ from transformers.onnx.utils import get_preprocessor
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
 from transformers.pipelines import infer_framework_load_model
 
-from ..bettertransformer import BetterTransformer
 from ..utils import is_onnxruntime_available, is_transformers_version
-from ..utils.file_utils import find_files_matching_pattern
 
 
 if is_onnxruntime_available():
@@ -186,6 +184,8 @@ def load_bettertransformer(
     hub_kwargs: Optional[Dict] = None,
     **kwargs,
 ):
+    from ..bettertransformer import BetterTransformer
+
     if model_kwargs is None:
         # the argument was first introduced in 4.36.0 but most models didn't have an sdpa implementation then
         # see https://github.com/huggingface/transformers/blob/v4.36.0/src/transformers/modeling_utils.py#L1258
@@ -244,26 +244,9 @@ def load_ort_pipeline(
         model_id = SUPPORTED_TASKS[targeted_task]["default"]
         model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, export=True)
     elif isinstance(model, str):
-        from ..onnxruntime.modeling_seq2seq import ENCODER_ONNX_FILE_PATTERN, ORTModelForConditionalGeneration
-
-        model_id = model
-        ort_model_class = SUPPORTED_TASKS[targeted_task]["class"][0]
-
-        if issubclass(ort_model_class, ORTModelForConditionalGeneration):
-            pattern = ENCODER_ONNX_FILE_PATTERN
-        else:
-            pattern = ".+?.onnx"
-
-        onnx_files = find_files_matching_pattern(
-            model,
-            pattern,
-            glob_pattern="**/*.onnx",
-            subfolder=subfolder,
-            token=token,
-            revision=revision,
+        model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(
+            model, revision=revision, subfolder=subfolder, token=token, **model_kwargs
         )
-        export = len(onnx_files) == 0
-        model = ort_model_class.from_pretrained(model, export=export, **model_kwargs)
     elif isinstance(model, ORTModel):
         if tokenizer is None and load_tokenizer:
             for preprocessor in model.preprocessors:

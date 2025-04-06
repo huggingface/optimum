@@ -45,7 +45,7 @@ Sometimes you can directly load your model on your GPU devices using `accelerate
 
 ## Step 2: Set your model on your preferred device
 
-If you did not used `device_map="auto"` to load your model (or if your model does not support `device_map="auto"`), you can manually set your model to a GPU:
+If you did not use `device_map="auto"` to load your model (or if your model does not support `device_map="auto"`), you can manually set your model to a GPU:
 ```python
 >>> model = model.to(0) # or model.to("cuda:0")
 ```
@@ -92,7 +92,7 @@ You can also use `transformers.pipeline` as usual and pass the converted model d
 >>> ...
 ```
 
-Please refer to the [official documentation of `pipeline`](https://huggingface.co/docs/transformers/main_classes/pipelines) for further usage. If you face into any issue, do not hesitate to open an isse on GitHub!
+Please refer to the [official documentation of `pipeline`](https://huggingface.co/docs/transformers/main_classes/pipelines) for further usage. If you run into any issue, do not hesitate to open an issue on GitHub!
 
 ## Training compatibility
 

@@ -55,7 +55,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
     @pytest.mark.run_slow
     @slow
     def test_compare_to_timm(self, model_id):
-        onnx_model = ORTModelForImageClassification.from_pretrained(model_id, export=True)
+        onnx_model = ORTModelForImageClassification.from_pretrained(model_id)
         self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 

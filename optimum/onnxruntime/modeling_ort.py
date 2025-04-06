@@ -14,6 +14,7 @@
 """ORTModelForXXX classes, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers."""
 
 import logging
+import os
 import shutil
 import warnings
 from pathlib import Path
@@ -58,6 +59,7 @@ from transformers.modeling_outputs import (
     TokenClassifierOutput,
     XVectorOutput,
 )
+from transformers.utils import is_offline_mode
 
 import onnxruntime as ort
 from onnxruntime import InferenceSession, SessionOptions
@@ -69,8 +71,8 @@ from ..onnx.utils import _get_external_data_paths
 from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
 from .base import ORTMixin
+from .constants import ONNX_FILE_PATTERN
 from .utils import (
-    ONNX_WEIGHTS_NAME,
     validate_provider_availability,
 )
 
@@ -262,20 +264,10 @@ class ORTModel(ORTMixin, OptimizedModel):
         patterns: List[str],
         argument_name: str,
         subfolder: str = "",
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         fail_if_not_found: bool = True,
     ) -> str:
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
         onnx_files = []
         for pattern in patterns:
             onnx_files = find_files_matching_pattern(
@@ -310,7 +302,6 @@ class ORTModel(ORTMixin, OptimizedModel):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -325,47 +316,44 @@ class ORTModel(ORTMixin, OptimizedModel):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModel":
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
+        defaut_file_name = file_name or "model.onnx"
 
-        model_path = Path(model_id)
-        regular_onnx_filenames = ORTModel._generate_regular_names_for_filename(ONNX_WEIGHTS_NAME)
+        onnx_files = find_files_matching_pattern(
+            model_id,
+            ONNX_FILE_PATTERN,
+            glob_pattern="**/*.onnx",
+            subfolder=subfolder,
+            token=token,
+            revision=revision,
+        )
 
-        if file_name is None:
-            if model_path.is_dir():
-                onnx_files = list((model_path / subfolder).glob("*.onnx"))
-            else:
-                repo_files, _ = TasksManager.get_model_files(
-                    model_id, revision=revision, cache_dir=cache_dir, token=token
-                )
-                repo_files = map(Path, repo_files)
-                pattern = "*.onnx" if subfolder == "" else f"{subfolder}/*.onnx"
-                onnx_files = [p for p in repo_files if p.match(pattern)]
+        if len(onnx_files) == 0:
+            raise FileNotFoundError(f"Could not find any ONNX model file in {model_id}")
+        if len(onnx_files) == 1 and file_name and file_name != onnx_files[0].name:
+            raise FileNotFoundError(f"Trying to load {file_name} but only found {onnx_files[0].name}")
 
-            if len(onnx_files) == 0:
-                raise FileNotFoundError(f"Could not find any ONNX model file in {model_path}")
-            elif len(onnx_files) > 1:
-                raise RuntimeError(
-                    f"Too many ONNX model files were found in {model_path}, specify which one to load by using the "
-                    "file_name argument."
-                )
-            else:
-                file_name = onnx_files[0].name
+        file_name = onnx_files[0].name
+        subfolder = onnx_files[0].parent
 
-        if file_name not in regular_onnx_filenames:
+        if len(onnx_files) > 1:
+            for file in onnx_files:
+                if file.name == defaut_file_name:
+                    file_name = file.name
+                    subfolder = file.parent
+                    break
+
             logger.warning(
-                f"The ONNX file {file_name} is not a regular name used in optimum.onnxruntime, the ORTModel might "
-                "not behave as expected."
+                f"Too many ONNX model files were found in {' ,'.join(map(str, onnx_files))}. "
+                "specify which one to load by using the `file_name` and/or the `subfolder` arguments. "
+                f"Loading the file {file_name} in the subfolder {subfolder}."
             )
 
-        model_cache_path, _ = cls._cached_file(
-            model_path=model_path,
+        if os.path.isdir(model_id):
+            model_id = subfolder
+            subfolder = ""
+
+        model_cache_path, preprocessors = cls._cached_file(
+            model_path=model_id,
             token=token,
             revision=revision,
             force_download=force_download,
@@ -374,7 +362,7 @@ class ORTModel(ORTMixin, OptimizedModel):
             subfolder=subfolder,
             local_files_only=local_files_only,
         )
-        new_model_save_dir = model_cache_path.parent
+        new_model_save_dir = Path(model_cache_path).parent
 
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
         # instead of the path only.
@@ -400,7 +388,6 @@ class ORTModel(ORTMixin, OptimizedModel):
         cls,
         model_id: str,
         config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -415,15 +402,6 @@ class ORTModel(ORTMixin, OptimizedModel):
         task: Optional[str] = None,
     ) -> "ORTModel":
         """The method will be deprecated in future releases."""
-
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
 
         return cls._export(
             model_id=model_id,
@@ -447,7 +425,6 @@ class ORTModel(ORTMixin, OptimizedModel):
         cls,
         model_id: str,
         config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -461,15 +438,6 @@ class ORTModel(ORTMixin, OptimizedModel):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
         if task is None:
             task = TasksManager.infer_task_from_model(cls.auto_model_class)
 
@@ -515,6 +483,7 @@ class ORTModel(ORTMixin, OptimizedModel):
         subfolder: str = "",
         config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
+        revision: Optional[str] = None,
         provider: str = "CPUExecutionProvider",
         session_options: Optional[ort.SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
@@ -562,15 +531,67 @@ class ORTModel(ORTMixin, OptimizedModel):
                 raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
             token = use_auth_token
 
+        if isinstance(model_id, Path):
+            model_id = model_id.as_posix()
+
+        if is_offline_mode() and not local_files_only:
+            logger.info("Offline mode: setting `local_files_only=True`")
+            local_files_only = True
+
+        _export = export
+        try:
+            if local_files_only and not os.path.isdir(model_id):
+                object_id = model_id.replace("/", "--")
+                cached_model_dir = os.path.join(cache_dir, f"models--{object_id}")
+                refs_file = os.path.join(os.path.join(cached_model_dir, "refs"), revision or "main")
+                with open(refs_file) as f:
+                    _revision = f.read()
+                model_id = os.path.join(cached_model_dir, "snapshots", _revision)
+
+            onnx_files = find_files_matching_pattern(
+                model_id,
+                pattern=ONNX_FILE_PATTERN,
+                glob_pattern="**/*.onnx",
+                subfolder=subfolder,
+                token=token,
+                revision=revision,
+            )
+
+            _export = len(onnx_files) == 0
+            if _export ^ export:
+                if export:
+                    logger.warning(
+                        f"The model {model_id} was already converted to ONNX but got `export=True`, the model will be converted to ONNX once again. "
+                        "Don't forget to save the resulting model with `.save_pretrained()`"
+                    )
+                    _export = True
+                else:
+                    logger.warning(
+                        f"No ONNX files were found for {model_id}, setting `export=True` to convert the model to ONNX. "
+                        "Don't forget to save the resulting model with `.save_pretrained()`"
+                    )
+        except Exception as exception:
+            logger.warning(
+                f"Could not infer whether the model was already converted or not to ONNX, keeping `export={export}`.\n{exception}"
+            )
+
+        if _export:
+            file_name = kwargs.pop("file_name", None)
+            if file_name is not None:
+                logger.warning(
+                    f"`file_name` was set to `{file_name}` but will be ignored as the model will be converted to ONNX"
+                )
+
         return super().from_pretrained(
             model_id,
-            export=export,
+            export=_export,
             force_download=force_download,
             token=token,
             cache_dir=cache_dir,
             subfolder=subfolder,
             config=config,
             local_files_only=local_files_only,
+            revision=revision,
             provider=provider,
             session_options=session_options,
             provider_options=provider_options,
@@ -581,7 +602,6 @@ class ORTModel(ORTMixin, OptimizedModel):
     @staticmethod
     def _cached_file(
         model_path: Union[Path, str],
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -590,23 +610,18 @@ class ORTModel(ORTMixin, OptimizedModel):
         subfolder: str = "",
         local_files_only: bool = False,
     ):
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
+        if isinstance(model_path, Path):
+            model_path = model_path.as_posix()
 
-        model_path = Path(model_path)
         # locates a file in a local folder and repo, downloads and cache it if necessary.
-        if model_path.is_dir():
-            model_cache_path = model_path / subfolder / file_name
-            preprocessors = maybe_load_preprocessors(model_path.as_posix())
+        if os.path.isdir(model_path):
+            model_cache_path = os.path.join(model_path, subfolder, file_name)
+            preprocessors = maybe_load_preprocessors(model_path)
         else:
+            model_path = model_path.replace(os.sep, "/")
+            subfolder = str(subfolder).replace(os.sep, "/")
             model_cache_path = hf_hub_download(
-                repo_id=model_path.as_posix(),
+                repo_id=model_path,
                 filename=file_name,
                 subfolder=subfolder,
                 token=token,
@@ -618,7 +633,7 @@ class ORTModel(ORTMixin, OptimizedModel):
             # try download external data
             try:
                 hf_hub_download(
-                    repo_id=model_path.as_posix(),
+                    repo_id=model_path,
                     subfolder=subfolder,
                     filename=file_name + "_data",
                     token=token,
@@ -631,10 +646,9 @@ class ORTModel(ORTMixin, OptimizedModel):
                 # model doesn't use external data
                 pass
 
-            model_cache_path = Path(model_cache_path)
-            preprocessors = maybe_load_preprocessors(model_path.as_posix(), subfolder=subfolder)
+            preprocessors = maybe_load_preprocessors(model_path, subfolder=subfolder)
 
-        return model_cache_path, preprocessors
+        return Path(model_cache_path), preprocessors
 
     def can_generate(self) -> bool:
         """
@@ -744,7 +758,6 @@ class ORTModelForFeatureExtraction(ORTModel):
         cls,
         model_id: str,
         config: "PretrainedConfig",
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -758,15 +771,6 @@ class ORTModelForFeatureExtraction(ORTModel):
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
     ) -> "ORTModel":
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
         if task is None:
             task = TasksManager.infer_task_from_model(cls.auto_model_class)
 
