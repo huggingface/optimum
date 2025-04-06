@@ -171,6 +171,36 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
             np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_compare_to_io_binding(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 128, 128, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusion_model = ort_pipeline.unet or ort_pipeline.transformer
+
+        for output_type in ["latent", "pt"]:
+            inputs["output_type"] = output_type
+
+            # makes sure io binding is not used
+            ort_pipeline.use_io_binding = False
+            images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            self.assertEqual(len(diffusion_model._io_binding.get_outputs()), 0)
+
+            # makes sure io binding is effectively used
+            ort_pipeline.use_io_binding = True
+            io_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            self.assertGreaterEqual(len(diffusion_model._io_binding.get_outputs()), 1)
+
+            # makes sure the outputs are the same
+            np.testing.assert_allclose(images, io_images, atol=1e-4, rtol=1e-2)
+            # clears the io binding outputs
+            diffusion_model._io_binding.clear_binding_outputs()
+
     @parameterized.expand(CALLBACK_SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):
@@ -210,6 +240,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         self._setup(model_args)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusion_model = pipeline.unet or pipeline.transformer
 
         height, width, batch_size = 128, 64, 1
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
@@ -232,11 +263,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
                 else:
                     expected_height = height // pipeline.vae_scale_factor
                     expected_width = width // pipeline.vae_scale_factor
-                    out_channels = (
-                        pipeline.unet.config.out_channels
-                        if getattr(pipeline, "unet", None) is not None
-                        else pipeline.transformer.config.out_channels
-                    )
+                    out_channels = diffusion_model.config.out_channels
                     expected_shape = (batch_size, out_channels, expected_height, expected_width)
 
                 self.assertEqual(outputs.shape, expected_shape)
@@ -447,6 +474,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         self._setup(model_args)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusion_model = pipeline.unet or pipeline.transformer
 
         height, width, batch_size = 128, 64, 1
 
@@ -463,11 +491,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
                 elif output_type == "pt":
                     self.assertEqual(outputs.shape, (batch_size, 3, height, width))
                 else:
-                    out_channels = (
-                        pipeline.unet.config.out_channels
-                        if pipeline.unet is not None
-                        else pipeline.transformer.config.out_channels
-                    )
+                    out_channels = diffusion_model.config.out_channels
                     self.assertEqual(
                         outputs.shape,
                         (
@@ -497,6 +521,36 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
             np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_compare_to_io_binding(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 128, 128, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusion_model = ort_pipeline.unet or ort_pipeline.transformer
+
+        for output_type in ["latent", "np", "pt"]:
+            inputs["output_type"] = output_type
+
+            # makes sure io binding is not used
+            ort_pipeline.use_io_binding = False
+            images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            self.assertEqual(len(diffusion_model._io_binding.get_outputs()), 0)
+
+            # makes sure io binding is effectively used
+            ort_pipeline.use_io_binding = True
+            io_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            self.assertGreaterEqual(len(diffusion_model._io_binding.get_outputs()), 1)
+
+            # makes sure the outputs are the same
+            np.testing.assert_allclose(images, io_images, atol=1e-4, rtol=1e-2)
+            # clears the io binding outputs
+            diffusion_model._io_binding.clear_binding_outputs()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -689,6 +743,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         self._setup(model_args)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusion_model = pipeline.unet or pipeline.transformer
 
         height, width, batch_size = 128, 64, 1
 
@@ -705,11 +760,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
                 elif output_type == "pt":
                     self.assertEqual(outputs.shape, (batch_size, 3, height, width))
                 else:
-                    out_channels = (
-                        pipeline.unet.config.out_channels
-                        if pipeline.unet is not None
-                        else pipeline.transformer.config.out_channels
-                    )
+                    out_channels = diffusion_model.config.out_channels
                     self.assertEqual(
                         outputs.shape,
                         (
@@ -739,6 +790,36 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
             diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
             np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_compare_to_io_binding(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 64, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusion_model = ort_pipeline.unet or ort_pipeline.transformer
+
+        for output_type in ["latent", "np", "pt"]:
+            inputs["output_type"] = output_type
+
+            # makes sure io binding is not used
+            ort_pipeline.use_io_binding = False
+            images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            self.assertEqual(len(diffusion_model._io_binding.get_outputs()), 0)
+
+            # makes sure io binding is effectively used
+            ort_pipeline.use_io_binding = True
+            io_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            self.assertGreaterEqual(len(diffusion_model._io_binding.get_outputs()), 1)
+
+            # makes sure the outputs are the same
+            np.testing.assert_allclose(images, io_images, atol=1e-4, rtol=1e-2)
+            # clears the io binding outputs
+            diffusion_model._io_binding.clear_binding_outputs()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
