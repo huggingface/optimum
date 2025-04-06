@@ -519,6 +519,9 @@ class ORTModel(OptimizedModel):
             model_id = subfolder
             subfolder = ""
 
+        if isinstance(subfolder, Path):
+            subfolder = subfolder.as_posix()
+
         model_cache_path = cached_file(
             model_id,
             filename=file_name,
