@@ -204,22 +204,18 @@ def onnx_compatible_linalg_norm(x, ord=2, dim=None, keepdim=False, *, dtype=None
     Custom implementation of torch.linalg.norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
     It only handles the case of matrix norm with ord=2, otherwise it uses the original implementation.
     """
-    if ord != 2:
-        return original_linal_norm(x, ord=ord, dim=dim, keepdim=keepdim, dtype=dtype, out=out)
 
-    if dim is None:
-        dim = tuple(range(x.dim()))
+    if ord == 2:
+        if dim is None:
+            dim = (-2, -1)
+        norm = torch.sqrt(torch.sum(torch.square(x), dim=dim, keepdim=keepdim))
+        if dtype is not None:
+            norm = norm.to(dtype)
+        if out is not None:
+            out.copy_(norm)
+        return norm
 
-    # Compute the Frobenius norm
-    norm = torch.sqrt(torch.sum(torch.square(x), dim=dim, keepdim=keepdim))
-
-    if dtype is not None:
-        norm = norm.to(dtype)
-
-    if out is not None:
-        out.copy_(norm)
-
-    return norm
+    return original_linal_norm(x, ord=ord, dim=dim, keepdim=keepdim, dtype=dtype, out=out)
 
 
 UNSUPPORTED_OPS_PATCHING_SPEC = [
