@@ -1819,7 +1819,9 @@ class TasksManager:
                     "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
                 )
             try:
-                model_info = huggingface_hub.model_info(model_name_or_path, revision=revision, token=token)
+                model_info = HfApi(user_agent=http_user_agent()).model_info(
+                    model_name_or_path, revision=revision, token=token
+                )
             except (RequestsConnectionError, OfflineModeIsEnabled):
                 raise RuntimeError(
                     f"Hugging Face Hub is not reachable and we cannot infer the task from a cached model. Make sure you are not offline, or otherwise please specify the `task` (or `--task` in command-line) argument ({', '.join(TasksManager.get_all_tasks())})."
