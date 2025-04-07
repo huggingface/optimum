@@ -16,23 +16,21 @@
 import copy
 import random
 import string
-from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
+from typing import Any, Dict, Tuple, Union
 from unittest import TestCase
 
 import pytest
-from transformers import AutoConfig, AutoFeatureExtractor, AutoTokenizer
+from transformers import AutoConfig, AutoFeatureExtractor, AutoTokenizer, PretrainedConfig, PreTrainedTokenizerBase
+from transformers.image_processing_utils import BaseImageProcessor
+from transformers.utils import http_user_agent
 
 from optimum.utils.import_utils import is_datasets_available
 from optimum.utils.preprocessing import TaskProcessorsManager
 from optimum.utils.testing_utils import require_datasets
 
 
-if TYPE_CHECKING:
-    from transformers import PretrainedConfig, PreTrainedTokenizerBase
-    from transformers.image_processing_utils import BaseImageProcessor
-
 if is_datasets_available():
-    from datasets import DatasetDict
+    from datasets import DatasetDict, DownloadConfig
 
 
 TEXT_MODEL_NAME = "bert-base-uncased"
@@ -95,6 +93,9 @@ class TaskProcessorTestBase:
         else:
             path = not_default_dataset_args
             load_dataset_kwargs = {}
+
+        load_dataset_kwargs["download_config"] = DownloadConfig(user_agent=http_user_agent())
+
         return path, load_dataset_kwargs
 
     def test_accepted_preprocessor_classes_do_not_raise_exception(self):

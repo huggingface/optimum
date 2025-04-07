@@ -21,13 +21,13 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
-import huggingface_hub
+from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.errors import OfflineModeIsEnabled
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
-from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
+from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent, logging
 
 from ..utils.import_utils import is_diffusers_available, is_onnx_available
 
@@ -1625,7 +1625,9 @@ class TasksManager:
             try:
                 if not isinstance(model_name_or_path, str):
                     model_name_or_path = str(model_name_or_path)
-                all_files = huggingface_hub.list_repo_files(
+                all_files = HfApi(
+                    user_agent=http_user_agent(),
+                ).list_repo_files(
                     model_name_or_path,
                     repo_type="model",
                     token=token,
@@ -1634,7 +1636,7 @@ class TasksManager:
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
             except (RequestsConnectionError, OfflineModeIsEnabled) as e:
-                snapshot_path = huggingface_hub.snapshot_download(
+                snapshot_path = snapshot_download(
                     repo_id=model_name_or_path, revision=revision, cache_dir=cache_dir, token=token
                 )
                 full_model_path = Path(snapshot_path, subfolder)
