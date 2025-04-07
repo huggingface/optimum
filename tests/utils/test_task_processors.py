@@ -94,8 +94,6 @@ class TaskProcessorTestBase:
             path = not_default_dataset_args
             load_dataset_kwargs = {}
 
-        load_dataset_kwargs["download_config"] = DownloadConfig(user_agent=http_user_agent())
-
         return path, load_dataset_kwargs
 
     def test_accepted_preprocessor_classes_do_not_raise_exception(self):
@@ -151,6 +149,7 @@ class TaskProcessorTestBase:
         only_keep_necessary_columns: bool,
         **preprocessor_kwargs,
     ):
+        download_config = DownloadConfig(user_agent=http_user_agent())
         task_processor = TaskProcessorsManager.get_task_processor_class_for_task(self.TASK_NAME)(
             self.CONFIG, self.PREPROCESSOR, preprocessor_kwargs
         )
@@ -163,9 +162,10 @@ class TaskProcessorTestBase:
                 only_keep_necessary_columns=only_keep_necessary_columns,
                 load_smallest_split=LOAD_SMALLEST_SPLIT,
                 num_samples=NUM_SAMPLES,
+                download_config=download_config,
             )
             if only_keep_necessary_columns:
-                dataset_with_all_columns = task_processor.load_default_dataset()
+                dataset_with_all_columns = task_processor.load_default_dataset(download_config=download_config)
         else:
             path, load_dataset_kwargs = self.get_dataset_path_and_kwargs()
             dataset = task_processor.load_dataset(
@@ -175,6 +175,7 @@ class TaskProcessorTestBase:
                 load_smallest_split=LOAD_SMALLEST_SPLIT,
                 num_samples=NUM_SAMPLES,
                 **load_dataset_kwargs,
+                download_config=download_config,
             )
             if only_keep_necessary_columns:
                 dataset_with_all_columns = task_processor.load_dataset(
@@ -183,6 +184,7 @@ class TaskProcessorTestBase:
                     load_smallest_split=LOAD_SMALLEST_SPLIT,
                     num_samples=NUM_SAMPLES,
                     **load_dataset_kwargs,
+                    download_config=download_config,
                 )
 
         # We only check if the column names of the dataset with the not necessary columns removed are a strict subset

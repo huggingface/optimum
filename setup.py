@@ -50,7 +50,7 @@ EXTRAS_REQUIRE = {
         "datasets>=1.2.1",
         "protobuf>=3.20.1",
         "onnxruntime>=1.11.0",
-        "transformers>=4.36,<4.52.0",
+        "transformers@git+https://github.com/huggingface/transformers.git@fix-derived-bert-family",
     ],
     "onnxruntime-gpu": [
         "onnx",
