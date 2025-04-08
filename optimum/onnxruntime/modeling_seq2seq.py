@@ -30,6 +30,7 @@ from transformers import (
     AutoModelForSpeechSeq2Seq,
     AutoModelForVision2Seq,
     GenerationConfig,
+    GenerationMixin,
     Pix2StructForConditionalGeneration,
     WhisperForConditionalGeneration,
 )
@@ -57,22 +58,11 @@ from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
+    DummyWhisperModel,
     get_provider_for_device,
     parse_device,
     validate_provider_availability,
 )
-
-
-if is_transformers_version(">=", "4.25.0"):
-    from transformers.generation import GenerationMixin
-else:
-    from transformers.generation_utils import GenerationMixin  # type: ignore
-
-
-if is_transformers_version(">=", "4.43.0"):
-    from transformers.cache_utils import EncoderDecoderCache
-else:
-    EncoderDecoderCache = dict
 
 
 if TYPE_CHECKING:
@@ -1179,42 +1169,23 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper, speech_to_text.
     """
 
-    auto_model_class = AutoModelForSpeechSeq2Seq
     main_input_name = "input_features"
+    auto_model_class = AutoModelForSpeechSeq2Seq
 
-    def __init__(
-        self,
-        encoder_session: ort.InferenceSession,
-        decoder_session: ort.InferenceSession,
-        config: "PretrainedConfig",
-        onnx_paths: List[str],
-        decoder_with_past_session: Optional[ort.InferenceSession] = None,
-        use_cache: bool = True,
-        use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
-        generation_config: Optional[GenerationConfig] = None,
-        **kwargs,
-    ):
-        super().__init__(
-            encoder_session=encoder_session,
-            decoder_session=decoder_session,
-            config=config,
-            onnx_paths=onnx_paths,
-            decoder_with_past_session=decoder_with_past_session,
-            use_cache=use_cache,
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
-            preprocessors=preprocessors,
-            generation_config=generation_config,
-            **kwargs,
-        )
-        # Following a breaking change in transformers that relies directly on the mapping name and not on the greedy model mapping (that can be extended), we need to hardcode the ortmodel in this dictionary. Other pipelines do not seem to have controlflow depending on the mapping name.
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Following a breaking change in transformers that relies directly on the mapping name and not on the
+        # greedy model mapping (that can be extended), we need to hardcode the ortmodel in this dictionary.
+        # Other pipelines do not seem to have controlflow depending on the mapping name.
         # See: https://github.com/huggingface/transformers/pull/24960/files
         MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES["ort_speechseq2seq"] = self.__class__.__name__
 
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoderForSpeech(session, self)
+
+    def get_encoder(self) -> ORTEncoder:
+        return self.encoder
 
     @add_start_docstrings_to_model_forward(
         SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING
@@ -1284,9 +1255,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
             "use_cache": use_cache,
         }
 
-    def get_encoder(self) -> ORTEncoder:
-        return self.encoder
-
     # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
     @staticmethod
     def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
@@ -1299,13 +1267,8 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         return reordered_past
 
     @classmethod
-    def _from_pretrained(
-        cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
-        **kwargs,
-    ):
-        if "WhisperForConditionalGeneration" in config.architectures:
+    def _from_pretrained(cls, model_id: Union[str, Path], config: "PretrainedConfig", **kwargs):
+        if config.model_type == "whisper":
             return _ORTModelForWhisper._from_pretrained(model_id, config, **kwargs)
         else:
             return super()._from_pretrained(model_id, config, **kwargs)
@@ -1318,35 +1281,23 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGenerat
 
     auto_model_class = WhisperForConditionalGeneration
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.model = DummyWhisperModel()
+
     # force the use of the WhisperForConditionalGeneration generate and prepare_inputs_for_generation methods
-    prepare_inputs_for_generation = WhisperForConditionalGeneration.prepare_inputs_for_generation
-    generate = WhisperForConditionalGeneration.generate
+    def generate(*args, **kwargs):
+        return WhisperForConditionalGeneration.generate(*args, **kwargs)
 
+    # force the use of the WhisperForConditionalGeneration prepare_inputs_for_generation method
+    def prepare_inputs_for_generation(*args, **kwargs):
+        return WhisperForConditionalGeneration.prepare_inputs_for_generation(*args, **kwargs)
+
+    # this is needed to avoid circular calls
     @classmethod
-    def _from_pretrained(
-        cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
-        **kwargs,
-    ):
+    def _from_pretrained(cls, model_id: Union[str, Path], config: "PretrainedConfig", **kwargs):
         return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)
-
-    class DummyWhisperModel:
-        def __init__(self):
-            self.encoder = self.Encoder()
-
-        class Encoder:
-            def __init__(self):
-                self.conv1 = self.Conv(stride=(1,))
-                self.conv2 = self.Conv(stride=(2,))
-
-            class Conv:
-                def __init__(self, stride):
-                    self.stride = stride
-
-    # a dummy model attribute that's used in the generate method to compute the input stride
-    # input_stride = self.model.encoder.conv1.stride[0] * self.model.encoder.conv2.stride[0]
-    model = DummyWhisperModel()
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)

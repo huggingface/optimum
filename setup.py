@@ -51,7 +51,7 @@ EXTRAS_REQUIRE = {
         "protobuf>=3.20.1",
         "onnxruntime>=1.11.0",
         # "transformers>=4.36,<4.52.0",
-        "transformers@git+https://github.com/huggingface/transformers.git@fix-derived-bert-family",
+        "transformers@git+https://github.com/huggingface/transformers.git",
     ],
     "onnxruntime-gpu": [
         "onnx",
@@ -59,7 +59,7 @@ EXTRAS_REQUIRE = {
         "protobuf>=3.20.1",
         "onnxruntime-gpu>=1.11.0",
         # "transformers>=4.36,<4.52.0",
-        "transformers@git+https://github.com/huggingface/transformers.git@fix-derived-bert-family",
+        "transformers@git+https://github.com/huggingface/transformers.git",
     ],
     "onnxruntime-training": [
         "evaluate",
@@ -69,7 +69,7 @@ EXTRAS_REQUIRE = {
         "protobuf>=3.20.1",
         # "transformers>=4.36,<4.52.0",
         "onnxruntime-training>=1.11.0",
-        "transformers@git+https://github.com/huggingface/transformers.git@fix-derived-bert-family",
+        "transformers@git+https://github.com/huggingface/transformers.git",
     ],
     "exporters": [
         "onnx",
@@ -77,7 +77,7 @@ EXTRAS_REQUIRE = {
         "onnxruntime",
         "protobuf>=3.20.1",
         # "transformers>=4.36,<4.52.0",
-        "transformers@git+https://github.com/huggingface/transformers.git@fix-derived-bert-family",
+        "transformers@git+https://github.com/huggingface/transformers.git",
     ],
     "exporters-gpu": [
         "onnx",
@@ -85,7 +85,7 @@ EXTRAS_REQUIRE = {
         "onnxruntime-gpu",
         "protobuf>=3.20.1",
         # "transformers>=4.36,<4.52.0",
-        "transformers@git+https://github.com/huggingface/transformers.git@fix-derived-bert-family",
+        "transformers@git+https://github.com/huggingface/transformers.git",
     ],
     "exporters-tf": [
         "onnx",
