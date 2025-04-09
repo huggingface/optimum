@@ -68,6 +68,7 @@ jobs:
           git pull origin main
           pip install .
           pip install black
+          pip install wheel
           cd ..
 
       - name: Make Habana documentation
