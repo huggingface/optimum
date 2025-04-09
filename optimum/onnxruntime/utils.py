@@ -13,12 +13,11 @@
 #  limitations under the License.
 """Utility functions, classes and constants for ONNX Runtime."""
 
-import importlib
 import os
 import re
 from enum import Enum
 from inspect import signature
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -27,11 +26,12 @@ from tqdm import tqdm
 from transformers import EvalPrediction
 from transformers.trainer_pt_utils import nested_concat
 from transformers.trainer_utils import EvalLoopOutput
-from transformers.utils import logging
 
 import onnxruntime as ort
+from onnxruntime.transformers.io_binding_helper import TypeHelper
 
 from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
+from ..utils.logging import get_logger
 
 
 if TYPE_CHECKING:
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from .modeling_ort import ORTModel
 
 
-logger = logging.get_logger(__name__)
+logger = get_logger(__name__)
 
 ONNX_WEIGHTS_NAME = "model.onnx"
 
@@ -48,34 +48,6 @@ ONNX_ENCODER_NAME = "encoder_model.onnx"
 ONNX_DECODER_NAME = "decoder_model.onnx"
 ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
 ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
-
-_ORT_TO_NP_TYPE = {
-    "tensor(bool)": np.bool_,
-    "tensor(int8)": np.int8,
-    "tensor(uint8)": np.uint8,
-    "tensor(int16)": np.int16,
-    "tensor(uint16)": np.uint16,
-    "tensor(int32)": np.int32,
-    "tensor(uint32)": np.uint32,
-    "tensor(int64)": np.int64,
-    "tensor(uint64)": np.uint64,
-    "tensor(float16)": np.float16,
-    "tensor(float)": np.float32,
-    "tensor(double)": np.float64,
-}
-
-
-def _is_gpu_available():
-    """
-    Checks if a gpu is available.
-    """
-    available_providers = ort.get_available_providers()
-    if (
-        "CUDAExecutionProvider" in available_providers or "ROCMExecutionProvider" in available_providers
-    ) and torch.cuda.is_available():
-        return True
-    else:
-        return False
 
 
 def is_onnxruntime_training_available():
@@ -87,15 +59,6 @@ def is_onnxruntime_training_available():
         return True
     else:
         return False
-
-
-def is_cupy_available():
-    """
-    Checks if CuPy is available.
-    """
-    # Don't use _is_package_available as it doesn't work with CuPy installed
-    # with `cupy-cuda*` and `cupy-rocm-*` package name (prebuilt wheels).
-    return importlib.util.find_spec("cupy") is not None
 
 
 class ORTConfigManager:
@@ -195,14 +158,34 @@ def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
     return OnnxConfigWithLoss(onnx_config)
 
 
-def get_device_for_provider(provider: str, provider_options: Dict) -> torch.device:
+def get_device_for_provider(provider: str, provider_options: Dict[str, Any]) -> torch.device:
     """
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
     if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider", "ROCMExecutionProvider"]:
-        return torch.device(f"cuda:{provider_options['device_id']}")
+        return torch.device(f"cuda:{provider_options.get('device_id', 0)}")
     else:
         return torch.device("cpu")
+
+
+def get_dtype_from_session(session: ort.InferenceSession) -> torch.dtype:
+    """
+    Returns the `torch.dtype` associated with the ONNX Runtime session.
+    This dtype is inferred from the input/output dtypes of the session.
+    If no floating point type is found, it defaults to `torch.float32`.
+    """
+
+    for input in session.get_inputs():
+        torch_dtype = TypeHelper.ort_type_to_torch_type(input.type)
+        if torch_dtype.is_floating_point:
+            return torch_dtype
+
+    for output in session.get_outputs():
+        torch_dtype = TypeHelper.ort_type_to_torch_type(output.type)
+        if torch_dtype.is_floating_point:
+            return torch_dtype
+
+    return torch.float32
 
 
 def get_provider_for_device(device: torch.device) -> str:
@@ -224,15 +207,13 @@ def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, D
     else:
         device = torch._C._nn._parse_to(device)[0]
 
-    provider_options = {}
+    provider_option = {}
 
     if device.type == "cuda":
-        if device.index is None:
-            device = torch.device("cuda:0")
+        if device.index is not None:
+            provider_option["device_id"] = device.index
 
-        provider_options["device_id"] = device.index
-
-    return device, provider_options
+    return device, provider_option
 
 
 def validate_provider_availability(provider: str):
@@ -287,22 +268,6 @@ def validate_provider_availability(provider: str):
         raise ValueError(
             f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
         )
-
-
-def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None) -> bool:
-    """
-    Whether to use IOBinding or not.
-    """
-    if use_io_binding is None and providers[0] == "CUDAExecutionProvider":
-        use_io_binding = True
-    elif providers[0] != "CPUExecutionProvider" and providers[0] != "CUDAExecutionProvider":
-        if use_io_binding is True:
-            logger.warning(
-                "No need to enable IO Binding if the provider used is neither CPUExecutionProvider nor CUDAExecutionProvider. IO Binding will be turned off."
-            )
-        use_io_binding = False
-
-    return use_io_binding
 
 
 def get_ordered_input_names(input_names: List[str], func: Callable) -> List[str]:

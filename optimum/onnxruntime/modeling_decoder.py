@@ -18,24 +18,24 @@ import os
 import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 import onnx
 import torch
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from onnx.tools import update_model_dims
-from transformers import AutoModelForCausalLM, GenerationConfig
+from transformers import AutoModelForCausalLM, GenerationConfig, PretrainedConfig
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-import onnxruntime
+from onnxruntime import InferenceSession, SessionOptions
 
 from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
+from ..exporters.tasks import TasksManager
 from ..onnx.utils import check_model_uses_external_data
 from ..utils import NormalizedConfigManager, is_transformers_version
 from ..utils.file_utils import find_files_matching_pattern
-from ..utils.save_utils import maybe_save_preprocessors
 from .constants import (
     DECODER_MERGED_ONNX_FILE_PATTERN,
     DECODER_ONNX_FILE_PATTERN,
@@ -46,9 +46,6 @@ from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .models.bloom import bloom_convert_to_bloom_cache, bloom_convert_to_standard_cache
 from .utils import ONNX_WEIGHTS_NAME
 
-
-if TYPE_CHECKING:
-    from transformers import PretrainedConfig
 
 if is_transformers_version(">=", "4.25.0"):
     from transformers.generation import GenerationMixin
@@ -125,37 +122,59 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     ONNX model with a causal language modeling head for ONNX Runtime inference. This class officially supports bloom, codegen, falcon, gpt2, gpt_bigcode, gpt_neo, gpt_neox, gptj, llama.
     """
 
-    auto_model_class = AutoModelForCausalLM
+    export_feature = "text-generation"
+
     main_input_name = "input_ids"
+    auto_model_class = AutoModelForCausalLM
+
     _supports_cache_class = False
+    _supports_static_cache = False
 
     def __init__(
         self,
-        model: onnxruntime.InferenceSession,
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
+        session: InferenceSession,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
         generation_config: Optional[GenerationConfig] = None,
-        use_cache: Optional[bool] = None,
         **kwargs,
     ):
-        if use_io_binding is None:
-            use_io_binding = model.get_providers()[0] in ["CPUExecutionProvider", "CUDAExecutionProvider"]
+        super().__init__(config=config, session=session, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
 
-        super().__init__(model, config, use_io_binding, model_save_dir, preprocessors, **kwargs)
-
+        # specific to causal LMs
         self.num_pkv = 2
         self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
         self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
+        self.use_merged = "use_cache_branch" in self.input_names
         self.use_cache = len(self.key_value_input_names) > 0
+        self.use_fp16 = self.dtype == torch.float16
+        self.model_type = self.config.model_type
 
-        if generation_config is None:
-            generation_config = GenerationConfig.from_model_config(config)
+        # Reference: https://github.com/huggingface/optimum/pull/1381
+        model_type = config.model_type.replace("_", "-")
+        if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.input_names:
+            logger.warning(
+                f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although this input is required for batched generation for the architecture {model_type}. "
+                "We strongly encourage to re-export the model with a newer optimum version for position_ids and batched inference support."
+            )
 
-        self.generation_config = generation_config
+        # handle mismatched use_cache
+        use_cache = kwargs.pop("use_cache", True)
+        if use_cache != self.use_cache:
+            raise ValueError(
+                f"`use_cache` was set to `{use_cache}` but the loaded model only supports `use_cache={self.use_cache}`. "
+                f"Please load your current model with `use_cache={self.use_cache}` or export the original model "
+                f"once again with `use_cache={use_cache}` when calling the `from_pretrained` method. "
+                "To export your model, simply set `export=True`."
+            )
+        if use_io_binding and not use_cache:
+            raise ValueError(
+                "The parameters combination use_cache=False, use_io_binding=True is not supported. "
+                "Please either pass use_cache=True, use_io_binding=True (default), or use_cache=False, use_io_binding=False."
+            )
 
+        self.generation_config = generation_config or GenerationConfig.from_model_config(config)
         if is_transformers_version(">=", "4.44.99"):
             misplaced_generation_parameters = self.config._get_non_default_generation_parameters()
             if len(misplaced_generation_parameters) > 0:
@@ -167,40 +186,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 for param_name, param_value in misplaced_generation_parameters.items():
                     setattr(self.generation_config, param_name, param_value)
                     setattr(self.config, param_name, None)
-
-        self.onnx_paths = [self.model_path]
-        self.use_merged = "use_cache_branch" in self.input_names
-        self.model_type = self.config.model_type
-
-        self.use_fp16 = False
-        for inp in model.get_inputs():
-            if (
-                inp.name == "past_key_values" or inp.name in self.key_value_input_names
-            ) and inp.type == "tensor(float16)":
-                self.use_fp16 = True
-                break
-
-        # Reference: https://github.com/huggingface/optimum/pull/1381
-        model_type = config.model_type.replace("_", "-")
-        if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.input_names:
-            logger.warning(
-                f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although this input is required for batched generation for the architecture {model_type}. "
-                "We strongly encourage to re-export the model with optimum>=1.14 for position_ids and batched inference support."
-            )
-
-        if use_cache ^ self.use_cache:
-            raise ValueError(
-                f"`use_cache` was set to `{use_cache}` but the loaded model only supports `use_cache={self.use_cache}`. "
-                f"Please load your current model with `use_cache={self.use_cache}` or export the original model "
-                f"once again with `use_cache={use_cache}` when calling the `from_pretrained` method. "
-                "To export your model, simply set `export=True`."
-            )
-
-        if use_io_binding and not use_cache:
-            raise ValueError(
-                "The parameters combination use_cache=False, use_io_binding=True is not supported. "
-                "Please either pass use_cache=True, use_io_binding=True (default), or use_cache=False, use_io_binding=False."
-            )
 
     @add_start_docstrings_to_model_forward(
         CAUSALLM_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
@@ -258,16 +243,16 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
 
         if self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(
-                self.model, model_inputs, known_output_shapes=known_output_shapes
+            output_shapes, output_buffers = self._prepare_io_binding(
+                model_inputs, known_output_shapes=known_output_shapes
             )
 
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             loss = output_buffers.get("loss", None)
             logits = output_buffers["logits"].view(output_shapes["logits"])
@@ -390,19 +375,21 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
+        # repo/hub options
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         file_name: Optional[str] = None,
         subfolder: str = "",
-        use_cache: bool = True,
         local_files_only: bool = False,
+        # inference/loading options
+        use_cache: bool = True,
         use_merged: Optional[bool] = None,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[onnxruntime.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: Optional[bool] = None,
+        provider: str = "CPUExecutionProvider",
+        provider_options: Optional[Dict[str, Any]] = None,
+        session_options: Optional[SessionOptions] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModelForCausalLM":
@@ -488,6 +475,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             subfolder=subfolder,
             local_files_only=local_files_only,
         )
+
         new_model_save_dir = Path(model_cache_path).parent
 
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
@@ -554,7 +542,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         del onnx_model
 
-        model = ORTModel.load_model(
+        session = ORTModel.load_model(
             model_cache_path,
             provider=provider,
             session_options=session_options,
@@ -579,24 +567,25 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             try:
                 generation_config = GenerationConfig.from_pretrained(
                     model_id,
+                    revision=revision,
+                    subfolder=subfolder,
                     cache_dir=cache_dir,
                     force_download=force_download,
                     local_files_only=local_files_only,
                     token=token,
-                    revision=revision,
-                    subfolder=subfolder,
                 )
             except OSError:
                 logger.info(
-                    "Generation config file not found, using a generation config created from the model config."
+                    "Generation config file not found in the model directory/repository. "
+                    "Creating a new one from the model config file."
                 )
+                generation_config = GenerationConfig.from_model_config(config)
 
         return init_cls(
-            model=model,
             config=config,
+            session=session,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
-            preprocessors=preprocessors,
             use_cache=use_cache,
             generation_config=generation_config,
         )
@@ -616,7 +605,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         use_cache: bool = True,
         use_merged: bool = False,
         provider: str = "CPUExecutionProvider",
-        session_options: Optional[onnxruntime.SessionOptions] = None,
+        session_options: Optional[SessionOptions] = None,
         provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: Optional[bool] = None,
         task: Optional[str] = None,
@@ -628,7 +617,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             use_merged = False
 
         if task is None:
-            task = cls._auto_model_to_task(cls.auto_model_class)
+            task = TasksManager.infer_task_from_model(cls.auto_model_class)
 
             if use_cache:
                 task += "-with-past"
@@ -651,7 +640,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             force_download=force_download,
             trust_remote_code=trust_remote_code,
         )
-        maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
         return cls._from_pretrained(
             save_dir_path,
@@ -862,21 +850,19 @@ class ORTMPTForCausalLM(ORTModelForCausalLM):
 class ORTFalconForCausalLM(ORTModelForCausalLM):
     def __init__(
         self,
-        model: onnxruntime.InferenceSession,
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
+        session: InferenceSession,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
         generation_config: Optional[GenerationConfig] = None,
         use_cache: Optional[bool] = None,
         **kwargs,
     ):
         super().__init__(
-            model=model,
             config=config,
+            session=session,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
-            preprocessors=preprocessors,
             generation_config=generation_config,
             use_cache=use_cache,
             **kwargs,
