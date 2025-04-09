@@ -3,7 +3,7 @@ name: Build PR documentation
 on:
   workflow_dispatch:
   pull_request:
-    branches: [ main ]
+    branches: [main]
     paths:
       - "optimum/**.py"
       - "docs/**.mdx"
@@ -26,37 +26,37 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/doc-builder'
+          repository: "huggingface/doc-builder"
           path: doc-builder
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum'
+          repository: "huggingface/optimum"
           path: optimum
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-habana'
+          repository: "huggingface/optimum-habana"
           path: optimum-habana
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-intel'
+          repository: "huggingface/optimum-intel"
           path: optimum-intel
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-furiosa'
+          repository: "huggingface/optimum-furiosa"
           path: optimum-furiosa
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-amd'
+          repository: "huggingface/optimum-amd"
           path: optimum-amd
 
       - uses: actions/checkout@v2
         with:
-          repository: 'huggingface/optimum-tpu'
+          repository: "huggingface/optimum-tpu"
           path: optimum-tpu
 
       - name: Setup environment
@@ -68,7 +68,6 @@ jobs:
           git pull origin main
           pip install .
           pip install black
-          pip install wheel
           cd ..
 
       - name: Make Habana documentation
@@ -96,6 +95,7 @@ jobs:
         run: |
           sudo docker system prune -a -f
           cd optimum-amd
+          pip install wheel -U
           make doc BUILD_DIR=amd-doc-build VERSION=pr_$PR_NUMBER
           sudo mv amd-doc-build ../optimum
           cd ..
