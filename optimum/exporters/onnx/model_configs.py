@@ -967,7 +967,7 @@ class Swin2srOnnxConfig(SwinOnnxConfig):
 
 
 class DptOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 14
 
 
 class GlpnOnnxConfig(ViTOnnxConfig):

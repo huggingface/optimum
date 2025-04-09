@@ -79,9 +79,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "dpt": "hf-internal-testing/tiny-random-DPTModel",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "encoder-decoder": {
-        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": [
-            "text2text-generation",
-        ],
+        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": ["text2text-generation"],
         "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
     },
     "esm": "hf-internal-testing/tiny-random-EsmModel",

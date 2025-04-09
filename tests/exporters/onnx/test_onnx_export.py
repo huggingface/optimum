@@ -18,7 +18,7 @@ from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict
-from unittest import TestCase
+from unittest import TestCase, mock
 
 import onnx
 import pytest
@@ -531,6 +531,7 @@ class OnnxCustomExport(TestCase):
             assert "cross_attentions.0" in output_names
 
     @parameterized.expand([(None,), (fn_get_submodels_custom,)])
+    @mock.patch.dict("sys.modules", triton_pre_mlir=mock.Mock())
     def test_custom_export_trust_remote(self, fn_get_submodels):
         model_id = "echarlaix/tiny-mpt-random-remote-code"
         config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
