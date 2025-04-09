@@ -2630,6 +2630,50 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
 
 
+class TimesFMDummyInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("inputs",)
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        **kwargs,
+    ):
+        self.task = task
+        self.normalized_config = normalized_config
+        self.batch_size = batch_size
+        self.context_len = normalized_config.context_length
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        return self.random_float_tensor(
+            shape=[self.batch_size, self.context_len],
+            min_value=-1,
+            max_value=1,
+            framework=framework,
+            dtype=float_dtype,
+        )
+
+
+class TimesFMOnnxConfig(OnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig.with_args(context_length="context_len")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.47.0")
+    DUMMY_INPUT_GENERATOR_CLASSES = (TimesFMDummyInputGenerator,)
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, needs opset>=14
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"inputs": {0: "batch_size", 1: "sequence_length"}}
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "last_hidden_state": {0: "batch_size"},
+            "mean_predictions": {0: "batch_size"},
+            "full_predictions": {0: "batch_size"},
+        }
+
+
 class PatchTSTOnnxConfig(OnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyPatchTSTInputGenerator,)
