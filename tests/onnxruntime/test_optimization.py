@@ -35,7 +35,6 @@ from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS
 from optimum.onnxruntime import (
     AutoOptimizationConfig,
     ORTConfig,
-    ORTModelForFeatureExtraction,
     ORTModelForImageClassification,
     ORTModelForSemanticSegmentation,
     ORTModelForSequenceClassification,
