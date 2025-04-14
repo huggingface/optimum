@@ -10,12 +10,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+env:
+  TRANSFORMERS_IS_CI: true
+
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.9']
+        python-version: ["3.9"]
         os: [ubuntu-22.04, macos-13]
 
     runs-on: ${{ matrix.os }}
