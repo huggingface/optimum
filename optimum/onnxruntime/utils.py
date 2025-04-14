@@ -143,6 +143,7 @@ class ORTConfigManager:
         "segformer": "vit",
         "t5": "bert",
         "vit": "vit",
+        "wav2vec2-bert": "bert",
         "whisper": "bart",
         "xlm-roberta": "bert",
         "pix2struct": "vit",
