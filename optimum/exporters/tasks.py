@@ -21,7 +21,7 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
-from huggingface_hub import HfApi, snapshot_download
+from huggingface_hub import HfApi
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.errors import OfflineModeIsEnabled
 from packaging import version
@@ -1615,6 +1615,8 @@ class TasksManager:
         request_exception = None
         full_model_path = Path(model_name_or_path, subfolder)
 
+        hf_api = HfApi(user_agent=http_user_agent(), token=token)
+
         if full_model_path.is_dir():
             all_files = [
                 os.path.relpath(os.path.join(dirpath, file), full_model_path)
@@ -1625,19 +1627,20 @@ class TasksManager:
             try:
                 if not isinstance(model_name_or_path, str):
                     model_name_or_path = str(model_name_or_path)
-                all_files = HfApi(
-                    user_agent=http_user_agent(),
-                ).list_repo_files(
+                all_files = hf_api.list_repo_files(
                     model_name_or_path,
                     repo_type="model",
-                    token=token,
                     revision=revision,
+                    token=token,
                 )
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
             except (RequestsConnectionError, OfflineModeIsEnabled) as e:
-                snapshot_path = snapshot_download(
-                    repo_id=model_name_or_path, revision=revision, cache_dir=cache_dir, token=token
+                snapshot_path = hf_api.snapshot_download(
+                    repo_id=model_name_or_path,
+                    cache_dir=cache_dir,
+                    revision=revision,
+                    token=token,
                 )
                 full_model_path = Path(snapshot_path, subfolder)
                 if full_model_path.is_dir():
@@ -1819,7 +1822,7 @@ class TasksManager:
                     "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
                 )
             try:
-                model_info = HfApi(user_agent=http_user_agent()).model_info(
+                model_info = HfApi(user_agent=http_user_agent(), token=token).model_info(
                     model_name_or_path, revision=revision, token=token
                 )
             except (RequestsConnectionError, OfflineModeIsEnabled):

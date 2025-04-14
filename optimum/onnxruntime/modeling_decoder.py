@@ -28,7 +28,7 @@ from onnx.tools import update_model_dims
 from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from transformers.utils.hub import cached_file
+from transformers.utils import cached_file
 
 import onnxruntime
 
@@ -482,20 +482,18 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if isinstance(subfolder, Path):
             subfolder = subfolder.as_posix()
 
-        model_cache_path = Path(
-            cached_file(
-                model_id,
-                filename=file_name,
-                # hub options
-                token=token,
-                revision=revision,
-                subfolder=subfolder,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                local_files_only=local_files_only,
-            )
+        model_cache_path = cached_file(
+            model_id,
+            filename=file_name,
+            # hub options
+            token=token,
+            revision=revision,
+            subfolder=subfolder,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            local_files_only=local_files_only,
         )
-        new_model_save_dir = model_cache_path.parent
+        new_model_save_dir = Path(model_cache_path).parent
 
         try:
             cached_file(

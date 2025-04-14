@@ -22,7 +22,7 @@ from unittest import TestCase
 import numpy as np
 import onnx
 import torch
-from huggingface_hub import snapshot_download
+from huggingface_hub import HfApi
 from onnx import load as onnx_load
 from onnxruntime import InferenceSession
 from parameterized import parameterized
@@ -104,8 +104,7 @@ class OnnxToInt32Test(TestCase):
         model_id = "fxmarty/gpt2-tiny-onnx"
 
         with TemporaryDirectory() as tmpdir:
-            repo_path = snapshot_download(model_id, cache_dir=tmpdir, user_agent=http_user_agent())
-
+            repo_path = HfApi(user_agent=http_user_agent()).snapshot_download(model_id, cache_dir=tmpdir)
             path = str(Path(repo_path, "decoder_model.onnx"))
             save_path = str(Path(repo_path, "decoder_model_int32.onnx"))
             model = onnx.load(path)
