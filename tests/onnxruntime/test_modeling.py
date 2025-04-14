@@ -26,7 +26,7 @@ import onnxruntime
 import pytest
 import requests
 import torch
-from huggingface_hub import HfApi
+from huggingface_hub import snapshot_download
 from huggingface_hub.constants import default_cache_path
 from parameterized import parameterized
 from PIL import Image
@@ -64,6 +64,7 @@ from transformers.modeling_utils import no_init_weights
 from transformers.models.swin2sr.configuration_swin2sr import Swin2SRConfig
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu, slow
+from transformers.utils import http_user_agent
 
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
@@ -1307,11 +1308,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model_id = "sentence-transformers-testing/stsb-bert-tiny-onnx"
         # hub model
         ORTModelForFeatureExtraction.from_pretrained(model_id, subfolder=subfolder, export=subfolder == "")
-        # local model
-        api = HfApi()
         with tempfile.TemporaryDirectory() as tmpdirname:
             local_dir = Path(tmpdirname) / "model"
-            api.snapshot_download(repo_id=model_id, local_dir=local_dir)
+            snapshot_download(repo_id=model_id, local_dir=local_dir, user_agent=http_user_agent())
             ORTModelForFeatureExtraction.from_pretrained(local_dir, subfolder=subfolder, export=subfolder == "")
             remove_directory(tmpdirname)
 
