@@ -59,6 +59,11 @@ jobs:
         run: |
           pip install "diffusers<0.32.0"
 
+      - name: Downgrade diffusers
+        if: matrix.transformers-version == '4.45.*'
+        run: |
+          pip install "diffusers<0.33.0"    
+
       - name: Test with pytest (in series)
         run: |
           pytest tests/onnxruntime -m "run_in_series" --durations=0 -vvvv
