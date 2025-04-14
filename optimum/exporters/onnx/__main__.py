@@ -25,8 +25,8 @@ from transformers import AutoConfig, AutoTokenizer
 from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
-from ...configuration_utils import _transformers_version
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
+from ...utils.import_utils import _transformers_version
 from ...utils.save_utils import maybe_load_preprocessors
 from ..tasks import TasksManager
 from ..utils import DisableCompileContextManager
