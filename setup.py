@@ -93,7 +93,6 @@ EXTRAS_REQUIRE = {
         "tensorflow>=2.4,<=2.12.1",
         "transformers>=4.36,<4.38",
     ],
-    "diffusers": ["diffusers"],
     "intel": "optimum-intel>=1.18.0",
     "openvino": "optimum-intel[openvino]>=1.18.0",
     "nncf": "optimum-intel[nncf]>=1.18.0",
