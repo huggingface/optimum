@@ -34,15 +34,14 @@ def validate_file_exists(
     """
     Checks that the file called `filename` exists in the `model_name_or_path` directory or model repo.
     """
-    model_path = Path(model_name_or_path) if isinstance(model_name_or_path, str) else model_name_or_path
-    if model_path.is_dir():
-        return (model_path / subfolder / filename).is_file()
+
+    if os.path.isdir(model_name_or_path):
+        return os.path.isfile(os.path.join(model_name_or_path, subfolder, filename))
     else:
         return HfApi(user_agent=http_user_agent(), token=token).file_exists(
+            filename=os.path.join(subfolder, filename),
             repo_id=model_name_or_path,
-            subfolder=subfolder,
             revision=revision,
-            filename=filename,
             token=token,
         )
 

@@ -561,7 +561,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 onnx_model,
                 str(model_cache_path),
                 save_as_external_data=model_uses_external_data,
-                location=model_cache_path.name + "_data",
+                location=Path(model_cache_path).name + "_data",
                 all_tensors_to_one_file=True,
                 convert_attribute=True,
                 size_threshold=0,
