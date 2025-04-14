@@ -49,6 +49,7 @@ from huggingface_hub.utils import validate_hf_hub_args
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
 from transformers.file_utils import add_end_docstrings
 from transformers.modeling_outputs import ModelOutput
+from transformers.utils import http_user_agent
 
 import onnxruntime as ort
 from optimum.utils import is_diffusers_version
@@ -268,6 +269,7 @@ class ORTDiffusionPipeline(ORTModel, DiffusionPipeline):
                 cache_dir=cache_dir,
                 force_download=force_download,
                 local_files_only=local_files_only,
+                user_agent=http_user_agent(),
                 revision=revision,
                 token=token,
                 allow_patterns=allow_patterns,
