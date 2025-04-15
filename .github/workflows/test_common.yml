@@ -1,4 +1,4 @@
-name: Utils / Python - Test
+name: Common / Python - Test
 
 on:
   push:
@@ -18,10 +18,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-13, windows-2022]
+        runs-on: [ubuntu-22.04, windows-2019, macos-13]
         python-version: ["3.9"]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs-on }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,9 +35,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests]
 
-      - name: Tests needing datasets
+      - name: Test with pytest
+        env:
+          HUGGINGFACE_CO_STAGING: ${{ matrix.python-version == '3.9' && matrix.runs-on == 'ubuntu-22.04' }}
         run: |
-          pytest tests/utils -n auto -vvvv --durations=0
+          pytest tests/utils -vvvv --durations=0

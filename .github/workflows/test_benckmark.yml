@@ -1,6 +1,4 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
-name: Benchmark suite / Python - Test
+name: Benchmark / Python - Test
 
 on:
   push:
@@ -22,16 +20,19 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout codes
+        uses: actions/checkout@v4
+
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Install dependencies
         run: |
-          pip install -U setuptools
-          pip install wheel
-          pip install .[tests,onnxruntime,benchmark] datasets
-      - name: Test with unittest
+          pip install --upgrade pip
+          pip install .[tests,onnxruntime,benchmark]
+
+      - name: Test with pytest
         run: |
-          python -m unittest discover --start-directory tests/benchmark --pattern 'test_*.py'
+          pytest tests/benchmark -n auto -vvvv --durations=0
