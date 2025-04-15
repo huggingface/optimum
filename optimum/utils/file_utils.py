@@ -20,25 +20,30 @@ import warnings
 from pathlib import Path
 from typing import List, Optional, Union
 
-import huggingface_hub
-from huggingface_hub import get_hf_file_metadata, hf_hub_url
+from huggingface_hub import HfApi
+from transformers.utils import http_user_agent
 
 
 def validate_file_exists(
-    model_name_or_path: Union[str, Path], filename: str, subfolder: str = "", revision: Optional[str] = None
+    model_name_or_path: Union[str, Path],
+    filename: str,
+    subfolder: str = "",
+    revision: Optional[str] = None,
+    token: Optional[Union[bool, str]] = None,
 ) -> bool:
     """
     Checks that the file called `filename` exists in the `model_name_or_path` directory or model repo.
     """
-    model_path = Path(model_name_or_path) if isinstance(model_name_or_path, str) else model_name_or_path
-    if model_path.is_dir():
-        return (model_path / subfolder / filename).is_file()
-    succeeded = True
-    try:
-        get_hf_file_metadata(hf_hub_url(model_name_or_path, filename, subfolder=subfolder, revision=revision))
-    except Exception:
-        succeeded = False
-    return succeeded
+
+    if os.path.isdir(model_name_or_path):
+        return os.path.isfile(os.path.join(model_name_or_path, subfolder, filename))
+    else:
+        return HfApi(user_agent=http_user_agent(), token=token).file_exists(
+            filename=os.path.join(subfolder, filename),
+            repo_id=model_name_or_path,
+            revision=revision,
+            token=token,
+        )
 
 
 def find_files_matching_pattern(
@@ -93,7 +98,9 @@ def find_files_matching_pattern(
         files = Path(model_path).glob(glob_pattern)
         files = [p for p in files if re.search(pattern, str(p))]
     else:
-        repo_files = huggingface_hub.list_repo_files(model_path, revision=revision, token=token)
+        repo_files = HfApi(user_agent=http_user_agent(), token=token).list_repo_files(
+            model_path, revision=revision, token=token
+        )
         files = [Path(p) for p in repo_files if re.match(pattern, p)]
 
     return files

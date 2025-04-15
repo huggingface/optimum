@@ -26,7 +26,7 @@ import onnxruntime
 import pytest
 import requests
 import torch
-from huggingface_hub import snapshot_download
+from huggingface_hub import HfApi
 from huggingface_hub.constants import default_cache_path
 from parameterized import parameterized
 from PIL import Image
@@ -1310,7 +1310,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         ORTModelForFeatureExtraction.from_pretrained(model_id, subfolder=subfolder, export=subfolder == "")
         with tempfile.TemporaryDirectory() as tmpdirname:
             local_dir = Path(tmpdirname) / "model"
-            snapshot_download(repo_id=model_id, local_dir=local_dir, user_agent=http_user_agent())
+            HfApi(user_agent=http_user_agent()).snapshot_download(repo_id=model_id, local_dir=local_dir)
             ORTModelForFeatureExtraction.from_pretrained(local_dir, subfolder=subfolder, export=subfolder == "")
             remove_directory(tmpdirname)
 

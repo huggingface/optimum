@@ -37,7 +37,7 @@ from transformers import (
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
-from transformers.utils.hub import cached_file
+from transformers.utils import cached_file
 
 import onnxruntime as ort
 
@@ -777,7 +777,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         decoder_without_past_path = None
         decoder_with_past_path = None
         if use_merged is False:
-            if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
+            if not validate_file_exists(
+                model_id, decoder_file_name, subfolder=subfolder, revision=revision, token=token
+            ):
                 decoder_without_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                     model_id,
                     [DECODER_ONNX_FILE_PATTERN],
@@ -803,7 +805,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             # If the decoder without / with past has been merged, we do not need to look for any additional file
             if use_cache is True and use_merged is False:
                 if not validate_file_exists(
-                    model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision
+                    model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision, token=token
                 ):
                     try:
                         decoder_with_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
@@ -835,7 +837,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                         f"the {cls.__name__} might not behave as expected."
                     )
 
-        if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision):
+        if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision, token=token):
             encoder_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                 model_id,
                 [ENCODER_ONNX_FILE_PATTERN],
@@ -871,16 +873,14 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             for attr_name, filename in attribute_name_to_filename.items():
                 if filename is None:
                     continue
-                model_cache_path = Path(
-                    cached_file(
-                        model_id,
-                        filename=filename,
-                        subfolder=subfolder,
-                        revision=revision,
-                        cache_dir=cache_dir,
-                        force_download=force_download,
-                        local_files_only=local_files_only,
-                    )
+                model_cache_path = cached_file(
+                    model_id,
+                    filename=filename,
+                    subfolder=subfolder,
+                    revision=revision,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
                 )
                 # try download external data
                 try:
