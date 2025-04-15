@@ -31,11 +31,10 @@ from transformers import (
     AutoConfig,
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
-    is_tf_available,
     is_torch_available,
 )
 from transformers.modeling_utils import PreTrainedModel
-from transformers.testing_utils import require_onnx, require_tf, require_torch, require_torch_gpu, require_vision, slow
+from transformers.testing_utils import require_onnx, require_torch, require_torch_gpu, require_vision, slow
 
 from optimum.exporters import TasksManager
 from optimum.exporters.error_utils import AtolError
@@ -68,14 +67,9 @@ from ..utils import (
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_TIMM_MODEL,
-    TENSORFLOW_EXPORT_MODELS,
     VALIDATE_EXPORT_ON_SHAPES_SLOW,
 )
 
-
-if is_tf_available():
-    from transformers import TFAutoModelForSequenceClassification
-    from transformers.modeling_tf_utils import TFPreTrainedModel
 
 SEED = 42
 
@@ -103,19 +97,9 @@ class OnnxUtilsTestCase(TestCase):
         )
 
 
-class OnnxConfigTestCase(TestCase):
-    """
-    Covers the test for models default.
-
-    Default means no specific tasks is being enabled on the model.
-    """
-
-    # TODO: insert relevant tests here.
-
-
 def _get_models_to_test(export_models_dict: Dict, library_name: str = "transformers"):
     models_to_test = []
-    if is_torch_available() or is_tf_available():
+    if is_torch_available():
         for model_type, model_names_tasks in export_models_dict.items():
             model_type = model_type.replace("_", "-")
             task_config_mapping = TasksManager.get_supported_tasks_for_model_type(
@@ -390,19 +374,6 @@ class OnnxExportTestCase(TestCase):
             shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
             monolith=monolith,
         )
-
-    @parameterized.expand(_get_models_to_test(TENSORFLOW_EXPORT_MODELS))
-    @slow
-    @require_tf
-    @require_vision
-    @pytest.mark.tensorflow_test
-    def test_tensorflow_export(
-        self, test_name, model_type, model_name, task, onnx_config_class_constructor, monolith: bool
-    ):
-        if monolith is False:
-            return 0
-
-        self._onnx_export(test_name, model_type, model_name, task, onnx_config_class_constructor, monolith=monolith)
 
     @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
     @require_torch
@@ -705,88 +676,74 @@ class OnnxExportModelTest(TestCase):
 
 
 class TestOnnxConfigWithLoss(unittest.TestCase):
-    @pytest.mark.tensorflow_test
     def test_onnx_config_with_loss(self):
         # Prepare model and dataset
         model_checkpoint = "hf-internal-testing/tiny-random-bert"
-        models = {
-            AutoModelForSequenceClassification.from_pretrained(model_checkpoint),
-        }
-        if is_tf_available():
-            models.add(TFAutoModelForSequenceClassification.from_pretrained(model_checkpoint))
+        model = AutoModelForSequenceClassification.from_pretrained(model_checkpoint)
 
-        for model in models:
-            with self.subTest(model=model):
-                with tempfile.TemporaryDirectory() as tmp_dir:
-                    onnx_config_constructor = TasksManager.get_exporter_config_constructor(
-                        model=model, exporter="onnx", task="text-classification"
-                    )
-                    onnx_config = onnx_config_constructor(model.config)
+        with self.subTest(model=model):
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                    model=model, exporter="onnx", task="text-classification"
+                )
+                onnx_config = onnx_config_constructor(model.config)
 
-                    wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
+                wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
 
-                    # Export model from PyTorch to ONNX
-                    onnx_model_path = Path(os.path.join(tmp_dir, f"{model.config.model_type}.onnx"))
-                    opset = max(onnx_config.DEFAULT_ONNX_OPSET, 12)
-                    _ = export(
-                        model=model,
-                        config=wrapped_onnx_config,
-                        opset=opset,
-                        output=onnx_model_path,
-                    )
+                # Export model from PyTorch to ONNX
+                onnx_model_path = Path(os.path.join(tmp_dir, f"{model.config.model_type}.onnx"))
+                opset = max(onnx_config.DEFAULT_ONNX_OPSET, 12)
+                _ = export(
+                    model=model,
+                    config=wrapped_onnx_config,
+                    opset=opset,
+                    output=onnx_model_path,
+                )
 
-                    # ONNX Runtime Inference
-                    ort_sess = onnxruntime.InferenceSession(
-                        onnx_model_path.as_posix(),
-                        providers=[
-                            (
-                                "CUDAExecutionProvider"
-                                if torch.cuda.is_available()
-                                and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
-                                else "CPUExecutionProvider"
-                            )
-                        ],
-                    )
-                    framework = "pt" if isinstance(model, PreTrainedModel) else "tf"
-                    normalized_config = NormalizedConfigManager.get_normalized_config_class("bert")(model.config)
-                    input_generator = DummyTextInputGenerator(
-                        "text-classification", normalized_config, batch_size=2, sequence_length=16
-                    )
-
-                    inputs = {
-                        name: input_generator.generate(name, framework=framework)
-                        for name in ["input_ids", "attention_mask", "token_type_ids"]
-                    }
-                    inputs["labels"] = input_generator.constant_tensor(
-                        [2], value=0, dtype=inputs["input_ids"].dtype, framework=framework
-                    )
-
-                    input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
-                    output_names = [output.name for output in ort_sess._outputs_meta]
-
-                    input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
-
-                    ort_outputs = ort_sess.run(output_names, input_feed)
-                    pt_outputs = model(**inputs)
-
-                    # Checkers
-                    assert len(ort_outputs) > 1, "There is only one element in outputs, the loss might be missing!"
-                    if issubclass(type(model), PreTrainedModel):
-                        self.assertAlmostEqual(
-                            float(ort_outputs[0]),
-                            float(pt_outputs["loss"]),
-                            3,
-                            "The losses of ONNX Runtime and PyTorch inference are not close enough!",
+                # ONNX Runtime Inference
+                ort_sess = onnxruntime.InferenceSession(
+                    onnx_model_path.as_posix(),
+                    providers=[
+                        (
+                            "CUDAExecutionProvider"
+                            if torch.cuda.is_available()
+                            and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
+                            else "CPUExecutionProvider"
                         )
-                    elif issubclass(type(model), TFPreTrainedModel):
-                        for ort_loss, pt_loss in zip(ort_outputs[-1], pt_outputs["loss"]):
-                            self.assertAlmostEqual(
-                                float(ort_loss),
-                                float(pt_loss),
-                                3,
-                                "The losses of ONNX Runtime and PyTorch inference are not close enough!",
-                            )
-                    gc.collect()
+                    ],
+                )
+                framework = "pt" if isinstance(model, PreTrainedModel) else "tf"
+                normalized_config = NormalizedConfigManager.get_normalized_config_class("bert")(model.config)
+                input_generator = DummyTextInputGenerator(
+                    "text-classification", normalized_config, batch_size=2, sequence_length=16
+                )
+
+                inputs = {
+                    name: input_generator.generate(name, framework=framework)
+                    for name in ["input_ids", "attention_mask", "token_type_ids"]
+                }
+                inputs["labels"] = input_generator.constant_tensor(
+                    [2], value=0, dtype=inputs["input_ids"].dtype, framework=framework
+                )
+
+                input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
+                output_names = [output.name for output in ort_sess._outputs_meta]
+
+                input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
+
+                ort_outputs = ort_sess.run(output_names, input_feed)
+                pt_outputs = model(**inputs)
+
+                # Checkers
+                assert len(ort_outputs) > 1, "There is only one element in outputs, the loss might be missing!"
+                if issubclass(type(model), PreTrainedModel):
+                    self.assertAlmostEqual(
+                        float(ort_outputs[0]),
+                        float(pt_outputs["loss"]),
+                        3,
+                        "The losses of ONNX Runtime and PyTorch inference are not close enough!",
+                    )
+                gc.collect()
 
     def test_onnx_decoder_model_with_config_with_loss(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
