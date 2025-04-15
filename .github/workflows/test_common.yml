@@ -41,4 +41,4 @@ jobs:
         env:
           HUGGINGFACE_CO_STAGING: ${{ matrix.python-version == '3.9' && matrix.runs-on == 'ubuntu-22.04' }}
         run: |
-          pytest tests/utils -vvvv --durations=0
+          pytest tests/common -vvvv --durations=0

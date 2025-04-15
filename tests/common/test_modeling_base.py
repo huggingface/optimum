@@ -31,10 +31,6 @@ class DummyModel(OptimizedModel):
 
 class TestOptimizedModel(unittest.TestCase):
     def test_load_model_from_hub(self):
-        # TODO: figure out how to create repos and push stuff to staging
-        if os.getenv("HUGGINGFACE_CO_STAGING", False):
-            self.skipTest("Skip test on staging")
-
         dummy_model = DummyModel.from_pretrained(TEST_HUB_PATH)
         self.assertTrue(dummy_model.config.remote)
 
@@ -46,12 +42,7 @@ class TestOptimizedModel(unittest.TestCase):
             remote_hash = random.getrandbits(128)
             model.config.from_local = remote_hash
 
-            model.save_pretrained(
-                tmpdirname,
-                token=os.environ.get("HF_AUTH_TOKEN", None),
-                push_to_hub=True,
-                repository_id="unit_test_save_model",
-            )
+            model.save_pretrained(tmpdirname, push_to_hub=True, token=os.environ.get("HF_AUTH_TOKEN", None))
             # folder contains all config files and pytorch_model.bin
             url = "https://huggingface.co/philschmid/unit_test_save_model/raw/main/config.json"
             response = r.get(url)
