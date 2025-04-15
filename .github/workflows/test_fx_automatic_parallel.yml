@@ -1,12 +1,7 @@
-name: Automatic Model Parallelism Test on GPUs
+name: Automatic Model/Tensor Parallelism on GPU / Python - Test
 
 on:
   pull_request:
-    branches:
-      - main
-    paths:
-      - 'optimum/fx/parallelization/**.py'
-  push:
     branches:
       - main
     paths:
@@ -18,20 +13,11 @@ concurrency:
 
 jobs:
   run_gpu_tests:
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - name: GPU-enabled Optimum Test Suite
-            image: nvidia/cuda:12.4.1-devel-ubuntu22.04
-        gpu_target: ["aws-g5-12xlarge-plus"]
-
-    name: ${{ matrix.config.name }}
     runs-on:
-      group: "${{matrix.gpu_target}}"
+      group: aws-g5-12xlarge-plus
 
     container:
-      image: ${{ matrix.config.image }}
+      image: nvidia/cuda:12.4.1-devel-ubuntu22.04
       options: --mount type=tmpfs,destination=/tmp --shm-size 64gb --gpus all --ipc host -v /mnt/hf_cache:/mnt/cache/
       env:
         NCCL_DEBUG: INFO
@@ -40,14 +26,14 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
       - name: Checkout optimum
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
       - name: Run nvidia-smi
         run: |
