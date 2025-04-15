@@ -11,6 +11,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+env:
+  TRANSFORMERS_IS_CI: true
+
 jobs:
   run_gpu_tests:
     runs-on:

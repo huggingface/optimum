@@ -15,6 +15,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+env:
+  TRANSFORMERS_IS_CI: true
+
 jobs:
   build:
     strategy:
@@ -42,4 +45,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/exporters/tflite/test_exporters_tflite_cli.py -k "not quantization" -s -vvvv --durations=0
+          pytest tests/exporters/tflite -m auto -k "cli and not quantization" -vvvv --durations=0
