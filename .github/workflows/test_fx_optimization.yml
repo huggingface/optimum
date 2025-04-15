@@ -1,4 +1,4 @@
-name: FX Optimization & Quantization / Python - Test
+name: FX Optimization / Python - Test
 
 on:
   push:
@@ -37,10 +37,6 @@ jobs:
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests]
 
-      - name: Test with pytest (optimization)
+      - name: Test with pytest
         run: |
           pytest tests/fx/optimization -n auto -vvvv
-
-      - name: Test with pytest (quantization)
-        run: |
-          pytest tests/fx/quantization -n auto -vvvv
