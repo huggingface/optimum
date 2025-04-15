@@ -39,7 +39,7 @@ jobs:
 
       - name: Test with pytest (stable pytorch)
         run: |
-          pytest tests/bettertransformer -vvvvv
+          pytest tests/bettertransformer -n auto -vvvvv
 
       - name: Install dependencies (nightly pytorch)
         run: |
@@ -47,4 +47,4 @@ jobs:
 
       - name: Test with pytest (nightly pytorch)
         run: |
-          pytest tests/bettertransformer -vvvv
+          pytest tests/bettertransformer -n auto -vvvv

@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - ".github/workflows/test_export_tflite_cli.yml"
+      - ".github/workflows/test_export_cli.yml"
       - "optimum/exporters/tflite/**.py"
       - "tests/exporters/tflite/**.py"
       - "setup.py"
@@ -23,8 +23,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9"]
-        runs-on: ["ubuntu-22.04"]
+        python-version: [3.9]
+        runs-on: [ubuntu-22.04]
+        quantization_schema:
+          [
+            "not quantization",
+            float16_quantization,
+            int8_dynamic_quantization,
+            int8_quantization_with_custom_dataset,
+            int8_quantization_with_default_dataset,
+            int8x16_quantization_with_default_dataset,
+            full_int8_quantization_with_default_dataset,
+          ]
 
     runs-on: ${{ matrix.runs-on }}
 
@@ -45,4 +55,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/exporters/tflite/ -n auto -k "not cli and not quantization" -vvvv --durations=0
+          pytest tests/exporters/tflite/test_export.py -n auto -k "${{ matrix.quantization_schema }}" -vvvv --durations=0

@@ -18,28 +18,37 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9"]
-        os: [ubuntu-22.04]
+        python-version: [3.9]
+        runs-on: [ubuntu-22.04]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs-on }}
+
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install dependencies for pytorch export
+
+      - name: Install dependencies (pytorch)
         run: |
+          pip install --upgrade pip
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,exporters] diffusers
-      - name: Test with unittest
-        working-directory: tests
+
+      - name: Test with pytest (pytorch)
         run: |
-          pytest exporters/onnx/test_onnx_*.py -s -n auto -m "not tensorflow_test and not timm_test" --durations=0
-      - name: Install dependencies for tensorflow export
+          pytest tests/exporters/onnx/test_export*.py -n auto -m "not tensorflow_test and not timm_test" -vvvv --durations=0
+
+      - name: Install dependencies (tensorflow)
         run: |
           pip uninstall diffusers -y
+          pip install --no-cache-dir torch==2.1.2 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,exporters-tf]
-      - name: Test with unittest
+
+      - name: Test with pytest (tensorflow)
         working-directory: tests
         run: |
-          pytest exporters/onnx/test_onnx_*.py -n auto -m "tensorflow_test" -s --durations=0
+          pytest tests/exporters/onnx/test_export*.py -n auto -m "tensorflow_test" -vvvv --durations=0

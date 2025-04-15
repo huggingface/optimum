@@ -2,11 +2,9 @@ name: Exporters ONNX CLI / Python - Test
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -20,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9"]
+        python-version: [3.9]
         os: [ubuntu-22.04]
 
     runs-on: ${{ matrix.os }}
@@ -34,10 +32,22 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Install dependencies (pytorch)
         run: |
+          pip install --upgrade pip
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests,exporters] diffusers
 
-      - name: Test with pytest
+      - name: Test with pytest (pytorch)
         run: |
-          pytest tests/exporters/onnx/test_exporters_onnx_cli.py -n auto -m "not tensorflow_test and not timm_test" -s --durations=0
+          pytest tests/exporters/onnx/test_export_cli.py -n auto -m "not tensorflow_test and not timm_test" -vvvv --durations=0
+
+      - name: Install dependencies (tensorflow)
+        run: |
+          pip uninstall diffusers -y
+          pip install --no-cache-dir torch==2.1.2 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install .[tests,exporters-tf]
+
+      - name: Test with pytest (tensorflow)
+        run: |
+          pytest tests/exporters/onnx/test_export_cli.py -n auto -m "tensorflow_test" -vvvv --durations=0
