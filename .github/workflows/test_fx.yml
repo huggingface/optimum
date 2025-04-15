@@ -1,4 +1,4 @@
-name: FX / Python - Test
+name: FX Optimization & Quantization / Python - Test
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9"]
+        python-version: [3.9]
         os: [ubuntu-22.04]
 
     runs-on: ${{ matrix.os }}
@@ -39,8 +39,8 @@ jobs:
 
       - name: Test with pytest (optimization)
         run: |
-          pytest -s -v tests/fx/optimization
+          pytest tests/fx/optimization -n auto -vvvv
 
       - name: Test with pytest (quantization)
         run: |
-          pytest -s -v tests/fx/quantization
+          pytest tests/fx/quantization -n auto -vvvv
