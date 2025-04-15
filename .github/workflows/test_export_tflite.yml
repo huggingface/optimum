@@ -21,8 +21,9 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.9"]
+        runs-on: ["ubuntu-22.04"]
 
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runs-on }}
 
     steps:
       - name: Checkout code
@@ -40,8 +41,5 @@ jobs:
           pip install .[tests,exporters-tf]
 
       - name: Test with pytest
-        working-directory: tests
-        env:
-          HF_HOME: /mnt/cache/.cache/huggingface
         run: |
-          pytest exporters/tflite/test_tflite_export.py -k "not quantization" -s -vvvv --durations=0
+          pytest tests/exporters/tflite/test_tflite_export.py -k "not quantization" -s -vvvv --durations=0

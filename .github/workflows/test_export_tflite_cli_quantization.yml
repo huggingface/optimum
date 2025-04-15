@@ -21,6 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.9"]
+        runs-on: ["ubuntu-22.04"]
         quantization_schema:
           [
             tflite_float16_quantization,
@@ -31,7 +32,7 @@ jobs:
             tflite_full_int8_quantization_with_default_dataset,
           ]
 
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runs-on }}
 
     steps:
       - name: Checkout code
@@ -49,8 +50,5 @@ jobs:
           pip install .[tests,exporters-tf]
 
       - name: Test with pytest
-        working-directory: tests
-        env:
-          HF_HOME: /mnt/cache/.cache/huggingface
         run: |
-          pytest exporters/tflite/test_exporters_tflite_cli.py -k "${{ matrix.quantization_schema }}" -s -vvvv --durations=0
+          pytest tests/exporters/tflite/test_exporters_tflite_cli.py -k "${{ matrix.quantization_schema }}" -s -vvvv --durations=0
