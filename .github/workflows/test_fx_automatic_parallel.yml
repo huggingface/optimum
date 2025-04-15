@@ -1,4 +1,4 @@
-name: Automatic Model/Tensor Parallelism on GPU / Python - Test
+name: FX Automatic Parallelism on GPU / Python - Test
 
 on:
   pull_request:
