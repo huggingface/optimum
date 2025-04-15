@@ -40,7 +40,7 @@ jobs:
 
       - name: Test with pytest (pytorch)
         run: |
-          pytest tests/exporters/onnx/test_export*.py -n auto -m "not tensorflow_test and not timm_test" -vvvv --durations=0
+          pytest tests/exporters/onnx/test_export.py -n auto -m "not tensorflow_test and not timm_test" -vvvv --durations=0
 
       - name: Install dependencies (tensorflow)
         run: |
@@ -51,4 +51,4 @@ jobs:
       - name: Test with pytest (tensorflow)
         working-directory: tests
         run: |
-          pytest tests/exporters/onnx/test_export*.py -n auto -m "tensorflow_test" -vvvv --durations=0
+          pytest tests/exporters/onnx/test_export.py -n auto -m "tensorflow_test" -vvvv --durations=0

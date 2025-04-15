@@ -19,9 +19,10 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.9]
-        os: [ubuntu-22.04, macos-13]
+        runs-on: [ubuntu-22.04, macos-13, windows-2022]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs-on }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,4 +40,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/cli -n auto -vvvv --durations=0
+          pytest tests/cli -vvvv --durations=0
