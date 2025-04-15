@@ -1,4 +1,3 @@
-import os
 import random
 import tempfile
 import unittest
@@ -6,9 +5,9 @@ import unittest
 import requests as r
 import torch
 from transformers.configuration_utils import PretrainedConfig
+from transformers.testing_utils import TOKEN, is_staging_test
 
 from optimum.modeling_base import OptimizedModel
-from optimum.utils.testing_utils import require_hf_token
 
 
 TEST_HUB_PATH = "philschmid/unit_test_model"
@@ -29,12 +28,12 @@ class DummyModel(OptimizedModel):
         pass
 
 
+@is_staging_test
 class TestOptimizedModel(unittest.TestCase):
     def test_load_model_from_hub(self):
         dummy_model = DummyModel.from_pretrained(TEST_HUB_PATH)
         self.assertTrue(dummy_model.config.remote)
 
-    @require_hf_token
     def test_push_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model = DummyModel.from_pretrained(TEST_LOCAL_PATH)
@@ -42,7 +41,7 @@ class TestOptimizedModel(unittest.TestCase):
             remote_hash = random.getrandbits(128)
             model.config.from_local = remote_hash
 
-            model.save_pretrained(tmpdirname, push_to_hub=True, token=os.environ.get("HF_AUTH_TOKEN", None))
+            model.save_pretrained(tmpdirname, push_to_hub=True, token=TOKEN)
             # folder contains all config files and pytorch_model.bin
             url = "https://huggingface.co/philschmid/unit_test_save_model/raw/main/config.json"
             response = r.get(url)

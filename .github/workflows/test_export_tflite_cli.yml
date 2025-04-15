@@ -45,4 +45,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/exporters/tflite -m auto -k "cli and not quantization" -vvvv --durations=0
+          pytest tests/exporters/tflite -n auto -k "cli and not quantization" -vvvv --durations=0

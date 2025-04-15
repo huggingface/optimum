@@ -54,4 +54,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/exporters/tflite -m auto -k "${{ matrix.quantization_schema }}" -vvvv --durations=0
+          pytest tests/exporters/tflite -n auto -k "${{ matrix.quantization_schema }}" -vvvv --durations=0
