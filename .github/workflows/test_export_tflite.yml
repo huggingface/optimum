@@ -22,8 +22,7 @@ jobs:
       matrix:
         python-version: ["3.9"]
 
-    runs-on:
-      group: aws-general-8-plus
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout code

@@ -31,8 +31,7 @@ jobs:
             tflite_full_int8_quantization_with_default_dataset,
           ]
 
-    runs-on:
-      group: aws-general-8-plus
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout code
