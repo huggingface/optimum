@@ -27,6 +27,7 @@ from transformers.testing_utils import require_torch, require_torch_gpu, require
 
 from optimum.exporters.error_utils import MinimumVersionError
 from optimum.exporters.onnx import main_export
+from optimum.exporters.tasks import TasksManager
 from optimum.onnxruntime import (
     ONNX_DECODER_MERGED_NAME,
     ONNX_DECODER_NAME,
@@ -34,10 +35,6 @@ from optimum.onnxruntime import (
     ONNX_ENCODER_NAME,
 )
 from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_sentence_transformers, require_timm
-
-
-if is_torch_available():
-    from optimum.exporters.tasks import TasksManager
 
 from ..utils import (
     NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,

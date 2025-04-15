@@ -393,7 +393,6 @@ class OnnxExportTestCase(TestCase):
 
     @parameterized.expand(_get_models_to_test(TENSORFLOW_EXPORT_MODELS))
     @slow
-    @pytest.mark.run_slow
     @require_tf
     @require_vision
     @pytest.mark.tensorflow_test
@@ -413,12 +412,11 @@ class OnnxExportTestCase(TestCase):
         self._onnx_export_diffusion_models(model_type, model_name)
 
     @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
+    @slow
     @require_torch
     @require_vision
     @require_diffusers
     @require_torch_gpu
-    @slow
-    @pytest.mark.run_slow
     @pytest.mark.gpu_test
     def test_pytorch_export_for_diffusion_models_cuda(self, model_type, model_name):
         self._onnx_export_diffusion_models(model_type, model_name, device="cuda")
