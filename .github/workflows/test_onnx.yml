@@ -40,4 +40,4 @@ jobs:
   
     - name: Test with pytest
       run: |
-        pytest tests/onnx -n auto -vvvv --duration=0
+        pytest tests/onnx -n auto -vvvv --durations=0
