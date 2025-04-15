@@ -31,7 +31,8 @@ jobs:
             tflite_full_int8_quantization_with_default_dataset,
           ]
 
-    runs-on: [intel-cpu, 8-cpu, ci]
+    runs-on:
+      group: aws-general-8-plus
 
     steps:
       - name: Checkout code
