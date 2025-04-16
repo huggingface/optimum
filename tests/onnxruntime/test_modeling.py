@@ -63,7 +63,7 @@ from transformers.modeling_outputs import ImageSuperResolutionOutput
 from transformers.modeling_utils import no_init_weights
 from transformers.models.swin2sr.configuration_swin2sr import Swin2SRConfig
 from transformers.onnx.utils import get_preprocessor
-from transformers.testing_utils import get_gpu_count, require_torch_gpu, slow
+from transformers.testing_utils import get_gpu_count, require_torch_gpu
 from transformers.utils import http_user_agent
 
 from optimum.exporters import TasksManager
