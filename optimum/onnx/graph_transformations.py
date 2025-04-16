@@ -132,6 +132,7 @@ def replace_atenops_to_gather(model: ModelProto) -> ModelProto:
     return model
 
 
+# TODO: this method is too complicated
 def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, Path]]):
     # for large models, a path must be provided instead of a ModelProto:
     # https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#checking-a-large-onnx-model-2gb
@@ -160,6 +161,9 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
             onnx.save(
                 model,
                 save_path,
+                save_as_external_data=True,
+                all_tensors_to_one_file=True,
+                location=external_file_name,
                 convert_attribute=True,
             )
     elif save_path is not None:
