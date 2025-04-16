@@ -1,4 +1,4 @@
-name: Exporters TFLite CLI Quantization / Python - Test
+name: Exporters TFLite CLI / Python - Test
 
 on:
   push:
@@ -16,7 +16,11 @@ env:
 
 jobs:
   build:
-    if: ${{ (github.event_name == 'push') || contains( github.event.pull_request.labels.*.name, 'tflite' ) }}
+    if: ${{
+      (github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch') ||
+      contains( github.event.pull_request.labels.*.name, 'tflite' )
+      }}
 
     strategy:
       fail-fast: false

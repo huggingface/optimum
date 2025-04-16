@@ -1084,12 +1084,10 @@ class ORTModelIntegrationTest(unittest.TestCase):
             remove_directory(tmpdirname)
 
     @parameterized.expand([(False,), (True,)])
-    @pytest.mark.run_slow
-    @slow
     def test_save_load_decoder_model_with_external_data(self, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model = ORTModelForCausalLM.from_pretrained(
-                "gpt2-large", export=True, use_cache=use_cache, use_merged=False, use_io_binding=False
+                MODEL_NAMES["gpt2"], export=True, use_cache=use_cache, use_merged=False, use_io_binding=False
             )
             model.save_pretrained(tmpdirname)
 
@@ -2429,9 +2427,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     GENERATION_LENGTH = 100
 
     @parameterized.expand([(False,), (True,)])
-    @pytest.mark.run_in_series
-    # TODO: still gotta find out why this needs to be ran in series / why it fails in parallel
-    # my guess is that the model surgery is happening in parallel and that's causing the issue
     def test_inference_old_onnx_model(self, use_cache):
         tokenizer = get_preprocessor("gpt2")
         model = AutoModelForCausalLM.from_pretrained("gpt2")
@@ -3755,7 +3750,6 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
         return onnx_model_dir
 
-    @pytest.mark.run_in_series
     def test_inference_old_onnx_model(self):
         tokenizer = get_preprocessor("t5-small")
         model = AutoModelForSeq2SeqLM.from_pretrained("t5-small")
