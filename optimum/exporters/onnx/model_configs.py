@@ -1061,6 +1061,16 @@ class MgpstrOnnxConfig(ViTOnnxConfig):
         return MgpstrModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
+class EfficientNetOnnxConfig(ViTOnnxConfig):
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        common_outputs = super().outputs 
+
+        if self.task == "image-classification":
+            common_outputs["logits"] = {0: "batch_size", 1: "num_classes"}
+        
+        return common_outputs
+
 class SentenceTransformersTransformerOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     DEFAULT_ONNX_OPSET = 14  # Some bottleneck transformers models require a specific ONNX opset to be successfully exported. We put a rather high opset here for the export to work for all architectures.
