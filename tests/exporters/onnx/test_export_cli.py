@@ -293,12 +293,9 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
-    @require_torch
     @require_vision
+    @require_torch
     @require_timm
-    @slow
-    @pytest.mark.timm_test
-    @pytest.mark.run_slow
     def test_exporters_cli_pytorch_cpu_timm(
         self,
         test_name: str,
@@ -312,12 +309,9 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES, library_name="timm"))
-    @require_torch
     @require_vision
+    @require_torch
     @require_timm
-    @slow
-    @pytest.mark.timm_test
-    @pytest.mark.run_slow
     def test_exporters_cli_pytorch_cpu_timm_no_dynamic_axes(
         self,
         test_name: str,
@@ -341,9 +335,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_torch_gpu
     @require_vision
     @require_timm
-    @slow
-    @pytest.mark.timm_test
-    @pytest.mark.run_slow
     def test_exporters_cli_pytorch_gpu_timm(
         self,
         test_name: str,
@@ -360,9 +351,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_torch_gpu
     @require_vision
     @require_timm
-    @slow
-    @pytest.mark.timm_test
-    @pytest.mark.run_slow
+    @pytest.mark.gpu_test
     def test_exporters_cli_fp16_timm(
         self,
         test_name: str,

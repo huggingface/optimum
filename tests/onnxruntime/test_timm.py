@@ -13,7 +13,7 @@ from optimum.onnxruntime import ORTModelForImageClassification
 
 
 class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
-    TIMM_SUPPORTED_MODELS = ["timm/inception_v3.tf_adv_in1k"] # only one is required for testing
+    TIMM_SUPPORTED_MODELS = ["timm/inception_v3.tf_adv_in1k"]  # only one is required for testing
 
     @parameterized.expand(TIMM_SUPPORTED_MODELS)
     def test_compare_to_timm(self, model_id):
