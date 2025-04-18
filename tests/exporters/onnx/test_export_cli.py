@@ -260,17 +260,15 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_torch_gpu
     @require_vision
     @require_diffusers
-    @slow
-    @pytest.mark.run_slow
+    @pytest.mark.gpu_test
     def test_exporters_cli_pytorch_gpu_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda")
 
     @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
     @require_torch_gpu
-    @require_vision
     @require_diffusers
-    @slow
-    @pytest.mark.run_slow
+    @require_vision
+    @pytest.mark.gpu_test
     def test_exporters_cli_fp16_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda", fp16=True)
 
@@ -312,6 +310,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_vision
     @require_torch
     @require_timm
+    @slow
+    @pytest.mark.run_slow
     def test_exporters_cli_pytorch_cpu_timm_no_dynamic_axes(
         self,
         test_name: str,
@@ -391,9 +391,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, model_kwargs=model_kwargs)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES, library_name="transformers"))
-    @require_torch
     @require_vision
+    @require_torch
     @slow
+    @pytest.mark.run_slow
     def test_exporters_cli_pytorch_cpu_no_dynamic_axes(
         self,
         test_name: str,
@@ -581,6 +582,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 check=True,
             )
 
+    @require_diffusers
     def test_diffusion(self):
         with TemporaryDirectory() as tmpdirname:
             subprocess.run(
@@ -614,8 +616,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             self.assertNotIn("position_ids", {node.name for node in model.graph.input})
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
-    @require_vision
     @require_torch_gpu
+    @require_vision
     @slow
     @pytest.mark.run_slow
     def test_export_on_fp16(

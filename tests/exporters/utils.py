@@ -335,7 +335,11 @@ PYTORCH_DIFFUSION_MODEL = {
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
 }
 
-PYTORCH_TIMM_MODEL = {"inception_v3": "timm/inception_v3.tf_adv_in1k"}
+PYTORCH_TIMM_MODEL = {
+    "default-timm-config": {
+        "timm/inception_v3.tf_adv_in1k": ["image-classification"],  # one model is enought to test timm integration
+    }
+}
 
 PYTORCH_SENTENCE_TRANSFORMERS_MODEL = {
     "clip": "sentence-transformers/clip-ViT-B-32",
