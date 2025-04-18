@@ -47,12 +47,6 @@ jobs:
         if: matrix.runs-on == 'ubuntu-22.04'
         uses: jlumbroso/free-disk-space@main
 
-      - name: Free Disk Space (Windows)
-        if: matrix.runs-on == 'windows-2022'
-        run: |
-          Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Used -gt 0 } | ForEach-Object { $_.Free = 0 }
-          Get-ChildItem -Path C:\ -Recurse -Force | Where-Object { $_.Attributes -ne "Directory" } | ForEach-Object { $_.Delete() }
-
       - name: Free Disk Space (macOS)
         if: matrix.runs-on == 'macos-15'
         run: |
