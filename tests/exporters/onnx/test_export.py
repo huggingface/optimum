@@ -33,7 +33,7 @@ from transformers import (
     is_torch_available,
 )
 from transformers.modeling_utils import PreTrainedModel
-from transformers.testing_utils import require_onnx, require_torch, require_torch_gpu, require_vision
+from transformers.testing_utils import require_onnx, require_torch, require_torch_gpu, require_vision, slow
 
 from optimum.exporters import TasksManager
 from optimum.exporters.error_utils import AtolError
@@ -161,8 +161,6 @@ def _get_models_to_test(export_models_dict: Dict, library_name: str = "transform
 
 
 # TODO: TOO MUCH HACKING FOR TESTING
-# TODO: I just enabled it and it seems to hang for some reason, investigate later
-@pytest.skip("Skipping this test for now", allow_module_level=True)
 class OnnxExportTestCase(TestCase):
     """
     Integration tests ensuring supported models are correctly exported.
@@ -320,6 +318,9 @@ class OnnxExportTestCase(TestCase):
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
+    # TODO: I just enabled it and it seems to hang for some reason, investigate later
+    @slow
+    @pytest.mark.run_slow
     def test_pytorch_export_on_cpu(
         self, test_name, model_type, model_name, task, onnx_config_class_constructor, monolith
     ):

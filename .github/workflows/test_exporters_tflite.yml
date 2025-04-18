@@ -1,6 +1,7 @@
-name: Exporters TFLite CLI / Python - Test
+name: Exporters TFLite / Python - Test
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -57,4 +58,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/exporters/tflite/test_export_cli.py -n auto -k "${{ matrix.quantization_schema }}" -vvvv --durations=0
+          pytest tests/exporters/tflite/test_export.py -k "${{ matrix.quantization_schema }}" -vvvv --durations=0 -n auto

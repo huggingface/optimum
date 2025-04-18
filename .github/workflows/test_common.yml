@@ -39,7 +39,7 @@ jobs:
           pip install .[tests]
 
       - name: Test with pytest
-        env:
-          HUGGINGFACE_CO_STAGING: ${{ matrix.python-version == '3.9' && matrix.runs-on == 'ubuntu-22.04' }}
         run: |
           pytest tests/common -vvvv --durations=0
+        env:
+          HUGGINGFACE_CO_STAGING: ${{ matrix.python-version == '3.9' && matrix.runs-on == 'ubuntu-22.04' }}

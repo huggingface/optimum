@@ -40,4 +40,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/exporters/common -n auto -vvvv --durations=0
+          pytest tests/exporters/common -vvvv --durations=0 -n auto
