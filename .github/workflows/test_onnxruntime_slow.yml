@@ -35,7 +35,7 @@ jobs:
       matrix:
         python-version: [3.9]
         transformers-version: [latest]
-        runs-on: [ubuntu-22.04, windows-2022, macos-15]
+        runs-on: [ubuntu-22.04, windows-2022]
         include:
           - {python-version: 3.9, transformers-version: 4.36.*, runs-on: ubuntu-22.04}
           - {python-version: 3.9, transformers-version: 4.45.*, runs-on: ubuntu-22.04}
