@@ -2,12 +2,10 @@ name: ONNX Runtime Slow / Python - Test
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+  schedule:
+    - cron: 0 7 * * * # every day at 7am UTC
   pull_request:
-    branches:
-      - main
+    branches: [main]
     types:
       - opened
       - labeled
@@ -26,6 +24,7 @@ jobs:
   build:
     if: ${{
       (github.event_name == 'push') ||
+      (github.event_name == 'schedule') ||
       (github.event_name == 'workflow_dispatch') ||
       contains(github.event.pull_request.labels.*.name, 'slow') ||
       contains(github.event.pull_request.labels.*.name, 'onnxruntime-slow')
@@ -38,10 +37,8 @@ jobs:
         transformers-version: [latest]
         runs-on: [ubuntu-22.04, windows-2022, macos-15]
         include:
-          - transformers-version: "4.36.*"
-            runs-on: ubuntu-22.04
-          - transformers-version: "4.45.*"
-            runs-on: ubuntu-22.04
+          - {python-version: 3.9, transformers-version: 4.36.*, runs-on: ubuntu-22.04}
+          - {python-version: 3.9, transformers-version: 4.45.*, runs-on: ubuntu-22.04}
 
     runs-on: ${{ matrix.runs-on }}
 
@@ -49,6 +46,20 @@ jobs:
       - name: Free Disk Space (Ubuntu)
         if: matrix.runs-on == 'ubuntu-22.04'
         uses: jlumbroso/free-disk-space@main
+
+      - name: Free Disk Space (Windows)
+        if: matrix.runs-on == 'windows-2022'
+        run: |
+          Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Used -gt 0 } | ForEach-Object { $_.Free = 0 }
+          Get-ChildItem -Path C:\ -Recurse -Force | Where-Object { $_.Attributes -ne "Directory" } | ForEach-Object { $_.Delete() }
+
+      - name: Free Disk Space (macOS)
+        if: matrix.runs-on == 'macos-15'
+        run: |
+          sudo rm -rf /Library/Developer/Xcode/DerivedData/*
+          sudo rm -rf ~/Library/Developer/Xcode/Archives/*
+          sudo rm -rf ~/Library/Caches/com.apple.dt.Xcode/*
+          sudo rm -rf ~/Library/Caches/com.apple.dt.Xcode.SimulatorKit/*
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -69,9 +80,12 @@ jobs:
         run: |
           pip install "transformers==${{ matrix.transformers-version }}" "diffusers<0.32.0"
 
-      - name: Test with pytest
+      - name: Test with pytest (in series)
         run: |
-          pytest tests/onnxruntime --durations=0 -vvvv
+          pytest tests/onnxruntime -m "run_in_series" --durations=0 -vvvv
+  
+      - name: Test with pytest (in parallel)
+        run: |
+          pytest tests/onnxruntime -m "not run_in_series" --durations=0 -vvvv -n auto
         env:
-          RUN_SLOW: 1
           HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}

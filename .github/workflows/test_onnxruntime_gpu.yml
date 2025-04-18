@@ -5,8 +5,7 @@ on:
   schedule:
     - cron: 0 7 * * * # every day at 7am UTC
   pull_request:
-    branches:
-      - main
+    branches: [main]
     types:
       - opened
       - labeled
