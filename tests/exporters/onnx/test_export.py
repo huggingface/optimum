@@ -34,7 +34,7 @@ from transformers import (
     is_torch_available,
 )
 from transformers.modeling_utils import PreTrainedModel
-from transformers.testing_utils import require_onnx, require_torch, require_torch_gpu, require_vision, slow
+from transformers.testing_utils import require_onnx, require_torch, require_torch_gpu, require_vision
 
 from optimum.exporters import TasksManager
 from optimum.exporters.error_utils import AtolError
@@ -321,8 +321,6 @@ class OnnxExportTestCase(TestCase):
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
-    @pytest.mark.run_slow
-    @slow
     def test_pytorch_export_on_cpu(
         self,
         test_name,
@@ -349,8 +347,6 @@ class OnnxExportTestCase(TestCase):
     @require_torch
     @require_vision
     @require_torch_gpu
-    @slow
-    @pytest.mark.run_slow
     @pytest.mark.gpu_test
     def test_pytorch_export_on_cuda(
         self,
@@ -383,7 +379,6 @@ class OnnxExportTestCase(TestCase):
         self._onnx_export_diffusion_models(model_type, model_name)
 
     @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
-    @slow
     @require_torch
     @require_vision
     @require_diffusers
@@ -622,9 +617,8 @@ class OnnxExportModelTest(TestCase):
             )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
-    @require_torch
     @require_vision
-    @slow
+    @require_torch
     def test_pytorch_export_on_cpu(
         self,
         test_name,
@@ -650,8 +644,6 @@ class OnnxExportModelTest(TestCase):
     @require_torch
     @require_vision
     @require_torch_gpu
-    @slow
-    @pytest.mark.run_slow
     @pytest.mark.gpu_test
     def test_pytorch_export_on_cuda(
         self,

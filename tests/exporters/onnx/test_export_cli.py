@@ -619,6 +619,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_torch_gpu
     @require_vision
     @slow
+    @pytest.mark.gpu_test
     @pytest.mark.run_slow
     def test_export_on_fp16(
         self,
@@ -691,6 +692,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 main_export(model_name_or_path=model_name, output=tmpdir, task=task)
 
     @slow
+    @pytest.mark.run_slow
     def test_complex_synonyms(self):
         # conversational (text2text-generation)
         with TemporaryDirectory() as tmpdir:

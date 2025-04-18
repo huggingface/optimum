@@ -40,4 +40,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/exporters/onnx/test_export_cli.py -n auto -m "not timm_test" -vvvv --durations=0
+          pytest tests/exporters/onnx/test_export_cli.py -vvvv --durations=0 -n auto
