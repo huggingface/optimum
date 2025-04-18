@@ -136,6 +136,7 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
     # We can check ModelProtos that are smaller than 2GB before saving them.
     # For larger models, we need to save them first and then check their save path.
     # https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#checking-a-large-onnx-model-2gb
+
     if model.ByteSize() < onnx.checker.MAXIMUM_PROTOBUF:
         # For the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
         try:
