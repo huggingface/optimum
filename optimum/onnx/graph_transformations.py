@@ -156,17 +156,19 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
 
     model_uses_external_data = False
     if os.path.isfile(external_file_path):
-        os.remove(external_file_path)
         model_uses_external_data = True
+        os.remove(external_file_path)
+
+    FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"
 
     onnx.save(
         model,
         save_path,
-        save_as_external_data=model_uses_external_data,
+        save_as_external_data=model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA,
         all_tensors_to_one_file=True,
         location=external_file_name,
         convert_attribute=True,
-        size_threshold=0,
+        size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 100,
     )
 
     try:

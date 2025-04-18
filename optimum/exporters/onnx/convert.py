@@ -574,7 +574,6 @@ def export_pytorch(
             )
 
         # check if external data was exported
-        # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
         onnx_model = onnx.load(str(output), load_external_data=False)
         model_uses_external_data = check_model_uses_external_data(onnx_model)
 
@@ -587,12 +586,12 @@ def export_pytorch(
             del model
             del onnx_model
             gc.collect()
+
             if device.type == "cuda" and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-            onnx_model = onnx.load(
-                str(output), load_external_data=True
-            )  # this will probably be too memory heavy for large models
+            # this will probably be too memory heavy for large models
+            onnx_model = onnx.load(str(output), load_external_data=True)
             onnx.save(
                 onnx_model,
                 str(output),
