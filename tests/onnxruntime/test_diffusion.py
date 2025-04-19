@@ -553,6 +553,9 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
         for batch_size in [1, 3]:

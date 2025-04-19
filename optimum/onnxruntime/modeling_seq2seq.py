@@ -336,6 +336,8 @@ class ORTEncoder(ORTSessionMixin):
     Encoder of an encoder-decoder model for ONNX Runtime inference.
     """
 
+    main_input_name = "input_ids"
+
     def __init__(self, session: InferenceSession, parent_model: ORTModel):
         super().__init__(session, parent_model.use_io_binding)
 
@@ -381,6 +383,8 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
     """
     Decoder of an encoder-decoder model for ONNX Runtime inference.
     """
+
+    main_input_name = "input_ids"
 
     def __init__(self, session: InferenceSession, parent_model: ORTModel):
         super().__init__(session, parent_model.use_io_binding)
@@ -692,6 +696,8 @@ class ORTEncoderForSpeech(ORTEncoder):
             The ONNX Runtime inference session associated to the encoder.
     """
 
+    main_input_name = "input_features"
+
     @add_start_docstrings_to_model_forward(SPEECH_ENCODER_INPUTS_DOCSTRING)
     def forward(
         self,
@@ -737,6 +743,8 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
             The ONNX Runtime inference session associated to the encoder.
     """
 
+    main_input_name = "pixel_values"
+
     @add_start_docstrings_to_model_forward(VISION_ENCODER_INPUTS_DOCSTRING)
     def forward(
         self,
@@ -779,6 +787,8 @@ class ORTEncoderForPix2Struct(ORTEncoder):
         session (`InferenceSession`):
             The ONNX Runtime inference session associated to the encoder.
     """
+
+    main_input_name = "flattened_patches"
 
     @add_start_docstrings_to_model_forward(PIX2STRUCT_INPUTS_DOCSTRING)
     def forward(
