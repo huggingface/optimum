@@ -30,6 +30,7 @@ from transformers.trainer_utils import EvalLoopOutput
 from transformers.utils import logging
 
 import onnxruntime as ort
+from onnxruntime.transformers.io_binding_helper import TypeHelper
 
 from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
 
@@ -48,34 +49,6 @@ ONNX_ENCODER_NAME = "encoder_model.onnx"
 ONNX_DECODER_NAME = "decoder_model.onnx"
 ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
 ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
-
-_ORT_TO_NP_TYPE = {
-    "tensor(bool)": np.bool_,
-    "tensor(int8)": np.int8,
-    "tensor(uint8)": np.uint8,
-    "tensor(int16)": np.int16,
-    "tensor(uint16)": np.uint16,
-    "tensor(int32)": np.int32,
-    "tensor(uint32)": np.uint32,
-    "tensor(int64)": np.int64,
-    "tensor(uint64)": np.uint64,
-    "tensor(float16)": np.float16,
-    "tensor(float)": np.float32,
-    "tensor(double)": np.float64,
-}
-
-
-def _is_gpu_available():
-    """
-    Checks if a gpu is available.
-    """
-    available_providers = ort.get_available_providers()
-    if (
-        "CUDAExecutionProvider" in available_providers or "ROCMExecutionProvider" in available_providers
-    ) and torch.cuda.is_available():
-        return True
-    else:
-        return False
 
 
 def is_onnxruntime_training_available():
@@ -433,3 +406,23 @@ class DummyWhisperModel:
         class Conv:
             def __init__(self, stride):
                 self.stride = stride
+
+
+def get_dtype_from_session(session: ort.InferenceSession) -> torch.dtype:
+    """
+    Returns the `torch.dtype` associated with the ONNX Runtime session.
+    This dtype is inferred from the input/output dtypes of the session.
+    If no floating point type is found, it defaults to `torch.float32`.
+    """
+
+    for input in session.get_inputs():
+        torch_dtype = TypeHelper.ort_type_to_torch_type(input.type)
+        if torch_dtype.is_floating_point:
+            return torch_dtype
+
+    for output in session.get_outputs():
+        torch_dtype = TypeHelper.ort_type_to_torch_type(output.type)
+        if torch_dtype.is_floating_point:
+            return torch_dtype
+
+    return torch.float32
