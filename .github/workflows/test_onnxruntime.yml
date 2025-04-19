@@ -39,10 +39,6 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
 
     steps:
-      - name: Free Disk Space (Ubuntu)
-        if: matrix.runs-on == 'ubuntu-22.04'
-        uses: jlumbroso/free-disk-space@main
-
       - name: Checkout code
         uses: actions/checkout@v4
 
