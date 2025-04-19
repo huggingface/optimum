@@ -125,20 +125,24 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
 
-        auto_pipeline = DiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
         ort_pipeline = ORTDiffusionPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
+        auto_pipeline = DiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
 
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        print("model na")
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
         for batch_size in [1, 3]:
             for height in [16, 32]:
@@ -167,6 +171,36 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
             np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_compare_to_io_binding(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 64, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusion_model = ort_pipeline.unet or ort_pipeline.transformer
+
+        for output_type in ["latent", "pt"]:
+            inputs["output_type"] = output_type
+
+            # makes sure io binding is not used
+            ort_pipeline.use_io_binding = False
+            images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            self.assertEqual(len(diffusion_model._io_binding.get_outputs()), 0)
+
+            # makes sure io binding is effectively used
+            ort_pipeline.use_io_binding = True
+            io_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            self.assertGreaterEqual(len(diffusion_model._io_binding.get_outputs()), 1)
+
+            # makes sure the outputs are the same
+            np.testing.assert_allclose(images, io_images, atol=1e-4, rtol=1e-2)
+            # clears the io binding outputs
+            diffusion_model._io_binding.clear_binding_outputs()
 
     @parameterized.expand(CALLBACK_SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -207,13 +241,15 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         self._setup(model_args)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusion_model = pipeline.unet or pipeline.transformer
+        height, width, batch_size = 64, 64, 1
 
-        height, width, batch_size = 128, 64, 1
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
         for output_type in ["pil", "np", "pt", "latent"]:
             inputs["output_type"] = output_type
             outputs = pipeline(**inputs).images
+
             if output_type == "pil":
                 self.assertEqual((len(outputs), outputs[0].height, outputs[0].width), (batch_size, height, width))
             elif output_type == "np":
@@ -229,11 +265,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
                 else:
                     expected_height = height // pipeline.vae_scale_factor
                     expected_width = width // pipeline.vae_scale_factor
-                    out_channels = (
-                        pipeline.unet.config.out_channels
-                        if getattr(pipeline, "unet", None) is not None
-                        else pipeline.transformer.config.out_channels
-                    )
+                    out_channels = diffusion_model.config.out_channels
                     expected_shape = (batch_size, out_channels, expected_height, expected_width)
 
                 self.assertEqual(outputs.shape, expected_shape)
@@ -309,7 +341,9 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        safety_checker = StableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker")
+        safety_checker = StableDiffusionSafetyChecker.from_pretrained(
+            "katuni4ka/tiny-random-stable-diffusion-with-safety-checker"
+        )
 
         pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], safety_checker=safety_checker)
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(
@@ -384,15 +418,15 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
         for batch_size in [1, 3]:
             for height in [16, 32]:
@@ -441,8 +475,8 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         self._setup(model_args)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-
-        height, width, batch_size = 128, 64, 1
+        diffusion_model = pipeline.unet or pipeline.transformer
+        height, width, batch_size = 64, 64, 1
 
         for input_type in ["pil", "np", "pt"]:
             inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size, input_type=input_type)
@@ -450,6 +484,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             for output_type in ["pil", "np", "pt", "latent"]:
                 inputs["output_type"] = output_type
                 outputs = pipeline(**inputs).images
+
                 if output_type == "pil":
                     self.assertEqual((len(outputs), outputs[0].height, outputs[0].width), (batch_size, height, width))
                 elif output_type == "np":
@@ -457,16 +492,11 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
                 elif output_type == "pt":
                     self.assertEqual(outputs.shape, (batch_size, 3, height, width))
                 else:
-                    out_channels = (
-                        pipeline.unet.config.out_channels
-                        if pipeline.unet is not None
-                        else pipeline.transformer.config.out_channels
-                    )
                     self.assertEqual(
                         outputs.shape,
                         (
                             batch_size,
-                            out_channels,
+                            diffusion_model.config.out_channels,
                             height // pipeline.vae_scale_factor,
                             width // pipeline.vae_scale_factor,
                         ),
@@ -481,8 +511,8 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         height, width, batch_size = 128, 128, 1
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
         for output_type in ["latent", "np", "pt"]:
             inputs["output_type"] = output_type
@@ -491,6 +521,36 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
             np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_compare_to_io_binding(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 64, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusion_model = ort_pipeline.unet or ort_pipeline.transformer
+
+        for output_type in ["latent", "np", "pt"]:
+            inputs["output_type"] = output_type
+
+            # makes sure io binding is not used
+            ort_pipeline.use_io_binding = False
+            images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            self.assertEqual(len(diffusion_model._io_binding.get_outputs()), 0)
+
+            # makes sure io binding is effectively used
+            ort_pipeline.use_io_binding = True
+            io_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            self.assertGreaterEqual(len(diffusion_model._io_binding.get_outputs()), 1)
+
+            # makes sure the outputs are the same
+            np.testing.assert_allclose(images, io_images, atol=1e-4, rtol=1e-2)
+            # clears the io binding outputs
+            diffusion_model._io_binding.clear_binding_outputs()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -546,7 +606,9 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        safety_checker = StableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker")
+        safety_checker = StableDiffusionSafetyChecker.from_pretrained(
+            "katuni4ka/tiny-random-stable-diffusion-with-safety-checker"
+        )
 
         pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], safety_checker=safety_checker)
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(
@@ -623,15 +685,18 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_num_images_per_prompt(self, model_arch: str):
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
         for batch_size in [1, 3]:
             for height in [16, 32]:
@@ -680,8 +745,8 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         self._setup(model_args)
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-
-        height, width, batch_size = 128, 64, 1
+        diffusion_model = pipeline.unet or pipeline.transformer
+        height, width, batch_size = 64, 64, 1
 
         for input_type in ["pil", "np", "pt"]:
             inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size, input_type=input_type)
@@ -689,6 +754,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
             for output_type in ["pil", "np", "pt", "latent"]:
                 inputs["output_type"] = output_type
                 outputs = pipeline(**inputs).images
+
                 if output_type == "pil":
                     self.assertEqual((len(outputs), outputs[0].height, outputs[0].width), (batch_size, height, width))
                 elif output_type == "np":
@@ -696,16 +762,11 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
                 elif output_type == "pt":
                     self.assertEqual(outputs.shape, (batch_size, 3, height, width))
                 else:
-                    out_channels = (
-                        pipeline.unet.config.out_channels
-                        if pipeline.unet is not None
-                        else pipeline.transformer.config.out_channels
-                    )
                     self.assertEqual(
                         outputs.shape,
                         (
                             batch_size,
-                            out_channels,
+                            diffusion_model.config.out_channels,
                             height // pipeline.vae_scale_factor,
                             width // pipeline.vae_scale_factor,
                         ),
@@ -730,6 +791,36 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
             diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
 
             np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_diffusers
+    def test_compare_to_io_binding(self, model_arch: str):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 64, 64, 1
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
+        diffusion_model = ort_pipeline.unet or ort_pipeline.transformer
+
+        for output_type in ["latent", "np", "pt"]:
+            inputs["output_type"] = output_type
+
+            # makes sure io binding is not used
+            ort_pipeline.use_io_binding = False
+            images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            self.assertEqual(len(diffusion_model._io_binding.get_outputs()), 0)
+
+            # makes sure io binding is effectively used
+            ort_pipeline.use_io_binding = True
+            io_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            self.assertGreaterEqual(len(diffusion_model._io_binding.get_outputs()), 1)
+
+            # makes sure the outputs are the same
+            np.testing.assert_allclose(images, io_images, atol=1e-4, rtol=1e-2)
+            # clears the io binding outputs
+            diffusion_model._io_binding.clear_binding_outputs()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -785,7 +876,9 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        safety_checker = StableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker")
+        safety_checker = StableDiffusionSafetyChecker.from_pretrained(
+            "katuni4ka/tiny-random-stable-diffusion-with-safety-checker"
+        )
 
         pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], safety_checker=safety_checker)
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(
