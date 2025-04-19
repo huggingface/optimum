@@ -23,9 +23,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
-from huggingface_hub import hf_hub_download
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
-from huggingface_hub.utils import EntryNotFoundError
 from transformers import (
     AutoConfig,
     AutoModel,
@@ -33,12 +31,14 @@ from transformers import (
     AutoModelForSpeechSeq2Seq,
     AutoModelForVision2Seq,
     GenerationConfig,
+    GenerationMixin,
     Pix2StructForConditionalGeneration,
     PretrainedConfig,
     WhisperForConditionalGeneration,
 )
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
+from transformers.utils import cached_file
 
 from onnxruntime import InferenceSession, SessionOptions
 
@@ -62,13 +62,8 @@ from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
+    DummyWhisperModel,
 )
-
-
-if is_transformers_version(">=", "4.25.0"):
-    from transformers.generation import GenerationMixin
-else:
-    from transformers.generation_utils import GenerationMixin  # type: ignore
 
 
 logger = get_logger(__name__)
@@ -1150,7 +1145,9 @@ class ORTModelForConditionalGeneration(ORTMultiPartWrapper, OptimizedModel, Gene
         decoder_without_past_path = None
         decoder_with_past_path = None
         if use_merged is False:
-            if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
+            if not validate_file_exists(
+                model_id, decoder_file_name, subfolder=subfolder, revision=revision, token=token
+            ):
                 decoder_without_past_path = ORTModel.infer_onnx_filename(
                     model_id,
                     [DECODER_ONNX_FILE_PATTERN],
@@ -1174,7 +1171,7 @@ class ORTModelForConditionalGeneration(ORTMultiPartWrapper, OptimizedModel, Gene
             # If the decoder without / with past has been merged, we do not need to look for any additional file
             if use_cache is True and use_merged is False:
                 if not validate_file_exists(
-                    model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision
+                    model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision, token=token
                 ):
                     try:
                         decoder_with_past_path = ORTModel.infer_onnx_filename(
@@ -1206,7 +1203,7 @@ class ORTModelForConditionalGeneration(ORTMultiPartWrapper, OptimizedModel, Gene
                         f"the {cls.__name__} might not behave as expected."
                     )
 
-        if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision):
+        if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision, token=token):
             encoder_path = ORTModel.infer_onnx_filename(
                 model_id,
                 [ENCODER_ONNX_FILE_PATTERN],
@@ -1240,11 +1237,10 @@ class ORTModelForConditionalGeneration(ORTMultiPartWrapper, OptimizedModel, Gene
             for attr_name, filename in attribute_name_to_filename.items():
                 if filename is None:
                     continue
-                model_cache_path = hf_hub_download(
-                    repo_id=model_id,
-                    subfolder=subfolder,
+                model_cache_path = cached_file(
+                    model_id,
                     filename=filename,
-                    token=token,
+                    subfolder=subfolder,
                     revision=revision,
                     cache_dir=cache_dir,
                     force_download=force_download,
@@ -1252,8 +1248,8 @@ class ORTModelForConditionalGeneration(ORTMultiPartWrapper, OptimizedModel, Gene
                 )
                 # try download external data
                 try:
-                    hf_hub_download(
-                        repo_id=model_id,
+                    cached_file(
+                        model_id,
                         subfolder=subfolder,
                         filename=filename + "_data",
                         token=token,
@@ -1262,8 +1258,8 @@ class ORTModelForConditionalGeneration(ORTMultiPartWrapper, OptimizedModel, Gene
                         force_download=force_download,
                         local_files_only=local_files_only,
                     )
-                except EntryNotFoundError:
-                    # model doesn't use external data
+                except EnvironmentError:
+                    # If the external data file is not found, we assume that the model is not using external data.
                     pass
 
                 paths[attr_name] = Path(model_cache_path).name
@@ -1495,10 +1491,13 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration):
     Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper, speech_to_text.
     """
 
-    auto_model_class = AutoModelForSpeechSeq2Seq
     main_input_name = "input_features"
+    auto_model_class = AutoModelForSpeechSeq2Seq
 
     _encoder_class = ORTEncoderForSpeech
+
+    def get_encoder(self) -> ORTEncoder:
+        return self.encoder
 
     @add_start_docstrings_to_model_forward(
         SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING
@@ -1580,13 +1579,8 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration):
         return reordered_past
 
     @classmethod
-    def _from_pretrained(
-        cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
-        **kwargs,
-    ):
-        if "WhisperForConditionalGeneration" in config.architectures:
+    def _from_pretrained(cls, model_id: Union[str, Path], config: "PretrainedConfig", **kwargs):
+        if config.model_type == "whisper":
             return _ORTModelForWhisper._from_pretrained(model_id, config, **kwargs)
         else:
             return super()._from_pretrained(model_id, config, **kwargs)
@@ -1601,29 +1595,23 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGenerat
 
     auto_model_class = WhisperForConditionalGeneration
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.model = DummyWhisperModel()
+
     # force the use of the WhisperForConditionalGeneration generate and prepare_inputs_for_generation methods
-    def generate(self, *args, **kwargs):
-        return WhisperForConditionalGeneration.generate(self, *args, **kwargs)
+    def generate(*args, **kwargs):
+        return WhisperForConditionalGeneration.generate(*args, **kwargs)
 
-    def prepare_inputs_for_generation(self, *args, **kwargs):
-        return WhisperForConditionalGeneration.prepare_inputs_for_generation(self, *args, **kwargs)
+    # force the use of the WhisperForConditionalGeneration prepare_inputs_for_generation method
+    def prepare_inputs_for_generation(*args, **kwargs):
+        return WhisperForConditionalGeneration.prepare_inputs_for_generation(*args, **kwargs)
 
-    # a dummy model attribute that's used in the generate method to compute the input stride
-    # input_stride = self.model.encoder.conv1.stride[0] * self.model.encoder.conv2.stride[0]
-    class DummyWhisperModel:
-        def __init__(self):
-            self.encoder = self.Encoder()
-
-        class Encoder:
-            def __init__(self):
-                self.conv1 = self.Conv(stride=(1,))
-                self.conv2 = self.Conv(stride=(2,))
-
-            class Conv:
-                def __init__(self, stride):
-                    self.stride = stride
-
-    model = DummyWhisperModel()
+    # this is needed to avoid circular calls
+    @classmethod
+    def _from_pretrained(cls, model_id: Union[str, Path], config: "PretrainedConfig", **kwargs):
+        return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)

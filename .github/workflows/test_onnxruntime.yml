@@ -47,7 +47,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests,onnxruntime,diffusers]
+          pip install .[tests,onnxruntime] diffusers
 
       - name: Install transformers ${{ matrix.transformers-version }}
         if: ${{ matrix.transformers-version != 'latest' }}
@@ -58,6 +58,11 @@ jobs:
         if: matrix.transformers-version == '4.36.*'
         run: |
           pip install "diffusers<0.32.0"
+
+      - name: Downgrade diffusers
+        if: matrix.transformers-version == '4.45.*'
+        run: |
+          pip install "diffusers<0.33.0"    
 
       - name: Test with pytest (in series)
         run: |

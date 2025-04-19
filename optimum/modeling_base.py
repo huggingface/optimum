@@ -22,9 +22,10 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
-from huggingface_hub import create_repo, upload_file
+from huggingface_hub import HfApi
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import AutoConfig, PretrainedConfig, add_start_docstrings
+from transformers.utils import http_user_agent
 
 from .exporters import TasksManager
 from .utils import CONFIG_NAME
@@ -174,11 +175,13 @@ class OptimizedModel(PreTrainedModel):
                 raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
             token = use_auth_token
 
-        create_repo(
-            token=token,
+        hf_api = HfApi(user_agent=http_user_agent(), token=token)
+
+        hf_api.create_repo(
             repo_id=repository_id,
-            exist_ok=True,
             private=private,
+            exist_ok=True,
+            token=token,
         )
 
         for path, subdirs, files in os.walk(save_directory):
@@ -187,7 +190,7 @@ class OptimizedModel(PreTrainedModel):
                 _, hub_file_path = os.path.split(local_file_path)
                 # FIXME: when huggingface_hub fixes the return of upload_file
                 try:
-                    upload_file(
+                    hf_api.upload_file(
                         token=token,
                         repo_id=f"{repository_id}",
                         path_or_fileobj=os.path.join(os.getcwd(), local_file_path),

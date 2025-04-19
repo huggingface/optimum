@@ -407,6 +407,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @parameterized.expand(_get_models_to_test(PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES, library_name="transformers"))
     @require_torch
     @require_vision
+    @slow
     def test_exporters_cli_pytorch_cpu_no_dynamic_axes(
         self,
         test_name: str,

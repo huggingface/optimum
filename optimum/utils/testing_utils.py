@@ -89,7 +89,7 @@ def require_hf_token(test_case):
     """
     Decorator marking a test that requires huggingface hub token.
     """
-    # is HF_AUTH_TOKEN used instead of HF_TOKEN to avoid huggigface_hub picking it up ?
+    # is HF_AUTH_TOKEN used instead of HF_TOKEN to avoid huggingface_hub picking it up ?
     hf_token = os.environ.get("HF_AUTH_TOKEN", None)
     if hf_token is None:
         return unittest.skip("test requires hf token as `HF_AUTH_TOKEN` environment variable")(test_case)

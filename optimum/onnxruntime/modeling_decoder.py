@@ -28,6 +28,7 @@ from onnx.tools import update_model_dims
 from transformers import AutoModelForCausalLM, GenerationConfig, PretrainedConfig
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithPast
+from transformers.utils import cached_file
 
 from onnxruntime import InferenceSession, SessionOptions
 
@@ -465,18 +466,38 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             model_id = subfolder
             subfolder = ""
 
-        model_cache_path, preprocessors = cls._cached_file(
-            model_path=model_id,
+        if isinstance(subfolder, Path):
+            subfolder = subfolder.as_posix()
+
+        model_cache_path = cached_file(
+            model_id,
+            filename=file_name,
+            # hub options
             token=token,
             revision=revision,
-            force_download=force_download,
-            cache_dir=cache_dir,
-            file_name=file_name,
             subfolder=subfolder,
+            cache_dir=cache_dir,
+            force_download=force_download,
             local_files_only=local_files_only,
         )
 
         new_model_save_dir = Path(model_cache_path).parent
+
+        try:
+            cached_file(
+                model_id,
+                filename=file_name + "_data",
+                # hub options
+                token=token,
+                revision=revision,
+                subfolder=subfolder,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                local_files_only=local_files_only,
+            )
+        except EnvironmentError:
+            # If the external data file is not found, we assume that the model is not using external data.
+            pass
 
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
         # instead of the path only.
@@ -528,7 +549,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 onnx_model,
                 str(model_cache_path),
                 save_as_external_data=model_uses_external_data,
-                location=model_cache_path.name + "_data",
+                location=Path(model_cache_path).name + "_data",
                 all_tensors_to_one_file=True,
                 convert_attribute=True,
                 size_threshold=0,

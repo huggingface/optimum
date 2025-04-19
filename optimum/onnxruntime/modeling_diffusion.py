@@ -43,11 +43,12 @@ from diffusers.schedulers import SchedulerMixin
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils.constants import CONFIG_NAME
 from diffusers.utils.hub_utils import load_or_create_model_card, populate_model_card
-from huggingface_hub import create_repo, snapshot_download
+from huggingface_hub import HfApi, create_repo
 from huggingface_hub.utils import validate_hf_hub_args
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
 from transformers.file_utils import add_end_docstrings
 from transformers.modeling_outputs import ModelOutput
+from transformers.utils import http_user_agent
 
 from onnxruntime import InferenceSession, SessionOptions
 from optimum.utils import is_diffusers_version
@@ -298,7 +299,7 @@ class ORTDiffusionPipeline(ORTMultiPartWrapper, DiffusionPipeline):
                     CONFIG_NAME,
                 }
             )
-            model_save_folder = snapshot_download(
+            model_save_folder = HfApi(user_agent=http_user_agent()).snapshot_download(
                 repo_id=str(model_name_or_path),
                 allow_patterns=allow_patterns,
                 ignore_patterns=["*.msgpack", "*.safetensors", "*.bin", "*.xml"],

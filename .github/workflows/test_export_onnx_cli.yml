@@ -12,6 +12,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+env:
+  TRANSFORMERS_IS_CI: true
+
 jobs:
   build:
     strategy:
@@ -33,7 +36,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install .[tests,exporters,diffusers]
+          pip install .[tests,exporters] diffusers
 
       - name: Test with pytest
         run: |

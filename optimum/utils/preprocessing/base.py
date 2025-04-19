@@ -134,14 +134,19 @@ class TaskProcessor(ABC):
         load_smallest_split: bool = False,
         num_samples: Optional[int] = None,
         shuffle: bool = False,
+        download_config=None,
         **load_dataset_kwargs,
     ) -> Union["DatasetDict", "Dataset"]:
         requires_backends(self, ["datasets"])
 
-        from datasets import Dataset, DatasetDict
+        from datasets import Dataset, DatasetDict, DownloadConfig
         from datasets import load_dataset as datasets_load_dataset
+        from transformers.utils import http_user_agent
 
-        dataset = datasets_load_dataset(path, **load_dataset_kwargs)
+        if download_config is None:
+            download_config = DownloadConfig(user_agent=http_user_agent())
+
+        dataset = datasets_load_dataset(path, **load_dataset_kwargs, download_config=download_config)
 
         if isinstance(dataset, DatasetDict) and load_smallest_split:
             split = load_dataset_kwargs.get("split", None)

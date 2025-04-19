@@ -15,9 +15,10 @@
 import tempfile
 import unittest
 
-from huggingface_hub import HfFolder, delete_repo
+from huggingface_hub import HfApi
 from requests.exceptions import HTTPError
 from transformers.testing_utils import TOKEN, TemporaryHubRepo, is_staging_test
+from transformers.utils import http_user_agent
 
 from optimum.configuration_utils import BaseConfig
 
@@ -45,32 +46,29 @@ class ConfigTester(unittest.TestCase):
 @is_staging_test
 class ConfigPushToHubTester(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):
-        cls._token = TOKEN
-        HfFolder.save_token(TOKEN)
-
-    @classmethod
     def tearDownClass(cls):
+        api = HfApi(user_agent=http_user_agent(), token=TOKEN)
+
         try:
-            delete_repo(token=cls._token, repo_id="optimum-test-base-config")
+            api.delete_repo(repo_id="optimum-test-base-config")
         except HTTPError:
             pass
 
         try:
-            delete_repo(token=cls._token, repo_id="valid_org/optimum-test-base-config-org")
+            api.delete_repo(repo_id="valid_org/optimum-test-base-config-org")
         except HTTPError:
             pass
 
         try:
-            delete_repo(token=cls._token, repo_id="optimum-test-base-dynamic-config")
+            api.delete_repo(repo_id="optimum-test-base-dynamic-config")
         except HTTPError:
             pass
 
     def test_push_to_hub(self):
         config = FakeConfig(attribute=15)
 
-        with TemporaryHubRepo(token=self._token) as tmp_repo:
-            config.push_to_hub(tmp_repo.repo_id, token=self._token)
+        with TemporaryHubRepo(token=TOKEN) as tmp_repo:
+            config.push_to_hub(tmp_repo.repo_id, token=TOKEN)
 
             new_config = FakeConfig.from_pretrained(tmp_repo.repo_id)
             for k, v in config.to_dict().items():
@@ -80,8 +78,8 @@ class ConfigPushToHubTester(unittest.TestCase):
     def test_push_to_hub_in_organization(self):
         config = FakeConfig(attribute=15)
 
-        with TemporaryHubRepo(namespace="valid_org", token=self._token) as tmp_repo:
-            config.push_to_hub(tmp_repo.repo_id, token=self._token)
+        with TemporaryHubRepo(namespace="valid_org", token=TOKEN) as tmp_repo:
+            config.push_to_hub(tmp_repo.repo_id, token=TOKEN)
             new_config = FakeConfig.from_pretrained(tmp_repo.repo_id)
             for k, v in config.to_dict().items():
                 if k != "optimum_version" and k != "transformers_version":
