@@ -28,13 +28,13 @@ jobs:
         python-version: [3.9]
         runs-on: [ubuntu-22.04]
         test_file: [
-          test_timm.py,
-          test_modeling.py,
-          test_diffusion.py,
-          test_optimization.py,
-          test_quantization.py,
-          test_utils.py,
-        ]
+            test_timm.py,
+            test_modeling.py, # todo: split into test_encoder, test_decoder and test_encoder_decoder
+            test_diffusion.py,
+            test_optimization.py,
+            test_quantization.py,
+            test_utils.py,
+          ]
 
     runs-on: ${{ matrix.runs-on }}
 

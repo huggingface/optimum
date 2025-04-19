@@ -372,12 +372,10 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
                 else:
                     submodels[submodel] = load_method(model_save_path)
 
-        # same as DiffusionPipeline.from_pretrained,
-        # if ORTDiffusionPipeline is called directly,
-        # it loads (the ort equivalent of) the class name in the config
+        # Same as DiffusionPipeline.from_pretrained
         if cls.__name__ == "ORTDiffusionPipeline":
-            class_name = config["_class_name"]
-            ort_pipeline_class = _get_ort_class(class_name)
+            pipeline_class_name = config["_class_name"]
+            ort_pipeline_class = _get_ort_class(pipeline_class_name)
         else:
             ort_pipeline_class = cls
 
@@ -388,9 +386,7 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
             model_save_dir=model_save_tmpdir,
             **kwargs,
         )
-
-        # same as DiffusionPipeline.from_pretrained,
-        # we save where the model was instantiated from
+        ort_pipeline.register_to_config(**config)
         ort_pipeline.register_to_config(_name_or_path=config.get("_name_or_path", model_name_or_path))
 
         return ort_pipeline
@@ -412,25 +408,25 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
                 Whether or not to push your model to the Hugging Face model hub after saving it.
         """
 
-        save_directory = Path(save_directory)
-        save_directory.mkdir(parents=True, exist_ok=True)
+        model_save_path = Path(save_directory)
+        model_save_path.mkdir(parents=True, exist_ok=True)
 
         if push_to_hub:
-            commit_message = kwargs.pop("commit_message", None)
+            token = kwargs.pop("token", None)
             private = kwargs.pop("private", False)
             create_pr = kwargs.pop("create_pr", False)
-            token = kwargs.pop("token", None)
+            commit_message = kwargs.pop("commit_message", None)
             repo_id = kwargs.pop("repo_id", save_directory.split(os.path.sep)[-1])
             repo_id = create_repo(repo_id, exist_ok=True, private=private, token=token).repo_id
 
         models_to_save_paths = {
-            (self.unet, save_directory / DIFFUSION_MODEL_UNET_SUBFOLDER),
-            (self.transformer, save_directory / DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER),
-            (self.vae_decoder, save_directory / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER),
-            (self.vae_encoder, save_directory / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER),
-            (self.text_encoder, save_directory / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER),
-            (self.text_encoder_2, save_directory / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER),
-            (self.text_encoder_3, save_directory / DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER),
+            (self.unet, model_save_path / DIFFUSION_MODEL_UNET_SUBFOLDER),
+            (self.transformer, model_save_path / DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER),
+            (self.vae_decoder, model_save_path / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER),
+            (self.vae_encoder, model_save_path / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER),
+            (self.text_encoder, model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER),
+            (self.text_encoder_2, model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER),
+            (self.text_encoder_3, model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER),
         }
         for model, save_path in models_to_save_paths:
             if model is not None:
@@ -450,32 +446,29 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
                     config_save_path = save_path / CONFIG_NAME
                     shutil.copyfile(config_path, config_save_path)
 
-        self.scheduler.save_pretrained(save_directory / "scheduler")
+        self.scheduler.save_pretrained(model_save_path / "scheduler")
 
         if self.tokenizer is not None:
-            self.tokenizer.save_pretrained(save_directory / "tokenizer")
+            self.tokenizer.save_pretrained(model_save_path / "tokenizer")
         if self.tokenizer_2 is not None:
-            self.tokenizer_2.save_pretrained(save_directory / "tokenizer_2")
+            self.tokenizer_2.save_pretrained(model_save_path / "tokenizer_2")
         if self.tokenizer_3 is not None:
-            self.tokenizer_3.save_pretrained(save_directory / "tokenizer_3")
+            self.tokenizer_3.save_pretrained(model_save_path / "tokenizer_3")
         if self.feature_extractor is not None:
-            self.feature_extractor.save_pretrained(save_directory / "feature_extractor")
+            self.feature_extractor.save_pretrained(model_save_path / "feature_extractor")
 
-        # finally save the config
-        self.save_config(save_directory)
-
+        self.save_config(model_save_path)
         if push_to_hub:
             # Create a new empty model card and eventually tag it
             model_card = load_or_create_model_card(repo_id, token=token, is_pipeline=True)
             model_card = populate_model_card(model_card)
             model_card.save(os.path.join(save_directory, "README.md"))
-
             self._upload_folder(
                 save_directory,
                 repo_id,
                 token=token,
-                commit_message=commit_message,
                 create_pr=create_pr,
+                commit_message=commit_message,
             )
 
     def __call__(self, *args, **kwargs):

@@ -13,6 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import unittest
+from tempfile import TemporaryDirectory
+from unittest import TestCase
+
 import numpy as np
 import pytest
 import torch
@@ -24,9 +29,12 @@ from diffusers import (
 )
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 from diffusers.utils import load_image
+from huggingface_hub import snapshot_download
+from huggingface_hub.constants import HF_HUB_CACHE
+from onnxruntime import get_available_providers
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
-from transformers.testing_utils import require_torch_gpu
+from transformers.testing_utils import TemporaryHubRepo, require_torch_gpu
 
 from optimum.onnxruntime import (
     ORTDiffusionPipeline,
@@ -34,8 +42,17 @@ from optimum.onnxruntime import (
     ORTPipelineForInpainting,
     ORTPipelineForText2Image,
 )
+from optimum.onnxruntime.modeling_diffusion import ORTTextEncoder, ORTUnet, ORTVae, ORTVaeDecoder, ORTVaeEncoder
+from optimum.onnxruntime.utils import get_device_for_provider
 from optimum.utils import is_transformers_version
-from optimum.utils.testing_utils import grid_parameters, require_diffusers
+from optimum.utils.testing_utils import grid_parameters, remove_directory, require_diffusers, require_hf_token
+
+
+PROVIDERS = ["CPUExecutionProvider"]
+if torch.cuda.is_available():
+    PROVIDERS.append("CUDAExecutionProvider")
+    if "TensorrtExecutionProvider" in get_available_providers():
+        PROVIDERS.append("TensorrtExecutionProvider")
 
 
 def get_generator(framework, seed):
@@ -47,7 +64,7 @@ def get_generator(framework, seed):
         raise ValueError(f"Unknown framework: {framework}")
 
 
-def _generate_prompts(batch_size=1):
+def generate_prompts(batch_size=1):
     inputs = {
         "prompt": ["sailing ship in storm by Leonardo da Vinci"] * batch_size,
         "num_inference_steps": 3,
@@ -58,7 +75,7 @@ def _generate_prompts(batch_size=1):
     return inputs
 
 
-def _generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
+def generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
         image = load_image(
             "https://huggingface.co/datasets/hf-internal-testing/diffusers-images/resolve/main"
@@ -70,6 +87,116 @@ def _generate_images(height=128, width=128, batch_size=1, channel=3, input_type=
         image = torch.rand((channel, height, width))
 
     return [image] * batch_size
+
+
+class ORTDiffusionPipelineTest(TestCase):
+    TINY_TORCH_STABLE_DIFFUSION = "hf-internal-testing/tiny-stable-diffusion-torch"
+    TINY_ONNX_STABLE_DIFFUSION = "optimum-internal-testing/tiny-stable-diffusion-onnx"
+
+    def assert_pipeline_sanity(self, pipe: ORTDiffusionPipeline):
+        self.assertIsInstance(pipe.vae, ORTVae)
+        self.assertIsInstance(pipe.unet, ORTUnet)
+        self.assertIsInstance(pipe.vae_encoder, ORTVaeEncoder)
+        self.assertIsInstance(pipe.vae_decoder, ORTVaeDecoder)
+        self.assertIsInstance(pipe.text_encoder, ORTTextEncoder)
+        pipe(prompt="This is a sanity test prompt", num_inference_steps=2)
+
+    @require_diffusers
+    def test_load_diffusion_pipeline_model_from_hub(self):
+        pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION)
+        self.assert_pipeline_sanity(pipe)
+
+    @require_diffusers
+    def test_load_diffusion_pipeline_from_path(self):
+        path = snapshot_download(repo_id=self.TINY_ONNX_STABLE_DIFFUSION, allow_patterns=["*.onnx", "*.json", "*.txt"])
+        pipe = ORTDiffusionPipeline.from_pretrained(path, local_files_only=True)
+        self.assert_pipeline_sanity(pipe)
+
+    @require_diffusers
+    def test_load_diffusion_pipeline_from_cache(self):
+        dirpath = os.path.join(HF_HUB_CACHE, "models--" + self.TINY_ONNX_STABLE_DIFFUSION.replace("/", "--"))
+        if os.path.exists(dirpath):
+            remove_directory(dirpath)
+        with self.assertRaises(Exception):
+            _ = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, local_files_only=True)
+
+        snapshot_download(repo_id=self.TINY_ONNX_STABLE_DIFFUSION, allow_patterns=["*.onnx", "*.json", "*.txt"])
+        pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, local_files_only=True)
+        self.assert_pipeline_sanity(pipe)
+
+    @parameterized.expand(PROVIDERS)
+    @require_diffusers
+    def test_load_diffusion_pipeline_with_available_provider(self, provider):
+        pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, provider=provider)
+        self.assertEqual(pipe.device, get_device_for_provider(provider, {}))
+        self.assertEqual(pipe.provider, provider)
+
+    @require_diffusers
+    def test_load_diffusion_pipeline_unknown_provider(self):
+        with self.assertRaises(ValueError):
+            ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, provider="FooExecutionProvider")
+
+    @require_diffusers
+    def test_save_diffusion_pipeline(self):
+        with TemporaryDirectory() as tmpdirname:
+            pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION)
+            pipe.save_pretrained(tmpdirname)
+
+            folder_contents = os.listdir(tmpdirname)
+            self.assertIn("model_index.json", folder_contents)
+            for model_name in {"unet", "vae_encoder", "vae_decoder", "text_encoder"}:
+                subfolder_contents = os.listdir(os.path.join(tmpdirname, model_name))
+                self.assertIn("model.onnx", subfolder_contents)
+
+    @require_diffusers
+    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
+    def test_save_diffusion_pipeline_with_external_data(self):
+        with TemporaryDirectory() as tmpdirname:
+            pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_TORCH_STABLE_DIFFUSION, export=True)
+            pipe.save_pretrained(tmpdirname)
+
+            # verify external data is exported
+            for subfoler in {"unet", "vae_encoder", "vae_decoder", "text_encoder"}:
+                subfoler_contents = os.listdir(os.path.join(tmpdirname, subfoler))
+                self.assertIn("model.onnx", subfoler_contents)
+                self.assertIn("model.onnx_data", subfoler_contents)
+
+            # verify loading with external data
+            pipe = ORTDiffusionPipeline.from_pretrained(tmpdirname, export=False)
+            self.assert_pipeline_sanity(pipe)
+
+    @require_hf_token
+    @require_diffusers
+    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
+    def test_push_diffusion_pipeline_with_external_data(self):
+        with TemporaryHubRepo(token=os.environ.get("HF_AUTH_TOKEN", None)) as tmp_repo:
+            pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_TORCH_STABLE_DIFFUSION, export=True)
+            pipe.save_pretrained(
+                tmp_repo.repo_id,
+                token=os.environ.get("HF_AUTH_TOKEN", None),
+                push_to_hub=True,
+            )
+            pipe = ORTDiffusionPipeline.from_pretrained(
+                tmp_repo.repo_id,
+                token=os.environ.get("HF_AUTH_TOKEN", None),
+                export=False,
+            )
+
+        self.assert_pipeline_sanity(pipe)
+
+        with TemporaryHubRepo(token=os.environ.get("HF_AUTH_TOKEN", None)) as tmp_repo:
+            pipe.push_to_hub(
+                tmp_repo.repo_id,
+                token=os.environ.get("HF_AUTH_TOKEN", None),
+                push_to_hub=True,
+            )
+            pipe = ORTDiffusionPipeline.from_pretrained(
+                tmp_repo.repo_id,
+                token=os.environ.get("HF_AUTH_TOKEN", None),
+                export=False,
+            )
+
+        self.assert_pipeline_sanity(pipe)
 
 
 class ORTPipelineForText2ImageTest(ORTModelTestMixin):
@@ -104,7 +231,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     TASK = "text-to-image"
 
     def generate_inputs(self, height=128, width=128, batch_size=1):
-        inputs = _generate_prompts(batch_size=batch_size)
+        inputs = generate_prompts(batch_size=batch_size)
 
         inputs["height"], inputs["width"] = height, width
 
@@ -342,7 +469,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         self._setup(model_args)
 
         safety_checker = StableDiffusionSafetyChecker.from_pretrained(
-            "katuni4ka/tiny-random-stable-diffusion-with-safety-checker"
+            "katuni4ka/tiny-random-stable-diffusion-with-safety-checker", subfolder="safety_checker"
         )
 
         pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], safety_checker=safety_checker)
@@ -392,9 +519,9 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
     TASK = "image-to-image"
 
     def generate_inputs(self, height=128, width=128, batch_size=1, channel=3, input_type="pil"):
-        inputs = _generate_prompts(batch_size=batch_size)
+        inputs = generate_prompts(batch_size=batch_size)
 
-        inputs["image"] = _generate_images(
+        inputs["image"] = generate_images(
             height=height, width=width, batch_size=batch_size, channel=channel, input_type=input_type
         )
 
@@ -607,7 +734,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         self._setup(model_args)
 
         safety_checker = StableDiffusionSafetyChecker.from_pretrained(
-            "katuni4ka/tiny-random-stable-diffusion-with-safety-checker"
+            "katuni4ka/tiny-random-stable-diffusion-with-safety-checker", subfolder="safety_checker"
         )
 
         pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], safety_checker=safety_checker)
@@ -656,12 +783,12 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
     TASK = "inpainting"
 
     def generate_inputs(self, height=128, width=128, batch_size=1, channel=3, input_type="pil"):
-        inputs = _generate_prompts(batch_size=batch_size)
+        inputs = generate_prompts(batch_size=batch_size)
 
-        inputs["image"] = _generate_images(
+        inputs["image"] = generate_images(
             height=height, width=width, batch_size=batch_size, channel=channel, input_type=input_type
         )
-        inputs["mask_image"] = _generate_images(
+        inputs["mask_image"] = generate_images(
             height=height, width=width, batch_size=batch_size, channel=1, input_type=input_type
         )
 
@@ -877,7 +1004,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         self._setup(model_args)
 
         safety_checker = StableDiffusionSafetyChecker.from_pretrained(
-            "katuni4ka/tiny-random-stable-diffusion-with-safety-checker"
+            "katuni4ka/tiny-random-stable-diffusion-with-safety-checker", subfolder="safety_checker"
         )
 
         pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], safety_checker=safety_checker)
