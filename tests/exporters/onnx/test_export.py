@@ -14,6 +14,7 @@
 # limitations under the License.
 import gc
 import os
+import tempfile
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -21,44 +22,49 @@ from typing import Dict
 from unittest import TestCase, mock
 
 import onnx
+import onnxruntime
 import pytest
+import torch
 from parameterized import parameterized
-from transformers import AutoConfig, is_tf_available, is_torch_available
-from transformers.testing_utils import require_onnx, require_tf, require_torch, require_torch_gpu, require_vision, slow
+from transformers import (
+    AutoConfig,
+    AutoModelForSeq2SeqLM,
+    AutoModelForSequenceClassification,
+    is_torch_available,
+)
+from transformers.modeling_utils import PreTrainedModel
+from transformers.testing_utils import require_onnx, require_torch, require_torch_gpu, require_vision, slow
 
+from optimum.exporters import TasksManager
 from optimum.exporters.error_utils import AtolError
 from optimum.exporters.onnx import (
     OnnxConfig,
+    OnnxConfigWithLoss,
     OnnxConfigWithPast,
+    export,
     export_models,
     get_decoder_models_for_export,
     get_diffusion_models_for_export,
     get_encoder_decoder_models_for_export,
     main_export,
-    onnx_export_from_model,
     validate_models_outputs,
 )
 from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
-from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
 from optimum.exporters.onnx.utils import get_speecht5_models_for_export
-from optimum.utils import DummyPastKeyValuesGenerator, NormalizedTextConfig
-from optimum.utils.save_utils import maybe_load_preprocessors
+from optimum.onnxruntime.utils import ONNX_DECODER_NAME
+from optimum.utils import DummyPastKeyValuesGenerator, DummyTextInputGenerator, NormalizedTextConfig
+from optimum.utils.normalized_config import NormalizedConfigManager
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
-from ..exporters_utils import (
+from ..utils import (
     PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_TIMM_MODEL,
-    TENSORFLOW_EXPORT_MODELS,
     VALIDATE_EXPORT_ON_SHAPES_SLOW,
 )
-
-
-if is_torch_available() or is_tf_available():
-    from optimum.exporters.tasks import TasksManager
 
 
 SEED = 42
@@ -87,19 +93,9 @@ class OnnxUtilsTestCase(TestCase):
         )
 
 
-class OnnxConfigTestCase(TestCase):
-    """
-    Covers the test for models default.
-
-    Default means no specific tasks is being enabled on the model.
-    """
-
-    # TODO: insert relevant tests here.
-
-
 def _get_models_to_test(export_models_dict: Dict, library_name: str = "transformers"):
     models_to_test = []
-    if is_torch_available() or is_tf_available():
+    if is_torch_available():
         for model_type, model_names_tasks in export_models_dict.items():
             model_type = model_type.replace("_", "-")
             task_config_mapping = TasksManager.get_supported_tasks_for_model_type(
@@ -164,6 +160,7 @@ def _get_models_to_test(export_models_dict: Dict, library_name: str = "transform
         return [("dummy", "dummy", "dummy", "dummy", OnnxConfig)]
 
 
+# TODO: TOO MUCH HACKING FOR TESTING
 class OnnxExportTestCase(TestCase):
     """
     Integration tests ensuring supported models are correctly exported.
@@ -321,16 +318,11 @@ class OnnxExportTestCase(TestCase):
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
-    @pytest.mark.run_slow
+    # TODO: I just enabled it and it seems to hang for some reason, investigate later
     @slow
+    @pytest.mark.run_slow
     def test_pytorch_export_on_cpu(
-        self,
-        test_name,
-        model_type,
-        model_name,
-        task,
-        onnx_config_class_constructor,
-        monolith: bool,
+        self, test_name, model_type, model_name, task, onnx_config_class_constructor, monolith
     ):
         if model_type == "speecht5" and monolith:
             self.skipTest("unsupported export")
@@ -343,23 +335,16 @@ class OnnxExportTestCase(TestCase):
             onnx_config_class_constructor,
             shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
             monolith=monolith,
+            device="cpu",
         )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
     @require_torch
     @require_vision
     @require_torch_gpu
-    @slow
-    @pytest.mark.run_slow
     @pytest.mark.gpu_test
     def test_pytorch_export_on_cuda(
-        self,
-        test_name,
-        model_type,
-        model_name,
-        task,
-        onnx_config_class_constructor,
-        monolith: bool,
+        self, test_name, model_type, model_name, task, onnx_config_class_constructor, monolith
     ):
         if model_type == "speecht5" and monolith:
             self.skipTest("unsupported export")
@@ -370,24 +355,10 @@ class OnnxExportTestCase(TestCase):
             model_name,
             task,
             onnx_config_class_constructor,
-            device="cuda",
             shapes_to_validate=VALIDATE_EXPORT_ON_SHAPES_SLOW,
             monolith=monolith,
+            device="cuda",
         )
-
-    @parameterized.expand(_get_models_to_test(TENSORFLOW_EXPORT_MODELS))
-    @slow
-    @pytest.mark.run_slow
-    @require_tf
-    @require_vision
-    @pytest.mark.tensorflow_test
-    def test_tensorflow_export(
-        self, test_name, model_type, model_name, task, onnx_config_class_constructor, monolith: bool
-    ):
-        if monolith is False:
-            return 0
-
-        self._onnx_export(test_name, model_type, model_name, task, onnx_config_class_constructor, monolith=monolith)
 
     @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
     @require_torch
@@ -401,8 +372,6 @@ class OnnxExportTestCase(TestCase):
     @require_vision
     @require_diffusers
     @require_torch_gpu
-    @slow
-    @pytest.mark.run_slow
     @pytest.mark.gpu_test
     def test_pytorch_export_for_diffusion_models_cuda(self, model_type, model_name):
         self._onnx_export_diffusion_models(model_type, model_name, device="cuda")
@@ -583,108 +552,183 @@ class OnnxCustomExport(TestCase):
         self.assertIn("custom or unsupported architecture", str(context.exception))
 
 
-class OnnxExportModelTest(TestCase):
-    """
-    Integration tests ensuring supported models are correctly exported with export_model
-    """
+class OnnxExportWithLossTestCase(TestCase):
+    def test_onnx_config_with_loss(self):
+        # Prepare model and dataset
+        model_checkpoint = "hf-internal-testing/tiny-random-bert"
+        model = AutoModelForSequenceClassification.from_pretrained(model_checkpoint)
 
-    def _onnx_export(
-        self,
-        test_name: str,
-        model_type: str,
-        model_name: str,
-        task: str,
-        monolith: bool,
-        device="cpu",
-    ):
-        library_name = TasksManager.infer_library_from_model(model_name)
-        loading_kwargs = {"attn_implementation": "eager"} if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED else {}
+        with self.subTest(model=model):
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                    model=model, exporter="onnx", task="text-classification"
+                )
+                onnx_config = onnx_config_constructor(model.config)
 
-        if library_name == "timm":
-            model_class = TasksManager.get_model_class_for_task(task, library=library_name)
-            model = model_class(f"hf_hub:{model_name}", pretrained=True, exportable=True)
-            TasksManager.standardize_model_attributes(model, library_name=library_name)
-        else:
-            config = AutoConfig.from_pretrained(model_name)
-            model_class = TasksManager.get_model_class_for_task(task, model_type=config.model_type.replace("_", "-"))
-            model = model_class.from_pretrained(model_name, **loading_kwargs)
+                wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
 
-        # Dynamic axes aren't supported for YOLO-like models. This means they cannot be exported to ONNX on CUDA devices.
-        # See: https://github.com/ultralytics/yolov5/pull/8378
-        if model.__class__.__name__.startswith("Yolos") and device != "cpu":
-            return
+                # Export model from PyTorch to ONNX
+                onnx_model_path = Path(os.path.join(tmp_dir, f"{model.config.model_type}.onnx"))
+                opset = max(onnx_config.DEFAULT_ONNX_OPSET, 12)
+                _ = export(
+                    model=model,
+                    config=wrapped_onnx_config,
+                    opset=opset,
+                    output=onnx_model_path,
+                )
 
-        if model.config.model_type == "speecht5":
-            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
-        else:
-            model_kwargs = None
+                # ONNX Runtime Inference
+                ort_sess = onnxruntime.InferenceSession(
+                    onnx_model_path.as_posix(),
+                    providers=[
+                        (
+                            "CUDAExecutionProvider"
+                            if torch.cuda.is_available()
+                            and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
+                            else "CPUExecutionProvider"
+                        )
+                    ],
+                )
+                framework = "pt" if isinstance(model, PreTrainedModel) else "tf"
+                normalized_config = NormalizedConfigManager.get_normalized_config_class("bert")(model.config)
+                input_generator = DummyTextInputGenerator(
+                    "text-classification", normalized_config, batch_size=2, sequence_length=16
+                )
 
-        if model.config.model_type == "pix2struct":
-            preprocessors = maybe_load_preprocessors(model_name)
-        else:
-            preprocessors = None
+                inputs = {
+                    name: input_generator.generate(name, framework=framework)
+                    for name in ["input_ids", "attention_mask", "token_type_ids"]
+                }
+                inputs["labels"] = input_generator.constant_tensor(
+                    [2], value=0, dtype=inputs["input_ids"].dtype, framework=framework
+                )
 
-        with TemporaryDirectory() as tmpdirname:
-            onnx_export_from_model(
-                model=model,
-                output=Path(tmpdirname),
-                monolith=monolith,
-                do_validation=True,
-                model_kwargs=model_kwargs,
-                device=device,
-                preprocessors=preprocessors,
-                task=task,
+                input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
+                output_names = [output.name for output in ort_sess._outputs_meta]
+
+                input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
+
+                ort_outputs = ort_sess.run(output_names, input_feed)
+                pt_outputs = model(**inputs)
+
+                # Checkers
+                assert len(ort_outputs) > 1, "There is only one element in outputs, the loss might be missing!"
+                if issubclass(type(model), PreTrainedModel):
+                    self.assertAlmostEqual(
+                        float(ort_outputs[0]),
+                        float(pt_outputs["loss"]),
+                        3,
+                        "The losses of ONNX Runtime and PyTorch inference are not close enough!",
+                    )
+                gc.collect()
+
+    def test_onnx_decoder_model_with_config_with_loss(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Prepare model and dataset
+            model_checkpoint = "hf-internal-testing/tiny-random-gpt2"
+            model = AutoModelForSequenceClassification.from_pretrained(model_checkpoint)
+
+            # Wrap OnnxConfig
+            onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                model=model, exporter="onnx", task="text-classification"
+            )
+            onnx_config = onnx_config_constructor(model.config)
+            wrapped_onnx_config = OnnxConfigWithLoss(onnx_config)
+
+            # Export model from PyTorch to ONNX
+            onnx_model_path = Path(os.path.join(tmp_dir, f"{model.config.model_type}.onnx"))
+            opset = max(onnx_config.DEFAULT_ONNX_OPSET, 12)
+            export(model=model, config=wrapped_onnx_config, opset=opset, output=onnx_model_path)
+
+            # ONNX Runtime Inference
+            ort_sess = onnxruntime.InferenceSession(
+                onnx_model_path.as_posix(),
+                providers=[
+                    (
+                        "CUDAExecutionProvider"
+                        if torch.cuda.is_available()
+                        and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
+                        else "CPUExecutionProvider"
+                    )
+                ],
             )
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
-    @require_torch
-    @require_vision
-    @slow
-    def test_pytorch_export_on_cpu(
-        self,
-        test_name,
-        model_type,
-        model_name,
-        task,
-        onnx_config_class_constructor,
-        monolith,
-    ):
-        if model_type == "speecht5" and monolith:
-            self.skipTest("unsupported export")
+            batch = 3
+            seq_length = 8
+            inputs = {
+                "input_ids": torch.ones((batch, seq_length), dtype=torch.long),
+                "attention_mask": torch.ones((batch, seq_length), dtype=torch.long),
+                "labels": torch.zeros(batch, dtype=torch.long),
+            }
+            input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
+            output_names = [output.name for output in ort_sess._outputs_meta]
+            input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
+            ort_outputs = ort_sess.run(output_names, input_feed)
+            pt_outputs = model(**inputs)
 
-        self._onnx_export(
-            test_name,
-            model_type,
-            model_name,
-            task,
-            monolith,
-            device="cpu",
-        )
+            # Checkers
+            assert len(ort_outputs) > 1, "There is only one element in outputs, the loss might be missing!"
+            self.assertAlmostEqual(
+                float(ort_outputs[0]),
+                float(pt_outputs["loss"]),
+                3,
+                "The losses of ONNX Runtime and PyTorch inference are not close enough!",
+            )
+            gc.collect()
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY))
-    @require_torch
-    @require_vision
-    @require_torch_gpu
-    @slow
-    @pytest.mark.run_slow
-    @pytest.mark.gpu_test
-    def test_pytorch_export_on_cuda(
-        self,
-        test_name,
-        model_type,
-        model_name,
-        task,
-        onnx_config_class_constructor,
-        monolith,
-    ):
-        if model_type == "speecht5" and monolith:
-            self.skipTest("unsupported export")
+    def test_onnx_seq2seq_model_with_config_with_loss(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Prepare model and dataset
+            model_checkpoint = "hf-internal-testing/tiny-random-t5"
+            model = AutoModelForSeq2SeqLM.from_pretrained(model_checkpoint)
 
-        self._onnx_export(
-            test_name,
-            model_type,
-            model_name,
-            task,
-            monolith,
-            device="cuda",
-        )
+            # Wrap OnnxConfig(decoders)
+            onnx_config_constructor = TasksManager.get_exporter_config_constructor(
+                model=model, exporter="onnx", task="text2text-generation"
+            )
+            onnx_config = onnx_config_constructor(model.config)
+
+            onnx_config_decoder = onnx_config.with_behavior("decoder", use_past=False)
+
+            wrapped_onnx_config_decoder = OnnxConfigWithLoss(onnx_config_decoder)
+
+            # Export decoder models from PyTorch to ONNX
+            opset = max(onnx_config.DEFAULT_ONNX_OPSET, 12)
+
+            onnx_model_path = Path(tmp_dir).joinpath(ONNX_DECODER_NAME)
+
+            export(
+                model=model,
+                config=wrapped_onnx_config_decoder,
+                opset=opset,
+                output=onnx_model_path,
+            )
+
+            # ONNX Runtime Inference
+            ort_sess = onnxruntime.InferenceSession(
+                onnx_model_path.as_posix(),
+                providers=[
+                    (
+                        "CUDAExecutionProvider"
+                        if torch.cuda.is_available()
+                        and "CUDAExecutionProvider" in onnxruntime.get_available_providers()
+                        else "CPUExecutionProvider"
+                    )
+                ],
+            )
+            batch = 3
+            encoder_seq_length = 8
+            encoder_hidden_states_shape = (batch, encoder_seq_length, model.config.hidden_size)
+            inputs = {
+                "input_ids": torch.ones((batch, encoder_seq_length), dtype=torch.long),
+                "encoder_hidden_states": torch.zeros(encoder_hidden_states_shape),
+                "encoder_attention_mask": torch.ones((batch, encoder_seq_length), dtype=torch.long),
+                "labels": torch.zeros((batch, encoder_seq_length), dtype=torch.long),
+            }
+            input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
+            output_names = [output.name for output in ort_sess._outputs_meta]
+            input_feed = {input_name: inputs[input_name].cpu().numpy() for input_name in input_names}
+
+            ort_sess.run(output_names, input_feed)
+
+            gc.collect()

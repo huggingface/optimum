@@ -14,7 +14,6 @@
 # limitations under the License.
 import os
 import subprocess
-import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
@@ -130,7 +129,3 @@ class OnnxToInt32Test(TestCase):
             }
 
             model.run(None, inputs)
-
-
-if __name__ == "__main__":
-    unittest.main()

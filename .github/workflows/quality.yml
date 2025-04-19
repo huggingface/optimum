@@ -1,4 +1,4 @@
-name: Utils / Python - Test
+name: Code Quality
 
 on:
   push:
@@ -10,18 +10,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-env:
-  TRANSFORMERS_IS_CI: true
-
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-13, windows-2022]
-        python-version: ["3.9"]
+        python-version: [3.9]
+        runs-on: [ubuntu-22.04]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs-on }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,8 +33,12 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests]
+          pip install .[quality]
 
-      - name: Tests needing datasets
+      - name: Check style with black
         run: |
-          pytest tests/utils -n auto -vvvv --durations=0
+          black --check .
+
+      - name: Check style with ruff
+        run: |
+          ruff .

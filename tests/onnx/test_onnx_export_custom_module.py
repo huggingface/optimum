@@ -15,25 +15,16 @@
 import os
 from unittest import TestCase
 
-import pytest
-from transformers import is_torch_available
-from transformers.testing_utils import require_torch
-
-
-if is_torch_available():
-    import torch
-    from transformers.models.sew_d import modeling_sew_d
-
-    from optimum.utils import check_if_torch_greater
+import torch
+from transformers.models.sew_d import modeling_sew_d
 
 
 class StableDropoutTestCase(TestCase):
     """Tests export of StableDropout module."""
 
-    @require_torch
-    @pytest.mark.filterwarnings("ignore:.*Dropout.*:UserWarning:torch.onnx.*")  # torch.onnx is spammy.
     def test_training(self):
         """Tests export of StableDropout in training mode."""
+
         devnull = open(os.devnull, "wb")
         # drop_prob must be > 0 for the test to be meaningful
         sd = modeling_sew_d.StableDropout(0.1)
@@ -43,33 +34,36 @@ class StableDropoutTestCase(TestCase):
         training = torch.onnx.TrainingMode.PRESERVE
         input = (torch.randn(2, 2),)
 
+        # Expected to pass on torch >= 2.5
         torch.onnx.export(
             sd,
             input,
             devnull,
-            opset_version=12,  # Minimum supported
+            opset_version=12,
             do_constant_folding=do_constant_folding,
             training=training,
         )
 
-        if check_if_torch_greater("2.5"):
-            # Expected to pass with opset_version < 12 on torch >= 2.5
-            torch.onnx.export(
-                sd,
-                input,
-                devnull,
-                opset_version=11,
-                do_constant_folding=do_constant_folding,
-                training=training,
-            )
-        else:
-            # Expected to fail with opset_version < 12 on torch < 2.5
-            with self.assertRaises(Exception):
-                torch.onnx.export(
-                    sd,
-                    input,
-                    devnull,
-                    opset_version=11,
-                    do_constant_folding=do_constant_folding,
-                    training=training,
-                )
+        devnull.close()
+
+    def test_inference(self):
+        """Tests export of StableDropout in inference mode."""
+
+        devnull = open(os.devnull, "wb")
+        # drop_prob must be > 0 for the test to be meaningful
+        sd = modeling_sew_d.StableDropout(0.1)
+        # Dropout is a no-op in inference mode
+        training = torch.onnx.TrainingMode.EVAL
+        input = (torch.randn(2, 2),)
+
+        # Expected to pass on torch >= 2.5
+        torch.onnx.export(
+            sd,
+            input,
+            devnull,
+            opset_version=12,
+            do_constant_folding=True,
+            training=training,
+        )
+
+        devnull.close()

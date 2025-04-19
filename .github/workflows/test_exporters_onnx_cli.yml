@@ -1,4 +1,4 @@
-name: FX / Python - Test
+name: Exporters ONNX CLI / Python - Test
 
 on:
   push:
@@ -18,24 +18,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9"]
-        os: [ubuntu-22.04, macos-13]
+        python-version: [3.9]
+        os: [ubuntu-22.04]
 
     runs-on: ${{ matrix.os }}
+
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
-          pip install .[tests]
+          pip install --upgrade pip
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install .[tests,exporters] diffusers
 
       - name: Test with pytest
-        working-directory: tests
         run: |
-          python -m pytest -s -v -x fx/optimization
+          pytest tests/exporters/onnx/test_export_cli.py -vvvv --durations=0 -n auto

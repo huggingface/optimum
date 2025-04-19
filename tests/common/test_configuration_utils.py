@@ -15,10 +15,8 @@
 import tempfile
 import unittest
 
-from huggingface_hub import HfApi
-from requests.exceptions import HTTPError
+from huggingface_hub import login
 from transformers.testing_utils import TOKEN, TemporaryHubRepo, is_staging_test
-from transformers.utils import http_user_agent
 
 from optimum.configuration_utils import BaseConfig
 
@@ -46,23 +44,8 @@ class ConfigTester(unittest.TestCase):
 @is_staging_test
 class ConfigPushToHubTester(unittest.TestCase):
     @classmethod
-    def tearDownClass(cls):
-        api = HfApi(user_agent=http_user_agent(), token=TOKEN)
-
-        try:
-            api.delete_repo(repo_id="optimum-test-base-config")
-        except HTTPError:
-            pass
-
-        try:
-            api.delete_repo(repo_id="valid_org/optimum-test-base-config-org")
-        except HTTPError:
-            pass
-
-        try:
-            api.delete_repo(repo_id="optimum-test-base-dynamic-config")
-        except HTTPError:
-            pass
+    def setUpClass(cls):
+        login(token=TOKEN)
 
     def test_push_to_hub(self):
         config = FakeConfig(attribute=15)
@@ -70,7 +53,7 @@ class ConfigPushToHubTester(unittest.TestCase):
         with TemporaryHubRepo(token=TOKEN) as tmp_repo:
             config.push_to_hub(tmp_repo.repo_id, token=TOKEN)
 
-            new_config = FakeConfig.from_pretrained(tmp_repo.repo_id)
+            new_config = FakeConfig.from_pretrained(tmp_repo.repo_id, token=TOKEN)
             for k, v in config.to_dict().items():
                 if k != "optimum_version" and k != "transformers_version":
                     self.assertEqual(v, getattr(new_config, k))
@@ -80,7 +63,7 @@ class ConfigPushToHubTester(unittest.TestCase):
 
         with TemporaryHubRepo(namespace="valid_org", token=TOKEN) as tmp_repo:
             config.push_to_hub(tmp_repo.repo_id, token=TOKEN)
-            new_config = FakeConfig.from_pretrained(tmp_repo.repo_id)
+            new_config = FakeConfig.from_pretrained(tmp_repo.repo_id, token=TOKEN)
             for k, v in config.to_dict().items():
                 if k != "optimum_version" and k != "transformers_version":
                     self.assertEqual(v, getattr(new_config, k))
