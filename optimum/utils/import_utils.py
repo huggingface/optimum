@@ -352,7 +352,12 @@ DIFFUSERS_IMPORT_ERROR = """
 diffusers`. Please note that you may need to restart your runtime after installation.
 """
 
-TRANSFORMERS_IMPORT_ERROR = """requires the transformers>={0} library but it was not found in your environment. You can install it with pip: `pip install
+TRANSFORMERS_IMPORT_ERROR = """
+{0} requires the transformers library but it was not found in your environment. You can install it with pip: `pip install
+transformers`. Please note that you may need to restart your runtime after installation.
+"""
+
+TRANSFORMERS_VERSION_ERROR = """requires the transformers>={0} library but it was not found in your environment. You can install it with pip: `pip install
 -U transformers`. Please note that you may need to restart your runtime after installation.
 """
 
@@ -365,17 +370,18 @@ DATASETS_IMPORT_ERROR = """
 BACKENDS_MAPPING = OrderedDict(
     [
         ("diffusers", (is_diffusers_available, DIFFUSERS_IMPORT_ERROR)),
+        ("transformers", (is_transformers_available, TRANSFORMERS_IMPORT_ERROR)),
         (
             "transformers_431",
-            (lambda: is_transformers_version(">=", "4.31"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.31")),
+            (lambda: is_transformers_version(">=", "4.31"), "{0} " + TRANSFORMERS_VERSION_ERROR.format("4.31")),
         ),
         (
             "transformers_432",
-            (lambda: is_transformers_version(">=", "4.32"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.32")),
+            (lambda: is_transformers_version(">=", "4.32"), "{0} " + TRANSFORMERS_VERSION_ERROR.format("4.32")),
         ),
         (
             "transformers_434",
-            (lambda: is_transformers_version(">=", "4.34"), "{0} " + TRANSFORMERS_IMPORT_ERROR.format("4.34")),
+            (lambda: is_transformers_version(">=", "4.34"), "{0} " + TRANSFORMERS_VERSION_ERROR.format("4.34")),
         ),
         ("datasets", (is_datasets_available, DATASETS_IMPORT_ERROR)),
     ]

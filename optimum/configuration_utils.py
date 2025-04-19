@@ -14,6 +14,13 @@
 #  limitations under the License.
 """Configuration base class."""
 
+
+from .utils.import_utils import TRANSFORMERS_VERSION_ERROR, _transformers_version, is_transformers_version
+
+
+if is_transformers_version("<", "4.36"):
+    raise RuntimeError(TRANSFORMERS_VERSION_ERROR.format("4.36"))
+
 import copy
 import json
 import os
@@ -23,7 +30,6 @@ from typing import Any, Dict, List, Tuple, Union
 
 from packaging import version
 from transformers import PretrainedConfig
-from transformers import __version__ as transformers_version_str
 from transformers.dynamic_module_utils import custom_object_save
 from transformers.utils import cached_file, download_url, extract_commit_hash, is_remote_url
 
@@ -215,7 +221,6 @@ class BaseConfig(PretrainedConfig):
             # Special case when pretrained_model_name_or_path is a local file
             resolved_config_file = pretrained_model_name_or_path
             is_local = True
-        # TODO: remove condition once transformers release version is way above 4.22.
         elif is_remote_url(pretrained_model_name_or_path):
             configuration_file = pretrained_model_name_or_path
             resolved_config_file = download_url(pretrained_model_name_or_path)
@@ -339,7 +344,7 @@ class BaseConfig(PretrainedConfig):
             del output["_commit_hash"]
 
         # Transformers version when serializing the model
-        output["transformers_version"] = transformers_version_str
+        output["transformers_version"] = _transformers_version
         output["optimum_version"] = __version__
 
         self.dict_torch_dtype_to_str(output)

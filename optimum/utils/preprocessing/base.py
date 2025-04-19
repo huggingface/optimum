@@ -20,9 +20,6 @@ import itertools
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
-from transformers import PreTrainedTokenizerBase
-from transformers.image_processing_utils import BaseImageProcessor
-
 from optimum.utils.import_utils import requires_backends
 
 from .. import logging
@@ -30,12 +27,11 @@ from .. import logging
 
 if TYPE_CHECKING:
     from datasets import Dataset, DatasetDict
-    from transformers import PretrainedConfig
+    from transformers import PretrainedConfig, PreTrainedTokenizerBase
+    from transformers.image_processing_utils import BaseImageProcessor
 
 
 logger = logging.get_logger(__name__)
-
-Preprocessor = Union[PreTrainedTokenizerBase, BaseImageProcessor]
 
 
 class TaskProcessor(ABC):
@@ -48,7 +44,7 @@ class TaskProcessor(ABC):
     def __init__(
         self,
         config: "PretrainedConfig",
-        preprocessor: Preprocessor,
+        preprocessor: Union["PreTrainedTokenizerBase", "BaseImageProcessor"],
         preprocessor_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -59,12 +55,13 @@ class TaskProcessor(ABC):
         Args:
             config (`PretrainedConfig`):
                 The config of the model.
-            preprocessor: (`Preprocessor`):
+            preprocessor: (`Union["PreTrainedTokenizerBase", "BaseImageProcessor"]`):
                 The preprocessor associated to the model. This will be used to prepare the datasets.
             preprocessor_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
                 Keyword arguments that will be passed to the preprocessor during dataset processing.
                 This allows customizing the behavior of the preprocessor.
         """
+
         if not isinstance(preprocessor, self.ACCEPTED_PREPROCESSOR_CLASSES):
             raise ValueError(
                 f"Preprocessor is incorrect, provided an instance of {type(preprocessor)} but expected one of the "
