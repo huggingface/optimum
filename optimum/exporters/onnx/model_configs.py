@@ -2320,9 +2320,9 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
             # for Speech2text, we need to name the second axis as
             # encoder_sequence_length / 2 * self._config.num_conv_layers as the axis name is
             # used for dummy input generation
-            common_outputs["last_hidden_state"][1] = (
-                f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
-            )
+            common_outputs["last_hidden_state"][
+                1
+            ] = f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
         return common_outputs
 
 
