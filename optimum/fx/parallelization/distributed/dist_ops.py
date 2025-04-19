@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import torch
 import torch.distributed as dist
 
@@ -101,7 +102,7 @@ class DifferentiableAllReduceSum(torch.autograd.Function):
         return all_reduce(group=group, tensor=tensor)
 
     @staticmethod
-    def backward(ctx, grad_output: torch.Tensor) -> torch.Any:
+    def backward(ctx, grad_output: torch.Tensor):
         return grad_output, None
 
 
@@ -113,7 +114,7 @@ class DifferentiableScatter(torch.autograd.Function):
         return split(group=group, tensor=tensor, split_dim=dim)
 
     @staticmethod
-    def backward(ctx, grad_output: torch.Tensor) -> torch.Tensor:
+    def backward(ctx, grad_output: torch.Tensor):
         return DifferentiableAllGather.apply(grad_output, group=ctx.group, dim=ctx.dim), None, None
 
 
@@ -125,7 +126,7 @@ class DifferentiableAllGather(torch.autograd.Function):
         return all_gather(group=group, tensor=tensor, gather_dim=dim)
 
     @staticmethod
-    def backward(ctx, grad_output: torch.Tensor) -> torch.Tensor:
+    def backward(ctx, grad_output: torch.Tensor):
         return DifferentiableScatter.apply(grad_output, group=ctx.group, dim=ctx.dim), None, None
 
 

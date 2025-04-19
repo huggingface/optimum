@@ -24,19 +24,20 @@ from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import torch
-from huggingface_hub import hf_hub_download
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoModelForSpeechSeq2Seq,
     AutoModelForVision2Seq,
     GenerationConfig,
+    GenerationMixin,
     Pix2StructForConditionalGeneration,
     WhisperForConditionalGeneration,
 )
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
+from transformers.utils import cached_file
 
 import onnxruntime as ort
 
@@ -44,7 +45,7 @@ from ..exporters.onnx import main_export
 from ..onnx.utils import _get_external_data_paths
 from ..utils import is_transformers_version
 from ..utils.file_utils import validate_file_exists
-from ..utils.save_utils import maybe_load_preprocessors, maybe_save_preprocessors
+from ..utils.save_utils import maybe_save_preprocessors
 from .base import ORTDecoderForSeq2Seq, ORTEncoder
 from .constants import (
     DECODER_MERGED_ONNX_FILE_PATTERN,
@@ -57,24 +58,11 @@ from .utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
+    DummyWhisperModel,
     get_provider_for_device,
     parse_device,
     validate_provider_availability,
 )
-
-
-if is_transformers_version(">=", "4.25.0"):
-    from transformers.generation import GenerationMixin
-else:
-    from transformers.generation_utils import GenerationMixin  # type: ignore
-
-
-if is_transformers_version(">=", "4.43.0"):
-    from transformers.cache_utils import EncoderDecoderCache
-else:
-    EncoderDecoderCache = dict
-
-from huggingface_hub.utils import EntryNotFoundError
 
 
 if TYPE_CHECKING:
@@ -789,7 +777,9 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         decoder_without_past_path = None
         decoder_with_past_path = None
         if use_merged is False:
-            if not validate_file_exists(model_id, decoder_file_name, subfolder=subfolder, revision=revision):
+            if not validate_file_exists(
+                model_id, decoder_file_name, subfolder=subfolder, revision=revision, token=token
+            ):
                 decoder_without_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                     model_id,
                     [DECODER_ONNX_FILE_PATTERN],
@@ -815,7 +805,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             # If the decoder without / with past has been merged, we do not need to look for any additional file
             if use_cache is True and use_merged is False:
                 if not validate_file_exists(
-                    model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision
+                    model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision, token=token
                 ):
                     try:
                         decoder_with_past_path = ORTModelForConditionalGeneration.infer_onnx_filename(
@@ -847,7 +837,7 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                         f"the {cls.__name__} might not behave as expected."
                     )
 
-        if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision):
+        if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision, token=token):
             encoder_path = ORTModelForConditionalGeneration.infer_onnx_filename(
                 model_id,
                 [ENCODER_ONNX_FILE_PATTERN],
@@ -868,10 +858,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 "ORTModelForConditionalGeneration might not behave as expected."
             )
 
-        preprocessors = None
         if model_path.is_dir():
             new_model_save_dir = model_path
-            preprocessors = maybe_load_preprocessors(model_id)
         else:
             attribute_name_to_filename = {
                 "last_encoder_model_name": encoder_path.name,
@@ -885,11 +873,10 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             for attr_name, filename in attribute_name_to_filename.items():
                 if filename is None:
                     continue
-                model_cache_path = hf_hub_download(
-                    repo_id=model_id,
-                    subfolder=subfolder,
+                model_cache_path = cached_file(
+                    model_id,
                     filename=filename,
-                    token=token,
+                    subfolder=subfolder,
                     revision=revision,
                     cache_dir=cache_dir,
                     force_download=force_download,
@@ -897,8 +884,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 )
                 # try download external data
                 try:
-                    hf_hub_download(
-                        repo_id=model_id,
+                    cached_file(
+                        model_id,
                         subfolder=subfolder,
                         filename=filename + "_data",
                         token=token,
@@ -907,13 +894,12 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                         force_download=force_download,
                         local_files_only=local_files_only,
                     )
-                except EntryNotFoundError:
-                    # model doesn't use external data
+                except EnvironmentError:
+                    # If the external data file is not found, we assume that the model is not using external data.
                     pass
 
                 paths[attr_name] = Path(model_cache_path).name
             new_model_save_dir = Path(model_cache_path).parent
-            preprocessors = maybe_load_preprocessors(model_id, subfolder=subfolder)
 
             if use_merged is True:
                 decoder_path = new_model_save_dir / paths["last_decoder_merged_name"]
@@ -971,7 +957,6 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             decoder_with_past_session=ort_inference_sessions[2],
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
-            preprocessors=preprocessors,
             generation_config=generation_config,
         )
 
@@ -1184,42 +1169,23 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper, speech_to_text.
     """
 
-    auto_model_class = AutoModelForSpeechSeq2Seq
     main_input_name = "input_features"
+    auto_model_class = AutoModelForSpeechSeq2Seq
 
-    def __init__(
-        self,
-        encoder_session: ort.InferenceSession,
-        decoder_session: ort.InferenceSession,
-        config: "PretrainedConfig",
-        onnx_paths: List[str],
-        decoder_with_past_session: Optional[ort.InferenceSession] = None,
-        use_cache: bool = True,
-        use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
-        generation_config: Optional[GenerationConfig] = None,
-        **kwargs,
-    ):
-        super().__init__(
-            encoder_session=encoder_session,
-            decoder_session=decoder_session,
-            config=config,
-            onnx_paths=onnx_paths,
-            decoder_with_past_session=decoder_with_past_session,
-            use_cache=use_cache,
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
-            preprocessors=preprocessors,
-            generation_config=generation_config,
-            **kwargs,
-        )
-        # Following a breaking change in transformers that relies directly on the mapping name and not on the greedy model mapping (that can be extended), we need to hardcode the ortmodel in this dictionary. Other pipelines do not seem to have controlflow depending on the mapping name.
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Following a breaking change in transformers that relies directly on the mapping name and not on the
+        # greedy model mapping (that can be extended), we need to hardcode the ortmodel in this dictionary.
+        # Other pipelines do not seem to have controlflow depending on the mapping name.
         # See: https://github.com/huggingface/transformers/pull/24960/files
         MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES["ort_speechseq2seq"] = self.__class__.__name__
 
     def _initialize_encoder(self, session: ort.InferenceSession) -> ORTEncoder:
         return ORTEncoderForSpeech(session, self)
+
+    def get_encoder(self) -> ORTEncoder:
+        return self.encoder
 
     @add_start_docstrings_to_model_forward(
         SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING
@@ -1289,9 +1255,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
             "use_cache": use_cache,
         }
 
-    def get_encoder(self) -> ORTEncoder:
-        return self.encoder
-
     # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
     @staticmethod
     def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
@@ -1304,13 +1267,8 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         return reordered_past
 
     @classmethod
-    def _from_pretrained(
-        cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
-        **kwargs,
-    ):
-        if "WhisperForConditionalGeneration" in config.architectures:
+    def _from_pretrained(cls, model_id: Union[str, Path], config: "PretrainedConfig", **kwargs):
+        if config.model_type == "whisper":
             return _ORTModelForWhisper._from_pretrained(model_id, config, **kwargs)
         else:
             return super()._from_pretrained(model_id, config, **kwargs)
@@ -1323,35 +1281,23 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGenerat
 
     auto_model_class = WhisperForConditionalGeneration
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.model = DummyWhisperModel()
+
     # force the use of the WhisperForConditionalGeneration generate and prepare_inputs_for_generation methods
-    prepare_inputs_for_generation = WhisperForConditionalGeneration.prepare_inputs_for_generation
-    generate = WhisperForConditionalGeneration.generate
+    def generate(*args, **kwargs):
+        return WhisperForConditionalGeneration.generate(*args, **kwargs)
 
+    # force the use of the WhisperForConditionalGeneration prepare_inputs_for_generation method
+    def prepare_inputs_for_generation(*args, **kwargs):
+        return WhisperForConditionalGeneration.prepare_inputs_for_generation(*args, **kwargs)
+
+    # this is needed to avoid circular calls
     @classmethod
-    def _from_pretrained(
-        cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
-        **kwargs,
-    ):
+    def _from_pretrained(cls, model_id: Union[str, Path], config: "PretrainedConfig", **kwargs):
         return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)
-
-    class DummyWhisperModel:
-        def __init__(self):
-            self.encoder = self.Encoder()
-
-        class Encoder:
-            def __init__(self):
-                self.conv1 = self.Conv(stride=(1,))
-                self.conv2 = self.Conv(stride=(2,))
-
-            class Conv:
-                def __init__(self, stride):
-                    self.stride = stride
-
-    # a dummy model attribute that's used in the generate method to compute the input stride
-    # input_stride = self.model.encoder.conv1.stride[0] * self.model.encoder.conv2.stride[0]
-    model = DummyWhisperModel()
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)

@@ -12,7 +12,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-""" Configuration base class. """
+"""Configuration base class."""
 
 
 from .utils.import_utils import TRANSFORMERS_VERSION_ERROR, _transformers_version, is_transformers_version
@@ -308,7 +308,7 @@ class BaseConfig(PretrainedConfig):
             id2label = kwargs["id2label"] if kwargs["id2label"] is not None else []
             if len(id2label) != num_labels:
                 raise ValueError(
-                    f"You passed along `num_labels={num_labels }` with an incompatible id to label map: "
+                    f"You passed along `num_labels={num_labels}` with an incompatible id to label map: "
                     f"{kwargs['id2label']}. Since those arguments are inconsistent with each other, you should remove "
                     "one of them."
                 )
