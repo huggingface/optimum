@@ -59,6 +59,7 @@ from .utils import (
     ONNX_ENCODER_NAME,
     DummyWhisperModel,
     parse_device,
+    validate_provider_availability,
 )
 
 
@@ -1043,6 +1044,8 @@ class ORTModelForConditionalGeneration(ORTModel):
                 "If you are using a single provider, please wrap it in a list."
             )
             provider_options = [provider_options]
+        for provider in providers:
+            validate_provider_availability(provider)
 
         generation_config = kwargs.pop("generation_config", None)
         model_path = Path(model_id)
@@ -1269,15 +1272,15 @@ class ORTModelForConditionalGeneration(ORTModel):
             onnx_paths.append(decoder_merged_path)
 
         return cls(
-            encoder_session,
-            decoder_session,
-            config,
-            onnx_paths=onnx_paths,
-            use_cache=use_cache,
+            config=config,
+            encoder_session=encoder_session,
+            decoder_session=decoder_session,
             decoder_with_past_session=decoder_with_past_session,
+            generation_config=generation_config,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
-            generation_config=generation_config,
+            onnx_paths=onnx_paths,
+            use_cache=use_cache,
         )
 
     @classmethod

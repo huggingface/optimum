@@ -69,6 +69,7 @@ from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_save_preprocessors
 from .base import ORTSessionMixin
 from .constants import ONNX_FILE_PATTERN
+from .utils import validate_provider_availability
 
 
 if TYPE_CHECKING:
@@ -294,6 +295,21 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModel":
+        if kwargs.get("provider", None) is not None:
+            logger.warning(
+                "The `provider` argument is deprecated and will be removed soon. "
+                "Please use the `providers` argument (a list of strings) instead."
+            )
+            providers = [kwargs.pop("provider")]
+        if provider_options is not None and not isinstance(provider_options, list):
+            logger.warning(
+                "The `provider_options` argument must be a list of dictionaries. "
+                "If you are using a single provider, please wrap it in a list."
+            )
+            provider_options = [provider_options]
+        for provider in providers:
+            validate_provider_availability(provider)
+
         defaut_file_name = file_name or "model.onnx"
 
         onnx_files = find_files_matching_pattern(
@@ -366,20 +382,6 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         # in which case we want to keep it instead of the path only.
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
-
-        if kwargs.get("provider", None) is not None:
-            logger.warning(
-                "The `provider` argument is deprecated and will be removed soon. "
-                "Please use the `providers` argument (a list of strings) instead."
-            )
-            providers = [kwargs.pop("provider")]
-
-        if provider_options is not None and not isinstance(provider_options, list):
-            logger.warning(
-                "The `provider_options` argument must be a list of dictionaries. "
-                "If you are using a single provider, please wrap it in a list."
-            )
-            provider_options = [provider_options]
 
         model = InferenceSession(
             model_cache_path,

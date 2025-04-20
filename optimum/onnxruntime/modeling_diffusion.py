@@ -67,7 +67,7 @@ from ..utils import (
     is_diffusers_version,
 )
 from .base import ORTSessionMixin, ORTSessionsWrapper
-from .utils import np_to_pt_generators
+from .utils import np_to_pt_generators, validate_provider_availability
 
 
 if is_diffusers_version(">=", "0.25.0"):
@@ -250,7 +250,7 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
         # inference related arguments
         use_io_binding: Optional[bool] = None,
         providers: List[str] = ["CPUExecutionProvider"],
-        provider_options: Optional[Dict[str, Any]] = None,
+        provider_options: Optional[List[Dict[str, Any]]] = None,
         session_options: Optional[SessionOptions] = None,
         # hub related arguments
         **kwargs,
@@ -267,6 +267,8 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
                 "If you are using a single provider, please wrap it in a list."
             )
             provider_options = [provider_options]
+        for provider in providers:
+            validate_provider_availability(provider)
 
         hub_kwargs = {
             "force_download": kwargs.get("force_download", False),
@@ -371,7 +373,10 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
                 sessions[f"{model}_session"] = kwargs.pop(f"{model}_session")
             elif path.is_file():
                 sessions[f"{model}_session"] = InferenceSession(
-                    path, providers=providers, provider_options=provider_options, sess_options=session_options
+                    path,
+                    providers=providers,
+                    provider_options=provider_options,
+                    sess_options=session_options,
                 )
 
         submodels = {}

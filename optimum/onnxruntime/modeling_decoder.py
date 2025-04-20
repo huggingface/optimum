@@ -46,7 +46,7 @@ from .constants import (
 )
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from .models.bloom import bloom_convert_to_bloom_cache, bloom_convert_to_standard_cache
-from .utils import ONNX_WEIGHTS_NAME
+from .utils import ONNX_WEIGHTS_NAME, validate_provider_availability
 
 
 if TYPE_CHECKING:
@@ -260,16 +260,16 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
 
         if self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(
-                self.model, model_inputs, known_output_shapes=known_output_shapes
+            output_shapes, output_buffers = self._prepare_io_binding(
+                model_inputs, known_output_shapes=known_output_shapes
             )
 
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             loss = output_buffers.get("loss", None)
             logits = output_buffers["logits"].view(output_shapes["logits"])
@@ -422,6 +422,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 "If you are using a single provider, please wrap it in a list."
             )
             provider_options = [provider_options]
+        for provider in providers:
+            validate_provider_availability(provider)
 
         generation_config = kwargs.pop("generation_config", None)
 
