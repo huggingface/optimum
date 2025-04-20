@@ -1022,10 +1022,12 @@ class ORTModelForConditionalGeneration(ORTModel):
         local_files_only: bool = False,
         use_cache: bool = True,
         use_merged: Optional[bool] = None,
-        providers: Optional[List[str]] = ["CPUExecutionProvider"],
-        provider_options: Optional[List[Dict[str, Any]]] = None,
-        session_options: Optional[SessionOptions] = None,
+        # inference related arguments
         use_io_binding: Optional[bool] = None,
+        providers: List[str] = ["CPUExecutionProvider"],
+        provider_options: Optional[Dict[str, Any]] = None,
+        session_options: Optional[SessionOptions] = None,
+        # other arguments
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):

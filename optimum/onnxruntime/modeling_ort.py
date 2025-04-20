@@ -59,7 +59,7 @@ from transformers.modeling_outputs import (
 from transformers.utils import cached_file, is_offline_mode
 
 import onnxruntime as ort
-from onnxruntime import InferenceSession
+from onnxruntime import InferenceSession, SessionOptions
 
 from ..exporters import TasksManager
 from ..exporters.onnx import main_export
@@ -285,10 +285,12 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         file_name: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
-        providers: List[str] = ["CPUExecutionProvider"],
-        provider_options: Optional[List[Dict[str, Any]]] = None,
-        session_options: Optional[ort.SessionOptions] = None,
+        # inference related arguments
         use_io_binding: Optional[bool] = None,
+        providers: List[str] = ["CPUExecutionProvider"],
+        provider_options: Optional[Dict[str, Any]] = None,
+        session_options: Optional[SessionOptions] = None,
+        # other arguments
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModel":

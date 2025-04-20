@@ -40,7 +40,7 @@ jobs:
 
     steps:
       - name: Free Disk Space (Ubuntu)
-        if: ${{ matrix.runs-on == 'ubuntu-22.04' && matrix.test_file == 'test_modeling.py' }}
+        if: matrix.test_file == 'test_modeling.py'
         uses: jlumbroso/free-disk-space@main
 
       - name: Checkout code

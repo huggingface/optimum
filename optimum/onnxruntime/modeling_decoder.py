@@ -31,7 +31,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.utils import cached_file
 
 import onnxruntime
-from onnxruntime import InferenceSession
+from onnxruntime import InferenceSession, SessionOptions
 
 from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from ..onnx.utils import check_model_uses_external_data
@@ -401,10 +401,12 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         use_cache: bool = True,
         local_files_only: bool = False,
         use_merged: Optional[bool] = None,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[onnxruntime.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
+        # inference related arguments
         use_io_binding: Optional[bool] = None,
+        providers: List[str] = ["CPUExecutionProvider"],
+        provider_options: Optional[Dict[str, Any]] = None,
+        session_options: Optional[SessionOptions] = None,
+        # other arguments
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModelForCausalLM":
