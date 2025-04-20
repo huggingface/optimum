@@ -90,7 +90,6 @@ class OptimizedModel(PreTrainedModel):
     config_name = CONFIG_NAME
 
     def __init__(self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: PretrainedConfig):
-        super().__init__()
         self.model = model
         self.config = config
         self.preprocessors = []

@@ -1358,7 +1358,7 @@ class ORTModelForConditionalGeneration(ORTModel):
 
     def to(self, device: Union[torch.device, str, int]):
         """
-        Changes the ONNX Runtime provider according to the device.
+        Changes the device of the model. This method will move the encoder and decoder to the requested device.
 
         Args:
             device (`torch.device` or `str` or `int`):
@@ -1366,7 +1366,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
 
         Returns:
-            `ORTModel`: the model placed on the requested device.
+            `ORTModelForConditionalGeneration`: The model with the encoder and decoder moved to the requested device.
         """
         device, _ = parse_device(device)
 
@@ -1626,38 +1626,13 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     auto_model_class = AutoModelForVision2Seq
     main_input_name = "pixel_values"
 
-    def __init__(
-        self,
-        encoder_session: InferenceSession,
-        decoder_session: InferenceSession,
-        config: "PretrainedConfig",
-        onnx_paths: List[str],
-        decoder_with_past_session: Optional[InferenceSession] = None,
-        use_cache: bool = True,
-        use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
-        generation_config: Optional[GenerationConfig] = None,
-        **kwargs,
-    ):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
         # There are probably other archs that do not support cross attention KV cache, but only
         # this one seem popular on the Hub.
-        if config.decoder.model_type == "gpt2":
+        if self.config.decoder.model_type == "gpt2":
             self.no_cross_attention_cache = True
-
-        super().__init__(
-            encoder_session,
-            decoder_session,
-            config,
-            onnx_paths,
-            decoder_with_past_session,
-            use_cache,
-            use_io_binding,
-            model_save_dir,
-            preprocessors,
-            generation_config,
-            **kwargs,
-        )
 
     def _initialize_encoder(self, session: InferenceSession) -> ORTEncoder:
         return ORTEncoderForVisionEncoderDecoder(session, self)

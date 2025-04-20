@@ -216,7 +216,7 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
 
     def to(self, device: Union[torch.device, str, int]):
         """
-        Changes the ONNX Runtime provider according to the device.
+        Changes the device of the pipeline components to the specified device.
 
         Args:
             device (`torch.device` or `str` or `int`):
@@ -224,7 +224,7 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
                 the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
 
         Returns:
-            `ORTParentMixin`: The updated ORT model.
+            `ORTDiffusionPipeline`: The pipeline with the updated device.
         """
 
         for component in self.components.values():

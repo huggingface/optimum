@@ -151,7 +151,18 @@ class ORTSessionMixin:
         self._use_io_binding = value
 
     def to(self, *args, **kwargs):
-        # extract device and dtype from args and kwargs
+        """
+        Moves the session to the specified device by updating the execution provider and its options.
+        Args:
+            device (`str`, `int`, `torch.device`):
+                The device to move the session to. It can be a string (e.g., "cuda", "cpu"), an integer (e.g., 0 for GPU 0),
+                or a `torch.device` object.
+        Returns:
+            `ORTSessionMixin`: The updated session.
+        Raises:
+            ValueError: If the device is not supported or if the provider is not available.
+        """
+
         dtype = None
         device = None
 
@@ -537,9 +548,16 @@ class ORTSessionsWrapper:
 
     def to(self, *args, **kwargs):
         """
-        Moves the model to the specified device and/or dtype.
+        Moves all sessions to the specified device by updating the execution provider and its options.
+        Args:
+            device (`str`, `int`, `torch.device`):
+                The device to move the session to. It can be a string (e.g., "cuda", "cpu"), an integer (e.g., 0 for GPU 0),
+                or a `torch.device` object.
+        Returns:
+            `ORTSessionsWrapper`: The updated session.
+        Raises:
+            ValueError: If the device is not supported or if the provider is not available.
         """
-
         for model in self.sessions:
             model.to(*args, **kwargs)
 
