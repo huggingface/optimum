@@ -13,13 +13,12 @@
 #  limitations under the License.
 """Defines the base classes that are used to perform inference with ONNX Runtime sessions."""
 
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
 
-from onnxruntime import InferenceSession, IOBinding, SessionOptions
+from onnxruntime import InferenceSession, IOBinding
 from onnxruntime.transformers.io_binding_helper import TypeHelper
 
 from ..utils.logging import get_logger
@@ -44,7 +43,7 @@ class ORTSessionMixin:
     It also provides methods to prepare the inputs and outputs for ONNX Runtime.
     """
 
-    def __init__(self, session: InferenceSession, use_io_binding: Optional[bool] = None):
+    def initialize_ort_attributes(self, session: InferenceSession, use_io_binding: Optional[bool] = None):
         """
         Initializes the ORTSessionMixin class.
         Args:
@@ -201,38 +200,6 @@ class ORTSessionMixin:
         self._device = device
 
         return self
-
-    @staticmethod
-    def load_model(
-        path: Union[str, Path],
-        provider: str = "CPUExecutionProvider",
-        provider_option: Optional[Dict[str, Any]] = None,
-        session_options: Optional[SessionOptions] = None,
-    ) -> InferenceSession:
-        """
-        Loads an ONNX Inference session with a given provider.
-        Default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch.
-
-        Args:
-            path (`Union[str, Path]`):
-                Path of the ONNX model.
-            provider (`str`, defaults to `"CPUExecutionProvider"`):
-                ONNX Runtime provider to use for loading the model.
-                See https://onnxruntime.ai/docs/execution-providers/ for possible providers.
-            provider_options (`Optional[Dict[str, Any]]`, defaults to `None`):
-                Provider option dictionary corresponding to the provider used. See available options
-                for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
-            session_options (`Optional[onnxruntime.SessionOptions]`, defaults to `None`):
-                ONNX Runtime session options to use for loading the model.
-        """
-        validate_provider_availability(provider)  # raise error if the provider is not available
-
-        providers = [provider]
-        provider_options = [provider_option] if provider_option is not None else None
-
-        return InferenceSession(
-            path, providers=providers, sess_options=session_options, provider_options=provider_options
-        )
 
     def raise_on_numpy_input_io_binding(self, use_torch: bool):
         """
@@ -485,7 +452,14 @@ class ORTSessionsWrapper:
     as diffusion pipelines or encoder-decoder models, as it provides a unified interface for inference.
     """
 
-    def __init__(self, sessions: List[ORTSessionMixin]):
+    def initialize_ort_attributes(self, sessions: List[ORTSessionMixin]):
+        """
+        Initializes the ORTSessionsWrapper class.
+        Args:
+            sessions (`List[ORTSessionMixin]`):
+                List of ORTSessionMixin instances to wrap.
+        """
+
         if len(sessions) < 1:
             raise ValueError("ORTSessionsWrapper should be initialized with at least one session.")
 

@@ -16,7 +16,6 @@ ORTModelForXXX classes related to seq2seq, allowing to run ONNX Models with ONNX
 """
 
 import shutil
-from abc import ABC, abstractmethod
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
@@ -59,9 +58,7 @@ from .utils import (
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
     DummyWhisperModel,
-    get_provider_for_device,
     parse_device,
-    validate_provider_availability,
 )
 
 
@@ -339,7 +336,7 @@ class ORTEncoder(ORTSessionMixin):
     main_input_name = "input_ids"
 
     def __init__(self, session: InferenceSession, parent_model: ORTModel):
-        super().__init__(session, parent_model.use_io_binding)
+        self.initialize_ort_attributes(session, parent_model.use_io_binding)
 
         self.parent_model = parent_model
         config = (
@@ -358,7 +355,7 @@ class ORTEncoder(ORTSessionMixin):
             "attention_mask": attention_mask,
         }
 
-        if self.use_io_binding:
+        if self.parent_model.use_io_binding:
             output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             if self.device.type == "cpu":
@@ -387,7 +384,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
     main_input_name = "input_ids"
 
     def __init__(self, session: InferenceSession, parent_model: ORTModel):
-        super().__init__(session, parent_model.use_io_binding)
+        self.initialize_ort_attributes(session, parent_model.use_io_binding)
 
         self.parent_model = parent_model
         config = (
@@ -714,14 +711,14 @@ class ORTEncoderForSpeech(ORTEncoder):
         }
 
         if self.parent_model.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.session, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             if self.device.type == "cpu":
-                self.session.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.session.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
@@ -752,21 +749,21 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
         **kwargs,
     ) -> BaseModelOutput:
         use_torch = isinstance(pixel_values, torch.Tensor)
-        self.parent_model.raise_on_numpy_input_io_binding(use_torch)
+        self.raise_on_numpy_input_io_binding(use_torch)
 
         model_inputs = {
             "pixel_values": pixel_values,
         }
 
         if self.parent_model.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.session, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             if self.device.type == "cpu":
-                self.session.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.session.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
@@ -798,7 +795,7 @@ class ORTEncoderForPix2Struct(ORTEncoder):
         **kwargs,
     ) -> BaseModelOutput:
         use_torch = isinstance(flattened_patches, torch.Tensor)
-        self.parent_model.raise_on_numpy_input_io_binding(use_torch)
+        self.raise_on_numpy_input_io_binding(use_torch)
 
         model_inputs = {
             "flattened_patches": flattened_patches,
@@ -806,14 +803,14 @@ class ORTEncoderForPix2Struct(ORTEncoder):
         }
 
         if self.parent_model.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.session, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             if self.device.type == "cpu":
-                self.session.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.session.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
@@ -826,7 +823,8 @@ class ORTEncoderForPix2Struct(ORTEncoder):
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
 
-class ORTModelForConditionalGeneration(ORTModel, ABC):
+# TODO: use ORTSessionsWrapper
+class ORTModelForConditionalGeneration(ORTModel):
     """
     Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
 
@@ -903,40 +901,15 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                 The generation configuration used by default when calling `generate()`.
                 Refer to https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationMixin.generate.
         """
-
-        # TODO: remove at version 2.0
-        def show_deprecated_argument(arg_name):
-            if kwargs.pop(arg_name, None) is not None:
-                logger.warning(
-                    f"The {arg_name} argument to create an {self.__class__.__name__} is deprecated, and not used "
-                    "anymore."
-                )
-
-        show_deprecated_argument("last_encoder_model_name")
-        show_deprecated_argument("last_decoder_model_name")
-        show_deprecated_argument("last_decoder_with_past_model_name")
-        if kwargs:
-            raise ValueError(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
-            )
-
-        ABC.__init__(self)
-
-        if use_io_binding is None:
-            if decoder_session.get_providers()[0] == "CUDAExecutionProvider":
-                use_io_binding = True
-            else:
-                use_io_binding = False
-
-        self.shared_attributes_init(
-            encoder_session,
+        super().__init__(
+            model=encoder_session,
+            config=config,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             preprocessors=preprocessors,
         )
-        self.config = config
-        self.name_or_path = config.name_or_path
 
+        self.name_or_path = config.name_or_path
         self.onnx_paths = onnx_paths
         self.use_cache = use_cache
 
@@ -1008,52 +981,8 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
                     setattr(self.generation_config, param_name, param_value)
                     setattr(self.config, param_name, None)
 
-    @abstractmethod
     def _initialize_encoder(self, session: InferenceSession) -> ORTEncoder:
-        pass
-
-    @staticmethod
-    def load_model(
-        encoder_path: Union[str, Path],
-        decoder_path: Union[str, Path],
-        decoder_with_past_path: Optional[Union[str, Path]] = None,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[SessionOptions] = None,
-        provider_options: Optional[Dict] = None,
-    ):
-        """
-        Creates an instance of [`~optimum.onnxruntime.modeling_seq2seq.ORTModelForConditionalGeneration`].
-        Three inference sessions will be created for respectively the encoder, decoder and decoder with past key values
-        models. The default provider is `CPUExecutionProvider` to match the default behaviour in PyTorch/TensorFlow/JAX.
-
-        Args:
-            encoder_path (`Union[str, Path]`):
-                The path of the encoder ONNX model.
-            decoder_path (`Union[str, Path]`):
-                The path of the decoder ONNX model.
-            decoder_with_past_path (`Optional[Union[str, Path]]`, *optional*):
-                The path of the decoder with past key values ONNX model.
-            provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
-                ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
-                for possible providers.
-            session_options (`Optional[SessionOptions]`, *optional*),:
-                ONNX Runtime session options to use for loading the model. Defaults to `None`.
-            provider_options (`Optional[Dict]`, *optional*):
-                Provider option dictionary corresponding to the provider used. See available options
-                for each provider: https://onnxruntime.ai/docs/api/c/group___global.html . Defaults to `None`.
-        """
-        encoder_session = ORTModel.load_model(encoder_path, provider, session_options, provider_options)
-        decoder_session = ORTModel.load_model(decoder_path, provider, session_options, provider_options)
-
-        decoder_with_past_session = None
-        # If a decoder_with_past_path is provided, an inference session for the decoder with past key/values as inputs
-        # will be enabled
-        if decoder_with_past_path is not None:
-            decoder_with_past_session = ORTModel.load_model(
-                decoder_with_past_path, provider, session_options, provider_options
-            )
-
-        return encoder_session, decoder_session, decoder_with_past_session
+        return ORTEncoder(session, self)
 
     def _save_pretrained(self, save_directory: Union[str, Path]):
         """
@@ -1093,13 +1022,26 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         local_files_only: bool = False,
         use_cache: bool = True,
         use_merged: Optional[bool] = None,
-        provider: str = "CPUExecutionProvider",
+        providers: Optional[List[str]] = ["CPUExecutionProvider"],
+        provider_options: Optional[List[Dict[str, Any]]] = None,
         session_options: Optional[SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
+        if kwargs.get("provider", None) is not None:
+            logger.warning(
+                "The `provider` argument is deprecated and will be removed soon. "
+                "Please use the `providers` argument (a list of strings) instead."
+            )
+            providers = [kwargs.pop("provider")]
+        if provider_options is not None and not isinstance(provider_options, list):
+            logger.warning(
+                "The `provider_options` argument must be a list of dictionaries. "
+                "If you are using a single provider, please wrap it in a list."
+            )
+            provider_options = [provider_options]
+
         generation_config = kwargs.pop("generation_config", None)
         model_path = Path(model_id)
 
@@ -1275,14 +1217,27 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
 
             encoder_path = new_model_save_dir / paths["last_encoder_model_name"]
 
-        ort_inference_sessions = cls.load_model(
-            encoder_path=encoder_path,
-            decoder_path=decoder_path,
-            decoder_with_past_path=None if use_merged is True or use_cache is False else decoder_with_past_path,
-            provider=provider,
-            session_options=session_options,
+        encoder_session = InferenceSession(
+            encoder_path,
+            providers=providers,
             provider_options=provider_options,
+            session_options=session_options,
         )
+        decoder_session = InferenceSession(
+            decoder_path,
+            providers=providers,
+            provider_options=provider_options,
+            session_options=session_options,
+        )
+
+        decoder_with_past_session = None
+        if decoder_with_past_path is not None and (use_merged is False and use_cache is True):
+            decoder_with_past_session = InferenceSession(
+                decoder_with_past_path,
+                providers=providers,
+                provider_options=provider_options,
+                session_options=session_options,
+            )
 
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
@@ -1312,11 +1267,12 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
             onnx_paths.append(decoder_merged_path)
 
         return cls(
-            *ort_inference_sessions[:2],
+            encoder_session,
+            decoder_session,
             config,
             onnx_paths=onnx_paths,
             use_cache=use_cache,
-            decoder_with_past_session=ort_inference_sessions[2],
+            decoder_with_past_session=decoder_with_past_session,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
             generation_config=generation_config,
@@ -1407,19 +1363,13 @@ class ORTModelForConditionalGeneration(ORTModel, ABC):
         Returns:
             `ORTModel`: the model placed on the requested device.
         """
-        device, provider_options = parse_device(device)
+        device, _ = parse_device(device)
 
-        if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
-            return self
-
-        provider = get_provider_for_device(device)
-        validate_provider_availability(provider)  # raise error if the provider is not available
-
-        self.encoder.session.set_providers([provider], provider_options=[provider_options])
-        self.decoder.session.set_providers([provider], provider_options=[provider_options])
+        self.encoder.to(device)
+        self.decoder.to(device)
         if self.decoder_with_past is not None:
-            self.decoder_with_past.session.set_providers([provider], provider_options=[provider_options])
-        self.providers = self.encoder.session.get_providers()
+            self.decoder_with_past.to(device)
+
         self._device = device
 
         return self

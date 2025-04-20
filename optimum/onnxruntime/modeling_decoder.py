@@ -31,6 +31,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.utils import cached_file
 
 import onnxruntime
+from onnxruntime import InferenceSession
 
 from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from ..onnx.utils import check_model_uses_external_data
@@ -407,6 +408,19 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModelForCausalLM":
+        if kwargs.get("provider", None) is not None:
+            logger.warning(
+                "The `provider` argument is deprecated and will be removed soon. "
+                "Please use the `providers` argument (a list of strings) instead."
+            )
+            providers = [kwargs.pop("provider")]
+        if provider_options is not None and not isinstance(provider_options, list):
+            logger.warning(
+                "The `provider_options` argument must be a list of dictionaries. "
+                "If you are using a single provider, please wrap it in a list."
+            )
+            provider_options = [provider_options]
+
         generation_config = kwargs.pop("generation_config", None)
 
         # We do not implement the logic for use_cache=False, use_merged=True
@@ -575,11 +589,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         del onnx_model
 
-        model = ORTModel.load_model(
+        model = InferenceSession(
             model_cache_path,
-            provider=provider,
-            session_options=session_options,
+            providers=providers,
             provider_options=provider_options,
+            sess_options=session_options,
         )
 
         if config.model_type == "bloom" and use_old_bloom_modeling:

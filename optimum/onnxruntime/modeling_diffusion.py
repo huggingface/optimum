@@ -20,7 +20,7 @@ import shutil
 from collections import OrderedDict
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -134,16 +134,22 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
         )
 
         # We register ort session mixins to the wrapper
-        ort_session_mixins = {
-            self.unet,
-            self.transformer,
-            self.vae_encoder,
-            self.vae_decoder,
-            self.text_encoder,
-            self.text_encoder_2,
-            self.text_encoder_3,
-        }
-        super().__init__(sessions=list(filter(lambda x: x is not None, ort_session_mixins)))
+        super().initialize_ort_attributes(
+            sessions=list(
+                filter(
+                    lambda x: x is not None,
+                    {
+                        self.unet,
+                        self.transformer,
+                        self.vae_encoder,
+                        self.vae_decoder,
+                        self.text_encoder,
+                        self.text_encoder_2,
+                        self.text_encoder_3,
+                    },
+                )
+            )
+        )
 
         # We wrap the VAE Encoder & Decoder in a single object for convenience
         self.vae = (
@@ -243,12 +249,25 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
         text_encoder_3_file_name_or_path: Optional[Union[str, Path]] = None,
         # inference related arguments
         use_io_binding: Optional[bool] = None,
-        provider: str = "CPUExecutionProvider",
-        provider_option: Optional[Dict[str, Any]] = None,
+        providers: List[str] = ["CPUExecutionProvider"],
+        provider_options: Optional[Dict[str, Any]] = None,
         session_options: Optional[SessionOptions] = None,
         # hub related arguments
         **kwargs,
     ):
+        if kwargs.get("provider", None) is not None:
+            logger.warning(
+                "The `provider` argument is deprecated and will be removed soon. "
+                "Please use the `providers` argument (a list of strings) instead."
+            )
+            providers = [kwargs.pop("provider")]
+        if provider_options is not None and not isinstance(provider_options, list):
+            logger.warning(
+                "The `provider_options` argument must be a list of dictionaries. "
+                "If you are using a single provider, please wrap it in a list."
+            )
+            provider_options = [provider_options]
+
         hub_kwargs = {
             "force_download": kwargs.get("force_download", False),
             "resume_download": kwargs.get("resume_download", None),
@@ -350,11 +369,9 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
             elif kwargs.get(f"{model}_session", None) is not None:
                 # this allows passing a session directly to from_pretrained
                 sessions[f"{model}_session"] = kwargs.pop(f"{model}_session")
-            else:
-                sessions[f"{model}_session"] = (
-                    ORTSessionMixin.load_model(path, provider, provider_option, session_options)
-                    if path.is_file()
-                    else None
+            elif path.is_file():
+                sessions[f"{model}_session"] = InferenceSession(
+                    path, providers=providers, provider_options=provider_options, sess_options=session_options
                 )
 
         submodels = {}
@@ -499,7 +516,7 @@ class ORTModelMixin(ORTSessionMixin, ConfigMixin):
     config_name: str = CONFIG_NAME
 
     def __init__(self, session: InferenceSession, use_io_binding: Optional[bool] = None):
-        super().__init__(session, use_io_binding=use_io_binding)
+        self.initialize_ort_attributes(session, use_io_binding=use_io_binding)
 
         config_file_path = Path(session._model_path).parent / self.config_name
         if not config_file_path.is_file():
@@ -774,7 +791,7 @@ class ORTVaeDecoder(ORTModelMixin):
 
 class ORTVae(ORTSessionsWrapper):
     def __init__(self, encoder: Optional[ORTVaeEncoder] = None, decoder: Optional[ORTVaeDecoder] = None):
-        super().__init__(sessions=list(filter(lambda x: x is not None, [encoder, decoder])))
+        self.initialize_ort_attributes(sessions=list(filter(lambda x: x is not None, {encoder, decoder})))
         self.encoder, self.decoder = encoder, decoder
 
     def decode(self, *args, **kwargs):

@@ -15,12 +15,11 @@
 
 import logging
 import os
-import re
 import shutil
 import warnings
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -60,6 +59,7 @@ from transformers.modeling_outputs import (
 from transformers.utils import cached_file, is_offline_mode
 
 import onnxruntime as ort
+from onnxruntime import InferenceSession
 
 from ..exporters import TasksManager
 from ..exporters.onnx import main_export
@@ -67,15 +67,8 @@ from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from ..onnx.utils import _get_external_data_paths
 from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_save_preprocessors
+from .base import ORTSessionMixin
 from .constants import ONNX_FILE_PATTERN
-from .io_binding import IOBindingHelper, TypeHelper
-from .utils import (
-    check_io_binding,
-    get_device_for_provider,
-    get_provider_for_device,
-    parse_device,
-    validate_provider_availability,
-)
 
 
 if TYPE_CHECKING:
@@ -139,7 +132,8 @@ class classproperty:
         return self.getter(owner)
 
 
-class ORTModel(OptimizedModel):
+# TODO: remove OptimizedModel and define hub methods in ORTModel directly
+class ORTModel(ORTSessionMixin, OptimizedModel):
     """
     Base class for implementing models using ONNX Runtime.
 
@@ -182,32 +176,20 @@ class ORTModel(OptimizedModel):
         """
         return TasksManager.infer_task_from_model(auto_model_class)
 
-    def shared_attributes_init(
+    def __init__(
         self,
-        model: ort.InferenceSession,
+        model: "InferenceSession",
+        config: "PretrainedConfig",
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         preprocessors: Optional[List] = None,
         **kwargs,
     ):
-        """
-        Initializes attributes that may be shared among several ONNX Runtime inference sesssions.
-        """
-        # TODO: remove at version 2.0
-        if kwargs.pop("latest_model_name", None) is not None:
-            logger.warning(
-                f"The latest_model_name argument to create an {self.__class__.__name__} is deprecated, and not used "
-                "anymore."
-            )
-        if kwargs:
-            raise ValueError(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
-            )
+        super().__init__(model, config)
+        self.initialize_ort_attributes(session=model, use_io_binding=use_io_binding)
 
-        self.providers = model.get_providers()
-        self._device = get_device_for_provider(
-            self.providers[0], provider_options=model.get_provider_options()[self.providers[0]]
-        )
+        self.model_path = Path(model._model_path)
+        self.model_name = self.model_path.name
 
         # This attribute is needed to keep one reference on the temporary directory, since garbage collecting it
         # would end-up removing the directory containing the underlying ONNX model.
@@ -222,183 +204,11 @@ class ORTModel(OptimizedModel):
         else:
             self.model_save_dir = model_save_dir
 
-        self.preprocessors = preprocessors if preprocessors is not None else []
-
-        if self._device is None:
-            logger.warning(
-                f"ORTModel outputs will be sent to CPU as the device could not be inferred from the execution provider {self.providers[0]}."
-                f" Use `ort_model.to()` to send the outputs to the wanted device."
-            )
-
-        self._use_io_binding = use_io_binding
-
         # Registers the ORTModelForXXX classes into the transformers AutoModel classes to avoid warnings when creating
         # a pipeline https://github.com/huggingface/transformers/blob/cad61b68396a1a387287a8e2e2fef78a25b79383/src/transformers/pipelines/base.py#L863
         AutoConfig.register(self.model_type, AutoConfig)
         if hasattr(self.auto_model_class, "register"):
             self.auto_model_class.register(AutoConfig, self.__class__)
-
-        # Define the pattern here to avoid recomputing it everytime.
-        self.output_shape_inference_pattern = re.compile(r"([a-zA-Z_]+)|([0-9]+)|([+-/*])|([\(\)])")
-
-    def __init__(
-        self,
-        model: ort.InferenceSession,
-        config: "PretrainedConfig",
-        use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
-        **kwargs,
-    ):
-        super().__init__(model, config)
-
-        if use_io_binding is None:
-            if model.get_providers()[0] == "CUDAExecutionProvider":
-                use_io_binding = True
-            else:
-                use_io_binding = False
-
-        self.model_path = Path(model._model_path)
-        self.model_name = self.model_path.name
-
-        self.shared_attributes_init(
-            model,
-            use_io_binding,
-            model_save_dir,
-            preprocessors,
-            **kwargs,
-        )
-
-        self.input_names = {input_key.name: idx for idx, input_key in enumerate(model.get_inputs())}
-        self.input_dtypes = {input_key.name: input_key.type for input_key in model.get_inputs()}
-
-        self.output_names = {output_key.name: idx for idx, output_key in enumerate(model.get_outputs())}
-        self.output_dtypes = {output_key.name: output_key.type for output_key in model.get_outputs()}
-
-    @property
-    def dtype(self) -> torch.dtype:
-        """
-        `torch.dtype`: The dtype of the model.
-        """
-
-        for dtype in self.input_dtypes.values():
-            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
-            if torch_dtype.is_floating_point:
-                return torch_dtype
-
-        for dtype in self.output_dtypes.values():
-            torch_dtype = TypeHelper.ort_type_to_torch_type(dtype)
-            if torch_dtype.is_floating_point:
-                return torch_dtype
-
-        return None
-
-    @property
-    def device(self) -> torch.device:
-        """
-        `torch.device`: The device on which the module is (assuming that all the module parameters are on the same
-        device).
-        """
-        return self._device
-
-    @device.setter
-    def device(self, **kwargs):
-        raise AttributeError("The device attribute is read-only, please use the `to` method to change the device.")
-
-    @property
-    def use_io_binding(self):
-        return check_io_binding(self.providers, self._use_io_binding)
-
-    @use_io_binding.setter
-    def use_io_binding(self, value: bool):
-        self._use_io_binding = value
-
-    def to(self, device: Union[torch.device, str, int]):
-        """
-        Changes the ONNX Runtime provider according to the device.
-
-        Args:
-            device (`torch.device` or `str` or `int`):
-                Device ordinal for CPU/GPU supports. Setting this to -1 will leverage CPU, a positive will run
-                the model on the associated CUDA device id. You can pass native `torch.device` or a `str` too.
-
-        Returns:
-            `ORTModel`: the model placed on the requested device.
-        """
-
-        device, provider_options = parse_device(device)
-
-        if device.type == "cuda" and self.providers[0] == "TensorrtExecutionProvider":
-            return self
-
-        provider = get_provider_for_device(device)
-        validate_provider_availability(provider)  # raise error if the provider is not available
-
-        # IOBinding is only supported for CPU and CUDA Execution Providers.
-        if device.type == "cuda" and self._use_io_binding is False and provider == "CUDAExecutionProvider":
-            self.use_io_binding = True
-            logger.info(
-                "use_io_binding was set to False, setting it to True because it can provide a huge speedup on GPUs. "
-                "It is possible to disable this feature manually by setting the use_io_binding attribute back to False."
-            )
-
-        if provider == "ROCMExecutionProvider":
-            self.use_io_binding = False
-
-        self.model.set_providers([provider], provider_options=[provider_options])
-        self.providers = self.model.get_providers()
-        self._device = device
-
-        return self
-
-    def forward(self, *args, **kwargs):
-        raise NotImplementedError
-
-    @staticmethod
-    def load_model(
-        path: Union[str, Path],
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-    ) -> ort.InferenceSession:
-        """
-        Loads an ONNX Inference session with a given provider. Default provider is `CPUExecutionProvider` to match the
-        default behaviour in PyTorch/TensorFlow/JAX.
-
-        Args:
-            path (`Union[str, Path]`):
-                Path of the ONNX model.
-            provider (`str`, defaults to `"CPUExecutionProvider"`):
-                ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/
-                for possible providers.
-            session_options (`Optional[onnxruntime.SessionOptions]`, defaults to `None`):
-                ONNX Runtime session options to use for loading the model.
-            provider_options (`Optional[Dict[str, Any]]`, defaults to `None`):
-                Provider option dictionary corresponding to the provider used. See available options
-                for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
-        """
-        validate_provider_availability(provider)  # raise error if the provider is not available
-
-        providers = [provider]
-        if provider == "TensorrtExecutionProvider":
-            # Follow advice in https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#python
-            providers.append("CUDAExecutionProvider")
-
-        if not isinstance(path, str):
-            path = str(path)
-
-        # `providers` and `provider_options` need to be of the same length
-        if provider_options is not None:
-            providers_options = [provider_options] + [{} for _ in range(len(providers) - 1)]
-        else:
-            providers_options = None
-
-        return ort.InferenceSession(
-            path,
-            providers=providers,
-            sess_options=session_options,
-            provider_options=providers_options,
-        )
 
     def _save_pretrained(self, save_directory: Union[str, Path]):
         """
@@ -475,9 +285,9 @@ class ORTModel(OptimizedModel):
         file_name: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
-        provider: str = "CPUExecutionProvider",
+        providers: List[str] = ["CPUExecutionProvider"],
+        provider_options: Optional[List[Dict[str, Any]]] = None,
         session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
@@ -550,16 +360,30 @@ class ORTModel(OptimizedModel):
             # If the external data file is not found, we assume that the model is not using external data.
             pass
 
-        # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
-        # instead of the path only.
+        # model_save_dir can be provided in kwargs as a TemporaryDirectory instance,
+        # in which case we want to keep it instead of the path only.
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
 
-        model = ORTModel.load_model(
+        if kwargs.get("provider", None) is not None:
+            logger.warning(
+                "The `provider` argument is deprecated and will be removed soon. "
+                "Please use the `providers` argument (a list of strings) instead."
+            )
+            providers = [kwargs.pop("provider")]
+
+        if provider_options is not None and not isinstance(provider_options, list):
+            logger.warning(
+                "The `provider_options` argument must be a list of dictionaries. "
+                "If you are using a single provider, please wrap it in a list."
+            )
+            provider_options = [provider_options]
+
+        model = InferenceSession(
             model_cache_path,
-            provider=provider,
-            session_options=session_options,
+            providers=providers,
             provider_options=provider_options,
+            sess_options=session_options,
         )
 
         return cls(
@@ -785,217 +609,6 @@ class ORTModel(OptimizedModel):
             **kwargs,
         )
 
-    def _prepare_output_buffer(self, model: ort.InferenceSession, output_shape: Tuple[int], output_name: str):
-        """Prepares the buffer of output_name with a 1D tensor."""
-        ort_type = TypeHelper.get_output_type(model, output_name)
-        torch_type = TypeHelper.ort_type_to_torch_type(ort_type)
-        if len(output_shape) > 0:
-            output_buffer = torch.empty(np.prod(output_shape), dtype=torch_type, device=self.device).contiguous()
-        else:
-            # Case when the output is a scalar
-            output_buffer = torch.tensor(0, dtype=torch_type, device=self.device).contiguous()
-        return output_buffer
-
-    def _output_shape_inference(self, axis_name: Union[str, int], dimensions: Dict[str, int]) -> Union[str, int]:
-        """
-        Infers the output shape of a given dynamic axis by using the `dimensions` mapping.
-
-        For instance, for the following inputs:
-            axis_name = "past_sequence_length + sequence_length"
-            dimensions = {"batch_size": 2, "sequence_length": 3, "past_sequence_length": 7}
-
-        The inferred shape is 3 + 7 = 10.
-        """
-        if isinstance(axis_name, int):
-            return axis_name
-
-        elif axis_name in dimensions:
-            return dimensions[axis_name]
-
-        # faster way to do the same thing, assuming the axis names are well defined (by us in the exporter config)
-        tokens = axis_name.split(" ")
-        for idx, token in enumerate(tokens):
-            if token in dimensions:
-                tokens[idx] = str(dimensions[token])
-
-        return int(eval(" ".join(tokens)))
-
-    # TODO: this method is bloated with state arguments (that are accesible using self) why ?
-    def _prepare_io_binding(
-        self,
-        model: ort.InferenceSession,
-        model_inputs: Dict[str, torch.Tensor],
-        known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
-        outputs_to_not_bind: Optional[Union[Set[str], str]] = None,
-    ) -> Tuple[ort.IOBinding, Dict[str, Tuple[int]], Dict[str, torch.Tensor]]:
-        """
-        Prepares IO binding for ONNX Runtime.
-
-        Args:
-            model (`ort.InferenceSession`):
-                The model for which we want to bind the inputs and outputs.
-            model_inputs (`Dict[str, torch.Tensor]`):
-                The inputs to bind to the model.
-            known_output_shapes (`Optional[Dict[str, Tuple[int]]]`, defaults to `None`):
-                It can be hard to infer all the output shapes from the inputs only. For instance for the past key /
-                values. It is possible to explicitely pass the shape via this argument.
-            outputs_to_not_bind (`Optional[Union[Set[str], str]]`, defaults to `None`):
-                The names of the outputs that should not be bound.
-
-        Returns:
-            `Tuple[ort.IOBinding, Dict[str, Tuple[int]], Dict[str, torch.Tensor]`: The IOBinding object, a dictionary
-            containing the shape of each output, and another one pointing to the buffers containing the outputs data.
-        """
-        io_binding = model.io_binding()
-
-        input_shapes = {}
-        for input_name in self.input_names.keys():
-            input_shapes[input_name] = model_inputs[input_name].shape
-
-            if not model_inputs[input_name].is_contiguous():
-                model_inputs[input_name] = model_inputs[input_name].contiguous()
-
-            tensor_dtype = model_inputs[input_name].dtype
-            expected_dtype = TypeHelper.ort_type_to_torch_type(self.input_dtypes[input_name])
-            if tensor_dtype != expected_dtype:
-                model_inputs[input_name] = model_inputs[input_name].to(expected_dtype)
-
-            data_ptr = model_inputs[input_name].data_ptr()
-            if data_ptr == 0:
-                # During first generation, sequence_length can be 0 when use_cache=True, which results in data_ptr to also be 0.
-                # To keep compatibility with IO binding, we pass the data pointer of input_ids instead. This will have no impact because past_key_values will not be used during the first generation.
-                data_ptr = model_inputs["input_ids"].data_ptr()
-
-            io_binding.bind_input(
-                input_name,
-                self.device.type,
-                IOBindingHelper.get_device_index(self.device),
-                TypeHelper.ort_type_to_numpy_type(self.input_dtypes[input_name]),
-                model_inputs[input_name].shape,
-                data_ptr,
-            )
-
-        dimensions = {}
-        for input_ in model.get_inputs():
-            shape = input_.shape
-            for idx, axis in enumerate(shape):
-                if isinstance(axis, str):
-                    dimensions[axis] = input_shapes[input_.name][idx]
-
-        output_shapes = {}
-        output_buffers = {}
-
-        if known_output_shapes is None:
-            known_output_shapes = {}
-
-        if outputs_to_not_bind is None:
-            outputs_to_not_bind = set()
-        elif isinstance(outputs_to_not_bind, str):
-            outputs_to_not_bind = {outputs_to_not_bind}
-
-        for output_node in model.get_outputs():
-            output_name = output_node.name
-            if output_name in outputs_to_not_bind:
-                continue
-            if output_name in known_output_shapes:
-                output_shape = known_output_shapes[output_name]
-            else:
-                output_shape = []
-                for axis_name in output_node.shape:
-                    output_shape.append(self._output_shape_inference(axis_name, dimensions))
-
-            output_buffer = self._prepare_output_buffer(model, output_shape, output_name)
-
-            data_ptr = output_buffer.data_ptr()
-
-            io_binding.bind_output(
-                output_name,
-                self.device.type,
-                IOBindingHelper.get_device_index(self.device),
-                TypeHelper.ort_type_to_numpy_type(output_node.type),
-                output_shape,
-                data_ptr,
-            )
-
-            output_buffers[output_name] = output_buffer
-            output_shapes[output_name] = output_shape
-
-        return io_binding, output_shapes, output_buffers
-
-    def raise_on_numpy_input_io_binding(self, use_torch: bool):
-        """
-        Raises an error if IO Binding is requested although the tensor used are numpy arrays.
-
-        Args:
-            use_torch (`bool`):
-                Whether the tensor used during inference are of type torch.Tensor or not.
-        """
-        if use_torch is False and self.use_io_binding is True:
-            raise ValueError(
-                "IO Binding can not be used when passing numpy inputs. Please disable IO Binding"
-                " with model.use_io_binding = False, or pass torch.Tensor inputs instead."
-            )
-
-    def _prepare_onnx_inputs(
-        self, use_torch: bool, model_inputs: Dict[str, Union[torch.Tensor, np.ndarray]]
-    ) -> Dict[str, np.ndarray]:
-        """
-        Prepares the inputs for ONNX Runtime by converting them to numpy arrays with the expected dtype.
-
-        Args:
-            use_torch (`bool`):
-                Whether the inputs are torch.Tensor or not.
-            inputs (`Dict[str, Union[torch.Tensor, np.ndarray]]`):
-                The inputs to prepare for ONNX Runtime.
-
-        Returns:
-            `Dict[str, np.ndarray]`: The inputs prepared for ONNX Runtime.
-        """
-
-        onnx_inputs = {}
-
-        for input_name in self.input_names.keys():
-            if model_inputs.get(input_name, None) is None:
-                raise ValueError(f"Input {input_name} is required by model but not provided.")
-
-            if use_torch:
-                onnx_inputs[input_name] = model_inputs[input_name].numpy(force=True)
-            else:
-                onnx_inputs[input_name] = model_inputs[input_name]
-
-            expected_dtype = TypeHelper.ort_type_to_numpy_type(self.input_dtypes[input_name])
-
-            if onnx_inputs[input_name].dtype != expected_dtype:
-                onnx_inputs[input_name] = onnx_inputs[input_name].astype(expected_dtype)
-
-        return onnx_inputs
-
-    def _prepare_onnx_outputs(
-        self, use_torch: bool, onnx_outputs: List[np.ndarray]
-    ) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
-        """
-        Prepares the outputs from ONNX Runtime by converting them to torch.Tensor if requested.
-
-        Args:
-            use_torch (`bool`):
-                Whether the outputs should be torch.Tensor or not.
-            onnx_outputs (`List[np.ndarray]`):
-                The outputs from ONNX Runtime.
-
-        Returns:
-            `Dict[str, Union[torch.Tensor, np.ndarray]]`: The outputs prepared for the user.
-        """
-
-        model_outputs = {}
-
-        for output_name, idx in self.output_names.items():
-            model_outputs[output_name] = onnx_outputs[idx]
-
-            if use_torch:
-                model_outputs[output_name] = torch.from_numpy(model_outputs[output_name]).to(self.device)
-
-        return model_outputs
-
     def can_generate(self) -> bool:
         """
         Returns whether this model can generate sequences with `.generate()`.
@@ -1074,15 +687,15 @@ class ORTModelForFeatureExtraction(ORTModel):
         }
 
         if self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
@@ -1123,7 +736,8 @@ class ORTModelForFeatureExtraction(ORTModel):
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
 
-        # ORTModelForFeatureExtraction works with Transformers type of models, thus even sentence-transformers models are loaded as such.
+        # ORTModelForFeatureExtraction works with Transformers type of models,
+        # thus even sentence-transformers models are loaded as such.
         main_export(
             model_name_or_path=model_id,
             output=save_dir_path,
@@ -1224,15 +838,15 @@ class ORTModelForMaskedLM(ORTModel):
         }
 
         if self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -1311,18 +925,22 @@ class ORTModelForQuestionAnswering(ORTModel):
         if token_type_ids is None and "token_type_ids" in self.input_names:
             token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
-        model_inputs = {"input_ids": input_ids, "attention_mask": attention_mask, "token_type_ids": token_type_ids}
+        model_inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
 
         if self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             start_logits = output_buffers["start_logits"].view(output_shapes["start_logits"])
             end_logits = output_buffers["end_logits"].view(output_shapes["end_logits"])
@@ -1425,15 +1043,15 @@ class ORTModelForSequenceClassification(ORTModel):
         }
 
         if self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -1520,15 +1138,15 @@ class ORTModelForTokenClassification(ORTModel):
         }
 
         if self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -1608,15 +1226,15 @@ class ORTModelForMultipleChoice(ORTModel):
         }
 
         if self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -1698,15 +1316,15 @@ class ORTModelForImageClassification(ORTModel):
         }
 
         if self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -1788,15 +1406,15 @@ class ORTModelForSemanticSegmentation(ORTModel):
         }
 
         if self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -1900,33 +1518,33 @@ class ORTModelForAudioClassification(ORTModel):
         input_features: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
-        if self.input_name == "input_features":
+        if self.config.model_type == "whisper":
             assert input_features is not None, "input_features must be provided for this model"
+            input_name = "input_features"
             model_input = input_features
-        elif self.input_name == "input_values":
-            assert input_values is not None, "input_values must be provided for this model"
-            model_input = input_values
         else:
-            raise ValueError(f"Input {self.input_name} not supported for Audio Classification")
+            assert input_values is not None, "input_values must be provided for this model"
+            input_name = "input_values"
+            model_input = input_values
 
         use_torch = isinstance(model_input, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
         model_inputs = {
-            self.input_name: model_input,
+            input_name: model_input,
             "attention_mask": attention_mask,
         }
 
         if self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -2004,17 +1622,17 @@ class ORTModelForCTC(ORTModel):
 
             known_output_shapes = {"logits": [batch_size, final_input_size, self.config.vocab_size]}
 
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(
-                self.model, model_inputs, known_output_shapes=known_output_shapes
+            output_shapes, output_buffers = self._prepare_io_binding(
+                model_inputs, known_output_shapes=known_output_shapes
             )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
@@ -2092,15 +1710,15 @@ class ORTModelForAudioXVector(ORTModel):
         }
 
         if self.use_io_binding:
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
             embeddings = output_buffers["embeddings"].view(output_shapes["embeddings"])
@@ -2238,16 +1856,17 @@ class ORTModelForImageToImage(ORTModel):
                 "reconstruction": [batch_size, num_channels, height * self.config.upscale, width * self.config.upscale]
             }
 
-            io_binding, output_shapes, output_buffers = self._prepare_io_binding(
-                self.model, model_inputs, known_output_shapes=known_output_shapes
+            output_shapes, output_buffers = self._prepare_io_binding(
+                model_inputs, known_output_shapes=known_output_shapes
             )
 
+            # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
             reconstruction = output_buffers["reconstruction"].view(output_shapes["reconstruction"])
         else:
@@ -2309,21 +1928,17 @@ class ORTModelForCustomTasks(ORTModel):
         self.raise_on_numpy_input_io_binding(use_torch)
 
         if self.use_io_binding:
-            # TODO: should this be used in favor of `model.prepare_io_binding`?
-            io_binding = IOBindingHelper.prepare_io_binding(self, **model_inputs)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
-            # run inference with binding
+            # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
-                self.model.run_with_iobinding(io_binding)
+                self.session.run_with_iobinding(self._io_binding)
             else:
-                io_binding.synchronize_inputs()
-                self.model.run_with_iobinding(io_binding)
-                io_binding.synchronize_outputs()
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
 
-            model_outputs = {}
-            for name, output in zip(self.output_names.keys(), io_binding._iobinding.get_outputs()):
-                model_outputs[name] = IOBindingHelper.to_pytorch(output)
-
+            model_outputs = {name: output_buffers[name].view(shape) for name, shape in output_shapes.items()}
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
