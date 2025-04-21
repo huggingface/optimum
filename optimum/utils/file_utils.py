@@ -14,35 +14,36 @@
 # limitations under the License.
 """Utility functions related to both local files and files on the Hugging Face Hub."""
 
+import os
 import re
 import warnings
 from pathlib import Path
 from typing import List, Optional, Union
 
-import huggingface_hub
-from huggingface_hub import get_hf_file_metadata, hf_hub_url
-
-from ..utils import logging
-
-
-logger = logging.get_logger(__name__)
+from huggingface_hub import HfApi
+from transformers.utils import http_user_agent
 
 
 def validate_file_exists(
-    model_name_or_path: Union[str, Path], filename: str, subfolder: str = "", revision: Optional[str] = None
+    model_name_or_path: Union[str, Path],
+    filename: str,
+    subfolder: str = "",
+    revision: Optional[str] = None,
+    token: Optional[Union[bool, str]] = None,
 ) -> bool:
     """
     Checks that the file called `filename` exists in the `model_name_or_path` directory or model repo.
     """
-    model_path = Path(model_name_or_path) if isinstance(model_name_or_path, str) else model_name_or_path
-    if model_path.is_dir():
-        return (model_path / subfolder / filename).is_file()
-    succeeded = True
-    try:
-        get_hf_file_metadata(hf_hub_url(model_name_or_path, filename, subfolder=subfolder, revision=revision))
-    except Exception:
-        succeeded = False
-    return succeeded
+
+    if os.path.isdir(model_name_or_path):
+        return os.path.isfile(os.path.join(model_name_or_path, subfolder, filename))
+    else:
+        return HfApi(user_agent=http_user_agent(), token=token).file_exists(
+            filename=os.path.join(subfolder, filename),
+            repo_id=model_name_or_path,
+            revision=revision,
+            token=token,
+        )
 
 
 def find_files_matching_pattern(
@@ -91,17 +92,15 @@ def find_files_matching_pattern(
             raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
         token = use_auth_token
 
-    model_path = Path(model_name_or_path) if isinstance(model_name_or_path, str) else model_name_or_path
-    pattern = re.compile(f"{subfolder}/{pattern}" if subfolder != "" else pattern)
-    if model_path.is_dir():
-        path = model_path
-        files = model_path.glob(glob_pattern)
+    model_path = str(model_name_or_path) if isinstance(model_name_or_path, Path) else model_name_or_path
+    pattern = re.compile(subfolder + pattern)
+    if os.path.isdir(model_path):
+        files = Path(model_path).glob(glob_pattern)
         files = [p for p in files if re.search(pattern, str(p))]
     else:
-        path = model_name_or_path
-        repo_files = map(Path, huggingface_hub.list_repo_files(model_name_or_path, revision=revision, token=token))
-        if subfolder != "":
-            path = f"{path}/{subfolder}"
-        files = [Path(p) for p in repo_files if re.match(pattern, str(p))]
+        repo_files = HfApi(user_agent=http_user_agent(), token=token).list_repo_files(
+            model_path, revision=revision, token=token
+        )
+        files = [Path(p) for p in repo_files if re.match(pattern, p)]
 
     return files

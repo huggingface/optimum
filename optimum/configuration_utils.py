@@ -12,7 +12,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-""" Configuration base class. """
+"""Configuration base class."""
 
 import copy
 import json
@@ -24,24 +24,11 @@ from typing import Any, Dict, List, Tuple, Union
 from packaging import version
 from transformers import PretrainedConfig
 from transformers import __version__ as transformers_version_str
+from transformers.dynamic_module_utils import custom_object_save
+from transformers.utils import cached_file, download_url, extract_commit_hash, is_remote_url
 
 from .utils import logging
 from .version import __version__
-
-
-# TODO: remove once transformers release version is way above 4.22.
-_transformers_version = version.parse(transformers_version_str)
-_transformers_version_threshold = (4, 22)
-_transformers_version_is_below_threshold = (
-    _transformers_version.major,
-    _transformers_version.minor,
-) < _transformers_version_threshold
-
-if _transformers_version_is_below_threshold:
-    from transformers.utils import cached_path, hf_bucket_url
-else:
-    from transformers.dynamic_module_utils import custom_object_save
-    from transformers.utils import cached_file, download_url, extract_commit_hash, is_remote_url
 
 
 logger = logging.get_logger(__name__)
@@ -79,39 +66,28 @@ class BaseConfig(PretrainedConfig):
         if os.path.isfile(save_directory):
             raise AssertionError(f"Provided path ({save_directory}) should be a directory, not a file")
 
-        # TODO: remove conditon once transformers release version is way above 4.22.
-        if not _transformers_version_is_below_threshold:
-            os.makedirs(save_directory, exist_ok=True)
+        os.makedirs(save_directory, exist_ok=True)
 
         if push_to_hub:
             commit_message = kwargs.pop("commit_message", None)
-            # TODO: remove once transformers release version is way above 4.22.
-            if _transformers_version_is_below_threshold:
-                repo = self._create_or_get_repo(save_directory, **kwargs)
-            else:
-                repo_id = kwargs.pop("repo_id", save_directory.split(os.path.sep)[-1])
-                repo_id = self._create_repo(repo_id, **kwargs)
 
-                use_auth_token = kwargs.get("use_auth_token", None)
-                token = kwargs.get("token", None)
+            repo_id = kwargs.pop("repo_id", save_directory.split(os.path.sep)[-1])
+            repo_id = self._create_repo(repo_id, **kwargs)
 
-                if use_auth_token is not None:
-                    warnings.warn(
-                        "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                        FutureWarning,
-                    )
-                    if token is not None:
-                        raise ValueError(
-                            "You cannot use both `use_auth_token` and `token` arguments at the same time."
-                        )
-                    kwargs["token"] = use_auth_token
-                    token = use_auth_token
+            use_auth_token = kwargs.get("use_auth_token", None)
+            token = kwargs.get("token", None)
 
-                files_timestamps = self._get_files_timestamps(save_directory)
+            if use_auth_token is not None:
+                warnings.warn(
+                    "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
+                    FutureWarning,
+                )
+                if token is not None:
+                    raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
+                kwargs["token"] = use_auth_token
+                token = use_auth_token
 
-        # TODO: remove once transformers release version is way above 4.22.
-        if _transformers_version_is_below_threshold:
-            os.makedirs(save_directory, exist_ok=True)
+            files_timestamps = self._get_files_timestamps(save_directory)
 
         # If we have a custom config, we copy the file defining it in the folder and set the attributes so it can be
         # loaded from the Hub.
@@ -125,14 +101,9 @@ class BaseConfig(PretrainedConfig):
         logger.info(f"Configuration saved in {output_config_file}")
 
         if push_to_hub:
-            # TODO: remove once transformers release version is way above 4.22.
-            if _transformers_version_is_below_threshold:
-                url = self._push_to_hub(repo, commit_message=commit_message)
-                logger.info(f"Configuration pushed to the hub in this commit: {url}")
-            else:
-                self._upload_modified_files(
-                    save_directory, repo_id, files_timestamps, commit_message=commit_message, token=token
-                )
+            self._upload_modified_files(
+                save_directory, repo_id, files_timestamps, commit_message=commit_message, token=token
+            )
 
     # Adapted from transformers.configuration_utils.PretrainedConfig.get_configuration_file
     @classmethod
@@ -244,59 +215,30 @@ class BaseConfig(PretrainedConfig):
             # Special case when pretrained_model_name_or_path is a local file
             resolved_config_file = pretrained_model_name_or_path
             is_local = True
-        # TODO: remove once transformers release version is way above 4.22.
-        elif _transformers_version_is_below_threshold and os.path.isdir(pretrained_model_name_or_path):
-            configuration_file = kwargs.pop("_configuration_file", cls.CONFIG_NAME)
-            resolved_config_file = os.path.join(pretrained_model_name_or_path, configuration_file)
-            if not os.path.isfile(resolved_config_file):
-                raise EnvironmentError(
-                    f"Could not locate {configuration_file} inside {pretrained_model_name_or_path}."
-                )
         # TODO: remove condition once transformers release version is way above 4.22.
-        elif not _transformers_version_is_below_threshold and is_remote_url(pretrained_model_name_or_path):
+        elif is_remote_url(pretrained_model_name_or_path):
             configuration_file = pretrained_model_name_or_path
             resolved_config_file = download_url(pretrained_model_name_or_path)
         else:
             configuration_file = kwargs.pop("_configuration_file", cls.CONFIG_NAME)
 
             try:
-                # TODO: remove once transformers release version is way above 4.22.
-                if _transformers_version_is_below_threshold:
-                    config_file = hf_bucket_url(
-                        pretrained_model_name_or_path,
-                        filename=configuration_file,
-                        revision=revision,
-                        subfolder=subfolder if len(subfolder) > 0 else None,
-                        mirror=None,
-                    )
-                    # Load from URL or cache if already cached
-                    resolved_config_file = cached_path(
-                        config_file,
-                        cache_dir=cache_dir,
-                        force_download=force_download,
-                        proxies=proxies,
-                        resume_download=resume_download,
-                        local_files_only=local_files_only,
-                        token=token,
-                        user_agent=user_agent,
-                    )
-                else:
-                    # Load from local folder or from cache or download from model Hub and cache
-                    resolved_config_file = cached_file(
-                        pretrained_model_name_or_path,
-                        configuration_file,
-                        cache_dir=cache_dir,
-                        force_download=force_download,
-                        proxies=proxies,
-                        resume_download=resume_download,
-                        local_files_only=local_files_only,
-                        token=token,
-                        user_agent=user_agent,
-                        revision=revision,
-                        subfolder=subfolder,
-                        _commit_hash=commit_hash,
-                    )
-                    commit_hash = extract_commit_hash(resolved_config_file, commit_hash)
+                # Load from local folder or from cache or download from model Hub and cache
+                resolved_config_file = cached_file(
+                    pretrained_model_name_or_path,
+                    configuration_file,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    proxies=proxies,
+                    resume_download=resume_download,
+                    local_files_only=local_files_only,
+                    token=token,
+                    user_agent=user_agent,
+                    revision=revision,
+                    subfolder=subfolder,
+                    _commit_hash=commit_hash,
+                )
+                commit_hash = extract_commit_hash(resolved_config_file, commit_hash)
             except EnvironmentError:
                 # Raise any environment error raise by `cached_file`. It will have a helpful error message adapted to
                 # the original exception.
@@ -313,9 +255,6 @@ class BaseConfig(PretrainedConfig):
         try:
             # Load config dict
             config_dict = cls._dict_from_json_file(resolved_config_file)
-            # TODO: remove once transformers release version is way above 4.22.
-            if _transformers_version_is_below_threshold:
-                config_dict["_commit_hash"] = commit_hash
         except (json.JSONDecodeError, UnicodeDecodeError):
             raise EnvironmentError(
                 f"It looks like the config file at '{resolved_config_file}' is not a valid JSON file."
@@ -364,7 +303,7 @@ class BaseConfig(PretrainedConfig):
             id2label = kwargs["id2label"] if kwargs["id2label"] is not None else []
             if len(id2label) != num_labels:
                 raise ValueError(
-                    f"You passed along `num_labels={num_labels }` with an incompatible id to label map: "
+                    f"You passed along `num_labels={num_labels}` with an incompatible id to label map: "
                     f"{kwargs['id2label']}. Since those arguments are inconsistent with each other, you should remove "
                     "one of them."
                 )

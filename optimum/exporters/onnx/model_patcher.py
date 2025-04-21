@@ -156,7 +156,75 @@ def onnx_compatible_unfold(input_tensor, dimension, size, step):
     return result
 
 
-UNSUPPORTED_OPS_PATCHING_SPEC = [PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold)]
+# An ONNX-export-compatible version of `tensor.repeat_interleave`.
+# Without this, we get the following error: https://github.com/pytorch/pytorch/issues/145100
+# NOTE: This implementation is only necessary for export with dynamo=False (dynamo=True works correctly).
+# and can be removed once Optimum switches to dynamo-based exports
+def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None, output_size=None):
+    """
+    Custom implementation of torch.repeat_interleave without using torch.repeat_interleave.
+
+    Args:
+        input_tensor (torch.Tensor): The input tensor.
+        repeats (int or torch.Tensor): The number of repetitions for each element.
+        dim (int, optional): The dimension along which to repeat. Defaults to None.
+
+    Returns:
+        torch.Tensor: The repeated tensor.
+    """
+    if isinstance(repeats, int) or (torch.is_tensor(repeats) and repeats.dim() == 0):
+        if dim is None:
+            return input_tensor.flatten().unsqueeze(1).expand(-1, repeats).flatten()
+        repeats = torch.full((input_tensor.shape[dim],), repeats, dtype=torch.long, device=input_tensor.device)
+
+    if dim is None:
+        return onnx_compatible_repeat_interleave(input_tensor.flatten(), repeats, 0)
+
+    if dim != 0:
+        input_tensor = input_tensor.transpose(0, dim)
+
+    # Create expand mask
+    max_repeats = repeats.max()
+    expanded = input_tensor.unsqueeze(1).expand(-1, max_repeats, *input_tensor.shape[1:])
+    mask = torch.arange(max_repeats, device=input_tensor.device) < repeats.unsqueeze(1)
+    result = expanded[mask]
+
+    if dim != 0:
+        result = result.transpose(0, dim)
+
+    return result
+
+
+original_linal_norm = torch.linalg.norm
+
+
+# Custom implementation of torch.linalg.matrix_norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
+def onnx_compatible_linalg_norm(x, ord=2, dim=None, keepdim=False, *, dtype=None, out=None) -> torch.Tensor:
+    """
+    Custom implementation of torch.linalg.norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
+    It only handles the case of matrix norm with ord=2, otherwise it uses the original implementation.
+    """
+
+    if ord == 2:
+        if dim is None:
+            dim = (-2, -1)
+        norm = torch.sqrt(torch.sum(torch.square(x), dim=dim, keepdim=keepdim))
+        if dtype is not None:
+            norm = norm.to(dtype)
+        if out is not None:
+            out.copy_(norm)
+        return norm
+
+    return original_linal_norm(x, ord=ord, dim=dim, keepdim=keepdim, dtype=dtype, out=out)
+
+
+UNSUPPORTED_OPS_PATCHING_SPEC = [
+    PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold),
+    PatchingSpec(torch.linalg, "norm", onnx_compatible_linalg_norm, original_linal_norm),
+    PatchingSpec(torch.Tensor, "repeat_interleave", onnx_compatible_repeat_interleave, torch.Tensor.repeat_interleave),
+    # TracerWarning: Using len to get tensor shape might cause the trace to be incorrect. Recommended usage would be tensor.shape[0]. Passing a tensor of different shape might lead to errors or silently give incorrect results.
+    PatchingSpec(torch.Tensor, "__len__", lambda x: x.shape[0], torch.Tensor.__len__),
+]
 CACHE_PATCHING_SPEC = [PatchingSpec(transformers.cache_utils, "Cache", TraceableCache, transformers.cache_utils.Cache)]
 
 
@@ -239,7 +307,7 @@ class ModelPatcher:
             # contains the output names of the model. In the case of Timm classification models, the output
             # is of type tensor. By default, it is assumed that the output names mentioned in the ONNX config
             # match the outputs in order.
-            filterd_outputs = {}
+            filtered_outputs = {}
             if isinstance(outputs, dict):
                 for name, value in outputs.items():
                     onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
@@ -248,10 +316,10 @@ class ModelPatcher:
                         or (allow_past_in_outputs and name.startswith("past_key_values"))
                         or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
                     ):
-                        filterd_outputs[name] = value
+                        filtered_outputs[name] = value
             elif isinstance(outputs, (list, tuple)):
                 outputs_list = list(config.outputs.keys())
-                filterd_outputs = dict(zip(outputs_list, outputs))
+                filtered_outputs = dict(zip(outputs_list, outputs))
             else:
                 if len(config.outputs) > 1:
                     num_outputs = len(config.outputs)
@@ -261,15 +329,15 @@ class ModelPatcher:
                     )
                 else:
                     name = list(config.outputs.keys())[0]
-                    filterd_outputs[name] = outputs
+                    filtered_outputs[name] = outputs
                 name = list(config.outputs.keys())[0]
-                filterd_outputs[name] = outputs
+                filtered_outputs[name] = outputs
 
             if is_transformers_version(">=", "4.48"):
-                if isinstance(filterd_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)):
-                    filterd_outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
+                if isinstance(filtered_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)):
+                    filtered_outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
 
-            return filterd_outputs
+            return filtered_outputs
 
         self.patched_forward = patched_forward
 
@@ -325,15 +393,18 @@ class Seq2SeqModelPatcher(ModelPatcher):
         if model.config.model_type == "pix2struct" and allow_past_in_outputs:
             model.config.text_config.use_cache = True
 
-        @functools.wraps(self.orig_forward)
+        # Re-use the patched forward method from the parent class
+        self.super_patched_forward = self.patched_forward
+
+        @functools.wraps(self.super_patched_forward)
         def patched_forward(*args, **kwargs):
-            signature = inspect.signature(self.orig_forward)
+            signature = inspect.signature(self.super_patched_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
-            outputs = self.orig_forward(*args, **kwargs)
+            outputs = self.super_patched_forward(*args, **kwargs)
 
             # Filter out cross attention past key values output from the decoder using KV cache, as they are constants.
-            filterd_outputs = {}
+            filtered_outputs = {}
             for name, value in outputs.items():
                 onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
                 if (
@@ -346,17 +417,17 @@ class Seq2SeqModelPatcher(ModelPatcher):
                             # Who cares about the encoder outputs in the decoder?
                             continue
                         else:
-                            filterd_outputs[name] = value
+                            filtered_outputs[name] = value
                     else:
                         if self.real_config._behavior == "monolith" or (
                             self.real_config._behavior == "decoder"
                             and (self.real_config.is_merged or not self.real_config.use_past_in_inputs)
                         ):
-                            filterd_outputs[name] = value
+                            filtered_outputs[name] = value
                         elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
                             # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
-                            filterd_outputs[name] = tuple([v[:2] for v in value])
-            return filterd_outputs
+                            filtered_outputs[name] = tuple([v[:2] for v in value])
+            return filtered_outputs
 
         self.patched_forward = patched_forward
 
@@ -1291,3 +1362,18 @@ class CLIPModelPatcher(ModelPatcher):
         super().__exit__(exc_type, exc_value, traceback)
         if is_transformers_version(">=", "4.43"):
             CLIPSdpaAttention.forward = self.original_sdpa_forward
+
+
+class VitPoseModelPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        # Set dataset_index (defaulting to COCO=0), otherwise we will get an error like:
+        # ValueError: dataset_index must be provided when using multiple experts (num_experts=6). Please provide dataset_index to the forward pass.
+        if model.config.backbone_config.num_experts > 1:
+            model_kwargs["dataset_index"] = torch.tensor(0, device=model.device)
+
+        super().__init__(config, model, model_kwargs)

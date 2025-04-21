@@ -1,4 +1,4 @@
-name: FX / Python - Test
+name: FX Optimization / Python - Test
 
 on:
   push:
@@ -10,13 +10,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+env:
+  TRANSFORMERS_IS_CI: true
+
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.9']
-        os: [ubuntu-20.04, macos-13]
+        python-version: [3.9]
+        os: [ubuntu-22.04]
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -24,15 +27,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
+          pip install --upgrade pip
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[tests]
 
       - name: Test with pytest
-        working-directory: tests
         run: |
-          python -m pytest -s -v -x fx/optimization
+          pytest tests/fx/optimization -n auto -vvvv

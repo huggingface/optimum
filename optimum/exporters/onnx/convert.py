@@ -512,8 +512,10 @@ def export_pytorch(
 
     model_kwargs = model_kwargs or {}
     # num_logits_to_keep was added in transformers 4.45 and isn't added as inputs when exporting the model
-    if is_transformers_version(">=", "4.44.99") and "num_logits_to_keep" in signature(model.forward).parameters.keys():
-        model_kwargs["num_logits_to_keep"] = 0
+    if is_transformers_version(">=", "4.45"):
+        logits_to_keep_name = "logits_to_keep" if is_transformers_version(">=", "4.49") else "num_logits_to_keep"
+        if logits_to_keep_name in signature(model.forward).parameters.keys():
+            model_kwargs[logits_to_keep_name] = 0
 
     with torch.no_grad():
         model.config.return_dict = True
@@ -572,7 +574,6 @@ def export_pytorch(
             )
 
         # check if external data was exported
-        # TODO: this is quite inefficient as we load in memory if models are <2GB without external data
         onnx_model = onnx.load(str(output), load_external_data=False)
         model_uses_external_data = check_model_uses_external_data(onnx_model)
 
@@ -585,12 +586,12 @@ def export_pytorch(
             del model
             del onnx_model
             gc.collect()
+
             if device.type == "cuda" and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-            onnx_model = onnx.load(
-                str(output), load_external_data=True
-            )  # this will probably be too memory heavy for large models
+            # this will probably be too memory heavy for large models
+            onnx_model = onnx.load(str(output), load_external_data=True)
             onnx.save(
                 onnx_model,
                 str(output),

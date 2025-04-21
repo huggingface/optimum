@@ -56,6 +56,7 @@ from .input_generators import (
     DEFAULT_DUMMY_SHAPES,
     DTYPE_MAPPER,
     BloomDummyPastKeyValuesGenerator,
+    Dinov2DummyInputGenerator,
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
     DummyCodegenDecoderTextInputGenerator,
@@ -90,6 +91,8 @@ from .input_generators import (
     MCTCTDummyAudioInputGenerator,
     MistralDummyPastKeyValuesGenerator,
     MultiQueryPastKeyValuesGenerator,
+    PerceiverDummyInputGenerator,
+    VitPoseDummyInputGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr
 from .normalized_config import (

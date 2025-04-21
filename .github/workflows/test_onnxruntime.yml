@@ -1,60 +1,53 @@
 name: ONNX Runtime / Python - Test
 
 on:
+  workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
+    types:
+      - opened
+      - labeled
+      - reopened
+      - unlabeled
+      - synchronize
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
+
+env:
+  TRANSFORMERS_IS_CI: true
 
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        transformers-version: ["latest"]
-        os: [ubuntu-20.04, windows-2019] # TODO : add macos-15 after mps fix
-        include:
-          - transformers-version: "4.36.*"
-            os: ubuntu-20.04
-          - transformers-version: "4.45.*"
-            os: ubuntu-20.04
+        python-version: [3.9]
+        runs-on: [ubuntu-22.04]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs-on }}
 
     steps:
       - name: Free Disk Space (Ubuntu)
-        if: matrix.os == 'ubuntu-20.04'
+        if: matrix.runs-on == 'ubuntu-22.04'
         uses: jlumbroso/free-disk-space@main
 
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests,onnxruntime,diffusers]
-
-      - name: Install transformers ${{ matrix.transformers-version }}
-        if: ${{ matrix.transformers-version != 'latest' }}
-        run: |
-          pip install "transformers==${{ matrix.transformers-version }}"
-
-      - name: Downgrade diffusers
-        if: matrix.transformers-version == '4.36.*'
-        run: |
-          pip install "diffusers<0.32.0"
+          pip install .[tests,onnxruntime] diffusers
 
       - name: Test with pytest (in series)
         run: |

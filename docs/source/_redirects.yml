@@ -38,3 +38,6 @@ docs/optimum-neuron/index: /docs/optimum-neuron/index
 # Optimum TPU
 docs/optimum-tpu/index: /docs/optimum-tpu/index
 tpu/index: /docs/optimum-tpu/index
+
+# Optimum ExecuTorch
+docs/optimum-executorch/index: /docs/optimum-executorch/index
