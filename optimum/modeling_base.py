@@ -89,7 +89,9 @@ class OptimizedModel(PreTrainedModel):
     base_model_prefix = "optimized_model"
     config_name = CONFIG_NAME
 
-    def __init__(self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: PretrainedConfig, preprocessors=None):
+    def __init__(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: PretrainedConfig, preprocessors=None
+    ):
         self.model = model
         self.config = config
         self.preprocessors = preprocessors or []
