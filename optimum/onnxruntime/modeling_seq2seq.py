@@ -824,7 +824,8 @@ class ORTEncoderForPix2Struct(ORTEncoder):
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
 
-# TODO: use ORTSessionsWrapper
+# TODO: should use ORTSessionsWrapper as it contains multiple sessions
+# TODO: should not inherit ORTModel as it rewrites all of its save/load/push logic
 class ORTModelForConditionalGeneration(ORTModel):
     """
     Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.

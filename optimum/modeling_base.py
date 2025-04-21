@@ -20,7 +20,7 @@ import subprocess
 import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from huggingface_hub import HfApi
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -32,7 +32,17 @@ from .utils import CONFIG_NAME
 
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, TFPreTrainedModel
+    from transformers import (
+        FeatureExtractionMixin,
+        ImageProcessingMixin,
+        PreTrainedModel,
+        ProcessorMixin,
+        SpecialTokensMixin,
+        TFPreTrainedModel,
+    )
+
+    PreprocessorT = Union[SpecialTokensMixin, FeatureExtractionMixin, ImageProcessingMixin, ProcessorMixin]
+    ModelT = Union["PreTrainedModel", "TFPreTrainedModel"]
 
 
 logger = logging.getLogger(__name__)
@@ -79,6 +89,8 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
 """
 
 
+# TODO: another reason why it makes sense to have ORTModel directly inheriting from original transformers PreTrainedModel
+# and overriding save/load/push methods, instead of this workaround.
 # workaround to enable compatibility between optimum models and transformers pipelines
 class PreTrainedModel(ABC):  # noqa: F811
     pass
@@ -90,7 +102,7 @@ class OptimizedModel(PreTrainedModel):
     config_name = CONFIG_NAME
 
     def __init__(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: PretrainedConfig, preprocessors=None
+        self, model: Union["ModelT"], config: "PretrainedConfig", preprocessors: Optional[List["PreprocessorT"]] = None
     ):
         self.model = model
         self.config = config

@@ -141,9 +141,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         use_cache: Optional[bool] = None,
         **kwargs,
     ):
-        if use_io_binding is None:
-            use_io_binding = model.get_providers()[0] in ["CPUExecutionProvider", "CUDAExecutionProvider"]
-
         super().__init__(model, config, use_io_binding, model_save_dir, preprocessors, **kwargs)
 
         self.num_pkv = 2
@@ -948,7 +945,6 @@ class ORTFalconForCausalLM(ORTModelForCausalLM):
         config: "PretrainedConfig",
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
         generation_config: Optional[GenerationConfig] = None,
         use_cache: Optional[bool] = None,
         **kwargs,
@@ -958,7 +954,6 @@ class ORTFalconForCausalLM(ORTModelForCausalLM):
             config=config,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
-            preprocessors=preprocessors,
             generation_config=generation_config,
             use_cache=use_cache,
             **kwargs,
