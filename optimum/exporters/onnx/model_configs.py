@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model specific ONNX configurations."""
+
 import math
 import random
 import warnings
@@ -847,16 +848,11 @@ class VitPoseOnnxConfig(ViTOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (VitPoseDummyInputGenerator,)
     ATOL_FOR_VALIDATION = 1e-4
 
+    _MODEL_PATCHER = VitPoseModelPatcher
+
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {"pixel_values": {0: "batch_size"}}
-
-    # Some VitPose models use multiple experts, which requires dataset_index to be provided.
-    # So, we need to patch the model for export to provide the dataset_index.
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return VitPoseModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class CvTOnnxConfig(ViTOnnxConfig):
