@@ -89,10 +89,10 @@ class OptimizedModel(PreTrainedModel):
     base_model_prefix = "optimized_model"
     config_name = CONFIG_NAME
 
-    def __init__(self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: PretrainedConfig):
+    def __init__(self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: PretrainedConfig, preprocessors=None):
         self.model = model
         self.config = config
-        self.preprocessors = []
+        self.preprocessors = preprocessors or []
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)

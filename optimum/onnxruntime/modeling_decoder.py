@@ -45,7 +45,6 @@ from .constants import (
     ONNX_FILE_PATTERN,
 )
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
-from .models.bloom import bloom_convert_to_bloom_cache, bloom_convert_to_standard_cache
 from .utils import ONNX_WEIGHTS_NAME, validate_provider_availability
 
 
@@ -586,10 +585,16 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
 
         # Since transformers 4.44, the bloom model has been updated to use the standard cache format
-        use_old_bloom_modeling = not is_transformers_version(">=", "4.44")
+        use_old_bloom_modeling = is_transformers_version("<", "4.44")
         for input_name in input_dims.keys():
             if input_dims[input_name][0] == "batch_size x num_heads":
                 use_old_bloom_modeling = True
+
+        if use_old_bloom_modeling:
+            logger.warning(
+                "You are using an old transformers version (<4.44) or an old export of the bloom model. "
+                "We recommend updating to the latest version of transformers and re-exporting the model."
+            )
 
         del onnx_model
 
@@ -819,7 +824,7 @@ class ORTBloomForCausalLM(ORTModelForCausalLM):
         if past_key_values:
             # the cache may be in the stardard format (e.g. in contrastive search), convert to bloom's format if needed
             if past_key_values[0][0].shape[0] == input_ids.shape[0]:
-                past_key_values = bloom_convert_to_bloom_cache(past_key_values)
+                past_key_values = ORTBloomForCausalLM._bloom_convert_to_bloom_cache(past_key_values)
 
         return {
             "input_ids": input_ids,
@@ -832,7 +837,7 @@ class ORTBloomForCausalLM(ORTModelForCausalLM):
     # Adapted from transformers.models.bloom.modeling_bloom.BloomForCausalLM._reorder_cache
     @staticmethod
     def _reorder_cache(past: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor) -> Tuple[Tuple[torch.Tensor]]:
-        standardized_past = bloom_convert_to_standard_cache(past, batch_size=len(beam_idx))
+        standardized_past = ORTBloomForCausalLM._bloom_convert_to_standard_cache(past, batch_size=len(beam_idx))
 
         # Get a copy of `beam_idx` on all the devices where we need those indices.
         device_to_beam_idx = {
@@ -845,7 +850,46 @@ class ORTBloomForCausalLM(ORTModelForCausalLM):
             )
             for layer_past in standardized_past
         )
-        return bloom_convert_to_bloom_cache(reordered_past)
+        return ORTBloomForCausalLM._bloom_convert_to_bloom_cache(reordered_past)
+
+    @staticmethod
+    def _bloom_convert_to_bloom_cache(
+        past_key_value: Tuple[Tuple["torch.Tensor", "torch.Tensor"]],
+    ) -> Tuple[Tuple["torch.Tensor", "torch.Tensor"]]:
+        """
+        Converts the cache to the format expected by Bloom, i.e. to tuple(tuple([batch_size * num_heads, ...]))
+        """
+        batch_size, num_heads, head_dim, seq_length = past_key_value[0][0].shape
+        batch_size_times_num_heads = batch_size * num_heads
+        # key:  [batch_size, num_heads, head_dim, seq_length] -> [batch_size * num_heads, head_dim, seq_length]
+        # value: [batch_size, num_heads, seq_length, head_dim] -> [batch_size * num_heads, seq_length, head_dim]
+        return tuple(
+            (
+                layer_past[0].view(batch_size_times_num_heads, head_dim, seq_length),
+                layer_past[1].view(batch_size_times_num_heads, seq_length, head_dim),
+            )
+            for layer_past in past_key_value
+        )
+
+    @staticmethod
+    def _bloom_convert_to_standard_cache(
+        past_key_value: Tuple[Tuple["torch.Tensor", "torch.Tensor"]], batch_size: int
+    ) -> Tuple[Tuple["torch.Tensor", "torch.Tensor"]]:
+        """
+        Standardizes the format of the cache so as to match most implementations, i.e. to tuple(tuple([batch_size,
+        num_heads, ...]))
+        """
+        batch_size_times_num_heads, head_dim, seq_length = past_key_value[0][0].shape
+        num_heads = batch_size_times_num_heads // batch_size
+        # key: [batch_size * num_heads, head_dim, seq_length] -> [batch_size, num_heads, head_dim, seq_length]
+        # value: [batch_size * num_heads, seq_length, head_dim] -> [batch_size, num_heads, seq_length, head_dim]
+        return tuple(
+            (
+                layer_past[0].view(batch_size, num_heads, head_dim, seq_length),
+                layer_past[1].view(batch_size, num_heads, seq_length, head_dim),
+            )
+            for layer_past in past_key_value
+        )
 
 
 class ORTOPTForCausalLM(ORTModelForCausalLM):

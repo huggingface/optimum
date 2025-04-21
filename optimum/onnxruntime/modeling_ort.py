@@ -183,7 +183,6 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         config: "PretrainedConfig",
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
         **kwargs,
     ):
         super().__init__(model, config)
@@ -222,7 +221,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
                 Directory where to save the model file.
         """
         src_paths = [self.model_path]
-        dst_paths = [Path(save_directory) / self.model_path.name]
+        dst_paths = [Path(save_directory) / self.model_name]
 
         # add external data paths in case of large models
         src_paths, dst_paths = _get_external_data_paths(src_paths, dst_paths)
