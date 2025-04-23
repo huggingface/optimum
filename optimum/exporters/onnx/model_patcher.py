@@ -580,7 +580,7 @@ class DecoderModelPatcher(ModelPatcher):
         if is_transformers_version(">=", "4.36"):
             AttentionMaskConverter._unmask_unattended = staticmethod(_unmask_unattended_patched)
             patch_everywhere(
-                "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
+                "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched, module_name_prefix="transformers"
             )
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -591,7 +591,7 @@ class DecoderModelPatcher(ModelPatcher):
         if is_transformers_version(">=", "4.36"):
             AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
             patch_everywhere(
-                "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa
+                "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa, module_name_prefix="transformers"
             )
 
     def __init__(
