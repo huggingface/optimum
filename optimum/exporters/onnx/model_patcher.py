@@ -68,7 +68,7 @@ def patch_everywhere(attribute_name: str, patch: Any, module_name_prefix: Option
         module = sys.modules[name]
         if module_name_prefix is not None and not name.startswith(module_name_prefix):
             continue
-        if hasattr(module, attribute_name):
+        if hasattr(module, attribute_name) and isinstance(getattr(module, attribute_name, None), type(patch)):
             setattr(module, attribute_name, patch)
 
 
@@ -580,7 +580,7 @@ class DecoderModelPatcher(ModelPatcher):
         if is_transformers_version(">=", "4.36"):
             AttentionMaskConverter._unmask_unattended = staticmethod(_unmask_unattended_patched)
             patch_everywhere(
-                "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched
+                "_prepare_4d_causal_attention_mask_for_sdpa", _prepare_4d_causal_attention_mask_for_sdpa_patched, module_name_prefix="transformers"
             )
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -591,7 +591,7 @@ class DecoderModelPatcher(ModelPatcher):
         if is_transformers_version(">=", "4.36"):
             AttentionMaskConverter._unmask_unattended = staticmethod(self.original_unmask_unattended)
             patch_everywhere(
-                "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa
+                "_prepare_4d_causal_attention_mask_for_sdpa", self.original_prepare_4d_causal_attention_mask_for_sdpa, module_name_prefix="transformers"
             )
 
     def __init__(
