@@ -68,7 +68,7 @@ def patch_everywhere(attribute_name: str, patch: Any, module_name_prefix: Option
         module = sys.modules[name]
         if module_name_prefix is not None and not name.startswith(module_name_prefix):
             continue
-        if hasattr(module, attribute_name) and isinstance(getattr(module, attribute_name, None), type(patch)):
+        if hasattr(module, attribute_name):
             setattr(module, attribute_name, patch)
 
 
