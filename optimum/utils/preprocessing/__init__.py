@@ -13,7 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import Preprocessor, TaskProcessor
+from ...utils.import_utils import TRANSFORMERS_VERSION_ERROR, is_transformers_version
+
+
+if is_transformers_version("<", "4.36"):
+    raise RuntimeError(TRANSFORMERS_VERSION_ERROR.format("4.36"))
+
+
+from .base import TaskProcessor
 from .image_classification import ImageClassificationProcessing
 from .question_answering import QuestionAnsweringProcessing
 from .task_processors_manager import TaskProcessorsManager
