@@ -54,7 +54,7 @@ MODEL_NAMES = {
     "detr": "hf-internal-testing/tiny-random-detr",
     "dinov2": "hf-internal-testing/tiny-random-Dinov2Model",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
-    "dpt": "hf-internal-testing/tiny-random-DPTModel",
+    "dpt": "hf-internal-testing/tiny-random-DPTForSemanticSegmentation",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "encoder-decoder": {
         "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": ["text2text-generation"],

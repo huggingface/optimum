@@ -17,6 +17,7 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 | Accelerator                                                                                                            | Installation                                                      |
 |:-----------------------------------------------------------------------------------------------------------------------|:------------------------------------------------------------------|
 | [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/overview)                                               | `pip install --upgrade --upgrade-strategy eager optimum[onnxruntime]`      |
+| [ExecuTorch](https://github.com/huggingface/optimum-executorch)                                                         | `pip install --upgrade --upgrade-strategy eager optimum[executorch]`
 | [Intel Neural Compressor](https://huggingface.co/docs/optimum/intel/index)                                             | `pip install --upgrade --upgrade-strategy eager optimum[neural-compressor]`|
 | [OpenVINO](https://huggingface.co/docs/optimum/intel/index)                                                            | `pip install --upgrade --upgrade-strategy eager optimum[openvino]`         |
 | [NVIDIA TensorRT-LLM](https://huggingface.co/docs/optimum/main/en/nvidia_overview)                                     | `docker run -it --gpus all --ipc host huggingface/optimum-nvidia`          |
@@ -44,6 +45,7 @@ python -m pip install optimum[onnxruntime]@git+https://github.com/huggingface/op
 🤗 Optimum provides multiple tools to export and run optimized models on various ecosystems:
 
 - [ONNX](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model) / [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/models)
+- [ExecuTorch](https://huggingface.co/docs/optimum-executorch/guides/export), PyTorch’s native solution to inference on the Edge, more details [here](https://pytorch.org/executorch/stable/)
 - TensorFlow Lite
 - [OpenVINO](https://huggingface.co/docs/optimum/intel/inference)
 - Habana first-gen Gaudi / Gaudi2, more details [here](https://huggingface.co/docs/optimum/main/en/habana/usage_guides/accelerate_inference)
@@ -68,6 +70,20 @@ For more information on the ONNX export, please check the [documentation](https:
 Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seemless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend.
 
 More details on how to run ONNX models with `ORTModelForXXX` classes [here](https://huggingface.co/docs/optimum/main/en/onnxruntime/usage_guides/models).
+
+
+### ExecuTorch
+
+Before you begin, make sure you have all the necessary libraries installed :
+
+```bash
+pip install optimum[exporters-executorch]
+```
+
+Users can export 🤗 Transformers models to [ExecuTorch](https://github.com/pytorch/executorch) and run inference on edge devices within PyTorch's ecosystem.
+
+For more information about export 🤗 Transformers to ExecuTorch, please check the doc for [Optimum-ExecuTorch](https://huggingface.co/docs/optimum-executorch/guides/export).
+
 
 ### TensorFlow Lite
 

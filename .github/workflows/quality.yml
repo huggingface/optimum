@@ -3,7 +3,6 @@ name: Code Quality
 on:
   push:
     branches: [main]
-
   pull_request:
     branches: [main]
 
@@ -17,9 +16,10 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.9]
-        os: [ubuntu-20.04]
+        runs-on: [ubuntu-22.04]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs-on }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,6 +32,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
+          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install .[quality]
 
       - name: Check style with black

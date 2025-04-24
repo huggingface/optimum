@@ -247,7 +247,7 @@ def get_speecht5_models_for_export(
 def get_encoder_decoder_models_for_export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"
 ) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExportConfig"]]:
-    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(mode_type="encoder_decoder"))
+    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="encoder_decoder"))
     return _get_encoder_decoder_models_for_export(model, config)
 
 

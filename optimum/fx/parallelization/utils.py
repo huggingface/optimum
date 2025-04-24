@@ -32,6 +32,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.fx import Graph, Node
 from tqdm.auto import tqdm
+from transformers.utils import http_user_agent
 
 from .core import HashableSlice, ParameterMeta, ParameterSlice
 
@@ -376,7 +377,7 @@ def download_model_from_hf(
         str: The path to the downloaded files.
     """
     import huggingface_hub.constants
-    from huggingface_hub import HfFileSystem, snapshot_download
+    from huggingface_hub import HfApi, HfFileSystem
     from transformers.utils import CONFIG_NAME, SAFE_WEIGHTS_INDEX_NAME, WEIGHTS_INDEX_NAME
 
     allow_patterns = ["*.safetensors", "*.bin"]
@@ -404,7 +405,7 @@ def download_model_from_hf(
     # Use file lock to prevent multiple processes from
     # downloading the same model weights at the same time.
     with get_lock(model_name_or_path, cache_dir):
-        hf_folder = snapshot_download(
+        hf_folder = HfApi(user_agent=http_user_agent()).snapshot_download(
             model_name_or_path,
             allow_patterns=allow_patterns,
             cache_dir=cache_dir,

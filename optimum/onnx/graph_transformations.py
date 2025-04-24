@@ -133,8 +133,10 @@ def replace_atenops_to_gather(model: ModelProto) -> ModelProto:
 
 
 def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, Path]]):
-    # for large models, a path must be provided instead of a ModelProto:
+    # We can check ModelProtos that are smaller than 2GB before saving them.
+    # For larger models, we need to save them first and then check their save path.
     # https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#checking-a-large-onnx-model-2gb
+
     if model.ByteSize() < onnx.checker.MAXIMUM_PROTOBUF:
         # For the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
         try:
@@ -144,54 +146,38 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
                 pass
             else:
                 raise e
-        if save_path:
-            # Overwrite.
-            save_path = Path(save_path).as_posix()
-            external_file_name = os.path.basename(save_path) + "_data"
-            # path/to/model.onnx_data
-            external_path = os.path.join(os.path.dirname(save_path), external_file_name)
 
-            if save_path.endswith(".onnx") and os.path.isfile(save_path):
-                os.remove(save_path)
-            if os.path.isfile(external_path):
-                # The new model may be below the maximum protobuf size, overwritting a model that was larger. Hence this os.remove.
-                os.remove(external_path)
+    save_path = Path(save_path).as_posix()
+    external_file_name = os.path.basename(save_path) + "_data"
+    external_file_path = os.path.join(os.path.dirname(save_path), external_file_name)
 
-            onnx.save(
-                model,
-                save_path,
-                convert_attribute=True,
-            )
-    elif save_path is not None:
-        # path/to/model.onnx
-        save_path = Path(save_path).as_posix()
+    if save_path.endswith(".onnx") and os.path.isfile(save_path):
+        os.remove(save_path)
 
-        external_file_name = os.path.basename(save_path) + "_data"
-        # path/to/model.onnx_data
-        external_path = os.path.join(os.path.dirname(save_path), external_file_name)
+    model_uses_external_data = False
+    if os.path.isfile(external_file_path):
+        model_uses_external_data = True
+        os.remove(external_file_path)
 
-        if save_path.endswith(".onnx") and os.path.isfile(save_path):
-            os.remove(save_path)
-        if os.path.isfile(external_path):
-            os.remove(external_path)
+    FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"
 
-        onnx.save(
-            model,
-            save_path,
-            save_as_external_data=True,
-            all_tensors_to_one_file=True,
-            location=external_file_name,
-            convert_attribute=True,
-        )
-        try:
-            onnx.checker.check_model(save_path)
-        except Exception as e:
-            if "No Op registered for" in str(e):
-                pass
-            else:
-                raise e
-    else:
-        logger.info("Merged ONNX model exceeds 2GB, the model will not be checked without `save_path` given.")
+    onnx.save(
+        model,
+        save_path,
+        save_as_external_data=model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA,
+        all_tensors_to_one_file=True,
+        location=external_file_name,
+        convert_attribute=True,
+        size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 100,
+    )
+
+    try:
+        onnx.checker.check_model(save_path)
+    except Exception as e:
+        if "No Op registered for" in str(e):
+            pass
+        else:
+            raise e
 
 
 def merge_decoders(

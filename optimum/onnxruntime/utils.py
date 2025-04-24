@@ -121,6 +121,7 @@ class ORTConfigManager:
         "codegen": "gpt2",
         "deberta": "bert",
         "deberta-v2": "bert",
+        "dinov2": "vit",
         "distilbert": "bert",
         "electra": "bert",
         "gpt2": "gpt2",
@@ -419,3 +420,17 @@ def np_to_pt_generators(np_object, device):
         return {k: np_to_pt_generators(v, device) for k, v in np_object.items()}
     else:
         return np_object
+
+
+class DummyWhisperModel:
+    def __init__(self):
+        self.encoder = self.Encoder()
+
+    class Encoder:
+        def __init__(self):
+            self.conv1 = self.Conv(stride=(1,))
+            self.conv2 = self.Conv(stride=(2,))
+
+        class Conv:
+            def __init__(self, stride):
+                self.stride = stride
