@@ -174,6 +174,7 @@ class ORTOptimizerTest(unittest.TestCase):
     SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-segformer"),
         (ORTModelForImageClassification, "hf-internal-testing/tiny-random-vit"),
+        (ORTModelForImageClassification, "hf-internal-testing/tiny-random-Dinov2Model"),
     )
 
     @parameterized.expand(SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID)
