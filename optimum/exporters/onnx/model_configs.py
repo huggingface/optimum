@@ -1064,12 +1064,13 @@ class MgpstrOnnxConfig(ViTOnnxConfig):
 class EfficientNetOnnxConfig(ViTOnnxConfig):
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        common_outputs = super().outputs 
+        common_outputs = super().outputs
 
         if self.task == "image-classification":
             common_outputs["logits"] = {0: "batch_size", 1: "num_classes"}
-        
+
         return common_outputs
+
 
 class SentenceTransformersTransformerOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
