@@ -2633,7 +2633,7 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
 
 class TimesFMOnnxConfig(OnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
-    MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")  # TODO: update to 4.52
+    MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
     DUMMY_INPUT_GENERATOR_CLASSES = (TimesFMDummyInputGenerator,)
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, needs opset>=14
 
