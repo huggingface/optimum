@@ -2656,7 +2656,7 @@ class TimesFMDummyInputGenerator(DummyInputGenerator):
 
 
 class TimesFMOnnxConfig(OnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig.with_args(context_length="context_len")
+    NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
     MIN_TRANSFORMERS_VERSION = version.parse("4.47.0")
     DUMMY_INPUT_GENERATOR_CLASSES = (TimesFMDummyInputGenerator,)
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, needs opset>=14
