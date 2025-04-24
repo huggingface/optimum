@@ -170,6 +170,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "swin2sr": "hf-internal-testing/tiny-random-Swin2SRModel",
     "t5": "hf-internal-testing/tiny-random-t5",
     "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
+    "timesfm": "huggingface/timesfm-tourism-monthly",
     "vit": "hf-internal-testing/tiny-random-vit",
     "vit-mae": "hf-internal-testing/tiny-random-ViTMAEModel",
     "vit-msn": "hf-internal-testing/tiny-random-ViTMSNForImageClassification",
