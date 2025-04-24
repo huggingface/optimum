@@ -2631,7 +2631,7 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
 
 
 class TimesFMDummyInputGenerator(DummyInputGenerator):
-    SUPPORTED_INPUT_NAMES = ("inputs",)
+    SUPPORTED_INPUT_NAMES = ("past_values",)
 
     def __init__(
         self,
@@ -2643,11 +2643,11 @@ class TimesFMDummyInputGenerator(DummyInputGenerator):
         self.task = task
         self.normalized_config = normalized_config
         self.batch_size = batch_size
-        self.context_len = normalized_config.context_length
+        self.context_length = normalized_config.context_length
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
         return self.random_float_tensor(
-            shape=[self.batch_size, self.context_len],
+            shape=[self.batch_size, self.context_length],
             min_value=-1,
             max_value=1,
             framework=framework,
@@ -2663,7 +2663,7 @@ class TimesFMOnnxConfig(OnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        return {"inputs": {0: "batch_size", 1: "sequence_length"}}
+        return {"past_values": {0: "batch_size", 1: "sequence_length"}}
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
