@@ -572,12 +572,6 @@ class ORTTrainer(Trainer):
                 )
             self.model = unwrap_model(model)
 
-        # ORT optimized FP16 optimizer for Deepspeed training
-        if self.is_deepspeed_enabled and args.fp16:
-            from onnxruntime.training.optim.fp16_optimizer import FP16_Optimizer
-
-            self.optimizer = FP16_Optimizer(self.optimizer)
-
         if self.is_fsdp_enabled:
             self.model = model
 

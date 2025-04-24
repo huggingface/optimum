@@ -21,13 +21,13 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
-import huggingface_hub
+from huggingface_hub import HfApi
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.errors import OfflineModeIsEnabled
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
-from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, logging
+from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent, logging
 
 from ..utils.import_utils import is_diffusers_available, is_onnx_available
 
@@ -1620,6 +1620,8 @@ class TasksManager:
         request_exception = None
         full_model_path = Path(model_name_or_path, subfolder)
 
+        hf_api = HfApi(user_agent=http_user_agent(), token=token)
+
         if full_model_path.is_dir():
             all_files = [
                 os.path.relpath(os.path.join(dirpath, file), full_model_path)
@@ -1630,17 +1632,20 @@ class TasksManager:
             try:
                 if not isinstance(model_name_or_path, str):
                     model_name_or_path = str(model_name_or_path)
-                all_files = huggingface_hub.list_repo_files(
+                all_files = hf_api.list_repo_files(
                     model_name_or_path,
                     repo_type="model",
-                    token=token,
                     revision=revision,
+                    token=token,
                 )
                 if subfolder != "":
                     all_files = [file[len(subfolder) + 1 :] for file in all_files if file.startswith(subfolder)]
             except (RequestsConnectionError, OfflineModeIsEnabled) as e:
-                snapshot_path = huggingface_hub.snapshot_download(
-                    repo_id=model_name_or_path, revision=revision, cache_dir=cache_dir, token=token
+                snapshot_path = hf_api.snapshot_download(
+                    repo_id=model_name_or_path,
+                    cache_dir=cache_dir,
+                    revision=revision,
+                    token=token,
                 )
                 full_model_path = Path(snapshot_path, subfolder)
                 if full_model_path.is_dir():
@@ -1822,7 +1827,9 @@ class TasksManager:
                     "Cannot infer the task from a model repo with a subfolder yet, please specify the task manually."
                 )
             try:
-                model_info = huggingface_hub.model_info(model_name_or_path, revision=revision, token=token)
+                model_info = HfApi(user_agent=http_user_agent(), token=token).model_info(
+                    model_name_or_path, revision=revision, token=token
+                )
             except (RequestsConnectionError, OfflineModeIsEnabled):
                 raise RuntimeError(
                     f"Hugging Face Hub is not reachable and we cannot infer the task from a cached model. Make sure you are not offline, or otherwise please specify the `task` (or `--task` in command-line) argument ({', '.join(TasksManager.get_all_tasks())})."

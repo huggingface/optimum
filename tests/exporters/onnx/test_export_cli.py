@@ -27,6 +27,7 @@ from transformers.testing_utils import require_torch, require_torch_gpu, require
 
 from optimum.exporters.error_utils import MinimumVersionError
 from optimum.exporters.onnx import main_export
+from optimum.exporters.tasks import TasksManager
 from optimum.onnxruntime import (
     ONNX_DECODER_MERGED_NAME,
     ONNX_DECODER_NAME,
@@ -35,11 +36,7 @@ from optimum.onnxruntime import (
 )
 from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_sentence_transformers, require_timm
 
-
-if is_torch_available():
-    from optimum.exporters.tasks import TasksManager
-
-from ..exporters_utils import (
+from ..utils import (
     NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
     PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
@@ -263,17 +260,15 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_torch_gpu
     @require_vision
     @require_diffusers
-    @slow
-    @pytest.mark.run_slow
+    @pytest.mark.gpu_test
     def test_exporters_cli_pytorch_gpu_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda")
 
     @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
     @require_torch_gpu
-    @require_vision
     @require_diffusers
-    @slow
-    @pytest.mark.run_slow
+    @require_vision
+    @pytest.mark.gpu_test
     def test_exporters_cli_fp16_diffusion(self, model_type: str, model_name: str):
         self._onnx_export(model_name, model_type, device="cuda", fp16=True)
 
@@ -296,12 +291,9 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
-    @require_torch
     @require_vision
+    @require_torch
     @require_timm
-    @slow
-    @pytest.mark.timm_test
-    @pytest.mark.run_slow
     def test_exporters_cli_pytorch_cpu_timm(
         self,
         test_name: str,
@@ -315,11 +307,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES, library_name="timm"))
-    @require_torch
     @require_vision
+    @require_torch
     @require_timm
     @slow
-    @pytest.mark.timm_test
     @pytest.mark.run_slow
     def test_exporters_cli_pytorch_cpu_timm_no_dynamic_axes(
         self,
@@ -344,9 +335,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_torch_gpu
     @require_vision
     @require_timm
-    @slow
-    @pytest.mark.timm_test
-    @pytest.mark.run_slow
     def test_exporters_cli_pytorch_gpu_timm(
         self,
         test_name: str,
@@ -363,9 +351,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_torch_gpu
     @require_vision
     @require_timm
-    @slow
-    @pytest.mark.timm_test
-    @pytest.mark.run_slow
+    @pytest.mark.gpu_test
     def test_exporters_cli_fp16_timm(
         self,
         test_name: str,
@@ -405,8 +391,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, model_kwargs=model_kwargs)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES, library_name="transformers"))
-    @require_torch
     @require_vision
+    @require_torch
+    @slow
+    @pytest.mark.run_slow
     def test_exporters_cli_pytorch_cpu_no_dynamic_axes(
         self,
         test_name: str,
@@ -594,6 +582,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 check=True,
             )
 
+    @require_diffusers
     def test_diffusion(self):
         with TemporaryDirectory() as tmpdirname:
             subprocess.run(
@@ -627,9 +616,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             self.assertNotIn("position_ids", {node.name for node in model.graph.input})
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
-    @require_vision
     @require_torch_gpu
+    @require_vision
     @slow
+    @pytest.mark.gpu_test
     @pytest.mark.run_slow
     def test_export_on_fp16(
         self,
@@ -702,6 +692,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 main_export(model_name_or_path=model_name, output=tmpdir, task=task)
 
     @slow
+    @pytest.mark.run_slow
     def test_complex_synonyms(self):
         # conversational (text2text-generation)
         with TemporaryDirectory() as tmpdir:

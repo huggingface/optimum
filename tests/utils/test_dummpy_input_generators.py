@@ -37,7 +37,7 @@ VISION_MODELS = {"resnet": "hf-internal-testing/tiny-random-resnet"}
 
 SEQ2SEQ_MODELS = {"t5": "hf-internal-testing/tiny-random-T5Model"}
 
-AUDIO_MODELS = {"whisper": "hf-internal-testing/tiny-random-WhisperModel"}
+AUDIO_MODELS = {"whisper": "optimum-internal-testing/tiny-random-whisper"}
 
 DUMMY_SHAPES = {
     "batch_size": [2, 4],
