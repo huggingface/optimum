@@ -640,6 +640,11 @@ class TasksManager:
             "semantic-segmentation",
             onnx="DptOnnxConfig",
         ),
+        "efficientnet": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="EfficientNetOnnxConfig",
+        ),
         "electra": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",

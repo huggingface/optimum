@@ -60,6 +60,7 @@ MODEL_NAMES = {
         "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": ["text2text-generation"],
         "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
     },
+    "efficientnet": "hf-internal-testing/tiny-random-EfficientNetForImageClassification",
     "falcon": "fxmarty/really-tiny-falcon-testing",
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "flux": "optimum-internal-testing/tiny-random-flux",
