@@ -80,6 +80,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "gpt-neox",
     "gptj",
     "imagegpt",
+    "internlm2",
     "llama",
     "mistral",
     "phi",

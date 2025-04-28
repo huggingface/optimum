@@ -772,6 +772,11 @@ class TasksManager:
             "image-classification",
             onnx="ImageGPTOnnxConfig",
         ),
+        "internlm2": supported_tasks_mapping(
+            "text-generation",
+            "text-generation-with-past",
+            onnx="InternLM2OnnxConfig",
+        ),
         "layoutlm": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
