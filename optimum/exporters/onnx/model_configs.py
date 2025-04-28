@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model specific ONNX configurations."""
+
 import math
 import random
 import warnings
@@ -108,8 +109,6 @@ from .model_patcher import (
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
     from transformers.modeling_utils import PreTrainedModel
-
-    from .model_patcher import ModelPatcher
 
     if is_tf_available():
         from transformers.modeling_tf_utils import TFPreTrainedModel
@@ -415,11 +414,7 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
-
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return MistralModelPatcher(self, model, model_kwargs=model_kwargs)
+    _MODEL_PATCHER = MistralModelPatcher
 
 
 class MPTOnnxConfig(TextDecoderOnnxConfig):
@@ -507,6 +502,10 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     DUMMY_PKV_GENERATOR_CLASS = FalconDummyPastKeyValuesGenerator
 
+    # we need to set output_attentions=True in the model input to avoid calling
+    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
+    _MODEL_PATCHER = FalconModelPatcher
+
     def __init__(
         self,
         config: "PretrainedConfig",
@@ -546,13 +545,6 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
             common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_inputs
-
-    # we need to set output_attentions=True in the model input to avoid calling
-    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return FalconModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class T5DummySeq2SeqPastKeyValuesGenerator(DummySeq2SeqPastKeyValuesGenerator):
@@ -856,16 +848,11 @@ class VitPoseOnnxConfig(ViTOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (VitPoseDummyInputGenerator,)
     ATOL_FOR_VALIDATION = 1e-4
 
+    _MODEL_PATCHER = VitPoseModelPatcher
+
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {"pixel_values": {0: "batch_size"}}
-
-    # Some VitPose models use multiple experts, which requires dataset_index to be provided.
-    # So, we need to patch the model for export to provide the dataset_index.
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return VitPoseModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class CvTOnnxConfig(ViTOnnxConfig):
@@ -1047,6 +1034,8 @@ class TimmDefaultOnnxConfig(ViTOnnxConfig):
 
 
 class MgpstrOnnxConfig(ViTOnnxConfig):
+    _MODEL_PATCHER = MgpstrModelPatcher
+
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
@@ -1054,11 +1043,6 @@ class MgpstrOnnxConfig(ViTOnnxConfig):
             "bpe_logits": {0: "batch_size"},
             "wp_logits": {0: "batch_size"},
         }
-
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return MgpstrModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class EfficientNetOnnxConfig(ViTOnnxConfig):
@@ -1075,6 +1059,10 @@ class EfficientNetOnnxConfig(ViTOnnxConfig):
 class SentenceTransformersTransformerOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     DEFAULT_ONNX_OPSET = 14  # Some bottleneck transformers models require a specific ONNX opset to be successfully exported. We put a rather high opset here for the export to work for all architectures.
+    # we need to set output_attentions=True in the model input to avoid calling
+    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
+    # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
+    _MODEL_PATCHER = SentenceTransformersTransformerPatcher
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1090,14 +1078,6 @@ class SentenceTransformersTransformerOnnxConfig(TextEncoderOnnxConfig):
             "sentence_embedding": {0: "batch_size"},
         }
 
-    # we need to set output_attentions=True in the model input to avoid calling
-    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
-    # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return SentenceTransformersTransformerPatcher(self, model, model_kwargs=model_kwargs)
-
 
 class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
     TEXT_CONFIG = "text_config"
@@ -1106,6 +1086,7 @@ class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
 
 class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
+    _MODEL_PATCHER = CLIPModelPatcher
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1119,16 +1100,10 @@ class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
 
         return common_outputs
 
-    def patch_model_for_export(
-        self,
-        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> "ModelPatcher":
-        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
-
 
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
+    _MODEL_PATCHER = CLIPModelPatcher
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1147,26 +1122,16 @@ class CLIPOnnxConfig(TextAndVisionOnnxConfig):
             "image_embeds": {0: "image_batch_size"},
         }
 
-    def patch_model_for_export(
-        self,
-        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> "ModelPatcher":
-        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
-
 
 class SentenceTransformersCLIPOnnxConfig(CLIPOnnxConfig):
+    _MODEL_PATCHER = SentenceTransformersCLIPPatcher
+
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         return {
             "text_embeds": {0: "text_batch_size"},
             "image_embeds": {0: "image_batch_size"},
         }
-
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return SentenceTransformersCLIPPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
@@ -1180,6 +1145,7 @@ class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
         num_layers="num_hidden_layers",
         allow_new=True,
     )
+    _MODEL_PATCHER = CLIPModelPatcher
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1199,15 +1165,10 @@ class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
 
         return common_outputs
 
-    def patch_model_for_export(
-        self,
-        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> "ModelPatcher":
-        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
-
 
 class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
+    _MODEL_PATCHER = CLIPModelPatcher
+
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
         common_outputs = {
@@ -1220,13 +1181,6 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
                 common_outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_outputs
-
-    def patch_model_for_export(
-        self,
-        model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> "ModelPatcher":
-        return CLIPModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class SiglipNormalizedConfig(CLIPNormalizedConfig):
@@ -1701,14 +1655,10 @@ class UniSpeechSATOnnxConfig(HubertOnnxConfig):
 
 class WavLMOnnxConfig(HubertOnnxConfig):
     DEFAULT_ONNX_OPSET = 12
-
     # we need to set output_attentions=True in the model input to avoid calling
     # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
     # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return WavLMModelPatcher(self, model, model_kwargs=model_kwargs)
+    _MODEL_PATCHER = WavLMModelPatcher
 
 
 class ASTDummyAudioInputGenerator(DummyAudioInputGenerator):
@@ -1837,6 +1787,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
         DummyIntGenerator,
     )
     DUMMY_PKV_GENERATOR_CLASS = DummySeq2SeqPastKeyValuesGenerator
+    _MODEL_PATCHER = MusicgenModelPatcher
 
     def __init__(
         self,
@@ -2013,11 +1964,6 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
                     2: "encoder_sequence_length_out",
                 }
 
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return MusicgenModelPatcher(self, model, model_kwargs=model_kwargs)
-
     @property
     def torch_to_onnx_input_map(self) -> Dict[str, str]:
         if self._behavior is ConfigBehavior.DECODER:
@@ -2129,6 +2075,7 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
         "without-past": "The same as `with-past`, just without KV cache support. This is not a recommended export as slower than `with-past`.",
     }
     DEFAULT_VARIANT = "with-past"
+    _MODEL_PATCHER = SpeechT5ModelPatcher
 
     def __init__(
         self,
@@ -2208,11 +2155,6 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
             )
 
         return common_outputs
-
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return SpeechT5ModelPatcher(self, model, model_kwargs=model_kwargs)
 
     @property
     def torch_to_onnx_input_map(self) -> Dict[str, str]:
@@ -2347,6 +2289,7 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyVisionEncoderDecoderPastKeyValuesGenerator)
+    _MODEL_PATCHER = VisionEncoderDecoderPatcher
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -2380,11 +2323,6 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
             # so we can not initializer MBartONNXConfig with document-question-answering).
             return super().outputs
 
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return VisionEncoderDecoderPatcher(self, model, model_kwargs=model_kwargs)
-
 
 class SamOnnxConfig(OnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.29.0.dev0")
@@ -2398,6 +2336,7 @@ class SamOnnxConfig(OnnxConfig):
         "split": "The vision encoder is exported as a separate vision_encoder.onnx, and the prompt encoder and mask decoder are exported as a prompt_encoder_mask_decoder.onnx. This allows to encoder the image only once for multiple point queries.",
     }
     DEFAULT_VARIANT = "split"
+    _MODEL_PATCHER = SAMModelPatcher
 
     def __init__(
         self,
@@ -2451,11 +2390,6 @@ class SamOnnxConfig(OnnxConfig):
                 "iou_scores": {0: "batch_size", 1: "point_batch_size"},
                 "pred_masks": {0: "batch_size", 1: "point_batch_size"},
             }
-
-    def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
-    ) -> "ModelPatcher":
-        return SAMModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
 class Pix2StructNormalizedConfig(NormalizedSeq2SeqConfig):
