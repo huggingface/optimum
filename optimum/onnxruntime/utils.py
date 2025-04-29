@@ -18,7 +18,7 @@ import os
 import re
 from enum import Enum
 from inspect import signature
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
@@ -260,6 +260,40 @@ def validate_provider_availability(provider: str):
         raise ValueError(
             f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
         )
+
+
+def prepare_providers_and_provider_options(
+    provider: str = "CPUExecutionProvider",
+    providers: Optional[Sequence[str]] = None,
+    provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
+):
+    """
+    Prepare the providers and provider options for ONNX Runtime.
+    Args:
+        provider (`str`):
+            The provider to use. If `None`, the default provider will be used.
+        providers (`Sequence[str]`, `optional`):
+            The list of providers to use. If `None`, the default provider will be used.
+        provider_options (`Union[Sequence[Dict[str, Any]], Dict[str, Any]]`, `optional`):
+            The options to use for the providers. If `None`, the default options will be used.
+    """
+    if providers is None:
+        providers = [provider]
+
+    for provider in providers:
+        validate_provider_availability(provider)
+
+    if provider_options is None:
+        provider_options = [{}] * len(providers)
+    elif isinstance(provider_options, dict):
+        provider_options = [provider_options] + [{}] * (len(providers) - 1)
+    elif len(provider_options) != len(providers):
+        raise ValueError(
+            f"When passing a list of provider options, it should be the same length as the list of providers. "
+            f"Got {len(provider_options)} provider options for {len(providers)} providers."
+        )
+
+    return providers, provider_options
 
 
 def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None) -> bool:

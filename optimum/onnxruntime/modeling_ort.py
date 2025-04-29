@@ -16,10 +16,9 @@
 import logging
 import os
 import shutil
-import warnings
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
 import numpy as np
 import torch
@@ -69,7 +68,7 @@ from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_save_preprocessors
 from .base import ORTSessionMixin
 from .constants import ONNX_FILE_PATTERN
-from .utils import validate_provider_availability
+from .utils import prepare_providers_and_provider_options
 
 
 if TYPE_CHECKING:
@@ -279,6 +278,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
+        # repo/folder/file options
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -286,32 +286,17 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         file_name: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
-        # inference related arguments
-        use_io_binding: Optional[bool] = None,
-        providers: List[str] = ["CPUExecutionProvider"],
-        provider_options: Optional[Dict[str, Any]] = None,
+        trust_remote_code: bool = False,
+        # session options
+        providers: Optional[Sequence[str]] = None,
+        provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
         session_options: Optional[SessionOptions] = None,
+        # inference options
+        use_io_binding: Optional[bool] = None,
         # other arguments
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        **kwargs,
     ) -> "ORTModel":
-        if kwargs.get("provider", None) is not None:
-            logger.warning(
-                "The `provider` argument is deprecated and will be removed soon. "
-                "Please use the `providers` argument (a list of strings) instead."
-            )
-            providers = [kwargs.pop("provider")]
-        if provider_options is not None and not isinstance(provider_options, list):
-            logger.warning(
-                "The `provider_options` argument must be a list of dictionaries. "
-                "If you are using a single provider, please wrap it in a list."
-            )
-            provider_options = [provider_options]
-        for provider in providers:
-            validate_provider_availability(provider)
-
         defaut_file_name = file_name or "model.onnx"
-
         onnx_files = find_files_matching_pattern(
             model_id,
             ONNX_FILE_PATTERN,
@@ -398,47 +383,13 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         )
 
     @classmethod
-    def _from_transformers(
-        cls,
-        model_id: str,
-        config: "PretrainedConfig",
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        subfolder: str = "",
-        local_files_only: bool = False,
-        trust_remote_code: bool = False,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
-        task: Optional[str] = None,
-    ) -> "ORTModel":
-        """The method will be deprecated in future releases."""
-
-        return cls._export(
-            model_id=model_id,
-            config=config,
-            revision=revision,
-            cache_dir=cache_dir,
-            force_download=force_download,
-            token=token,
-            subfolder=subfolder,
-            local_files_only=local_files_only,
-            trust_remote_code=trust_remote_code,
-            provider=provider,
-            session_options=session_options,
-            provider_options=provider_options,
-            use_io_binding=use_io_binding,
-            task=task,
-        )
-
-    @classmethod
     def _export(
         cls,
-        model_id: str,
+        model_id: Union[str, Path],
         config: "PretrainedConfig",
+        # export options
+        task: Optional[str] = None,
+        # repo/folder/file options
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -446,11 +397,8 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
-        task: Optional[str] = None,
+        # other arguments
+        **kwargs,
     ) -> "ORTModel":
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
@@ -474,15 +422,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         )
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
-        return cls._from_pretrained(
-            save_dir_path,
-            config,
-            use_io_binding=use_io_binding,
-            model_save_dir=save_dir,
-            provider=provider,
-            session_options=session_options,
-            provider_options=provider_options,
-        )
+        return cls._from_pretrained(save_dir_path, config, model_save_dir=save_dir, **kwargs)
 
     @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
@@ -491,28 +431,33 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         model_id: Union[str, Path],
         export: bool = False,
         force_download: bool = False,
-        use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
         config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
         revision: Optional[str] = None,
+        # session options
         provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
+        providers: Optional[Sequence[str]] = None,
+        provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
+        session_options: Optional[SessionOptions] = None,
+        # inference options
         use_io_binding: Optional[bool] = None,
         **kwargs,
     ):
         """
         provider (`str`, defaults to `"CPUExecutionProvider"`):
-            ONNX Runtime provider to use for loading the model. See https://onnxruntime.ai/docs/execution-providers/ for
-            possible providers.
-        session_options (`Optional[onnxruntime.SessionOptions]`, defaults to `None`),:
-            ONNX Runtime session options to use for loading the model.
+            ONNX Runtime provider to use for loading the model.
+            See https://onnxruntime.ai/docs/execution-providers/ for possible providers.
+        providers (`Optional[Sequence[str]]`, defaults to `None`):
+            List of execution providers to use for loading the model.
+            This argument takes precedence over the `provider` argument.
         provider_options (`Optional[Dict[str, Any]]`, defaults to `None`):
             Provider option dictionaries corresponding to the provider used. See available options
             for each provider: https://onnxruntime.ai/docs/api/c/group___global.html .
+        session_options (`Optional[onnxruntime.SessionOptions]`, defaults to `None`),:
+            ONNX Runtime session options to use for loading the model.
         use_io_binding (`Optional[bool]`, defaults to `None`):
             Whether to use IOBinding during inference to avoid memory copy between the host and device, or between numpy/torch tensors and ONNX Runtime ORTValue. Defaults to
             `True` if the execution provider is CUDAExecutionProvider. For [~onnxruntime.ORTModelForCausalLM], defaults to `True` on CPUExecutionProvider,
@@ -536,14 +481,9 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
             `ORTModel`: The loaded ORTModel model.
         """
 
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
+        providers, provider_options = prepare_providers_and_provider_options(
+            provider=provider, providers=providers, provider_options=provider_options
+        )
 
         if isinstance(model_id, Path):
             model_id = model_id.as_posix()
@@ -606,9 +546,9 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
             config=config,
             local_files_only=local_files_only,
             revision=revision,
-            provider=provider,
-            session_options=session_options,
+            providers=providers,
             provider_options=provider_options,
+            session_options=session_options,
             use_io_binding=use_io_binding,
             **kwargs,
         )
@@ -719,8 +659,11 @@ class ORTModelForFeatureExtraction(ORTModel):
     @classmethod
     def _export(
         cls,
-        model_id: str,
+        model_id: Union[str, Path],
         config: "PretrainedConfig",
+        # export options
+        task: Optional[str] = None,
+        # hub options
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -728,23 +671,19 @@ class ORTModelForFeatureExtraction(ORTModel):
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[ort.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
-        task: Optional[str] = None,
+        **kwargs,
     ) -> "ORTModel":
         if task is None:
             task = cls._auto_model_to_task(cls.auto_model_class)
 
-        save_dir = TemporaryDirectory()
-        save_dir_path = Path(save_dir.name)
+        model_save_dir = TemporaryDirectory()
+        model_save_path = Path(model_save_dir.name)
 
         # ORTModelForFeatureExtraction works with Transformers type of models,
         # thus even sentence-transformers models are loaded as such.
         main_export(
             model_name_or_path=model_id,
-            output=save_dir_path,
+            output=model_save_path,
             task=task,
             do_validation=False,
             no_post_process=True,
@@ -758,17 +697,9 @@ class ORTModelForFeatureExtraction(ORTModel):
             library_name="transformers",
         )
 
-        maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
+        maybe_save_preprocessors(model_id, model_save_path, src_subfolder=subfolder)
 
-        return cls._from_pretrained(
-            save_dir_path,
-            config,
-            use_io_binding=use_io_binding,
-            model_save_dir=save_dir,
-            provider=provider,
-            session_options=session_options,
-            provider_options=provider_options,
-        )
+        return cls._from_pretrained(model_save_path, config, model_save_dir=model_save_dir, **kwargs)
 
 
 MASKED_LM_EXAMPLE = r"""

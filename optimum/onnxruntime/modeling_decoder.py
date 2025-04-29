@@ -18,7 +18,7 @@ import os
 import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -388,20 +388,22 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
+        # hub options
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         file_name: Optional[str] = None,
         subfolder: str = "",
-        use_cache: bool = True,
         local_files_only: bool = False,
-        use_merged: Optional[bool] = None,
-        # inference related arguments
-        use_io_binding: Optional[bool] = None,
-        providers: List[str] = ["CPUExecutionProvider"],
-        provider_options: Optional[Dict[str, Any]] = None,
+        # session options
+        providers: Optional[Sequence[str]] = None,
+        provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
         session_options: Optional[SessionOptions] = None,
+        # inference options
+        use_cache: bool = True,
+        use_merged: Optional[bool] = None,
+        use_io_binding: Optional[bool] = None,
         # other arguments
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
@@ -642,10 +644,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         )
 
     @classmethod
-    def _from_transformers(
+    def _export(
         cls,
-        model_id: str,
+        model_id: Union[str, Path],
         config: "PretrainedConfig",
+        # export options
+        task: Optional[str] = None,
+        # hub options
         token: Optional[Union[bool, str]] = None,
         revision: str = "main",
         force_download: bool = True,
@@ -653,13 +658,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
-        use_cache: bool = True,
+        # inference options
         use_merged: bool = False,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[onnxruntime.SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
-        task: Optional[str] = None,
+        use_cache: bool = True,
+        **kwargs,
     ) -> "ORTModelForCausalLM":
         file_name = ONNX_WEIGHTS_NAME
 
@@ -698,12 +700,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             config,
             use_cache=use_cache,
             use_merged=use_merged,
-            provider=provider,
-            session_options=session_options,
-            provider_options=provider_options,
-            use_io_binding=use_io_binding,
             model_save_dir=save_dir,
             file_name=file_name,
+            **kwargs,
         )
 
     # Adapted from transformers.models.gpt2.modeling_gpt2.GPT2LMHeadModel.prepare_inputs_for_generation

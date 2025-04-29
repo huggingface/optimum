@@ -305,27 +305,6 @@ class OptimizedModel(PreTrainedModel):
         raise NotImplementedError("Overwrite this method in subclass to define how to load your model from pretrained")
 
     @classmethod
-    def _from_transformers(
-        cls,
-        model_id: Union[str, Path],
-        config: PretrainedConfig,
-        use_auth_token: Optional[Union[bool, str]] = None,
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        subfolder: str = "",
-        local_files_only: bool = False,
-        trust_remote_code: bool = False,
-        **kwargs,
-    ) -> "OptimizedModel":
-        """Overwrite this method in subclass to define how to load your model from vanilla transformers model"""
-        raise NotImplementedError(
-            "`_from_transformers` method will be deprecated in a future release. Please override `_export` instead"
-            "to define how to load your model from vanilla transformers model"
-        )
-
-    @classmethod
     def _export(
         cls,
         model_id: Union[str, Path],
@@ -378,13 +357,6 @@ class OptimizedModel(PreTrainedModel):
 
         if isinstance(model_id, Path):
             model_id = model_id.as_posix()
-
-        from_transformers = kwargs.pop("from_transformers", None)
-        if from_transformers is not None:
-            logger.warning(
-                "The argument `from_transformers` is deprecated, and will be removed in optimum 2.0.  Use `export` instead"
-            )
-            export = from_transformers
 
         if len(model_id.split("@")) == 2:
             logger.warning(
@@ -449,7 +421,7 @@ class OptimizedModel(PreTrainedModel):
                 trust_remote_code=trust_remote_code,
             )
 
-        from_pretrained_method = cls._from_transformers if export else cls._from_pretrained
+        from_pretrained_method = cls._export if export else cls._from_pretrained
 
         return from_pretrained_method(
             model_id=model_id,

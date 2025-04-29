@@ -18,7 +18,7 @@ ORTModelForXXX classes related to seq2seq, allowing to run ONNX Models with ONNX
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import numpy as np
 import torch
@@ -59,7 +59,6 @@ from .utils import (
     ONNX_ENCODER_NAME,
     DummyWhisperModel,
     parse_device,
-    validate_provider_availability,
 )
 
 
@@ -861,8 +860,6 @@ class ORTModelForConditionalGeneration(ORTModel):
 
     """
 
-    # Used in from_transformers to export model to onnxORTEncoder
-    base_model_prefix = "onnx_model"
     _supports_cache_class = False
 
     def __init__(
@@ -1013,6 +1010,7 @@ class ORTModelForConditionalGeneration(ORTModel):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
+        # hub options
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -1022,33 +1020,19 @@ class ORTModelForConditionalGeneration(ORTModel):
         decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
         subfolder: str = "",
         local_files_only: bool = False,
+        # session options
+        provider: str = "CPUExecutionProvider",
+        providers: Optional[Sequence[str]] = None,
+        provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
+        session_options: Optional[SessionOptions] = None,
+        # inference options
         use_cache: bool = True,
         use_merged: Optional[bool] = None,
-        # inference related arguments
         use_io_binding: Optional[bool] = None,
-        providers: List[str] = ["CPUExecutionProvider"],
-        provider_options: Optional[Dict[str, Any]] = None,
-        session_options: Optional[SessionOptions] = None,
         # other arguments
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        **kwargs,
+        generation_config: Optional[GenerationConfig] = None,
     ):
-        if kwargs.get("provider", None) is not None:
-            logger.warning(
-                "The `provider` argument is deprecated and will be removed soon. "
-                "Please use the `providers` argument (a list of strings) instead."
-            )
-            providers = [kwargs.pop("provider")]
-        if provider_options is not None and not isinstance(provider_options, list):
-            logger.warning(
-                "The `provider_options` argument must be a list of dictionaries. "
-                "If you are using a single provider, please wrap it in a list."
-            )
-            provider_options = [provider_options]
-        for provider in providers:
-            validate_provider_availability(provider)
-
-        generation_config = kwargs.pop("generation_config", None)
         model_path = Path(model_id)
 
         # We do not implement the logic for use_cache=False, use_merged=True
@@ -1285,10 +1269,13 @@ class ORTModelForConditionalGeneration(ORTModel):
         )
 
     @classmethod
-    def _from_transformers(
+    def _export(
         cls,
         model_id: str,
         config: "PretrainedConfig",
+        # export options
+        task: Optional[str] = None,
+        # hub options
         token: Optional[Union[bool, str]] = None,
         revision: str = "main",
         force_download: bool = True,
@@ -1296,13 +1283,10 @@ class ORTModelForConditionalGeneration(ORTModel):
         subfolder: str = "",
         local_files_only: bool = False,
         trust_remote_code: bool = False,
+        # inference options
         use_cache: bool = True,
         use_merged: bool = False,
-        provider: str = "CPUExecutionProvider",
-        session_options: Optional[SessionOptions] = None,
-        provider_options: Optional[Dict[str, Any]] = None,
-        use_io_binding: Optional[bool] = None,
-        task: Optional[str] = None,
+        **kwargs,
     ) -> "ORTModelForConditionalGeneration":
         if use_cache is False and use_merged is True:
             raise ValueError(
@@ -1318,12 +1302,12 @@ class ORTModelForConditionalGeneration(ORTModel):
             if use_cache is True:
                 task = task + "-with-past"
 
-        save_dir = TemporaryDirectory()
-        save_dir_path = Path(save_dir.name)
+        model_save_dir = TemporaryDirectory()
+        model_save_path = Path(model_save_dir.name)
 
         main_export(
             model_name_or_path=model_id,
-            output=save_dir_path,
+            output=model_save_path,
             task=task,
             do_validation=False,
             no_post_process=not use_merged,
@@ -1335,18 +1319,15 @@ class ORTModelForConditionalGeneration(ORTModel):
             force_download=force_download,
             trust_remote_code=trust_remote_code,
         )
-        maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
+        maybe_save_preprocessors(model_id, model_save_path, src_subfolder=subfolder)
 
         return cls._from_pretrained(
-            save_dir_path,
+            model_save_path,
             config,
             use_cache=use_cache,
             use_merged=use_merged,
-            provider=provider,
-            session_options=session_options,
-            provider_options=provider_options,
-            use_io_binding=use_io_binding,
-            model_save_dir=save_dir,
+            model_save_dir=model_save_dir,
+            **kwargs,
         )
 
     @property

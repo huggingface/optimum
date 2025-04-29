@@ -20,7 +20,7 @@ import shutil
 from collections import OrderedDict
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Sequence, Union
 
 import numpy as np
 import torch
@@ -67,7 +67,7 @@ from ..utils import (
     is_diffusers_version,
 )
 from .base import ORTSessionMixin, ORTSessionsWrapper
-from .utils import np_to_pt_generators, validate_provider_availability
+from .utils import np_to_pt_generators, prepare_providers_and_provider_options
 
 
 if is_diffusers_version(">=", "0.25.0"):
@@ -237,9 +237,9 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
     def from_pretrained(
         cls,
         model_name_or_path: Union[str, Path],
-        # export related arguments
+        # export options
         export: bool = False,
-        # load related arguments
+        # file options
         unet_file_name_or_path: Optional[Union[str, Path]] = None,
         transformer_file_name_or_path: Optional[Union[str, Path]] = None,
         vae_encoder_file_name_or_path: Optional[Union[str, Path]] = None,
@@ -247,28 +247,19 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
         text_encoder_file_name_or_path: Optional[Union[str, Path]] = None,
         text_encoder_2_file_name_or_path: Optional[Union[str, Path]] = None,
         text_encoder_3_file_name_or_path: Optional[Union[str, Path]] = None,
-        # inference related arguments
-        use_io_binding: Optional[bool] = None,
-        providers: List[str] = ["CPUExecutionProvider"],
-        provider_options: Optional[List[Dict[str, Any]]] = None,
+        # session options
+        provider: str = "CPUExecutionProvider",
+        providers: Optional[Sequence[str]] = None,
+        provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
         session_options: Optional[SessionOptions] = None,
-        # hub related arguments
+        # inference options
+        use_io_binding: Optional[bool] = None,
+        # hub options
         **kwargs,
     ):
-        if kwargs.get("provider", None) is not None:
-            logger.warning(
-                "The `provider` argument is deprecated and will be removed soon. "
-                "Please use the `providers` argument (a list of strings) instead."
-            )
-            providers = [kwargs.pop("provider")]
-        if provider_options is not None and not isinstance(provider_options, list):
-            logger.warning(
-                "The `provider_options` argument must be a list of dictionaries. "
-                "If you are using a single provider, please wrap it in a list."
-            )
-            provider_options = [provider_options]
-        for provider in providers:
-            validate_provider_availability(provider)
+        providers, provider_options = prepare_providers_and_provider_options(
+            provider=provider, providers=providers, provider_options=provider_options
+        )
 
         hub_kwargs = {
             "force_download": kwargs.get("force_download", False),
