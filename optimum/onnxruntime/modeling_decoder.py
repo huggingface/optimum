@@ -45,7 +45,7 @@ from .constants import (
     ONNX_FILE_PATTERN,
 )
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
-from .utils import ONNX_WEIGHTS_NAME, validate_provider_availability
+from .utils import ONNX_WEIGHTS_NAME
 
 
 if TYPE_CHECKING:
@@ -393,9 +393,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        file_name: Optional[str] = None,
         subfolder: str = "",
+        trust_remote_code: bool = False,  # forced by OptimizedModel.from_pretrained
         local_files_only: bool = False,
+        # file options
+        file_name: Optional[str] = None,
         # session options
         providers: Optional[Sequence[str]] = None,
         provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
@@ -404,27 +406,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         use_cache: bool = True,
         use_merged: Optional[bool] = None,
         use_io_binding: Optional[bool] = None,
+        generation_config: Optional[GenerationConfig] = None,
         # other arguments
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ) -> "ORTModelForCausalLM":
-        if kwargs.get("provider", None) is not None:
-            logger.warning(
-                "The `provider` argument is deprecated and will be removed soon. "
-                "Please use the `providers` argument (a list of strings) instead."
-            )
-            providers = [kwargs.pop("provider")]
-        if provider_options is not None and not isinstance(provider_options, list):
-            logger.warning(
-                "The `provider_options` argument must be a list of dictionaries. "
-                "If you are using a single provider, please wrap it in a list."
-            )
-            provider_options = [provider_options]
-        for provider in providers:
-            validate_provider_availability(provider)
-
-        generation_config = kwargs.pop("generation_config", None)
-
         # We do not implement the logic for use_cache=False, use_merged=True
         if use_cache is False:
             if use_merged is True:

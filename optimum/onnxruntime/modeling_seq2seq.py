@@ -1013,15 +1013,16 @@ class ORTModelForConditionalGeneration(ORTModel):
         # hub options
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
+        trust_remote_code: bool = False,  # forced by OptimizedModel.from_pretrained
+        local_files_only: bool = False,
         force_download: bool = False,
+        subfolder: str = "",
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        # file options
         encoder_file_name: str = ONNX_ENCODER_NAME,
         decoder_file_name: str = ONNX_DECODER_NAME,
         decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
-        subfolder: str = "",
-        local_files_only: bool = False,
         # session options
-        provider: str = "CPUExecutionProvider",
         providers: Optional[Sequence[str]] = None,
         provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
         session_options: Optional[SessionOptions] = None,
@@ -1029,9 +1030,9 @@ class ORTModelForConditionalGeneration(ORTModel):
         use_cache: bool = True,
         use_merged: Optional[bool] = None,
         use_io_binding: Optional[bool] = None,
+        generation_config: Optional[GenerationConfig] = None,
         # other arguments
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        generation_config: Optional[GenerationConfig] = None,
     ):
         model_path = Path(model_id)
 

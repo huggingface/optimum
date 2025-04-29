@@ -278,15 +278,16 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
-        # repo/folder/file options
+        # hub options
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        file_name: Optional[str] = None,
         subfolder: str = "",
         local_files_only: bool = False,
-        trust_remote_code: bool = False,
+        trust_remote_code: bool = False,  # forced by OptimizedModel.from_pretrained
+        # file options
+        file_name: Optional[str] = None,
         # session options
         providers: Optional[Sequence[str]] = None,
         provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
@@ -389,7 +390,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         config: "PretrainedConfig",
         # export options
         task: Optional[str] = None,
-        # repo/folder/file options
+        # hub options
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
         force_download: bool = False,
@@ -429,14 +430,16 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
     def from_pretrained(
         cls,
         model_id: Union[str, Path],
+        # export options
         export: bool = False,
-        force_download: bool = False,
+        # hub options
         token: Optional[Union[bool, str]] = None,
+        revision: str = "main",
+        force_download: bool = True,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
-        config: Optional["PretrainedConfig"] = None,
         local_files_only: bool = False,
-        revision: Optional[str] = None,
+        trust_remote_code: bool = False,
         # session options
         provider: str = "CPUExecutionProvider",
         providers: Optional[Sequence[str]] = None,
@@ -543,8 +546,8 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
             token=token,
             cache_dir=cache_dir,
             subfolder=subfolder,
-            config=config,
             local_files_only=local_files_only,
+            trust_remote_code=trust_remote_code,
             revision=revision,
             providers=providers,
             provider_options=provider_options,
@@ -656,50 +659,50 @@ class ORTModelForFeatureExtraction(ORTModel):
         # converts output to namedtuple for pipelines post-processing
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
-    @classmethod
-    def _export(
-        cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
-        # export options
-        task: Optional[str] = None,
-        # hub options
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        subfolder: str = "",
-        local_files_only: bool = False,
-        trust_remote_code: bool = False,
-        **kwargs,
-    ) -> "ORTModel":
-        if task is None:
-            task = cls._auto_model_to_task(cls.auto_model_class)
+    # @classmethod
+    # def _export(
+    #     cls,
+    #     model_id: Union[str, Path],
+    #     config: "PretrainedConfig",
+    #     # export options
+    #     task: Optional[str] = None,
+    #     # hub options
+    #     token: Optional[Union[bool, str]] = None,
+    #     revision: Optional[str] = None,
+    #     force_download: bool = False,
+    #     cache_dir: str = HUGGINGFACE_HUB_CACHE,
+    #     subfolder: str = "",
+    #     local_files_only: bool = False,
+    #     trust_remote_code: bool = False,
+    #     **kwargs,
+    # ) -> "ORTModel":
+    #     if task is None:
+    #         task = cls._auto_model_to_task(cls.auto_model_class)
 
-        model_save_dir = TemporaryDirectory()
-        model_save_path = Path(model_save_dir.name)
+    #     model_save_dir = TemporaryDirectory()
+    #     model_save_path = Path(model_save_dir.name)
 
-        # ORTModelForFeatureExtraction works with Transformers type of models,
-        # thus even sentence-transformers models are loaded as such.
-        main_export(
-            model_name_or_path=model_id,
-            output=model_save_path,
-            task=task,
-            do_validation=False,
-            no_post_process=True,
-            subfolder=subfolder,
-            revision=revision,
-            cache_dir=cache_dir,
-            token=token,
-            local_files_only=local_files_only,
-            force_download=force_download,
-            trust_remote_code=trust_remote_code,
-            library_name="transformers",
-        )
+    #     # ORTModelForFeatureExtraction works with Transformers type of models,
+    #     # thus even sentence-transformers models are loaded as such.
+    #     main_export(
+    #         model_name_or_path=model_id,
+    #         output=model_save_path,
+    #         task=task,
+    #         do_validation=False,
+    #         no_post_process=True,
+    #         subfolder=subfolder,
+    #         revision=revision,
+    #         cache_dir=cache_dir,
+    #         token=token,
+    #         local_files_only=local_files_only,
+    #         force_download=force_download,
+    #         trust_remote_code=trust_remote_code,
+    #         library_name="transformers",
+    #     )
 
-        maybe_save_preprocessors(model_id, model_save_path, src_subfolder=subfolder)
+    #     maybe_save_preprocessors(model_id, model_save_path, src_subfolder=subfolder)
 
-        return cls._from_pretrained(model_save_path, config, model_save_dir=model_save_dir, **kwargs)
+    #     return cls._from_pretrained(model_save_path, config, model_save_dir=model_save_dir, **kwargs)
 
 
 MASKED_LM_EXAMPLE = r"""
