@@ -1212,13 +1212,13 @@ class ORTModelForConditionalGeneration(ORTModel):
             encoder_path,
             providers=providers,
             provider_options=provider_options,
-            session_options=session_options,
+            sess_options=session_options,
         )
         decoder_session = InferenceSession(
             decoder_path,
             providers=providers,
             provider_options=provider_options,
-            session_options=session_options,
+            sess_options=session_options,
         )
 
         decoder_with_past_session = None
@@ -1227,7 +1227,7 @@ class ORTModelForConditionalGeneration(ORTModel):
                 decoder_with_past_path,
                 providers=providers,
                 provider_options=provider_options,
-                session_options=session_options,
+                sess_options=session_options,
             )
 
         if model_save_dir is None:
