@@ -405,12 +405,6 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         if task is None:
             task = TasksManager.infer_task_from_model(cls.auto_model_class)
 
-        if library is None:
-            library_name = TasksManager.infer_library_from_model(cls.auto_model_class)
-
-            if library_name == "sentence-transformers":
-                library_name = "transformers"
-
         model_save_dir = TemporaryDirectory()
         model_save_path = Path(model_save_dir.name)
 
@@ -418,7 +412,6 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
             model_name_or_path=model_id,
             output=model_save_path,
             task=task,
-            library_name=library_name,
             do_validation=False,
             no_post_process=True,
             subfolder=subfolder,
