@@ -416,7 +416,10 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         # can be used but do not support KV caching for the cross-attention key/values, see:
         # https://github.com/huggingface/transformers/blob/v4.31.0/src/transformers/models/gpt2/modeling_gpt2.py#L302-L311
         # This attribute is used to avoid returning cross-attention KV-cache in this case.
-        self.no_cross_attention_cache = getattr(self.parent_model, "no_cross_attention_cache", False)
+        self.no_cross_attention_cache = (
+            parent_model.config.model_type == "vision-encoder-decoder"
+            and parent_model.config.decoder.model_type == "gpt2"
+        )
 
         if (not self.parent_model.use_merged and self.use_past_in_inputs) or self.no_cross_attention_cache:
             self.num_pkv = 2
@@ -1608,14 +1611,6 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
 
     auto_model_class = AutoModelForVision2Seq
     main_input_name = "pixel_values"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        # There are probably other archs that do not support cross attention KV cache, but only
-        # this one seem popular on the Hub.
-        if self.config.decoder.model_type == "gpt2":
-            self.no_cross_attention_cache = True
 
     def _initialize_encoder(self, session: InferenceSession) -> ORTEncoder:
         return ORTEncoderForVisionEncoderDecoder(session, self)
