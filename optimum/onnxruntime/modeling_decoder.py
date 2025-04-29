@@ -459,21 +459,24 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             _file_name = model_files[0].name
             subfolder = model_files[0].parent
 
-            defaut_file_name = file_name or "model.onnx"
-            for file in model_files:
-                if file.name == defaut_file_name:
-                    _file_name = file.name
-                    subfolder = file.parent
-                    break
+            if file_name is not None:
+                _file_name = file_name
+            else:
+                _file_name = model_files[0].name
+                for file in model_files:
+                    if file.name == "model.onnx":
+                        _file_name = file.name
+                        subfolder = file.parent
+                        break
 
-            file_name = _file_name
+                file_name = _file_name
 
-            if len(model_files) > 1:
-                logger.warning(
-                    f"Too many ONNX model files were found in {' ,'.join(map(str, model_files))}. "
-                    "specify which one to load by using the `file_name` and/or the `subfolder` arguments. "
-                    f"Loading the file {file_name} in the subfolder {subfolder}."
-                )
+                if len(model_files) > 1:
+                    logger.warning(
+                        f"Too many ONNX model files were found in {' ,'.join(map(str, model_files))}. "
+                        "specify which one to load by using the `file_name` and/or the `subfolder` arguments. "
+                        f"Loading the file {file_name} in the subfolder {subfolder}."
+                    )
 
         if os.path.isdir(model_id):
             model_id = subfolder
