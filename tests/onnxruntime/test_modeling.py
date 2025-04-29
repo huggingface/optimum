@@ -137,8 +137,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
             model = model_cls.from_pretrained(model_id, revision="merged-onnx")
             self.assertEqual(model.model_path.name, "decoder_model_merged.onnx")
 
-        model = model_cls.from_pretrained(self.LOCAL_MODEL_PATH, use_cache=False, use_io_binding=False)
-        self.assertEqual(model.model_path.name, "model.onnx")
+            model = model_cls.from_pretrained(self.LOCAL_MODEL_PATH, use_cache=False)
+            self.assertEqual(model.model_path.name, "model.onnx")
+        else:
+            model = model_cls.from_pretrained(self.LOCAL_MODEL_PATH)
+            self.assertEqual(model.model_path.name, "model.onnx")
 
         model = model_cls.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
         self.assertEqual(model.model_path.name, "model.onnx")
