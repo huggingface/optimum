@@ -113,24 +113,28 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
         **kwargs,
     ):
         # We initialize all ort session mixins first
-        self.unet = ORTUnet(unet_session, use_io_binding) if unet_session is not None else None
+        self.unet = ORTUnet(unet_session, self, use_io_binding) if unet_session is not None else None
         self.transformer = (
-            ORTTransformer(transformer_session, use_io_binding) if transformer_session is not None else None
+            ORTTransformer(transformer_session, self, use_io_binding) if transformer_session is not None else None
         )
         self.text_encoder = (
-            ORTTextEncoder(text_encoder_session, use_io_binding) if text_encoder_session is not None else None
+            ORTTextEncoder(text_encoder_session, self, use_io_binding) if text_encoder_session is not None else None
         )
         self.text_encoder_2 = (
-            ORTTextEncoder(text_encoder_2_session, use_io_binding) if text_encoder_2_session is not None else None
+            ORTTextEncoder(text_encoder_2_session, self, use_io_binding)
+            if text_encoder_2_session is not None
+            else None
         )
         self.text_encoder_3 = (
-            ORTTextEncoder(text_encoder_3_session, use_io_binding) if text_encoder_3_session is not None else None
+            ORTTextEncoder(text_encoder_3_session, self, use_io_binding)
+            if text_encoder_3_session is not None
+            else None
         )
         self.vae_encoder = (
-            ORTVaeEncoder(vae_encoder_session, use_io_binding) if vae_encoder_session is not None else None
+            ORTVaeEncoder(vae_encoder_session, self, use_io_binding) if vae_encoder_session is not None else None
         )
         self.vae_decoder = (
-            ORTVaeDecoder(vae_decoder_session, use_io_binding) if vae_decoder_session is not None else None
+            ORTVaeDecoder(vae_decoder_session, self, use_io_binding) if vae_decoder_session is not None else None
         )
 
         # We register ort session mixins to the wrapper
@@ -511,8 +515,9 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
 class ORTModelMixin(ORTSessionMixin, ConfigMixin):
     config_name: str = CONFIG_NAME
 
-    def __init__(self, session: InferenceSession, use_io_binding: Optional[bool] = None):
+    def __init__(self, session: InferenceSession, parent: ORTSessionsWrapper, use_io_binding: Optional[bool] = None):
         self.initialize_ort_attributes(session, use_io_binding=use_io_binding)
+        self.parent = parent
 
         config_file_path = Path(session._model_path).parent / self.config_name
         if not config_file_path.is_file():
@@ -566,7 +571,18 @@ class ORTUnet(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
+            outputs_to_reuse_input_buffers = None
+            if self.parent.__class__ not in [
+                ORTLatentConsistencyModelPipeline,
+                ORTLatentConsistencyModelImg2ImgPipeline,
+            ]:
+                outputs_to_reuse_input_buffers = {"out_sample": "sample"}
+
+            output_shapes, output_buffers = self._prepare_io_binding(
+                model_inputs,
+                outputs_to_reuse_input_buffers=outputs_to_reuse_input_buffers,
+                known_output_shapes={"sample": model_inputs["sample"].shape},
+            )
 
             if self.device.type == "cpu":
                 self.session.run_with_iobinding(self._io_binding)
@@ -580,6 +596,8 @@ class ORTUnet(ORTModelMixin):
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
+
+        model_outputs["sample"] = model_outputs.pop("out_sample")
 
         if return_dict:
             return model_outputs
@@ -614,7 +632,15 @@ class ORTTransformer(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
+            outputs_to_reuse_input_buffers = None
+            if self.parent.__class__ not in [ORTFluxPipeline]:
+                outputs_to_reuse_input_buffers = {"out_hidden_states": "hidden_states"}
+
+            output_shapes, output_buffers = self._prepare_io_binding(
+                model_inputs,
+                outputs_to_reuse_input_buffers=outputs_to_reuse_input_buffers,
+                known_output_shapes={"hidden_states": model_inputs["hidden_states"].shape},
+            )
 
             if self.device.type == "cpu":
                 self.session.run_with_iobinding(self._io_binding)
@@ -628,6 +654,8 @@ class ORTTransformer(ORTModelMixin):
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
+
+        model_outputs["hidden_states"] = model_outputs.pop("out_hidden_states")
 
         if return_dict:
             return model_outputs

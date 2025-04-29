@@ -286,15 +286,15 @@ class ORTSessionMixin:
 
         return model_outputs
 
-    def _prepare_output_buffer(self, output_shape: Tuple[int], output_dtype: torch.dtype) -> torch.Tensor:
+    def _prepare_output_buffer(self, output_name: str, output_shape: Tuple[int]) -> torch.Tensor:
         """
         Prepares an output buffer for ONNX Runtime IO Binding.
 
         Args:
+            output_name (`str`):
+                The name of the output for which to prepare the buffer.
             output_shape (`Tuple[int]`):
                 The shape of the output buffer.
-            output_dtype (`torch.dtype`):
-                The dtype of the output buffer.
 
         Returns:
             `torch.Tensor`: The output buffer.
@@ -307,6 +307,8 @@ class ORTSessionMixin:
         assert all(
             dim > 0 for dim in output_shape
         ), f"`output_shape` should only contain positive integers but got {output_shape}."
+
+        output_dtype = TypeHelper.ort_type_to_torch_type(self.output_dtypes[output_name])
 
         if len(output_shape) > 0:
             output_buffer = torch.empty(np.prod(output_shape), dtype=output_dtype, device=self.device)
@@ -364,6 +366,7 @@ class ORTSessionMixin:
         self,
         model_inputs: Dict[str, torch.Tensor],
         outputs_to_not_bind: Optional[Set[str]] = None,
+        outputs_to_reuse_input_buffers: Optional[Dict[str, str]] = None,
         known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
     ) -> Tuple[Dict[str, Tuple[int]], Dict[str, torch.Tensor]]:
         """
@@ -372,8 +375,10 @@ class ORTSessionMixin:
         Args:
             model_inputs (`Dict[str, torch.Tensor]`):
                 The inputs to bind to the model.
-            outputs_to_not_bind (`Optional[Union[Set[str], str]]`, defaults to `None`):
+            outputs_to_not_bind (`Optional[Set[str]]`, defaults to `None`):
                 The names of the outputs that should not be bound.
+            outputs_to_reuse_input_buffers (`Optional[Dict[str, str]]`, defaults to `None`):
+                The names of the outputs that should reuse the input buffers as output buffers.
             known_output_shapes (`Optional[Dict[str, Tuple[int]]]`, defaults to `None`):
                 It can be hard to infer all the output shapes from the inputs only. For instance for the past key /
                 values. It is possible to explicitely pass the shape via this argument.
@@ -418,18 +423,24 @@ class ORTSessionMixin:
 
         output_shapes = {}
         output_buffers = {}
+        known_output_shapes = known_output_shapes or {}
+        outputs_to_not_bind = outputs_to_not_bind or set()
+        outputs_to_reuse_input_buffers = outputs_to_reuse_input_buffers or {}
 
         for output_name in self.output_names.keys():
-            if outputs_to_not_bind is not None and output_name in outputs_to_not_bind:
+            if output_name in outputs_to_not_bind:
                 continue
 
-            if known_output_shapes is not None and output_name in known_output_shapes:
+            if output_name in known_output_shapes:
                 output_shape = known_output_shapes[output_name]
             else:
                 output_shape = self._output_shape_inference(output_name, known_axes_values)
 
-            output_dtype = TypeHelper.ort_type_to_torch_type(self.output_dtypes[output_name])
-            output_buffer = self._prepare_output_buffer(output_shape, output_dtype)
+            if output_name in outputs_to_reuse_input_buffers:
+                output_buffer = model_inputs[outputs_to_reuse_input_buffers[output_name]]
+            else:
+                output_buffer = self._prepare_output_buffer(output_name, output_shape)
+
             data_ptr = output_buffer.data_ptr()
 
             self._io_binding.bind_output(

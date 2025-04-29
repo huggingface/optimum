@@ -89,8 +89,7 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
 """
 
 
-# TODO: another reason why it makes sense to have ORTModel directly inheriting from original transformers PreTrainedModel
-# and overriding save/load/push methods, instead of this workaround.
+# TODO: Should be removed when we no longer use OptimizedModel for everything
 # workaround to enable compatibility between optimum models and transformers pipelines
 class PreTrainedModel(ABC):  # noqa: F811
     pass
