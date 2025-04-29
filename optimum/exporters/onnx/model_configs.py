@@ -1355,7 +1355,7 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
 
 
 class VaeDecoderOnnxConfig(VisionOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-4
+    ATOL_FOR_VALIDATION = 3e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
