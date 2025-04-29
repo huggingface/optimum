@@ -390,6 +390,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         config: "PretrainedConfig",
         # export options
         task: Optional[str] = None,
+        library: Optional[str] = None,
         # hub options
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
@@ -402,15 +403,22 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         **kwargs,
     ) -> "ORTModel":
         if task is None:
-            task = cls._auto_model_to_task(cls.auto_model_class)
+            task = TasksManager.infer_task_from_model(cls.auto_model_class)
 
-        save_dir = TemporaryDirectory()
-        save_dir_path = Path(save_dir.name)
+        if library is None:
+            library_name = TasksManager.infer_library_from_model(cls.auto_model_class)
+
+            if library_name == "sentence-transformers":
+                library_name = "transformers"
+
+        model_save_dir = TemporaryDirectory()
+        model_save_path = Path(model_save_dir.name)
 
         main_export(
             model_name_or_path=model_id,
-            output=save_dir_path,
+            output=model_save_path,
             task=task,
+            library_name=library_name,
             do_validation=False,
             no_post_process=True,
             subfolder=subfolder,
@@ -421,9 +429,9 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
             force_download=force_download,
             trust_remote_code=trust_remote_code,
         )
-        maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
+        maybe_save_preprocessors(model_id, model_save_path, src_subfolder=subfolder)
 
-        return cls._from_pretrained(save_dir_path, config, model_save_dir=save_dir, **kwargs)
+        return cls._from_pretrained(model_save_path, config, model_save_dir=model_save_dir, **kwargs)
 
     @classmethod
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
@@ -658,51 +666,6 @@ class ORTModelForFeatureExtraction(ORTModel):
 
         # converts output to namedtuple for pipelines post-processing
         return BaseModelOutput(last_hidden_state=last_hidden_state)
-
-    # @classmethod
-    # def _export(
-    #     cls,
-    #     model_id: Union[str, Path],
-    #     config: "PretrainedConfig",
-    #     # export options
-    #     task: Optional[str] = None,
-    #     # hub options
-    #     token: Optional[Union[bool, str]] = None,
-    #     revision: Optional[str] = None,
-    #     force_download: bool = False,
-    #     cache_dir: str = HUGGINGFACE_HUB_CACHE,
-    #     subfolder: str = "",
-    #     local_files_only: bool = False,
-    #     trust_remote_code: bool = False,
-    #     **kwargs,
-    # ) -> "ORTModel":
-    #     if task is None:
-    #         task = cls._auto_model_to_task(cls.auto_model_class)
-
-    #     model_save_dir = TemporaryDirectory()
-    #     model_save_path = Path(model_save_dir.name)
-
-    #     # ORTModelForFeatureExtraction works with Transformers type of models,
-    #     # thus even sentence-transformers models are loaded as such.
-    #     main_export(
-    #         model_name_or_path=model_id,
-    #         output=model_save_path,
-    #         task=task,
-    #         do_validation=False,
-    #         no_post_process=True,
-    #         subfolder=subfolder,
-    #         revision=revision,
-    #         cache_dir=cache_dir,
-    #         token=token,
-    #         local_files_only=local_files_only,
-    #         force_download=force_download,
-    #         trust_remote_code=trust_remote_code,
-    #         library_name="transformers",
-    #     )
-
-    #     maybe_save_preprocessors(model_id, model_save_path, src_subfolder=subfolder)
-
-    #     return cls._from_pretrained(model_save_path, config, model_save_dir=model_save_dir, **kwargs)
 
 
 MASKED_LM_EXAMPLE = r"""
