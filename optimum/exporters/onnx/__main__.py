@@ -25,7 +25,7 @@ from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
-from ...utils.import_utils import is_transformers_version
+from ...utils.import_utils import is_sentence_transformers_available, is_transformers_version
 from ...utils.save_utils import maybe_load_preprocessors
 from ..tasks import TasksManager
 from ..utils import DisableCompileContextManager
@@ -271,6 +271,17 @@ def main_export(
             raise RequestsConnectionError(
                 f"The task could not be automatically inferred as this is available only for models hosted on the Hugging Face Hub. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
+
+    if (
+        task == "feature-extraction"
+        and library_name == "sentence_transformers"
+        and not is_sentence_transformers_available()
+    ):
+        logger.warning(
+            "The library name was inferred as `sentence_transformers` with the task `feature-extraction`, "
+            "but the library is not installed. Defaulting to `transformers` to avoid breaking the export."
+        )
+        library_name = "transformers"
 
     custom_architecture = False
     loading_kwargs = {}

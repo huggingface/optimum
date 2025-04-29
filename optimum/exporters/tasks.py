@@ -29,7 +29,7 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, PretrainedConfig, is_tf_available, is_torch_available
 from transformers.utils import SAFE_WEIGHTS_NAME, TF2_WEIGHTS_NAME, WEIGHTS_NAME, http_user_agent, logging
 
-from ..utils.import_utils import is_diffusers_available, is_onnx_available, is_sentence_transformers_available
+from ..utils.import_utils import is_diffusers_available, is_onnx_available
 
 
 if TYPE_CHECKING:
@@ -2036,13 +2036,6 @@ class TasksManager:
                 inferred_library_name = "diffusers"
             else:
                 inferred_library_name = "transformers"
-
-        if inferred_library_name == "sentence_transformers" and not is_sentence_transformers_available():
-            logger.warning(
-                "The library name was inferred as `sentence_transformers`, but sentence-transformers is not installed. "
-                "Defaulting to `transformers` since SentenceTransformers models can be loaded with Transformers."
-            )
-            inferred_library_name = "transformers"
 
         if inferred_library_name is None:
             raise ValueError(
