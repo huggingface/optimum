@@ -15,7 +15,6 @@
 
 import logging
 import os
-import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
@@ -57,13 +56,11 @@ from transformers.modeling_outputs import (
 )
 from transformers.utils import cached_file, is_offline_mode
 
-import onnxruntime as ort
 from onnxruntime import InferenceSession, SessionOptions
 
 from ..exporters import TasksManager
 from ..exporters.onnx import main_export
 from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
-from ..onnx.utils import _get_external_data_paths
 from ..utils.file_utils import find_files_matching_pattern
 from ..utils.save_utils import maybe_save_preprocessors
 from .base import ORTSessionMixin
@@ -160,42 +157,34 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
     model_type = "onnx_model"
     auto_model_class = AutoModel
 
-    @classproperty
-    def export_feature(cls):
-        logger.warning(f"{cls.__name__}.export_feature is deprecated, and will be removed in optimum 2.0.")
-        try:
-            feature = TasksManager.infer_task_from_model(cls.auto_model_class)
-        except ValueError:
-            feature = None
-        return feature
-
-    @classmethod
-    def _auto_model_to_task(cls, auto_model_class):
-        """
-        Get the task corresponding to a class (for example AutoModelForXXX in transformers).
-        """
-        return TasksManager.infer_task_from_model(auto_model_class)
-
     def __init__(
         self,
-        model: "InferenceSession",
         config: "PretrainedConfig",
+        session: "InferenceSession",
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
         **kwargs,
     ):
-        super().__init__(model, config, preprocessors)
-        self.initialize_ort_attributes(session=model, use_io_binding=use_io_binding)
+        if kwargs.get("model", None) is not None:
+            logger.warning(
+                "Passing the inference session as `model` argument to an ORTModel is deprecated. "
+                "Please use `session` instead."
+            )
+            session = kwargs.pop("model")
 
-        self.model_path = Path(model._model_path)
-        self.model_name = self.model_path.name
+        if kwargs:
+            logger.warning(
+                f"Some arguments were passed to the ORTModel constructor that are not used: {', '.join(kwargs.keys())}"
+            )
+
+        super().__init__(model=session, config=config)
+        self.initialize_ort_attributes(session=session, use_io_binding=use_io_binding)
 
         # This attribute is needed to keep one reference on the temporary directory, since garbage collecting it
         # would end-up removing the directory containing the underlying ONNX model.
         self._model_save_dir_tempdirectory_instance = None
         if model_save_dir is None:
-            self.model_save_dir = Path(model._model_path).parent
+            self.model_save_dir = Path(session._model_path).parent
         elif isinstance(model_save_dir, TemporaryDirectory):
             self._model_save_dir_tempdirectory_instance = model_save_dir
             self.model_save_dir = Path(model_save_dir.name)
@@ -212,22 +201,15 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
 
     def _save_pretrained(self, save_directory: Union[str, Path]):
         """
-        Saves a model and its configuration file to a directory, so that it can be re-loaded using the
-        [`~optimum.onnxruntime.modeling_ort.ORTModel.from_pretrained`] class method. It will always save the
-        file under model_save_dir/latest_model_name.
+        Saves the underlying ONNX model and its external data files (if any) to the specified directory.
+        This method is called by the `save_pretrained` method of the `OptimizedModel` class.
+        The model is copied from `self.session._model_path` to `save_directory`.
 
         Args:
             save_directory (`Union[str, Path]`):
                 Directory where to save the model file.
         """
-        src_paths = [self.model_path]
-        dst_paths = [Path(save_directory) / self.model_path.name]
-
-        # add external data paths in case of large models
-        src_paths, dst_paths = _get_external_data_paths(src_paths, dst_paths)
-
-        for src_path, dst_path in zip(src_paths, dst_paths):
-            shutil.copyfile(src_path, dst_path)
+        self.save_session(save_directory)
 
     @staticmethod
     def _generate_regular_names_for_filename(filename: str):
@@ -289,6 +271,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         # file options
         file_name: Optional[str] = None,
         # session options
+        provider: str = "CPUExecutionProvider",
         providers: Optional[Sequence[str]] = None,
         provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
         session_options: Optional[SessionOptions] = None,
@@ -369,7 +352,10 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         if model_save_dir is None:
             model_save_dir = new_model_save_dir
 
-        model = InferenceSession(
+        providers, provider_options = prepare_providers_and_provider_options(
+            provider=provider, providers=providers, provider_options=provider_options
+        )
+        session = InferenceSession(
             model_cache_path,
             providers=providers,
             provider_options=provider_options,
@@ -377,8 +363,8 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         )
 
         return cls(
-            model=model,
             config=config,
+            session=session,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_dir,
         )
@@ -485,10 +471,6 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
             `ORTModel`: The loaded ORTModel model.
         """
 
-        providers, provider_options = prepare_providers_and_provider_options(
-            provider=provider, providers=providers, provider_options=provider_options
-        )
-
         if isinstance(model_id, Path):
             model_id = model_id.as_posix()
 
@@ -550,6 +532,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
             local_files_only=local_files_only,
             trust_remote_code=trust_remote_code,
             revision=revision,
+            provider=provider,
             providers=providers,
             provider_options=provider_options,
             session_options=session_options,
@@ -1374,29 +1357,6 @@ class ORTModelForAudioClassification(ORTModel):
 
     auto_model_class = AutoModelForAudioClassification
 
-    def __init__(
-        self,
-        model: ort.InferenceSession,
-        config: "PretrainedConfig",
-        use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-        preprocessors: Optional[List] = None,
-        **kwargs,
-    ):
-        super().__init__(
-            model=model,
-            config=config,
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
-            preprocessors=preprocessors,
-            **kwargs,
-        )
-
-        if config.model_type == "whisper":
-            self.input_name = "input_features"
-        else:
-            self.input_name = "input_values"
-
     @add_start_docstrings_to_model_forward(
         ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
         + AUDIO_CLASSIFICATION_EXAMPLE.format(
@@ -1509,12 +1469,12 @@ class ORTModelForCTC(ORTModel):
 
         if self.use_io_binding:
             batch_size = input_values.shape[0]
-            final_input_size = input_values.shape[-1]
+            sequence_length = input_values.shape[-1]
 
             for kernel_size, stride in zip(self.config.conv_kernel, self.config.conv_stride):
-                final_input_size = (final_input_size - kernel_size) // stride + 1
+                sequence_length = (sequence_length - kernel_size) // stride + 1
 
-            known_output_shapes = {"logits": [batch_size, final_input_size, self.config.vocab_size]}
+            known_output_shapes = {"logits": [batch_size, sequence_length, self.config.vocab_size]}
 
             output_shapes, output_buffers = self._prepare_io_binding(
                 model_inputs, known_output_shapes=known_output_shapes
@@ -1680,11 +1640,23 @@ class ORTModelForAudioFrameClassification(ORTModel):
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        if self.use_io_binding:
-            raise NotImplementedError()
-        else:
-            model_inputs = {"input_values": input_values}
+        model_inputs = {
+            "input_values": input_values,
+        }
 
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
+
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
+
+            logits = output_buffers["logits"].view(output_shapes["logits"])
+        else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
@@ -1746,12 +1718,17 @@ class ORTModelForImageToImage(ORTModel):
 
         if self.use_io_binding:
             batch_size, num_channels, height, width = pixel_values.shape
-            known_output_shapes = {
-                "reconstruction": [batch_size, num_channels, height * self.config.upscale, width * self.config.upscale]
-            }
 
             output_shapes, output_buffers = self._prepare_io_binding(
-                model_inputs, known_output_shapes=known_output_shapes
+                model_inputs,
+                known_output_shapes={
+                    "reconstruction": [
+                        batch_size,
+                        num_channels,
+                        height * self.config.upscale,
+                        width * self.config.upscale,
+                    ]
+                },
             )
 
             # run inference with binding & synchronize in case of multiple CUDA streams
@@ -1767,7 +1744,9 @@ class ORTModelForImageToImage(ORTModel):
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
+
             reconstruction = model_outputs["reconstruction"]
+
         return ImageSuperResolutionOutput(reconstruction=reconstruction)
 
 

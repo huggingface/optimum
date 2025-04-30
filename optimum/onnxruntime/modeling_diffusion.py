@@ -16,7 +16,6 @@ import importlib
 import inspect
 import logging
 import os
-import shutil
 from collections import OrderedDict
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -53,9 +52,7 @@ from transformers.utils import http_user_agent
 from onnxruntime import InferenceSession, SessionOptions
 
 from ..exporters.onnx import main_export
-from ..onnx.utils import _get_model_external_data_paths
 from ..utils import (
-    DIFFUSION_MODEL_ONNX_FILE_NAME,
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
@@ -64,6 +61,7 @@ from ..utils import (
     DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER,
     DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER,
     DIFFUSION_PIPELINE_CONFIG_FILE_NAME,
+    ONNX_WEIGHTS_NAME,
     is_diffusers_version,
 )
 from .base import ORTSessionMixin, ORTSessionsWrapper
@@ -243,14 +241,6 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
         model_name_or_path: Union[str, Path],
         # export options
         export: bool = False,
-        # file options
-        unet_file_name_or_path: Optional[Union[str, Path]] = None,
-        transformer_file_name_or_path: Optional[Union[str, Path]] = None,
-        vae_encoder_file_name_or_path: Optional[Union[str, Path]] = None,
-        vae_decoder_file_name_or_path: Optional[Union[str, Path]] = None,
-        text_encoder_file_name_or_path: Optional[Union[str, Path]] = None,
-        text_encoder_2_file_name_or_path: Optional[Union[str, Path]] = None,
-        text_encoder_3_file_name_or_path: Optional[Union[str, Path]] = None,
         # session options
         provider: str = "CPUExecutionProvider",
         providers: Optional[Sequence[str]] = None,
@@ -261,6 +251,38 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
         # hub options
         **kwargs,
     ):
+        """
+        Instantiates a [`ORTDiffusionPipeline`] fwith ONNX Runtime sessions from a pretrained model.
+        This method can be used to load a model from the Hugging Face Hub or from a local directory.
+
+        Args:
+            model_name_or_path (`str` or `os.PathLike`):
+                Path to a folder containing the model files or a hub repository id.
+            export (`bool`, *optional*, defaults to `False`):
+                Whether to export the model to ONNX format. If set to `True`, the model will be exported and saved
+                in the specified directory.
+            provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
+                The execution provider for ONNX Runtime. Can be `"CUDAExecutionProvider"`, `"DmlExecutionProvider"`,
+                etc.
+            providers (`Sequence[str]`, *optional*):
+                A list of execution providers for ONNX Runtime. Overrides `provider`.
+            provider_options (`Union[Sequence[Dict[str, Any]], Dict[str, Any]]`, *optional*):
+                Options for each execution provider. Can be a single dictionary for the first provider or a list of
+                dictionaries for each provider. The order of the dictionaries should match the order of the providers.
+            session_options (`SessionOptions`, *optional*):
+                Options for the ONNX Runtime session. Can be used to set optimization levels, graph optimization,
+                etc.
+            use_io_binding (`bool`, *optional*):
+                Whether to use IOBinding for the ONNX Runtime session. If set to `True`, it will use IOBinding for
+                input and output tensors.
+            **kwargs:
+                Additional keyword arguments passed to the underlying model classes. This can include preloaded models
+                or sessions for the different components of the pipeline (e.g., `vae_encoder`, `vae_decoder`, `unet_session`,
+                `transformer_session`, `image_encoder`, `safety_checker`, etc.).
+
+        Returns:
+            [`ORTDiffusionPipeline`]: The loaded pipeline with ONNX Runtime sessions.
+        """
         providers, provider_options = prepare_providers_and_provider_options(
             provider=provider, providers=providers, provider_options=provider_options
         )
@@ -306,8 +328,8 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
             # plus custom file names
             allow_patterns.update(
                 {
+                    ONNX_WEIGHTS_NAME,
                     DIFFUSION_PIPELINE_CONFIG_FILE_NAME,
-                    DIFFUSION_MODEL_ONNX_FILE_NAME,
                     SCHEDULER_CONFIG_NAME,
                     CONFIG_NAME,
                 }
@@ -320,49 +342,22 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
             )
             model_save_path = Path(model_save_folder)
 
-        # onnx files to load
-        if unet_file_name_or_path is None:
-            unet_file_name_or_path = model_save_path / DIFFUSION_MODEL_UNET_SUBFOLDER / DIFFUSION_MODEL_ONNX_FILE_NAME
-        if transformer_file_name_or_path is None:
-            transformer_file_name_or_path = (
-                model_save_path / DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER / DIFFUSION_MODEL_ONNX_FILE_NAME
-            )
-        if vae_encoder_file_name_or_path is None:
-            vae_encoder_file_name_or_path = (
-                model_save_path / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / DIFFUSION_MODEL_ONNX_FILE_NAME
-            )
-        if vae_decoder_file_name_or_path is None:
-            vae_decoder_file_name_or_path = (
-                model_save_path / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / DIFFUSION_MODEL_ONNX_FILE_NAME
-            )
-        if text_encoder_file_name_or_path is None:
-            text_encoder_file_name_or_path = (
-                model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / DIFFUSION_MODEL_ONNX_FILE_NAME
-            )
-        if text_encoder_2_file_name_or_path is None:
-            text_encoder_2_file_name_or_path = (
-                model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER / DIFFUSION_MODEL_ONNX_FILE_NAME
-            )
-        if text_encoder_3_file_name_or_path is None:
-            text_encoder_3_file_name_or_path = (
-                model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER / DIFFUSION_MODEL_ONNX_FILE_NAME
-            )
-
         model_paths = {
-            "unet": unet_file_name_or_path,
-            "transformer": transformer_file_name_or_path,
-            "vae_encoder": vae_encoder_file_name_or_path,
-            "vae_decoder": vae_decoder_file_name_or_path,
-            "text_encoder": text_encoder_file_name_or_path,
-            "text_encoder_2": text_encoder_2_file_name_or_path,
-            "text_encoder_3": text_encoder_3_file_name_or_path,
+            "unet": model_save_path / DIFFUSION_MODEL_UNET_SUBFOLDER / ONNX_WEIGHTS_NAME,
+            "transformer": model_save_path / DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER / ONNX_WEIGHTS_NAME,
+            "vae_encoder": model_save_path / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
+            "vae_decoder": model_save_path / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
+            "text_encoder": model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER / ONNX_WEIGHTS_NAME,
+            "text_encoder_2": model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER / ONNX_WEIGHTS_NAME,
+            "text_encoder_3": model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER / ONNX_WEIGHTS_NAME,
         }
 
+        models = {}
         sessions = {}
         for model, path in model_paths.items():
             if kwargs.get(model, None) is not None:
                 # this allows passing a model directly to from_pretrained
-                sessions[f"{model}_session"] = kwargs.pop(model)
+                models[model] = kwargs.pop(model)
             elif kwargs.get(f"{model}_session", None) is not None:
                 # this allows passing a session directly to from_pretrained
                 sessions[f"{model}_session"] = kwargs.pop(f"{model}_session")
@@ -401,8 +396,10 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
             **submodels,
             use_io_binding=use_io_binding,
             model_save_dir=model_save_tmpdir,
+            **models,
             **kwargs,
         )
+
         ort_pipeline.register_to_config(**config)
         ort_pipeline.register_to_config(_name_or_path=config.get("_name_or_path", model_name_or_path))
 
@@ -423,6 +420,9 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
                 Directory to which to save. Will be created if it doesn't exist.
             push_to_hub (`bool`, *optional*, defaults to `False`):
                 Whether or not to push your model to the Hugging Face model hub after saving it.
+            **kwargs:
+                Additional keyword arguments passed along to [`~huggingface_hub.create_repo`] and
+                [`~huggingface_hub.HfApi.upload_folder`] if `push_to_hub` is set to `True`.
         """
 
         model_save_path = Path(save_directory)
@@ -436,34 +436,28 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
             repo_id = kwargs.pop("repo_id", save_directory.split(os.path.sep)[-1])
             repo_id = create_repo(repo_id, exist_ok=True, private=private, token=token).repo_id
 
-        models_to_save_paths = {
-            (self.unet, model_save_path / DIFFUSION_MODEL_UNET_SUBFOLDER),
-            (self.transformer, model_save_path / DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER),
-            (self.vae_decoder, model_save_path / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER),
-            (self.vae_encoder, model_save_path / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER),
-            (self.text_encoder, model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER),
-            (self.text_encoder_2, model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER),
-            (self.text_encoder_3, model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER),
-        }
-        for model, save_path in models_to_save_paths:
-            if model is not None:
-                model_path = Path(model.session._model_path)
-                save_path.mkdir(parents=True, exist_ok=True)
-                # copy onnx model
-                shutil.copyfile(model_path, save_path / DIFFUSION_MODEL_ONNX_FILE_NAME)
-                # copy external onnx data if any
-                external_data_paths = _get_model_external_data_paths(model_path)
-                for external_data_path in external_data_paths:
-                    if external_data_path.is_file():
-                        external_data_save_path = save_path / external_data_path.name
-                        shutil.copyfile(external_data_path, external_data_save_path)
-                # copy model config if any
-                config_path = model_path.parent / CONFIG_NAME
-                if config_path.is_file():
-                    config_save_path = save_path / CONFIG_NAME
-                    shutil.copyfile(config_path, config_save_path)
-
+        self.save_config(model_save_path)
         self.scheduler.save_pretrained(model_save_path / "scheduler")
+
+        if self.unet is not None:
+            self.unet.save_pretrained(model_save_path / DIFFUSION_MODEL_UNET_SUBFOLDER)
+        if self.transformer is not None:
+            self.transformer.save_pretrained(model_save_path / DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER)
+        if self.vae_encoder is not None:
+            self.vae_encoder.save_pretrained(model_save_path / DIFFUSION_MODEL_VAE_ENCODER_SUBFOLDER)
+        if self.vae_decoder is not None:
+            self.vae_decoder.save_pretrained(model_save_path / DIFFUSION_MODEL_VAE_DECODER_SUBFOLDER)
+        if self.text_encoder is not None:
+            self.text_encoder.save_pretrained(model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER)
+        if self.text_encoder_2 is not None:
+            self.text_encoder_2.save_pretrained(model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER)
+        if self.text_encoder_3 is not None:
+            self.text_encoder_3.save_pretrained(model_save_path / DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER)
+
+        if self.image_encoder is not None:
+            self.image_encoder.save_pretrained(model_save_path / "image_encoder")
+        if self.safety_checker is not None:
+            self.safety_checker.save_pretrained(model_save_path / "safety_checker")
 
         if self.tokenizer is not None:
             self.tokenizer.save_pretrained(model_save_path / "tokenizer")
@@ -474,7 +468,6 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
         if self.feature_extractor is not None:
             self.feature_extractor.save_pretrained(model_save_path / "feature_extractor")
 
-        self.save_config(model_save_path)
         if push_to_hub:
             # Create a new empty model card and eventually tag it
             model_card = load_or_create_model_card(repo_id, token=token, is_pipeline=True)
@@ -515,7 +508,12 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
 class ORTModelMixin(ORTSessionMixin, ConfigMixin):
     config_name: str = CONFIG_NAME
 
-    def __init__(self, session: InferenceSession, parent: ORTSessionsWrapper, use_io_binding: Optional[bool] = None):
+    def __init__(
+        self,
+        session: "InferenceSession",
+        parent: "ORTDiffusionPipeline",
+        use_io_binding: Optional[bool] = None,
+    ):
         self.initialize_ort_attributes(session, use_io_binding=use_io_binding)
         self.parent = parent
 
@@ -525,6 +523,20 @@ class ORTModelMixin(ORTSessionMixin, ConfigMixin):
             raise ValueError(f"Configuration file for {self.__class__.__name__} not found at {config_file_path}")
         config_dict = self._dict_from_json_file(config_file_path)
         self.register_to_config(**config_dict)
+
+    def save_pretrained(self, save_directory: Union[str, Path]):
+        """
+        Saves the ONNX model and its configuration file to a directory, so that it can be re-loaded using the
+        [`from_pretrained`] class method.
+
+        Args:
+            save_directory (`Union[str, os.PathLike]`):
+                Directory to which to save. Will be created if it doesn't exist.
+        """
+        # save onnx model and external data
+        self.save_session(save_directory)
+        # save model configuration
+        self.save_config(save_directory)
 
 
 class ORTUnet(ORTModelMixin):
