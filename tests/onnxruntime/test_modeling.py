@@ -3411,9 +3411,10 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         )
 
         self.assertEqual(onnx_model.use_cache, use_cache)
-        self.assertEqual(onnx_model.decoder_model_name, ONNX_DECODER_NAME)
+        self.assertEqual(onnx_model.encoder.model_name, ONNX_ENCODER_NAME)
+        self.assertEqual(onnx_model.decoder.model_name, ONNX_DECODER_NAME)
         if use_cache:
-            self.assertEqual(onnx_model.decoder_with_past_model_name, ONNX_DECODER_WITH_PAST_NAME)
+            self.assertEqual(onnx_model.decoder_with_past.model_name, ONNX_DECODER_WITH_PAST_NAME)
 
         text = "This is a sample output"
         tokens = tokenizer(text, return_tensors="pt")

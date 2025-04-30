@@ -59,7 +59,6 @@ class ORTSessionMixin:
         """
 
         self.session = session
-        self.model_path = Path(session._model_path)
 
         if use_io_binding is None:
             if self.provider == "CUDAExecutionProvider":
@@ -79,12 +78,13 @@ class ORTSessionMixin:
 
         self.input_names = {input.name: idx for idx, input in enumerate(session.get_inputs())}
         self.output_names = {output.name: idx for idx, output in enumerate(session.get_outputs())}
-
         self.input_shapes = {input.name: input.shape for input in session.get_inputs()}
         self.output_shapes = {output.name: output.shape for output in session.get_outputs()}
-
         self.input_dtypes = {input.name: input.type for input in session.get_inputs()}
         self.output_dtypes = {output.name: output.type for output in session.get_outputs()}
+
+        self.model_path = Path(session._model_path)
+        self.model_name = self.model_path.name
 
     @property
     def providers(self) -> List[str]:
