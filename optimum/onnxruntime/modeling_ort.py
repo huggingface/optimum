@@ -121,15 +121,7 @@ ONNX_AUDIO_INPUTS_DOCSTRING = r"""
 """
 
 
-class classproperty:
-    def __init__(self, getter):
-        self.getter = getter
-
-    def __get__(self, instance, owner):
-        return self.getter(owner)
-
-
-# TODO: remove OptimizedModel and define hub methods in ORTModel directly
+# TODO: remove OptimizedModel and use a HubMixin to be able to combine it freely with other mixins
 class ORTModel(ORTSessionMixin, OptimizedModel):
     """
     Base class for implementing models using ONNX Runtime.
@@ -143,15 +135,14 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         - auto_model_class (`Type`, *optional*, defaults to `AutoModel`) -- The "AutoModel" class to represented by the
         current ORTModel class.
 
-    Common attributes:
-        - model (`ort.InferenceSession`) -- The ONNX Runtime InferenceSession that is running the model.
+    Args:
         - config ([`~transformers.PretrainedConfig`] -- The configuration of the model.
+        - session (`~onnxruntime.InferenceSession`) -- The ONNX Runtime InferenceSession that is running the model.
         - use_io_binding (`bool`, *optional*, defaults to `True`) -- Whether to use I/O bindings with **ONNX Runtime
         with the CUDAExecutionProvider**, this can significantly speedup inference depending on the task.
         - model_save_dir (`Path`) -- The directory where the model exported to ONNX is saved.
         By defaults, if the loaded model is local, the directory where the original model will be used. Otherwise, the
         cache directory is used.
-        - providers (`List[str]) -- The list of execution providers available to ONNX Runtime.
     """
 
     model_type = "onnx_model"
@@ -217,7 +208,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         return [filename, f"{name}_quantized.{extension}", f"{name}_optimized.{extension}"]
 
     @staticmethod
-    def infer_onnx_filename(
+    def _infer_onnx_filename(
         model_name_or_path: Union[str, Path],
         patterns: List[str],
         argument_name: str,

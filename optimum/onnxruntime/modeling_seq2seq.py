@@ -1050,7 +1050,7 @@ class ORTModelForConditionalGeneration(ORTSessionsWrapper, ORTModel):
         # and use_merged = True (explicitely specified by the user)
         if use_merged is not False:
             try:
-                decoder_merged_path = ORTModel.infer_onnx_filename(
+                decoder_merged_path = ORTModel._infer_onnx_filename(
                     model_id,
                     [DECODER_MERGED_ONNX_FILE_PATTERN],
                     argument_name=None,
@@ -1075,7 +1075,7 @@ class ORTModelForConditionalGeneration(ORTSessionsWrapper, ORTModel):
             if not validate_file_exists(
                 model_id, decoder_file_name, subfolder=subfolder, revision=revision, token=token
             ):
-                decoder_without_past_path = ORTModel.infer_onnx_filename(
+                decoder_without_past_path = ORTModel._infer_onnx_filename(
                     model_id,
                     [DECODER_ONNX_FILE_PATTERN],
                     "decoder_file_name",
@@ -1101,7 +1101,7 @@ class ORTModelForConditionalGeneration(ORTSessionsWrapper, ORTModel):
                     model_id, decoder_with_past_file_name, subfolder=subfolder, revision=revision, token=token
                 ):
                     try:
-                        decoder_with_past_path = ORTModel.infer_onnx_filename(
+                        decoder_with_past_path = ORTModel._infer_onnx_filename(
                             model_id,
                             [DECODER_WITH_PAST_ONNX_FILE_PATTERN],
                             "decoder_with_past_file_name",
@@ -1131,7 +1131,7 @@ class ORTModelForConditionalGeneration(ORTSessionsWrapper, ORTModel):
                     )
 
         if not validate_file_exists(model_id, encoder_file_name, subfolder=subfolder, revision=revision, token=token):
-            encoder_path = ORTModel.infer_onnx_filename(
+            encoder_path = ORTModel._infer_onnx_filename(
                 model_id,
                 [ENCODER_ONNX_FILE_PATTERN],
                 "encoder_file_name",
