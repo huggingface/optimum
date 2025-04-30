@@ -268,7 +268,6 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        print("model na")
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
         for batch_size in [1, 3]:
