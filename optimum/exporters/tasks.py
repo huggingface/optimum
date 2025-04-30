@@ -546,6 +546,10 @@ class TasksManager:
             onnx="ConvNextV2OnnxConfig",
         ),
         "cvt": supported_tasks_mapping("feature-extraction", "image-classification", onnx="CvTOnnxConfig"),
+        "d-fine": supported_tasks_mapping(
+            "object-detection",
+            onnx="DFineOnnxConfig",
+        ),
         "data2vec-text": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
