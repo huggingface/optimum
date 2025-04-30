@@ -169,8 +169,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.config, PretrainedConfig)
 
     def test_load_model_from_hub_subfolder(self):
-        # does not pass with ORTModel as it does not have export_feature attribute
-        model = ORTModelForSequenceClassification.from_pretrained(
+        model = ORTModel.from_pretrained(
             "fxmarty/tiny-bert-sst2-distilled-subfolder",
             subfolder="my_subfolder",
         )
@@ -2428,7 +2427,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertFalse(model_not_merged.use_merged)
 
         model_merged_dir = Path(Path(model_not_merged_dir).parents[0], "merged")
-        task = model_not_merged.export_feature
+
+        task = "text-generation"
         if use_cache:
             task += "-with-past"
 
