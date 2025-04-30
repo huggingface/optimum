@@ -13,6 +13,9 @@
 #  limitations under the License.
 """Defines the base classes that are used to perform inference with ONNX Runtime sessions."""
 
+import os
+import shutil
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
@@ -21,6 +24,7 @@ import torch
 from onnxruntime import InferenceSession, IOBinding
 from onnxruntime.transformers.io_binding_helper import TypeHelper
 
+from ..onnx.utils import _get_model_external_data_paths
 from ..utils.logging import get_logger
 from .utils import (
     get_device_for_provider,
@@ -465,6 +469,28 @@ class ORTSessionMixin:
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
+
+    def save_session(self, save_directory: Union[str, Path]):
+        """
+        Saves the ONNX Runtime session to the specified directory.
+
+        Args:
+            save_directory (`Union[str, Path]`):
+                The directory where to save the ONNX Runtime session.
+        """
+
+        os.makedirs(save_directory, exist_ok=True)
+
+        model_path = Path(self.session._model_path)
+        model_save_path = Path(save_directory) / model_path.name
+        external_data_paths = _get_model_external_data_paths(model_path)
+        external_data_save_paths = [
+            Path(save_directory) / external_data_path.name for external_data_path in external_data_paths
+        ]
+
+        shutil.copy(model_path, model_save_path)
+        for src_path, dst_path in zip(external_data_paths, external_data_save_paths):
+            shutil.copy(src_path, dst_path)
 
 
 class ORTSessionsWrapper:
