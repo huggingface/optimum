@@ -59,6 +59,7 @@ class ORTSessionMixin:
         """
 
         self.session = session
+        self.model_path = Path(session._model_path)
 
         if use_io_binding is None:
             if self.provider == "CUDAExecutionProvider":
@@ -305,12 +306,12 @@ class ORTSessionMixin:
 
         """
         assert len(output_shape) > 0, "`output_shape` should not be empty."
-        assert all(
-            isinstance(dim, int) for dim in output_shape
-        ), f"`output_shape` should only contain integers but got {output_shape}."
-        assert all(
-            dim > 0 for dim in output_shape
-        ), f"`output_shape` should only contain positive integers but got {output_shape}."
+        assert all(isinstance(dim, int) for dim in output_shape), (
+            f"`output_shape` should only contain integers but got {output_shape}."
+        )
+        assert all(dim > 0 for dim in output_shape), (
+            f"`output_shape` should only contain positive integers but got {output_shape}."
+        )
 
         output_dtype = TypeHelper.ort_type_to_torch_type(self.output_dtypes[output_name])
 
