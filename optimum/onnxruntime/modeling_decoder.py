@@ -292,6 +292,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         sequence_length = input_ids.shape[1]
 
         constructor = torch if use_torch else np
+        float_dtype = getattr(constructor, str(self.dtype).split(".")[-1])
+
         if self.use_merged:
             # Uses without/with branch of a merged decoder depending on whether real past key values are passed
             use_cache_branch = constructor.full((1,), past_key_values is not None)
@@ -317,8 +319,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
             # TODO: find a way to better handle this controlflow, this is EXTREMELY UGLY.
             if self.__class__.__name__ == "ORTBloomForCausalLM":
-                key = constructor.zeros(batch_size * num_attention_heads, 0, embed_size_per_head, dtype=self.dtype)
-                value = constructor.zeros(batch_size * num_attention_heads, embed_size_per_head, 0, dtype=self.dtype)
+                key = constructor.zeros(batch_size * num_attention_heads, 0, embed_size_per_head, dtype=float_dtype)
+                value = constructor.zeros(batch_size * num_attention_heads, embed_size_per_head, 0, dtype=float_dtype)
 
                 if use_torch:
                     key = key.to(self.device)
@@ -336,7 +338,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
             elif self.config.model_type == "gpt_bigcode":
                 # GPT BigCode uses muti-query attention, and has the specificity of putting both key and value in the same cache tensor.
-                key_and_value = constructor.zeros(batch_size, 0, embed_size_per_head * 2, dtype=self.dtype)
+                key_and_value = constructor.zeros(batch_size, 0, embed_size_per_head * 2, dtype=float_dtype)
                 if use_torch:
                     key_and_value = key_and_value.to(self.device)
 
@@ -352,7 +354,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     self.num_key_value_heads if self.config.model_type == "falcon" else num_attention_heads
                 )
                 key_or_value = constructor.zeros(
-                    batch_size, num_key_value_heads, 0, embed_size_per_head, dtype=self.dtype
+                    batch_size, num_key_value_heads, 0, embed_size_per_head, dtype=float_dtype
                 )
                 if use_torch:
                     key_or_value = key_or_value.to(self.device)

@@ -55,6 +55,7 @@ from transformers.modeling_outputs import (
     XVectorOutput,
 )
 from transformers.utils import cached_file, is_offline_mode
+from typing_extensions import Self
 
 from onnxruntime import InferenceSession, SessionOptions
 
@@ -426,7 +427,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         # inference options
         use_io_binding: Optional[bool] = None,
         **kwargs,
-    ):
+    ) -> Self:
         """
         provider (`str`, defaults to `"CPUExecutionProvider"`):
             ONNX Runtime provider to use for loading the model.

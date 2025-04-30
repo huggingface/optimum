@@ -660,6 +660,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         use_torch: bool,
     ):
         constructor = torch if use_torch is True else np
+        float_dtype = getattr(constructor, str(self.dtype).split(".")[-1])
 
         if self.use_merged:
             # Uses without/with branch of a merged decoder depending on whether real past key values are passed
@@ -675,7 +676,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
             num_attention_heads = self.normalized_config.num_attention_heads
             embed_size_per_head = self.normalized_config.hidden_size // num_attention_heads
             shape = (batch_size, num_attention_heads, 1, embed_size_per_head)
-            key_or_value = constructor.zeros(shape, dtype=self.dtype)
+            key_or_value = constructor.zeros(shape, dtype=float_dtype)
 
             if use_torch is True:
                 key_or_value = key_or_value.to(self.device)
