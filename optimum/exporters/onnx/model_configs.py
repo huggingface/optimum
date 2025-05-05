@@ -2693,3 +2693,81 @@ class RTDetrOnnxConfig(ViTOnnxConfig):
 
 class RTDetrV2OnnxConfig(RTDetrOnnxConfig):
     pass
+
+
+class ColPaliOnnxConfig(GemmaOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyVisionInputGenerator)
+    NORMALIZED_CONFIG_CLASS = NormalizedTextAndVisionConfig.with_args(
+        allow_new=True,
+        text_config="text_config",
+        vision_config="vlm_config.vision_config",
+        vlm_config="vlm_config",
+    )
+    ATOL_FOR_VALIDATION = 1e-4
+
+    def __init__(
+        self,
+        config: "PretrainedConfig",
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        use_past: bool = False,
+        use_past_in_inputs: bool = False,
+        preprocessors: Optional[List[Any]] = None,
+        input_mode: Optional[Literal["text", "vision"]] = None,
+        legacy: bool = False,
+    ):
+        super().__init__(
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            preprocessors=preprocessors,
+            legacy=legacy,
+        )
+        self.input_mode = input_mode
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        dynamic_axis = {0: "batch_size", 1: "sequence_length"}
+        if self.input_mode == "vision":
+            return {
+                "input_ids": dynamic_axis,
+                "attention_mask": dynamic_axis,
+                "pixel_values": {0: "batch_size"},
+            }
+        else:
+            return {
+                "input_ids": dynamic_axis,
+                "attention_mask": dynamic_axis,
+            }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "embeddings": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        _, generator_image = self._create_dummy_input_generator_classes(**kwargs)
+
+        sequence_length = DEFAULT_DUMMY_SHAPES["sequence_length"]
+        if self.input_mode == "vision":
+            image_token_index = self._normalized_config.vlm_config.image_token_index
+            num_image_tokens = self._normalized_config.vision_config.num_image_tokens
+            sequence_length += num_image_tokens
+
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, sequence_length=sequence_length, **kwargs)
+
+        if framework == "pt":
+            if self.input_mode == "vision":
+                dummy_inputs["input_ids"][:, :num_image_tokens] = image_token_index
+                dummy_inputs["pixel_values"] = generator_image.generate(
+                    input_name="pixel_values",
+                    framework=framework,
+                    int_dtype=self.int_dtype,
+                    float_dtype=self.float_dtype,
+                )
+        return dummy_inputs

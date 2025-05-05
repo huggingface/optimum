@@ -525,6 +525,10 @@ class TasksManager:
             "text-generation-with-past",
             onnx="CodeGenOnnxConfig",
         ),
+        "colpali": supported_tasks_mapping(
+            "feature-extraction",
+            onnx="ColPaliOnnxConfig",
+        ),
         "convbert": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
