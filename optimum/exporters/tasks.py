@@ -996,7 +996,6 @@ class TasksManager:
             "text-classification",
             onnx="Qwen2OnnxConfig",
         ),
-
         "qwen3": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
@@ -1005,7 +1004,6 @@ class TasksManager:
             "text-classification",
             onnx="Qwen3OnnxConfig",
         ),
-
         "llama": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",
