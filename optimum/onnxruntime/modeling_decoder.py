@@ -326,7 +326,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if self.model_type == "gemma":
                 num_attention_heads = self.normalized_config.num_key_value_heads
                 embed_size_per_head = self.normalized_config.head_dim
-            elif self.model_type in {"mistral", "llama", "qwen2", "granite"}:
+            elif self.model_type in {"mistral", "llama", "qwen2", "qwen3", "granite"}:
                 num_attention_heads = self.normalized_config.num_key_value_heads
             else:
                 num_attention_heads = self.normalized_config.num_attention_heads

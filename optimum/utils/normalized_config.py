@@ -290,6 +290,7 @@ class NormalizedConfigManager:
         "xlm-roberta": NormalizedTextConfig,
         "yolos": NormalizedVisionConfig,
         "qwen2": NormalizedTextConfig,
+        "qwen3": NormalizedTextConfig,
         "granite": NormalizedTextConfigWithGQA,
     }
 

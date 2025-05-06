@@ -2406,6 +2406,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "opt",
     ]
 
+    if is_transformers_version(">=", "4.51"):
+        SUPPORTED_ARCHITECTURES.append("qwen3")
+
     if is_transformers_version(">=", "4.37"):
         SUPPORTED_ARCHITECTURES.append("qwen2")
 
