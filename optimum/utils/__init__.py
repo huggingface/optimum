@@ -92,6 +92,7 @@ from .input_generators import (
     MistralDummyPastKeyValuesGenerator,
     MultiQueryPastKeyValuesGenerator,
     PerceiverDummyInputGenerator,
+    TimesFMDummyInputGenerator,
     VitPoseDummyInputGenerator,
 )
 from .modeling_utils import recurse_getattr, recurse_setattr

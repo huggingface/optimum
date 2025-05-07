@@ -329,6 +329,7 @@ class TasksManager:
         ("pt", "visual-bert", "question-answering"): ("transformers", "VisualBertForQuestionAnswering"),
         # VisionEncoderDecoderModel is not registered in AutoModelForDocumentQuestionAnswering
         ("pt", "vision-encoder-decoder", "document-question-answering"): ("transformers", "VisionEncoderDecoderModel"),
+        ("pt", "timesfm", "time-series-forecasting"): ("transformers", "TimesFmModelForPrediction"),
         ("pt", "vitpose", "keypoint-detection"): ("transformers", "VitPoseForPoseEstimation"),
     }
 
@@ -995,6 +996,10 @@ class TasksManager:
             "text-generation-with-past",
             "text-classification",
             onnx="Qwen2OnnxConfig",
+        ),
+        "timesfm": supported_tasks_mapping(
+            "time-series-forecasting",
+            onnx="TimesFMOnnxConfig",
         ),
         "llama": supported_tasks_mapping(
             "feature-extraction",
