@@ -17,7 +17,7 @@ import math
 import random
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union, Type
 
 from packaging import version
 from transformers.utils import is_tf_available
@@ -99,6 +99,8 @@ from .model_patcher import (
     VisionEncoderDecoderPatcher,
     VitPoseModelPatcher,
     WavLMModelPatcher,
+    ColPaliModelPatcher,
+    PaliGemmaModelPatcher,
 )
 
 
@@ -2350,35 +2352,31 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
-        common_inputs = {}
+        """
+        Mapping from dummy input names to the axes allowing for dynamic axes in the ONNX model.
 
-        if self._behavior is not ConfigBehavior.DECODER:
-            common_inputs["pixel_values"] = {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}
+        Returns:
+            `Dict[str, Dict[int, str]]`: The dummy input names and their dynamic axes. For example: {"input_ids": {0: "batch", 1: "sequence"}}
+        """
+        common_inputs = {
+            "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+        }
+        if self.use_past_in_inputs:
+            self.add_past_key_values(common_inputs, direction="inputs")
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "sequence_length"}
+        else:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "sequence_length"}
 
-        if self._behavior is not ConfigBehavior.ENCODER:
-            if self.use_past_in_inputs:
-                common_inputs["decoder_input_ids"] = {0: "batch_size"}
-            else:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
-            if self.use_past_in_inputs:
-                self.add_past_key_values(common_inputs, direction="inputs")
-
-        if self._behavior is ConfigBehavior.DECODER:
-            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+        common_inputs["decoder_attention_mask"] = {0: "batch_size", 1: "sequence_length + past_sequence_length"}
 
         return common_inputs
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
-        if self._behavior == ConfigBehavior.ENCODER:
-            # Some encoders have static sequence length so it is useful to rely on the encoder ONNX config to grab this information.
-            return self._encoder_onnx_config.outputs
-        else:
-            # Ideally, we would want here to have self._decoder_onnx_config.outputs, which is currently not possible
-            # as we hard-code the task to feature-extraction, that has the wrong output names (e.g. mbart does not support document-question-answering
-            # so we can not initializer MBartONNXConfig with document-question-answering).
-            return super().outputs
+        common_outputs = super().outputs
+        if self.use_past:
+            self.add_past_key_values(common_outputs, direction="outputs")
+        return common_outputs
 
     def patch_model_for_export(
         self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
@@ -2693,3 +2691,60 @@ class RTDetrOnnxConfig(ViTOnnxConfig):
 
 class RTDetrV2OnnxConfig(RTDetrOnnxConfig):
     pass
+
+
+# Define a specific normalized config for ColPali
+class ColPaliNormalizedConfig(NormalizedTextAndVisionConfig):
+    """
+    Normalized configuration for ColPali models.
+    Directs the normalizer to the proper config paths within ColPali's config.
+    """
+
+    TEXT_CONFIG = "text_config"
+    VISION_CONFIG = "vision_config"
+
+
+class ColPaliOnnxConfig(OnnxConfig):
+    """
+    ONNX configuration for ColPali models.
+
+    ColPali combines a vision encoder (PaliGemma) and a text model (Gemma)
+    for visual-document retrieval. This config handles both the text-to-embedding
+    and image-to-embedding pathways.
+    """
+
+    NORMALIZED_CONFIG_CLASS = ColPaliNormalizedConfig
+    DEFAULT_ONNX_OPSET = 14
+    ATOL_FOR_VALIDATION = 1e-3
+
+    @property
+    def DUMMY_INPUT_GENERATOR_CLASSES(self) -> Tuple[Type[DummyInputGenerator]]:
+        if self.task == "visual-retrieval-vision":
+            return (DummyVisionInputGenerator,)
+        elif self.task == "visual-retrieval-text":
+            return (DummyTextInputGenerator,)
+        else:
+            raise ValueError(f"Unsupported task for ColPaliOnnxConfig: {self.task}")
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        if self.task == "visual-retrieval-vision":
+            return {
+                "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+            }
+        elif self.task == "visual-retrieval-text":
+            return {
+                "input_ids": {0: "batch_size", 1: "sequence_length"},
+                "attention_mask": {0: "batch_size", 1: "sequence_length"},
+            }
+        else:
+            raise ValueError(f"Unsupported task for ColPaliOnnxConfig: {self.task}")
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {"embeddings": {0: "batch_size", 1: "num_vectors", 2: "embedding_dim"}}
+
+    def patch_model_for_export(
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+    ) -> "ModelPatcher":
+        return ColPaliModelPatcher(self, model, model_kwargs=model_kwargs)

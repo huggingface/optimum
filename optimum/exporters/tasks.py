@@ -47,6 +47,12 @@ if is_torch_available():
     import torch
     from transformers import PreTrainedModel
 
+    # Import ColPaliForRetrieval for visual-document retrieval tasks
+    try:
+        from transformers import ColPaliForRetrieval
+    except ImportError:
+        ColPaliForRetrieval = None  # Handle cases where it might not be available
+
 if is_tf_available():
     from transformers import TFPreTrainedModel
 
@@ -232,6 +238,9 @@ class TasksManager:
             "visual-question-answering": "AutoModelForVisualQuestionAnswering",
             "zero-shot-image-classification": "AutoModelForZeroShotImageClassification",
             "zero-shot-object-detection": "AutoModelForZeroShotObjectDetection",
+            # Visual document retrieval with text or image inputs
+            "visual-retrieval-text": "ColPaliForRetrieval",
+            "visual-retrieval-vision": "ColPaliForRetrieval",
         }
 
         _TRANSFORMERS_TASKS_TO_MODEL_MAPPINGS = get_transformers_tasks_to_model_mapping(
@@ -1320,6 +1329,12 @@ class TasksManager:
             "feature-extraction",
             "object-detection",
             onnx="YolosOnnxConfig",
+        ),
+        # ColPali model for visual document retrieval
+        "colpali": supported_tasks_mapping(
+            "visual-retrieval-text",
+            "visual-retrieval-vision",
+            onnx="ColPaliOnnxConfig",
         ),
     }
     _LIBRARY_TO_SUPPORTED_MODEL_TYPES = {
