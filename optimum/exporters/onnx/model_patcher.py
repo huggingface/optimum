@@ -1381,3 +1381,183 @@ class VitPoseModelPatcher(ModelPatcher):
             model_kwargs["dataset_index"] = torch.tensor(0, device=model.device)
 
         super().__init__(config, model, model_kwargs)
+
+
+# Add new patcher for PaliGemma (used during ColPali export)
+class PaliGemmaModelPatcher(ModelPatcher):
+    """
+    Patcher for PaliGemma models used in ColPali multimodal framework.
+
+    This class extends ModelPatcher to handle the specific requirements of
+    PaliGemma when used as a vision component within ColPali. It ensures
+    correct token counts and input/output handling during ONNX export.
+
+    Key features:
+    - Manages image token counts for proper embedding conversion
+    - Ensures hidden states are always returned for ColPali
+    - Handles the vision-only path in the multimodal architecture
+    """
+
+    def __init__(
+        self,
+        config: "OnnxConfig",  # This will be the ColPaliOnnxConfig
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],  # This will be the PaliGemma model
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        self.orig_forward = model.forward
+        self.colpali_config = config  # Store ColPali config to check task
+        self.pali_gemma_model = model  # Store the actual PaliGemma model
+        self.model_kwargs = model_kwargs if model_kwargs is not None else {}  # Ensure it's a dict
+
+    def patched_forward(self, *args, **kwargs):
+        pixel_values_from_input = None
+        sig = inspect.signature(self.orig_forward)
+        try:
+            bound_incoming_args = sig.bind_partial(*args, **kwargs)
+            pixel_values_from_input = bound_incoming_args.arguments.get("pixel_values")
+            original_arguments = bound_incoming_args.arguments
+        except TypeError:
+            pixel_values_from_input = kwargs.get("pixel_values")
+            original_arguments = kwargs
+
+        if self.colpali_config.task == "visual-retrieval-vision":
+            if pixel_values_from_input is None:
+                raise ValueError("PaliGemmaPatcher (Vision): pixel_values is missing from input.")
+
+            batch_size = pixel_values_from_input.shape[0]
+            image_token_index = getattr(self.pali_gemma_model.config, "image_token_index", 32000)
+
+            # Using 1024 tokens - empirically validated for ColPali.
+            num_image_tokens = 1024
+
+            vision_input_ids = torch.full(
+                (batch_size, num_image_tokens),
+                image_token_index,
+                dtype=torch.long,
+                device=pixel_values_from_input.device,
+            )
+
+            vision_kwargs = {
+                "input_ids": vision_input_ids,
+                "attention_mask": torch.ones_like(vision_input_ids),
+                "pixel_values": pixel_values_from_input,
+                "inputs_embeds": None,
+                "position_ids": None,
+                "past_key_values": None,
+                "token_type_ids": None,
+                "cache_position": None,
+                "labels": None,
+                "use_cache": (self.colpali_config.use_past if hasattr(self.colpali_config, "use_past") else False),
+                "output_attentions": (
+                    self.colpali_config.output_attentions
+                    if hasattr(self.colpali_config, "output_attentions")
+                    else False
+                ),
+                "output_hidden_states": True,  # Always True because ColPali needs hidden_states
+                "return_dict": True,
+                "logits_to_keep": 0,
+            }
+            return self.orig_forward(**vision_kwargs)
+        else:
+            # Pass through all originally bound arguments if not vision path
+            return self.orig_forward(*bound_incoming_args.args, **bound_incoming_args.kwargs)
+
+    def __enter__(self):
+        # Directly replace the forward method on the instance
+        self.pali_gemma_model.forward = self.patched_forward
+        logger.info(f"PaliGemmaPatcher: Patched {self.pali_gemma_model.__class__.__name__}.forward")
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # Restore the original forward method
+        self.pali_gemma_model.forward = self.orig_forward
+        logger.info(f"PaliGemmaPatcher: Restored {self.pali_gemma_model.__class__.__name__}.forward")
+
+
+class ColPaliModelPatcher(ModelPatcher):
+    """
+    Patcher for ColPali models during ONNX export.
+
+    This patcher handles the complexities of the ColPali architecture,
+    which combines text and vision modalities. It manages different
+    export paths for text and vision, ensuring correct input handling
+    for each modality.
+
+    Key features:
+    - Supports separate vision and text export paths
+    - Manages PaliGemma patching when needed for vision export
+    - Ensures consistent attention mask and input handling
+    - Maintains proper context management for nested patchers
+    """
+
+    def __init__(
+        self,
+        config: "OnnxConfig",
+        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        _true_original_colpali_forward = model.forward
+        super().__init__(config=config, model=model, model_kwargs=model_kwargs)
+        self.task = config.task
+        self.pali_gemma_patcher = None
+
+        @functools.wraps(_true_original_colpali_forward)
+        def _colpali_logic_wrapper(*args, **kwargs):
+            sig = inspect.signature(_true_original_colpali_forward)
+            try:
+                bound_args = sig.bind(*args, **kwargs)
+            except TypeError as e:
+                raise TypeError(f"Error binding arguments for ColPali forward: {e}")
+            bound_args.apply_defaults()
+            arguments = bound_args.arguments
+
+            if self.task == "visual-retrieval-vision":
+                if arguments.get("pixel_values") is not None:
+                    # Keep input_ids for structure but set to placeholder values
+                    if arguments.get("input_ids") is None:
+                        # Create dummy input_ids matching the pixel_values batch size
+                        batch_size = arguments["pixel_values"].shape[0]
+                        arguments["input_ids"] = torch.ones(
+                            (batch_size, 1), dtype=torch.long, device=arguments["pixel_values"].device
+                        )
+
+                    # Always ensure attention_mask exists and matches input_ids shape
+                    if arguments.get("attention_mask") is None:
+                        arguments["attention_mask"] = torch.ones_like(
+                            arguments["input_ids"], device=arguments["pixel_values"].device
+                        )
+
+                    # Still set inputs_embeds to None as we want PaliGemma to handle the embeddings
+                    arguments["inputs_embeds"] = None
+                else:
+                    raise ValueError("ColPaliPatcher (Vision): pixel_values must be provided.")
+            elif self.task == "visual-retrieval-text":
+                if arguments.get("pixel_values") is not None:
+                    arguments["pixel_values"] = None
+                if arguments.get("input_ids") is None:
+                    raise ValueError("ColPaliPatcher (Text): input_ids must be provided.")
+                if arguments.get("attention_mask") is None:
+                    raise ValueError("ColPaliPatcher (Text): attention_mask must be provided with input_ids.")
+            else:
+                raise ValueError(f"ColPaliPatcher: Unexpected task '{self.task}'.")
+            return _true_original_colpali_forward(**arguments)
+
+        self.orig_forward = _colpali_logic_wrapper
+
+    def __enter__(self):
+        # Apply ColPali general patching (done by super class)
+        super().__enter__()
+        # Now, specifically patch PaliGemma if it's a vision export
+        if self.task == "visual-retrieval-vision":
+            if hasattr(self._model, "vlm") and self._model.vlm is not None:
+                # self.real_config is the ColPaliOnnxConfig instance
+                self.pali_gemma_patcher = PaliGemmaModelPatcher(self.real_config, self._model.vlm, self.model_kwargs)
+                self.pali_gemma_patcher.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # Restore PaliGemma patch first if it was applied
+        if self.pali_gemma_patcher is not None:
+            self.pali_gemma_patcher.__exit__(exc_type, exc_value, traceback)
+            self.pali_gemma_patcher = None
+        # Then restore ColPali general patching (done by super class)
+        super().__exit__(exc_type, exc_value, traceback)
