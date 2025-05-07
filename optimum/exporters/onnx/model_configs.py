@@ -2579,7 +2579,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         dummy_inputs_generators = []
         dummy_inputs_generators.append(self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config))
 
-        if self._preprocessors is None or len(self._preprocessors) != 2:
+        if self._preprocessors is None or len(self._preprocessors) < 2:
             raise ValueError(
                 f"Preprocessors for pix2struct need to be available for the ONNX export to infer input static shapes. Got: {self._preprocessors}"
             )
@@ -2598,7 +2598,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def overwrite_shape_and_generate_input(
         self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: Dict
     ):
-        if self._preprocessors is None or len(self._preprocessors) != 2:
+        if self._preprocessors is None or len(self._preprocessors) < 2:
             raise ValueError(
                 f"Preprocessors for pix2struct need to be available for the ONNX export to infer input static shapes. Got: {self._preprocessors}"
             )
