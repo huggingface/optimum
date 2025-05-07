@@ -322,6 +322,7 @@ class TasksManager:
     }
 
     _CUSTOM_CLASSES = {
+        ("pt", "colpali", "feature-extraction"): ("transformers", "ColPaliForRetrieval"),
         ("pt", "patchtsmixer", "time-series-forecasting"): ("transformers", "PatchTSMixerForPrediction"),
         ("pt", "patchtst", "time-series-forecasting"): ("transformers", "PatchTSTForPrediction"),
         ("pt", "pix2struct", "image-to-text"): ("transformers", "Pix2StructForConditionalGeneration"),
