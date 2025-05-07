@@ -53,7 +53,9 @@ def maybe_load_preprocessors(
 
     try:
         preprocessors.append(
-            AutoImageProcessor.from_pretrained(src_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code)
+            AutoImageProcessor.from_pretrained(
+                src_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code
+            )
         )
     except Exception:
         pass
