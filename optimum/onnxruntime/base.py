@@ -172,7 +172,7 @@ class ORTSessionMixin:
         device = None
 
         for arg in args:
-            if isinstance(arg, str):
+            if isinstance(arg, (str, torch.device)):
                 device = arg
             elif isinstance(arg, int):
                 device = torch.device(arg)
