@@ -305,13 +305,12 @@ class ORTSessionMixin:
             `torch.Tensor`: The output buffer.
 
         """
-        assert len(output_shape) > 0, "`output_shape` should not be empty."
-        assert all(
-            isinstance(dim, int) for dim in output_shape
-        ), f"`output_shape` should only contain integers but got {output_shape}."
-        assert all(
-            dim > 0 for dim in output_shape
-        ), f"`output_shape` should only contain positive integers but got {output_shape}."
+        if len(output_shape) == 0:
+            raise ValueError("`output_shape` should not be empty")
+        elif not all(isinstance(dim, int) for dim in output_shape):
+            raise ValueError(f"`output_shape` should only contain integers but got {output_shape}.")
+        elif not all(dim > 0 for dim in output_shape):
+            raise ValueError(f"`output_shape` should only contain positive integers but got {output_shape}.")
 
         output_dtype = TypeHelper.ort_type_to_torch_type(self.output_dtypes[output_name])
 
@@ -518,52 +517,52 @@ class ORTSessionsWrapper:
         self.sessions = sessions
 
     @property
-    def use_io_binding(self):
-        """
-        Returns whether IO Binding is used or not.
-        """
-        for model in self.sessions:
-            return model.use_io_binding
-
-    @use_io_binding.setter
-    def use_io_binding(self, value: bool):
-        """
-        Setter for the use_io_binding property.
-        """
-        for model in self.sessions:
-            model.use_io_binding = value
-
-    @property
     def providers(self):
         """
         Returns a list of Execution Providers registered with the session.
         """
-        for model in self.sessions:
-            return model.providers
+        if not all(model.providers == self.sessions[0].providers for model in self.sessions):
+            logger.warning(
+                "Calling `ORTSessionsWrapper.providers` when the underlying sessions have different values "
+                "for `providers` is not recommended. The value of the first session will be returned. "
+            )
+        return self.sessions[0].providers
 
     @property
     def provider(self):
         """
         Returns the main Execution Provider registered with the session.
         """
-        for model in self.sessions:
-            return model.provider
+        if not all(model.provider == self.sessions[0].provider for model in self.sessions):
+            logger.warning(
+                "Calling `ORTSessionsWrapper.provider` when the underlying sessions have different values "
+                "for `provider` is not recommended. The value of the first session will be returned. "
+            )
+        return self.sessions[0].provider
 
     @property
     def provider_options(self):
         """
         Returns a dictionary of Execution Providers configurations/options.
         """
-        for model in self.sessions:
-            return model.provider_options
+        if not all(model.provider_options == self.sessions[0].provider_options for model in self.sessions):
+            logger.warning(
+                "Calling `ORTSessionsWrapper.provider_options` when the underlying sessions have different values "
+                "for `provider_options` is not recommended. The value of the first session will be returned. "
+            )
+        return self.sessions[0].provider_options
 
     @property
     def provider_option(self):
         """
         Returns the configuration/options of the main Execution Provider.
         """
-        for model in self.sessions:
-            return model.provider_option
+        if not all(model.provider_option == self.sessions[0].provider_option for model in self.sessions):
+            logger.warning(
+                "Calling `ORTSessionsWrapper.provider_option` when the underlying sessions have different values "
+                "for `provider_option` is not recommended. The value of the first session will be returned. "
+            )
+        return self.sessions[0].provider_option
 
     @property
     def device(self):
@@ -571,8 +570,12 @@ class ORTSessionsWrapper:
         Returns the `torch.device` associated with the ONNX Runtime session.
         This device is inferred from the provider and provider options.
         """
-        for model in self.sessions:
-            return model.device
+        if not all(model.device == self.sessions[0].device for model in self.sessions):
+            logger.warning(
+                "Calling `ORTSessionsWrapper.device` when the underlying sessions have different values "
+                "for `device` is not recommended. The value of the first session will be returned. "
+            )
+        return self.sessions[0].device
 
     @property
     def dtype(self):
@@ -581,8 +584,32 @@ class ORTSessionsWrapper:
         This dtype is inferred from the input/output dtypes of the session.
         If no floating point type is found, it defaults to `torch.float32`.
         """
+        if not all(model.dtype == self.sessions[0].dtype for model in self.sessions):
+            logger.warning(
+                "Calling `ORTSessionsWrapper.dtype` when the underlying sessions have different values "
+                "for `dtype` is not recommended. The value of the first session will be returned. "
+            )
+        return self.sessions[0].dtype
+
+    @property
+    def use_io_binding(self):
+        """
+        Returns whether IO Binding is used or not.
+        """
+        if not all(model.use_io_binding == self.sessions[0].use_io_binding for model in self.sessions):
+            logger.warning(
+                "Calling `ORTSessionsWrapper.use_io_binding` when the underlying sessions have different values "
+                "for `use_io_binding` is not recommended. The value of the first session will be returned. "
+            )
+        return self.sessions[0].use_io_binding
+
+    @use_io_binding.setter
+    def use_io_binding(self, value: bool):
+        """
+        Setter for the use_io_binding property.
+        """
         for model in self.sessions:
-            return model.dtype
+            model.use_io_binding = value
 
     def to(self, *args, **kwargs):
         """

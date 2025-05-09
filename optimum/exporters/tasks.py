@@ -1929,7 +1929,7 @@ class TasksManager:
                 token=token,
                 library_name=library_name,
             )
-        elif type(model) == type:
+        elif type(model) is type:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model_class=model)
         else:
             inferred_task_name = cls._infer_task_from_model_or_model_class(model=model)
