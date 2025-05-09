@@ -2111,29 +2111,11 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         "mpnet",
         "roberta",
         "xlm_roberta",
-        "vit",
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForFeatureExtraction
     TASK = "feature-extraction"
-
-    def is_image_model(self, model_arch):
-        return model_arch == "vit"
-
-    def get_raw_input(self, model_arch):
-        if self.is_image_model(model_arch):
-            image_url = "https://picsum.photos/id/237/200/300"
-            return Image.open(requests.get(image_url, stream=True).raw)
-        else:
-            return "This is a sample output"
-
-    def get_input(self, model_arch, processor, return_tensors="pt"):
-        raw_input = self.get_raw_input(model_arch)
-        if self.is_image_model(model_arch):
-            return processor(images=raw_input, return_tensors=return_tensors)
-        else:
-            return processor(raw_input, return_tensors=return_tensors)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
@@ -2148,14 +2130,15 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
         set_seed(SEED)
         transformers_model = AutoModel.from_pretrained(model_id)
-        processor = get_preprocessor(model_id)
-        inputs = self.get_input(model_arch, processor, return_tensors="pt")
+        tokenizer = get_preprocessor(model_id)
+        text = "This is a sample output"
+        tokens = tokenizer(text, return_tensors="pt")
         with torch.no_grad():
-            transformers_outputs = transformers_model(**inputs)
+            transformers_outputs = transformers_model(**tokens)
 
         for input_type in ["pt", "np"]:
-            inputs = self.get_input(model_arch, processor, return_tensors=input_type)
-            onnx_outputs = onnx_model(**inputs)
+            tokens = tokenizer(text, return_tensors=input_type)
+            onnx_outputs = onnx_model(**tokens)
 
             self.assertIn("last_hidden_state", onnx_outputs)
             self.assertIsInstance(onnx_outputs.last_hidden_state, self.TENSOR_ALIAS_TO_TYPE[input_type])
@@ -2177,26 +2160,14 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(self.onnx_model_dirs[model_arch])
-        processor = get_preprocessor(model_id)
-        if self.is_image_model(model_arch):
-            # For image models, bypass the pipeline and test directly because feature extraction (in optimum/pipelines/pipelines_base.py) is only supported for text at the moment
-            # Change this once feature extraction pipelines is supported for image models
-            raw_input = self.get_raw_input(model_arch)
-            processed_inputs = processor(images=raw_input, return_tensors="pt")
-            outputs = onnx_model(**processed_inputs)
+        tokenizer = get_preprocessor(model_id)
+        pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
+        text = "My Name is Philipp and i live in Germany."
+        outputs = pipe(text)
 
-            # Check device and output format
-            assert onnx_model.device.type == "cpu"
-            assert isinstance(outputs.last_hidden_state, torch.Tensor)
-            features = outputs.last_hidden_state.detach().cpu().numpy().tolist()
-            assert all(isinstance(item, float) for row in features for inner in row for item in inner)
-        else:
-            # For text models, use the pipeline and check model device and compare model output class
-            pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=processor)
-            raw_input = self.get_raw_input(model_arch)
-            outputs = pipe(raw_input)
-            assert pipe.device == onnx_model.device
-            assert all(all(isinstance(item, float) for item in row) for row in outputs[0])
+        # compare model output class
+        self.assertEqual(pipe.device, onnx_model.device)
+        self.assertTrue(all(all(isinstance(item, float) for item in row) for row in outputs[0]))
 
         gc.collect()
 
@@ -2226,28 +2197,14 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
-        processor = get_preprocessor(model_id)
-
-        if self.is_image_model(model_arch):
-            # For image models, bypass the pipeline and test directly because feature extraction (in optimum/pipelines/pipelines_base.py) is only supported for text at the moment
-            # Change this once feature extraction pipelines is supported for image models
-            raw_input = self.get_raw_input(model_arch)
-            processed_inputs = processor(images=raw_input, return_tensors="pt").to("cuda")
-            outputs = onnx_model(**processed_inputs)
-
-            # Check device and output format
-            assert onnx_model.device.type == "cuda"
-            assert isinstance(outputs.last_hidden_state, torch.Tensor)
-            features = outputs.last_hidden_state.detach().cpu().numpy().tolist()
-            assert all(isinstance(item, float) for row in features for inner in row for item in inner)
-
-        else:
-            # For text models, use the pipeline, check model device and compare model output class
-            pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=processor, device=0)
-            raw_input = self.get_raw_input(model_arch)
-            outputs = pipe(raw_input)
-            self.assertEqual(pipe.model.device.type.lower(), "cuda")
-            self.assertTrue(all(all(isinstance(item, float) for item in row) for row in outputs[0]))
+        tokenizer = get_preprocessor(model_id)
+        pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer, device=0)
+        text = "My Name is Philipp and i live in Germany."
+        outputs = pipe(text)
+        # check model device
+        self.assertEqual(pipe.model.device.type.lower(), "cuda")
+        # compare model output class
+        self.assertTrue(all(all(isinstance(item, float) for item in row) for row in outputs[0]))
 
         gc.collect()
 
@@ -2292,13 +2249,8 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         self.assertFalse(onnx_model.use_io_binding)
         self.assertTrue(io_model.use_io_binding)
 
-        processor = get_preprocessor(model_id)
-
-        if self.is_image_model(model_arch):
-            raw_input = self.get_raw_input(model_arch)
-            tokens = processor(images=[raw_input, raw_input], return_tensors="pt").to("cuda")
-        else:
-            tokens = processor(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
+        tokenizer = get_preprocessor(model_id)
+        tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
 
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
@@ -2325,6 +2277,141 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         torch.testing.assert_close(
             outs.last_hidden_state, outs_without_token_type_ids.last_hidden_state, atol=self.ATOL, rtol=self.RTOL
         )
+        gc.collect()
+
+
+class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = ["vit", "dinov2"]
+
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    ORTMODEL_CLASS = ORTModelForFeatureExtraction
+    TASK = "feature-extraction"
+
+    def get_raw_input(self, model_arch):
+        image_url = "https://picsum.photos/id/237/200/300"
+        return Image.open(requests.get(image_url, stream=True).raw)
+
+    def get_input(self, model_arch, processor, return_tensors="pt"):
+        raw_input = self.get_raw_input(model_arch)
+        return processor(images=raw_input, return_tensors=return_tensors)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_to_transformers(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForFeatureExtraction.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        transformers_model = AutoModel.from_pretrained(model_id)
+        processor = get_preprocessor(model_id)
+        inputs = self.get_input(model_arch, processor, return_tensors="pt")
+        with torch.no_grad():
+            transformers_outputs = transformers_model(**inputs)
+
+        for input_type in ["pt", "np"]:
+            inputs = self.get_input(model_arch, processor, return_tensors=input_type)
+            onnx_outputs = onnx_model(**inputs)
+
+            self.assertIn("last_hidden_state", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.last_hidden_state, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.last_hidden_state),
+                transformers_outputs.last_hidden_state,
+                atol=self.ATOL,
+                rtol=self.RTOL,
+            )
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_ort_model_inference(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForFeatureExtraction.from_pretrained(self.onnx_model_dirs[model_arch])
+        processor = get_preprocessor(model_id)
+        raw_input = self.get_raw_input(model_arch)
+        processed_inputs = processor(images=raw_input, return_tensors="pt")
+        outputs = onnx_model(**processed_inputs)
+
+        # Check device and output format
+        assert onnx_model.device.type == "cpu"
+        assert isinstance(outputs.last_hidden_state, torch.Tensor)
+        features = outputs.last_hidden_state.detach().cpu().numpy().tolist()
+        assert all(isinstance(item, float) for row in features for inner in row for item in inner)
+        gc.collect()
+
+    @parameterized.expand(
+        grid_parameters(
+            {"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}
+        )
+    )
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
+    @pytest.mark.trt_ep_test
+    def test_inference_on_gpu(self, test_name: str, model_arch: str, provider: str):
+        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
+            self.skipTest("testing a single arch for TensorrtExecutionProvider")
+
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForFeatureExtraction.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        processor = get_preprocessor(model_id)
+        raw_input = self.get_raw_input(model_arch)
+        processed_inputs = processor(images=raw_input, return_tensors="pt").to("cuda")
+        outputs = onnx_model(**processed_inputs)
+
+        # Check device and output format
+        assert onnx_model.device.type == "cuda"
+        assert isinstance(outputs.last_hidden_state, torch.Tensor)
+        features = outputs.last_hidden_state.detach().cpu().numpy().tolist()
+        assert all(isinstance(item, float) for row in features for inner in row for item in inner)
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
+    def test_compare_to_io_binding(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForFeatureExtraction.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForFeatureExtraction.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
+        processor = get_preprocessor(model_id)
+        raw_input = self.get_raw_input(model_arch)
+        tokens = processor(images=[raw_input, raw_input], return_tensors="pt").to("cuda")
+
+        onnx_outputs = onnx_model(**tokens)
+        io_outputs = io_model(**tokens)
+
+        self.assertTrue("last_hidden_state" in io_outputs)
+        self.assertIsInstance(io_outputs.last_hidden_state, torch.Tensor)
+
+        # compare tensor outputs
+        torch.testing.assert_close(
+            onnx_outputs.last_hidden_state, io_outputs.last_hidden_state, atol=self.ATOL, rtol=self.RTOL
+        )
+
         gc.collect()
 
 

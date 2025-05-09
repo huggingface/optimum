@@ -1074,8 +1074,8 @@ class ORTModelForFeatureExtraction(ORTModel):
             input_features,
             input_values,
         ]
-        first_tensor = next((t for t in tensor_inputs if t is not None), None)
-        use_torch = isinstance(first_tensor, torch.Tensor) if first_tensor is not None else False
+        first_tensor = next(filter(lambda x: x is not None, tensor_inputs))
+        use_torch = isinstance(first_tensor, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
         if token_type_ids is None and "token_type_ids" in self.input_names:
