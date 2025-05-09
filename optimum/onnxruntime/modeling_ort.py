@@ -1059,11 +1059,20 @@ class ORTModelForFeatureExtraction(ORTModel):
         input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        **kwargs,
+        position_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        pixel_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_features: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
     ):
         # Determine the tensor type from any available tensor input
-        tensor_inputs = [input_ids, attention_mask, token_type_ids] + [
-            v for k, v in kwargs.items() if isinstance(v, (torch.Tensor, np.ndarray))
+        tensor_inputs = [
+            input_ids,
+            attention_mask,
+            token_type_ids,
+            position_ids,
+            pixel_values,
+            input_features,
+            input_values,
         ]
         first_tensor = next((t for t in tensor_inputs if t is not None), None)
         use_torch = isinstance(first_tensor, torch.Tensor) if first_tensor is not None else False
@@ -1074,20 +1083,14 @@ class ORTModelForFeatureExtraction(ORTModel):
 
         # Build model_inputs dictionary
         model_inputs = {
-            k: v
-            for k, v in {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-                "token_type_ids": token_type_ids,
-                **kwargs,
-            }.items()
-            if k in self.input_names and v is not None
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+            "position_ids": position_ids,
+            "pixel_values": pixel_values,
+            "input_features": input_features,
+            "input_values": input_values,
         }
-
-        # Validate that we have all required inputs
-        for input_name in self.input_names:
-            if input_name not in model_inputs:
-                raise ValueError(f"Input {input_name} is required by model but not provided.")
 
         if self.use_io_binding:
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
