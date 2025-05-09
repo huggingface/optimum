@@ -2695,3 +2695,65 @@ class RTDetrOnnxConfig(ViTOnnxConfig):
 
 class RTDetrV2OnnxConfig(RTDetrOnnxConfig):
     pass
+
+
+class ColPaliOnnxConfig(GemmaOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyVisionInputGenerator)
+    NORMALIZED_CONFIG_CLASS = NormalizedTextAndVisionConfig.with_args(
+        allow_new=True,
+        text_config="text_config",
+        vision_config="vlm_config.vision_config",
+        vlm_config="vlm_config",
+    )
+    ATOL_FOR_VALIDATION = 1e-4
+
+    VARIANTS = {
+        "vision": "Embedding extraction for image.",
+        "text": "Embedding extraction for text.",
+    }
+    DEFAULT_VARIANT = "vision"
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        dynamic_axis = {0: "batch_size", 1: "sequence_length"}
+        if self.variant == "vision":
+            return {
+                "input_ids": dynamic_axis,
+                "attention_mask": dynamic_axis,
+                "pixel_values": {0: "batch_size"},
+            }
+        else:
+            return {
+                "input_ids": dynamic_axis,
+                "attention_mask": dynamic_axis,
+            }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "embeddings": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        _, generator_image = self._create_dummy_input_generator_classes(**kwargs)
+
+        if self.variant == "vision":
+            image_token_index = self._normalized_config.vlm_config.image_token_index
+            num_image_tokens = self._normalized_config.vision_config.num_image_tokens
+            if "sequence_length" in kwargs:
+                kwargs["sequence_length"] += num_image_tokens
+            else:
+                kwargs["sequence_length"] = DEFAULT_DUMMY_SHAPES["sequence_length"] + num_image_tokens
+
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
+
+        if framework == "pt":
+            if self.variant == "vision":
+                dummy_inputs["input_ids"][:, :num_image_tokens] = image_token_index
+                dummy_inputs["pixel_values"] = generator_image.generate(
+                    input_name="pixel_values",
+                    framework=framework,
+                    int_dtype=self.int_dtype,
+                    float_dtype=self.float_dtype,
+                )
+        return dummy_inputs
