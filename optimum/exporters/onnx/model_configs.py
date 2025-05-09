@@ -1106,6 +1106,7 @@ class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
 
 class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
+    DEFAULT_ONNX_OPSET = 14 # scaled_dot_product_attention support was added in opset 14
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1129,6 +1130,7 @@ class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
 
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
+    DEFAULT_ONNX_OPSET = 14 # scaled_dot_product_attention support was added in opset 14
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
