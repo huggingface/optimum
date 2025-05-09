@@ -64,7 +64,7 @@ from ..utils import (
     ONNX_WEIGHTS_NAME,
     is_diffusers_version,
 )
-from .base import ORTSessionMixin, ORTSessionsWrapper
+from .base import ORTParentMixin, ORTSessionMixin
 from .utils import np_to_pt_generators, prepare_providers_and_provider_options
 
 
@@ -78,7 +78,7 @@ logger = logging.getLogger(__name__)
 
 
 # TODO: support from_pipe()
-class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
+class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
     config_name = DIFFUSION_PIPELINE_CONFIG_FILE_NAME
 
     task = "auto"
@@ -89,13 +89,13 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
         self,
         scheduler: "SchedulerMixin",
         # optional pipeline models
-        unet_session: Optional[InferenceSession] = None,
-        transformer_session: Optional[InferenceSession] = None,
-        vae_decoder_session: Optional[InferenceSession] = None,
-        vae_encoder_session: Optional[InferenceSession] = None,
-        text_encoder_session: Optional[InferenceSession] = None,
-        text_encoder_2_session: Optional[InferenceSession] = None,
-        text_encoder_3_session: Optional[InferenceSession] = None,
+        unet_session: Optional["InferenceSession"] = None,
+        transformer_session: Optional["InferenceSession"] = None,
+        vae_decoder_session: Optional["InferenceSession"] = None,
+        vae_encoder_session: Optional["InferenceSession"] = None,
+        text_encoder_session: Optional["InferenceSession"] = None,
+        text_encoder_2_session: Optional["InferenceSession"] = None,
+        text_encoder_3_session: Optional["InferenceSession"] = None,
         # optional pipeline submodels
         tokenizer: Optional["CLIPTokenizer"] = None,
         tokenizer_2: Optional["CLIPTokenizer"] = None,
@@ -137,9 +137,9 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
 
         # We register ort session mixins to the wrapper
         super().initialize_ort_attributes(
-            sessions=list(
+            parts=list(
                 filter(
-                    lambda x: x is not None,
+                    None,
                     {
                         self.unet,
                         self.transformer,
@@ -230,7 +230,7 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
         """
 
         for component in self.components.values():
-            if isinstance(component, (ORTSessionMixin, ORTSessionsWrapper)):
+            if isinstance(component, (ORTSessionMixin, ORTParentMixin)):
                 component.to(device)
 
         return self
@@ -252,7 +252,7 @@ class ORTDiffusionPipeline(ORTSessionsWrapper, DiffusionPipeline):
         **kwargs,
     ):
         """
-        Instantiates a [`ORTDiffusionPipeline`] fwith ONNX Runtime sessions from a pretrained model.
+        Instantiates a [`ORTDiffusionPipeline`] with ONNX Runtime sessions from a pretrained model.
         This method can be used to load a model from the Hugging Face Hub or from a local directory.
 
         Args:
@@ -825,10 +825,12 @@ class ORTVaeDecoder(ORTModelMixin):
         return ModelOutput(**model_outputs)
 
 
-class ORTVae(ORTSessionsWrapper):
+class ORTVae(ORTParentMixin):
     def __init__(self, encoder: Optional[ORTVaeEncoder] = None, decoder: Optional[ORTVaeDecoder] = None):
-        self.initialize_ort_attributes(sessions=list(filter(lambda x: x is not None, {encoder, decoder})))
-        self.encoder, self.decoder = encoder, decoder
+        self.encoder = encoder
+        self.decoder = decoder
+
+        self.initialize_ort_attributes(parts=list(filter(None, {self.encoder, self.decoder})))
 
     def decode(self, *args, **kwargs):
         return self.decoder(*args, **kwargs)

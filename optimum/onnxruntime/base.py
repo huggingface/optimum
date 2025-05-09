@@ -42,7 +42,7 @@ NON_EMPTY_TENSOR = torch.tensor(0)
 
 class ORTSessionMixin:
     """
-    Mixin class that provides common functionalities for ONNX Runtime sessions.
+    Mixin class that provides common functionalities for an ONNX Runtime session.
     This class is used to manage the session, the execution provider, and the IO binding.
     It also provides methods to prepare the inputs and outputs for ONNX Runtime.
     """
@@ -493,76 +493,76 @@ class ORTSessionMixin:
             shutil.copy(src_path, dst_path)
 
 
-class ORTSessionsWrapper:
+class ORTParentMixin:
     """
-    Wrapper class for multiple ORTSessionMixin instances. This class allows to combine multiple sessions into
-    a single wrapper. It is useful for pipelines/models that require multiple sessions to work together, such
+    Wrapper class for multiple ORTSessionMixin instances. This class allows to combine multiple parts into
+    a single wrapper. It is useful for pipelines/models that require multiple parts to work together, such
     as diffusion pipelines or encoder-decoder models, as it provides a unified interface for inference.
     """
 
-    def initialize_ort_attributes(self, sessions: List[ORTSessionMixin]):
+    def initialize_ort_attributes(self, parts: List[ORTSessionMixin]):
         """
-        Initializes the ORTSessionsWrapper class.
+        Initializes the ORTParentMixin class.
         Args:
-            sessions (`List[ORTSessionMixin]`):
+            parts (`List[ORTSessionMixin]`):
                 List of ORTSessionMixin instances to wrap.
         """
 
-        if len(sessions) < 1:
-            raise ValueError("ORTSessionsWrapper should be initialized with at least one session.")
+        if len(parts) < 1:
+            raise ValueError("ORTParentMixin should be initialized with at least one part.")
 
-        if any(not isinstance(model, ORTSessionMixin) for model in sessions):
-            raise ValueError("All sessions passed to ORTSessionsWrapper should be ORTSessionMixin instances.")
+        if any(not isinstance(model, ORTSessionMixin) for model in parts):
+            raise ValueError("All parts passed to ORTParentMixin should be ORTSessionMixin instances.")
 
-        self.sessions = sessions
+        self.parts = parts
 
     @property
     def providers(self):
         """
         Returns a list of Execution Providers registered with the session.
         """
-        if not all(model.providers == self.sessions[0].providers for model in self.sessions):
+        if not all(model.providers == self.parts[0].providers for model in self.parts):
             logger.warning(
-                "Calling `ORTSessionsWrapper.providers` when the underlying sessions have different values "
+                "Calling `ORTParentMixin.providers` when the underlying parts have different values "
                 "for `providers` is not recommended. The value of the first session will be returned. "
             )
-        return self.sessions[0].providers
+        return self.parts[0].providers
 
     @property
     def provider(self):
         """
         Returns the main Execution Provider registered with the session.
         """
-        if not all(model.provider == self.sessions[0].provider for model in self.sessions):
+        if not all(model.provider == self.parts[0].provider for model in self.parts):
             logger.warning(
-                "Calling `ORTSessionsWrapper.provider` when the underlying sessions have different values "
+                "Calling `ORTParentMixin.provider` when the underlying parts have different values "
                 "for `provider` is not recommended. The value of the first session will be returned. "
             )
-        return self.sessions[0].provider
+        return self.parts[0].provider
 
     @property
     def provider_options(self):
         """
         Returns a dictionary of Execution Providers configurations/options.
         """
-        if not all(model.provider_options == self.sessions[0].provider_options for model in self.sessions):
+        if not all(model.provider_options == self.parts[0].provider_options for model in self.parts):
             logger.warning(
-                "Calling `ORTSessionsWrapper.provider_options` when the underlying sessions have different values "
+                "Calling `ORTParentMixin.provider_options` when the underlying parts have different values "
                 "for `provider_options` is not recommended. The value of the first session will be returned. "
             )
-        return self.sessions[0].provider_options
+        return self.parts[0].provider_options
 
     @property
     def provider_option(self):
         """
         Returns the configuration/options of the main Execution Provider.
         """
-        if not all(model.provider_option == self.sessions[0].provider_option for model in self.sessions):
+        if not all(model.provider_option == self.parts[0].provider_option for model in self.parts):
             logger.warning(
-                "Calling `ORTSessionsWrapper.provider_option` when the underlying sessions have different values "
+                "Calling `ORTParentMixin.provider_option` when the underlying parts have different values "
                 "for `provider_option` is not recommended. The value of the first session will be returned. "
             )
-        return self.sessions[0].provider_option
+        return self.parts[0].provider_option
 
     @property
     def device(self):
@@ -570,12 +570,12 @@ class ORTSessionsWrapper:
         Returns the `torch.device` associated with the ONNX Runtime session.
         This device is inferred from the provider and provider options.
         """
-        if not all(model.device == self.sessions[0].device for model in self.sessions):
+        if not all(model.device == self.parts[0].device for model in self.parts):
             logger.warning(
-                "Calling `ORTSessionsWrapper.device` when the underlying sessions have different values "
+                "Calling `ORTParentMixin.device` when the underlying parts have different values "
                 "for `device` is not recommended. The value of the first session will be returned. "
             )
-        return self.sessions[0].device
+        return self.parts[0].device
 
     @property
     def dtype(self):
@@ -584,46 +584,46 @@ class ORTSessionsWrapper:
         This dtype is inferred from the input/output dtypes of the session.
         If no floating point type is found, it defaults to `torch.float32`.
         """
-        if not all(model.dtype == self.sessions[0].dtype for model in self.sessions):
+        if not all(model.dtype == self.parts[0].dtype for model in self.parts):
             logger.warning(
-                "Calling `ORTSessionsWrapper.dtype` when the underlying sessions have different values "
+                "Calling `ORTParentMixin.dtype` when the underlying parts have different values "
                 "for `dtype` is not recommended. The value of the first session will be returned. "
             )
-        return self.sessions[0].dtype
+        return self.parts[0].dtype
 
     @property
     def use_io_binding(self):
         """
         Returns whether IO Binding is used or not.
         """
-        if not all(model.use_io_binding == self.sessions[0].use_io_binding for model in self.sessions):
+        if not all(model.use_io_binding == self.parts[0].use_io_binding for model in self.parts):
             logger.warning(
-                "Calling `ORTSessionsWrapper.use_io_binding` when the underlying sessions have different values "
+                "Calling `ORTParentMixin.use_io_binding` when the underlying parts have different values "
                 "for `use_io_binding` is not recommended. The value of the first session will be returned. "
             )
-        return self.sessions[0].use_io_binding
+        return self.parts[0].use_io_binding
 
     @use_io_binding.setter
     def use_io_binding(self, value: bool):
         """
         Setter for the use_io_binding property.
         """
-        for model in self.sessions:
+        for model in self.parts:
             model.use_io_binding = value
 
     def to(self, *args, **kwargs):
         """
-        Moves all sessions to the specified device by updating the execution provider and its options.
+        Moves all parts to the specified device by updating the execution provider and its options.
         Args:
             device (`str`, `int`, `torch.device`):
                 The device to move the session to. It can be a string (e.g., "cuda", "cpu"), an integer (e.g., 0 for GPU 0),
                 or a `torch.device` object.
         Returns:
-            `ORTSessionsWrapper`: The updated session.
+            `ORTParentMixin`: The updated session.
         Raises:
             ValueError: If the device is not supported or if the provider is not available.
         """
-        for model in self.sessions:
+        for model in self.parts:
             model.to(*args, **kwargs)
 
         return self
