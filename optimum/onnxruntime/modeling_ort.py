@@ -1061,17 +1061,33 @@ class ORTModelForFeatureExtraction(ORTModel):
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
-        use_torch = isinstance(input_ids, torch.Tensor)
+        # Determine the tensor type from any available tensor input
+        tensor_inputs = [input_ids, attention_mask, token_type_ids] + [
+            v for k, v in kwargs.items() if isinstance(v, (torch.Tensor, np.ndarray))
+        ]
+        first_tensor = next((t for t in tensor_inputs if t is not None), None)
+        use_torch = isinstance(first_tensor, torch.Tensor) if first_tensor is not None else False
         self.raise_on_numpy_input_io_binding(use_torch)
 
         if token_type_ids is None and "token_type_ids" in self.input_names:
             token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
+        # Build model_inputs dictionary
         model_inputs = {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "token_type_ids": token_type_ids,
+            k: v
+            for k, v in {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "token_type_ids": token_type_ids,
+                **kwargs,
+            }.items()
+            if k in self.input_names and v is not None
         }
+
+        # Validate that we have all required inputs
+        for input_name in self.input_names:
+            if input_name not in model_inputs:
+                raise ValueError(f"Input {input_name} is required by model but not provided.")
 
         if self.use_io_binding:
             io_binding, output_shapes, output_buffers = self._prepare_io_binding(self.model, model_inputs)
