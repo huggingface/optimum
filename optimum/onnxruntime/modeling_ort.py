@@ -1059,18 +1059,37 @@ class ORTModelForFeatureExtraction(ORTModel):
         input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        **kwargs,
+        position_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        pixel_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_features: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
     ):
-        use_torch = isinstance(input_ids, torch.Tensor)
+        # Determine the tensor type from any available tensor input
+        tensor_inputs = [
+            input_ids,
+            attention_mask,
+            token_type_ids,
+            position_ids,
+            pixel_values,
+            input_features,
+            input_values,
+        ]
+        first_tensor = next(filter(lambda x: x is not None, tensor_inputs))
+        use_torch = isinstance(first_tensor, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
         if token_type_ids is None and "token_type_ids" in self.input_names:
             token_type_ids = torch.zeros_like(input_ids) if use_torch else np.zeros_like(input_ids)
 
+        # Build model_inputs dictionary
         model_inputs = {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
             "token_type_ids": token_type_ids,
+            "position_ids": position_ids,
+            "pixel_values": pixel_values,
+            "input_features": input_features,
+            "input_values": input_values,
         }
 
         if self.use_io_binding:
