@@ -25,7 +25,12 @@ from transformers.utils import is_torch_available
 
 from ...commands.export.onnx import parse_args_onnx
 from ...utils import DEFAULT_DUMMY_SHAPES, logging
-from ...utils.import_utils import is_sentence_transformers_available, is_transformers_version
+from ...utils.import_utils import (
+    is_diffusers_available,
+    is_sentence_transformers_available,
+    is_timm_available,
+    is_transformers_version,
+)
 from ...utils.save_utils import maybe_load_preprocessors
 from ..tasks import TasksManager
 from ..utils import DisableCompileContextManager
@@ -220,10 +225,27 @@ def main_export(
             " and passing it is not required anymore."
         )
 
-    if task in ["stable-diffusion", "stable-diffusion-xl"]:
+    if task in ["stable-diffusion", "stable-diffusion-xl", "latent-consistency"]:
         logger.warning(
             f"The task `{task}` is deprecated and will be removed in a future release of Optimum. "
             "Please use one of the following tasks instead: `text-to-image`, `image-to-image`, `inpainting`."
+        )
+
+    if library_name == "sentence_transformers" and not is_sentence_transformers_available():
+        raise ImportError(
+            "The library `sentence_transformers` was specified, but it is not installed. "
+            "Please install it with `pip install sentence-transformers`."
+        )
+
+    if library_name == "diffusers" and not is_diffusers_available():
+        raise ImportError(
+            "The library `diffusers` was specified, but it is not installed. "
+            "Please install it with `pip install diffusers`."
+        )
+
+    if library_name == "timm" and not is_timm_available():
+        raise ImportError(
+            "The library `timm` was specified, but it is not installed. Please install it with `pip install timm`."
         )
 
     original_task = task
@@ -238,6 +260,22 @@ def main_export(
         library_name = TasksManager.infer_library_from_model(
             model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
         )
+        if library_name == "sentence_transformers" and not is_sentence_transformers_available():
+            logger.warning(
+                "The library name was inferred as `sentence_transformers`, which is not installed. "
+                "Falling back to `transformers` to avoid breaking the export."
+            )
+            library_name = "transformers"
+        elif library_name == "timm" and not is_timm_available():
+            raise ImportError(
+                "The library name was inferred as `timm`, which is not installed. "
+                "Please install it with `pip install timm`."
+            )
+        elif library_name == "diffusers" and not is_diffusers_available():
+            raise ImportError(
+                "The library name was inferred as `diffusers`, which is not installed. "
+                "Please install it with `pip install diffusers`."
+            )
 
     torch_dtype = None
     if framework == "pt":
@@ -272,17 +310,6 @@ def main_export(
                 f"The task could not be automatically inferred as this is available only for models hosted on the Hugging Face Hub. Please provide the argument --task with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
-    if (
-        task == "feature-extraction"
-        and library_name == "sentence_transformers"
-        and not is_sentence_transformers_available()
-    ):
-        logger.warning(
-            "The library name was inferred as `sentence_transformers` with the task `feature-extraction`, "
-            "but the library is not installed. Defaulting to `transformers` to avoid breaking the export."
-        )
-        library_name = "transformers"
-
     custom_architecture = False
     loading_kwargs = {}
     if library_name == "transformers":
@@ -314,8 +341,9 @@ def main_export(
                 f"Asked to export a {model_type} model for the task {task}{autodetected_message}, but the Optimum ONNX exporter only supports the tasks {', '.join(model_tasks.keys())} for {model_type}. Please use a supported task. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the task {task} to be supported in the ONNX export for {model_type}."
             )
 
-        # TODO: Fix in Transformers so that SdpaAttention class can be exported to ONNX. `attn_implementation` is introduced in Transformers 4.36.
-        if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and is_transformers_version(">=", "4.35.99"):
+        # TODO: Fix in Transformers so that SdpaAttention class can be exported to ONNX.
+        # This was fixed in transformers 4.42.0, we can remve it when minimum transformers version is updated to 4.42
+        if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and is_transformers_version("<", "4.42"):
             loading_kwargs["attn_implementation"] = "eager"
 
     with DisableCompileContextManager():
