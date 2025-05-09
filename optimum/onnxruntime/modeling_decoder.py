@@ -132,24 +132,61 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     def __init__(
         self,
-        config: "PretrainedConfig",
-        session: "InferenceSession",
+        *args,
+        config: "PretrainedConfig" = None,
+        session: "InferenceSession" = None,
         use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         generation_config: Optional["GenerationConfig"] = None,
+        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         use_cache: Optional[bool] = None,
         **kwargs,
     ):
-        super().__init__(
-            config=config,
-            session=session,
-            use_io_binding=use_io_binding,
-            model_save_dir=model_save_dir,
-            **kwargs,
-        )
+        # DEPRECATED BEHAVIOR
+        if args:
+            logger.warning(
+                "Instantiating an ORTModelForCausalLM with positional arguments is deprecated and will be removed in the next version. "
+                "Please use the keywords arguments {config, session, use_io_binding, generation_config, model_save_dir, use_cache} instead."
+            )
+            # the old signature is ORTModelForCausalLM(model, config, use_io_binding, model_save_dir, preprocessors, generation_config, use_cache)
+            session = args[0]
+            if len(args) > 1:
+                config = args[1]
+            if len(args) > 2:
+                use_io_binding = args[2]
+            if len(args) > 3:
+                model_save_dir = args[3]
+            if len(args) > 4:
+                _ = args[4]
+            if len(args) > 5:
+                generation_config = args[5]
+            if len(args) > 6:
+                use_cache = args[6]
+
+        if kwargs.get("model", None) is not None:
+            logger.warning(
+                "Passing the inference session as `model` argument to an ORTModelForCausalLM is deprecated. Please use `session` instead."
+            )
+            session = kwargs.pop("model")
+        if kwargs:
+            logger.warning(
+                f"Some keyword arguments were passed to the ORTModelForCausalLM constructor that are not part of its signature: {', '.join(kwargs.keys())}. "
+                "These arguments will be ignored in the current version and will raise an error in the next version."
+            )
+
+        if config is None:
+            raise ValueError(
+                "The parameter config is required. Please pass a config or use the from_pretrained method."
+            )
+        if session is None:
+            raise ValueError(
+                "The parameter session is required. Please pass a session or use the from_pretrained method."
+            )
+        ## END OF DEPRECATED BEHAVIOR
+
+        super().__init__(config=config, session=session, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
 
         # Reference: https://github.com/huggingface/optimum/pull/1381
-        model_type = config.model_type.replace("_", "-")
+        model_type = self.config.model_type.replace("_", "-")
         if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.input_names:
             logger.warning(
                 f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although this input is required for batched generation for the architecture {model_type}. "
@@ -168,12 +205,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 f"Please load your current model with `use_cache={self.use_cache}` or export the original model "
                 f"once again with `use_cache={use_cache}` when calling the `from_pretrained` method. "
                 "To export your model, simply set `export=True`."
-            )
-
-        if use_io_binding and not use_cache:
-            raise ValueError(
-                "The parameters combination use_cache=False, use_io_binding=True is not supported. "
-                "Please either pass use_cache=True, use_io_binding=True (default), or use_cache=False, use_io_binding=False."
             )
 
         self.generation_config = generation_config or GenerationConfig.from_model_config(config)

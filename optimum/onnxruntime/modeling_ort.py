@@ -151,23 +151,51 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
 
     def __init__(
         self,
-        config: "PretrainedConfig",
-        session: "InferenceSession",
+        *args,
+        config: "PretrainedConfig" = None,
+        session: "InferenceSession" = None,
         use_io_binding: Optional[bool] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
+        # DEPRECATED BEHAVIOR
+        if args:
+            logger.warning(
+                "Instantiating an ORTModel with positional arguments is deprecated and will be removed in the next version. "
+                "Please use the keywords {config, session, use_io_binding, model_save_dir} instead."
+            )
+            # old signature is ORTModel(model, config, use_io_binding, model_save_dir, preprocessors)
+            session = args[0]
+            if len(args) > 1:
+                config = args[1]
+            if len(args) > 2:
+                use_io_binding = args[2]
+            if len(args) > 3:
+                model_save_dir = args[3]
+            if len(args) > 4:
+                _ = args[4]
+
         if kwargs.get("model", None) is not None:
             logger.warning(
                 "Passing the inference session as `model` argument to an ORTModel is deprecated. "
                 "Please use `session` instead."
             )
             session = kwargs.pop("model")
-
         if kwargs:
             logger.warning(
-                f"Some arguments were passed to the ORTModel constructor that are not used: {', '.join(kwargs.keys())}"
+                f"Some keyword arguments were passed to the ORTModel constructor that are not part of its signature: {', '.join(kwargs.keys())}. "
+                "These arguments will be ignored in the current version and will raise an error in the next version."
             )
+
+        if config is None:
+            raise ValueError(
+                "The parameter config is required. Please pass a config or use the from_pretrained method."
+            )
+        if session is None:
+            raise ValueError(
+                "The parameter session is required. Please pass a session or use the from_pretrained method."
+            )
+        ## END OF DEPRECATED BEHAVIOR
 
         super().__init__(model=session, config=config)
         self.initialize_ort_attributes(session=session, use_io_binding=use_io_binding)

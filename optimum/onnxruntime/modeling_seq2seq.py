@@ -24,7 +24,6 @@ import torch
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import (
     AutoConfig,
-    AutoModel,
     AutoModelForSeq2SeqLM,
     AutoModelForSpeechSeq2Seq,
     AutoModelForVision2Seq,
@@ -46,7 +45,7 @@ from ..utils import NormalizedConfigManager, is_transformers_version
 from ..utils.file_utils import validate_file_exists
 from ..utils.logging import get_logger, warn_once
 from ..utils.save_utils import maybe_save_preprocessors
-from .base import ORTSessionMixin, ORTSessionsWrapper
+from .base import ORTParentMixin, ORTSessionMixin
 from .constants import (
     DECODER_MERGED_ONNX_FILE_PATTERN,
     DECODER_ONNX_FILE_PATTERN,
@@ -349,7 +348,6 @@ class ORTEncoder(ORTSessionMixin):
         use_io_binding: Optional[bool] = None,
     ):
         self.initialize_ort_attributes(session, use_io_binding)
-
         config = parent_model.config.encoder if hasattr(parent_model.config, "encoder") else parent_model.config
         self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
 
@@ -831,7 +829,7 @@ class ORTEncoderForPix2Struct(ORTEncoder):
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
 
-class ORTModelForConditionalGeneration(ORTSessionsWrapper, ORTModel):
+class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
     """
     Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
 
@@ -866,9 +864,6 @@ class ORTModelForConditionalGeneration(ORTSessionsWrapper, ORTModel):
 
     """
 
-    model_type = "onnx_model"
-    auto_model_class = AutoModel
-
     _supports_cache_class = False
 
     _ort_encoder_class = ORTEncoder
@@ -876,10 +871,11 @@ class ORTModelForConditionalGeneration(ORTSessionsWrapper, ORTModel):
 
     def __init__(
         self,
-        config: "PretrainedConfig",
-        encoder_session: "InferenceSession",
-        decoder_session: "InferenceSession",
-        decoder_with_past_session: Optional[InferenceSession],
+        *args,
+        config: "PretrainedConfig" = None,
+        encoder_session: "InferenceSession" = None,
+        decoder_session: "InferenceSession" = None,
+        decoder_with_past_session: Optional["InferenceSession"] = None,
         use_io_binding: Optional[bool] = None,
         generation_config: Optional["GenerationConfig"] = None,
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
@@ -894,23 +890,58 @@ class ORTModelForConditionalGeneration(ORTSessionsWrapper, ORTModel):
                 The ONNX Runtime inference session associated to the encoder.
             decoder_session (`InferenceSession`):
                 The ONNX Runtime inference session associated to the decoder.
-            decoder_with_past_session (`Optional[InferenceSession]`, *optional*):
+            decoder_with_past_session (`Optional[InferenceSession]`, *optional*, defaults to `None`):
                 The ONNX Runtime inference session associated to the decoder with past key values.
-            use_io_binding (`bool`, *optional*, defaults to `None`):
+            use_io_binding (``Optional[bool]`, *optional*, defaults to `None`):
                 Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
                 `True` if the device is CUDA, otherwise defaults to `False`.
-            generation_config (`Optional[GenerationConfig]`, defaults to `None`):
+            generation_config (`Optional[GenerationConfig]`, *optional*, defaults to `None`):
                 The generation configuration used by default when calling `generate()`.
                 Refer to https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationMixin.generate.
-            model_save_dir (`str`, *optional*, defaults to `""`):
+            model_save_dir (``Optional[Union[str, Path, TemporaryDirectory]]`, *optional*, defaults to `None`):
                 The directory under which the model exported to ONNX was saved.
         """
+
+        # DEPRECATED BEHAVIOR
+        if args:
+            logger.warning(
+                "Instantiating an ORTModelForConditionalGeneration with positional arguments is deprecated and will be removed in the next version. "
+                "Please use the keywords {config, encoder_session, decoder_session, decoder_with_past_session, use_cache, use_io_binding, model_save_dir} instead."
+            )
+            # old signature is ORTModelForConditionalGeneration(encoder_session, decoder_session, onnx_paths, decoder_with_past_session, use_cache, use_io_binding, model_save_dir)
+            encoder_session = args[0]
+            if len(args) > 1:
+                decoder_session = args[1]
+            if len(args) > 2:
+                _ = args[2]
+            if len(args) > 3:
+                decoder_with_past_session = args[3]
+            if len(args) > 4:
+                _ = args[4]
+            if len(args) > 5:
+                use_io_binding = args[5]
+            if len(args) > 6:
+                model_save_dir = args[6]
+
         if kwargs:
             logger.warning(
-                f"Some arguments were passed to the ORTModelForConditionalGeneration constructor but are not used: {list(kwargs.keys())}"
+                f"Some keyword arguments were passed to the ORTModelForConditionalGeneration constructor that are not part of its signature: {', '.join(kwargs.keys())}. "
+                "These arguments will be ignored in the current version and will raise an error in the next version."
             )
 
-        super(ORTModel, self).__init__(model=encoder_session, config=config)
+        if config is None:
+            raise ValueError(
+                "The parameter config is required. Please pass a config or use the from_pretrained method."
+            )
+        if encoder_session is None:
+            raise ValueError(
+                "The parameter encoder_session is required. Please pass an encoder_session or use the from_pretrained method."
+            )
+        if decoder_session is None:
+            raise ValueError(
+                "The parameter decoder_session is required. Please pass a decoder_session or use the from_pretrained method."
+            )
+        ## END OF DEPRECATED BEHAVIOR
 
         use_merged = "use_cache_branch" in [input.name for input in decoder_session.get_inputs()]
         use_cache = decoder_with_past_session is not None or use_merged
@@ -935,20 +966,21 @@ class ORTModelForConditionalGeneration(ORTSessionsWrapper, ORTModel):
                     "Please pass use_cache=True for decoder_with_past_session to be used."
                 )
 
-        self.use_cache = use_cache
         self.use_merged = use_merged
+        self.use_cache = use_cache
 
-        self.decoder_with_past = None
+        super(ORTModel, self).__init__(model=encoder_session, config=config)
+
         self.encoder = self._ort_encoder_class(encoder_session, self, use_io_binding=use_io_binding)
         self.decoder = self._ort_decoder_class(decoder_session, self, use_io_binding=use_io_binding)
+
+        self.decoder_with_past = None
         if self.use_cache is True and self.use_merged is False:
             self.decoder_with_past = self._ort_decoder_class(
                 decoder_with_past_session, self, use_io_binding=use_io_binding
             )
 
-        self.initialize_ort_attributes(
-            sessions=list(filter(lambda x: x is not None, [self.encoder, self.decoder, self.decoder_with_past])),
-        )
+        self.initialize_ort_attributes(parts=list(filter(None, {self.encoder, self.decoder, self.decoder_with_past})))
 
         self.generation_config = generation_config or GenerationConfig.from_model_config(config)
         if is_transformers_version(">=", "4.44.99"):
@@ -1254,8 +1286,8 @@ class ORTModelForConditionalGeneration(ORTSessionsWrapper, ORTModel):
             encoder_session=encoder_session,
             decoder_session=decoder_session,
             decoder_with_past_session=decoder_with_past_session,
-            generation_config=generation_config,
             use_io_binding=use_io_binding,
+            generation_config=generation_config,
             model_save_dir=model_save_dir,
         )
 
