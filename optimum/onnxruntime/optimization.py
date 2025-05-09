@@ -92,12 +92,12 @@ class ORTOptimizer:
             from_ortmodel = True
             if isinstance(model_or_path, ORTModelForConditionalGeneration):
                 onnx_model_path += [
-                    model_or_path.encoder_model_path,
-                    model_or_path.decoder_model_path,
+                    model_or_path.encoder.model_path,
+                    model_or_path.decoder.model_path,
                 ]
                 # Add the decoder with past key/values if present
                 if model_or_path.use_cache:
-                    onnx_model_path.append(model_or_path.decoder_with_past_model_path)
+                    onnx_model_path.append(model_or_path.decoder_with_past.model_path)
             elif isinstance(model_or_path, ORTModelForCausalLM) and model_or_path.use_merged:
                 raise NotImplementedError(
                     "ORTOptimizer does not support ORTModelForCausalLM models when without/with past models are merged. "
