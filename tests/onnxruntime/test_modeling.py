@@ -2280,6 +2280,141 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
 
+class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = ["vit", "dinov2"]
+
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    ORTMODEL_CLASS = ORTModelForFeatureExtraction
+    TASK = "feature-extraction"
+
+    def get_raw_input(self, model_arch):
+        image_url = "https://picsum.photos/id/237/200/300"
+        return Image.open(requests.get(image_url, stream=True).raw)
+
+    def get_input(self, model_arch, processor, return_tensors="pt"):
+        raw_input = self.get_raw_input(model_arch)
+        return processor(images=raw_input, return_tensors=return_tensors)
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_to_transformers(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForFeatureExtraction.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        transformers_model = AutoModel.from_pretrained(model_id)
+        processor = get_preprocessor(model_id)
+        inputs = self.get_input(model_arch, processor, return_tensors="pt")
+        with torch.no_grad():
+            transformers_outputs = transformers_model(**inputs)
+
+        for input_type in ["pt", "np"]:
+            inputs = self.get_input(model_arch, processor, return_tensors=input_type)
+            onnx_outputs = onnx_model(**inputs)
+
+            self.assertIn("last_hidden_state", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.last_hidden_state, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.last_hidden_state),
+                transformers_outputs.last_hidden_state,
+                atol=self.ATOL,
+                rtol=self.RTOL,
+            )
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_ort_model_inference(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForFeatureExtraction.from_pretrained(self.onnx_model_dirs[model_arch])
+        processor = get_preprocessor(model_id)
+        raw_input = self.get_raw_input(model_arch)
+        processed_inputs = processor(images=raw_input, return_tensors="pt")
+        outputs = onnx_model(**processed_inputs)
+
+        # Check device and output format
+        assert onnx_model.device.type == "cpu"
+        assert isinstance(outputs.last_hidden_state, torch.Tensor)
+        features = outputs.last_hidden_state.detach().cpu().numpy().tolist()
+        assert all(isinstance(item, float) for row in features for inner in row for item in inner)
+        gc.collect()
+
+    @parameterized.expand(
+        grid_parameters(
+            {"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}
+        )
+    )
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
+    @pytest.mark.trt_ep_test
+    def test_inference_on_gpu(self, test_name: str, model_arch: str, provider: str):
+        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
+            self.skipTest("testing a single arch for TensorrtExecutionProvider")
+
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForFeatureExtraction.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        processor = get_preprocessor(model_id)
+        raw_input = self.get_raw_input(model_arch)
+        processed_inputs = processor(images=raw_input, return_tensors="pt").to("cuda")
+        outputs = onnx_model(**processed_inputs)
+
+        # Check device and output format
+        assert onnx_model.device.type == "cuda"
+        assert isinstance(outputs.last_hidden_state, torch.Tensor)
+        features = outputs.last_hidden_state.detach().cpu().numpy().tolist()
+        assert all(isinstance(item, float) for row in features for inner in row for item in inner)
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @require_torch_gpu
+    @pytest.mark.cuda_ep_test
+    def test_compare_to_io_binding(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForFeatureExtraction.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
+        )
+        io_model = ORTModelForFeatureExtraction.from_pretrained(
+            self.onnx_model_dirs[model_arch], use_io_binding=True, provider="CUDAExecutionProvider"
+        )
+
+        self.assertFalse(onnx_model.use_io_binding)
+        self.assertTrue(io_model.use_io_binding)
+
+        processor = get_preprocessor(model_id)
+        raw_input = self.get_raw_input(model_arch)
+        tokens = processor(images=[raw_input, raw_input], return_tensors="pt").to("cuda")
+
+        onnx_outputs = onnx_model(**tokens)
+        io_outputs = io_model(**tokens)
+
+        self.assertTrue("last_hidden_state" in io_outputs)
+        self.assertIsInstance(io_outputs.last_hidden_state, torch.Tensor)
+
+        # compare tensor outputs
+        torch.testing.assert_close(
+            onnx_outputs.last_hidden_state, io_outputs.last_hidden_state, atol=self.ATOL, rtol=self.RTOL
+        )
+
+        gc.collect()
+
+
 class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
     # Multiple Choice tests are conducted on different models due to mismatch size in model's classifier
     SUPPORTED_ARCHITECTURES = [
