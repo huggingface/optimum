@@ -169,6 +169,11 @@ def parse_args_onnx(parser):
         action="store_true",
         help="PyTorch-only argument. Disables PyTorch ONNX export constant folding.",
     )
+    optional_group.add_argument(
+        "--simplify",
+        action="store_true",
+        help="Enables onnxslim optimization.",
+    )
 
     input_group = parser.add_argument_group(
         "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input)."
@@ -286,5 +291,6 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             no_dynamic_axes=self.args.no_dynamic_axes,
             model_kwargs=self.args.model_kwargs,
             do_constant_folding=not self.args.no_constant_folding,
+            simplify=self.args.simplify,
             **input_shapes,
         )
