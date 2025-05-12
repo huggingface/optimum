@@ -393,15 +393,7 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
-    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
-
-    def __init__(self, *args, **kwargs):
-        if is_transformers_version("==", "4.46.0"):
-            logger.error(
-                "Found transformers v4.46.0 while trying to exporting a Phi3 model, this specific version of transformers is not supported. "
-                "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
-            )
-        super().__init__(*args, **kwargs)
+    MIN_TRANSFORMERS_VERSION = version.parse("4.47.0")
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
