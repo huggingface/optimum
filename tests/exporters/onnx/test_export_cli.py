@@ -730,3 +730,50 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             model.save_pretrained(tmpdir_in)
 
             main_export(model_name_or_path=tmpdir_in, output=tmpdir_out, task="text-classification")
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
+    @require_torch_gpu
+    @require_vision
+    @slow
+    @pytest.mark.gpu_test
+    @pytest.mark.run_slow
+    def test_exporters_cli_pytorch_with_slim(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        # TODO: refer to https://github.com/pytorch/pytorch/issues/95377
+        if model_type == "yolos":
+            self.skipTest("Export on cuda device fails for yolos due to a bug in PyTorch")
+
+        # TODO: refer to https://github.com/pytorch/pytorch/issues/107591
+        if model_type == "sam":
+            self.skipTest("sam export on cuda is not supported due to a bug in PyTorch")
+
+        model_kwargs = None
+        if model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+
+        try:
+            self._onnx_export(
+                model_name,
+                task,
+                monolith,
+                no_post_process,
+                slim=True,
+                device="cuda",
+                variant=variant,
+                model_kwargs=model_kwargs,
+            )
+        except NotImplementedError as e:
+            if "Tried to use onnxslim for the model type" in str(
+                e
+            ) or "doesn't support the graph optimization" in str(e):
+                self.skipTest(f"unsupported model type in onnxslim: {model_type}")
+            else:
+                raise e
