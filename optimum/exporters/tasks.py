@@ -994,6 +994,7 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "text-classification",
+            "token-classification",
             onnx="Qwen2OnnxConfig",
         ),
         "llama": supported_tasks_mapping(
