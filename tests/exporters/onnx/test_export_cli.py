@@ -771,9 +771,9 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 model_kwargs=model_kwargs,
             )
         except NotImplementedError as e:
-            if "Tried to use onnxslim for the model type" in str(
+            if "Tried to use onnxslim for the model type" in str(e) or "doesn't support the graph optimization" in str(
                 e
-            ) or "doesn't support the graph optimization" in str(e):
+            ):
                 self.skipTest(f"unsupported model type in onnxslim: {model_type}")
             else:
                 raise e
