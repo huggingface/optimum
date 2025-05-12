@@ -30,8 +30,8 @@ from transformers.generation import GenerationMixin
 from transformers.modeling_utils import get_parameter_dtype
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...onnx.utils import _get_onnx_external_constants, _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...onnx.graph_transformations import check_and_save_model
+from ...onnx.utils import _get_onnx_external_constants, _get_onnx_external_data_tensors, check_model_uses_external_data
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
@@ -918,7 +918,7 @@ def onnx_export_from_model(
     task: Optional[str] = None,
     use_subprocess: bool = False,
     do_constant_folding: bool = True,
-    simplify: bool = False,
+    slim: bool = False,
     **kwargs_shapes,
 ):
     """
@@ -974,8 +974,8 @@ def onnx_export_from_model(
             If True, disables the use of dynamic axes during ONNX export.
         do_constant_folding (bool, defaults to `True`):
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
-        simplify (bool, defaults to `False`):
-            Use onnxslim to simplify the ONNX model.
+        slim (bool, defaults to `False`):
+            Use onnxslim to optimize the ONNX model.
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -1200,10 +1200,10 @@ def onnx_export_from_model(
         optimization_config.disable_shape_inference = True
         optimizer.optimize(save_dir=output, optimization_config=optimization_config, file_suffix="")
 
-    if simplify:
+    if slim:
         from onnxslim import slim
-        onnx_models = [os.path.join(output, x)
-                    for x in os.listdir(output) if x.endswith('.onnx')]
+
+        onnx_models = [os.path.join(output, x) for x in os.listdir(output) if x.endswith(".onnx")]
 
         for model in onnx_models:
             try:
