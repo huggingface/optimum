@@ -2549,10 +2549,13 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     # TODO: fix "mpt" for which inference fails for transformers < v4.41
     if is_transformers_version(">=", "4.41"):
-        SUPPORTED_ARCHITECTURES.extend(["phi3", "mpt"])
+        SUPPORTED_ARCHITECTURES.append("mpt")
 
     if is_transformers_version(">=", "4.45"):
         SUPPORTED_ARCHITECTURES.append("granite")
+
+    if is_transformers_version(">=", "4.50"):
+        SUPPORTED_ARCHITECTURES.append("phi3")
 
     FULL_GRID = {
         "model_arch": SUPPORTED_ARCHITECTURES,
