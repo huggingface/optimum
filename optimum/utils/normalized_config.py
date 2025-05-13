@@ -257,6 +257,7 @@ class NormalizedConfigManager:
         "gpt-neox": NormalizedTextConfig,
         "gptj": GPT2LikeNormalizedTextConfig,
         "imagegpt": GPT2LikeNormalizedTextConfig,
+        "internlm2": NormalizedTextConfigWithGQA,
         "llama": NormalizedTextConfigWithGQA,
         "longt5": T5LikeNormalizedTextConfig,
         "marian": BartLikeNormalizedTextConfig,

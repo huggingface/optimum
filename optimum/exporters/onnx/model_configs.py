@@ -404,6 +404,11 @@ class Phi3OnnxConfig(PhiOnnxConfig):
         super().__init__(*args, **kwargs)
 
 
+class InternLM2OnnxConfig(LlamaOnnxConfig):
+    ATOL_FOR_VALIDATION = 1e-4
+    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
+
+
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     # This is because of the patching of torch.triu in AttentionMaskConverter, that exists from transformers>=4.35
     MIN_TRANSFORMERS_VERSION = version.parse("4.34.99")
