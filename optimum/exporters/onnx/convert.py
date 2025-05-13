@@ -41,6 +41,7 @@ from ...utils import (
     is_transformers_version,
     logging,
     require_numpy_strictly_lower,
+    is_onnxslim_available,
 )
 from ...utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ...utils.save_utils import maybe_save_preprocessors
@@ -1201,6 +1202,9 @@ def onnx_export_from_model(
         optimizer.optimize(save_dir=output, optimization_config=optimization_config, file_suffix="")
 
     if slim:
+        if not is_onnxslim_available():
+            raise ImportError("The pip package `onnxslim` is required to optimize onnx models.")
+
         from onnxslim import slim
 
         onnx_models = [os.path.join(output, x) for x in os.listdir(output) if x.endswith(".onnx")]
