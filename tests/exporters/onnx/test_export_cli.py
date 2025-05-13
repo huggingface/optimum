@@ -237,7 +237,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     no_post_process=no_post_process,
                     _variant=variant,
                     no_dynamic_axes=True,
-                    slim=slim
+                    slim=slim,
                     model_kwargs=model_kwargs,
                     **input_shape,
                 )
