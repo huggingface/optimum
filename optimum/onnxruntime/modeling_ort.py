@@ -1063,7 +1063,17 @@ class ORTModelForFeatureExtraction(ORTModel):
         pixel_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
         input_features: Optional[Union[torch.Tensor, np.ndarray]] = None,
         input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            raise ValueError(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
+            )
+
         # Determine the tensor type from any available tensor input
         tensor_inputs = [
             input_ids,
@@ -1114,6 +1124,9 @@ class ORTModelForFeatureExtraction(ORTModel):
             else:
                 # TODO: This allows to support sentence-transformers models (sentence embedding), but is not validated.
                 last_hidden_state = next(iter(model_outputs.values()))
+
+        if return_dict:
+            return model_outputs
 
         # converts output to namedtuple for pipelines post-processing
         return BaseModelOutput(last_hidden_state=last_hidden_state)
