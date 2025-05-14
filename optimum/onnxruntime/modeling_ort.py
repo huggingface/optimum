@@ -1072,7 +1072,8 @@ class ORTModelForFeatureExtraction(ORTModel):
         if kwargs:
             logger.warning(
                 f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes arbitrary or custom tensor arguments."
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
             )
 
         # Determine the tensor type from any available tensor input
