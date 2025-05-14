@@ -1070,8 +1070,9 @@ class ORTModelForFeatureExtraction(ORTModel):
 
         # Raise error for any unexpected kwargs
         if kwargs:
-            raise ValueError(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not accept those arguments."
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes arbitrary or custom tensor arguments."
             )
 
         # Determine the tensor type from any available tensor input
