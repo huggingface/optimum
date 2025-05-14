@@ -1002,6 +1002,19 @@ class ORTModel(OptimizedModel):
         """
         return isinstance(self, GenerationMixin)
 
+    def _warn_on_unhandled_inputs(self, kwargs: Dict[str, Any]) -> None:
+        """Warn about unhandled input arguments.
+
+        Args:
+            kwargs: Dictionary of unhandled input arguments.
+        """
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
 
 FEATURE_EXTRACTION_EXAMPLE = r"""
     Example of feature extraction:
@@ -1068,13 +1081,8 @@ class ORTModelForFeatureExtraction(ORTModel):
         # Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         # Determine the tensor type from any available tensor input
         tensor_inputs = [
@@ -1248,13 +1256,8 @@ class ORTModelForMaskedLM(ORTModel):
         # Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -1356,13 +1359,8 @@ class ORTModelForQuestionAnswering(ORTModel):
         # Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -1477,13 +1475,8 @@ class ORTModelForSequenceClassification(ORTModel):
         # Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -1586,13 +1579,8 @@ class ORTModelForTokenClassification(ORTModel):
         # Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -1688,13 +1676,8 @@ class ORTModelForMultipleChoice(ORTModel):
         # Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -1797,13 +1780,8 @@ class ORTModelForImageClassification(ORTModel):
         # Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -1901,13 +1879,8 @@ class ORTModelForSemanticSegmentation(ORTModel):
         # Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -2035,13 +2008,8 @@ class ORTModelForAudioClassification(ORTModel):
         # Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         if self.input_name == "input_features":
             assert input_features is not None, "input_features must be provided for this model"
@@ -2137,13 +2105,8 @@ class ORTModelForCTC(ORTModel):
         # Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -2247,13 +2210,8 @@ class ORTModelForAudioXVector(ORTModel):
         # Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -2342,13 +2300,8 @@ class ORTModelForAudioFrameClassification(ORTModel):
         # Handle return_dict from kwargs with default value False# Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -2416,13 +2369,8 @@ class ORTModelForImageToImage(ORTModel):
         # Handle return_dict from kwargs with default value False
         return_dict = kwargs.pop("return_dict", False)
 
-        # Raise error for any unexpected kwargs
-        if kwargs:
-            logger.warning(
-                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
-                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
-                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
-            )
+        # Warn about any unexpected kwargs using the helper method
+        self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
