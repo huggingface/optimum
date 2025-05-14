@@ -1245,6 +1245,17 @@ class ORTModelForMaskedLM(ORTModel):
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1275,6 +1286,9 @@ class ORTModelForMaskedLM(ORTModel):
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
+
+        if return_dict:
+            return model_outputs
 
         # converts output to namedtuple for pipelines post-processing
         return MaskedLMOutput(logits=logits)
@@ -1339,6 +1353,17 @@ class ORTModelForQuestionAnswering(ORTModel):
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1367,6 +1392,9 @@ class ORTModelForQuestionAnswering(ORTModel):
 
             start_logits = model_outputs["start_logits"]
             end_logits = model_outputs["end_logits"]
+
+        if return_dict:
+            return model_outputs
 
         # converts output to namedtuple for pipelines post-processing
         return QuestionAnsweringModelOutput(start_logits=start_logits, end_logits=end_logits)
@@ -1446,6 +1474,17 @@ class ORTModelForSequenceClassification(ORTModel):
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1476,6 +1515,9 @@ class ORTModelForSequenceClassification(ORTModel):
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
+
+        if return_dict:
+            return model_outputs
 
         # converts output to namedtuple for pipelines post-processing
         return SequenceClassifierOutput(logits=logits)
@@ -1541,6 +1583,17 @@ class ORTModelForTokenClassification(ORTModel):
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1571,6 +1624,9 @@ class ORTModelForTokenClassification(ORTModel):
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
+
+        if return_dict:
+            return model_outputs
 
         return TokenClassifierOutput(logits=logits)
 
@@ -1629,6 +1685,17 @@ class ORTModelForMultipleChoice(ORTModel):
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1659,6 +1726,9 @@ class ORTModelForMultipleChoice(ORTModel):
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
+
+        if return_dict:
+            return model_outputs
 
         # converts output to namedtuple for pipelines post-processing
         return MultipleChoiceModelOutput(logits=logits)
@@ -1724,6 +1794,17 @@ class ORTModelForImageClassification(ORTModel):
         pixel_values: Union[torch.Tensor, np.ndarray],
         **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1749,6 +1830,9 @@ class ORTModelForImageClassification(ORTModel):
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
+
+        if return_dict:
+            return model_outputs
 
         # converts output to namedtuple for pipelines post-processing
         return ImageClassifierOutput(logits=logits)
@@ -1814,6 +1898,17 @@ class ORTModelForSemanticSegmentation(ORTModel):
         pixel_values: Union[torch.Tensor, np.ndarray],
         **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1839,6 +1934,9 @@ class ORTModelForSemanticSegmentation(ORTModel):
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
+
+        if return_dict:
+            return model_outputs
 
         # converts output to namedtuple for pipelines post-processing
         return SemanticSegmenterOutput(logits=logits)
@@ -1934,6 +2032,17 @@ class ORTModelForAudioClassification(ORTModel):
         input_features: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
         if self.input_name == "input_features":
             assert input_features is not None, "input_features must be provided for this model"
             model_input = input_features
@@ -1969,6 +2078,9 @@ class ORTModelForAudioClassification(ORTModel):
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
+
+        if return_dict:
+            return model_outputs
 
         # converts output to namedtuple for pipelines post-processing
         return SequenceClassifierOutput(logits=logits)
@@ -2022,6 +2134,17 @@ class ORTModelForCTC(ORTModel):
         input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -2057,6 +2180,9 @@ class ORTModelForCTC(ORTModel):
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
+
+        if return_dict:
+            return model_outputs
 
         # converts output to namedtuple for pipelines post-processing
         return CausalLMOutput(logits=logits)
@@ -2118,6 +2244,17 @@ class ORTModelForAudioXVector(ORTModel):
         input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -2146,6 +2283,9 @@ class ORTModelForAudioXVector(ORTModel):
 
             logits = model_outputs["logits"]
             embeddings = model_outputs["embeddings"]
+
+        if return_dict:
+            return model_outputs
 
         # converts output to namedtuple for pipelines post-processing
         return XVectorOutput(logits=logits, embeddings=embeddings)
@@ -2199,6 +2339,17 @@ class ORTModelForAudioFrameClassification(ORTModel):
         input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
         **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False# Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -2212,6 +2363,9 @@ class ORTModelForAudioFrameClassification(ORTModel):
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
+
+        if return_dict:
+            return model_outputs
 
         # converts output to namedtuple for pipelines post-processing
         return TokenClassifierOutput(logits=logits)
@@ -2259,6 +2413,17 @@ class ORTModelForImageToImage(ORTModel):
         pixel_values: Union[torch.Tensor, np.ndarray],
         **kwargs,
     ):
+        # Handle return_dict from kwargs with default value False
+        return_dict = kwargs.pop("return_dict", False)
+
+        # Raise error for any unexpected kwargs
+        if kwargs:
+            logger.warning(
+                f"{self.__class__.__name__} received {', '.join(kwargs.keys())}, but do not handle those arguments. "
+                "Please use `ORTModelForCustomTasks` if your model takes/returns arbitrary or custom tensor inputs/outputs. "
+                "Or open an issue/PR in optimum repository (https://github.com/huggingface/optimum) if this argument needs to be supported in this class."
+            )
+
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -2289,6 +2454,10 @@ class ORTModelForImageToImage(ORTModel):
             onnx_outputs = self.model.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
             reconstruction = model_outputs["reconstruction"]
+
+        if return_dict:
+            return model_outputs
+
         return ImageSuperResolutionOutput(reconstruction=reconstruction)
 
 
