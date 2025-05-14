@@ -37,11 +37,11 @@ from ...utils import (
     ONNX_WEIGHTS_NAME,
     TORCH_MINIMUM_VERSION,
     is_diffusers_available,
+    is_onnxslim_available,
     is_torch_onnx_support_available,
     is_transformers_version,
     logging,
     require_numpy_strictly_lower,
-    is_onnxslim_available,
 )
 from ...utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from ...utils.save_utils import maybe_save_preprocessors
