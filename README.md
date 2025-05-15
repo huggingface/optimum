@@ -14,33 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-<h1 align="center"> <p>🤗 Optimum</p></h1>
+<h1 align="center"><p>🤗 Optimum</p></h1>
 
 <p align="center">
-    <a href="https://github.com/huggingface/optimum/actions/workflows/test_exporters_onnx.yml"><img alt="Exporters ONNX" src="https://github.com/huggingface/optimum/actions/workflows/test_exporters_onnx.yml/badge.svg"/></a>
-    <a href="https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml"><img alt="ONNX Runtime" src="https://github.com/huggingface/optimum/actions/workflows/test_onnxruntime.yml/badge.svg"/></a>
-</p>
-<p align="center">
-    <a href="https://pypi.org/project/optimum/"><img alt="PyPI - License" src="https://img.shields.io/pypi/l/optimum"/></a>
-    <a href="https://pypi.org/project/optimum/"><img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/optimum"/></a>
-    <a href="https://pypi.org/project/optimum/"><img alt="PyPI - Version" src="https://img.shields.io/pypi/v/optimum"/></a>
-    <a href="https://pypi.org/project/optimum/"><img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/optimum"/></a>
-    <a href="https://huggingface.co/docs/optimum/index"><img alt="Documentation" src="https://img.shields.io/website/http/huggingface.co/docs/optimum/index.svg?down_color=red&down_message=offline&up_message=online"/></a>
+<a href="https://pypi.org/project/optimum/"><img alt="PyPI - License" src="https://img.shields.io/pypi/l/optimum"/></a>
+<a href="https://pypi.org/project/optimum/"><img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/optimum"/></a>
+<a href="https://pypi.org/project/optimum/"><img alt="PyPI - Version" src="https://img.shields.io/pypi/v/optimum"/></a>
+<a href="https://pypi.org/project/optimum/"><img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/optimum"/></a>
+<a href="https://huggingface.co/docs/optimum/index"><img alt="Documentation" src="https://img.shields.io/website/http/huggingface.co/docs/optimum/index.svg?down_color=red&down_message=offline&up_message=online"/></a>
 </p>
 
 <p align="center">
-🤗 Optimum is an extension of 🤗 Transformers 🤖 and Diffusers 🧨, providing a set of optimization tools enabling maximum efficiency to train and run models on targeted hardware, while keeping things easy to use.
+Optimum is an extension of Transformers 🤖 Diffusers 🧨 TIMM 🖼️ and Sentence-Transformers 🤗, providing a set of optimization tools and enabling maximum efficiency to train and run models on targeted hardware, while keeping things easy to use.
 </p>
 
 ## Installation
 
-🤗 Optimum can be installed using `pip` as follows:
+Optimum can be installed using `pip` as follows:
 
 ```bash
 python -m pip install optimum
 ```
 
-If you'd like to use the accelerator-specific features of 🤗 Optimum, you can check the documentation and install the required dependencies according to the table below:
+If you'd like to use the accelerator-specific features of Optimum, you can check the documentation and install the required dependencies according to the table below:
 
 | Accelerator                                                                         | Installation                                                                |
 | :---------------------------------------------------------------------------------- | :-------------------------------------------------------------------------- |
@@ -70,7 +66,7 @@ python -m pip install optimum[onnxruntime]@git+https://github.com/huggingface/op
 
 ## Accelerated Inference
 
-🤗 Optimum provides multiple tools to export and run optimized models on various ecosystems:
+Optimum provides multiple tools to export and run optimized models on various ecosystems:
 
 - [ONNX](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model) / [ONNX Runtime](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/models), one of the most popular open formats for model export, and a high-performance inference engine for deployment.
 - [OpenVINO](https://huggingface.co/docs/optimum/intel/inference), a toolkit for optimizing, quantizing and deploying deep learning models on Intel hardware.
@@ -90,7 +86,7 @@ Before you begin, make sure you have all the necessary libraries installed :
 pip install optimum[exporters,onnxruntime]
 ```
 
-It is possible to export 🤗 Transformers and Diffusers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily.
+It is possible to export Transformers and Diffusers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily.
 
 For more information on the ONNX export, please check the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model).
 
@@ -112,9 +108,9 @@ Before you begin, make sure you have all the necessary libraries installed :
 pip install optimum-executorch@git+https://github.com/huggingface/optimum-executorch.git
 ```
 
-Users can export 🤗 Transformers models to [ExecuTorch](https://github.com/pytorch/executorch) and run inference on edge devices within PyTorch's ecosystem.
+Users can export Transformers models to [ExecuTorch](https://github.com/pytorch/executorch) and run inference on edge devices within PyTorch's ecosystem.
 
-For more information about export 🤗 Transformers to ExecuTorch, please check the doc for [Optimum-ExecuTorch](https://huggingface.co/docs/optimum-executorch/guides/export).
+For more information about export Transformers to ExecuTorch, please check the doc for [Optimum-ExecuTorch](https://huggingface.co/docs/optimum-executorch/guides/export).
 
 ### TensorFlow Lite
 
@@ -135,7 +131,7 @@ You can see more details and [examples](https://github.com/huggingface/optimum-q
 
 ## Accelerated training
 
-🤗 Optimum provides wrappers around the original 🤗 Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer) to enable training on powerful hardware easily.
+Optimum provides wrappers around the original Transformers [Trainer](https://huggingface.co/docs/transformers/main_classes/trainer) to enable training on powerful hardware easily.
 We support many providers:
 
 - [Intel Gaudi Accelerators (HPU)](https://huggingface.co/docs/optimum/main/en/habana/usage_guides/accelerate_training) enabling optimal performance on first-gen Gaudi, Gaudi2 and Gaudi3.
