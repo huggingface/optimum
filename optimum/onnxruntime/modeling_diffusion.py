@@ -615,7 +615,7 @@ class ORTModelUnet(ORTPipelinePart):
     ):
         use_torch = isinstance(sample, torch.Tensor)
 
-        if len(self.input_shapes["timestep"]) > 0 and timestep is
+        if len(self.input_shapes["timestep"]) > 0:
             timestep = timestep.unsqueeze(0)
 
         model_inputs = {
