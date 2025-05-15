@@ -59,7 +59,7 @@ from transformers import (
     PretrainedConfig,
     set_seed,
 )
-from transformers.modeling_outputs import ImageSuperResolutionOutput
+from transformers.modeling_outputs import ImageSuperResolutionOutput, BaseModelOutput
 from transformers.modeling_utils import no_init_weights
 from transformers.models.swin2sr.configuration_swin2sr import Swin2SRConfig
 from transformers.onnx.utils import get_preprocessor
@@ -2138,10 +2138,17 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
         for input_type in ["pt", "np"]:
             tokens = tokenizer(text, return_tensors=input_type)
+            # Test default behavior (return_dict=False)
             onnx_outputs = onnx_model(**tokens)
-
+            self.assertIsInstance(onnx_outputs, BaseModelOutput)
             self.assertIn("last_hidden_state", onnx_outputs)
             self.assertIsInstance(onnx_outputs.last_hidden_state, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # Test return_dict=True
+            onnx_outputs_dict = onnx_model(**tokens, return_dict=True)
+            self.assertIsInstance(onnx_outputs_dict, dict)
+            self.assertIn("last_hidden_state", onnx_outputs_dict)
+            self.assertIsInstance(onnx_outputs_dict["last_hidden_state"], self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
             torch.testing.assert_close(
