@@ -49,7 +49,7 @@ If you'd like to use the accelerator-specific features of 🤗 Optimum, you can 
 | [NVIDIA TensorRT-LLM](https://huggingface.co/docs/optimum/main/en/nvidia_overview)  | `docker run -it --gpus all --ipc host huggingface/optimum-nvidia`           |
 | [AMD Instinct GPUs and Ryzen AI NPU](https://huggingface.co/docs/optimum/amd/index) | `pip install --upgrade --upgrade-strategy eager optimum[amd]`               |
 | [AWS Trainum & Inferentia](https://huggingface.co/docs/optimum-neuron/index)        | `pip install --upgrade --upgrade-strategy eager optimum[neuronx]`           |
-| [Intel Gaudi Accelerators (HPU)](https://huggingface.co/docs/optimum/habana/index)     | `pip install --upgrade --upgrade-strategy eager optimum[habana]`            |
+| [Intel Gaudi Accelerators (HPU)](https://huggingface.co/docs/optimum/habana/index)  | `pip install --upgrade --upgrade-strategy eager optimum[habana]`            |
 | [FuriosaAI](https://huggingface.co/docs/optimum/furiosa/index)                      | `pip install --upgrade --upgrade-strategy eager optimum[furiosa]`           |
 
 The `--upgrade --upgrade-strategy eager` option is needed to ensure the different packages are upgraded to the latest possible version.
@@ -162,10 +162,10 @@ You can find examples in the [documentation](https://huggingface.co/docs/optimum
 
 ### ONNX Runtime
 
-```bashyou begin, make sure you have all the necessary libraries installed :
-pip install optimum[onnxruntime-training]
+Before you begin, make sure you have all the necessary libraries installed :
+
 ```bash
 pip install optimum[onnxruntime-training]
-You can find examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).
+```
 
 You can find examples in the [documentation](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/trainer) and in the [examples](https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/training).
