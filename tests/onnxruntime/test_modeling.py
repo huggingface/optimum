@@ -59,7 +59,7 @@ from transformers import (
     PretrainedConfig,
     set_seed,
 )
-from transformers.modeling_outputs import ImageSuperResolutionOutput, BaseModelOutput
+from transformers.modeling_outputs import BaseModelOutput, ImageSuperResolutionOutput
 from transformers.modeling_utils import no_init_weights
 from transformers.models.swin2sr.configuration_swin2sr import Swin2SRConfig
 from transformers.onnx.utils import get_preprocessor
