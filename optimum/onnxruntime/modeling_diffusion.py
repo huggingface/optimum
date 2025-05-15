@@ -667,8 +667,8 @@ class ORTModelTransformer(ORTPipelinePart):
         onnx_outputs = self.session.run(None, onnx_inputs)
         model_outputs = self.prepare_onnx_outputs(use_torch, *onnx_outputs)
 
-        if return_dict:
-            return model_outputs
+        if not return_dict:
+            return tuple(model_outputs.values())
 
         return ModelOutput(**model_outputs)
 
@@ -700,8 +700,8 @@ class ORTModelTextEncoder(ORTPipelinePart):
             for i in range(num_layers):
                 model_outputs.pop(f"hidden_states.{i}", None)
 
-        if return_dict:
-            return model_outputs
+        if not return_dict:
+            return tuple(model_outputs.values())
 
         return ModelOutput(**model_outputs)
 
@@ -740,8 +740,8 @@ class ORTModelVaeEncoder(ORTPipelinePart):
                 parameters=model_outputs.pop("latent_parameters")
             )
 
-        if return_dict:
-            return model_outputs
+        if not return_dict:
+            return tuple(model_outputs.values())
 
         return ModelOutput(**model_outputs)
 
@@ -775,8 +775,8 @@ class ORTModelVaeDecoder(ORTPipelinePart):
         if "latent_sample" in model_outputs:
             model_outputs["latents"] = model_outputs.pop("latent_sample")
 
-        if return_dict:
-            return model_outputs
+        if not return_dict:
+            return tuple(model_outputs.values())
 
         return ModelOutput(**model_outputs)
 
