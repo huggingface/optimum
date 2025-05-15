@@ -1077,7 +1077,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         input_features: Optional[Union[torch.Tensor, np.ndarray]] = None,
         input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -1134,8 +1134,8 @@ class ORTModelForFeatureExtraction(ORTModel):
                 # TODO: This allows to support sentence-transformers models (sentence embedding), but is not validated.
                 last_hidden_state = next(iter(model_outputs.values()))
 
-        if return_dict:
-            return {"last_hidden_state": last_hidden_state}
+        if not return_dict:
+            return (last_hidden_state,)
 
         # converts output to namedtuple for pipelines post-processing
         return BaseModelOutput(last_hidden_state=last_hidden_state)
@@ -1251,7 +1251,7 @@ class ORTModelForMaskedLM(ORTModel):
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -1288,8 +1288,8 @@ class ORTModelForMaskedLM(ORTModel):
 
             logits = model_outputs["logits"]
 
-        if return_dict:
-            return {"logits": logits}
+        if not return_dict:
+            return (logits,)
 
         # converts output to namedtuple for pipelines post-processing
         return MaskedLMOutput(logits=logits)
@@ -1353,7 +1353,7 @@ class ORTModelForQuestionAnswering(ORTModel):
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -1388,8 +1388,8 @@ class ORTModelForQuestionAnswering(ORTModel):
             start_logits = model_outputs["start_logits"]
             end_logits = model_outputs["end_logits"]
 
-        if return_dict:
-            return {"start_logits": start_logits, "end_logits": end_logits}
+        if not return_dict:
+            return (start_logits, end_logits)
 
         # converts output to namedtuple for pipelines post-processing
         return QuestionAnsweringModelOutput(start_logits=start_logits, end_logits=end_logits)
@@ -1468,7 +1468,7 @@ class ORTModelForSequenceClassification(ORTModel):
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -1505,8 +1505,8 @@ class ORTModelForSequenceClassification(ORTModel):
 
             logits = model_outputs["logits"]
 
-        if return_dict:
-            return {"logits": logits}
+        if not return_dict:
+            return (logits,)
 
         # converts output to namedtuple for pipelines post-processing
         return SequenceClassifierOutput(logits=logits)
@@ -1571,7 +1571,7 @@ class ORTModelForTokenClassification(ORTModel):
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -1608,8 +1608,8 @@ class ORTModelForTokenClassification(ORTModel):
 
             logits = model_outputs["logits"]
 
-        if return_dict:
-            return {"logits": logits}
+        if not return_dict:
+            return (logits,)
 
         return TokenClassifierOutput(logits=logits)
 
@@ -1667,7 +1667,7 @@ class ORTModelForMultipleChoice(ORTModel):
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -1704,8 +1704,8 @@ class ORTModelForMultipleChoice(ORTModel):
 
             logits = model_outputs["logits"]
 
-        if return_dict:
-            return {"logits": logits}
+        if not return_dict:
+            return (logits,)
 
         # converts output to namedtuple for pipelines post-processing
         return MultipleChoiceModelOutput(logits=logits)
@@ -1770,7 +1770,7 @@ class ORTModelForImageClassification(ORTModel):
         self,
         pixel_values: Union[torch.Tensor, np.ndarray],
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -1802,8 +1802,8 @@ class ORTModelForImageClassification(ORTModel):
 
             logits = model_outputs["logits"]
 
-        if return_dict:
-            return {"logits": logits}
+        if not return_dict:
+            return (logits,)
 
         # converts output to namedtuple for pipelines post-processing
         return ImageClassifierOutput(logits=logits)
@@ -1868,7 +1868,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
         self,
         pixel_values: Union[torch.Tensor, np.ndarray],
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -1900,8 +1900,8 @@ class ORTModelForSemanticSegmentation(ORTModel):
 
             logits = model_outputs["logits"]
 
-        if return_dict:
-            return {"logits": logits}
+        if not return_dict:
+            return (logits,)
 
         # converts output to namedtuple for pipelines post-processing
         return SemanticSegmenterOutput(logits=logits)
@@ -1996,7 +1996,7 @@ class ORTModelForAudioClassification(ORTModel):
         attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
         input_features: Optional[Union[torch.Tensor, np.ndarray]] = None,
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -2038,8 +2038,8 @@ class ORTModelForAudioClassification(ORTModel):
 
             logits = model_outputs["logits"]
 
-        if return_dict:
-            return {"logits": logits}
+        if not return_dict:
+            return (logits,)
 
         # converts output to namedtuple for pipelines post-processing
         return SequenceClassifierOutput(logits=logits)
@@ -2092,7 +2092,7 @@ class ORTModelForCTC(ORTModel):
         self,
         input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -2134,8 +2134,8 @@ class ORTModelForCTC(ORTModel):
 
             logits = model_outputs["logits"]
 
-        if return_dict:
-            return {"logits": logits}
+        if not return_dict:
+            return (logits,)
 
         # converts output to namedtuple for pipelines post-processing
         return CausalLMOutput(logits=logits)
@@ -2196,7 +2196,7 @@ class ORTModelForAudioXVector(ORTModel):
         self,
         input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -2231,8 +2231,8 @@ class ORTModelForAudioXVector(ORTModel):
             logits = model_outputs["logits"]
             embeddings = model_outputs["embeddings"]
 
-        if return_dict:
-            return {"logits": logits, "embeddings": embeddings}
+        if not return_dict:
+            return (logits, embeddings)
 
         # converts output to namedtuple for pipelines post-processing
         return XVectorOutput(logits=logits, embeddings=embeddings)
@@ -2285,7 +2285,7 @@ class ORTModelForAudioFrameClassification(ORTModel):
         self,
         input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -2305,8 +2305,8 @@ class ORTModelForAudioFrameClassification(ORTModel):
 
             logits = model_outputs["logits"]
 
-        if return_dict:
-            return {"logits": logits}
+        if not return_dict:
+            return (logits,)
 
         # converts output to namedtuple for pipelines post-processing
         return TokenClassifierOutput(logits=logits)
@@ -2353,7 +2353,7 @@ class ORTModelForImageToImage(ORTModel):
         self,
         pixel_values: Union[torch.Tensor, np.ndarray],
         *,
-        return_dict: bool = False,
+        return_dict: bool = True,
         **kwargs,
     ):
         # Warn about any unexpected kwargs using the helper method
@@ -2390,8 +2390,8 @@ class ORTModelForImageToImage(ORTModel):
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
             reconstruction = model_outputs["reconstruction"]
 
-        if return_dict:
-            return {"reconstruction": reconstruction}
+        if not return_dict:
+            return (reconstruction,)
 
         return ImageSuperResolutionOutput(reconstruction=reconstruction)
 
