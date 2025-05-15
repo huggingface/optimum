@@ -611,7 +611,7 @@ class ORTModelUnet(ORTPipelinePart):
         timestep_cond: Optional[Union[np.ndarray, torch.Tensor]] = None,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         added_cond_kwargs: Optional[Dict[str, Any]] = None,
-        return_dict: bool = False,
+        return_dict: bool = True,
     ):
         use_torch = isinstance(sample, torch.Tensor)
 
@@ -631,8 +631,8 @@ class ORTModelUnet(ORTPipelinePart):
         onnx_outputs = self.session.run(None, onnx_inputs)
         model_outputs = self.prepare_onnx_outputs(use_torch, *onnx_outputs)
 
-        if return_dict:
-            return model_outputs
+        if not return_dict:
+            return tuple(model_outputs.values())
 
         return ModelOutput(**model_outputs)
 
@@ -648,7 +648,7 @@ class ORTModelTransformer(ORTPipelinePart):
         txt_ids: Optional[Union[np.ndarray, torch.Tensor]] = None,
         img_ids: Optional[Union[np.ndarray, torch.Tensor]] = None,
         joint_attention_kwargs: Optional[Dict[str, Any]] = None,
-        return_dict: bool = False,
+        return_dict: bool = True,
     ):
         use_torch = isinstance(hidden_states, torch.Tensor)
 
@@ -667,8 +667,8 @@ class ORTModelTransformer(ORTPipelinePart):
         onnx_outputs = self.session.run(None, onnx_inputs)
         model_outputs = self.prepare_onnx_outputs(use_torch, *onnx_outputs)
 
-        if return_dict:
-            return model_outputs
+        if not return_dict:
+            return tuple(model_outputs.values())
 
         return ModelOutput(**model_outputs)
 
@@ -679,7 +679,7 @@ class ORTModelTextEncoder(ORTPipelinePart):
         input_ids: Union[np.ndarray, torch.Tensor],
         attention_mask: Optional[Union[np.ndarray, torch.Tensor]] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: bool = False,
+        return_dict: bool = True,
     ):
         use_torch = isinstance(input_ids, torch.Tensor)
 
@@ -700,8 +700,8 @@ class ORTModelTextEncoder(ORTPipelinePart):
             for i in range(num_layers):
                 model_outputs.pop(f"hidden_states.{i}", None)
 
-        if return_dict:
-            return model_outputs
+        if not return_dict:
+            return tuple(model_outputs.values())
 
         return ModelOutput(**model_outputs)
 
@@ -722,7 +722,7 @@ class ORTModelVaeEncoder(ORTPipelinePart):
         self,
         sample: Union[np.ndarray, torch.Tensor],
         generator: Optional[torch.Generator] = None,
-        return_dict: bool = False,
+        return_dict: bool = True,
     ):
         use_torch = isinstance(sample, torch.Tensor)
 
@@ -740,8 +740,8 @@ class ORTModelVaeEncoder(ORTPipelinePart):
                 parameters=model_outputs.pop("latent_parameters")
             )
 
-        if return_dict:
-            return model_outputs
+        if not return_dict:
+            return tuple(model_outputs.values())
 
         return ModelOutput(**model_outputs)
 
@@ -762,7 +762,7 @@ class ORTModelVaeDecoder(ORTPipelinePart):
         self,
         latent_sample: Union[np.ndarray, torch.Tensor],
         generator: Optional[torch.Generator] = None,
-        return_dict: bool = False,
+        return_dict: bool = True,
     ):
         use_torch = isinstance(latent_sample, torch.Tensor)
 
@@ -775,8 +775,8 @@ class ORTModelVaeDecoder(ORTPipelinePart):
         if "latent_sample" in model_outputs:
             model_outputs["latents"] = model_outputs.pop("latent_sample")
 
-        if return_dict:
-            return model_outputs
+        if not return_dict:
+            return tuple(model_outputs.values())
 
         return ModelOutput(**model_outputs)
 
