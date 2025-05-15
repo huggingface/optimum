@@ -1210,11 +1210,8 @@ def onnx_export_from_model(
         onnx_models = [os.path.join(output, x) for x in os.listdir(output) if x.endswith(".onnx")]
 
         for model in onnx_models:
-            try:
-                slimmed_model = slim(model)
-                check_and_save_model(slimmed_model, model)
-            except Exception as e:
-                print(f"Failed to slim {model}: {e}")
+            slimmed_model = slim(model)
+            check_and_save_model(slimmed_model, model)
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating diffusion separately is quite ugly
