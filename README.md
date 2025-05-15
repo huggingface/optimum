@@ -28,7 +28,9 @@ limitations under the License.
     <a href="https://huggingface.co/docs/optimum/index"><img alt="Documentation" src="https://img.shields.io/website/http/huggingface.co/docs/optimum/index.svg?down_color=red&down_message=offline&up_message=online"/></a>
 </p>
 
-🤗 Optimum is an extension of 🤗 Transformers and Diffusers, providing a set of optimization tools enabling maximum efficiency to train and run models on targeted hardware, while keeping things easy to use.
+<p align="center">
+🤗 Optimum is an extension of 🤗 Transformers 🤖 and Diffusers 🧨, providing a set of optimization tools enabling maximum efficiency to train and run models on targeted hardware, while keeping things easy to use.
+</p>
 
 ## Installation
 
