@@ -4183,6 +4183,15 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
+    def test_load_pipeline(self):
+        pipe = pipeline(
+            "text2text-generation",
+            model="echarlaix/t5-small-onnx",
+            accelerator="ort",
+        )
+        outputs = pipe("this is an example input")
+        self.assertIsInstance(outputs[0]["generated_text"], str)
+
     @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
         # Text2text generation
