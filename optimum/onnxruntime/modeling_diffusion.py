@@ -87,8 +87,8 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
 
     def __init__(
         self,
-        scheduler: "SchedulerMixin",
-        # optional pipeline models
+        *,
+        # pipeline models
         unet_session: Optional["InferenceSession"] = None,
         transformer_session: Optional["InferenceSession"] = None,
         vae_decoder_session: Optional["InferenceSession"] = None,
@@ -96,7 +96,8 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         text_encoder_session: Optional["InferenceSession"] = None,
         text_encoder_2_session: Optional["InferenceSession"] = None,
         text_encoder_3_session: Optional["InferenceSession"] = None,
-        # optional pipeline submodels
+        # pipeline submodels
+        scheduler: Optional["SchedulerMixin"] = None,
         tokenizer: Optional["CLIPTokenizer"] = None,
         tokenizer_2: Optional["CLIPTokenizer"] = None,
         tokenizer_3: Optional["CLIPTokenizer"] = None,
