@@ -585,7 +585,7 @@ class ORTUnet(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            know_output_shapes = {"out_sample": sample.shape}
+            known_output_shapes = {"out_sample": sample.shape}
 
             known_output_buffers = None
             if "LatentConsistencyModel" not in self.parent.__class__.__name__:
@@ -593,7 +593,7 @@ class ORTUnet(ORTModelMixin):
 
             output_shapes, output_buffers = self._prepare_io_binding(
                 model_inputs,
-                known_output_shapes=know_output_shapes,
+                known_output_shapes=known_output_shapes,
                 known_output_buffers=known_output_buffers,
             )
 
@@ -645,7 +645,7 @@ class ORTTransformer(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            know_output_shapes = {"out_hidden_states": hidden_states.shape}
+            known_output_shapes = {"out_hidden_states": hidden_states.shape}
 
             known_output_buffers = None
             if "Flux" not in self.parent.__class__.__name__:
@@ -653,7 +653,7 @@ class ORTTransformer(ORTModelMixin):
 
             output_shapes, output_buffers = self._prepare_io_binding(
                 model_inputs,
-                known_output_shapes=know_output_shapes,
+                known_output_shapes=known_output_shapes,
                 known_output_buffers=known_output_buffers,
             )
 
