@@ -639,6 +639,11 @@ class TasksManager:
             "semantic-segmentation",
             onnx="DptOnnxConfig",
         ),
+        "efficientnet": supported_tasks_mapping(
+            "feature-extraction",
+            "image-classification",
+            onnx="EfficientNetOnnxConfig",
+        ),
         "electra": supported_tasks_mapping(
             "feature-extraction",
             "fill-mask",
@@ -989,6 +994,7 @@ class TasksManager:
             "text-generation",
             "text-generation-with-past",
             "text-classification",
+            "token-classification",
             onnx="Qwen2OnnxConfig",
         ),
         "llama": supported_tasks_mapping(
