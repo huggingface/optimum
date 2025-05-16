@@ -1205,8 +1205,6 @@ def onnx_export_from_model(
         if not is_onnxslim_available():
             raise ImportError("The pip package `onnxslim` is required to optimize onnx models.")
 
-        import glob
-
         from onnxslim import slim
 
         for onnx_file_path in onnx_files_subpaths:
