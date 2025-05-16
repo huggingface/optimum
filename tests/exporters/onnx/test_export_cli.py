@@ -735,12 +735,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
             main_export(model_name_or_path=tmpdir_in, output=tmpdir_out, task="text-classification")
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
-    @require_torch_gpu
-    @require_vision
-    @slow
-    @pytest.mark.gpu_test
-    @pytest.mark.run_slow
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY_SLIM, library_name="transformers"))
     def test_exporters_cli_pytorch_with_slim(
         self,
         test_name: str,
