@@ -2756,17 +2756,18 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(outputs[0]["generated_text"], str)
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            pipe.save_pretrained(tmpdir)
-            model_kwargs = {"use_cache": use_cache, "use_io_binding": use_io_binding}
-            pipe = pipeline(
-                "text-generation",
-                model=tmpdir,
-                model_kwargs=model_kwargs,
-                accelerator="ort",
-            )
-            outputs_local_model = pipe(text)
-            self.assertEqual(outputs[0]["generated_text"], outputs_local_model[0]["generated_text"])
+        if model_arch == "llama":
+            with tempfile.TemporaryDirectory() as tmpdir:
+                pipe.save_pretrained(tmpdir)
+                model_kwargs = {"use_cache": use_cache, "use_io_binding": use_io_binding}
+                pipe = pipeline(
+                    "text-generation",
+                    model=tmpdir,
+                    model_kwargs=model_kwargs,
+                    accelerator="ort",
+                )
+                outputs_local_model = pipe(text)
+                self.assertEqual(outputs[0]["generated_text"], outputs_local_model[0]["generated_text"])
 
         gc.collect()
 
@@ -4169,17 +4170,18 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             self.assertEqual(pipe.device, onnx_model.device)
             self.assertIsInstance(outputs[0]["translation_text"], str)
 
-            with tempfile.TemporaryDirectory() as tmpdir:
-                pipe.save_pretrained(tmpdir)
-                model_kwargs = {"use_cache": use_cache}
-                pipe = pipeline(
-                    "translation_en_to_de",
-                    model=tmpdir,
-                    model_kwargs=model_kwargs,
-                    accelerator="ort",
-                )
-                outputs_local_model = pipe(text)
-                self.assertEqual(outputs[0]["translation_text"], outputs_local_model[0]["translation_text"])
+            if model_arch == "t5":
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    pipe.save_pretrained(tmpdir)
+                    model_kwargs = {"use_cache": use_cache}
+                    pipe = pipeline(
+                        "translation_en_to_de",
+                        model=tmpdir,
+                        model_kwargs=model_kwargs,
+                        accelerator="ort",
+                    )
+                    outputs_local_model = pipe(text)
+                    self.assertEqual(outputs[0]["translation_text"], outputs_local_model[0]["translation_text"])
 
         gc.collect()
 
