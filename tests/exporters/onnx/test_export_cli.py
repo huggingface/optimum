@@ -751,5 +751,4 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             slim=True,
             device="cpu",
             variant=variant,
-            model_kwargs=model_kwargs,
         )
