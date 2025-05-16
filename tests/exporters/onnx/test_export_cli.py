@@ -743,25 +743,13 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         monolith: bool,
         no_post_process: bool,
     ):
-        model_kwargs = None
-        if model_type == "speecht5":
-            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
-
-        try:
-            self._onnx_export(
-                model_name,
-                task,
-                monolith,
-                no_post_process,
-                slim=True,
-                device="cpu",
-                variant=variant,
-                model_kwargs=model_kwargs,
-            )
-        except NotImplementedError as e:
-            if "Tried to use onnxslim for the model type" in str(e) or "doesn't support the graph optimization" in str(
-                e
-            ):
-                self.skipTest(f"unsupported model type in onnxslim: {model_type}")
-            else:
-                raise e
+        self._onnx_export(
+            model_name,
+            task,
+            monolith,
+            no_post_process,
+            slim=True,
+            device="cpu",
+            variant=variant,
+            model_kwargs=model_kwargs,
+        )
