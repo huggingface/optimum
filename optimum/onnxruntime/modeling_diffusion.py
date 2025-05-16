@@ -587,14 +587,14 @@ class ORTUnet(ORTModelMixin):
         if self.use_io_binding:
             know_output_shapes = {"out_hidden_states": model_inputs["hidden_states"].shape}
 
-            know_output_buffers = None
+            known_output_buffers = None
             if "LatentConsistencyModel" not in self.parent.__class__.__name__:
-                know_output_buffers = {"out_hidden_states": model_inputs["hidden_states"]}
+                known_output_buffers = {"out_hidden_states": model_inputs["hidden_states"]}
 
             output_shapes, output_buffers = self._prepare_io_binding(
                 model_inputs,
                 known_output_shapes=know_output_shapes,
-                know_output_buffers=know_output_buffers,
+                known_output_buffers=known_output_buffers,
             )
 
             if self.device.type == "cpu":
@@ -647,14 +647,14 @@ class ORTTransformer(ORTModelMixin):
         if self.use_io_binding:
             know_output_shapes = {"out_hidden_states": model_inputs["hidden_states"].shape}
 
-            know_output_buffers = None
+            known_output_buffers = None
             if "Flux" not in self.parent.__class__.__name__:
-                know_output_buffers = {"out_hidden_states": model_inputs["hidden_states"]}
+                known_output_buffers = {"out_hidden_states": model_inputs["hidden_states"]}
 
             output_shapes, output_buffers = self._prepare_io_binding(
                 model_inputs,
                 known_output_shapes=know_output_shapes,
-                know_output_buffers=know_output_buffers,
+                known_output_buffers=known_output_buffers,
             )
 
             if self.device.type == "cpu":
