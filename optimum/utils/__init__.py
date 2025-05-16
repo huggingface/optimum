@@ -41,6 +41,7 @@ from .import_utils import (
     is_gptqmodel_available,
     is_onnx_available,
     is_onnxruntime_available,
+    is_onnxslim_available,
     is_pydantic_available,
     is_sentence_transformers_available,
     is_tf_available,

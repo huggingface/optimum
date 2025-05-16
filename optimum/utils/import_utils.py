@@ -134,6 +134,7 @@ _tf_available, _tf_version = _is_package_available(
         "intel-tensorflow-avx512",
     ],
 )
+_onnxslim_available = _is_package_available("onnxslim")
 
 if _tf_available and version.parse(_tf_version) < version.parse("2"):
     logger.warning(
@@ -265,6 +266,10 @@ def is_gptqmodel_available():
             raise ImportError(
                 f"Found an incompatible version of gptqmodel. Found version {v}, but only version >= {GPTQMODEL_MINIMUM_VERSION} are supported"
             )
+
+
+def is_onnxslim_available():
+    return _onnxslim_available
 
 
 @contextmanager
