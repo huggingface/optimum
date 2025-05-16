@@ -59,7 +59,7 @@ from transformers import (
     PretrainedConfig,
     set_seed,
 )
-from transformers.modeling_outputs import ImageSuperResolutionOutput
+from transformers.modeling_outputs import BaseModelOutput, ImageSuperResolutionOutput
 from transformers.modeling_utils import no_init_weights
 from transformers.models.swin2sr.configuration_swin2sr import Swin2SRConfig
 from transformers.onnx.utils import get_preprocessor
@@ -2138,10 +2138,16 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
         for input_type in ["pt", "np"]:
             tokens = tokenizer(text, return_tensors=input_type)
+            # Test default behavior (return_dict=True)
             onnx_outputs = onnx_model(**tokens)
-
+            self.assertIsInstance(onnx_outputs, BaseModelOutput)
             self.assertIn("last_hidden_state", onnx_outputs)
             self.assertIsInstance(onnx_outputs.last_hidden_state, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # Test return_dict=False
+            onnx_outputs_dict = onnx_model(**tokens, return_dict=False)
+            self.assertIsInstance(onnx_outputs_dict, tuple)
+            self.assertIsInstance(onnx_outputs_dict[0], self.TENSOR_ALIAS_TO_TYPE[input_type])
 
             # compare tensor outputs
             torch.testing.assert_close(
@@ -2756,7 +2762,31 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(outputs[0]["generated_text"], str)
         self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
 
+        if model_arch == "llama":
+            with tempfile.TemporaryDirectory() as tmpdir:
+                pipe.save_pretrained(tmpdir)
+                model_kwargs = {"use_cache": use_cache, "use_io_binding": use_io_binding}
+                pipe = pipeline(
+                    "text-generation",
+                    model=tmpdir,
+                    model_kwargs=model_kwargs,
+                    accelerator="ort",
+                )
+                outputs_local_model = pipe(text)
+                self.assertEqual(outputs[0]["generated_text"], outputs_local_model[0]["generated_text"])
+
         gc.collect()
+
+    def test_load_pipeline(self):
+        pipe = pipeline(
+            "text-generation",
+            model="optimum-internal-testing/tiny-random-llama",
+            revision="onnx",
+            accelerator="ort",
+        )
+
+        outputs = pipe("this is an example input")
+        self.assertIsInstance(outputs[0]["generated_text"], str)
 
     @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
@@ -4146,7 +4176,29 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             self.assertEqual(pipe.device, onnx_model.device)
             self.assertIsInstance(outputs[0]["translation_text"], str)
 
+            if model_arch == "t5":
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    pipe.save_pretrained(tmpdir)
+                    model_kwargs = {"use_cache": use_cache}
+                    pipe = pipeline(
+                        "translation_en_to_de",
+                        model=tmpdir,
+                        model_kwargs=model_kwargs,
+                        accelerator="ort",
+                    )
+                    outputs_local_model = pipe(text)
+                    self.assertEqual(outputs[0]["translation_text"], outputs_local_model[0]["translation_text"])
+
         gc.collect()
+
+    def test_load_pipeline(self):
+        pipe = pipeline(
+            "text2text-generation",
+            model="echarlaix/t5-small-onnx",
+            accelerator="ort",
+        )
+        outputs = pipe("this is an example input")
+        self.assertIsInstance(outputs[0]["generated_text"], str)
 
     @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
