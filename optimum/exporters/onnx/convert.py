@@ -1205,9 +1205,11 @@ def onnx_export_from_model(
         if not is_onnxslim_available():
             raise ImportError("The pip package `onnxslim` is required to optimize onnx models.")
 
+        import glob
+
         from onnxslim import slim
 
-        onnx_models = [os.path.join(output, x) for x in os.listdir(output) if x.endswith(".onnx")]
+        onnx_models = glob.glob(os.path.join(output, "**", "*.onnx"), recursive=True)
 
         for model in onnx_models:
             slimmed_model = slim(model)

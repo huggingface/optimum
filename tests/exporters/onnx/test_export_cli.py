@@ -40,6 +40,7 @@ from ..utils import (
     NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
     PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_EXPORT_MODELS_TINY_SLIM,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_TIMM_MODEL,
     PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
@@ -181,7 +182,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         variant: str = "default",
         no_dynamic_axes: bool = False,
         model_kwargs: Optional[Dict] = None,
-        slim: bool = True,
     ):
         # We need to set this to some value to be able to test the outputs values for batch size > 1.
         if task == "text-classification":
@@ -204,7 +204,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     no_dynamic_axes=no_dynamic_axes,
                     pad_token_id=pad_token_id,
                     model_kwargs=model_kwargs,
-                    slim=slim,
                 )
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
@@ -222,7 +221,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         fp16: bool = False,
         variant: str = "default",
         model_kwargs: Optional[Dict] = None,
-        slim: bool = True,
     ):
         with TemporaryDirectory() as tmpdir:
             try:
@@ -237,7 +235,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     no_post_process=no_post_process,
                     _variant=variant,
                     no_dynamic_axes=True,
-                    slim=slim,
                     model_kwargs=model_kwargs,
                     **input_shape,
                 )
@@ -746,14 +743,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         monolith: bool,
         no_post_process: bool,
     ):
-        # TODO: refer to https://github.com/pytorch/pytorch/issues/95377
-        if model_type == "yolos":
-            self.skipTest("Export on cuda device fails for yolos due to a bug in PyTorch")
-
-        # TODO: refer to https://github.com/pytorch/pytorch/issues/107591
-        if model_type == "sam":
-            self.skipTest("sam export on cuda is not supported due to a bug in PyTorch")
-
         model_kwargs = None
         if model_type == "speecht5":
             model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
@@ -765,7 +754,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 monolith,
                 no_post_process,
                 slim=True,
-                device="cuda",
+                device="cpu",
                 variant=variant,
                 model_kwargs=model_kwargs,
             )

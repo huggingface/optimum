@@ -38,6 +38,7 @@ TESTS_REQUIRE = [
     "sentencepiece",
     "rjieba",
     "hf_xet",
+    "onnxslim>=0.1.53",
 ]
 
 QUALITY_REQUIRE = ["black~=23.1", "ruff==0.1.5"]
@@ -105,7 +106,7 @@ EXTRAS_REQUIRE = {
     "amd": "optimum-amd",
     "quanto": ["optimum-quanto>=0.2.4"],
     "dev": TESTS_REQUIRE + QUALITY_REQUIRE,
-    "tests": TESTS_REQUIRE + ["onnxslim>=0.1.53"],
+    "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
     "benchmark": BENCHMARK_REQUIRE,
     "doc-build": ["accelerate"],
