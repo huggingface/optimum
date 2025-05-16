@@ -394,15 +394,7 @@ class Phi3OnnxConfig(PhiOnnxConfig):
     ) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
-    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
-
-    def __init__(self, *args, **kwargs):
-        if is_transformers_version("==", "4.46.0"):
-            logger.error(
-                "Found transformers v4.46.0 while trying to exporting a Phi3 model, this specific version of transformers is not supported. "
-                "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
-            )
-        super().__init__(*args, **kwargs)
+    MIN_TRANSFORMERS_VERSION = version.parse("4.50.0")
 
 
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
@@ -1062,6 +1054,17 @@ class MgpstrOnnxConfig(ViTOnnxConfig):
         return MgpstrModelPatcher(self, model, model_kwargs=model_kwargs)
 
 
+class EfficientNetOnnxConfig(ViTOnnxConfig):
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        common_outputs = super().outputs
+
+        if self.task == "image-classification":
+            common_outputs["logits"] = {0: "batch_size", 1: "num_classes"}
+
+        return common_outputs
+
+
 class SentenceTransformersTransformerOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     DEFAULT_ONNX_OPSET = 14  # Some bottleneck transformers models require a specific ONNX opset to be successfully exported. We put a rather high opset here for the export to work for all architectures.
@@ -1096,6 +1099,7 @@ class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
 
 class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
+    DEFAULT_ONNX_OPSET = 14  # scaled_dot_product_attention support was added in opset 14
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -1119,6 +1123,7 @@ class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
 
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
+    DEFAULT_ONNX_OPSET = 14  # scaled_dot_product_attention support was added in opset 14
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
@@ -2583,7 +2588,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         dummy_inputs_generators = []
         dummy_inputs_generators.append(self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config))
 
-        if self._preprocessors is None or len(self._preprocessors) != 2:
+        if self._preprocessors is None or len(self._preprocessors) < 2:
             raise ValueError(
                 f"Preprocessors for pix2struct need to be available for the ONNX export to infer input static shapes. Got: {self._preprocessors}"
             )
@@ -2602,7 +2607,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def overwrite_shape_and_generate_input(
         self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: Dict
     ):
-        if self._preprocessors is None or len(self._preprocessors) != 2:
+        if self._preprocessors is None or len(self._preprocessors) < 2:
             raise ValueError(
                 f"Preprocessors for pix2struct need to be available for the ONNX export to infer input static shapes. Got: {self._preprocessors}"
             )

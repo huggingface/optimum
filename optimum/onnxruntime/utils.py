@@ -94,6 +94,7 @@ class ORTConfigManager:
         "codegen": "gpt2",
         "deberta": "bert",
         "deberta-v2": "bert",
+        "dinov2": "vit",
         "distilbert": "bert",
         "electra": "bert",
         "gpt2": "gpt2",

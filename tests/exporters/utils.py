@@ -77,6 +77,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "detr": "hf-internal-testing/tiny-random-DetrModel",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "dpt": "hf-internal-testing/tiny-random-DPTModel",
+    "efficientnet": "hf-internal-testing/tiny-random-EfficientNetForImageClassification",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
     "encoder-decoder": {
         "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": ["text2text-generation"],
