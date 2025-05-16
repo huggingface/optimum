@@ -203,7 +203,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
 
     @property
     def components(self) -> Dict[str, Optional[Union[ORTSessionMixin, torch.nn.Module]]]:
-        # TODO: all compoenents should be ORTSessionMixin's at some point
+        # TODO: all components should be ORTSessionMixin's at some point
         components = {
             "vae": self.vae,
             "unet": self.unet,
