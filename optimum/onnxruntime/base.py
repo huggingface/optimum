@@ -432,7 +432,6 @@ class ORTSessionMixin:
         known_output_buffers = known_output_buffers or {}
         outputs_to_not_bind = outputs_to_not_bind or set()
 
-
         for output_name in self.output_names.keys():
             if output_name in outputs_to_not_bind:
                 continue
