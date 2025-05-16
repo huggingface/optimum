@@ -585,11 +585,11 @@ class ORTUnet(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            know_output_shapes = {"out_hidden_states": model_inputs["hidden_states"].shape}
+            know_output_shapes = {"out_sample": sample.shape}
 
             known_output_buffers = None
             if "LatentConsistencyModel" not in self.parent.__class__.__name__:
-                known_output_buffers = {"out_hidden_states": model_inputs["hidden_states"]}
+                known_output_buffers = {"out_sample": sample}
 
             output_shapes, output_buffers = self._prepare_io_binding(
                 model_inputs,
@@ -601,7 +601,7 @@ class ORTUnet(ORTModelMixin):
                 self.session.run_with_iobinding(self._io_binding)
             else:
                 self._io_binding.synchronize_inputs()
-                self.session.run_with_iobinding(self._io_binding)
+                self.session.run_with_iobinding(self._io_binding, run_options={"enable_cuda_graph": "1"})
                 self._io_binding.synchronize_outputs()
 
             model_outputs = {name: output_buffers[name].view(output_shapes[name]) for name in self.output_names}
@@ -645,11 +645,11 @@ class ORTTransformer(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            know_output_shapes = {"out_hidden_states": model_inputs["hidden_states"].shape}
+            know_output_shapes = {"out_hidden_states": hidden_states.shape}
 
             known_output_buffers = None
             if "Flux" not in self.parent.__class__.__name__:
-                known_output_buffers = {"out_hidden_states": model_inputs["hidden_states"]}
+                known_output_buffers = {"out_hidden_states": hidden_states}
 
             output_shapes, output_buffers = self._prepare_io_binding(
                 model_inputs,
