@@ -162,7 +162,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         if args:
             logger.warning(
                 "Instantiating an ORTModel with positional arguments is deprecated and will be removed in the next version. "
-                "Please use the keywords {config, session, use_io_binding, model_save_dir} instead."
+                "Please use the keyword arguments {config, session, use_io_binding, model_save_dir} instead."
             )
             # old signature is ORTModel(model, config, use_io_binding, model_save_dir, preprocessors)
             session = args[0]

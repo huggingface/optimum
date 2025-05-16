@@ -906,7 +906,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         if args:
             logger.warning(
                 "Instantiating an ORTModelForConditionalGeneration with positional arguments is deprecated and will be removed in the next version. "
-                "Please use the keywords {config, encoder_session, decoder_session, decoder_with_past_session, use_cache, use_io_binding, model_save_dir} instead."
+                "Please use the keyword arguments {config, encoder_session, decoder_session, decoder_with_past_session, use_cache, use_io_binding, model_save_dir} instead."
             )
             # old signature is ORTModelForConditionalGeneration(encoder_session, decoder_session, onnx_paths, decoder_with_past_session, use_cache, use_io_binding, model_save_dir)
             encoder_session = args[0]
