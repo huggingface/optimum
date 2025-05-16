@@ -249,7 +249,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         session_options: Optional[SessionOptions] = None,
         # inference options
         use_io_binding: Optional[bool] = None,
-        # hub options
+        # hub options and preloaded models
         **kwargs,
     ):
         """
@@ -277,9 +277,10 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 Whether to use IOBinding for the ONNX Runtime session. If set to `True`, it will use IOBinding for
                 input and output tensors.
             **kwargs:
-                Additional keyword arguments passed to the underlying model classes. This can include preloaded models
-                or sessions for the different components of the pipeline (e.g., `vae_encoder`, `vae_decoder`, `unet_session`,
-                `transformer_session`, `image_encoder`, `safety_checker`, etc.).
+                Can include the following:
+                - Hugging Face Hub arguments (e.g., `revision`, `cache_dir`, `force_download`, etc.).
+                - Preloaded models or sessions for the different components of the pipeline (e.g., `vae_encoder_session`,
+                `vae_decoder_session`, `unet_session`, `transformer_session`, `image_encoder`, `safety_checker`, etc.).
 
         Returns:
             [`ORTDiffusionPipeline`]: The loaded pipeline with ONNX Runtime sessions.
@@ -584,17 +585,16 @@ class ORTUnet(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            outputs_to_reuse_input_buffers = None
-            if self.parent.__class__ not in [
-                ORTLatentConsistencyModelPipeline,
-                ORTLatentConsistencyModelImg2ImgPipeline,
-            ]:
-                outputs_to_reuse_input_buffers = {"out_sample": "sample"}
+            know_output_shapes = {"out_hidden_states": model_inputs["hidden_states"].shape}
+
+            know_output_buffers = None
+            if "LatentConsistencyModel" not in self.parent.__class__.__name__:
+                know_output_buffers = {"out_hidden_states": model_inputs["hidden_states"]}
 
             output_shapes, output_buffers = self._prepare_io_binding(
                 model_inputs,
-                outputs_to_reuse_input_buffers=outputs_to_reuse_input_buffers,
-                known_output_shapes={"sample": model_inputs["sample"].shape},
+                known_output_shapes=know_output_shapes,
+                know_output_buffers=know_output_buffers,
             )
 
             if self.device.type == "cpu":
@@ -645,14 +645,16 @@ class ORTTransformer(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            outputs_to_reuse_input_buffers = None
-            if self.parent.__class__ not in [ORTFluxPipeline]:
-                outputs_to_reuse_input_buffers = {"out_hidden_states": "hidden_states"}
+            know_output_shapes = {"out_hidden_states": model_inputs["hidden_states"].shape}
+
+            know_output_buffers = None
+            if "Flux" not in self.parent.__class__.__name__:
+                know_output_buffers = {"out_hidden_states": model_inputs["hidden_states"]}
 
             output_shapes, output_buffers = self._prepare_io_binding(
                 model_inputs,
-                outputs_to_reuse_input_buffers=outputs_to_reuse_input_buffers,
-                known_output_shapes={"hidden_states": model_inputs["hidden_states"].shape},
+                known_output_shapes=know_output_shapes,
+                know_output_buffers=know_output_buffers,
             )
 
             if self.device.type == "cpu":

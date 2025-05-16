@@ -370,7 +370,7 @@ class ORTSessionMixin:
         self,
         model_inputs: Dict[str, torch.Tensor],
         outputs_to_not_bind: Optional[Set[str]] = None,
-        outputs_to_reuse_input_buffers: Optional[Dict[str, str]] = None,
+        known_output_buffers: Optional[Dict[str, str]] = None,
         known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
     ) -> Tuple[Dict[str, Tuple[int]], Dict[str, torch.Tensor]]:
         """
@@ -381,8 +381,9 @@ class ORTSessionMixin:
                 The inputs to bind to the model.
             outputs_to_not_bind (`Optional[Set[str]]`, defaults to `None`):
                 The names of the outputs that should not be bound.
-            outputs_to_reuse_input_buffers (`Optional[Dict[str, str]]`, defaults to `None`):
-                The names of the outputs that should reuse the input buffers as output buffers.
+            known_output_buffers (`Optional[Dict[str, str]]`, defaults to `None`):
+                Sometimes we can reuse the same input buffer for the output. This is the case for the output sample
+                in a diffusion pipeline. It is possible to explicitely pass the buffer via this argument.
             known_output_shapes (`Optional[Dict[str, Tuple[int]]]`, defaults to `None`):
                 It can be hard to infer all the output shapes from the inputs only. For instance for the past key /
                 values. It is possible to explicitely pass the shape via this argument.
@@ -428,8 +429,9 @@ class ORTSessionMixin:
         output_shapes = {}
         output_buffers = {}
         known_output_shapes = known_output_shapes or {}
+        known_output_buffers = known_output_buffers or {}
         outputs_to_not_bind = outputs_to_not_bind or set()
-        outputs_to_reuse_input_buffers = outputs_to_reuse_input_buffers or {}
+
 
         for output_name in self.output_names.keys():
             if output_name in outputs_to_not_bind:
@@ -440,8 +442,8 @@ class ORTSessionMixin:
             else:
                 output_shape = self._output_shape_inference(output_name, known_axes_values)
 
-            if output_name in outputs_to_reuse_input_buffers:
-                output_buffer = model_inputs[outputs_to_reuse_input_buffers[output_name]]
+            if output_name in known_output_buffers:
+                output_buffer = known_output_buffers[output_name]
             else:
                 output_buffer = self._prepare_output_buffer(output_name, output_shape)
 
