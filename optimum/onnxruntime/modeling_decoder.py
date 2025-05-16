@@ -45,7 +45,7 @@ from .constants import (
     ONNX_FILE_PATTERN,
 )
 from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
-from .utils import ONNX_WEIGHTS_NAME, prepare_providers_and_provider_options
+from .utils import prepare_providers_and_provider_options
 
 
 if TYPE_CHECKING:
@@ -653,8 +653,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
-        # export options
-        task: Optional[str] = None,
         # hub options
         token: Optional[Union[bool, str]] = None,
         revision: str = "main",
@@ -664,21 +662,20 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         local_files_only: bool = False,
         trust_remote_code: bool = False,
         # inference options
-        use_merged: bool = False,
         use_cache: bool = True,
         **kwargs,
     ) -> "ORTModelForCausalLM":
-        file_name = ONNX_WEIGHTS_NAME
+        # this is garanteed to work since we it uses a mapping from model classes to task names
+        # instead of relying on the hub metadata or the model configuration
+        task = TasksManager._infer_task_from_model_or_model_class(cls.auto_model_class)
+        if use_cache:
+            task += "-with-past"
 
-        if use_merged:
-            logger.warning("The `use_merged` argument is deprecated when the model is exported, and not used anymore.")
-            use_merged = False
-
-        if task is None:
-            task = TasksManager.infer_task_from_model(cls.auto_model_class)
-
-            if use_cache:
-                task += "-with-past"
+        if kwargs.get("task", None) is not None:
+            raise ValueError(
+                f"The `task` argument is not needed when exporting a model with `{cls.__name__}`. "
+                f"The `task` is automatically inferred from the class as `{task}`."
+            )
 
         save_dir = TemporaryDirectory()
         save_dir_path = Path(save_dir.name)
@@ -704,9 +701,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             save_dir_path,
             config,
             use_cache=use_cache,
-            use_merged=use_merged,
             model_save_dir=save_dir,
-            file_name=file_name,
             **kwargs,
         )
 

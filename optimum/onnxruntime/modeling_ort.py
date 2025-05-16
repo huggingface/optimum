@@ -394,9 +394,6 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
-        # export options
-        task: Optional[str] = None,
-        library: Optional[str] = None,
         # hub options
         token: Optional[Union[bool, str]] = None,
         revision: Optional[str] = None,
@@ -408,8 +405,15 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         # other arguments
         **kwargs,
     ) -> "ORTModel":
-        if task is None:
-            task = TasksManager.infer_task_from_model(cls.auto_model_class)
+        # this is garanteed to work since we it uses a mapping from model classes to task names
+        # instead of relying on the hub metadata or the model configuration
+        task = TasksManager._infer_task_from_model_or_model_class(cls.auto_model_class)
+
+        if kwargs.get("task", None) is not None:
+            raise ValueError(
+                f"The `task` argument is not needed when exporting a model with `{cls.__name__}`. "
+                f"The `task` is automatically inferred from the class as `{task}`."
+            )
 
         model_save_dir = TemporaryDirectory()
         model_save_path = Path(model_save_dir.name)

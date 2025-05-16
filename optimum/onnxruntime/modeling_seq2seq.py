@@ -1296,8 +1296,6 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         cls,
         model_id: Union[str, Path],
         config: "PretrainedConfig",
-        # export options
-        task: Optional[str] = None,
         # hub options
         token: Optional[Union[bool, str]] = None,
         revision: str = "main",
@@ -1311,6 +1309,18 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         use_merged: bool = False,
         **kwargs,
     ) -> "ORTModelForConditionalGeneration":
+        # this is garanteed to work since we it uses a mapping from model classes to task names
+        # instead of relying on the hub metadata or the model configuration
+        task = TasksManager._infer_task_from_model_or_model_class(cls.auto_model_class)
+        if use_cache:
+            task += "-with-past"
+
+        if kwargs.get("task", None) is not None:
+            raise ValueError(
+                f"The `task` argument is not needed when exporting a model with `{cls.__name__}`. "
+                f"The `task` is automatically inferred from the class as `{task}`."
+            )
+
         if use_cache is False and use_merged is True:
             raise ValueError(
                 "The incompatible arguments use_cache=False, use_merged=True were passed to"
@@ -1318,12 +1328,6 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
                 " use_merged=False to disable past key value caching, or use_cache=True, use_merged=False"
                 " to disable the merging of the decoder not using / using past key and value."
             )
-
-        if task is None:
-            task = TasksManager.infer_task_from_model(cls.auto_model_class)
-
-            if use_cache is True:
-                task = task + "-with-past"
 
         model_save_dir = TemporaryDirectory()
         model_save_path = Path(model_save_dir.name)
