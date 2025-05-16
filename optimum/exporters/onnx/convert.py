@@ -1207,9 +1207,10 @@ def onnx_export_from_model(
 
         from onnxslim import slim
 
-        for onnx_file_path in onnx_files_subpaths:
-            slimmed_model = slim(onnx_file_path)
-            check_and_save_model(slimmed_model, onnx_file_path)
+        for subpath in onnx_files_subpaths:
+            file_path = os.path.join(output, subpath)
+            slimmed_model = slim(file_path)
+            check_and_save_model(slimmed_model, file_path)
 
     # Optionally post process the obtained ONNX file(s), for example to merge the decoder / decoder with past if any
     # TODO: treating diffusion separately is quite ugly
