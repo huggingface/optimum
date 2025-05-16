@@ -2770,6 +2770,17 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
+    def test_load_pipeline(self):
+        pipe = pipeline(
+            "text-generation",
+            model="optimum-internal-testing/tiny-random-llama",
+            revision="onnx",
+            accelerator="ort",
+        )
+
+        outputs = pipe("this is an example input")
+        self.assertIsInstance(outputs[0]["generated_text"], str)
+
     @pytest.mark.run_in_series
     def test_pipeline_model_is_none(self):
         pipe = pipeline("text-generation")
@@ -4158,7 +4169,6 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             self.assertEqual(pipe.device, onnx_model.device)
             self.assertIsInstance(outputs[0]["translation_text"], str)
 
-
             with tempfile.TemporaryDirectory() as tmpdir:
                 pipe.save_pretrained(tmpdir)
                 model_kwargs = {"use_cache": use_cache}
@@ -4170,7 +4180,6 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 )
                 outputs_local_model = pipe(text)
                 self.assertEqual(outputs[0]["translation_text"], outputs_local_model[0]["translation_text"])
-
 
         gc.collect()
 
