@@ -96,6 +96,7 @@ class ORTOptimizerTest(unittest.TestCase):
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
         (ORTModelForCausalLM, "hf-internal-testing/tiny-random-gpt2"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-ModernBertForSequenceClassification"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-roberta"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-xlm-roberta"),
     )
