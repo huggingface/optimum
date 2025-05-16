@@ -182,6 +182,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         variant: str = "default",
         no_dynamic_axes: bool = False,
         model_kwargs: Optional[Dict] = None,
+        slim: bool = False,
     ):
         # We need to set this to some value to be able to test the outputs values for batch size > 1.
         if task == "text-classification":
@@ -204,6 +205,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     no_dynamic_axes=no_dynamic_axes,
                     pad_token_id=pad_token_id,
                     model_kwargs=model_kwargs,
+                    slim=slim,
                 )
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
