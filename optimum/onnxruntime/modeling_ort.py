@@ -407,7 +407,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
     ) -> "ORTModel":
         # this is garanteed to work since we it uses a mapping from model classes to task names
         # instead of relying on the hub metadata or the model configuration
-        task = TasksManager._infer_task_from_model_or_model_class(cls.auto_model_class)
+        task = TasksManager._infer_task_from_model_or_model_class(model_class=cls.auto_model_class)
 
         if kwargs.get("task", None) is not None:
             raise ValueError(

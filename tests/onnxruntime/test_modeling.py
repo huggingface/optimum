@@ -18,6 +18,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Type
 
 import numpy as np
 import onnx
@@ -118,42 +119,42 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
 
     @parameterized.expand((ORTModelForCausalLM, ORTModel))
-    def test_load_model_from_hub_infer_onnx_model(self, model_cls):
+    def test_load_model_from_hub_infer_onnx_model(self, model_cls: Type[ORTModel]):
         model_id = "optimum-internal-testing/tiny-random-llama"
         file_name = "model_optimized.onnx"
         model = model_cls.from_pretrained(model_id)
-        self.assertEqual(model.model_path.name, "model.onnx")
+        self.assertEqual(model.path.name, "model.onnx")
 
         model = model_cls.from_pretrained(model_id, revision="onnx")
-        self.assertEqual(model.model_path.name, "model.onnx")
+        self.assertEqual(model.path.name, "model.onnx")
 
         model = model_cls.from_pretrained(model_id, revision="onnx", file_name=file_name)
-        self.assertEqual(model.model_path.name, file_name)
+        self.assertEqual(model.path.name, file_name)
 
         model = model_cls.from_pretrained(model_id, revision="merged-onnx", file_name=file_name)
-        self.assertEqual(model.model_path.name, file_name)
+        self.assertEqual(model.path.name, file_name)
 
         if model_cls is ORTModelForCausalLM:
             model = model_cls.from_pretrained(model_id, revision="merged-onnx")
-            self.assertEqual(model.model_path.name, "decoder_model_merged.onnx")
+            self.assertEqual(model.path.name, "decoder_model_merged.onnx")
 
             model = model_cls.from_pretrained(self.LOCAL_MODEL_PATH, use_cache=False)
-            self.assertEqual(model.model_path.name, "model.onnx")
+            self.assertEqual(model.path.name, "model.onnx")
         else:
             model = model_cls.from_pretrained(self.LOCAL_MODEL_PATH)
-            self.assertEqual(model.model_path.name, "model.onnx")
+            self.assertEqual(model.path.name, "model.onnx")
 
         model = model_cls.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
-        self.assertEqual(model.model_path.name, "model.onnx")
+        self.assertEqual(model.path.name, "model.onnx")
 
         model = model_cls.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder", file_name=file_name)
-        self.assertEqual(model.model_path.name, file_name)
+        self.assertEqual(model.path.name, file_name)
 
         model = model_cls.from_pretrained(model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx")
-        self.assertEqual(model.model_path.name, "decoder_with_past_model.onnx")
+        self.assertEqual(model.path.name, "decoder_with_past_model.onnx")
 
         model = model_cls.from_pretrained("hf-internal-testing/tiny-random-LlamaForCausalLM")
-        self.assertEqual(model.model_path.name, "model.onnx")
+        self.assertEqual(model.path.name, "model.onnx")
 
         with self.assertRaises(FileNotFoundError):
             model_cls.from_pretrained("hf-internal-testing/tiny-random-LlamaForCausalLM", file_name="test.onnx")
@@ -2246,14 +2247,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertFalse(model.use_merged)
         self.assertTrue(model.use_cache)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
-        self.assertEqual(model.model_name, ONNX_DECODER_WITH_PAST_NAME)
+        self.assertEqual(model.path.name, ONNX_DECODER_WITH_PAST_NAME)
 
         model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge")
 
         self.assertTrue(model.use_merged)
         self.assertTrue(model.use_cache)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
-        self.assertEqual(model.model_name, ONNX_DECODER_MERGED_NAME)
+        self.assertEqual(model.path.name, ONNX_DECODER_MERGED_NAME)
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         with self.assertRaises(Exception) as context:
@@ -3556,10 +3557,10 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         )
 
         self.assertEqual(onnx_model.use_cache, use_cache)
-        self.assertEqual(onnx_model.encoder.model_name, ONNX_ENCODER_NAME)
-        self.assertEqual(onnx_model.decoder.model_name, ONNX_DECODER_NAME)
+        self.assertEqual(onnx_model.encoder.path.name, ONNX_ENCODER_NAME)
+        self.assertEqual(onnx_model.decoder.path.name, ONNX_DECODER_NAME)
         if use_cache:
-            self.assertEqual(onnx_model.decoder_with_past.model_name, ONNX_DECODER_WITH_PAST_NAME)
+            self.assertEqual(onnx_model.decoder_with_past.path.name, ONNX_DECODER_WITH_PAST_NAME)
 
         text = "This is a sample output"
         tokens = tokenizer(text, return_tensors="pt")

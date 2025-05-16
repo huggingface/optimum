@@ -59,6 +59,7 @@ class ORTSessionMixin:
         """
 
         self.session = session
+        self.path = Path(session._model_path)
 
         if use_io_binding is None:
             if self.provider == "CUDAExecutionProvider":
@@ -83,8 +84,27 @@ class ORTSessionMixin:
         self.input_dtypes = {input.name: input.type for input in session.get_inputs()}
         self.output_dtypes = {output.name: output.type for output in session.get_outputs()}
 
-        self.model_path = Path(session._model_path)
-        self.model_name = self.model_path.name
+    @property
+    def model_path(self) -> str:
+        """
+        Returns the path of the onnx file from which the session was created.
+        """
+        logger.warning(
+            "The `ORTSessionMixin.model_path` property is deprecated and will be removed in a future version. "
+            "Please use `ORTSessionMixin.path` instead (`ORTSessionMixin.path` is a proper Path object)."
+        )
+        return self.path
+
+    @property
+    def model_name(self) -> str:
+        """
+        Returns the name of the onnx file from which the session was created.
+        """
+        logger.warning(
+            "The `ORTSessionMixin.model_name` property is deprecated and will be removed in a future version. "
+            "Please use `ORTSessionMixin.path.name` instead (`ORTSessionMixin.path` is a proper Path object)."
+        )
+        return self.path.name
 
     @property
     def providers(self) -> List[str]:
