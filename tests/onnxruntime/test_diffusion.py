@@ -152,9 +152,14 @@ class ORTDiffusionPipelineTest(TestCase):
                 self.assertIn("config.json", subfolder_contents)
                 self.assertIn("model.onnx", subfolder_contents)
 
-            for submodel_name in {"scheduler", "tokenizer"}:
+            for submodel_name in {"feature_extractor", "scheduler", "tokenizer"}:
                 subfolder_contents = os.listdir(os.path.join(tmpdirname, submodel_name))
-                self.assertIn("config.json", subfolder_contents)
+                if submodel_name == "scheduler":
+                    self.assertIn("scheduler_config.json", subfolder_contents)
+                elif submodel_name == "tokenizer":
+                    self.assertIn("tokenizer_config.json", subfolder_contents)
+                elif submodel_name == "feature_extractor":
+                    self.assertIn("preprocessor_config.json", subfolder_contents)
 
             # verify reloading without export
             pipe = ORTDiffusionPipeline.from_pretrained(tmpdirname, export=False)
@@ -172,13 +177,7 @@ class ORTDiffusionPipelineTest(TestCase):
             for subfoler in {"unet", "vae_encoder", "vae_decoder", "text_encoder"}:
                 subfoler_contents = os.listdir(os.path.join(tmpdirname, subfoler))
                 self.assertIn("model.onnx", subfoler_contents)
-                self.assertIn("config.json", subfoler_contents)
-                # verify external data is exported
                 self.assertIn("model.onnx_data", subfoler_contents)
-
-            for submodel_name in {"scheduler", "tokenizer"}:
-                subfolder_contents = os.listdir(os.path.join(tmpdirname, submodel_name))
-                self.assertIn("config.json", subfolder_contents)
 
             # verify reloading without export
             pipe = ORTDiffusionPipeline.from_pretrained(tmpdirname, export=False)

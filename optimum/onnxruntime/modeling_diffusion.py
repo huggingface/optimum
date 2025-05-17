@@ -65,7 +65,7 @@ from ..utils import (
     is_diffusers_version,
 )
 from .base import ORTParentMixin, ORTSessionMixin
-from .utils import np_to_pt_generators, prepare_providers_and_provider_options
+from .utils import get_device_for_provider, np_to_pt_generators, prepare_providers_and_provider_options
 
 
 if is_diffusers_version(">=", "0.25.0"):
@@ -278,6 +278,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 input and output tensors.
             **kwargs:
                 Can include the following:
+                - Export arguments (e.g., `slim`, `dtype`, `device`, `no_dynamic_axes`, etc.).
                 - Hugging Face Hub arguments (e.g., `revision`, `cache_dir`, `force_download`, etc.).
                 - Preloaded models or sessions for the different components of the pipeline (e.g., `vae_encoder_session`,
                 `vae_decoder_session`, `unet_session`, `transformer_session`, `image_encoder`, `safety_checker`, etc.).
@@ -310,6 +311,12 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         if export:
             model_save_tmpdir = TemporaryDirectory()
             model_save_path = Path(model_save_tmpdir.name)
+            export_kwargs = {
+                "slim": kwargs.pop("slim", False),
+                "dtype": kwargs.pop("dtype", None),
+                "device": get_device_for_provider(provider, {}).type,
+                "no_dynamic_axes": kwargs.pop("no_dynamic_axes", False),
+            }
             main_export(
                 model_name_or_path=model_name_or_path,
                 # export related arguments
@@ -317,7 +324,8 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 no_post_process=True,
                 do_validation=False,
                 task=cls.task,
-                library_name=cls.library,
+                # export related arguments
+                **export_kwargs,
                 # hub related arguments
                 **hub_kwargs,
             )

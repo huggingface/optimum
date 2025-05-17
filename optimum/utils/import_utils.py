@@ -81,7 +81,6 @@ def _is_package_available(
         return package_exists
 
 
-
 _onnx_available = _is_package_available("onnx")
 _pydantic_available = _is_package_available("pydantic")
 _accelerate_available = _is_package_available("accelerate")
@@ -239,8 +238,10 @@ def is_datasets_available():
 def is_transformers_available():
     return _transformers_available
 
+
 def is_tensorrt_available():
     return _tensorrt_available
+
 
 def is_torch_available():
     return _torch_available
