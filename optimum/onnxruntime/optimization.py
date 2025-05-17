@@ -92,19 +92,19 @@ class ORTOptimizer:
             from_ortmodel = True
             if isinstance(model_or_path, ORTModelForConditionalGeneration):
                 onnx_model_path += [
-                    model_or_path.encoder_model_path,
-                    model_or_path.decoder_model_path,
+                    model_or_path.encoder.path,
+                    model_or_path.decoder.path,
                 ]
                 # Add the decoder with past key/values if present
-                if model_or_path.use_cache:
-                    onnx_model_path.append(model_or_path.decoder_with_past_model_path)
+                if model_or_path.decoder_with_past is not None:
+                    onnx_model_path.append(model_or_path.decoder_with_past.path)
             elif isinstance(model_or_path, ORTModelForCausalLM) and model_or_path.use_merged:
                 raise NotImplementedError(
                     "ORTOptimizer does not support ORTModelForCausalLM models when without/with past models are merged. "
                     "Please re-export your model. This can be done by using the optimum-cli ONNX export tool or `ORTModelForCausalLM.from_pretrained(..., export=True, use_merged=False)`."
                 )
             else:
-                onnx_model_path.append(model_or_path.model_path)
+                onnx_model_path.append(model_or_path.path)
             config = model_or_path.config
         elif os.path.isdir(model_or_path):
             from_ortmodel = False

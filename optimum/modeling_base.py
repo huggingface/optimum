@@ -20,7 +20,7 @@ import subprocess
 import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from huggingface_hub import HfApi
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -32,7 +32,17 @@ from .utils import CONFIG_NAME
 
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, TFPreTrainedModel
+    from transformers import (
+        FeatureExtractionMixin,
+        ImageProcessingMixin,
+        PreTrainedModel,
+        ProcessorMixin,
+        SpecialTokensMixin,
+        TFPreTrainedModel,
+    )
+
+    PreprocessorT = Union[SpecialTokensMixin, FeatureExtractionMixin, ImageProcessingMixin, ProcessorMixin]
+    ModelT = Union["PreTrainedModel", "TFPreTrainedModel"]
 
 
 logger = logging.getLogger(__name__)
@@ -79,6 +89,7 @@ FROM_PRETRAINED_START_DOCSTRING = r"""
 """
 
 
+# TODO: Should be removed when we no longer use OptimizedModel for everything
 # workaround to enable compatibility between optimum models and transformers pipelines
 class PreTrainedModel(ABC):  # noqa: F811
     pass
@@ -89,11 +100,12 @@ class OptimizedModel(PreTrainedModel):
     base_model_prefix = "optimized_model"
     config_name = CONFIG_NAME
 
-    def __init__(self, model: Union["PreTrainedModel", "TFPreTrainedModel"], config: PretrainedConfig):
-        super().__init__()
+    def __init__(
+        self, model: Union["ModelT"], config: "PretrainedConfig", preprocessors: Optional[List["PreprocessorT"]] = None
+    ):
         self.model = model
         self.config = config
-        self.preprocessors = []
+        self.preprocessors = preprocessors or []
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -292,27 +304,6 @@ class OptimizedModel(PreTrainedModel):
         raise NotImplementedError("Overwrite this method in subclass to define how to load your model from pretrained")
 
     @classmethod
-    def _from_transformers(
-        cls,
-        model_id: Union[str, Path],
-        config: PretrainedConfig,
-        use_auth_token: Optional[Union[bool, str]] = None,
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        subfolder: str = "",
-        local_files_only: bool = False,
-        trust_remote_code: bool = False,
-        **kwargs,
-    ) -> "OptimizedModel":
-        """Overwrite this method in subclass to define how to load your model from vanilla transformers model"""
-        raise NotImplementedError(
-            "`_from_transformers` method will be deprecated in a future release. Please override `_export` instead"
-            "to define how to load your model from vanilla transformers model"
-        )
-
-    @classmethod
     def _export(
         cls,
         model_id: Union[str, Path],
@@ -365,13 +356,6 @@ class OptimizedModel(PreTrainedModel):
 
         if isinstance(model_id, Path):
             model_id = model_id.as_posix()
-
-        from_transformers = kwargs.pop("from_transformers", None)
-        if from_transformers is not None:
-            logger.warning(
-                "The argument `from_transformers` is deprecated, and will be removed in optimum 2.0.  Use `export` instead"
-            )
-            export = from_transformers
 
         if len(model_id.split("@")) == 2:
             logger.warning(
@@ -436,7 +420,7 @@ class OptimizedModel(PreTrainedModel):
                 trust_remote_code=trust_remote_code,
             )
 
-        from_pretrained_method = cls._from_transformers if export else cls._from_pretrained
+        from_pretrained_method = cls._export if export else cls._from_pretrained
 
         return from_pretrained_method(
             model_id=model_id,

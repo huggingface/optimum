@@ -18,7 +18,7 @@ import os
 import re
 from enum import Enum
 from inspect import signature
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
@@ -30,6 +30,7 @@ from transformers.trainer_utils import EvalLoopOutput
 from transformers.utils import logging
 
 import onnxruntime as ort
+from onnxruntime.transformers.io_binding_helper import TypeHelper
 
 from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
 
@@ -48,34 +49,6 @@ ONNX_ENCODER_NAME = "encoder_model.onnx"
 ONNX_DECODER_NAME = "decoder_model.onnx"
 ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
 ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
-
-_ORT_TO_NP_TYPE = {
-    "tensor(bool)": np.bool_,
-    "tensor(int8)": np.int8,
-    "tensor(uint8)": np.uint8,
-    "tensor(int16)": np.int16,
-    "tensor(uint16)": np.uint16,
-    "tensor(int32)": np.int32,
-    "tensor(uint32)": np.uint32,
-    "tensor(int64)": np.int64,
-    "tensor(uint64)": np.uint64,
-    "tensor(float16)": np.float16,
-    "tensor(float)": np.float32,
-    "tensor(double)": np.float64,
-}
-
-
-def _is_gpu_available():
-    """
-    Checks if a gpu is available.
-    """
-    available_providers = ort.get_available_providers()
-    if (
-        "CUDAExecutionProvider" in available_providers or "ROCMExecutionProvider" in available_providers
-    ) and torch.cuda.is_available():
-        return True
-    else:
-        return False
 
 
 def is_onnxruntime_training_available():
@@ -201,7 +174,7 @@ def get_device_for_provider(provider: str, provider_options: Dict) -> torch.devi
     Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
     """
     if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider", "ROCMExecutionProvider"]:
-        return torch.device(f"cuda:{provider_options['device_id']}")
+        return torch.device(f"cuda:{provider_options.get('device_id', 0)}")
     else:
         return torch.device("cpu")
 
@@ -288,6 +261,40 @@ def validate_provider_availability(provider: str):
         raise ValueError(
             f"Asked to use {provider} as an ONNX Runtime execution provider, but the available execution providers are {available_providers}."
         )
+
+
+def prepare_providers_and_provider_options(
+    provider: str = "CPUExecutionProvider",
+    providers: Optional[Sequence[str]] = None,
+    provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
+):
+    """
+    Prepare the providers and provider options for ONNX Runtime.
+    Args:
+        provider (`str`):
+            The provider to use. If `None`, the default provider will be used.
+        providers (`Sequence[str]`, `optional`):
+            The list of providers to use. If `None`, the default provider will be used.
+        provider_options (`Union[Sequence[Dict[str, Any]], Dict[str, Any]]`, `optional`):
+            The options to use for the providers. If `None`, the default options will be used.
+    """
+    if providers is None:
+        providers = [provider]
+
+    for provider in providers:
+        validate_provider_availability(provider)
+
+    if provider_options is None:
+        provider_options = [{}] * len(providers)
+    elif isinstance(provider_options, dict):
+        provider_options = [provider_options] + [{}] * (len(providers) - 1)
+    elif len(provider_options) != len(providers):
+        raise ValueError(
+            f"When passing a list of provider options, it should be the same length as the list of providers. "
+            f"Got {len(provider_options)} provider options for {len(providers)} providers."
+        )
+
+    return providers, provider_options
 
 
 def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None) -> bool:
@@ -434,3 +441,23 @@ class DummyWhisperModel:
         class Conv:
             def __init__(self, stride):
                 self.stride = stride
+
+
+def get_dtype_from_session(session: ort.InferenceSession) -> torch.dtype:
+    """
+    Returns the `torch.dtype` associated with the ONNX Runtime session.
+    This dtype is inferred from the input/output dtypes of the session.
+    If no floating point type is found, it defaults to `torch.float32`.
+    """
+
+    for input in session.get_inputs():
+        torch_dtype = TypeHelper.ort_type_to_torch_type(input.type)
+        if torch_dtype.is_floating_point:
+            return torch_dtype
+
+    for output in session.get_outputs():
+        torch_dtype = TypeHelper.ort_type_to_torch_type(output.type)
+        if torch_dtype.is_floating_point:
+            return torch_dtype
+
+    return torch.float32

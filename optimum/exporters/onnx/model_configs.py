@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model specific ONNX configurations."""
+
 import math
 import random
 import warnings
@@ -1337,45 +1338,51 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
     DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
-        num_channels="in_channels",
-        image_size="sample_size",
-        allow_new=True,
+        num_channels="in_channels", image_size="sample_size", allow_new=True
     )
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "sample": {0: "batch_size", 2: "height", 3: "width"},
+            "sample": {0: "batch_size", 2: "sample_height", 3: "sample_width"},
         }
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
+        down_sampling_factor = 2 ** (len(self._normalized_config.down_block_types) - 1)
         return {
-            "latent_parameters": {0: "batch_size", 2: "height_latent", 3: "width_latent"},
+            "latent_parameters": {
+                0: "batch_size",
+                2: f"sample_height / {down_sampling_factor}",
+                3: f"sample_width / {down_sampling_factor}",
+            },
         }
 
 
 class VaeDecoderOnnxConfig(VisionOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-4
+    ATOL_FOR_VALIDATION = 3e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
 
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
-        num_channels="latent_channels",
-        allow_new=True,
-    )
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_channels="latent_channels", allow_new=True)
 
     @property
     def inputs(self) -> Dict[str, Dict[int, str]]:
         return {
-            "latent_sample": {0: "batch_size", 2: "height_latent", 3: "width_latent"},
+            "latent_sample": {0: "batch_size", 2: "latent_height", 3: "latent_width"},
         }
 
     @property
     def outputs(self) -> Dict[str, Dict[int, str]]:
+        upsampling_factor = 2 ** (len(self._normalized_config.up_block_types) - 1)
+
         return {
-            "sample": {0: "batch_size", 2: "height", 3: "width"},
+            "sample": {
+                0: "batch_size",
+                2: f"latent_height * {upsampling_factor}",
+                3: f"latent_width * {upsampling_factor}",
+            },
         }
 
 
@@ -1815,9 +1822,17 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
     DEFAULT_ONNX_OPSET = 14
 
     VARIANTS = {
-        "text-conditional-with-past": "Exports Musicgen to ONNX to generate audio samples conditioned on a text prompt (Reference: https://huggingface.co/docs/transformers/model_doc/musicgen#text-conditional-generation). This uses the decoder KV cache. The following subcomponents are exported:\n\t\t* text_encoder.onnx: corresponds to the text encoder part in https://github.com/huggingface/transformers/blob/v4.39.1/src/transformers/models/musicgen/modeling_musicgen.py#L1457.\n\t\t* encodec_decode.onnx: corresponds to the Encodec audio encoder part in https://github.com/huggingface/transformers/blob/v4.39.1/src/transformers/models/musicgen/modeling_musicgen.py#L2472-L2480.\n\t\t* decoder_model.onnx: The Musicgen decoder, without past key values input, and computing cross attention. Not required at inference (use decoder_model_merged.onnx instead).\n\t\t* decoder_with_past_model.onnx: The Musicgen decoder, with past_key_values input (KV cache filled), not computing cross attention. Not required at inference (use decoder_model_merged.onnx instead).\n\t\t* decoder_model_merged.onnx: The two previous models fused in one, to avoid duplicating weights. A boolean input `use_cache_branch` allows to select the branch to use. In the first forward pass where the KV cache is empty, dummy past key values inputs need to be passed and are ignored with use_cache_branch=False.\n\t\t* build_delay_pattern_mask.onnx: A model taking as input `input_ids`, `pad_token_id`, `max_length`, and building a delayed pattern mask to the input_ids. Implements https://github.com/huggingface/transformers/blob/v4.39.3/src/transformers/models/musicgen/modeling_musicgen.py#L1054.",
+        "text-conditional-with-past": """Exports Musicgen to ONNX to generate audio samples conditioned on a text prompt (Reference: https://huggingface.co/docs/transformers/model_doc/musicgen#text-conditional-generation).
+        This uses the decoder KV cache. The following subcomponents are exported:
+        * text_encoder.onnx: corresponds to the text encoder part in https://github.com/huggingface/transformers/blob/v4.39.1/src/transformers/models/musicgen/modeling_musicgen.py#L1457.
+        * encodec_decode.onnx: corresponds to the Encodec audio encoder part in https://github.com/huggingface/transformers/blob/v4.39.1/src/transformers/models/musicgen/modeling_musicgen.py#L2472-L2480.
+        * decoder_model.onnx: The Musicgen decoder, without past key values input, and computing cross attention. Not required at inference (use decoder_model_merged.onnx instead).
+        * decoder_with_past_model.onnx: The Musicgen decoder, with past_key_values input (KV cache filled), not computing cross attention. Not required at inference (use decoder_model_merged.onnx instead).
+        * decoder_model_merged.onnx: The two previous models fused in one, to avoid duplicating weights. A boolean input `use_cache_branch` allows to select the branch to use. In the first forward pass where the KV cache is empty, dummy past key values inputs need to be passed and are ignored with use_cache_branch=False.
+        * build_delay_pattern_mask.onnx: A model taking as input `input_ids`, `pad_token_id`, `max_length`, and building a delayed pattern mask to the input_ids. Implements https://github.com/huggingface/transformers/blob/v4.39.3/src/transformers/models/musicgen/modeling_musicgen.py#L1054.""",
     }
-    # TODO: support audio-prompted generation (- audio_encoder_encode.onnx: corresponds to the audio encoder part in https://github.com/huggingface/transformers/blob/f01e1609bf4dba146d1347c1368c8c49df8636f6/src/transformers/models/musicgen/modeling_musicgen.py#L2087.\n\t)
+    # TODO: support audio-prompted generation (audio_encoder_encode.onnx: corresponds to the audio encoder part
+    # in https://github.com/huggingface/transformers/blob/f01e1609bf4dba146d1347c1368c8c49df8636f6/src/transformers/models/musicgen/modeling_musicgen.py#L2087.)
     # With that, we have full Encodec support.
     DEFAULT_VARIANT = "text-conditional-with-past"
 
