@@ -19,14 +19,12 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import numpy as np
-import pytest
 import torch
 import torch.version
 from diffusers import (
     AutoPipelineForImage2Image,
     AutoPipelineForInpainting,
     AutoPipelineForText2Image,
-    DiffusionPipeline,
 )
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 from diffusers.utils import load_image
@@ -34,7 +32,7 @@ from huggingface_hub import snapshot_download
 from huggingface_hub.constants import HF_HUB_CACHE
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
-from transformers.testing_utils import TemporaryHubRepo, require_torch_gpu
+from transformers.testing_utils import TemporaryHubRepo
 
 from optimum.onnxruntime import (
     ORTDiffusionPipeline,
@@ -44,19 +42,20 @@ from optimum.onnxruntime import (
 )
 from optimum.onnxruntime.modeling_diffusion import ORTTextEncoder, ORTUnet, ORTVae, ORTVaeDecoder, ORTVaeEncoder
 from optimum.onnxruntime.utils import get_device_for_provider
-from optimum.utils import is_transformers_version
+from optimum.utils import is_tensorrt_available, is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_diffusers, require_hf_token
 
 
-GPU_PROVIDERS = []
+PROVIDERS = ["CPUExecutionProvider"]
+
 if torch.cuda.is_available():
-    if torch.version.hip is not None:
-        GPU_PROVIDERS.append("ROCMExecutionProvider")
+    if torch.version.hip is None:
+        PROVIDERS.append("CUDAExecutionProvider")
     else:
-        GPU_PROVIDERS.append("CUDAExecutionProvider")
+        PROVIDERS.append("ROCMExecutionProvider")
 
-
-ALL_PROVIDERS = ["CPUExecutionProvider"] + GPU_PROVIDERS
+    if is_tensorrt_available():
+        PROVIDERS.append("TensorrtExecutionProvider")
 
 
 def get_generator(framework, seed):
@@ -128,7 +127,7 @@ class ORTDiffusionPipelineTest(TestCase):
         pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, local_files_only=True)
         self.assert_pipeline_sanity(pipe)
 
-    @parameterized.expand(ALL_PROVIDERS)
+    @parameterized.expand(PROVIDERS)
     @require_diffusers
     def test_load_diffusion_pipeline_with_available_provider(self, provider):
         pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, provider=provider)
@@ -136,7 +135,7 @@ class ORTDiffusionPipelineTest(TestCase):
         self.assertEqual(pipe.provider, provider)
 
     @require_diffusers
-    def test_load_diffusion_pipeline_unknown_provider(self):
+    def test_load_diffusion_pipeline_with_unknown_provider(self):
         with self.assertRaises(ValueError):
             ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, provider="FooExecutionProvider")
 
@@ -150,7 +149,16 @@ class ORTDiffusionPipelineTest(TestCase):
             self.assertIn("model_index.json", folder_contents)
             for model_name in {"unet", "vae_encoder", "vae_decoder", "text_encoder"}:
                 subfolder_contents = os.listdir(os.path.join(tmpdirname, model_name))
+                self.assertIn("config.json", subfolder_contents)
                 self.assertIn("model.onnx", subfolder_contents)
+
+            for submodel_name in {"scheduler", "tokenizer"}:
+                subfolder_contents = os.listdir(os.path.join(tmpdirname, submodel_name))
+                self.assertIn("config.json", subfolder_contents)
+
+            # verify reloading without export
+            pipe = ORTDiffusionPipeline.from_pretrained(tmpdirname, export=False)
+            self.assert_pipeline_sanity(pipe)
 
     @require_diffusers
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
@@ -159,48 +167,42 @@ class ORTDiffusionPipelineTest(TestCase):
             pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_TORCH_STABLE_DIFFUSION, export=True)
             pipe.save_pretrained(tmpdirname)
 
-            # verify external data is exported
+            folder_contents = os.listdir(tmpdirname)
+            self.assertIn("model_index.json", folder_contents)
             for subfoler in {"unet", "vae_encoder", "vae_decoder", "text_encoder"}:
                 subfoler_contents = os.listdir(os.path.join(tmpdirname, subfoler))
                 self.assertIn("model.onnx", subfoler_contents)
+                self.assertIn("config.json", subfoler_contents)
+                # verify external data is exported
                 self.assertIn("model.onnx_data", subfoler_contents)
 
-            # verify loading with external data
+            for submodel_name in {"scheduler", "tokenizer"}:
+                subfolder_contents = os.listdir(os.path.join(tmpdirname, submodel_name))
+                self.assertIn("config.json", subfolder_contents)
+
+            # verify reloading without export
             pipe = ORTDiffusionPipeline.from_pretrained(tmpdirname, export=False)
             self.assert_pipeline_sanity(pipe)
 
     @require_hf_token
     @require_diffusers
-    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
-    def test_push_diffusion_pipeline_with_external_data(self):
+    def test_push_diffusion_pipeline(self):
+        # using save_pretrained(..., push_to_hub=True)
         with TemporaryHubRepo(token=os.environ.get("HF_AUTH_TOKEN", None)) as tmp_repo:
             pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_TORCH_STABLE_DIFFUSION, export=True)
-            pipe.save_pretrained(
-                tmp_repo.repo_id,
-                token=os.environ.get("HF_AUTH_TOKEN", None),
-                push_to_hub=True,
-            )
+            pipe.save_pretrained(tmp_repo.repo_id, token=os.environ.get("HF_AUTH_TOKEN", None), push_to_hub=True)
             pipe = ORTDiffusionPipeline.from_pretrained(
-                tmp_repo.repo_id,
-                token=os.environ.get("HF_AUTH_TOKEN", None),
-                export=False,
+                tmp_repo.repo_id, token=os.environ.get("HF_AUTH_TOKEN", None), export=False
             )
+            self.assert_pipeline_sanity(pipe)
 
-        self.assert_pipeline_sanity(pipe)
-
+        # using push_to_hub(...)
         with TemporaryHubRepo(token=os.environ.get("HF_AUTH_TOKEN", None)) as tmp_repo:
-            pipe.push_to_hub(
-                tmp_repo.repo_id,
-                token=os.environ.get("HF_AUTH_TOKEN", None),
-                push_to_hub=True,
-            )
+            pipe.push_to_hub(tmp_repo.repo_id, token=os.environ.get("HF_AUTH_TOKEN", None))
             pipe = ORTDiffusionPipeline.from_pretrained(
-                tmp_repo.repo_id,
-                token=os.environ.get("HF_AUTH_TOKEN", None),
-                export=False,
+                tmp_repo.repo_id, token=os.environ.get("HF_AUTH_TOKEN", None), export=False
             )
-
-        self.assert_pipeline_sanity(pipe)
+            self.assert_pipeline_sanity(pipe)
 
 
 class ORTPipelineForText2ImageTest(ORTModelTestMixin):
@@ -252,19 +254,33 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
-    def test_ort_pipeline_class_dispatch(self, model_arch: str):
+    def test_class_dispatch(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
-
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
 
-        ort_pipeline = ORTDiffusionPipeline.from_pretrained(self.onnx_model_dirs[model_arch])
-        auto_pipeline = DiffusionPipeline.from_pretrained(MODEL_NAMES[model_arch])
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": PROVIDERS}))
+    @require_diffusers
+    def test_ort_pipeline(self, test_name: str, model_arch: str, provider: str):
+        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
+            self.skipTest("Testing a single arch for TensorrtExecutionProvider")
 
-        self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 32, 32, 1
+        device = get_device_for_provider(provider, {})
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        self.assertEqual(pipeline.device, device)
+
+        outputs = pipeline(**inputs).images
+        self.assertIsInstance(outputs, np.ndarray)
+        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -436,28 +452,6 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
         np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": GPU_PROVIDERS}))
-    @pytest.mark.cuda_ep_test
-    @pytest.mark.trt_ep_test
-    @require_torch_gpu
-    @require_diffusers
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
-        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
-            self.skipTest("Testing a single arch for TensorrtExecutionProvider")
-
-        model_args = {"test_name": test_name, "model_arch": model_arch}
-        self._setup(model_args)
-
-        height, width, batch_size = 32, 64, 1
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
-        self.assertEqual(pipeline.device.type, "cuda")
-
-        outputs = pipeline(**inputs).images
-        self.assertIsInstance(outputs, np.ndarray)
-        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
-
     @parameterized.expand(["stable-diffusion", "latent-consistency"])
     @require_diffusers
     def test_safety_checker(self, model_arch: str):
@@ -537,14 +531,33 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
 
     @parameterized.expand(list(SUPPORTED_ARCHITECTURES))
     @require_diffusers
-    def test_ort_pipeline_class_dispatch(self, model_arch: str):
+    def test_class_dispatch(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
-
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
+
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": PROVIDERS}))
+    @require_diffusers
+    def test_ort_pipeline(self, test_name: str, model_arch: str, provider: str):
+        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
+            self.skipTest("Testing a single arch for TensorrtExecutionProvider")
+
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 32, 32, 1
+        device = get_device_for_provider(provider, {})
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        self.assertEqual(pipeline.device, device)
+
+        outputs = pipeline(**inputs).images
+        self.assertIsInstance(outputs, np.ndarray)
+        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -697,28 +710,6 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
             np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=1e-4, rtol=1e-2)
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": GPU_PROVIDERS}))
-    @pytest.mark.cuda_ep_test
-    @pytest.mark.trt_ep_test
-    @require_torch_gpu
-    @require_diffusers
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
-        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
-            self.skipTest("Testing a single arch for TensorrtExecutionProvider")
-
-        model_args = {"test_name": test_name, "model_arch": model_arch}
-        self._setup(model_args)
-
-        height, width, batch_size = 32, 64, 1
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
-        self.assertEqual(pipeline.device.type, "cuda")
-
-        outputs = pipeline(**inputs).images
-        self.assertIsInstance(outputs, np.ndarray)
-        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
-
     @parameterized.expand(["stable-diffusion", "latent-consistency"])
     @require_diffusers
     def test_safety_checker(self, model_arch: str):
@@ -800,14 +791,33 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
-    def test_ort_pipeline_class_dispatch(self, model_arch: str):
+    def test_class_dispatch(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
-
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
+
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": PROVIDERS}))
+    @require_diffusers
+    def test_ort_pipeline(self, test_name: str, model_arch: str, provider: str):
+        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
+            self.skipTest("Testing a single arch for TensorrtExecutionProvider")
+
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        height, width, batch_size = 32, 32, 1
+        device = get_device_for_provider(provider, {})
+        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        self.assertEqual(pipeline.device, device)
+
+        outputs = pipeline(**inputs).images
+        self.assertIsInstance(outputs, np.ndarray)
+        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
@@ -959,28 +969,6 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
 
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
             np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=1e-4, rtol=1e-2)
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": GPU_PROVIDERS}))
-    @pytest.mark.cuda_ep_test
-    @pytest.mark.trt_ep_test
-    @require_torch_gpu
-    @require_diffusers
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
-        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
-            self.skipTest("Testing a single arch for TensorrtExecutionProvider")
-
-        model_args = {"test_name": test_name, "model_arch": model_arch}
-        self._setup(model_args)
-
-        height, width, batch_size = 32, 64, 1
-        inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], provider=provider)
-        self.assertEqual(pipeline.device.type, "cuda")
-
-        outputs = pipeline(**inputs).images
-        self.assertIsInstance(outputs, np.ndarray)
-        self.assertEqual(outputs.shape, (batch_size, height, width, 3))
 
     @parameterized.expand(["stable-diffusion"])
     @require_diffusers

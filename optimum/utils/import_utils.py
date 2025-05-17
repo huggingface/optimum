@@ -81,6 +81,7 @@ def _is_package_available(
         return package_exists
 
 
+
 _onnx_available = _is_package_available("onnx")
 _pydantic_available = _is_package_available("pydantic")
 _accelerate_available = _is_package_available("accelerate")
@@ -89,6 +90,7 @@ _gptqmodel_available = _is_package_available("gptqmodel")
 _timm_available = _is_package_available("timm")
 _sentence_transformers_available = _is_package_available("sentence_transformers")
 _datasets_available = _is_package_available("datasets")
+_tensorrt_available = _is_package_available("tensorrt")
 _diffusers_available, _diffusers_version = _is_package_available("diffusers", return_version=True)
 _transformers_available, _transformers_version = _is_package_available("transformers", return_version=True)
 _torch_available, _torch_version = _is_package_available("torch", return_version=True)
@@ -237,6 +239,8 @@ def is_datasets_available():
 def is_transformers_available():
     return _transformers_available
 
+def is_tensorrt_available():
+    return _tensorrt_available
 
 def is_torch_available():
     return _torch_available
