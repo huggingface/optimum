@@ -21,6 +21,7 @@ from unittest import TestCase
 import numpy as np
 import pytest
 import torch
+import torch.version
 from diffusers import (
     AutoPipelineForImage2Image,
     AutoPipelineForInpainting,
@@ -48,11 +49,15 @@ from optimum.utils import is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_diffusers, require_hf_token
 
 
-PROVIDERS = ["CPUExecutionProvider"]
+GPU_PROVIDERS = []
 if torch.cuda.is_available():
-    PROVIDERS.append("CUDAExecutionProvider")
-    if "TensorrtExecutionProvider" in get_available_providers():
-        PROVIDERS.append("TensorrtExecutionProvider")
+    if torch.version.hip is not None:
+        GPU_PROVIDERS.append("ROCMExecutionProvider")
+    else:
+        GPU_PROVIDERS.append("CUDAExecutionProvider")
+
+
+ALL_PROVIDERS = ["CPUExecutionProvider"] + GPU_PROVIDERS
 
 
 def get_generator(framework, seed):
@@ -124,7 +129,7 @@ class ORTDiffusionPipelineTest(TestCase):
         pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, local_files_only=True)
         self.assert_pipeline_sanity(pipe)
 
-    @parameterized.expand(PROVIDERS)
+    @parameterized.expand(ALL_PROVIDERS)
     @require_diffusers
     def test_load_diffusion_pipeline_with_available_provider(self, provider):
         pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, provider=provider)
@@ -432,14 +437,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
         np.testing.assert_allclose(ort_images, diffusers_images, atol=1e-4, rtol=1e-2)
 
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_arch": SUPPORTED_ARCHITECTURES,
-                "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"],
-            }
-        )
-    )
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": GPU_PROVIDERS}))
     @pytest.mark.cuda_ep_test
     @pytest.mark.trt_ep_test
     @require_torch_gpu
@@ -700,14 +698,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
             np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=1e-4, rtol=1e-2)
 
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_arch": SUPPORTED_ARCHITECTURES,
-                "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"],
-            }
-        )
-    )
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": GPU_PROVIDERS}))
     @pytest.mark.cuda_ep_test
     @pytest.mark.trt_ep_test
     @require_torch_gpu
@@ -970,14 +961,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
             self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
             np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=1e-4, rtol=1e-2)
 
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_arch": SUPPORTED_ARCHITECTURES,
-                "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"],
-            }
-        )
-    )
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": GPU_PROVIDERS}))
     @pytest.mark.cuda_ep_test
     @pytest.mark.trt_ep_test
     @require_torch_gpu

@@ -317,6 +317,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 no_post_process=True,
                 do_validation=False,
                 task=cls.task,
+                slim=True,
                 library_name=cls.library,
                 # hub related arguments
                 **hub_kwargs,
@@ -601,7 +602,7 @@ class ORTUnet(ORTModelMixin):
                 self.session.run_with_iobinding(self._io_binding)
             else:
                 self._io_binding.synchronize_inputs()
-                self.session.run_with_iobinding(self._io_binding, run_options={"enable_cuda_graph": "1"})
+                self.session.run_with_iobinding(self._io_binding)
                 self._io_binding.synchronize_outputs()
 
             model_outputs = {name: output_buffers[name].view(output_shapes[name]) for name in self.output_names}
