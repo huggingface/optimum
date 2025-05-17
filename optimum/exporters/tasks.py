@@ -997,6 +997,14 @@ class TasksManager:
             "token-classification",
             onnx="Qwen2OnnxConfig",
         ),
+        "qwen3": supported_tasks_mapping(
+            "feature-extraction",
+            "feature-extraction-with-past",
+            "text-generation",
+            "text-generation-with-past",
+            "text-classification",
+            onnx="Qwen3OnnxConfig",
+        ),
         "llama": supported_tasks_mapping(
             "feature-extraction",
             "feature-extraction-with-past",

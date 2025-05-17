@@ -103,6 +103,7 @@ MODEL_NAMES = {
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",
     "pvt": "hf-internal-testing/tiny-random-PvtForImageClassification",
     "qwen2": "fxmarty/tiny-dummy-qwen2",
+    "qwen3": "snake7gun/tiny-random-qwen3",
     "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
