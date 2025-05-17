@@ -317,7 +317,6 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 no_post_process=True,
                 do_validation=False,
                 task=cls.task,
-                slim=True,
                 library_name=cls.library,
                 # hub related arguments
                 **hub_kwargs,
