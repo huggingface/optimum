@@ -113,6 +113,8 @@ _onnxruntime_available, _onnxruntime_version = _is_package_available(
         "onnxruntime-migraphx",
         "ort-migraphx-nightly",
         "ort-rocm-nightly",
+        # For DirectML
+        "onnxruntime-directml",
     ],
 )
 _tf_available, _tf_version = _is_package_available(
