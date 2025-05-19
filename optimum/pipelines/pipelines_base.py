@@ -196,7 +196,7 @@ def load_bettertransformer(
             model_kwargs = {}
 
     if model is None:
-        model_id = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["default"]["model"]["pt"][0]
+        model_id = SUPPORTED_TASKS[targeted_task]["default"]
     elif isinstance(model, str):
         model_id = model
     else:
@@ -242,7 +242,7 @@ def load_ort_pipeline(
         model_kwargs = {}
 
     if model is None:
-        model_id = TRANSFORMERS_SUPPORTED_TASKS[targeted_task]["default"]["model"]["pt"][0]
+        model_id = SUPPORTED_TASKS[targeted_task]["default"]
         model = SUPPORTED_TASKS[targeted_task]["class"][0].from_pretrained(model_id, export=True)
     elif isinstance(model, str):
         model_id = model
