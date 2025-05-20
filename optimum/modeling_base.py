@@ -320,6 +320,7 @@ class OptimizedModel(PreTrainedModel):
     def from_pretrained(
         cls,
         model_id: Union[str, Path],
+        config: Optional[PretrainedConfig] = None,
         export: bool = False,
         # hub options
         subfolder: str = "",
@@ -407,6 +408,7 @@ class OptimizedModel(PreTrainedModel):
         return from_pretrained_method(
             model_id=model_id,
             config=config,
+            # hub options
             revision=revision,
             cache_dir=cache_dir,
             force_download=force_download,

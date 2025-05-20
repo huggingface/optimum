@@ -441,6 +441,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
     def from_pretrained(
         cls,
         model_id: Union[str, Path],
+        config: Optional["PretrainedConfig"] = None,
         # export options
         export: bool = False,
         # hub options
@@ -548,6 +549,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
 
         return super().from_pretrained(
             model_id,
+            config=config,
             export=_export,
             force_download=force_download,
             token=token,
