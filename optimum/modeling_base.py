@@ -241,23 +241,15 @@ class OptimizedModel(PreTrainedModel):
     def _load_config(
         cls,
         config_name_or_path: Union[str, os.PathLike],
-        revision: Optional[str] = None,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        use_auth_token: Optional[Union[bool, str]] = None,
-        token: Optional[Union[bool, str]] = None,
-        force_download: bool = False,
+        # hub options
         subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
+        local_files_only: bool = False,
         trust_remote_code: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
     ) -> PretrainedConfig:
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
         try:
             config = AutoConfig.from_pretrained(
                 pretrained_model_name_or_path=config_name_or_path,
@@ -290,14 +282,14 @@ class OptimizedModel(PreTrainedModel):
     def _from_pretrained(
         cls,
         model_id: Union[str, Path],
-        config: PretrainedConfig,
-        use_auth_token: Optional[Union[bool, str]] = None,
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        # hub options
         subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
         **kwargs,
     ) -> "OptimizedModel":
         """Overwrite this method in subclass to define how to load your model from pretrained"""
@@ -308,14 +300,14 @@ class OptimizedModel(PreTrainedModel):
         cls,
         model_id: Union[str, Path],
         config: PretrainedConfig,
-        use_auth_token: Optional[Union[bool, str]] = None,
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        # hub options
         subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
         local_files_only: bool = False,
         trust_remote_code: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
         **kwargs,
     ) -> "OptimizedModel":
         """Overwrite this method in subclass to define how to load your model from vanilla hugging face model"""
@@ -329,30 +321,20 @@ class OptimizedModel(PreTrainedModel):
         cls,
         model_id: Union[str, Path],
         export: bool = False,
-        force_download: bool = False,
-        use_auth_token: Optional[Union[bool, str]] = None,
-        token: Optional[Union[bool, str]] = None,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        # hub options
         subfolder: str = "",
-        config: Optional[PretrainedConfig] = None,
+        revision: str = "main",
+        force_download: bool = False,
         local_files_only: bool = False,
         trust_remote_code: bool = False,
-        revision: Optional[str] = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
         **kwargs,
     ) -> "OptimizedModel":
         """
         Returns:
             `OptimizedModel`: The loaded optimized model.
         """
-
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
 
         if isinstance(model_id, Path):
             model_id = model_id.as_posix()

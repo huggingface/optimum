@@ -15,7 +15,6 @@
 """Entry point to the optimum.exporters.onnx command line."""
 
 import argparse
-import warnings
 from pathlib import Path
 
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -63,15 +62,16 @@ def main_export(
     no_post_process: bool = False,
     framework: Optional[str] = None,
     atol: Optional[float] = None,
-    cache_dir: str = HUGGINGFACE_HUB_CACHE,
-    trust_remote_code: bool = False,
     pad_token_id: Optional[int] = None,
+    # hub options
     subfolder: str = "",
     revision: str = "main",
     force_download: bool = False,
     local_files_only: bool = False,
-    use_auth_token: Optional[Union[bool, str]] = None,
+    trust_remote_code: bool = False,
+    cache_dir: str = HUGGINGFACE_HUB_CACHE,
     token: Optional[Union[bool, str]] = None,
+    ########################################
     for_ort: bool = False,
     do_validation: bool = True,
     model_kwargs: Optional[Dict[str, Any]] = None,
@@ -184,15 +184,6 @@ def main_export(
     >>> main_export("gpt2", output="gpt2_onnx/")
     ```
     """
-
-    if use_auth_token is not None:
-        warnings.warn(
-            "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-            FutureWarning,
-        )
-        if token is not None:
-            raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-        token = use_auth_token
 
     if fp16:
         if dtype is not None:

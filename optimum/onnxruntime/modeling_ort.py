@@ -281,13 +281,13 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         model_id: Union[str, Path],
         config: "PretrainedConfig",
         # hub options
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
         local_files_only: bool = False,
-        trust_remote_code: bool = False,  # forced by OptimizedModel.from_pretrained
+        trust_remote_code: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
         # file options
         file_name: Optional[str] = None,
         # session options
@@ -395,13 +395,13 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         model_id: Union[str, Path],
         config: "PretrainedConfig",
         # hub options
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
         local_files_only: bool = False,
         trust_remote_code: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
         # other arguments
         **kwargs,
     ) -> "ORTModel":
@@ -444,13 +444,13 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         # export options
         export: bool = False,
         # hub options
-        token: Optional[Union[bool, str]] = None,
-        revision: str = "main",
-        force_download: bool = True,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
         local_files_only: bool = False,
         trust_remote_code: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
         # session options
         provider: str = "CPUExecutionProvider",
         providers: Optional[Sequence[str]] = None,
