@@ -405,13 +405,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         model_id: Union[str, Path],
         config: "PretrainedConfig",
         # hub options
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        force_download: bool = False,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
-        trust_remote_code: bool = False,  # forced by OptimizedModel.from_pretrained
+        revision: str = "main",
+        force_download: bool = False,
         local_files_only: bool = False,
+        trust_remote_code: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
         # file options
         file_name: Optional[str] = None,
         # session options
@@ -654,13 +654,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         model_id: Union[str, Path],
         config: "PretrainedConfig",
         # hub options
-        token: Optional[Union[bool, str]] = None,
-        revision: str = "main",
-        force_download: bool = True,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
         local_files_only: bool = False,
         trust_remote_code: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
         # inference options
         use_cache: bool = True,
         **kwargs,

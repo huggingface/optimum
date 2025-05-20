@@ -1043,13 +1043,13 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         model_id: Union[str, Path],
         config: "PretrainedConfig",
         # hub options
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
-        trust_remote_code: bool = False,  # forced by OptimizedModel.from_pretrained
-        local_files_only: bool = False,
-        force_download: bool = False,
         subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
+        local_files_only: bool = False,
+        trust_remote_code: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
         # file options
         encoder_file_name: str = ONNX_ENCODER_NAME,
         decoder_file_name: str = ONNX_DECODER_NAME,
@@ -1297,13 +1297,13 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         model_id: Union[str, Path],
         config: "PretrainedConfig",
         # hub options
-        token: Optional[Union[bool, str]] = None,
-        revision: str = "main",
-        force_download: bool = True,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
         subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
         local_files_only: bool = False,
         trust_remote_code: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: Optional[Union[bool, str]] = None,
         # inference options
         use_cache: bool = True,
         use_merged: bool = False,
