@@ -1658,3 +1658,28 @@ class PerceiverDummyInputGenerator(DummyVisionStaticInputGenerator):
 
 class VitPoseDummyInputGenerator(DummyVisionStaticInputGenerator):
     pass
+
+
+class TimesFMDummyInputGenerator(DummyInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("past_values",)
+
+    def __init__(
+        self,
+        task: str,
+        normalized_config: NormalizedConfig,
+        batch_size: int = DEFAULT_DUMMY_SHAPES["batch_size"],
+        **kwargs,
+    ):
+        self.task = task
+        self.normalized_config = normalized_config
+        self.batch_size = batch_size
+        self.context_length = normalized_config.context_length
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        return self.random_float_tensor(
+            shape=[self.batch_size, self.context_length],
+            min_value=-1,
+            max_value=1,
+            framework=framework,
+            dtype=float_dtype,
+        )

@@ -67,6 +67,7 @@ from ...utils import (
     NormalizedTimeSeriesForecastingConfig,
     NormalizedVisionConfig,
     PerceiverDummyInputGenerator,
+    TimesFMDummyInputGenerator,
     VitPoseDummyInputGenerator,
     is_diffusers_available,
     is_diffusers_version,
@@ -2648,6 +2649,25 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
 
     DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+
+
+class TimesFMOnnxConfig(OnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
+    MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
+    DUMMY_INPUT_GENERATOR_CLASSES = (TimesFMDummyInputGenerator,)
+    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, needs opset>=14
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {"past_values": {0: "batch_size", 1: "sequence_length"}}
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "last_hidden_state": {0: "batch_size"},
+            "mean_predictions": {0: "batch_size"},
+            "full_predictions": {0: "batch_size"},
+        }
 
 
 class PatchTSTOnnxConfig(OnnxConfig):
