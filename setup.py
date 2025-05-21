@@ -38,6 +38,7 @@ TESTS_REQUIRE = [
     "sentencepiece",
     "rjieba",
     "hf_xet",
+    "onnxslim>=0.1.53",
 ]
 
 QUALITY_REQUIRE = ["black~=23.1", "ruff==0.1.5"]
