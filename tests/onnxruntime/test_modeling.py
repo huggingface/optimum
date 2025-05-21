@@ -101,6 +101,7 @@ from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME, logging
 from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm
+from optimum.utils.save_utils import maybe_load_preprocessors
 
 
 logger = logging.get_logger()
@@ -2761,7 +2762,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 
         set_seed(SEED)
         trfs_model = AutoModelForImageClassification.from_pretrained(model_id)
-        preprocessor = get_preprocessor(model_id)
+        preprocessor = maybe_load_preprocessors(model_id)[-1]
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
         inputs = preprocessor(images=image, return_tensors="pt")
