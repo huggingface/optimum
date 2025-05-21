@@ -100,8 +100,8 @@ from optimum.onnxruntime.modeling_seq2seq import ORTDecoderForSeq2Seq, ORTEncode
 from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME, logging
 from optimum.utils.import_utils import is_transformers_version
-from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm
 from optimum.utils.save_utils import maybe_load_preprocessors
+from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm
 
 
 logger = logging.get_logger()
