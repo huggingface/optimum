@@ -2733,8 +2733,6 @@ class ColPaliOnnxConfig(GemmaOnnxConfig):
         }
 
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
-        _, generator_image = self._create_dummy_input_generator_classes(**kwargs)
-
         if self.variant == "vision":
             image_token_index = self._normalized_config.vlm_config.image_token_index
             num_image_tokens = self._normalized_config.vision_config.num_image_tokens
@@ -2745,13 +2743,6 @@ class ColPaliOnnxConfig(GemmaOnnxConfig):
 
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
 
-        if framework == "pt":
-            if self.variant == "vision":
-                dummy_inputs["input_ids"][:, :num_image_tokens] = image_token_index
-                dummy_inputs["pixel_values"] = generator_image.generate(
-                    input_name="pixel_values",
-                    framework=framework,
-                    int_dtype=self.int_dtype,
-                    float_dtype=self.float_dtype,
-                )
+        if self.variant == "vision":
+            dummy_inputs["input_ids"][:, :num_image_tokens] = image_token_index
         return dummy_inputs
