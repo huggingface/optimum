@@ -19,7 +19,9 @@ from typing import Any, Dict, Optional, Union
 from transformers import (
     AudioClassificationPipeline,
     AutoConfig,
+    AutoFeatureExtractor,
     AutomaticSpeechRecognitionPipeline,
+    AutoTokenizer,
     FeatureExtractionPipeline,
     FillMaskPipeline,
     ImageClassificationPipeline,
@@ -43,8 +45,6 @@ from transformers import pipeline as transformers_pipeline
 from transformers.feature_extraction_utils import PreTrainedFeatureExtractor
 from transformers.pipelines import SUPPORTED_TASKS as TRANSFORMERS_SUPPORTED_TASKS
 from transformers.pipelines import infer_framework_load_model
-
-from optimum.utils.save_utils import maybe_load_preprocessors
 
 from ..utils import is_onnxruntime_available, is_transformers_version
 
@@ -367,12 +367,13 @@ def pipeline(
         **kwargs,
     )
 
-    if (tokenizer is None and load_tokenizer) or (feature_extractor is None and load_feature_extractor):
-        preprocessor = maybe_load_preprocessors(model_id)
+    use_fast = kwargs.get(use_fast, "True")
     if tokenizer is None and load_tokenizer:
-        tokenizer = preprocessor[0] if preprocessor else None
+        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=use_fast, _from_pipeline=task, **hub_kwargs)
     if feature_extractor is None and load_feature_extractor:
-        feature_extractor = preprocessor[-1] if preprocessor else None
+        feature_extractor = AutoFeatureExtractor.from_pretrained(
+            model_id, use_fast=use_fast, _from_pipeline=task, **hub_kwargs
+        )
 
     return transformers_pipeline(
         task,
