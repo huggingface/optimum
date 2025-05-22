@@ -2339,7 +2339,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokenizer.padding_side = "left"
         tokens = tokenizer(["This is", "This is a sample input"], return_tensors="pt", padding=True)
         onnx_model.generation_config.eos_token_id = None
-        # transformers_model.generation_config.eos_token_id = None
+        transformers_model.generation_config.eos_token_id = None
         onnx_model.config.eos_token_id = None
         transformers_model.config.eos_token_id = None
 
@@ -3811,21 +3811,21 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             # Text2Text generation
             pipe = pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
             text = "This is a test"
-            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id)
+            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id, min_new_tokens=10, max_new_tokens=10)
             self.assertEqual(pipe.device, onnx_model.device)
             self.assertIsInstance(outputs[0]["generated_text"], str)
 
             # Summarization
             pipe = pipeline("summarization", model=onnx_model, tokenizer=tokenizer)
             text = "This is a test"
-            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id)
+            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id, min_new_tokens=10, max_new_tokens=10)
             self.assertEqual(pipe.device, onnx_model.device)
             self.assertIsInstance(outputs[0]["summary_text"], str)
 
             # Translation
             pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
             text = "This is a test"
-            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id)
+            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id, min_new_tokens=10, max_new_tokens=10)
             self.assertEqual(pipe.device, onnx_model.device)
             self.assertIsInstance(outputs[0]["translation_text"], str)
 
@@ -3839,7 +3839,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                         model_kwargs=model_kwargs,
                         accelerator="ort",
                     )
-                    outputs_local_model = pipe(text)
+                    outputs_local_model = pipe(text, min_new_tokens=10, max_new_tokens=10)
                     self.assertEqual(outputs[0]["translation_text"], outputs_local_model[0]["translation_text"])
 
         gc.collect()
@@ -4434,16 +4434,16 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         )
 
         data = self._generate_random_audio_data()
-        outputs = pipe(data)
+        outputs = pipe(data, min_new_tokens=10, max_new_tokens=10)
 
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs["text"], str)
 
         if model_arch == "whisper":
-            outputs = pipe(data, return_timestamps=True)
+            outputs = pipe(data, return_timestamps=True, min_new_tokens=10, max_new_tokens=10)
             self.assertTrue("chunks" in outputs)
 
-            outputs = pipe(data, return_timestamps=False)
+            outputs = pipe(data, return_timestamps=False, min_new_tokens=10, max_new_tokens=10)
             self.assertTrue("chunks" not in outputs)
 
         gc.collect()
@@ -4976,7 +4976,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
             feature_extractor=feature_extractor,
         )
         data = self._get_sample_image()
-        outputs = pipe(data)
+        outputs = pipe(data,  min_new_tokens=10, max_new_tokens=10)
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["generated_text"], str)
 
