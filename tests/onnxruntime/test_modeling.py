@@ -2339,7 +2339,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokenizer.padding_side = "left"
         tokens = tokenizer(["This is", "This is a sample input"], return_tensors="pt", padding=True)
         onnx_model.generation_config.eos_token_id = None
-        transformers_model.generation_config.eos_token_id = None
+        # transformers_model.generation_config.eos_token_id = None
         onnx_model.config.eos_token_id = None
         transformers_model.config.eos_token_id = None
 
