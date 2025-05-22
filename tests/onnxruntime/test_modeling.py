@@ -3752,7 +3752,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             if model_arch == "encoder-decoder":
                 decoder_start_token_id = tokenizer.cls_token_id
 
-            decoder_inputs = {"decoder_input_ids": torch.ones((len(inputs), 1), dtype=torch.long) * decoder_start_token_id}
+            decoder_inputs = {
+                "decoder_input_ids": torch.ones((len(inputs), 1), dtype=torch.long) * decoder_start_token_id
+            }
 
             with torch.no_grad():
                 transformers_outputs = transformers_model(**tokens, **decoder_inputs)
@@ -3761,7 +3763,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 tokens = tokenizer(inputs, return_tensors=input_type, padding=True)
 
                 if input_type == "np":
-                    decoder_inputs = {"decoder_input_ids": np.ones((len(inputs), 1), dtype=np.int64) * decoder_start_token_id}
+                    decoder_inputs = {
+                        "decoder_input_ids": np.ones((len(inputs), 1), dtype=np.int64) * decoder_start_token_id
+                    }
 
                 onnx_outputs = onnx_model(**tokens, **decoder_inputs)
 
@@ -4976,7 +4980,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
             feature_extractor=feature_extractor,
         )
         data = self._get_sample_image()
-        outputs = pipe(data,  min_new_tokens=10, max_new_tokens=10)
+        outputs = pipe(data, min_new_tokens=10, max_new_tokens=10)
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["generated_text"], str)
 
