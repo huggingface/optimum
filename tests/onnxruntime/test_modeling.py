@@ -4438,16 +4438,16 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
         )
 
         data = self._generate_random_audio_data()
-        outputs = pipe(data, min_new_tokens=10, max_new_tokens=10)
+        outputs = pipe(data)
 
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs["text"], str)
 
         if model_arch == "whisper":
-            outputs = pipe(data, return_timestamps=True, min_new_tokens=10, max_new_tokens=10)
+            outputs = pipe(data, return_timestamps=True)
             self.assertTrue("chunks" in outputs)
 
-            outputs = pipe(data, return_timestamps=False, min_new_tokens=10, max_new_tokens=10)
+            outputs = pipe(data, return_timestamps=False)
             self.assertTrue("chunks" not in outputs)
 
         gc.collect()
@@ -4980,7 +4980,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
             feature_extractor=feature_extractor,
         )
         data = self._get_sample_image()
-        outputs = pipe(data, min_new_tokens=10, max_new_tokens=10)
+        outputs = pipe(data, max_new_tokens=10)
         self.assertEqual(pipe.device, onnx_model.device)
         self.assertIsInstance(outputs[0]["generated_text"], str)
 
