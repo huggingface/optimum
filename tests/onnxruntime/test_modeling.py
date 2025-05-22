@@ -2404,6 +2404,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         text = "My Name is Philipp and i live"
+        set_seed(SEED)
         outputs = pipe(text, min_new_tokens=10, max_new_tokens=10)
 
         self.assertEqual(pipe.device, onnx_model.device)
@@ -2420,6 +2421,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                     model_kwargs=model_kwargs,
                     accelerator="ort",
                 )
+                set_seed(SEED)
                 outputs_local_model = pipe(text, min_new_tokens=10, max_new_tokens=10)
                 self.assertEqual(outputs[0]["generated_text"], outputs_local_model[0]["generated_text"])
 
